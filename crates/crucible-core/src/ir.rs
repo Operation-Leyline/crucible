@@ -41,9 +41,9 @@ impl Service {
         self.renames.get(id).map_or(id.name(), String::as_str)
     }
 
-    /// How a timestamp member is written where it travels: the member's own
-    /// format, else its target's, else the protocol default for the location.
-    pub fn timestamp_format(&self, member: &Member, location: Location) -> TimestampFormat {
+    /// How a timestamp member is written: the member's own format, else its
+    /// target's, else the protocol's: RFC 3339 `date-time` wherever it travels.
+    pub fn timestamp_format(&self, member: &Member) -> TimestampFormat {
         let target = match self.shapes.get(&member.target) {
             Some(Shape::Simple(simple)) => simple.timestamp_format,
             _ => None,
@@ -51,11 +51,7 @@ impl Service {
         member
             .timestamp_format
             .or(target)
-            .unwrap_or(match location {
-                Location::Body => TimestampFormat::EpochSeconds,
-                Location::Header => TimestampFormat::HttpDate,
-                Location::Label | Location::Query => TimestampFormat::DateTime,
-            })
+            .unwrap_or(TimestampFormat::DateTime)
     }
 }
 
@@ -252,14 +248,6 @@ pub struct Binding {
     pub member: String,
     /// The query parameter or header name.
     pub name: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Location {
-    Label,
-    Query,
-    Header,
-    Body,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

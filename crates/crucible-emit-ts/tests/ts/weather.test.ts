@@ -53,7 +53,7 @@ test("list query parameters repeat their key", async () => {
 });
 
 test("bodies carry body members only, with a digest and a filled idempotency token", async () => {
-  const { sent, fetch } = fake(json(201, { city: { id: "c-1", name: "Oslo", population: 7, updatedAt: 1_790_000_000 } }));
+  const { sent, fetch } = fake(json(201, { city: { id: "c-1", name: "Oslo", population: 7, updatedAt: "2026-09-21T14:13:20Z", createdAt: 1_790_000_000 } }));
   const input = { name: "Oslo", expectedRevision: 3, location: { coordinates: { latitude: 1, longitude: 2 } } };
   const out = await new WeatherClient({ fetch }).createCity(input);
 
@@ -70,6 +70,7 @@ test("bodies carry body members only, with a digest and a filled idempotency tok
 
   assert.ok(out.city.updatedAt instanceof Date);
   assert.equal(out.city.updatedAt!.toISOString(), "2026-09-21T14:13:20.000Z");
+  assert.equal(out.city.createdAt!.toISOString(), "2026-09-21T14:13:20.000Z", "@timestampFormat overrides");
   assert.equal(out.city.population, 7);
 });
 
@@ -87,17 +88,18 @@ test("a retried request reuses its token", async () => {
 });
 
 test("errors decode to their class by status when unambiguous", async () => {
-  const { fetch } = fake(json(409, { message: "taken" }));
+  const { fetch } = fake(json(409, { message: "taken" }, { "x-request-id": "req-9" }));
   const error = await new WeatherClient({ fetch }).createCity({ name: "Oslo" }).catch(e => e);
   assert.ok(error instanceof ConflictError);
   assert.ok(error instanceof ServiceError);
   assert.equal(error.message, "taken");
   assert.equal(error.$metadata.status, 409);
+  assert.equal(error.$metadata.requestId, "req-9");
   assert.equal(error.$fault, "client");
 });
 
-test("an error type header wins over the status", async () => {
-  const { fetch } = fake(json(400, { message: "slow down" }, { "x-amzn-errortype": "ThrottlingError:http://internal" }));
+test("the body's __type wins over the status", async () => {
+  const { fetch } = fake(json(400, { __type: "ThrottlingError", message: "slow down" }));
   const error = await new WeatherClient({ fetch, retry: false }).createCity({ name: "Oslo" }).catch(e => e);
   assert.ok(error instanceof ThrottlingError);
 });

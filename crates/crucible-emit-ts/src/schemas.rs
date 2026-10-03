@@ -4,9 +4,7 @@
 use std::collections::BTreeSet;
 
 use crucible_core::ShapeId;
-use crucible_core::ir::{
-    Binding, Location, Member, Operation, Service, Shape, SimpleKind, Structure,
-};
+use crucible_core::ir::{Binding, Member, Operation, Service, Shape, SimpleKind, Structure};
 
 use crate::errors::error_shapes;
 use crate::names::{literal, property};
@@ -128,7 +126,7 @@ pub(crate) fn body_schema(
 ) -> Option<String> {
     match service.shape(&member.target)? {
         Shape::Simple(simple) if simple.kind == SimpleKind::Timestamp => {
-            Some(timestamp(service, member, Location::Body))
+            Some(timestamp(service, member))
         }
         Shape::List(list) => {
             body_schema(service, converting, &list.member).map(|item| format!("list({item})"))
@@ -145,24 +143,24 @@ pub(crate) fn body_schema(
 
 /// The schema of a member bound to a label, query parameter or header. Text
 /// needs none; numbers, booleans and timestamps say how to read them back.
-fn binding_schema(service: &Service, member: &Member, location: Location) -> Option<String> {
+fn binding_schema(service: &Service, member: &Member) -> Option<String> {
     match service.shape(&member.target)? {
         Shape::Simple(simple) => match simple.kind {
-            SimpleKind::Timestamp => Some(timestamp(service, member, location)),
+            SimpleKind::Timestamp => Some(timestamp(service, member)),
             SimpleKind::Boolean => Some("boolean".to_owned()),
             SimpleKind::String | SimpleKind::Document => None,
             _ => Some("number".to_owned()),
         },
         Shape::List(list) => Some(format!(
             "list({})",
-            binding_schema(service, &list.member, location).unwrap_or_else(|| "string".to_owned())
+            binding_schema(service, &list.member).unwrap_or_else(|| "string".to_owned())
         )),
         _ => None,
     }
 }
 
-fn timestamp(service: &Service, member: &Member, location: Location) -> String {
-    let format = match service.timestamp_format(member, location) {
+fn timestamp(service: &Service, member: &Member) -> String {
+    let format = match service.timestamp_format(member) {
         crucible_core::ir::TimestampFormat::DateTime => "date-time",
         crucible_core::ir::TimestampFormat::HttpDate => "http-date",
         crucible_core::ir::TimestampFormat::EpochSeconds => "epoch-seconds",
@@ -171,18 +169,13 @@ fn timestamp(service: &Service, member: &Member, location: Location) -> String {
 }
 
 /// `[member, name, schema?]` tuples for bound members.
-pub(crate) fn bindings(
-    service: &Service,
-    structure: &Structure,
-    bindings: &[Binding],
-    location: Location,
-) -> String {
+pub(crate) fn bindings(service: &Service, structure: &Structure, bindings: &[Binding]) -> String {
     let tuples: Vec<String> = bindings
         .iter()
         .map(|binding| {
             let schema = structure
                 .member(&binding.member)
-                .and_then(|member| binding_schema(service, member, location))
+                .and_then(|member| binding_schema(service, member))
                 .map(|schema| format!(", {schema}"))
                 .unwrap_or_default();
             format!(
@@ -217,7 +210,7 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
             crucible_core::ir::Segment::Label(label) => {
                 let schema = input
                     .and_then(|input| input.member(label))
-                    .and_then(|member| binding_schema(service, member, Location::Label))
+                    .and_then(|member| binding_schema(service, member))
                     .map(|schema| format!(", schema: {schema}"))
                     .unwrap_or_default();
                 format!("{{ label: {}{schema} }}", literal(label))
@@ -241,13 +234,13 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         if !op.request.query.is_empty() {
             fields.push(format!(
                 "query: {}",
-                bindings(service, input, &op.request.query, Location::Query)
+                bindings(service, input, &op.request.query)
             ));
         }
         if !op.request.headers.is_empty() {
             fields.push(format!(
                 "headers: {}",
-                bindings(service, input, &op.request.headers, Location::Header)
+                bindings(service, input, &op.request.headers)
             ));
         }
         if !op.request.body.is_empty() {
@@ -266,7 +259,7 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         if !op.response.headers.is_empty() {
             parts.push(format!(
                 "headers: {}",
-                bindings(service, output, &op.response.headers, Location::Header)
+                bindings(service, output, &op.response.headers)
             ));
         }
         fields.push(format!("output: {{ {} }}", parts.join(", ")));
@@ -303,7 +296,7 @@ fn error_table(service: &Service, converting: &BTreeSet<ShapeId>) -> String {
         if !error.headers.is_empty() {
             fields.push(format!(
                 "headers: {}",
-                bindings(service, structure, &error.headers, Location::Header)
+                bindings(service, structure, &error.headers)
             ));
         }
         fields.push(format!(

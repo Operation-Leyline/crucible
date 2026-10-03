@@ -9,6 +9,11 @@ Used by [Leyline](https://github.com/Operation-Leyline/leyline) and Pigeon.
 
 ## Use
 
+Copy [smithy/crucible.smithy](smithy/crucible.smithy) into the model's source
+directory and put `@crucible.protocols#json` on the service. It is crucible's
+own HTTP+JSON protocol, specified in that file. A model may carry another
+protocol beside it for other tools; crucible generates only its own.
+
 Add a projection that flattens mixins to the project's `smithy-build.json`:
 
 ```json
@@ -52,8 +57,8 @@ The output directory belongs to crucible: it is emptied on every run, except
 
 ## Supported Smithy
 
-restJson1 with bearer auth. Labels, query parameters and headers carry simple
+`crucible.protocols#json` with bearer auth. Labels, query parameters and headers carry simple
 values, enums, or lists of those; everything else goes in a JSON body. Blobs,
 streaming, `@httpPayload`, `@httpResponseCode`, greedy labels, big numbers,
-`intEnum` and other protocols are refused with a diagnostic, never skipped.
+`intEnum` and `@jsonName` are refused with a diagnostic, never skipped.
 The subset grows when a model needs more. See [docs/design.md](docs/design.md).

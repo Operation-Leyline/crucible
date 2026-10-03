@@ -4,7 +4,7 @@ import { list, number, string, structure, timestamp } from "./runtime.js";
 import type { ErrorSpec, OperationSpec, Schema } from "./runtime.js";
 import * as e from "./errors.js";
 
-export const S_CitySummary: Schema = structure(() => ({ updatedAt: timestamp("epoch-seconds") }), { population: 0 });
+export const S_CitySummary: Schema = structure(() => ({ updatedAt: timestamp("date-time"), createdAt: timestamp("epoch-seconds") }), { population: 0 });
 
 export const S_CreateCityOutput: Schema = structure(() => ({ city: S_CitySummary }));
 

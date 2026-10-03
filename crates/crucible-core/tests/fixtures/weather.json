@@ -14,13 +14,13 @@
                 { "target": "example.weather#ThrottlingError" }
             ],
             "traits": {
-                "aws.protocols#restJson1": {},
+                "crucible.protocols#json": {},
                 "smithy.api#httpBearerAuth": {},
                 "smithy.api#title": "Weather",
                 "smithy.api#paginated": { "inputToken": "nextToken", "outputToken": "nextToken" }
             }
         },
-        "aws.protocols#restJson1": {
+        "crucible.protocols#json": {
             "type": "structure",
             "traits": { "smithy.api#trait": {}, "smithy.api#protocolDefinition": {} }
         },
@@ -166,7 +166,11 @@
                 "id": { "target": "example.weather#CityId", "traits": { "smithy.api#required": {} } },
                 "name": { "target": "example.weather#CityName", "traits": { "smithy.api#required": {} } },
                 "population": { "target": "smithy.api#Long", "traits": { "smithy.api#default": 0 } },
-                "updatedAt": { "target": "smithy.api#Timestamp" }
+                "updatedAt": { "target": "smithy.api#Timestamp" },
+                "createdAt": {
+                    "target": "smithy.api#Timestamp",
+                    "traits": { "smithy.api#timestampFormat": "epoch-seconds" }
+                }
             }
         },
         "example.weather#CitySummaries": {

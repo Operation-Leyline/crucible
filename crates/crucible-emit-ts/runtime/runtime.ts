@@ -272,7 +272,7 @@ export class Transport {
         if (value === undefined || value === null || value === "") {
           throw new TypeError(`${operation.name}: \`${segment.label}\` is required`);
         }
-        return encodeURIComponent(scalar(value, segment.schema, "date-time"));
+        return encodeURIComponent(scalar(value, segment.schema));
       })
       .join("/");
     const url = new URL(`${this.#endpoint}/${path}`);
@@ -282,7 +282,7 @@ export class Transport {
       if (value === undefined || value === null) continue;
       const items = Array.isArray(value) ? value : [value];
       const itemSchema = schema?.kind === "list" ? schema.member : schema;
-      for (const item of items) url.searchParams.append(param, scalar(item, itemSchema, "date-time"));
+      for (const item of items) url.searchParams.append(param, scalar(item, itemSchema));
     }
     const headers = new Headers({ ...this.#config.headers, ...options.headers });
     for (const [member, header, schema] of operation.headers ?? []) {
@@ -312,10 +312,10 @@ export class Transport {
     const body = ((await readJson(response).catch(() => undefined)) ?? {}) as Record<string, unknown>;
     const metadata: ResponseMetadata = {
       status: response.status,
-      requestId: response.headers.get("x-amzn-requestid") ?? stringField(body, "requestId"),
+      requestId: response.headers.get("x-request-id") ?? stringField(body, "requestId"),
       headers: response.headers,
     };
-    const name = errorName(response.headers, body, operation, this.#errors, response.status);
+    const name = errorName(body, operation, this.#errors, response.status);
     const spec = name === undefined ? undefined : this.#errors[name];
     if (spec === undefined) {
       const message = stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`;
@@ -328,23 +328,17 @@ export class Transport {
 }
 
 /**
- * Which modelled error a response is. restJson1 names it in the
- * `X-Amzn-Errortype` header or the body's `__type` or `code`. When none names
- * it, the status decides, but only if one error of the operation has it.
+ * Which modelled error a response is: the body's `__type` names it. When it
+ * does not, the status decides, but only if one error of the operation has it.
  */
 function errorName(
-  headers: Headers,
   body: Record<string, unknown>,
   operation: OperationSpec,
   errors: Readonly<Record<string, ErrorSpec>>,
   status: number,
 ): string | undefined {
-  const named = headers.get("x-amzn-errortype") ?? stringField(body, "__type") ?? stringField(body, "code");
-  if (named !== undefined) {
-    // `aws.protocols#Name:http://...` and `namespace#Name` both reduce to `Name`.
-    const name = named.split(":")[0].split("#").pop()!;
-    if (name in errors) return name;
-  }
+  const named = stringField(body, "__type");
+  if (named !== undefined && named in errors) return named;
   const byStatus = operation.errors.filter(name => errors[name]?.status === status);
   return byStatus.length === 1 ? byStatus[0] : undefined;
 }
@@ -363,20 +357,20 @@ function withIdempotencyToken(operation: OperationSpec, input: object): object {
   return { ...record, [member]: token };
 }
 
-function scalar(value: unknown, schema: Schema | undefined, defaultFormat: TimestampFormat): string {
+function scalar(value: unknown, schema: Schema | undefined): string {
   if (value instanceof Date) {
-    const format = schema?.kind === "timestamp" ? schema.format : defaultFormat;
+    const format = schema?.kind === "timestamp" ? schema.format : "date-time";
     return String(formatTimestamp(value, format));
   }
   return String(value);
 }
 
 function headerValue(value: unknown, schema: Schema | undefined): string {
-  if (!Array.isArray(value)) return scalar(value, schema, "http-date");
+  if (!Array.isArray(value)) return scalar(value, schema);
   const member = schema?.kind === "list" ? schema.member : undefined;
   return value
     .map(item => {
-      const text = scalar(item, member, "http-date");
+      const text = scalar(item, member);
       return /[",]/.test(text) ? `"${text.replace(/["\\]/g, "\\$&")}"` : text;
     })
     .join(", ");

@@ -1,4 +1,4 @@
-use crucible_core::ir::{Binding, Fault, Location, Paginated, Shape, SimpleKind, TimestampFormat};
+use crucible_core::ir::{Binding, Fault, Paginated, Shape, SimpleKind, TimestampFormat};
 use crucible_core::{Error, Model, ShapeId};
 use serde_json::{Value, json};
 
@@ -127,7 +127,7 @@ fn nullability_follows_smithy_two() {
     let Some(Shape::Structure(summary)) = service.shape(&id("example.weather#CitySummary")) else {
         panic!();
     };
-    let [id_member, _, population, updated] = summary.members.as_slice() else {
+    let [id_member, _, population, updated, _] = summary.members.as_slice() else {
         panic!()
     };
     assert!(!id_member.optional_on_server() && !id_member.optional_on_client());
@@ -149,29 +149,14 @@ fn nullability_follows_smithy_two() {
 }
 
 #[test]
-fn timestamps_take_member_target_then_location_format() {
+fn timestamps_take_member_then_target_then_date_time() {
     let service = weather();
     let Some(Shape::Structure(summary)) = service.shape(&id("example.weather#CitySummary")) else {
         panic!();
     };
-    let updated = summary.member("updatedAt").unwrap();
-    assert_eq!(
-        service.timestamp_format(updated, Location::Body),
-        TimestampFormat::EpochSeconds
-    );
-    assert_eq!(
-        service.timestamp_format(updated, Location::Header),
-        TimestampFormat::HttpDate
-    );
-
-    let Some(Shape::Structure(input)) = service.shape(&id("example.weather#GetCityInput")) else {
-        panic!();
-    };
-    let at = input.member("at").unwrap();
-    assert_eq!(
-        service.timestamp_format(at, Location::Body),
-        TimestampFormat::DateTime
-    );
+    let format = |name: &str| service.timestamp_format(summary.member(name).unwrap());
+    assert_eq!(format("updatedAt"), TimestampFormat::DateTime);
+    assert_eq!(format("createdAt"), TimestampFormat::EpochSeconds);
 }
 
 #[test]
@@ -256,22 +241,33 @@ fn refuses_greedy_labels_and_structured_headers() {
 }
 
 #[test]
-fn refuses_other_protocols_and_auth() {
+fn requires_its_own_protocol_and_bearer_auth() {
     let messages = refused(|model| {
         let traits = &mut shape(model, "Weather")["traits"];
         traits["smithy.api#httpBasicAuth"] = json!({});
+        traits["aws.protocols#restJson1"] = json!({});
         traits
             .as_object_mut()
             .unwrap()
-            .remove("aws.protocols#restJson1");
+            .remove("crucible.protocols#json");
     });
+    assert_eq!(messages.len(), 2, "{messages:?}");
     assert!(
-        messages.iter().any(|m| m.contains("must use")),
+        messages[0].contains("crucible.protocols#json"),
         "{messages:?}"
     );
+    assert!(messages[1].contains("httpBasicAuth"), "{messages:?}");
+}
+
+#[test]
+fn tolerates_another_protocol_beside_its_own() {
+    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+    model["shapes"]["example.weather#Weather"]["traits"]["aws.protocols#restJson1"] = json!({});
     assert!(
-        messages.iter().any(|m| m.contains("httpBasicAuth")),
-        "{messages:?}"
+        Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .is_ok()
     );
 }
 

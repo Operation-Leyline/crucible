@@ -13,6 +13,7 @@ export interface CitySummary {
   name: CityName;
   population: number;
   updatedAt?: Date;
+  createdAt?: Date;
 }
 
 export interface Coordinates {

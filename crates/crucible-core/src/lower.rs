@@ -1,7 +1,7 @@
 //! Lowering one service from the JSON AST to the IR.
 //!
-//! Crucible generates from a deliberate subset of Smithy: restJson1, bearer
-//! auth, JSON bodies. Anything outside it is a diagnostic, never a silent
+//! Crucible generates from a deliberate subset of Smithy: its own JSON
+//! protocol (`smithy/crucible.smithy`), bearer auth, JSON bodies. Anything outside it is a diagnostic, never a silent
 //! skip — a generator that drops what it does not understand produces code
 //! that quietly disagrees with the model.
 
@@ -18,7 +18,7 @@ use crate::ir::{
 };
 use crate::shape_id::ShapeId;
 
-const REST_JSON: (&str, &str) = ("aws.protocols", "restJson1");
+const PROTOCOL: (&str, &str) = ("crucible.protocols", "json");
 const BEARER: (&str, &str) = ("smithy.api", "httpBearerAuth");
 const PRELUDE_AUTH: &[&str] = &[
     "httpBasicAuth",
@@ -41,6 +41,8 @@ const UNSUPPORTED_TRAITS: &[&str] = &[
     "hostLabel",
     "eventHeader",
     "eventPayload",
+    // A JSON member name other than the member's own; not generated yet.
+    "jsonName",
 ];
 
 pub(crate) fn lower(
@@ -96,21 +98,17 @@ impl<'m> Lowerer<'m> {
         }
     }
 
+    /// The service must carry crucible's protocol. Other protocol traits may
+    /// sit beside it, for other tools during a migration; crucible generates
+    /// none of them.
     fn check_protocol(&mut self, id: &ShapeId, shape: &ast::Shape) {
-        let protocols: Vec<&ShapeId> = shape
-            .traits
-            .keys()
-            .filter(|t| self.is_definition(t, "protocolDefinition"))
-            .collect();
-        let rest_json = ShapeId::new(REST_JSON.0, REST_JSON.1);
-        if !shape.traits.contains_key(&rest_json) {
-            self.diagnostics
-                .push(id, format!("the service must use the {rest_json} protocol"));
-        }
-        for protocol in protocols.into_iter().filter(|p| **p != rest_json) {
+        let json = ShapeId::new(PROTOCOL.0, PROTOCOL.1);
+        if !shape.traits.contains_key(&json) {
             self.diagnostics.push(
                 id,
-                format!("protocol {protocol} is not supported; only {rest_json} is"),
+                format!(
+                    "the service must use the @{json} protocol (defined in crucible's smithy/crucible.smithy)"
+                ),
             );
         }
     }

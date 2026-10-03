@@ -30,6 +30,24 @@ Kotlin/Java decorators against internal APIs. That just moves the patching into
 someone else's framework. A generator for one protocol and three targets is
 small enough to own.
 
+## Protocol
+
+crucible generates both ends, so it defines its own protocol,
+`crucible.protocols#json` ([smithy/crucible.smithy](../smithy/crucible.smithy)),
+instead of AWS's restJson1. The two share HTTP bindings, JSON bodies and
+status codes. They differ where restJson1 is AWS-shaped:
+
+- Errors are named only by the body's `"__type"` (the shape name), not an
+  `X-Amzn-Errortype` header. A browser cannot read a custom response header
+  without CORS changes, but it can always read the body.
+- Timestamps default to RFC 3339 `date-time` everywhere, not epoch seconds
+  in bodies and HTTP dates in headers.
+- The request id travels in `x-request-id`.
+
+Smithy's HTTP binding validators are part of core Smithy and still run. What
+the switch gives up is Smithy's OpenAPI converter, which only knows AWS
+protocols. crucible can emit OpenAPI from its IR when one is needed.
+
 ## Pipeline
 
 ```
@@ -91,7 +109,7 @@ consumer's tests, then replaces it.
 
 ## Wire rules to get right
 
-restJson1 details owned here, with round-trip tests from the first emitter:
+Protocol details owned here, with round-trip tests from the first emitter:
 timestamp formats by location, list encoding in query strings (repeated
 keys) and headers (comma-separated, quoted when needed), percent-encoding of
 labels, `null` versus absent, document values, error type identification,
