@@ -1,0 +1,19 @@
+[package]
+name = "crucible-cli"
+description = "The crucible command: check and generate from a Smithy model"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "crucible"
+path = "src/main.rs"
+
+[dependencies]
+crucible-core.workspace = true
+clap.workspace = true
+
+[lints]
+workspace = true
