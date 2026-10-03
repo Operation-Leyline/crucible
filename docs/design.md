@@ -70,11 +70,17 @@ project's own traits reach emitters intact.
 Each phase runs beside the openapi-generator output until it matches the
 consumer's tests, then replaces it.
 
-1. **TypeScript client.** Fetch-based. Idempotency tokens filled from the
-   trait, paginators, typed errors decided by the error shape (the
-   `X-Amzn-Errortype` header or `__type`), retries from `@readonly`/
-   `@idempotent`/`@retryable`, and a middleware hook for the request signing
-   digest. The oracle is Leyline's integ suite.
+1. **TypeScript client.** Built (`crucible generate ts`). Fetch-based, with
+   a runtime copied into each package, so a client and its runtime can never
+   be out of step and there is nothing else to publish. Idempotency tokens
+   filled from the trait, paginators, an error class per error shape (named
+   by `X-Amzn-Errortype` or the body's `__type`/`code`, else by status when
+   one of the operation's errors has it), retries from `@readonly`/
+   `@idempotent`/token/`@retryable`, and middleware (the body digest is
+   built in, opt-in per package). Inputs type `@required` members as required,
+   so a missing one fails at compile time. Smithy's client nullability would
+   make every `@input` member optional. Leyline's integ suite is the oracle
+   once it moves to the new client.
 2. **Rust client.** reqwest-based, with the same features. The oracle is
    `sdk/rust/tests/wire.rs`.
 3. **Rust server.** axum. One handler trait per resource, typed input

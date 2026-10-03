@@ -24,7 +24,31 @@ cargo run -p crucible-cli -- check smithy/build/smithyprojections/smithy/crucibl
 ```
 
 `check` lowers the service and lists every construct crucible cannot
-generate from, all of them in one run. `generate` arrives with the first emitter.
+generate from, all of them in one run.
+
+Generate a TypeScript client package (no dependencies; ESM; `fetch`-based):
+
+```bash
+cargo run -p crucible-cli -- generate ts model.json --out generated/client-ts \
+  --package-name @acme/client --endpoint https://api.acme.dev --middleware content-sha256
+```
+
+```ts
+const client = new AcmeClient({ token: () => session.token() });
+const { graph } = await client.createGraph({ organizationId, name: "movies" });
+for await (const page of client.paginateListGraphs({ organizationId })) { /* … */ }
+try { await client.deleteGraph({ organizationId, graphId }); }
+catch (error) { if (error instanceof ConflictException) console.log(error.reason); }
+```
+
+The client fills idempotency tokens (and writes them back into the input, so
+resending the same object replays rather than repeats), retries throttling
+always and other transient failures only when the operation is safe to repeat,
+decodes each modelled error into its own class, converts timestamps, applies
+`@default`s, and runs caller middleware on every attempt. `--package-json`
+merges a JSON file over the generated `package.json` for publishing settings.
+The output directory belongs to crucible: it is emptied on every run, except
+`node_modules` and `dist`.
 
 ## Supported Smithy
 

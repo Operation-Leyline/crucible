@@ -21,7 +21,7 @@ impl fmt::Display for Diagnostic {
 pub struct Diagnostics(Vec<Diagnostic>);
 
 impl Diagnostics {
-    pub(crate) fn push(&mut self, shape: &ShapeId, message: impl Into<String>) {
+    pub fn push(&mut self, shape: &ShapeId, message: impl Into<String>) {
         self.0.push(Diagnostic {
             shape: shape.clone(),
             message: message.into(),

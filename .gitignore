@@ -1,2 +1,4 @@
 /target
 /.idea
+crates/crucible-emit-ts/tests/ts/generated/
+crates/crucible-emit-ts/tests/ts/dist/

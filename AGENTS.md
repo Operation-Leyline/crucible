@@ -11,6 +11,8 @@ cargo fmt --all
 cargo clippy --all-targets -- -D warnings
 cargo test
 cargo run -p crucible-cli -- check <model.json>
+bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=... to reuse a local tsc)
+CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended output change
 ```
 
 On a shared machine, use your own `CARGO_TARGET_DIR` and a low
@@ -21,10 +23,10 @@ On a shared machine, use your own `CARGO_TARGET_DIR` and a low
 | Crate | Owns |
 |---|---|
 | `crucible-core` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
-| `crucible-cli` | the `crucible` binary: argument parsing and reporting only |
+| `crucible-emit-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
+| `crucible-cli` | the `crucible` binary: argument parsing, reporting, and writing output directories it owns (`.crucible` marker) |
 
-Emitters (`emit-rust`, `emit-ts`) and the runtimes generated code depends on
-(`runtime/rust`, `runtime/ts`) arrive with phase 1 and later. Keep these rules:
+The Rust emitters arrive with phases 2 and 3. Keep these rules:
 
 - Smithy semantics are settled once, in core: nullability, effective
   constraints, HTTP bindings, errors, pagination, timestamp formats. An
@@ -41,6 +43,11 @@ Emitters (`emit-rust`, `emit-ts`) and the runtimes generated code depends on
 
 - Edition 2024, `unsafe_code` forbidden, clippy clean under `-D warnings`.
 - Comments explain why. Prefer explicit imports over globs.
+- Generated output is checked in under `crates/*/tests/golden/`. An output
+  change shows up as a golden diff in review: read it before blessing.
+- The TypeScript runtime has no dependencies and targets what browsers and
+  Node 22 both provide (`fetch`, `Request`, `crypto.subtle`, `structuredClone`).
+  A behaviour change gets a case in `crates/crucible-emit-ts/tests/ts/`.
 - Every new Smithy construct the subset accepts gets a fixture case in
   `crates/crucible-core/tests/fixtures/` and a test. So does every
   construct it refuses.

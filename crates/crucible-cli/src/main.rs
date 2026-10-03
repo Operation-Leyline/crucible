@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+mod output;
+
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use crucible_core::ir::{Service, Shape, Traits};
 use crucible_core::{Model, ShapeId};
 
@@ -14,37 +16,134 @@ struct Cli {
     command: Command,
 }
 
+#[derive(Args)]
+struct Source {
+    /// A Smithy JSON AST, built with the flattenAndRemoveMixins transform.
+    model: PathBuf,
+    /// The service to lower, when the model defines several.
+    #[arg(long)]
+    service: Option<ShapeId>,
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Load a model and report every construct crucible cannot generate from.
     Check {
-        /// A Smithy JSON AST, built with the flattenAndRemoveMixins transform.
-        model: PathBuf,
-        /// The service to lower, when the model defines several.
-        #[arg(long)]
-        service: Option<ShapeId>,
+        #[command(flatten)]
+        source: Source,
+    },
+    /// Generate code for one target.
+    Generate {
+        #[command(subcommand)]
+        target: Target,
     },
 }
 
-fn main() -> ExitCode {
-    match Cli::parse().command {
-        Command::Check { model, service } => check(&model, service.as_ref()),
-    }
+#[derive(Subcommand)]
+enum Target {
+    /// A fetch-based TypeScript client package.
+    Ts {
+        #[command(flatten)]
+        source: Source,
+        /// The directory to write the package to. crucible owns it: it is
+        /// emptied and rewritten on every run.
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        package_name: String,
+        #[arg(long, default_value = "0.0.0-dev")]
+        package_version: String,
+        /// The client class name; defaults to the service name plus `Client`.
+        #[arg(long)]
+        client_name: Option<String>,
+        /// The endpoint a client uses when its config names none.
+        #[arg(long)]
+        endpoint: Option<String>,
+        /// Middleware every client runs by default.
+        #[arg(long, value_enum)]
+        middleware: Vec<MiddlewareArg>,
+        /// A JSON file merged over the generated package.json.
+        #[arg(long)]
+        package_json: Option<PathBuf>,
+    },
 }
 
-fn check(path: &PathBuf, service: Option<&ShapeId>) -> ExitCode {
-    let lowered = std::fs::read_to_string(path)
-        .map_err(|error| format!("cannot read {}: {error}", path.display()))
-        .and_then(|json| Model::from_json(&json).map_err(|error| error.to_string()))
-        .and_then(|model| model.lower(service).map_err(|error| error.to_string()));
-    match lowered {
-        Ok(service) => {
-            print!("{}", summary(&service));
-            ExitCode::SUCCESS
-        }
+#[derive(Clone, Copy, ValueEnum)]
+enum MiddlewareArg {
+    /// `x-amz-content-sha256` on every request with a body.
+    ContentSha256,
+}
+
+fn main() -> ExitCode {
+    let result = match Cli::parse().command {
+        Command::Check { source } => lower(&source).map(|service| print!("{}", summary(&service))),
+        Command::Generate { target } => generate(target),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("{message}");
             ExitCode::FAILURE
+        }
+    }
+}
+
+fn lower(source: &Source) -> Result<Service, String> {
+    let json = std::fs::read_to_string(&source.model)
+        .map_err(|error| format!("cannot read {}: {error}", source.model.display()))?;
+    let model = Model::from_json(&json).map_err(|error| error.to_string())?;
+    model
+        .lower(source.service.as_ref())
+        .map_err(|error| error.to_string())
+}
+
+fn generate(target: Target) -> Result<(), String> {
+    match target {
+        Target::Ts {
+            source,
+            out,
+            package_name,
+            package_version,
+            client_name,
+            endpoint,
+            middleware,
+            package_json,
+        } => {
+            let service = lower(&source)?;
+            let package_json = package_json
+                .map(|path| {
+                    let text = std::fs::read_to_string(&path)
+                        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+                    serde_json::from_str(&text)
+                        .map_err(|error| format!("{} is not JSON: {error}", path.display()))
+                })
+                .transpose()?;
+            let options = crucible_emit_ts::Options {
+                package_name,
+                package_version,
+                client_name,
+                endpoint,
+                middleware: middleware
+                    .into_iter()
+                    .map(|m| match m {
+                        MiddlewareArg::ContentSha256 => crucible_emit_ts::Middleware::ContentSha256,
+                    })
+                    .collect(),
+                package_json,
+            };
+            let files = crucible_emit_ts::emit(&service, &options).map_err(|diagnostics| {
+                format!(
+                    "cannot generate the TypeScript client:
+{diagnostics}"
+                )
+            })?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
         }
     }
 }

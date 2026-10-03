@@ -1,0 +1,5 @@
+{
+  "name": "crucible-emit-ts-tests",
+  "private": true,
+  "type": "module"
+}
