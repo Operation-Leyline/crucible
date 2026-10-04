@@ -8,7 +8,7 @@ support conditional on finding an individual consumer.
 |---|---|---|
 | Baseline | TypeScript/JavaScript, Rust | Shared retry conformance runs in CI |
 | 1 | Python, Go, Java, C# | Implemented; native package and HTTP gates run in CI |
-| 2 | Kotlin, Swift, Dart, PHP, Ruby | Planned |
+| 2 | Kotlin, Swift, Dart, PHP, Ruby | Kotlin implemented; remaining targets planned |
 | Extension | C++, C, R | API and packaging scope still to be defined |
 
 ## Architecture
@@ -85,6 +85,11 @@ HTTP tests. See [Java clients](java-client.md) for its API and lifecycle.
 `python tools/test-csharp.py` builds a NuGet package, installs it in a fresh
 consumer, and runs shared cases and weather-service HTTP tests. See
 [C# clients](csharp-client.md) for its API, lifecycle, and precision limits.
+
+`python tools/test-kotlin.py` installs a Maven jar and tests a separate coroutine
+consumer. `python tools/test-kotlin-android.py` builds and runs an Android
+consumer on an emulator. See [Kotlin clients](kotlin-client.md) for model APIs,
+transport lifecycle, and platform limits.
 
 ## Remaining acceptance work
 

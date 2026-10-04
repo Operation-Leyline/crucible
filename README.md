@@ -11,7 +11,8 @@ API into it.
   reads the model package the package depends on and generates a trait per
   operation, or a typed client.
 - **`crucible-client`**: the runtime generated Rust clients use.
-- **`crucible-cli`**: `check` a model, and generate a TypeScript client.
+- **`crucible-cli`**: `check` a model and generate clients or service scaffolding.
+  See [client coverage](docs/clients.md) for languages and qualification gates.
 
 Straight from Smithy, with no OpenAPI step, so what OpenAPI drops survives:
 unions, idempotency tokens, pagination, every error shape, and a project's

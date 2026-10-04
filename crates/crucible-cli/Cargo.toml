@@ -19,6 +19,7 @@ crucible-codegen-python.workspace = true
 crucible-codegen-go.workspace = true
 crucible-codegen-java.workspace = true
 crucible-codegen-csharp.workspace = true
+crucible-codegen-kotlin.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 clap.workspace = true
 
