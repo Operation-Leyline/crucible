@@ -70,6 +70,23 @@ async fn an_unknown_route_is_the_standard_validation_error() {
 }
 
 #[tokio::test]
+async fn only_a_canonical_path_names_an_operation() {
+    let service = service();
+    for uri in [
+        "//cities",
+        "/cities/",
+        "/cities//c-00000001",
+        "/cities/c-00000001/",
+    ] {
+        let (status, body) = get(&service, uri).await;
+        assert_eq!(status, 400, "{uri}: {body}");
+        assert_eq!(body["reason"], "unknownOperation", "{uri}: {body}");
+    }
+    let (status, _) = get(&service, "/cities").await;
+    assert_eq!(status, 200);
+}
+
+#[tokio::test]
 async fn a_rejection_says_whether_the_request_was_malformed_or_broke_a_constraint() {
     let (_, broken) = get(&service(), "/cities/nope").await;
     assert_eq!(broken["reason"], "fieldValidationFailed", "{broken}");

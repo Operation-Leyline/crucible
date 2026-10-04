@@ -23,12 +23,20 @@ pub struct JsonProtocol;
 
 impl Protocol for JsonProtocol {
     fn route(&self, request: &Parts, operations: &Operations) -> Option<Route> {
-        let path: Vec<&str> = request
-            .uri
-            .path()
-            .split('/')
-            .filter(|s| !s.is_empty())
-            .collect();
+        // A path names an operation only in its canonical form: one leading
+        // slash, no empty segment anywhere else (`a//b`, a trailing `/`).
+        // Dropping empty segments here would let `/orgs/o_1//keys` run the
+        // operation while anything else that reads the path (a service's
+        // own audit or routing rules) saw a different one.
+        let rest = request.uri.path().strip_prefix('/')?;
+        let path: Vec<&str> = if rest.is_empty() {
+            Vec::new()
+        } else {
+            rest.split('/').collect()
+        };
+        if path.iter().any(|segment| segment.is_empty()) {
+            return None;
+        }
         let mut best: Option<((usize, usize, usize), Route)> = None;
         for &op in operations.routes(path.len()) {
             if op.method != request.method.as_str() {
