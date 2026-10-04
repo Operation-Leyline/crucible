@@ -164,13 +164,24 @@ pub(crate) fn unknown(service: &Service, validation: Option<&ShapeId>) -> Option
     ))
 }
 
-/// `model::Enum::Variant` for the value of `member`'s enum target that goes
-/// on the wire as `wire`, if it has one.
-fn enum_value(service: &Service, member: &Member, wire: &str) -> Option<String> {
+/// `model::Enum::Variant` for the value of `member`'s enum target that is
+/// the standard value `standard`, if it has one. Spelling is the model's:
+/// `cannotParse`, `cannot_parse` and `CANNOT_PARSE` all match, so a service
+/// keeps its own enum casing.
+fn enum_value(service: &Service, member: &Member, standard: &str) -> Option<String> {
     let Some(Shape::Enum(values)) = service.shape(&member.target) else {
         return None;
     };
-    let value = values.values.iter().find(|value| value.value == wire)?;
+    let folded = |text: &str| -> String {
+        text.chars()
+            .filter(|c| *c != '_')
+            .map(|c| c.to_ascii_lowercase())
+            .collect()
+    };
+    let value = values
+        .values
+        .iter()
+        .find(|value| folded(&value.value) == folded(standard))?;
     Some(format!(
         "model::{}::{}",
         service.name_of(&member.target),

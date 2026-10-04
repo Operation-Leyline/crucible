@@ -233,7 +233,8 @@ that does not read as its input, `fieldValidationFailed` for a broken
 constraint). When that enum also has `unknownOperation`, a request no
 operation serves gets the validation error with that reason (400), as the
 standard asks; without it, the protocol answers its own `UnknownOperation`
-(404). Otherwise the service gives the builder
+(404). The values match in any casing (`cannotParse`, `cannot_parse`), so a
+model keeps its own enum convention. Otherwise the service gives the builder
 `on_rejection(|rejection| ..)`, and `Violation::kind` tells a malformed
 request from a broken constraint.
 
