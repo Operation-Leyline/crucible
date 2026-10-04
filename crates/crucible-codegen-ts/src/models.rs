@@ -18,7 +18,7 @@ pub(crate) fn emit(service: &Service) -> String {
                 let ts = match simple.kind {
                     SimpleKind::Boolean => "boolean",
                     SimpleKind::String => "string",
-                    SimpleKind::Timestamp => "Date",
+                    SimpleKind::Timestamp => "globalThis.Date",
                     SimpleKind::Document => "Document",
                     _ => "number",
                 };

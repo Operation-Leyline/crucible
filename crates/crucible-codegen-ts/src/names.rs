@@ -19,7 +19,7 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
                 | SimpleKind::Long
                 | SimpleKind::Float
                 | SimpleKind::Double => "number",
-                SimpleKind::Timestamp => "Date",
+                SimpleKind::Timestamp => "globalThis.Date",
                 SimpleKind::Document => "Document",
             }),
             _ => None,
