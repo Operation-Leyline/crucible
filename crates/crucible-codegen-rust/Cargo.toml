@@ -12,7 +12,7 @@ crucible-smithy.workspace = true
 # Patterns are compiled at generation time, so one the generated server's
 # regex crate cannot run is a diagnostic rather than a startup panic.
 regex = "1"
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
 
 [lints]
 workspace = true
