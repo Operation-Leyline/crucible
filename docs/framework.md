@@ -72,6 +72,36 @@ Types are generated with serde and `Validate`. Errors implement
 protocol-specific: bindings (label, query, header, body) are data in
 `OperationInfo`, read by whichever protocol serves the request.
 
+## Laying out a service
+
+One type per file, named for what it holds, Java-package style:
+
+```text
+src/
+  contract              the generated contract: pub mod contract { include_service!() }
+  operations/
+    mod.rs              the service type, and what operations share
+    service/            operations the service itself binds
+      get_me.rs
+    graph/              one folder per resource, its Smithy name in snake_case
+      mod.rs            what the graph operations share
+      create_graph.rs   impl CreateGraphOperation for Service
+  handlers/
+    mod.rs              pub use authenticate::Authenticate; ...
+    authenticate.rs     one handler per file, used as handlers::Authenticate
+  interceptors/         the same, for a client's interceptors
+```
+
+Each operation file holds one `impl XOperation for Service`; there is no
+dispatch module, and `contract::operations(..)` still refuses to build while
+any operation lacks one. `crucible scaffold <model.json>` writes a stub for
+every operation that has no file yet, in its resource's folder, and adds the
+`mod` lines that reach it; it never overwrites a file. (`--out` is the
+operations folder, `src/operations` by default; `--service-type` the
+implementing type, `crate::operations::Service` by default.) crucible's own
+built-ins follow the same rule: `handlers::ServiceLog` is
+`handlers/service_log.rs`, `JsonProtocol` is `protocol/json_protocol.rs`.
+
 ## The request context
 
 `self.context()` inside an implementation, or `crucible::Context::current()`
@@ -127,7 +157,7 @@ pub trait AsyncHandler: Send + Sync + 'static {
     async fn after(&self, job: &mut Job) {}
 }
 
-Crucible::builder(api::operations(Arc::new(service)))
+Crucible::builder(contract::operations(Arc::new(service)))
     .handler(ServiceLog::errors_only())
     .handler(ExceptionTranslator::new().translate(|e: &DdbError| ...))
     .handler(MyAuthentication)          // sets a Principal attribute

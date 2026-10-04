@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod output;
+mod scaffold;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use crucible_smithy::ir::{Service, Shape, Traits};
@@ -36,6 +37,22 @@ enum Command {
     Generate {
         #[command(subcommand)]
         target: Target,
+    },
+    /// Write a stub for every operation that has no file yet: one file per
+    /// operation, in a folder per resource (`service/` for the operations the
+    /// service binds), under `--out`. Existing files are never overwritten.
+    Scaffold {
+        #[command(flatten)]
+        source: Source,
+        /// The operations folder.
+        #[arg(long, default_value = "src/operations")]
+        out: PathBuf,
+        /// The module the generated contract is included in.
+        #[arg(long, default_value = "crate::contract")]
+        contract: String,
+        /// The type that implements every operation.
+        #[arg(long, default_value = "crate::operations::Service")]
+        service_type: String,
     },
 }
 
@@ -102,6 +119,18 @@ fn main() -> ExitCode {
     let result = match Cli::parse().command {
         Command::Check { source } => lower(&source).map(|service| print!("{}", summary(&service))),
         Command::Generate { target } => generate(target),
+        Command::Scaffold {
+            source,
+            out,
+            contract,
+            service_type,
+        } => lower(&source).and_then(|service| {
+            let options = crucible_codegen_rust::ScaffoldOptions {
+                contract,
+                service_type,
+            };
+            scaffold::run(&service, &out, &options)
+        }),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

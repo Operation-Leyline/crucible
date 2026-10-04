@@ -8,7 +8,7 @@ use axum::http::{Request, Response};
 use crucible::handlers::{LogPolicy, LogSink, ServiceLog, before_fn};
 use crucible::{Crucible, Handler, Hook, InvokeProtocol, Job, JsonProtocol, Resolution};
 use serde_json::{Value, json};
-use weather_service::api;
+use weather_service::contract;
 use weather_service::{MemoryCities, Weather};
 
 /// Answers requests carrying `x-relay` with a canned response, as a handler
@@ -51,12 +51,12 @@ fn relaying() -> (Crucible, Arc<Mutex<Vec<String>>>, Records) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let records = Records::default();
     let inner = seen.clone();
-    let service = Crucible::builder(api::operations(Arc::new(Weather::new(Arc::new(
+    let service = Crucible::builder(contract::operations(Arc::new(Weather::new(Arc::new(
         MemoryCities::default(),
     )))))
     .handler(
         ServiceLog::errors_only()
-            .operation::<api::CreateCity>(LogPolicy::everything())
+            .operation::<contract::CreateCity>(LogPolicy::everything())
             .sink(records.clone()),
     )
     .handler(Relay(seen.clone()))

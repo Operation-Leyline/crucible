@@ -20,7 +20,10 @@ mod info;
 mod models;
 mod names;
 mod operations;
+mod scaffold;
 mod types;
+
+pub use scaffold::{ScaffoldOptions, Stub, folder, scaffold};
 
 use crucible_smithy::ir::{Service, Shape};
 use crucible_smithy::{Diagnostics, ShapeId};
