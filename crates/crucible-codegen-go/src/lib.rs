@@ -105,6 +105,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "import",
             "return",
             "var",
+            "init",
+            "main",
         ]
         .contains(&options.package_name.as_str())
     {

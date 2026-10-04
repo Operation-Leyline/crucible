@@ -319,6 +319,38 @@ func TestCleartextCredentialsAndRetryAfter(t *testing.T) {
 		t.Fatal(delay)
 	}
 }
+
+func TestDigestPreservesAnEmptyRequestBody(t *testing.T) {
+	client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
+		if len(r.TransferEncoding) != 0 || r.ContentLength != 0 {
+			t.Errorf("empty body changed framing: %v %d", r.TransferEncoding, r.ContentLength)
+		}
+		w.WriteHeader(200)
+	})
+	op := client.schema.Operations["Ping"]
+	op.Method = "POST"
+	client.schema = &schemaDescription{Shapes: client.schema.Shapes, Operations: map[string]operationDescription{"Ping": op}}
+	if _, err := client.Ping(context.Background(), Unit{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRetryAfterBeyondDeadlinePreservesError(t *testing.T) {
+	calls := 0
+	client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Retry-After", "120")
+		w.WriteHeader(429)
+		io.WriteString(w, `{"__type":"ThrottlingError","message":"slow down"}`)
+	})
+	client.config.Timeout = time.Second
+	start := time.Now()
+	_, err := client.Ping(context.Background(), Unit{})
+	var throttle *ThrottlingError
+	if !errors.As(err, &throttle) || calls != 1 || time.Since(start) > 500*time.Millisecond {
+		t.Fatalf("%v after %s", err, time.Since(start))
+	}
+}
 func TestHTTPWeatherService(t *testing.T) {
 	endpoint := os.Getenv("WEATHER_URL")
 	if endpoint == "" {

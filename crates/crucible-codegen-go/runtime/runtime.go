@@ -667,9 +667,14 @@ func (c *Client) callValues(ctx context.Context, name string, values map[string]
 			if err != nil {
 				return nil, err
 			}
-			request.Body = io.NopCloser(bytes.NewReader(data))
 			request.ContentLength = int64(len(data))
-			request.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(data)), nil }
+			if len(data) == 0 {
+				request.Body = http.NoBody
+				request.GetBody = func() (io.ReadCloser, error) { return http.NoBody, nil }
+			} else {
+				request.Body = io.NopCloser(bytes.NewReader(data))
+				request.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(data)), nil }
+			}
 			if len(data) > 0 {
 				sum := sha256.Sum256(data)
 				request.Header.Set("x-amz-content-sha256", hex.EncodeToString(sum[:]))
@@ -686,7 +691,9 @@ func (c *Client) callValues(ctx context.Context, name string, values map[string]
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		var lastErr error
 		if transportErr != nil {
+			lastErr = &NetworkError{Cause: transportErr}
 			if !op.Safe || attempt == c.config.MaxAttempts {
 				return nil, &NetworkError{Cause: transportErr}
 			}
@@ -695,12 +702,16 @@ func (c *Client) callValues(ctx context.Context, name string, values map[string]
 			if err == nil {
 				return result, nil
 			}
+			lastErr = err
 			var serviceErr *ServiceError
 			if !errors.As(err, &serviceErr) || !canRetry(op.Safe, serviceErr) || attempt == c.config.MaxAttempts {
 				return nil, err
 			}
 		}
 		delay := retryDelay(attempt, response, c.config.BaseDelay, c.config.MaxDelay)
+		if deadline, ok := ctx.Deadline(); ok && delay >= time.Until(deadline) {
+			return nil, lastErr
+		}
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():

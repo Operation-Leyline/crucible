@@ -60,6 +60,8 @@ Retries follow the [shared client policy](clients.md). `MaxAttempts` includes
 the first attempt (default 3); `Timeout` is an overall context deadline
 (default 30 seconds). `BaseDelay` and `MaxDelay` default to 100 milliseconds
 and 20 seconds; nonzero values override them. Retry-After takes precedence.
+If the next retry delay cannot fit the remaining deadline, the client returns
+the last failure immediately, preserving the modeled error for `errors.As`.
 
 `ListCitiesPages(input)` creates a paginator without changing the caller's
 input. Call `NextPage(ctx)` while `HasMorePages()` is true. Repeated continuation
