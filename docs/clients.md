@@ -19,7 +19,7 @@ in a small native runtime. New targets initially bundle their runtime with
 their generated package. Public APIs follow the language's conventions.
 
 A Smithy `blob` is `crucible_client::Blob` (bytes) in Rust, `Uint8Array` in
-TypeScript, `bytes` in Python and `[]byte` in Go. In a JSON body it is standard, padded
+TypeScript, `bytes` in Python, `[]byte` in Go and `byte[]` in Java. In a JSON body it is standard, padded
 base64. An `@httpPayload` blob is sent as the bytes themselves with the
 blob's media type, and the body digest covers exactly those bytes; a payload
 response is read as bytes, an empty body as empty bytes.

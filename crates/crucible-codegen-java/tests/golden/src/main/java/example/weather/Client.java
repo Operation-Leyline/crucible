@@ -18,6 +18,12 @@ public final class Client {
     public Models.GetCityOutput getCity(Models.GetCityInput input) {
         return ClientRuntime.await(getCityAsync(input));
     }
+    public java.util.concurrent.CompletableFuture<Models.GetCityPhotoOutput> getCityPhotoAsync(Models.GetCityPhotoInput input) {
+        return runtime.call("GetCityPhoto", input, Models.GetCityPhotoOutput.class);
+    }
+    public Models.GetCityPhotoOutput getCityPhoto(Models.GetCityPhotoInput input) {
+        return ClientRuntime.await(getCityPhotoAsync(input));
+    }
     public java.util.concurrent.CompletableFuture<Models.ListCitiesOutput> listCitiesAsync(Models.ListCitiesInput input) {
         return runtime.call("ListCities", input, Models.ListCitiesOutput.class);
     }
@@ -32,6 +38,12 @@ public final class Client {
     }
     public Models.Unit ping() {
         return ClientRuntime.await(pingAsync());
+    }
+    public java.util.concurrent.CompletableFuture<Models.PutCityPhotoOutput> putCityPhotoAsync(Models.PutCityPhotoInput input) {
+        return runtime.call("PutCityPhoto", input, Models.PutCityPhotoOutput.class);
+    }
+    public Models.PutCityPhotoOutput putCityPhoto(Models.PutCityPhotoInput input) {
+        return ClientRuntime.await(putCityPhotoAsync(input));
     }
     public java.util.concurrent.CompletableFuture<Models.StatusOutput> statusAsync(Models.StatusInput input) {
         return runtime.call("Status", input, Models.StatusOutput.class);
