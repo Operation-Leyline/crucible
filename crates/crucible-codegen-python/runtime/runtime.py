@@ -179,6 +179,8 @@ class _Codec:
         shape = self.shapes[m["target"]]
         kind = shape["kind"]
         if kind == "list":
+            if not text.strip():
+                return []
             # JSON quoting rules are also used for commas and quotes in header lists.
             parts: list[str] = []
             start = 0

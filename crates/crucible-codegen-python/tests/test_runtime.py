@@ -31,6 +31,13 @@ CLASSES = {name: ServiceError for name in ("Ordinary", "Transient", "Throttled")
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_header_lists(self):
+        codec = _Codec(m._SCHEMA, m._CLASSES)
+        member = {"target": "example.weather#Tags"}
+        for case in json.loads((ROOT / "tests/conformance/header-lists.json").read_text()):
+            with self.subTest(case=case):
+                self.assertEqual(codec.read_header(member, case["wire"]), case["values"])
+
     def test_cleartext_credentials_are_rejected_before_send(self):
         with httpx.Client(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:
             with self.assertRaisesRegex(ValueError, "plaintext"):

@@ -1,0 +1,7 @@
+[
+  {"wire": "", "values": []},
+  {"wire": "  ", "values": []},
+  {"wire": "one, two", "values": ["one", "two"]},
+  {"wire": "\"a,b\", c", "values": ["a,b", "c"]},
+  {"wire": "\" a \", \"\", \"a\\\"b\", \"a\\\\b\"", "values": [" a ", "", "a\"b", "a\\b"]}
+]
