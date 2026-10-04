@@ -58,6 +58,21 @@ enum Command {
 
 #[derive(Subcommand)]
 enum Target {
+    /// A Go module with typed models and context-aware HTTP clients.
+    Go {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        module_path: String,
+        #[arg(long)]
+        package_name: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        #[arg(long)]
+        content_sha256: bool,
+    },
     /// A typed Python package with synchronous and asynchronous clients.
     Python {
         #[command(flatten)]
@@ -169,6 +184,33 @@ fn lower(source: &Source) -> Result<Service, String> {
 
 fn generate(target: Target) -> Result<(), String> {
     match target {
+        Target::Go {
+            source,
+            out,
+            module_path,
+            package_name,
+            endpoint,
+            content_sha256,
+        } => {
+            let service = lower(&source)?;
+            let files = crucible_codegen_go::emit(
+                &service,
+                &crucible_codegen_go::Options {
+                    module_path,
+                    package_name,
+                    endpoint,
+                    content_sha256,
+                },
+            )
+            .map_err(|d| format!("cannot generate the Go client:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
         Target::Python {
             source,
             out,
