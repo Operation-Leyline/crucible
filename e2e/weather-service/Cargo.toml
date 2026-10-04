@@ -17,6 +17,10 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 crucible-build = { path = "../../crates/crucible-build" }
 
 [dev-dependencies]
+crucible-client = { path = "../../crates/crucible-client" }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+serde = "1"
 axum = "0.8"
 criterion = { version = "0.7", default-features = false, features = ["async_tokio"] }
 base64 = "0.22"

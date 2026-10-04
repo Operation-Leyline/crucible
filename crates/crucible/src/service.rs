@@ -215,7 +215,8 @@ impl Crucible {
         context
             .clone()
             .scope(async move {
-                self.run(&mut job, entry.map(|entry| entry.invoke.clone()))
+                let ran = self
+                    .run(&mut job, entry.map(|entry| entry.invoke.clone()))
                     .await;
                 let answers = Answers {
                     reject: &*inner.reject,
@@ -243,6 +244,9 @@ impl Crucible {
                         .headers_mut()
                         .insert("x-request-id", job.context.request_id_header().clone());
                 }
+                for handler in inner.handlers[..ran].iter().rev() {
+                    handler.complete(&job, &response);
+                }
                 response
             })
             .await
@@ -252,7 +256,7 @@ impl Crucible {
     /// handler whose `before` succeeded. A request refused before the chain
     /// starts (an oversized body) runs no `before` but every `after`, so the
     /// service log and metrics still see it.
-    async fn run(&self, job: &mut Job, invoke: Option<Invoke>) {
+    async fn run(&self, job: &mut Job, invoke: Option<Invoke>) -> usize {
         let handlers = &self.inner.handlers;
         let refused_early = job.outcome.is_some();
         let mut ran = if refused_early { handlers.len() } else { 0 };
@@ -288,6 +292,7 @@ impl Crucible {
         for handler in handlers[..ran].iter().rev() {
             handler.after(job).resolve().await;
         }
+        ran
     }
 }
 

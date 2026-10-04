@@ -18,6 +18,10 @@ use crate::handler::Job;
 use crate::operations::Operations;
 use crate::validate::Rejection;
 
+/// Carries serialization diagnostics to completion observers, never the wire.
+#[derive(Debug, Clone)]
+pub(crate) struct SerializationFailure(pub String);
+
 /// Which operation a request is, and the URI labels it carried.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Route {

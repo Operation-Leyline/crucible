@@ -4,6 +4,30 @@ use serde_json::{Value, json};
 
 const WEATHER: &str = include_str!("fixtures/weather.json");
 
+#[test]
+fn sensitivity_and_literal_queries_survive_lowering() {
+    let service = Model::from_json(include_str!("fixtures/observability.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    assert_eq!(
+        service.operations[0].uri.query,
+        vec![("mode".into(), Some("echo".into())), ("flag".into(), None)]
+    );
+    let Shape::Structure(profile) = service.shape(&id("example.observability#Profile")).unwrap()
+    else {
+        panic!("profile")
+    };
+    assert!(service.sensitive(profile.member("password").unwrap()));
+    assert!(!service.sensitive(profile.member("name").unwrap()));
+    let Shape::Structure(payload) = service.shape(&id("example.observability#Payload")).unwrap()
+    else {
+        panic!("payload")
+    };
+    assert!(service.sensitive(payload.member("whole").unwrap()));
+    assert!(service.sensitive(payload.member("secretTarget").unwrap()));
+}
+
 fn id(text: &str) -> ShapeId {
     text.parse().unwrap()
 }

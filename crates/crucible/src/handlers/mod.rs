@@ -21,4 +21,4 @@ pub use fn_handler::{FnHandler, after_fn, before_fn};
 pub use for_operation::{ForOperation, OperationHandler, for_operation};
 pub use metrics::{Metrics, Recorder, RequestRecord};
 pub use scoped::{HandlerExt, Scoped};
-pub use service_log::{Fields, LogPolicy, LogSink, ServiceLog, TracingSink};
+pub use service_log::{Fields, LogPolicy, LogRecord, LogSink, ServiceLog, TracingSink};

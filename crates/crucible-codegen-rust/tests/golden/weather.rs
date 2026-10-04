@@ -256,6 +256,7 @@ pub mod model {
 #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
 pub mod errors {
     use ::crucible::operation::{ErrorInfo, Fault};
+    use super::__redaction;
 
     #[derive(Debug, Clone, PartialEq, ::crucible::__private::serde::Serialize, ::crucible::__private::serde::Deserialize)]
     #[serde(crate = "::crucible::__private::serde")]
@@ -270,7 +271,7 @@ pub mod errors {
         fault: Fault::Client,
         throttling: false,
         members: &[
-            ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
         ],
     };
 
@@ -311,8 +312,8 @@ pub mod errors {
         fault: Fault::Client,
         throttling: false,
         members: &[
-            ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-            ::crucible::operation::MemberInfo { name: "resourceId", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "resourceId", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
         ],
     };
 
@@ -353,8 +354,8 @@ pub mod errors {
         fault: Fault::Client,
         throttling: true,
         members: &[
-            ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-            ::crucible::operation::MemberInfo { name: "retryAfter", location: ::crucible::operation::Location::Header("retry-after"), scalar: ::crucible::operation::Scalar::Integer, sensitive: false, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "retryAfter", location: ::crucible::operation::Location::Header("retry-after"), scalar: ::crucible::operation::Scalar::Integer, redaction: &__redaction::R_27, traits: &[] },
         ],
     };
 
@@ -399,10 +400,10 @@ pub mod errors {
         fault: Fault::Client,
         throttling: false,
         members: &[
-            ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-            ::crucible::operation::MemberInfo { name: "reason", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-            ::crucible::operation::MemberInfo { name: "fieldList", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-            ::crucible::operation::MemberInfo { name: "requestId", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "reason", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_24, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "fieldList", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_23, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "requestId", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
         ],
     };
 
@@ -428,6 +429,43 @@ pub mod errors {
 
     impl ::std::error::Error for ValidationError {}
 }
+#[allow(dead_code)]
+mod __redaction {
+    use ::crucible::operation::Redaction;
+    pub(super) static R_0: Redaction = Redaction::Public;
+    pub(super) static R_1: Redaction = Redaction::Public;
+    pub(super) static R_2: Redaction = Redaction::List(&R_3);
+    pub(super) static R_3: Redaction = Redaction::Structure(&[("id", &R_0), ("name", &R_1), ("population", &R_28), ("updatedAt", &R_30), ("createdAt", &R_30)]);
+    pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_29)]);
+    pub(super) static R_5: Redaction = Redaction::Structure(&[("latitude", &R_26), ("longitude", &R_26)]);
+    pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_1), ("location", &R_14), ("clientToken", &R_29), ("expectedRevision", &R_28)]);
+    pub(super) static R_7: Redaction = Redaction::Structure(&[("city", &R_3)]);
+    pub(super) static R_8: Redaction = Redaction::Public;
+    pub(super) static R_9: Redaction = Redaction::Map(&R_25);
+    pub(super) static R_10: Redaction = Redaction::Structure(&[("cityId", &R_0), ("at", &R_8)]);
+    pub(super) static R_11: Redaction = Redaction::Structure(&[("city", &R_3), ("forecast", &R_9), ("requestId", &R_29)]);
+    pub(super) static R_12: Redaction = Redaction::Structure(&[("nextToken", &R_29), ("maxResults", &R_27), ("tags", &R_19)]);
+    pub(super) static R_13: Redaction = Redaction::Structure(&[("cities", &R_2), ("nextToken", &R_29)]);
+    pub(super) static R_14: Redaction = Redaction::Structure(&[("coordinates", &R_5), ("unknown", &R_31)]);
+    pub(super) static R_15: Redaction = Redaction::Structure(&[("message", &R_29), ("resourceId", &R_29)]);
+    pub(super) static R_16: Redaction = Redaction::Public;
+    pub(super) static R_17: Redaction = Redaction::Structure(&[]);
+    pub(super) static R_18: Redaction = Redaction::Structure(&[]);
+    pub(super) static R_19: Redaction = Redaction::List(&R_29);
+    pub(super) static R_20: Redaction = Redaction::Structure(&[("message", &R_29), ("retryAfter", &R_27)]);
+    pub(super) static R_21: Redaction = Redaction::Structure(&[("message", &R_29), ("reason", &R_24), ("fieldList", &R_23), ("requestId", &R_29)]);
+    pub(super) static R_22: Redaction = Redaction::Structure(&[("path", &R_29), ("message", &R_29)]);
+    pub(super) static R_23: Redaction = Redaction::List(&R_22);
+    pub(super) static R_24: Redaction = Redaction::Public;
+    pub(super) static R_25: Redaction = Redaction::Public;
+    pub(super) static R_26: Redaction = Redaction::Public;
+    pub(super) static R_27: Redaction = Redaction::Public;
+    pub(super) static R_28: Redaction = Redaction::Public;
+    pub(super) static R_29: Redaction = Redaction::Public;
+    pub(super) static R_30: Redaction = Redaction::Public;
+    pub(super) static R_31: Redaction = Redaction::Public;
+}
+
 
 pub struct CreateCity;
 
@@ -437,15 +475,16 @@ static CREATE_CITY_OPERATION: ::crucible::OperationInfo = ::crucible::OperationI
     resource: Some("City"),
     method: "POST",
     path: &[::crucible::operation::Segment::Literal("cities")],
+    literal_query: &[],
     status: 201,
     input: &[
-        ::crucible::operation::MemberInfo { name: "name", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[("example.weather#audited", "{}")] },
-        ::crucible::operation::MemberInfo { name: "location", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-        ::crucible::operation::MemberInfo { name: "clientToken", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-        ::crucible::operation::MemberInfo { name: "expectedRevision", location: ::crucible::operation::Location::Header("x-expected-revision"), scalar: ::crucible::operation::Scalar::Integer, sensitive: false, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "name", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_1, traits: &[("example.weather#audited", "{}")] },
+        ::crucible::operation::MemberInfo { name: "location", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_14, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "clientToken", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "expectedRevision", location: ::crucible::operation::Location::Header("x-expected-revision"), scalar: ::crucible::operation::Scalar::Integer, redaction: &__redaction::R_28, traits: &[] },
     ],
     output: &[
-        ::crucible::operation::MemberInfo { name: "city", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "city", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_3, traits: &[] },
     ],
     errors: &["ConflictError", "ThrottlingError", "ValidationError"],
     readonly: false,
@@ -472,15 +511,16 @@ static GET_CITY_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo
     resource: Some("City"),
     method: "GET",
     path: &[::crucible::operation::Segment::Literal("cities"), ::crucible::operation::Segment::Label("cityId")],
+    literal_query: &[],
     status: 200,
     input: &[
-        ::crucible::operation::MemberInfo { name: "cityId", location: ::crucible::operation::Location::Label, scalar: ::crucible::operation::Scalar::String, sensitive: false, traits: &[] },
-        ::crucible::operation::MemberInfo { name: "at", location: ::crucible::operation::Location::Query("at"), scalar: ::crucible::operation::Scalar::DateTime, sensitive: false, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "cityId", location: ::crucible::operation::Location::Label, scalar: ::crucible::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "at", location: ::crucible::operation::Location::Query("at"), scalar: ::crucible::operation::Scalar::DateTime, redaction: &__redaction::R_8, traits: &[] },
     ],
     output: &[
-        ::crucible::operation::MemberInfo { name: "city", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-        ::crucible::operation::MemberInfo { name: "forecast", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-        ::crucible::operation::MemberInfo { name: "requestId", location: ::crucible::operation::Location::Header("x-request-id"), scalar: ::crucible::operation::Scalar::String, sensitive: false, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "city", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_3, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "forecast", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_9, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "requestId", location: ::crucible::operation::Location::Header("x-request-id"), scalar: ::crucible::operation::Scalar::String, redaction: &__redaction::R_29, traits: &[] },
     ],
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: true,
@@ -507,15 +547,16 @@ static LIST_CITIES_OPERATION: ::crucible::OperationInfo = ::crucible::OperationI
     resource: Some("City"),
     method: "GET",
     path: &[::crucible::operation::Segment::Literal("cities")],
+    literal_query: &[],
     status: 200,
     input: &[
-        ::crucible::operation::MemberInfo { name: "nextToken", location: ::crucible::operation::Location::Query("nextToken"), scalar: ::crucible::operation::Scalar::String, sensitive: false, traits: &[] },
-        ::crucible::operation::MemberInfo { name: "maxResults", location: ::crucible::operation::Location::Query("maxResults"), scalar: ::crucible::operation::Scalar::Integer, sensitive: false, traits: &[] },
-        ::crucible::operation::MemberInfo { name: "tags", location: ::crucible::operation::Location::Query("tag"), scalar: ::crucible::operation::Scalar::List(&::crucible::operation::Scalar::String), sensitive: false, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "nextToken", location: ::crucible::operation::Location::Query("nextToken"), scalar: ::crucible::operation::Scalar::String, redaction: &__redaction::R_29, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "maxResults", location: ::crucible::operation::Location::Query("maxResults"), scalar: ::crucible::operation::Scalar::Integer, redaction: &__redaction::R_27, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "tags", location: ::crucible::operation::Location::Query("tag"), scalar: ::crucible::operation::Scalar::List(&::crucible::operation::Scalar::String), redaction: &__redaction::R_19, traits: &[] },
     ],
     output: &[
-        ::crucible::operation::MemberInfo { name: "cities", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
-        ::crucible::operation::MemberInfo { name: "nextToken", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "cities", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_2, traits: &[] },
+        ::crucible::operation::MemberInfo { name: "nextToken", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
     ],
     errors: &["ThrottlingError", "ValidationError"],
     readonly: true,
@@ -542,6 +583,7 @@ static PING_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo {
     resource: None,
     method: "GET",
     path: &[::crucible::operation::Segment::Literal("ping")],
+    literal_query: &[],
     status: 200,
     input: &[],
     output: &[],
@@ -570,6 +612,7 @@ static STATUS_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo {
     resource: None,
     method: "GET",
     path: &[::crucible::operation::Segment::Literal("status")],
+    literal_query: &[],
     status: 200,
     input: &[],
     output: &[],

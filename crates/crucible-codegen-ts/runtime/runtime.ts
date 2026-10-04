@@ -239,18 +239,25 @@ export class Transport {
     const retry = this.#config.retry === false ? { maxAttempts: 1 } : (this.#config.retry ?? {});
     const maxAttempts = Math.max(1, retry.maxAttempts ?? 3);
     for (let attempt = 1; ; attempt++) {
-      let response: Response;
+      // Invalid inputs are caller errors, not transport failures.
+      const request = this.#request(operation, values, options);
+      let response: Response | undefined;
+      let text: string;
       try {
-        response = await this.#dispatch(this.#request(operation, values, options));
+        response = await this.#dispatch(request);
+        // Fetch resolves at the headers; required bodies can still fail.
+        // A successful operation without a modeled body needs only headers.
+        text = response.ok && !operation.output?.body ? "" : await response.text();
       } catch (error) {
         if (isAbort(error, options.signal)) throw error;
         const network = new NetworkError(error);
         if (!operation.retrySafe || attempt >= maxAttempts) throw network;
-        await sleep(backoff(attempt, retry), options.signal);
+        const delay = response === undefined ? undefined : retryAfter(response);
+        await sleep(delay ?? backoff(attempt, retry), options.signal);
         continue;
       }
-      if (response.ok) return (await this.#decodeOutput(operation, response)) as O;
-      const error = await this.#decodeError(operation, response);
+      if (response.ok) return this.#decodeOutput(operation, response, text) as O;
+      const error = this.#decodeError(operation, response, text);
       const throttled = error.$retryable?.throttling === true;
       const transient = error.$retryable !== undefined || RETRYABLE_STATUS.has(response.status);
       if (!(throttled || (operation.retrySafe && transient)) || attempt >= maxAttempts) throw error;
@@ -299,17 +306,19 @@ export class Transport {
     return new Request(url, { method: operation.method, headers, body, signal: options.signal });
   }
 
-  async #decodeOutput(operation: OperationSpec, response: Response): Promise<unknown> {
+  #decodeOutput(operation: OperationSpec, response: Response, text: string): unknown {
     const output = operation.output;
     if (output === undefined) return {};
-    const body = output.body ? await readJson(response) : {};
+    const body = output.body ? readJson(text) : {};
     const decoded = fromWire(output.schema, body ?? {}) as Record<string, unknown>;
     readHeaders(response.headers, output.headers, decoded);
     return decoded;
   }
 
-  async #decodeError(operation: OperationSpec, response: Response): Promise<ServiceError> {
-    const body = ((await readJson(response).catch(() => undefined)) ?? {}) as Record<string, unknown>;
+  #decodeError(operation: OperationSpec, response: Response, text: string): ServiceError {
+    let parsed: unknown;
+    try { parsed = readJson(text); } catch { /* An HTTP error may have a non-JSON body. */ }
+    const body = (parsed !== null && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
     const metadata: ResponseMetadata = {
       status: response.status,
       requestId: response.headers.get("x-request-id") ?? stringField(body, "requestId"),
@@ -412,8 +421,7 @@ function splitHeader(text: string): string[] {
   return items;
 }
 
-async function readJson(response: Response): Promise<unknown> {
-  const text = await response.text();
+function readJson(text: string): unknown {
   return text.length === 0 ? undefined : JSON.parse(text);
 }
 

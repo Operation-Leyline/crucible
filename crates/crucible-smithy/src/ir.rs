@@ -32,6 +32,14 @@ pub struct Service {
 }
 
 impl Service {
+    /// Effective sensitivity: a member or its target can forbid logging.
+    pub fn sensitive(&self, member: &Member) -> bool {
+        member
+            .traits
+            .contains_key(&ShapeId::new("smithy.api", "sensitive"))
+            || self.shape(&member.target).is_some_and(Shape::sensitive)
+    }
+
     pub fn shape(&self, id: &ShapeId) -> Option<&Shape> {
         self.shapes.get(id)
     }
@@ -70,6 +78,20 @@ pub enum Shape {
     Map(Map),
     Structure(Structure),
     Union(Structure),
+}
+
+impl Shape {
+    pub fn sensitive(&self) -> bool {
+        let traits = match self {
+            Self::Unit => return false,
+            Self::Simple(s) => &s.traits,
+            Self::Enum(s) => &s.traits,
+            Self::List(s) => &s.traits,
+            Self::Map(s) => &s.traits,
+            Self::Structure(s) | Self::Union(s) => &s.traits,
+        };
+        traits.contains_key(&ShapeId::new("smithy.api", "sensitive"))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -138,6 +160,11 @@ pub struct Structure {
 }
 
 impl Structure {
+    pub fn sensitive(&self) -> bool {
+        self.traits
+            .contains_key(&ShapeId::new("smithy.api", "sensitive"))
+    }
+
     pub fn member(&self, name: &str) -> Option<&Member> {
         self.members.iter().find(|member| member.name == name)
     }

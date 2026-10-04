@@ -15,6 +15,7 @@ default = ["http", "lambda"]
 http = ["tokio/net", "tokio/signal"]
 # AWS Lambda: HTTP events (Function URLs, API Gateway, ALB) and direct JSON invokes.
 lambda = ["dep:lambda_http", "dep:lambda_runtime"]
+logging = ["dep:tracing-subscriber"]
 
 [dependencies]
 crucible-wire.workspace = true
@@ -29,6 +30,7 @@ serde_json.workspace = true
 tokio = { version = "1", features = ["rt", "macros", "time"] }
 tower = { version = "0.5", default-features = false, features = ["util"] }
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "fast-rng"] }
 
 [dev-dependencies]

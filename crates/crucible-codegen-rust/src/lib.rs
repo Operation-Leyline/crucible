@@ -98,7 +98,11 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
         reject,
         internal: internal_fn,
     };
-    let operations = operations::emit(service, functions, &mut diagnostics);
+    let operations = format!(
+        "{}{}",
+        info::redactions(service),
+        operations::emit(service, functions, &mut diagnostics)
+    );
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -119,7 +123,11 @@ pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
     let model = models::emit(service, &Default::default(), &mut diagnostics);
     let errors = errors::emit(service, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
-    let client = client::emit(service, &mut diagnostics);
+    let client = format!(
+        "{}{}",
+        info::redactions(service),
+        client::emit(service, &mut diagnostics)
+    );
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }

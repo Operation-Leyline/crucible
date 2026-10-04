@@ -43,11 +43,21 @@ impl Protocol for InvokeProtocol {
                 // `{"output": ..}` written straight to bytes.
                 let mut body = Vec::with_capacity(256);
                 body.extend_from_slice(b"{\"output\":");
-                if output.write_json(&mut body).is_ok() {
-                    body.push(b'}');
-                    return respond(200, body);
+                match output.write_json(&mut body) {
+                    Ok(()) => {
+                        body.push(b'}');
+                        return respond(200, body);
+                    }
+                    Err(error) => {
+                        let (status, body) = framework_body(&FrameworkError::InternalFailure);
+                        let mut response =
+                            respond(status, serde_json::to_vec(&body).expect("failure envelope"));
+                        response
+                            .extensions_mut()
+                            .insert(super::SerializationFailure(error.to_string()));
+                        return response;
+                    }
                 }
-                framework_body(&FrameworkError::InternalFailure)
             }
             Some(Resolution::Modelled(error)) => error_body(error),
             Some(Resolution::Rejected(rejection)) => error_body(&*(answers.reject)(rejection)),
@@ -57,18 +67,10 @@ impl Protocol for InvokeProtocol {
                 error_body(&*(answers.unknown.expect("checked"))())
             }
             Some(Resolution::Framework(error)) => framework_body(&error),
-            Some(Resolution::Internal(error)) => {
-                tracing::error!(
-                    request_id = job.context().request_id(),
-                    operation = job.operation().map_or("unknown", |op| op.name),
-                    error = error.chain(),
-                    "internal failure"
-                );
-                match answers.internal {
-                    Some(internal) => error_body(&*internal()),
-                    None => framework_body(&FrameworkError::InternalFailure),
-                }
-            }
+            Some(Resolution::Internal(_)) => match answers.internal {
+                Some(internal) => error_body(&*internal()),
+                None => framework_body(&FrameworkError::InternalFailure),
+            },
             // An answered request never reaches the protocol.
             Some(Resolution::Answered { .. }) | None => {
                 framework_body(&FrameworkError::InternalFailure)

@@ -71,9 +71,12 @@ reach, keyed by shape id. Lowering settles, once:
   `@clientOptional` members and every member of an `@input` structure.
 - **Constraints**: the target's `@length`/`@range`/`@pattern`/`@uniqueItems`
   with the member's own laid over them.
+- **Sensitivity**: member and target annotations resolve through the IR; generated
+  static metadata supports recursive logging redaction.
 - **HTTP bindings**: label, query, header or body for each input member,
   header or body for each output and error member. Labels are checked
-  against the URI in both directions.
+  against the URI in both directions. Literal query parameters are preserved
+  in both clients and participate in server route matching.
 - **Errors**: the operation's own, then the service's, each with fault,
   status and retryability.
 - **Pagination**: the operation's `@paginated` merged over the service's.

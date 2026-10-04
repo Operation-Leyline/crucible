@@ -42,8 +42,11 @@ impl Handler for Relay {
 struct Records(Arc<Mutex<Vec<Value>>>);
 
 impl LogSink for Records {
-    fn write(&self, record: &Value) {
-        self.0.lock().unwrap().push(record.clone());
+    fn write(&self, record: &crucible::handlers::LogRecord<'_>) {
+        self.0
+            .lock()
+            .unwrap()
+            .push(serde_json::to_value(record).unwrap());
     }
 }
 

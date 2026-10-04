@@ -3,6 +3,8 @@
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tracing::Instrument;
+use tracing::instrument::WithSubscriber;
 
 use axum::http::request::Parts;
 use axum::http::{Extensions, HeaderMap, HeaderValue};
@@ -32,6 +34,8 @@ pub struct Context {
     /// Shared with the job, not copied: one request head per request.
     request: Arc<Parts>,
     attributes: Mutex<Extensions>,
+    span: tracing::Span,
+    dispatch: tracing::Dispatch,
 }
 
 impl Context {
@@ -40,6 +44,11 @@ impl Context {
         operation: Option<&'static OperationInfo>,
         request: Arc<Parts>,
     ) -> Self {
+        let span = tracing::info_span!(
+            "crucible.request",
+            request_id = request_id.to_str().unwrap_or_default(),
+            operation = operation.map_or("unknown", |op| op.name)
+        );
         Self {
             request_id,
             operation,
@@ -47,6 +56,8 @@ impl Context {
             deadline: Mutex::new(None),
             request,
             attributes: Mutex::new(Extensions::new()),
+            span,
+            dispatch: tracing::dispatcher::get_default(Clone::clone),
         }
     }
 
@@ -67,7 +78,13 @@ impl Context {
     /// Runs `future` with this context current: for a task an implementation
     /// spawns, which does not inherit it.
     pub async fn scope<F: Future>(self: Arc<Self>, future: F) -> F::Output {
-        CURRENT.scope(self, future).await
+        let span = self.span.clone();
+        let dispatch = self.dispatch.clone();
+        CURRENT
+            .scope(self, future)
+            .instrument(span)
+            .with_subscriber(dispatch)
+            .await
     }
 
     /// The id this request goes by in logs and in the `x-request-id` header.

@@ -61,6 +61,12 @@ impl<H> Scoped<H> {
 }
 
 impl<H: Handler> Handler for Scoped<H> {
+    fn complete(&self, job: &Job, response: &axum::response::Response) {
+        if self.applies(job) {
+            self.inner.complete(job, response);
+        }
+    }
+
     fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         if self.applies(job) {
             self.inner.before(job)

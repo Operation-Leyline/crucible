@@ -6,6 +6,8 @@ import { test } from "node:test";
 
 import { ConflictError, NetworkError, ServiceError, Sky, ThrottlingError, WeatherClient } from "./generated/src/index.js";
 import type { Middleware } from "./generated/src/index.js";
+import { Transport, string } from "./generated/src/runtime.js";
+import type { OperationSpec } from "./generated/src/runtime.js";
 
 interface Sent {
   method: string;
@@ -32,6 +34,100 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 
 const quick = { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 2 };
+
+test("successful operations without modeled bodies leave failing and stalled streams unread", async () => {
+  const outputs: (OperationSpec["output"])[] = [undefined, {
+    body: false, headers: [["requestId", "x-request-id", string]],
+  }];
+  for (const output of outputs) {
+    for (const broken of [true, false]) {
+      const response = new Response(new ReadableStream({
+        start(controller) { if (broken) controller.error(new TypeError("broken body")); },
+      }), { headers: { "x-request-id": "req-1" } });
+      const transport = new Transport({ endpoint: "https://weather.example", retry: false,
+        fetch: async () => response,
+      }, { middleware: [], bearer: false }, {});
+      const result = transport.send({ name: "NoBody", method: "GET", path: [], errors: [], retrySafe: true, output }, {});
+      // Observe the body before awaiting completion so the stalled-stream
+      // regression fails immediately instead of hanging the test.
+      void result.catch(() => {});
+      await Promise.resolve();
+      assert.equal(response.bodyUsed, false);
+      assert.deepEqual(await result, output === undefined ? {} : { requestId: "req-1" });
+      await response.body?.cancel().catch(() => {});
+    }
+  }
+});
+
+test("body-read retries honor Retry-After and dispatch failures use backoff", async () => {
+  const delays: (number | undefined)[] = [];
+  const setTimer = globalThis.setTimeout;
+  globalThis.setTimeout = (handler, delay, ...args) => {
+    delays.push(delay);
+    return setTimer(handler, 0, ...args);
+  };
+  try {
+    const broken = new Response(new ReadableStream({
+      start(controller) { controller.error(new TypeError("broken error body")); },
+    }), { status: 503, headers: { "retry-after": "2" } });
+    const { fetch, sent } = fake(broken, new TypeError("fetch failed"), json(200, {}));
+    // Ping has no modeled output, but its error body must still be read.
+    await new WeatherClient({ fetch, retry: { maxAttempts: 3, baseDelayMs: 0 } }).ping();
+    assert.equal(sent.length, 3);
+    assert.deepEqual(delays, [2000, 0], "a failed dispatch must not reuse the previous response header");
+  } finally {
+    globalThis.setTimeout = setTimer;
+  }
+});
+
+test("a body failure never replays an unsafe operation", async () => {
+  let calls = 0;
+  const transport = new Transport({ endpoint: "https://weather.example", retry: quick, fetch: async () => {
+    calls++;
+    return new Response(new ReadableStream({ start(c) { c.error(new TypeError("disconnected")); } }));
+  } }, { middleware: [], bearer: false }, {});
+  const error = await transport.send({ name: "Unsafe", method: "POST", path: ["unsafe"], errors: [], retrySafe: false, output: { body: true } }, {}).catch(e => e);
+  assert.ok(error instanceof NetworkError);
+  assert.equal(calls, 1);
+});
+
+test("body transport failures retry for success and error responses", async () => {
+  for (const status of [200, 503]) {
+    const broken = new Response(new ReadableStream({
+      start(controller) { controller.error(new TypeError("connection lost mid-body")); },
+    }), { status });
+    const { sent, fetch } = fake(broken, json(200, { cities: [] }));
+    const output = await new WeatherClient({ fetch, retry: quick }).listCities({});
+    assert.deepEqual(output.cities, []);
+    assert.equal(sent.length, 2);
+  }
+});
+
+test("invalid input and invalid response JSON are not network failures", async () => {
+  const { sent, fetch } = fake(new Response("not json", { status: 200 }));
+  const client = new WeatherClient({ fetch, retry: quick });
+  const invalid = await client.getCity({ cityId: "" }).catch(e => e);
+  assert.ok(invalid instanceof TypeError);
+  assert.equal(sent.length, 0);
+  const malformed = await client.listCities({}).catch(e => e);
+  assert.ok(malformed instanceof SyntaxError);
+  assert.equal(sent.length, 1);
+});
+
+test("aborting an error body preserves cancellation without retry", async () => {
+  let calls = 0;
+  const controller = new AbortController();
+  const reason = new DOMException("cancelled", "AbortError");
+  const fetch = async () => {
+    calls++;
+    return new Response(new ReadableStream({
+      pull(stream) { controller.abort(reason); stream.error(reason); },
+    }), { status: 503 });
+  };
+  const error = await new WeatherClient({ fetch, retry: quick }).listCities({}, { signal: controller.signal }).catch(e => e);
+  assert.equal(error, reason);
+  assert.equal(calls, 1);
+});
 
 test("labels are encoded, queries repeat, timestamps take their location's format", async () => {
   const { sent, fetch } = fake(json(200, { city: { id: "c-1", name: "Oslo" } }, { "X-Request-Id": "r-1" }));

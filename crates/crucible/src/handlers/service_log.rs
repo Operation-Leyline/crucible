@@ -3,9 +3,11 @@
 //! are, and which input, output and error members appear. `@sensitive`
 //! members are never written.
 
+use axum::response::Response;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use tracing::Level;
 
 use serde_json::{Map, Value, json};
 
@@ -26,10 +28,12 @@ impl Fields {
         let Value::Object(object) = value else {
             return None;
         };
-        let sensitive = |name: &str| members.iter().any(|m| m.name == name && m.sensitive);
         let kept: Map<String, Value> = object
             .into_iter()
-            .filter(|(name, _)| !sensitive(name))
+            .filter_map(|(name, mut value)| {
+                let member = members.iter().find(|member| member.name == name)?;
+                member.redaction.redact(&mut value).then_some((name, value))
+            })
             .filter(|(name, _)| match self {
                 Self::None => false,
                 Self::All => true,
@@ -44,6 +48,8 @@ impl Fields {
 pub struct LogPolicy {
     pub successes: bool,
     pub failures: bool,
+    /// Severity for expected client rejections (4xx).
+    pub client_error_level: Level,
     pub input: Fields,
     pub output: Fields,
     /// Members of a modelled error.
@@ -56,6 +62,7 @@ impl LogPolicy {
         Self {
             successes: false,
             failures: true,
+            client_error_level: Level::INFO,
             input: Fields::None,
             output: Fields::None,
             error: Fields::All,
@@ -67,6 +74,7 @@ impl LogPolicy {
         Self {
             successes: true,
             failures: true,
+            client_error_level: Level::INFO,
             input: Fields::All,
             output: Fields::All,
             error: Fields::All,
@@ -77,10 +85,16 @@ impl LogPolicy {
         Self {
             successes: false,
             failures: false,
+            client_error_level: Level::INFO,
             input: Fields::None,
             output: Fields::None,
             error: Fields::None,
         }
+    }
+
+    pub fn client_error_level(mut self, level: Level) -> Self {
+        self.client_error_level = level;
+        self
     }
 
     pub fn input(mut self, fields: Fields) -> Self {
@@ -94,18 +108,65 @@ impl LogPolicy {
     }
 }
 
-/// Where records go. The default writes them through `tracing`.
-pub trait LogSink: Send + Sync + 'static {
-    fn write(&self, record: &Value);
+/// One request after protocol serialization. Payload fields are already redacted.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogRecord<'a> {
+    pub request_id: &'a str,
+    pub operation: &'static str,
+    pub status: u16,
+    pub outcome: &'static str,
+    pub latency_ms: f64,
+    #[serde(skip)]
+    pub level: Level,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_fields: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub violations: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cause: Option<String>,
 }
 
-/// Each record as one `tracing` event, target `crucible::service_log`.
+/// Receives request records synchronously. A sink doing I/O should enqueue
+/// records to a bounded writer; it must not block the request task.
+pub trait LogSink: Send + Sync + 'static {
+    fn write(&self, record: &LogRecord<'_>);
+}
+
+/// Core fields remain structured in every tracing subscriber. Optional
+/// redacted payloads are JSON strings, suitable for parsing when requested.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TracingSink;
 
 impl LogSink for TracingSink {
-    fn write(&self, record: &Value) {
-        tracing::info!(target: "crucible::service_log", "{record}");
+    fn write(&self, record: &LogRecord<'_>) {
+        macro_rules! emit {
+            ($level:expr) => {
+                tracing::event!(target: "crucible::service_log", $level,
+                    request_id = record.request_id, operation = record.operation,
+                    status = record.status, outcome = record.outcome,
+                    latency_ms = record.latency_ms, error_type = record.error,
+                    cause = record.cause.as_deref(),
+                    input = record.input.as_ref().map(tracing::field::display),
+                    output = record.output.as_ref().map(tracing::field::display),
+                    error_fields = record.error_fields.as_ref().map(tracing::field::display),
+                    violations = record.violations.as_ref().map(tracing::field::display),
+                    "request completed")
+            };
+        }
+        match record.level {
+            Level::ERROR => emit!(Level::ERROR),
+            Level::WARN => emit!(Level::WARN),
+            Level::INFO => emit!(Level::INFO),
+            Level::DEBUG => emit!(Level::DEBUG),
+            Level::TRACE => emit!(Level::TRACE),
+        }
     }
 }
 
@@ -149,57 +210,68 @@ impl ServiceLog {
             .unwrap_or(&self.default)
     }
 
-    fn record(&self, job: &Job, policy: &LogPolicy, resolution: &Resolution<'_>) -> Value {
-        let operation = job.operation();
-        let status = resolution.status(operation);
-        let latency: Duration = job.context().received().elapsed();
-        let mut record = json!({
-            "requestId": job.context().request_id(),
-            "operation": operation.map_or("unknown", |op| op.name),
-            "status": status,
-            "outcome": resolution.class(operation),
-            "latencyMs": latency.as_secs_f64() * 1000.0,
-        });
-        let object = record.as_object_mut().expect("a record is an object");
-        if let Some(name) = resolution.error_name() {
-            object.insert("error".to_owned(), Value::String(name.to_owned()));
-        }
-        if let Some(op) = operation {
-            if let Some(input) = job
-                .input_snapshot()
-                .cloned()
-                .and_then(|v| policy.input.pick(v, op.input))
-            {
-                object.insert("input".to_owned(), input);
+    fn record<'a>(&self, job: &'a Job, policy: &LogPolicy, response: &Response) -> LogRecord<'a> {
+        let status = response.status().as_u16();
+        let outcome = match status {
+            0..400 => "success",
+            400..500 => "error",
+            _ => "fault",
+        };
+        let resolution = job.resolution();
+        let mut record = LogRecord {
+            request_id: job.context().request_id(),
+            operation: job.operation().map_or("unknown", |op| op.name),
+            status,
+            outcome,
+            latency_ms: job.context().received().elapsed().as_secs_f64() * 1000.0,
+            level: match outcome {
+                "fault" => Level::ERROR,
+                "error" => policy.client_error_level,
+                _ => Level::INFO,
+            },
+            error: resolution.as_ref().and_then(Resolution::error_name),
+            input: None,
+            output: None,
+            error_fields: None,
+            violations: None,
+            cause: None,
+        };
+        if policy.input != Fields::None {
+            if let Some(op) = job.operation() {
+                record.input = job
+                    .input_snapshot()
+                    .cloned()
+                    .and_then(|v| policy.input.pick(v, op.input));
             }
+        }
+        if let Some(failure) = response
+            .extensions()
+            .get::<crate::protocol::SerializationFailure>()
+        {
+            record.error = Some("InternalFailure");
+            record.cause = Some(failure.0.clone());
+            return record;
         }
         match resolution {
-            Resolution::Success(output) => {
-                if let Some(op) = operation {
-                    if let Some(output) = policy.output.pick(output.to_json(), op.output) {
-                        object.insert("output".to_owned(), output);
-                    }
+            Some(Resolution::Success(output)) if policy.output != Fields::None => {
+                if let Some(op) = job.operation() {
+                    record.output = policy.output.pick(output.to_json(), op.output);
                 }
             }
-            Resolution::Modelled(error) => {
-                if let Some(fields) = policy.error.pick(error.to_json(), error.info().members) {
-                    object.insert("errorFields".to_owned(), fields);
-                }
+            Some(Resolution::Modelled(error)) if policy.error != Fields::None => {
+                record.error_fields = policy.error.pick(error.to_json(), error.info().members);
             }
-            Resolution::Rejected(rejection) => {
-                let violations: Vec<Value> = rejection
-                    .violations
-                    .iter()
-                    .map(|v| json!({ "path": v.path, "message": v.message }))
-                    .collect();
-                object.insert("violations".to_owned(), Value::Array(violations));
+            Some(Resolution::Rejected(rejection)) => {
+                record.violations = Some(Value::Array(
+                    rejection
+                        .violations
+                        .iter()
+                        .map(|v| json!({ "path": v.path, "message": v.message }))
+                        .collect(),
+                ));
             }
-            // The service log is the service's own: an internal failure's
-            // detail belongs here, never in the response.
-            Resolution::Internal(error) => {
-                object.insert("cause".to_owned(), Value::String(error.chain()));
-            }
-            Resolution::Framework(_) | Resolution::Answered { .. } => {}
+            Some(Resolution::Internal(error)) => record.cause = Some(error.chain()),
+            _ => {}
         }
         record
     }
@@ -215,15 +287,11 @@ impl Handler for ServiceLog {
         Hook::Ready(Ok(()))
     }
 
-    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
+    fn complete(&self, job: &Job, response: &Response) {
         let policy = self.policy(job);
-        let Some(resolution) = job.resolution() else {
-            return Hook::Ready(());
-        };
-        let succeeded = resolution.class(job.operation()) == "success";
+        let succeeded = response.status().as_u16() < 400;
         if (succeeded && policy.successes) || (!succeeded && policy.failures) {
-            self.sink.write(&self.record(job, policy, &resolution));
+            self.sink.write(&self.record(job, policy, response));
         }
-        Hook::Ready(())
     }
 }

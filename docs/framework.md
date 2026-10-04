@@ -111,7 +111,9 @@ and typed attributes that handlers set (an authenticated principal, say).
 It reads like a field of the implementing type, but `&self` is shared by concurrent
 requests, so it is a task-local the orchestrator sets around the call.
 **Decision:** a task spawned inside an implementation does not inherit it;
-`context.scope(future)` carries it across.
+`context.scope(future)` carries it across, together with the request tracing span
+and subscriber. The span records `request_id` and `operation`, so application
+events emitted through `tracing` carry the same request context.
 
 The request id comes from `Builder::request_id(source)` when the service
 names one (an inbound header behind a trusted edge), else from the host, else
@@ -139,7 +141,11 @@ The service builder takes handlers in order. Each request:
 A failing `before` stops the chain going forward. The `after` of every
 handler that already ran still runs, in reverse, so logging and exception
 translation see failures too. The protocol that routed the request writes
-the response last, after every `after`.
+the response after every `after`. Then `Handler::complete(&Job, &Response)`
+runs in reverse order for the same handlers, observing the serialized status.
+Completion observers cannot change the response. An answered response has been
+moved out of the job by then; read its status from the response. Tower layers
+outside the chain and transport streaming happen later.
 
 ```rust
 pub trait Handler: Send + Sync + 'static {
@@ -242,7 +248,7 @@ implementation runs, the error is classified:
 
 - **A modelled error the operation declares**: answered as itself.
 - **A modelled error it does not declare**: a bug. It becomes an internal
-  failure and is logged.
+  failure.
 - **Anything else**: an internal failure.
 
 The `ExceptionTranslator` handler maps internal failures to modelled errors
@@ -250,11 +256,13 @@ with registered translations (`|e: &ThrottledByDependency| ThrottlingException
 {..}`). What nothing translates is answered as the service's internal error
 (its one 500 server error, filled by the generator) or the protocol's own
 `InternalFailure`. Either way the response has a fixed message, never the
-error's text, which is logged with the request id. **Decision:** typed
+error's text. An applicable `ServiceLog` with failure logging enabled records
+the cause with the request id, provided it ran before any handler whose
+`before` hook failed (see [The service log](#the-service-log)). **Decision:** typed
 per-operation error enums would check at compile time which errors an
 operation returns. They are traded away for "return anything, translate
 centrally". The check moves to runtime, where an undeclared error is caught
-and logged as a bug.
+as a bug and logging follows the configured policy.
 
 A request that breaks the model becomes the service's validation error. The
 generator fills it when it can: `message`, a `fieldList` of `path`/`name`
@@ -288,14 +296,75 @@ an error itself reads it from `Context::try_current()`.
 
 ## The service log
 
-`ServiceLog` writes one structured record per request to its `LogSink`. The
-default sink is `tracing`, target `crucible::service_log`. A record holds the
-request id, operation, status, outcome (success, error, fault), latency,
-error type, and chosen fields. **Default: errors only.** Per operation, a
-`LogPolicy` chooses whether successes are logged and which input, output and
-error members appear. `@sensitive` members are never written, even when
-chosen. An internal failure's cause is in the record, because the log is the
-service's own.
+`ServiceLog` emits one typed `LogRecord` per selected request through its
+`LogSink`, after protocol serialization. It records the actual protocol
+response status, including serialization failures. The record contains the
+request id, operation, status, outcome, latency, error type, and optional
+payload fields. By default it records failures only.
+
+Place `ServiceLog` first in the handler chain, with failure logging enabled
+for every operation whose failures should be recorded. A missing, disabled,
+or scoped-out service log emits no failure record. A service log placed after
+a handler whose `before` hook fails never runs its completion hook, so it
+cannot record that failure's cause. Protocols provide no fallback error log.
+The default `TracingSink` also requires an installed subscriber whose filters
+enable the event.
+
+Per-operation `LogPolicy` controls successes, failures, and input, output,
+and modelled-error fields. `@sensitive` members and targets are removed
+recursively through structures, unions, lists, maps, and recursive shapes.
+A map with sensitive keys is omitted completely. Sensitive list elements
+become null. The generated metadata drives redaction; wire payloads are
+unchanged. Arbitrary application messages and internal error text are the
+application's responsibility: model annotations cannot redact those strings.
+
+The default `TracingSink` emits core fields individually under the target
+`crucible::service_log`: `request_id`, `operation`, `status`, `outcome`,
+`latency_ms`, `error_type`, and `cause`. Optional redacted payloads are JSON
+strings. Server faults use ERROR; successes and expected client errors use
+INFO. `LogPolicy::client_error_level(tracing::Level::WARN)` changes the client
+error level. Protocols do not emit a duplicate internal-failure event.
+
+Ordinary application and dependency diagnostics use `tracing` directly. A
+request span supplies correlation to application events:
+
+```rust
+tracing::info!(city_id = %city.id, "city created");
+```
+
+Applications install their own subscriber. Crucible never installs one as a
+side effect of building or hosting a service. For a standard stdout setup,
+enable the optional `logging` feature and call this once from the executable:
+
+```rust
+crucible::logging::init(crucible::logging::Format::Json)?;
+```
+
+Use `Format::Pretty` for local output. The helper reads `RUST_LOG`, defaults
+to INFO, and returns an error if a subscriber is already installed. Applications
+with their own subscriber, exporters, or filtering can keep those unchanged.
+
+Custom sinks implement `LogSink::write(&LogRecord<'_>)`. The call is synchronous;
+a sink doing I/O should enqueue records to a bounded writer and choose its
+backpressure policy. `serde_json::to_value(record)` provides the previous
+camelCase JSON layout for consumers that need it. Serialization-failure
+records carry an internal cause but the response retains a fixed message.
+Completion describes the response produced by the protocol; it does not
+claim successful delivery or include subsequent tower-layer transformations.
+
+### Migrating existing services
+
+Regenerate Rust services and clients with the matching Crucible runtime.
+`MemberInfo::sensitive` is replaced by recursive `redaction` metadata, and
+`OperationInfo` now includes `literal_query`. Update custom log sinks from
+`&serde_json::Value` to `&LogRecord<'_>`. If constructing `LogPolicy` directly,
+set `client_error_level`; its constructors default to INFO. Move custom
+post-serialization observers to `Handler::complete` when appropriate.
+
+Deploy generated code and runtime together. Roll back both together using
+the previous dependency revision. This change does not require stored-data
+migration. Consumers should release and bump their pinned Crucible revision
+deliberately; changing this repository does not deploy Leyline or Pigeon.
 
 ## Metrics
 
