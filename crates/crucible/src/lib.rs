@@ -43,7 +43,7 @@ pub use handlers::HandlerExt;
 pub use operation::{Operation, OperationInfo, ServiceInfo};
 pub use operations::{MissingOperations, Operations};
 pub use protocol::{InvokeProtocol, JsonProtocol, Protocol};
-pub use service::{BuildError, Builder, Crucible};
+pub use service::{BuildError, Builder, Crucible, Endpoint};
 
 /// `#[crucible::async_trait]` for implementing [`AsyncHandler`] and
 /// `OperationHandler` with `async fn`.
