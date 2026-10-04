@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -107,6 +108,8 @@ type bindings struct {
 	Query   [][2]string
 	Headers [][2]string
 	Body    []string
+	// Payload is the member that is the whole body, raw, and its media type.
+	Payload []string
 }
 type operationDescription struct {
 	Method   string
@@ -223,6 +226,17 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 			return nil, errors.New("expected time.Time")
 		}
 		return writeTime(t, format), nil
+	case "blob":
+		// Raw bytes: a payload sends them as they are, and JSON writes a
+		// []byte as standard, padded base64.
+		if value.Kind() != reflect.Slice || value.Type().Elem().Kind() != reflect.Uint8 {
+			return nil, errors.New("expected []byte")
+		}
+		data := value.Bytes()
+		if data == nil {
+			data = []byte{}
+		}
+		return data, nil
 	case "structure", "union":
 		result := map[string]any{}
 		for wire, member := range shape.Members {
@@ -317,6 +331,19 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 			return err
 		}
 		out.Set(reflect.ValueOf(t))
+	case "blob":
+		switch v := value.(type) {
+		case []byte:
+			out.SetBytes(v)
+		case string:
+			data, err := base64.StdEncoding.DecodeString(v)
+			if err != nil {
+				return errors.New("a blob must be base64")
+			}
+			out.SetBytes(data)
+		default:
+			return errors.New("expected base64 text")
+		}
 	case "structure", "union":
 		object, ok := value.(map[string]any)
 		if !ok {
@@ -633,6 +660,13 @@ func (c *Client) callValues(ctx context.Context, name string, values map[string]
 		}
 		headers.Set("Content-Type", "application/json")
 	}
+	if len(op.Request.Payload) == 2 {
+		// The bytes go as they are: a body digest covers exactly these.
+		if payload, ok := values[op.Request.Payload[0]].([]byte); ok && len(payload) > 0 {
+			body = payload
+			headers.Set("Content-Type", op.Request.Payload[1])
+		}
+	}
 	for attempt := 1; attempt <= c.config.MaxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -683,7 +717,7 @@ func (c *Client) callValues(ctx context.Context, name string, values map[string]
 		response, transportErr := c.config.HTTPClient.Do(request)
 		var data []byte
 		if response != nil {
-			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0) {
+			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0 || len(op.Response.Payload) > 0) {
 				data, transportErr = io.ReadAll(response.Body)
 			}
 			response.Body.Close()
@@ -748,7 +782,13 @@ func retryDelay(attempt int, response *http.Response, base, max time.Duration) t
 func (c *Client) decode(op operationDescription, response *http.Response, data []byte) (map[string]any, error) {
 	values := map[string]any{}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
-		if len(data) > 0 {
+		if len(op.Response.Payload) == 2 {
+			// A payload is the body as received, whatever it holds.
+			if data == nil {
+				data = []byte{}
+			}
+			values[op.Response.Payload[0]] = data
+		} else if len(data) > 0 {
 			value, err := parseJSON(data)
 			if err != nil {
 				return nil, err

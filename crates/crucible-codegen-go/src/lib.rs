@@ -49,6 +49,7 @@ fn simple(kind: SimpleKind) -> &'static str {
         SimpleKind::Double => "float64",
         SimpleKind::Timestamp => "time.Time",
         SimpleKind::Document => "any",
+        SimpleKind::Blob => "[]byte",
     }
 }
 
