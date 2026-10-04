@@ -1,0 +1,7 @@
+{
+  "generatorVersion": "0.1.0",
+  "service": "example.weather#Weather",
+  "serviceVersion": "2026-10-01",
+  "packageVersion": "0.0.0-dev",
+  "schemaSha256": "5c3a4398d930f29b733083b1adad1a38b18937400e3c03ed1296b50beb3e4662"
+}

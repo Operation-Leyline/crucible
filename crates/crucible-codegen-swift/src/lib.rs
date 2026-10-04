@@ -1,0 +1,405 @@
+//! Native Swift models and async clients emitted from lowered Smithy semantics.
+mod client;
+mod models;
+use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use crucible_smithy::{Diagnostics, ShapeId};
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, BTreeSet};
+
+pub struct Options {
+    pub package_name: String,
+    pub module_name: String,
+    pub package_version: String,
+    pub endpoint: Option<String>,
+    pub content_sha256: bool,
+}
+pub struct File {
+    pub path: String,
+    pub contents: String,
+}
+fn literal(text: &str) -> String {
+    let mut result = String::from("\"");
+    for ch in text.chars() {
+        match ch {
+            '\\' => result.push_str("\\\\"),
+            '"' => result.push_str("\\\""),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            ch if ch.is_control() => result.push_str(&format!("\\u{{{:x}}}", u32::from(ch))),
+            ch => result.push(ch),
+        }
+    }
+    result.push('"');
+    result
+}
+fn identifier(text: &str) -> bool {
+    text != "_"
+        && text.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+        && text.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+fn reserved_module(text: &str) -> bool {
+    // Module-qualified references must not resolve to an emitted type instead.
+    [
+        "Swift",
+        "Foundation",
+        "Crypto",
+        "FoundationNetworking",
+        "Client",
+        "Models",
+        "Unit",
+        "ModeledErrors",
+        "ClientRuntime",
+        "ErrorMetadata",
+        "ServiceError",
+        "UnknownServiceError",
+        "NetworkError",
+        "TimeoutError",
+        "HTTPRequest",
+        "HTTPResponse",
+        "HTTPTransport",
+        "ClientConfig",
+        "Pages",
+        "URLSessionTransport",
+        "HTTPCall",
+        "SessionDelegate",
+        "DeadlineState",
+        "JSONValue",
+        "WireError",
+        "JSONReader",
+        "WireNumber",
+        "OptionalValue",
+        "WireCodable",
+        "WireContext",
+        "WireCodec",
+        "WireInteger",
+        "Timestamp",
+        // Swift declaration, statement, expression, type and contextual keywords.
+        "associatedtype",
+        "class",
+        "deinit",
+        "enum",
+        "extension",
+        "fileprivate",
+        "func",
+        "import",
+        "init",
+        "inout",
+        "internal",
+        "let",
+        "open",
+        "operator",
+        "private",
+        "precedencegroup",
+        "protocol",
+        "public",
+        "rethrows",
+        "static",
+        "struct",
+        "subscript",
+        "typealias",
+        "var",
+        "break",
+        "case",
+        "catch",
+        "continue",
+        "default",
+        "defer",
+        "do",
+        "else",
+        "fallthrough",
+        "for",
+        "guard",
+        "if",
+        "in",
+        "repeat",
+        "return",
+        "switch",
+        "throw",
+        "where",
+        "while",
+        "as",
+        "Any",
+        "AnyObject",
+        "false",
+        "is",
+        "nil",
+        "self",
+        "Self",
+        "super",
+        "throws",
+        "true",
+        "try",
+        "actor",
+        "any",
+        "async",
+        "await",
+        "borrowing",
+        "consuming",
+        "distributed",
+        "isolated",
+        "macro",
+        "nonisolated",
+        "package",
+        "sending",
+        "some",
+        "associativity",
+        "convenience",
+        "didSet",
+        "dynamic",
+        "final",
+        "get",
+        "indirect",
+        "infix",
+        "lazy",
+        "left",
+        "mutating",
+        "none",
+        "nonmutating",
+        "optional",
+        "override",
+        "postfix",
+        "precedence",
+        "prefix",
+        "Protocol",
+        "required",
+        "right",
+        "set",
+        "Type",
+        "unowned",
+        "weak",
+        "willSet",
+        "yield",
+        "each",
+        "consume",
+        "copy",
+    ]
+    .contains(&text)
+}
+
+fn diagnose_recursion(service: &Service, diagnostics: &mut Diagnostics) {
+    let mut structures = BTreeMap::new();
+    let mut aliases = BTreeMap::new();
+    for (id, shape) in &service.shapes {
+        match shape {
+            Shape::Structure(s) => {
+                structures.insert(
+                    id,
+                    s.members
+                        .iter()
+                        .filter(|m| !m.optional_on_client())
+                        .map(|m| &m.target)
+                        .collect::<Vec<_>>(),
+                );
+            }
+            Shape::List(l) => {
+                aliases.insert(id, vec![&l.member.target]);
+            }
+            Shape::Map(m) => {
+                aliases.insert(id, vec![&m.value.target]);
+            }
+            _ => {}
+        }
+    }
+    for (graph, message) in [
+        (
+            &structures,
+            "Swift cannot represent a cycle of required structure members",
+        ),
+        (
+            &aliases,
+            "Swift cannot represent a cycle of list/map type aliases",
+        ),
+    ] {
+        // Follow only edges represented inline by Swift. A node is diagnosed only
+        // if it reaches itself, so an acyclic parent of a cycle is not blamed.
+        for (id, edges) in graph {
+            let mut pending = edges.clone();
+            let mut seen = BTreeSet::new();
+            while let Some(next) = pending.pop() {
+                if next == *id {
+                    diagnostics.push(id, message);
+                    break;
+                }
+                if seen.insert(next) {
+                    if let Some(edges) = graph.get(next) {
+                        pending.extend(edges);
+                    }
+                }
+            }
+        }
+    }
+}
+fn field(text: &str) -> String {
+    if [
+        "metadata",
+        "description",
+        "fromWire",
+        "toWire",
+        "self",
+        "Self",
+        "Type",
+        "Protocol",
+    ]
+    .contains(&text)
+    {
+        format!("{text}Value")
+    } else {
+        text.to_string()
+    }
+}
+fn method(text: &str) -> String {
+    let mut chars = text.chars();
+    format!(
+        "{}{}",
+        chars.next().expect("name").to_ascii_lowercase(),
+        chars.as_str()
+    )
+}
+fn ty(service: &Service, id: &ShapeId, module: &str) -> String {
+    match service.shape(id).expect("lowered shape") {
+        Shape::Unit => format!("{module}.Models.Unit"),
+        Shape::Simple(s) => match s.kind {
+            SimpleKind::String => "Swift.String".into(),
+            SimpleKind::Boolean => "Swift.Bool".into(),
+            SimpleKind::Byte => "Swift.Int8".into(),
+            SimpleKind::Short => "Swift.Int16".into(),
+            SimpleKind::Integer => "Swift.Int32".into(),
+            SimpleKind::Long => "Swift.Int64".into(),
+            SimpleKind::Float => "Swift.Float".into(),
+            SimpleKind::Double => "Swift.Double".into(),
+            SimpleKind::Timestamp => format!("{module}.Timestamp"),
+            SimpleKind::Document => format!("{module}.JSONValue"),
+            SimpleKind::Blob => "Foundation.Data".into(),
+        },
+        _ => format!("{module}.Models.`{}`", service.name_of(id)),
+    }
+}
+pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    let mut diagnostics = Diagnostics::default();
+    for (name, value) in [
+        ("package name", &options.package_name),
+        ("module name", &options.module_name),
+    ] {
+        if !identifier(value) || name == "module name" && reserved_module(value) {
+            diagnostics.push(&service.id, format!("invalid Swift {name}"));
+        }
+    }
+    diagnose_recursion(service, &mut diagnostics);
+    let mut names = BTreeSet::from_iter(
+        [
+            "Unit",
+            "Models",
+            "Swift",
+            "Foundation",
+            "Self",
+            "Type",
+            "Protocol",
+            options.module_name.as_str(),
+        ]
+        .map(str::to_string),
+    );
+    for (id, shape) in &service.shapes {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+            continue;
+        }
+        if !identifier(service.name_of(id)) || !names.insert(service.name_of(id).to_string()) {
+            diagnostics.push(id, "invalid or colliding Swift model name");
+        }
+        if let Shape::Structure(s) | Shape::Union(s) = shape {
+            let mut members = BTreeSet::new();
+            for member in &s.members {
+                let name = if matches!(shape, Shape::Union(_)) {
+                    method(&member.name)
+                } else {
+                    field(&member.name)
+                };
+                if !members.insert(name.clone())
+                    || matches!(shape, Shape::Union(_))
+                        && ["unknownVariant", "fromWire", "toWire"].contains(&name.as_str())
+                {
+                    diagnostics.push(&id.with_member(&member.name), "Swift member name collision");
+                }
+            }
+        }
+        if let Shape::Enum(e) = shape {
+            let mut values = BTreeSet::from_iter(
+                ["rawValue", "fromWire", "toWire", "init", "self"].map(str::to_string),
+            );
+            for value in &e.values {
+                if !values.insert(method(&value.name)) {
+                    diagnostics.push(id, "Swift enum constant name collision");
+                }
+            }
+        }
+    }
+    let mut methods = BTreeSet::from_iter(["init", "deinit", "close", "self"].map(str::to_string));
+    for op in &service.operations {
+        if matches!(op.method.as_str(), "GET" | "HEAD")
+            && (!op.request.body.is_empty() || op.request.payload.is_some())
+        {
+            diagnostics.push(
+                &op.id,
+                "Swift URLSession transport cannot send a GET or HEAD body",
+            );
+        }
+        for suffix in [""]
+            .into_iter()
+            .chain(op.paginated.is_some().then_some("Pages"))
+        {
+            if !methods.insert(format!("{}{suffix}", method(op.name()))) {
+                diagnostics.push(&op.id, "Swift operation name collision");
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    let source = format!("Sources/{}", options.module_name);
+    let schema = serde_json::to_string(&crucible_codegen_common::schema(service, field))
+        .expect("schema serializes");
+    let provenance = serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"), "service":service.id.to_string(), "serviceVersion":service.version, "packageVersion":options.package_version, "schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
+    let mut files = vec![
+        File {
+            path: format!("{source}/Client.swift"),
+            contents: client::emit(service, options),
+        },
+        File {
+            path: format!("{source}/Models.swift"),
+            contents: models::emit(service, &options.module_name),
+        },
+        File {
+            path: format!("{source}/Resources/schema.json"),
+            contents: schema,
+        },
+        File {
+            path: format!("{source}/Resources/crucible.json"),
+            contents: provenance,
+        },
+    ];
+    for (name, contents) in [
+        ("JSONValue", include_str!("../runtime/JSONValue.swift")),
+        ("WireCodec", include_str!("../runtime/WireCodec.swift")),
+        ("Timestamp", include_str!("../runtime/Timestamp.swift")),
+        (
+            "ClientConfig",
+            include_str!("../runtime/ClientConfig.swift"),
+        ),
+        (
+            "HTTPTransport",
+            include_str!("../runtime/HTTPTransport.swift"),
+        ),
+        ("Deadline", include_str!("../runtime/Deadline.swift")),
+        (
+            "ClientRuntime",
+            include_str!("../runtime/ClientRuntime.swift"),
+        ),
+    ] {
+        files.push(File {
+            path: format!("{source}/{name}.swift"),
+            contents: contents.replace("\r\n", "\n"),
+        });
+    }
+    files.push(File { path: "Package.swift".into(), contents: format!("// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: {},\n    platforms: [.macOS(.v12), .iOS(.v15)],\n    products: [.library(name: {}, targets: [{}])],\n    dependencies: [.package(url: \"https://github.com/apple/swift-crypto.git\", exact: \"3.10.0\")],\n    targets: [.target(name: {}, dependencies: [.product(name: \"Crypto\", package: \"swift-crypto\")], resources: [.process(\"Resources\")])]\n)\n", literal(&options.package_name), literal(&options.module_name), literal(&options.module_name), literal(&options.module_name)) });
+    Ok(files)
+}
