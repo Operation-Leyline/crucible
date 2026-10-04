@@ -16,6 +16,10 @@ use crate::operations::{Invoke, Operations};
 use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Route};
 use crate::validate::Rejection;
 
+/// The invocation answer when no protocol answered with JSON.
+pub(crate) const INVOKE_FAILURE: &str =
+    r#"{"error":{"__type":"InternalFailure","message":"no protocol answered the invocation"}}"#;
+
 type Reject = Arc<dyn Fn(&Rejection) -> Box<dyn ModelledError> + Send + Sync>;
 
 /// A random UUID (v4) as a header value, formatted once.
@@ -77,11 +81,7 @@ impl Crucible {
         let response = self.handle(request).await;
         axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
-            .unwrap_or_else(|_| {
-                Bytes::from_static(
-                    br#"{"error":{"__type":"InternalFailure","message":"no protocol answered the invocation"}}"#,
-                )
-            })
+            .unwrap_or_else(|_| Bytes::from_static(INVOKE_FAILURE.as_bytes()))
     }
 
     /// [`Crucible::invoke_json`] with JSON values, for tests and callers
@@ -89,7 +89,9 @@ impl Crucible {
     pub async fn invoke(&self, operation: &str, input: serde_json::Value) -> serde_json::Value {
         let input = serde_json::to_vec(&input).unwrap_or_default();
         let answer = self.invoke_json(operation, input).await;
-        serde_json::from_slice(&answer).unwrap_or(serde_json::Value::Null)
+        serde_json::from_slice(&answer).unwrap_or_else(|_| {
+            serde_json::from_str(INVOKE_FAILURE).expect("the failure envelope is JSON")
+        })
     }
 
     pub async fn handle(&self, request: Request<Body>) -> Response {

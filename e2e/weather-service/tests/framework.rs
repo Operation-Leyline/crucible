@@ -229,7 +229,9 @@ async fn lambda_answers_direct_invokes_and_http_events_alike() {
             "time": "04/Oct/2026:12:00:00 +0000",
             "timeEpoch": 1790000000000_i64
         },
-        "isBase64Encoded": false
+        "isBase64Encoded": false,
+        // Unrelated to crucible: only a string `operation` is a direct invoke.
+        "operation": 42
     });
     let answered = crucible::host::lambda_event(&service, event).await.unwrap();
     assert_eq!(answered["statusCode"], 200, "{answered}");

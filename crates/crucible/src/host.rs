@@ -161,8 +161,10 @@ mod lambda_event {
     /// the event: the input stays a slice of the event text.
     #[derive(Deserialize)]
     struct Envelope<'a> {
+        /// Raw: an HTTP event may carry an unrelated `operation` of any type,
+        /// and only a string one makes a direct invoke.
         #[serde(borrow, default)]
-        operation: Option<Cow<'a, str>>,
+        operation: Option<&'a RawValue>,
         #[serde(borrow, default)]
         input: Option<&'a RawValue>,
         #[serde(rename = "requestContext", default)]
@@ -176,16 +178,24 @@ mod lambda_event {
         payload: &str,
     ) -> Result<Box<RawValue>, BoxError> {
         let envelope: Envelope<'_> = serde_json::from_str(payload)?;
-        if let (Some(operation), None, None) = (
-            envelope.operation.as_deref(),
-            &envelope.request_context,
-            &envelope.http_method,
-        ) {
+        let operation = envelope
+            .operation
+            .and_then(|raw| serde_json::from_str::<Cow<'_, str>>(raw.get()).ok());
+        if let (Some(operation), None, None) =
+            (operation, &envelope.request_context, &envelope.http_method)
+        {
             let input = envelope.input.map_or("{}", RawValue::get);
             let answer = service
-                .invoke_json(operation, Bytes::copy_from_slice(input.as_bytes()))
+                .invoke_json(&operation, Bytes::copy_from_slice(input.as_bytes()))
                 .await;
-            return Ok(RawValue::from_string(String::from_utf8(answer.to_vec())?)?);
+            // A custom protocol may answer bytes that are not JSON.
+            let answer = String::from_utf8(answer.to_vec())
+                .ok()
+                .and_then(|text| RawValue::from_string(text).ok());
+            return Ok(answer.unwrap_or_else(|| {
+                RawValue::from_string(crate::service::INVOKE_FAILURE.to_owned())
+                    .expect("the failure envelope is JSON")
+            }));
         }
         let request: LambdaRequest = serde_json::from_str(payload)?;
         let origin = request.request_origin();
