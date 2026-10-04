@@ -38,7 +38,10 @@ optional input members settled by Smithy lowering. Required output members
 use native values, and absent modeled defaults are applied during decoding.
 Integers retain their modeled widths; document numbers decode as `json.Number`.
 Timestamps use `time.Time` and preserve nanoseconds in date-time and
-epoch-seconds formats. HTTP-date has second precision.
+epoch-seconds formats. HTTP-date has second precision. Blobs are `[]byte`:
+standard, padded base64 in JSON, and the bytes themselves, under the blob's
+media type, as an `@httpPayload`. A payload response decodes to the body as
+received, an empty body to empty bytes.
 
 Enums are named strings and preserve future values. Unions have optional typed
 arms and an `UnknownVariant` that retains an unrecognized name and payload.

@@ -26,7 +26,7 @@ mod operations;
 mod store;
 
 pub use operations::Weather;
-pub use store::{CityStore, MemoryCities, NameTaken, NewCity};
+pub use store::{CityStore, MemoryCities, NameTaken, NewCity, StoredPhoto};
 
 use contract::errors::ConflictError;
 

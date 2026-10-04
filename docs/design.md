@@ -73,9 +73,12 @@ reach, keyed by shape id. Lowering settles, once:
   with the member's own laid over them.
 - **Sensitivity**: member and target annotations resolve through the IR; generated
   static metadata supports recursive logging redaction.
-- **HTTP bindings**: label, query, header or body for each input member,
-  header or body for each output and error member. Labels are checked
-  against the URI in both directions. Literal query parameters are preserved
+- **HTTP bindings**: label, query, header, body or payload for each input
+  member, header, body or payload for each output member, header or body
+  for each error member. A payload (`@httpPayload`) must target a blob and
+  is the whole body, so its structure has no body members; its media type
+  is settled here too. Labels are checked against the URI in both
+  directions. Literal query parameters are preserved
   in both clients and participate in server route matching.
 - **Errors**: the operation's own, then the service's, each with fault,
   status and retryability.
@@ -116,5 +119,12 @@ consumer's tests, then replaces it.
 Protocol details owned here, with round-trip tests from the first emitter:
 timestamp formats by location, list encoding in query strings (repeated
 keys) and headers (comma-separated, quoted when needed), percent-encoding of
-labels, `null` versus absent, document values, error type identification,
-and empty bodies for Unit output.
+labels, `null` versus absent, document values, blobs (base64 in a JSON body,
+raw bytes as a payload), error type identification, and empty bodies for
+Unit output.
+
+A payload is supported only for a blob: a signature over a request (a
+payment processor's webhook) needs the exact bytes, which a JSON body cannot
+promise. A structure, union, string or document payload, and a payload on an
+error (whose body must be JSON naming it), are diagnosed. So is a blob in a
+label, query parameter or header.

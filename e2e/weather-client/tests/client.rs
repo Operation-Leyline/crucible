@@ -9,9 +9,12 @@ use std::time::Duration;
 use chrono::{TimeZone, Utc};
 use crucible_client::{Config, Error, Retry, Token};
 use weather_client::model::{
-    Coordinates, CreateCityInput, GetCityInput, ListCitiesInput, Location, Sky, StatusInput,
+    Coordinates, CreateCityInput, GetCityInput, GetCityPhotoInput, ListCitiesInput, Location,
+    PutCityPhotoInput, Sky, StatusInput,
 };
-use weather_client::{Client, CreateCityError, GetCityError, ListCitiesError, PingError};
+use weather_client::{
+    Client, CreateCityError, GetCityError, ListCitiesError, PingError, PutCityPhotoError,
+};
 use weather_service::MemoryCities;
 
 async fn serve() -> String {
@@ -267,6 +270,74 @@ async fn the_token_provider_is_asked_on_every_attempt() {
         asked.load(Ordering::SeqCst),
         2,
         "one throttled attempt, one retry"
+    );
+}
+
+/// A request's content type and body bytes.
+type Carried = (Option<String>, Vec<u8>);
+
+/// Records what each request carried.
+#[derive(Clone, Default)]
+struct Sent(Arc<std::sync::Mutex<Vec<Carried>>>);
+
+impl crucible_client::Interceptor for Sent {
+    fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String> {
+        let content_type = request
+            .headers()
+            .get("content-type")
+            .map(|value| value.to_str().unwrap().to_owned());
+        let body = request
+            .body()
+            .and_then(|body| body.as_bytes())
+            .unwrap_or_default()
+            .to_vec();
+        self.0.lock().unwrap().push((content_type, body));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_payload_travels_raw_both_ways() {
+    let sent = Sent::default();
+    let client = Client::new(Config::new(serve().await).interceptor(sent.clone()));
+    let city = client.create_city(create("tromso")).await.unwrap().city;
+    let photo: &'static [u8] = b"\xff\xd8{\"looks\": \"like json\"}\x00\x80";
+    let stored = client
+        .put_city_photo(PutCityPhotoInput {
+            city_id: city.id.clone(),
+            caption: Some("aurora".to_owned()),
+            photo: photo.into(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(stored.photo.size, photo.len() as i32);
+    assert_eq!(&stored.photo.thumbnail[..], &photo[..8], "base64 in JSON");
+    let (content_type, body) = sent.0.lock().unwrap().last().cloned().unwrap();
+    assert_eq!(content_type.as_deref(), Some("image/jpeg"));
+    assert_eq!(body, photo, "sent as the bytes themselves");
+
+    let read = client
+        .get_city_photo(GetCityPhotoInput {
+            city_id: city.id.clone(),
+        })
+        .await
+        .unwrap();
+    assert_eq!(read.photo.as_deref(), Some(photo));
+    assert_eq!(read.caption.as_deref(), Some("aurora"));
+
+    let refused = client
+        .put_city_photo(PutCityPhotoInput {
+            city_id: city.id,
+            caption: None,
+            photo: vec![0; 4097].into(),
+        })
+        .await;
+    assert!(
+        matches!(
+            refused,
+            Err(Error::Service(PutCityPhotoError::ValidationError(_)))
+        ),
+        "{refused:?}"
     );
 }
 

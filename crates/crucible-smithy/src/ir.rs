@@ -115,6 +115,8 @@ pub enum SimpleKind {
     Double,
     Timestamp,
     Document,
+    /// Bytes: base64 in a JSON body, raw as an `@httpPayload`.
+    Blob,
 }
 
 #[derive(Debug, Clone)]
@@ -268,8 +270,19 @@ pub struct Bindings {
     pub labels: Vec<String>,
     pub query: Vec<Binding>,
     pub headers: Vec<Binding>,
-    /// Members serialized into the JSON body, in member order.
+    /// Members serialized into the JSON body, in member order. Empty when
+    /// there is a payload.
     pub body: Vec<String>,
+    /// The member that is the whole body, raw (`@httpPayload` on a blob).
+    pub payload: Option<Payload>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Payload {
+    pub member: String,
+    /// The target's `@mediaType`, else `application/octet-stream`: the
+    /// `Content-Type` a sender gives the body.
+    pub media_type: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

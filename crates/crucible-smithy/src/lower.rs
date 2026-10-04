@@ -1,7 +1,8 @@
 //! Lowering one service from the JSON AST to the IR.
 //!
 //! Crucible generates from a deliberate subset of Smithy: its own JSON
-//! protocol (`smithy/crucible.smithy`), bearer auth, JSON bodies. Anything outside it is a diagnostic, never a silent
+//! protocol (`smithy/crucible.smithy`), bearer auth, JSON bodies or a raw
+//! blob payload. Anything outside it is a diagnostic, never a silent
 //! skip — a generator that drops what it does not understand produces code
 //! that quietly disagrees with the model.
 
@@ -13,8 +14,8 @@ use crate::ast::{self, Kind, Traits};
 use crate::diagnostics::Diagnostics;
 use crate::ir::{
     Binding, Bindings, Bounds, Constraints, Enum, EnumValue, ErrorInfo, Fault, List, Map, Member,
-    Operation, Paginated, Retryable, Segment, Service, Shape, Simple, SimpleKind, Structure,
-    TimestampFormat, Uri,
+    Operation, Paginated, Payload, Retryable, Segment, Service, Shape, Simple, SimpleKind,
+    Structure, TimestampFormat, Uri,
 };
 use crate::shape_id::ShapeId;
 
@@ -31,7 +32,6 @@ const PRELUDE_AUTH: &[&str] = &[
 const UNSUPPORTED_TRAITS: &[&str] = &[
     "streaming",
     "requiresLength",
-    "httpPayload",
     "httpResponseCode",
     "httpPrefixHeaders",
     "httpQueryParams",
@@ -87,6 +87,7 @@ impl<'m> Lowerer<'m> {
             })
             .collect();
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
+        self.check_stray_payloads(&operations);
         Service {
             id: id.clone(),
             version: shape.version.clone().unwrap_or_default(),
@@ -327,7 +328,9 @@ impl<'m> Lowerer<'m> {
         let mut bindings = Bindings::default();
         for (name, member) in &self.model[input].members {
             let member_id = input.with_member(name);
-            if member.traits.contains_key(&smithy("httpLabel")) {
+            if member.traits.contains_key(&smithy("httpPayload")) {
+                bindings.payload = self.payload(&member_id, member);
+            } else if member.traits.contains_key(&smithy("httpLabel")) {
                 if !member.traits.contains_key(&smithy("required")) {
                     self.diagnostics
                         .push(&member_id, "an @httpLabel member must be @required");
@@ -364,12 +367,17 @@ impl<'m> Lowerer<'m> {
                 "@httpLabel member does not appear in the operation's URI",
             );
         }
+        self.check_alone(input, &bindings);
         bindings
     }
 
     fn response_bindings(&mut self, output: &ShapeId) -> Bindings {
         let mut bindings = Bindings::default();
         for (name, member) in &self.model[output].members {
+            if member.traits.contains_key(&smithy("httpPayload")) {
+                bindings.payload = self.payload(&output.with_member(name), member);
+                continue;
+            }
             match string_trait(&member.traits, "httpHeader") {
                 Some(header) => {
                     self.check_scalar(
@@ -386,7 +394,87 @@ impl<'m> Lowerer<'m> {
                 None => bindings.body.push(name.clone()),
             }
         }
+        self.check_alone(output, &bindings);
         bindings
+    }
+
+    /// An `@httpPayload` member: the whole body, raw. crucible carries a blob
+    /// there. A structure, union, string or document payload (the body as
+    /// that value's JSON or text) is not generated.
+    fn payload(&mut self, member_id: &ShapeId, member: &ast::Member) -> Option<Payload> {
+        let target = self.model.get(&member.target)?;
+        if target.kind != Kind::Blob {
+            self.diagnostics.push(
+                member_id,
+                format!(
+                    "@httpPayload must target a blob; a {} payload is not supported",
+                    format!("{:?}", target.kind).to_lowercase()
+                ),
+            );
+            return None;
+        }
+        let media_type = string_trait(&target.traits, "mediaType")
+            .unwrap_or_else(|| "application/octet-stream".to_owned());
+        // It travels as the Content-Type header.
+        if !media_type
+            .bytes()
+            .all(|b| b == b'\t' || (0x20..0x7f).contains(&b))
+        {
+            self.diagnostics.push(
+                &member.target,
+                format!("@mediaType {media_type:?} is not a valid header value"),
+            );
+        }
+        Some(Payload {
+            member: member_id.member().unwrap_or_default().to_owned(),
+            media_type,
+        })
+    }
+
+    /// A payload is the whole body: nothing else can travel in it.
+    fn check_alone(&mut self, structure: &ShapeId, bindings: &Bindings) {
+        let Some(payload) = &bindings.payload else {
+            return;
+        };
+        for member in &bindings.body {
+            self.diagnostics.push(
+                &structure.with_member(member),
+                format!(
+                    "the body is the @httpPayload member `{}`; bind this member to a label, query parameter or header",
+                    payload.member
+                ),
+            );
+        }
+    }
+
+    /// `@httpPayload` binds a member of an operation's input or output; on
+    /// any other structure it would be silently ignored.
+    fn check_stray_payloads(&mut self, operations: &[Operation]) {
+        let bound: BTreeSet<&ShapeId> = operations
+            .iter()
+            .flat_map(|op| op.input.iter().chain(&op.output))
+            .collect();
+        let stray: Vec<ShapeId> = self
+            .shapes
+            .iter()
+            .filter(|(id, _)| !bound.contains(id))
+            .filter_map(|(id, shape)| match shape {
+                Shape::Structure(s) | Shape::Union(s) if s.error.is_none() => Some((id, s)),
+                _ => None,
+            })
+            .flat_map(|(id, s)| {
+                s.members
+                    .iter()
+                    .filter(|m| m.traits.contains_key(&smithy("httpPayload")))
+                    .map(|m| id.with_member(&m.name))
+            })
+            .collect();
+        for member in stray {
+            self.diagnostics.push(
+                &member,
+                "@httpPayload binds only a member of an operation's input or output",
+            );
+        }
     }
 
     /// Labels, query parameters and headers carry text: a simple value, an
@@ -398,7 +486,13 @@ impl<'m> Lowerer<'m> {
         let scalar = |kind: Kind| {
             !matches!(
                 kind,
-                Kind::Structure | Kind::Union | Kind::Map | Kind::List | Kind::Set | Kind::Document
+                Kind::Structure
+                    | Kind::Union
+                    | Kind::Map
+                    | Kind::List
+                    | Kind::Set
+                    | Kind::Document
+                    | Kind::Blob
             )
         };
         let ok = match shape.kind {
@@ -499,6 +593,7 @@ impl<'m> Lowerer<'m> {
             Kind::Double => simple(SimpleKind::Double),
             Kind::Timestamp => simple(SimpleKind::Timestamp),
             Kind::Document => simple(SimpleKind::Document),
+            Kind::Blob => simple(SimpleKind::Blob),
             Kind::Enum => Shape::Enum(Enum {
                 values: shape
                     .members
@@ -546,8 +641,7 @@ impl<'m> Lowerer<'m> {
                 docs,
                 traits,
             }),
-            Kind::Blob
-            | Kind::BigInteger
+            Kind::BigInteger
             | Kind::BigDecimal
             | Kind::IntEnum
             | Kind::Set
@@ -660,6 +754,13 @@ impl<'m> Lowerer<'m> {
             });
         let mut headers = Vec::new();
         for (name, member) in &shape.members {
+            if member.traits.contains_key(&smithy("httpPayload")) {
+                // Clients name an error by its JSON body's `__type`.
+                self.diagnostics.push(
+                    &id.with_member(name),
+                    "@httpPayload is not supported on an error: its body is JSON naming the error",
+                );
+            }
             if let Some(header) = string_trait(&member.traits, "httpHeader") {
                 self.check_scalar(&id.with_member(name), &member.target, "@httpHeader", true);
                 headers.push(Binding {

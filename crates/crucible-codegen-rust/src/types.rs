@@ -33,6 +33,7 @@ pub(crate) fn builtin(kind: SimpleKind) -> &'static str {
         SimpleKind::Double => "f64",
         SimpleKind::Timestamp => DATE_TIME,
         SimpleKind::Document => "::crucible::__private::serde_json::Value",
+        SimpleKind::Blob => "::crucible::Blob",
     }
 }
 

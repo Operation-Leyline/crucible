@@ -117,6 +117,7 @@ fn ty(service: &Service, id: &ShapeId) -> String {
             SimpleKind::Double => "java.lang.Double",
             SimpleKind::Timestamp => "java.time.Instant",
             SimpleKind::Document => "com.google.gson.JsonElement",
+            SimpleKind::Blob => "byte[]",
         }
         .into(),
         _ => format!("Models.{}", service.name_of(id)),

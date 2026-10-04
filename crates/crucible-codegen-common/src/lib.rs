@@ -18,7 +18,8 @@ fn format(f: TimestampFormat) -> &'static str {
 
 fn bindings(b: &Bindings) -> Value {
     json!({"labels": b.labels, "query": b.query.iter().map(|x| json!([x.member,x.name])).collect::<Vec<_>>(),
-        "headers": b.headers.iter().map(|x| json!([x.member,x.name])).collect::<Vec<_>>(), "body": b.body})
+        "headers": b.headers.iter().map(|x| json!([x.member,x.name])).collect::<Vec<_>>(), "body": b.body,
+        "payload": b.payload.as_ref().map(|p| json!([p.member, p.media_type]))})
 }
 
 pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
@@ -29,6 +30,7 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
                 SimpleKind::String => "string", SimpleKind::Boolean => "boolean",
                 SimpleKind::Byte => "byte", SimpleKind::Short => "short", SimpleKind::Integer => "integer", SimpleKind::Long => "long",
                 SimpleKind::Float => "float", SimpleKind::Double => "double", SimpleKind::Timestamp => "timestamp", SimpleKind::Document => "document",
+                SimpleKind::Blob => "blob",
             }, "format": format(s.timestamp_format.unwrap_or(TimestampFormat::DateTime))}),
             Shape::Enum(e) => json!({"kind":"enum", "values":e.values.iter().map(|v| &v.value).collect::<Vec<_>>()}),
             Shape::List(l) => json!({"kind":"list", "member":member(service,&l.member,&field)}),

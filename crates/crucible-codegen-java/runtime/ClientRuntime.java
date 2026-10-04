@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.Iterator;
@@ -177,6 +178,11 @@ final class ClientRuntime {
         return writeTime((Instant) value, format == null ? text(shape, "format") : format);
       case "enum":
         return new JsonPrimitive(value.toString());
+      case "blob":
+        // Standard, padded base64 in JSON; a payload decodes it back to the bytes.
+        if (!(value instanceof byte[] bytes))
+          throw new IllegalArgumentException("a blob is a byte[]");
+        return new JsonPrimitive(Base64.getEncoder().encodeToString(bytes));
       case "list":
         {
           var result = new JsonArray();
@@ -277,6 +283,10 @@ final class ClientRuntime {
         }
       case "document":
         return value.deepCopy();
+      case "blob":
+        if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isString())
+          throw new IllegalArgumentException("expected base64 text");
+        return Base64.getDecoder().decode(value.getAsString());
       case "list":
         {
           var result = (List<Object>) construct(classes.get(target));
@@ -482,6 +492,18 @@ final class ClientRuntime {
       body = JSON.toJson(object).getBytes(StandardCharsets.UTF_8);
       headers.put("content-type", "application/json");
     }
+    JsonElement payload = request.get("payload");
+    if (payload != null && payload.isJsonArray()) {
+      // The bytes go as they are: a body digest covers exactly these.
+      JsonElement value = values.get(payload.getAsJsonArray().get(0).getAsString());
+      if (value != null && !value.isJsonNull()) {
+        byte[] bytes = Base64.getDecoder().decode(value.getAsString());
+        if (bytes.length > 0) {
+          body = bytes;
+          headers.put("content-type", payload.getAsJsonArray().get(1).getAsString());
+        }
+      }
+    }
     return new Prepared(op, URI.create(config.endpoint + uri), headers, body);
   }
 
@@ -588,8 +610,9 @@ final class ClientRuntime {
           request.body == null
               ? HttpRequest.BodyPublishers.noBody()
               : HttpRequest.BodyPublishers.ofByteArray(request.body));
+      JsonObject bindings = prepared.operation().getAsJsonObject("response");
       boolean hasBody =
-          !prepared.operation().getAsJsonObject("response").getAsJsonArray("body").isEmpty();
+          !bindings.getAsJsonArray("body").isEmpty() || payloadMember(bindings) != null;
       if (result.isDone()) return;
       CompletableFuture<HttpResponse<byte[]>> sent =
           http.sendAsync(
@@ -630,6 +653,14 @@ final class ClientRuntime {
     } catch (Exception e) {
       result.completeExceptionally(e);
     }
+  }
+
+  /** The member that is the whole body, raw, or null. */
+  private static String payloadMember(JsonObject bindings) {
+    JsonElement payload = bindings.get("payload");
+    return payload != null && payload.isJsonArray()
+        ? payload.getAsJsonArray().get(0).getAsString()
+        : null;
   }
 
   private static HttpResponse.BodySubscriber<byte[]> emptyBody() {
@@ -686,7 +717,11 @@ final class ClientRuntime {
     JsonObject values = new JsonObject();
     String body = new String(response.body(), StandardCharsets.UTF_8);
     if (status >= 200 && status < 300) {
-      if (!body.isEmpty()) values = JSON.fromJson(body, JsonObject.class);
+      String payload = payloadMember(op.getAsJsonObject("response"));
+      // A payload is the body as received, whatever it holds.
+      if (payload != null)
+        values.addProperty(payload, Base64.getEncoder().encodeToString(response.body()));
+      else if (!body.isEmpty()) values = JSON.fromJson(body, JsonObject.class);
       if (values == null) throw new IllegalArgumentException("response requires object");
       applyHeaders(
           values,

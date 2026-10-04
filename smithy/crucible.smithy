@@ -13,6 +13,13 @@ namespace crucible.protocols
 ///   (`@httpQuery`) and headers (`@httpHeader`). Every other input or output
 ///   member goes in a JSON object body, named as in the model. A request or
 ///   response with no body members has no body.
+/// - An `@httpPayload` member, which targets a blob, is the whole body
+///   instead: its bytes, raw, sent with the blob's `@mediaType` as the
+///   content type (`application/octet-stream` without one). A receiver
+///   takes the bytes whatever content type they arrive with. The structure's
+///   other members bind to the URI and headers. An empty body is an absent
+///   payload.
+/// - A blob in a JSON body is base64 text: the standard alphabet, padded.
 /// - A list in the query string repeats its parameter. A list in a header is
 ///   comma-separated, with an item quoted when it holds a comma or a quote.
 /// - Timestamps are RFC 3339 `date-time` strings everywhere, unless
@@ -31,6 +38,7 @@ namespace crucible.protocols
         smithy.api#httpError
         smithy.api#httpHeader
         smithy.api#httpLabel
+        smithy.api#httpPayload
         smithy.api#httpQuery
         smithy.api#timestampFormat
     ]

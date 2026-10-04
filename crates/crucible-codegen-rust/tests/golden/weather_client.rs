@@ -80,6 +80,22 @@ pub mod model {
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
+    pub struct GetCityPhotoInput {
+        #[serde(rename = "cityId")]
+        pub city_id: CityId,
+    }
+
+    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client::__private::serde")]
+    pub struct GetCityPhotoOutput {
+        #[serde(rename = "caption", default, skip_serializing_if = "::std::option::Option::is_none")]
+        pub caption: ::std::option::Option<::std::string::String>,
+        #[serde(rename = "photo", default, skip_serializing_if = "::std::option::Option::is_none")]
+        pub photo: ::std::option::Option<Photo>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client::__private::serde")]
     pub struct ListCitiesInput {
         #[serde(rename = "nextToken", default, skip_serializing_if = "::std::option::Option::is_none")]
         pub next_token: ::std::option::Option<::std::string::String>,
@@ -105,6 +121,38 @@ pub mod model {
         Coordinates(Coordinates),
         #[serde(rename = "unknown")]
         Unknown(::crucible_client::operation::Unit),
+    }
+
+    /// A photo, carried unparsed.
+    pub type Photo = ::crucible_client::Blob;
+
+    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client::__private::serde")]
+    pub struct PhotoSummary {
+        #[serde(rename = "size")]
+        pub size: i32,
+        #[serde(rename = "thumbnail")]
+        pub thumbnail: Thumbnail,
+        #[serde(rename = "caption", default, skip_serializing_if = "::std::option::Option::is_none")]
+        pub caption: ::std::option::Option<::std::string::String>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client::__private::serde")]
+    pub struct PutCityPhotoInput {
+        #[serde(rename = "cityId")]
+        pub city_id: CityId,
+        #[serde(rename = "caption", default, skip_serializing_if = "::std::option::Option::is_none")]
+        pub caption: ::std::option::Option<::std::string::String>,
+        #[serde(rename = "photo")]
+        pub photo: Photo,
+    }
+
+    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client::__private::serde")]
+    pub struct PutCityPhotoOutput {
+        #[serde(rename = "photo")]
+        pub photo: PhotoSummary,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -137,6 +185,9 @@ pub mod model {
     }
 
     pub type Tags = ::std::vec::Vec<::std::string::String>;
+
+    /// The photo's first bytes: base64 in JSON.
+    pub type Thumbnail = ::crucible_client::Blob;
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
@@ -216,6 +267,17 @@ pub mod model {
         }
     }
 
+    impl Validate for GetCityPhotoInput {
+        fn validate(&self, validator: &mut Validator) {
+            {
+                let value = &self.city_id;
+                validator.at("cityId", |validator| {
+                    validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
+                });
+            }
+        }
+    }
+
     impl Validate for ListCitiesInput {
         fn validate(&self, validator: &mut Validator) {
             if let Some(value) = &self.max_results {
@@ -241,6 +303,23 @@ pub mod model {
                 }
                 Self::Unknown(_) => {
                 }
+            }
+        }
+    }
+
+    impl Validate for PutCityPhotoInput {
+        fn validate(&self, validator: &mut Validator) {
+            {
+                let value = &self.city_id;
+                validator.at("cityId", |validator| {
+                    validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
+                });
+            }
+            {
+                let value = &self.photo;
+                validator.at("photo", |validator| {
+                    validator.length(value.len(), Some(1), Some(4096));
+                });
             }
         }
     }
@@ -271,7 +350,7 @@ pub mod errors {
         retryable: false,
         throttling: false,
         members: &[
-            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
         ],
     };
 
@@ -313,8 +392,8 @@ pub mod errors {
         retryable: false,
         throttling: false,
         members: &[
-            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "resourceId", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "resourceId", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
         ],
     };
 
@@ -356,8 +435,8 @@ pub mod errors {
         retryable: true,
         throttling: true,
         members: &[
-            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "retryAfter", location: ::crucible_client::operation::Location::Header("retry-after"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_27, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "retryAfter", location: ::crucible_client::operation::Location::Header("retry-after"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_34, traits: &[] },
         ],
     };
 
@@ -403,10 +482,10 @@ pub mod errors {
         retryable: false,
         throttling: false,
         members: &[
-            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "reason", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_24, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "fieldList", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_23, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "requestId", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "reason", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_31, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "fieldList", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_30, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "requestId", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
         ],
     };
 
@@ -438,35 +517,42 @@ mod __redaction {
     pub(super) static R_0: Redaction = Redaction::Public;
     pub(super) static R_1: Redaction = Redaction::Public;
     pub(super) static R_2: Redaction = Redaction::List(&R_3);
-    pub(super) static R_3: Redaction = Redaction::Structure(&[("id", &R_0), ("name", &R_1), ("population", &R_28), ("updatedAt", &R_30), ("createdAt", &R_30)]);
-    pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_29)]);
-    pub(super) static R_5: Redaction = Redaction::Structure(&[("latitude", &R_26), ("longitude", &R_26)]);
-    pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_1), ("location", &R_14), ("clientToken", &R_29), ("expectedRevision", &R_28)]);
+    pub(super) static R_3: Redaction = Redaction::Structure(&[("id", &R_0), ("name", &R_1), ("population", &R_35), ("updatedAt", &R_37), ("createdAt", &R_37)]);
+    pub(super) static R_4: Redaction = Redaction::Structure(&[("message", &R_36)]);
+    pub(super) static R_5: Redaction = Redaction::Structure(&[("latitude", &R_33), ("longitude", &R_33)]);
+    pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_1), ("location", &R_16), ("clientToken", &R_36), ("expectedRevision", &R_35)]);
     pub(super) static R_7: Redaction = Redaction::Structure(&[("city", &R_3)]);
     pub(super) static R_8: Redaction = Redaction::Public;
-    pub(super) static R_9: Redaction = Redaction::Map(&R_25);
+    pub(super) static R_9: Redaction = Redaction::Map(&R_32);
     pub(super) static R_10: Redaction = Redaction::Structure(&[("cityId", &R_0), ("at", &R_8)]);
-    pub(super) static R_11: Redaction = Redaction::Structure(&[("city", &R_3), ("forecast", &R_9), ("requestId", &R_29)]);
-    pub(super) static R_12: Redaction = Redaction::Structure(&[("nextToken", &R_29), ("maxResults", &R_27), ("tags", &R_19)]);
-    pub(super) static R_13: Redaction = Redaction::Structure(&[("cities", &R_2), ("nextToken", &R_29)]);
-    pub(super) static R_14: Redaction = Redaction::Structure(&[("coordinates", &R_5), ("unknown", &R_31)]);
-    pub(super) static R_15: Redaction = Redaction::Structure(&[("message", &R_29), ("resourceId", &R_29)]);
-    pub(super) static R_16: Redaction = Redaction::Public;
-    pub(super) static R_17: Redaction = Redaction::Structure(&[]);
-    pub(super) static R_18: Redaction = Redaction::Structure(&[]);
-    pub(super) static R_19: Redaction = Redaction::List(&R_29);
-    pub(super) static R_20: Redaction = Redaction::Structure(&[("message", &R_29), ("retryAfter", &R_27)]);
-    pub(super) static R_21: Redaction = Redaction::Structure(&[("message", &R_29), ("reason", &R_24), ("fieldList", &R_23), ("requestId", &R_29)]);
-    pub(super) static R_22: Redaction = Redaction::Structure(&[("path", &R_29), ("message", &R_29)]);
-    pub(super) static R_23: Redaction = Redaction::List(&R_22);
-    pub(super) static R_24: Redaction = Redaction::Public;
-    pub(super) static R_25: Redaction = Redaction::Public;
-    pub(super) static R_26: Redaction = Redaction::Public;
+    pub(super) static R_11: Redaction = Redaction::Structure(&[("city", &R_3), ("forecast", &R_9), ("requestId", &R_36)]);
+    pub(super) static R_12: Redaction = Redaction::Structure(&[("cityId", &R_0)]);
+    pub(super) static R_13: Redaction = Redaction::Structure(&[("caption", &R_36), ("photo", &R_18)]);
+    pub(super) static R_14: Redaction = Redaction::Structure(&[("nextToken", &R_36), ("maxResults", &R_34), ("tags", &R_25)]);
+    pub(super) static R_15: Redaction = Redaction::Structure(&[("cities", &R_2), ("nextToken", &R_36)]);
+    pub(super) static R_16: Redaction = Redaction::Structure(&[("coordinates", &R_5), ("unknown", &R_38)]);
+    pub(super) static R_17: Redaction = Redaction::Structure(&[("message", &R_36), ("resourceId", &R_36)]);
+    pub(super) static R_18: Redaction = Redaction::Public;
+    pub(super) static R_19: Redaction = Redaction::Structure(&[("size", &R_34), ("thumbnail", &R_27), ("caption", &R_36)]);
+    pub(super) static R_20: Redaction = Redaction::Structure(&[("cityId", &R_0), ("caption", &R_36), ("photo", &R_18)]);
+    pub(super) static R_21: Redaction = Redaction::Structure(&[("photo", &R_19)]);
+    pub(super) static R_22: Redaction = Redaction::Public;
+    pub(super) static R_23: Redaction = Redaction::Structure(&[]);
+    pub(super) static R_24: Redaction = Redaction::Structure(&[]);
+    pub(super) static R_25: Redaction = Redaction::List(&R_36);
+    pub(super) static R_26: Redaction = Redaction::Structure(&[("message", &R_36), ("retryAfter", &R_34)]);
     pub(super) static R_27: Redaction = Redaction::Public;
-    pub(super) static R_28: Redaction = Redaction::Public;
-    pub(super) static R_29: Redaction = Redaction::Public;
-    pub(super) static R_30: Redaction = Redaction::Public;
+    pub(super) static R_28: Redaction = Redaction::Structure(&[("message", &R_36), ("reason", &R_31), ("fieldList", &R_30), ("requestId", &R_36)]);
+    pub(super) static R_29: Redaction = Redaction::Structure(&[("path", &R_36), ("message", &R_36)]);
+    pub(super) static R_30: Redaction = Redaction::List(&R_29);
     pub(super) static R_31: Redaction = Redaction::Public;
+    pub(super) static R_32: Redaction = Redaction::Public;
+    pub(super) static R_33: Redaction = Redaction::Public;
+    pub(super) static R_34: Redaction = Redaction::Public;
+    pub(super) static R_35: Redaction = Redaction::Public;
+    pub(super) static R_36: Redaction = Redaction::Public;
+    pub(super) static R_37: Redaction = Redaction::Public;
+    pub(super) static R_38: Redaction = Redaction::Public;
 }
 
 
@@ -482,9 +568,9 @@ static CREATE_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_clie
     status: 201,
     input: &[
         ::crucible_client::operation::MemberInfo { name: "name", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_1, traits: &[("example.weather#audited", "{}")] },
-        ::crucible_client::operation::MemberInfo { name: "location", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_14, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "clientToken", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "expectedRevision", location: ::crucible_client::operation::Location::Header("x-expected-revision"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_28, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "location", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_16, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "clientToken", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "expectedRevision", location: ::crucible_client::operation::Location::Header("x-expected-revision"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_35, traits: &[] },
     ],
     output: &[
         ::crucible_client::operation::MemberInfo { name: "city", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_3, traits: &[] },
@@ -563,7 +649,7 @@ static GET_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_client:
     output: &[
         ::crucible_client::operation::MemberInfo { name: "city", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_3, traits: &[] },
         ::crucible_client::operation::MemberInfo { name: "forecast", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_9, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "requestId", location: ::crucible_client::operation::Location::Header("x-request-id"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_29, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "requestId", location: ::crucible_client::operation::Location::Header("x-request-id"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
     ],
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: true,
@@ -622,6 +708,80 @@ impl ::std::fmt::Display for GetCityError {
 
 impl ::std::error::Error for GetCityError {}
 
+pub struct GetCityPhoto;
+
+static GET_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+    id: "example.weather#GetCityPhoto",
+    name: "GetCityPhoto",
+    resource: Some("City"),
+    method: "GET",
+    path: &[::crucible_client::operation::Segment::Literal("cities"), ::crucible_client::operation::Segment::Label("cityId"), ::crucible_client::operation::Segment::Literal("photo")],
+    literal_query: &[],
+    status: 200,
+    input: &[
+        ::crucible_client::operation::MemberInfo { name: "cityId", location: ::crucible_client::operation::Location::Label, scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
+    ],
+    output: &[
+        ::crucible_client::operation::MemberInfo { name: "caption", location: ::crucible_client::operation::Location::Header("x-photo-caption"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "photo", location: ::crucible_client::operation::Location::Payload("image/jpeg"), scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_18, traits: &[] },
+    ],
+    errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
+    readonly: true,
+    idempotent: false,
+    idempotency_token: None,
+    traits: &[],
+};
+
+impl ::crucible_client::Operation for GetCityPhoto {
+    const INFO: &'static ::crucible_client::OperationInfo = &GET_CITY_PHOTO_OPERATION;
+    type Input = model::GetCityPhotoInput;
+    type Output = model::GetCityPhotoOutput;
+}
+
+
+/// The errors GetCityPhoto declares.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GetCityPhotoError {
+    NotFoundError(errors::NotFoundError),
+    ThrottlingError(errors::ThrottlingError),
+    ValidationError(errors::ValidationError),
+}
+
+impl ::crucible_client::OperationErrors for GetCityPhotoError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+        let name = match type_name {
+            Some(name) => name,
+            None => ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+        };
+        match name {
+            "NotFoundError" => ::crucible_client::decode_modelled(&errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            _ => None,
+        }
+    }
+
+    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+        match self {
+            Self::NotFoundError(error) => ::crucible_client::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+        }
+    }
+}
+
+impl ::std::fmt::Display for GetCityPhotoError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match self {
+            Self::NotFoundError(error) => ::std::fmt::Display::fmt(error, f),
+            Self::ThrottlingError(error) => ::std::fmt::Display::fmt(error, f),
+            Self::ValidationError(error) => ::std::fmt::Display::fmt(error, f),
+        }
+    }
+}
+
+impl ::std::error::Error for GetCityPhotoError {}
+
 pub struct ListCities;
 
 static LIST_CITIES_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
@@ -633,13 +793,13 @@ static LIST_CITIES_OPERATION: ::crucible_client::OperationInfo = ::crucible_clie
     literal_query: &[],
     status: 200,
     input: &[
-        ::crucible_client::operation::MemberInfo { name: "nextToken", location: ::crucible_client::operation::Location::Query("nextToken"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_29, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "maxResults", location: ::crucible_client::operation::Location::Query("maxResults"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_27, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "tags", location: ::crucible_client::operation::Location::Query("tag"), scalar: ::crucible_client::operation::Scalar::List(&::crucible_client::operation::Scalar::String), redaction: &__redaction::R_19, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "nextToken", location: ::crucible_client::operation::Location::Query("nextToken"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "maxResults", location: ::crucible_client::operation::Location::Query("maxResults"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_34, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "tags", location: ::crucible_client::operation::Location::Query("tag"), scalar: ::crucible_client::operation::Scalar::List(&::crucible_client::operation::Scalar::String), redaction: &__redaction::R_25, traits: &[] },
     ],
     output: &[
         ::crucible_client::operation::MemberInfo { name: "cities", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_2, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "nextToken", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "nextToken", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
     ],
     errors: &["ThrottlingError", "ValidationError"],
     readonly: true,
@@ -759,6 +919,82 @@ impl ::std::fmt::Display for PingError {
 
 impl ::std::error::Error for PingError {}
 
+/// Stores a city's photo exactly as sent.
+pub struct PutCityPhoto;
+
+static PUT_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+    id: "example.weather#PutCityPhoto",
+    name: "PutCityPhoto",
+    resource: Some("City"),
+    method: "PUT",
+    path: &[::crucible_client::operation::Segment::Literal("cities"), ::crucible_client::operation::Segment::Label("cityId"), ::crucible_client::operation::Segment::Literal("photo")],
+    literal_query: &[],
+    status: 200,
+    input: &[
+        ::crucible_client::operation::MemberInfo { name: "cityId", location: ::crucible_client::operation::Location::Label, scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "caption", location: ::crucible_client::operation::Location::Header("x-photo-caption"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client::operation::MemberInfo { name: "photo", location: ::crucible_client::operation::Location::Payload("image/jpeg"), scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_18, traits: &[] },
+    ],
+    output: &[
+        ::crucible_client::operation::MemberInfo { name: "photo", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_19, traits: &[] },
+    ],
+    errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
+    readonly: false,
+    idempotent: true,
+    idempotency_token: None,
+    traits: &[],
+};
+
+impl ::crucible_client::Operation for PutCityPhoto {
+    const INFO: &'static ::crucible_client::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
+    type Input = model::PutCityPhotoInput;
+    type Output = model::PutCityPhotoOutput;
+}
+
+
+/// The errors PutCityPhoto declares.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PutCityPhotoError {
+    NotFoundError(errors::NotFoundError),
+    ThrottlingError(errors::ThrottlingError),
+    ValidationError(errors::ValidationError),
+}
+
+impl ::crucible_client::OperationErrors for PutCityPhotoError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+        let name = match type_name {
+            Some(name) => name,
+            None => ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+        };
+        match name {
+            "NotFoundError" => ::crucible_client::decode_modelled(&errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            _ => None,
+        }
+    }
+
+    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+        match self {
+            Self::NotFoundError(error) => ::crucible_client::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+        }
+    }
+}
+
+impl ::std::fmt::Display for PutCityPhotoError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match self {
+            Self::NotFoundError(error) => ::std::fmt::Display::fmt(error, f),
+            Self::ThrottlingError(error) => ::std::fmt::Display::fmt(error, f),
+            Self::ValidationError(error) => ::std::fmt::Display::fmt(error, f),
+        }
+    }
+}
+
+impl ::std::error::Error for PutCityPhotoError {}
+
 pub struct Status;
 
 static STATUS_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
@@ -848,6 +1084,10 @@ impl Client {
         self.transport.send::<GetCity, GetCityError>(&input).await
     }
 
+    pub async fn get_city_photo(&self, input: model::GetCityPhotoInput) -> ::std::result::Result<model::GetCityPhotoOutput, ::crucible_client::Error<GetCityPhotoError>> {
+        self.transport.send::<GetCityPhoto, GetCityPhotoError>(&input).await
+    }
+
     pub async fn list_cities(&self, input: model::ListCitiesInput) -> ::std::result::Result<model::ListCitiesOutput, ::crucible_client::Error<ListCitiesError>> {
         self.transport.send::<ListCities, ListCitiesError>(&input).await
     }
@@ -865,6 +1105,11 @@ impl Client {
 
     pub async fn ping(&self) -> ::std::result::Result<(), ::crucible_client::Error<PingError>> {
         self.transport.send::<Ping, PingError>(&::crucible_client::operation::Unit {}).await.map(|_| ())
+    }
+
+    /// Stores a city's photo exactly as sent.
+    pub async fn put_city_photo(&self, input: model::PutCityPhotoInput) -> ::std::result::Result<model::PutCityPhotoOutput, ::crucible_client::Error<PutCityPhotoError>> {
+        self.transport.send::<PutCityPhoto, PutCityPhotoError>(&input).await
     }
 
     pub async fn status(&self, input: model::StatusInput) -> ::std::result::Result<model::StatusOutput, ::crucible_client::Error<StatusError>> {

@@ -204,6 +204,20 @@ pub enum Location {
     Query(&'static str),
     Header(&'static str),
     Body,
+    /// The whole HTTP body, raw (`@httpPayload` on a blob), with the media
+    /// type a sender gives it. A structure with a payload member has no
+    /// other body members.
+    Payload(&'static str),
+}
+
+impl Location {
+    /// The payload member of `members`, if it has one, and its media type.
+    pub fn payload(members: &[MemberInfo]) -> Option<(&MemberInfo, &'static str)> {
+        members.iter().find_map(|member| match member.location {
+            Self::Payload(media_type) => Some((member, media_type)),
+            _ => None,
+        })
+    }
 }
 
 /// How a bound member's text reads as JSON. Body members are `Json`.
@@ -281,7 +295,8 @@ pub trait Output: Any + Send + Sync {
         serde_json::to_writer(out, &self.to_json())
     }
     /// Serializes into `out` without the members `members` binds to
-    /// headers, returning those as (header, text). The default goes through
+    /// headers, returning those as (header, text); with a payload member,
+    /// `out` gets that member's bytes, raw. The default goes through
     /// `to_json`, as `write_json`'s does.
     fn write_json_split(
         &self,

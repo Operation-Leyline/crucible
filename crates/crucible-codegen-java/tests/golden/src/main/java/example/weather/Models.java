@@ -43,6 +43,13 @@ public final class Models {
         public example.weather.OptionalValue<Models.Forecast> forecast = example.weather.OptionalValue.unset();
         public example.weather.OptionalValue<java.lang.String> requestId = example.weather.OptionalValue.unset();
     }
+    public static final class GetCityPhotoInput {
+        public example.weather.OptionalValue<java.lang.String> cityId = example.weather.OptionalValue.unset();
+    }
+    public static final class GetCityPhotoOutput {
+        public example.weather.OptionalValue<java.lang.String> caption = example.weather.OptionalValue.unset();
+        public example.weather.OptionalValue<byte[]> photo = example.weather.OptionalValue.unset();
+    }
     public static final class ListCitiesInput {
         public example.weather.OptionalValue<java.lang.String> nextToken = example.weather.OptionalValue.unset();
         public example.weather.OptionalValue<java.lang.Integer> maxResults = example.weather.OptionalValue.unset();
@@ -61,6 +68,19 @@ public final class Models {
         private static final long serialVersionUID = 1L;
         public java.lang.String message;
         public example.weather.OptionalValue<java.lang.String> resourceId = example.weather.OptionalValue.unset();
+    }
+    public static final class PhotoSummary {
+        public java.lang.Integer size;
+        public byte[] thumbnail;
+        public example.weather.OptionalValue<java.lang.String> caption = example.weather.OptionalValue.unset();
+    }
+    public static final class PutCityPhotoInput {
+        public example.weather.OptionalValue<java.lang.String> cityId = example.weather.OptionalValue.unset();
+        public example.weather.OptionalValue<java.lang.String> caption = example.weather.OptionalValue.unset();
+        public example.weather.OptionalValue<byte[]> photo = example.weather.OptionalValue.unset();
+    }
+    public static final class PutCityPhotoOutput {
+        public Models.PhotoSummary photo;
     }
     public record Sky(java.lang.String value) {
         public Sky { java.util.Objects.requireNonNull(value); }
@@ -113,10 +133,15 @@ public final class Models {
         result.put("example.weather#Forecast", Forecast.class);
         result.put("example.weather#GetCityInput", GetCityInput.class);
         result.put("example.weather#GetCityOutput", GetCityOutput.class);
+        result.put("example.weather#GetCityPhotoInput", GetCityPhotoInput.class);
+        result.put("example.weather#GetCityPhotoOutput", GetCityPhotoOutput.class);
         result.put("example.weather#ListCitiesInput", ListCitiesInput.class);
         result.put("example.weather#ListCitiesOutput", ListCitiesOutput.class);
         result.put("example.weather#Location", Location.class);
         result.put("example.weather#NotFoundError", NotFoundError.class);
+        result.put("example.weather#PhotoSummary", PhotoSummary.class);
+        result.put("example.weather#PutCityPhotoInput", PutCityPhotoInput.class);
+        result.put("example.weather#PutCityPhotoOutput", PutCityPhotoOutput.class);
         result.put("example.weather#Sky", Sky.class);
         result.put("example.weather#StatusInput", StatusInput.class);
         result.put("example.weather#StatusOutput", StatusOutput.class);

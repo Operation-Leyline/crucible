@@ -138,6 +138,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         crucible_smithy::ir::SimpleKind::Boolean => "Boolean",
                         crucible_smithy::ir::SimpleKind::Timestamp => "Timestamp",
                         crucible_smithy::ir::SimpleKind::Document => "Document",
+                        crucible_smithy::ir::SimpleKind::Blob => "Blob",
                         crucible_smithy::ir::SimpleKind::Float
                         | crucible_smithy::ir::SimpleKind::Double => "Double",
                         _ => "Long",
@@ -148,6 +149,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     "Boolean" => "bool",
                     "Timestamp" => "datetime",
                     "Document" => "Any",
+                    "Blob" => "bytes",
                     "Double" => "float",
                     _ => "int",
                 };

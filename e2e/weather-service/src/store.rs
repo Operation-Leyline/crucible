@@ -6,13 +6,20 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Mutex;
 
-use crate::contract::model::CitySummary;
+use crate::contract::model::{CitySummary, Photo};
 
 /// What a store needs to create a city; it assigns the id and timestamps.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NewCity {
     pub name: String,
     pub population: i64,
+}
+
+/// A city's photo, as it was sent.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredPhoto {
+    pub photo: Photo,
+    pub caption: Option<String>,
 }
 
 #[crucible::async_trait]
@@ -31,6 +38,11 @@ pub trait CityStore: Send + Sync + 'static {
         limit: usize,
         names: &[String],
     ) -> crucible::Result<Vec<CitySummary>>;
+
+    /// Replaces the photo of city `id`, which exists.
+    async fn put_photo(&self, id: &str, photo: StoredPhoto) -> crucible::Result<()>;
+
+    async fn photo(&self, id: &str) -> crucible::Result<Option<StoredPhoto>>;
 }
 
 /// The store's own error for a taken name; the service's exception
@@ -58,6 +70,7 @@ struct Memory {
     cities: BTreeMap<String, CitySummary>,
     /// Idempotency receipts: client token → city id.
     tokens: BTreeMap<String, String>,
+    photos: BTreeMap<String, StoredPhoto>,
     next_id: u32,
 }
 
@@ -110,5 +123,15 @@ impl CityStore for MemoryCities {
             .take(limit)
             .cloned()
             .collect())
+    }
+
+    async fn put_photo(&self, id: &str, photo: StoredPhoto) -> crucible::Result<()> {
+        let mut memory = self.state.lock().unwrap();
+        memory.photos.insert(id.to_owned(), photo);
+        Ok(())
+    }
+
+    async fn photo(&self, id: &str) -> crucible::Result<Option<StoredPhoto>> {
+        Ok(self.state.lock().unwrap().photos.get(id).cloned())
     }
 }

@@ -436,6 +436,16 @@ fn value_checks(
                     ));
                 }
             }
+            // A blob's length is its byte count.
+            if simple.kind == SimpleKind::Blob {
+                if let Some(length) = &c.length {
+                    out.push_str(&format!(
+                        "{pad}validator.length({value}.len(), {}, {});\n",
+                        opt(length.min),
+                        opt(length.max)
+                    ));
+                }
+            }
             if let Some(range) = &c.range {
                 out.push_str(&range_check(simple.kind, value, range, &pad));
             }

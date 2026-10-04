@@ -23,9 +23,10 @@ mod paginate;
 mod transport;
 
 pub use config::{BoxFuture, Config, Interceptor, Retry, Token};
+pub use crucible_wire::blob::Blob;
 pub use crucible_wire::error::ModelledError;
 pub use crucible_wire::operation::{Operation, OperationInfo};
-pub use crucible_wire::{error, operation, time, validate};
+pub use crucible_wire::{blob, error, operation, time, validate};
 pub use paginate::Paginator;
 pub use transport::{Error, OperationErrors, Transport, UnknownError, by_status, decode_modelled};
 

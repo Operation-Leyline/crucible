@@ -379,6 +379,59 @@ public final class ClientTest {
     }
   }
 
+  static void payloads() throws Exception {
+    // Not UTF-8, and JSON-looking in places: neither may be reinterpreted.
+    byte[] photo = {(byte) 0xff, (byte) 0xd8, '{', '"', 'a', '"', ':', '1', '}', 0, (byte) 0x80};
+    var calls = new AtomicInteger();
+    try (var server =
+        new Server(
+            exchange -> {
+              int call = calls.incrementAndGet();
+              if (call == 1) {
+                byte[] bytes = exchange.getRequestBody().readAllBytes();
+                var headers = exchange.getRequestHeaders();
+                check(java.util.Arrays.equals(bytes, photo), "payload not sent raw");
+                check("image/jpeg".equals(headers.getFirst("content-type")), "media type");
+                check("harbour".equals(headers.getFirst("x-photo-caption")), "header member");
+                check(
+                    HexFormat.of()
+                        .formatHex(MessageDigest.getInstance("SHA-256").digest(photo))
+                        .equals(headers.getFirst("x-amz-content-sha256")),
+                    "digest over the exact bytes");
+                response(
+                    exchange,
+                    200,
+                    "{\"photo\":{\"size\":11,\"thumbnail\":\"/9h7ImEiOjF9\",\"caption\":\"harbour\"}}");
+              } else if (call == 2) {
+                exchange.getResponseHeaders().set("content-type", "image/jpeg");
+                exchange.getResponseHeaders().set("x-photo-caption", "harbour");
+                exchange.sendResponseHeaders(200, photo.length);
+                exchange.getResponseBody().write(photo);
+                exchange.close();
+              } else {
+                exchange.sendResponseHeaders(200, -1);
+                exchange.close();
+              }
+            })) {
+      var client = new Client(server.config());
+      var put = new Models.PutCityPhotoInput();
+      put.cityId = OptionalValue.of("c-00000001");
+      put.caption = OptionalValue.of("harbour");
+      put.photo = OptionalValue.of(photo);
+      var stored = client.putCityPhoto(put);
+      check(
+          java.util.Arrays.equals(stored.photo.thumbnail, java.util.Arrays.copyOf(photo, 9)),
+          "base64 thumbnail");
+      var get = new Models.GetCityPhotoInput();
+      get.cityId = OptionalValue.of("c-00000001");
+      var read = client.getCityPhoto(get);
+      check(java.util.Arrays.equals(read.photo.value(), photo), "payload read raw");
+      check("harbour".equals(read.caption.value()), "payload header member");
+      var empty = client.getCityPhoto(get);
+      check(empty.photo.present() && empty.photo.value().length == 0, "empty payload");
+    }
+  }
+
   static void weather() throws Exception {
     String endpoint = System.getenv("WEATHER_URL");
     if (endpoint == null) throw new AssertionError("WEATHER_URL required");
@@ -406,6 +459,21 @@ public final class ClientTest {
     while (pages.hasNext())
       for (var row : pages.next().cities) found |= row.name.equals("java-http");
     check(found, "weather pagination");
+    byte[] photo = "\u00ff{\"looks\": \"like json\"}".getBytes(StandardCharsets.ISO_8859_1);
+    var put = new Models.PutCityPhotoInput();
+    put.cityId = OptionalValue.of(city.city.id);
+    put.caption = OptionalValue.of("aurora");
+    put.photo = OptionalValue.of(photo);
+    var stored = client.putCityPhoto(put);
+    check(stored.photo.size == photo.length, "weather payload size");
+    check(
+        java.util.Arrays.equals(stored.photo.thumbnail, java.util.Arrays.copyOf(photo, 8)),
+        "weather thumbnail");
+    var read = new Models.GetCityPhotoInput();
+    read.cityId = OptionalValue.of(city.city.id);
+    var got = client.getCityPhoto(read);
+    check(java.util.Arrays.equals(got.photo.value(), photo), "weather payload round trip");
+    check("aurora".equals(got.caption.value()), "weather payload caption");
   }
 
   static void independentDeadlines() throws Exception {
@@ -458,6 +526,7 @@ public final class ClientTest {
     retries(Path.of(args[0]));
     serialization(Path.of(args[1]));
     httpBehavior();
+    payloads();
     malformedAndInterruptedBodies();
     cancellation();
     independentDeadlines();

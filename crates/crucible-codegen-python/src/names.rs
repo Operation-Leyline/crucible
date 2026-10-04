@@ -73,6 +73,7 @@ pub fn ty(service: &Service, id: &ShapeId, prefix: &str) -> String {
             SimpleKind::Float | SimpleKind::Double => "float",
             SimpleKind::Timestamp => "datetime",
             SimpleKind::Document => "Any",
+            SimpleKind::Blob => "bytes",
             _ => "int",
         }
         .into(),

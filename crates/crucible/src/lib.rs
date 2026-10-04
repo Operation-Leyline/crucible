@@ -36,7 +36,8 @@ pub mod service;
 
 // What the server shares with clients lives in crucible-wire, re-exported
 // at the paths generated code names.
-pub use crucible_wire::{error, operation, time, validate};
+pub use crucible_wire::blob::Blob;
+pub use crucible_wire::{blob, error, operation, time, validate};
 
 pub use context::{Context, RequestMeta, WithContext};
 pub use error::{Error, FrameworkError, ModelledError, Result};

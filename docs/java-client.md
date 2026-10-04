@@ -36,7 +36,9 @@ for an arm without a payload. Serialization uses the model's wire names.
 HTTP-date has second precision. Modeled integer widths are checked on decode,
 including exact signed 64-bit values. Documents use Gson's `JsonElement` and
 preserve JSON numbers. Missing modeled defaults are applied; explicit null is
-kept distinct.
+kept distinct. Blobs are `byte[]`: standard, padded base64 in JSON, and the bytes
+themselves, under the blob's media type, as an `@httpPayload`; a payload
+response is the body as received, an empty body empty bytes.
 
 Modeled exceptions extend `ServiceError`. Catch the generated type or inspect
 `errorName()`, `status()`, `requestId()`, `headers()`, `retryable()`, and

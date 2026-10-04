@@ -47,6 +47,15 @@ export interface GetCityOutput {
   requestId?: string;
 }
 
+export interface GetCityPhotoInput {
+  cityId: CityId;
+}
+
+export interface GetCityPhotoOutput {
+  caption?: string;
+  photo?: Photo;
+}
+
 export interface ListCitiesInput {
   nextToken?: string;
   maxResults?: number;
@@ -62,6 +71,27 @@ export type Location =
   | { coordinates: Coordinates; unknown?: never; }
   | { unknown: Unit; coordinates?: never; };
 
+/**
+ * A photo, carried unparsed.
+ */
+export type Photo = Uint8Array;
+
+export interface PhotoSummary {
+  size: number;
+  thumbnail: Thumbnail;
+  caption?: string;
+}
+
+export interface PutCityPhotoInput {
+  cityId: CityId;
+  caption?: string;
+  photo: Photo;
+}
+
+export interface PutCityPhotoOutput {
+  photo: PhotoSummary;
+}
+
 export const Sky = {
   CLEAR: "clear",
   CLOUDY: "cloudy",
@@ -75,6 +105,11 @@ export interface StatusOutput {
 }
 
 export type Tags = string[];
+
+/**
+ * The photo's first bytes: base64 in JSON.
+ */
+export type Thumbnail = Uint8Array;
 
 export interface ValidationField {
   path: string;

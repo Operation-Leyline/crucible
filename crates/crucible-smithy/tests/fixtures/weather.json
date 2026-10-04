@@ -43,7 +43,8 @@
             "identifiers": { "cityId": { "target": "example.weather#CityId" } },
             "create": { "target": "example.weather#CreateCity" },
             "read": { "target": "example.weather#GetCity" },
-            "list": { "target": "example.weather#ListCities" }
+            "list": { "target": "example.weather#ListCities" },
+            "operations": [{ "target": "example.weather#PutCityPhoto" }, { "target": "example.weather#GetCityPhoto" }]
         },
         "example.weather#Ping": {
             "type": "operation",
@@ -161,6 +162,75 @@
                 "nextToken": { "target": "smithy.api#String" }
             },
             "traits": { "smithy.api#output": {} }
+        },
+        "example.weather#PutCityPhoto": {
+            "type": "operation",
+            "input": { "target": "example.weather#PutCityPhotoInput" },
+            "output": { "target": "example.weather#PutCityPhotoOutput" },
+            "errors": [{ "target": "example.weather#NotFoundError" }],
+            "traits": {
+                "smithy.api#http": { "method": "PUT", "uri": "/cities/{cityId}/photo" },
+                "smithy.api#idempotent": {},
+                "smithy.api#documentation": "Stores a city's photo exactly as sent."
+            }
+        },
+        "example.weather#PutCityPhotoInput": {
+            "type": "structure",
+            "members": {
+                "cityId": { "target": "example.weather#CityId", "traits": { "smithy.api#required": {}, "smithy.api#httpLabel": {} } },
+                "caption": { "target": "smithy.api#String", "traits": { "smithy.api#httpHeader": "X-Photo-Caption" } },
+                "photo": { "target": "example.weather#Photo", "traits": { "smithy.api#required": {}, "smithy.api#httpPayload": {} } }
+            },
+            "traits": { "smithy.api#input": {} }
+        },
+        "example.weather#PutCityPhotoOutput": {
+            "type": "structure",
+            "members": {
+                "photo": { "target": "example.weather#PhotoSummary", "traits": { "smithy.api#required": {} } }
+            },
+            "traits": { "smithy.api#output": {} }
+        },
+        "example.weather#GetCityPhoto": {
+            "type": "operation",
+            "input": { "target": "example.weather#GetCityPhotoInput" },
+            "output": { "target": "example.weather#GetCityPhotoOutput" },
+            "errors": [{ "target": "example.weather#NotFoundError" }],
+            "traits": { "smithy.api#http": { "method": "GET", "uri": "/cities/{cityId}/photo" }, "smithy.api#readonly": {} }
+        },
+        "example.weather#GetCityPhotoInput": {
+            "type": "structure",
+            "members": {
+                "cityId": { "target": "example.weather#CityId", "traits": { "smithy.api#required": {}, "smithy.api#httpLabel": {} } }
+            },
+            "traits": { "smithy.api#input": {} }
+        },
+        "example.weather#GetCityPhotoOutput": {
+            "type": "structure",
+            "members": {
+                "caption": { "target": "smithy.api#String", "traits": { "smithy.api#httpHeader": "X-Photo-Caption" } },
+                "photo": { "target": "example.weather#Photo", "traits": { "smithy.api#httpPayload": {} } }
+            },
+            "traits": { "smithy.api#output": {} }
+        },
+        "example.weather#Photo": {
+            "type": "blob",
+            "traits": {
+                "smithy.api#length": { "min": 1, "max": 4096 },
+                "smithy.api#mediaType": "image/jpeg",
+                "smithy.api#documentation": "A photo, carried unparsed."
+            }
+        },
+        "example.weather#PhotoSummary": {
+            "type": "structure",
+            "members": {
+                "size": { "target": "smithy.api#Integer", "traits": { "smithy.api#required": {} } },
+                "thumbnail": { "target": "example.weather#Thumbnail", "traits": { "smithy.api#required": {} } },
+                "caption": { "target": "smithy.api#String" }
+            }
+        },
+        "example.weather#Thumbnail": {
+            "type": "blob",
+            "traits": { "smithy.api#length": { "max": 8 }, "smithy.api#documentation": "The photo's first bytes: base64 in JSON." }
         },
         "example.weather#CityId": {
             "type": "string",

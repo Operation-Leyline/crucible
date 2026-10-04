@@ -1,11 +1,13 @@
 //! Reading an input from its bound members (labels, query parameters,
 //! headers) and its JSON body in one pass: a deserializer that presents both
 //! as one map, so the typed input is built straight from the request with no
-//! JSON value in between.
+//! JSON value in between. An `@httpPayload` member is bound too: the body's
+//! bytes, handed to the `Blob` without a copy.
 
 use std::borrow::Cow;
 use std::marker::PhantomData;
 
+use bytes::Bytes;
 use serde::de::value::{BorrowedStrDeserializer, CowStrDeserializer};
 use serde::de::{
     self, DeserializeOwned, DeserializeSeed, Deserializer, IgnoredAny, IntoDeserializer, MapAccess,
@@ -13,7 +15,7 @@ use serde::de::{
 };
 
 use crate::operation::Scalar;
-use crate::{text, time};
+use crate::{blob, text, time};
 
 /// A bound member's value, already checked against its kind, so a bad one
 /// is a violation naming the parameter or header before deserializing starts.
@@ -24,6 +26,8 @@ pub enum BoundValue<'a> {
     Float(f64),
     Boolean(bool),
     List(Vec<BoundValue<'a>>),
+    /// A payload member: the whole body.
+    Bytes(Bytes),
 }
 
 impl<'a> BoundValue<'a> {
@@ -278,6 +282,20 @@ impl<'de, E: de::Error> Deserializer<'de> for Bound<'de, E> {
                 items: items.into_iter(),
                 error: PhantomData,
             }),
+            BoundValue::Bytes(bytes) => visitor.visit_bytes(&bytes),
+        }
+    }
+
+    fn deserialize_newtype_struct<V: Visitor<'de>>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, E> {
+        match self.value {
+            BoundValue::Bytes(bytes) if name == blob::TOKEN => {
+                blob::hand_off(bytes, || visitor.visit_unit())
+            }
+            _ => self.deserialize_any(visitor),
         }
     }
 
@@ -302,7 +320,7 @@ impl<'de, E: de::Error> Deserializer<'de> for Bound<'de, E> {
 
     serde::forward_to_deserialize_any! {
         bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string bytes byte_buf
-        unit unit_struct newtype_struct seq tuple tuple_struct map struct identifier ignored_any
+        unit unit_struct seq tuple tuple_struct map struct identifier ignored_any
     }
 }
 
@@ -390,6 +408,43 @@ mod tests {
         let input: Input = read(b"", vec![("cityId", BoundValue::Text("c-2".into()))]).unwrap();
         assert_eq!(input.city_id, "c-2");
         assert_eq!(input.name, None);
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    struct Upload {
+        caption: Option<String>,
+        photo: crate::blob::Blob,
+        thumbnail: Option<crate::blob::Blob>,
+    }
+
+    #[test]
+    fn a_payload_member_takes_the_body_without_copying_it() {
+        let body = Bytes::from_static(b"\xff\x00{\"a\":1}");
+        let upload: Upload = read(
+            b"",
+            vec![
+                ("caption", BoundValue::Text("sea".into())),
+                ("photo", BoundValue::Bytes(body.clone())),
+            ],
+        )
+        .unwrap();
+        assert_eq!(upload.photo.as_bytes(), &body[..]);
+        assert_eq!(
+            upload.photo.as_ptr(),
+            body.as_ptr(),
+            "shares the body's buffer"
+        );
+        assert_eq!(upload.caption.as_deref(), Some("sea"));
+        assert_eq!(upload.thumbnail, None);
+    }
+
+    #[test]
+    fn a_missing_payload_is_a_missing_member() {
+        let error = read::<Upload>(b"", vec![]).unwrap_err();
+        assert!(
+            error.to_string().contains("missing field `photo`"),
+            "{error}"
+        );
     }
 
     #[test]

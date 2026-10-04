@@ -228,6 +228,56 @@ func TestModeledErrorsAndDecodeFailures(t *testing.T) {
 		t.Fatalf("wrong decode failure: %v", err)
 	}
 }
+func TestPayloadsTravelRawAndBlobsInJSONAreBase64(t *testing.T) {
+	// Not UTF-8, and JSON-looking in places: neither may be reinterpreted.
+	photo := []byte("\xff\xd8{\"a\":1}\x00\x80")
+	calls := 0
+	client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		switch calls {
+		case 1:
+			body, _ := io.ReadAll(r.Body)
+			sum := sha256.Sum256(photo)
+			if !bytes.Equal(body, photo) || r.Header.Get("Content-Type") != "image/jpeg" || r.Header.Get("x-photo-caption") != "harbour" || r.Header.Get("x-amz-content-sha256") != hex.EncodeToString(sum[:]) {
+				t.Errorf("payload not sent raw: %q %v", body, r.Header)
+			}
+			io.WriteString(w, `{"photo":{"size":11,"thumbnail":"/9h7ImEiOjF9","caption":"harbour"}}`)
+		case 2:
+			w.Header().Set("Content-Type", "image/jpeg")
+			w.Header().Set("x-photo-caption", "harbour")
+			w.Write(photo)
+		default:
+			w.WriteHeader(200)
+		}
+	})
+	stored, err := client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: Some[CityId]("c-00000001"), Caption: Some("harbour"), Photo: Some[Photo](photo)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(stored.Photo.Thumbnail, photo[:9]) {
+		t.Fatalf("base64 thumbnail: %q", stored.Photo.Thumbnail)
+	}
+	read, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: Some[CityId]("c-00000001")})
+	if err != nil || !bytes.Equal(read.Photo.Value, photo) || read.Caption.Value != "harbour" {
+		t.Fatalf("%v %v", read, err)
+	}
+	empty, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: Some[CityId]("c-00000001")})
+	if err != nil || !empty.Photo.Set || len(empty.Photo.Value) != 0 {
+		t.Fatalf("empty payload: %v %v", empty, err)
+	}
+	encoded, err := encodeModel(wireSchema, "example.weather#PhotoSummary", &PhotoSummary{Size: 1, Thumbnail: Thumbnail(photo[:9])})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(encoded)
+	if err != nil || !bytes.Contains(data, []byte(`"thumbnail":"/9h7ImEiOjF9"`)) {
+		t.Fatalf("%s %v", data, err)
+	}
+	var summary *PhotoSummary
+	if err := decodeModel(wireSchema, "example.weather#PhotoSummary", map[string]any{"size": json.Number("1"), "thumbnail": "not base64!"}, &summary); err == nil {
+		t.Fatal("invalid base64 accepted")
+	}
+}
 func TestPaginationCopiesInputAndRejectsCycles(t *testing.T) {
 	calls := 0
 	client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
@@ -389,5 +439,19 @@ func TestHTTPWeatherService(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("created city missing")
+	}
+	photo := []byte("\xff\xd8{\"looks\": \"like json\"}\x00\x80")
+	stored, err := client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: Some(city.City.Id), Caption: Some("aurora"), Photo: Some[Photo](photo)})
+	if err != nil || stored.Photo.Size != int32(len(photo)) || !bytes.Equal(stored.Photo.Thumbnail, photo[:8]) {
+		t.Fatalf("%v %v", stored, err)
+	}
+	read, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: Some(city.City.Id)})
+	if err != nil || !bytes.Equal(read.Photo.Value, photo) || read.Caption.Value != "aurora" {
+		t.Fatalf("%v %v", read, err)
+	}
+	_, err = client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: Some(city.City.Id), Photo: Some[Photo](make([]byte, 4097))})
+	var invalid *ValidationError
+	if !errors.As(err, &invalid) {
+		t.Fatal(err)
 	}
 }

@@ -55,6 +55,15 @@ type GetCityOutput struct {
     RequestId Optional[string]
 }
 
+type GetCityPhotoInput struct {
+    CityId Optional[CityId]
+}
+
+type GetCityPhotoOutput struct {
+    Caption Optional[string]
+    Photo Optional[Photo]
+}
+
 type ListCitiesInput struct {
     NextToken Optional[string]
     MaxResults Optional[int32]
@@ -80,6 +89,24 @@ type NotFoundError struct {
 func (e *NotFoundError) Error() string { return e.Metadata.Error() }
 func (e *NotFoundError) Unwrap() error { return e.Metadata }
 
+type Photo = []byte
+
+type PhotoSummary struct {
+    Size int32
+    Thumbnail Thumbnail
+    Caption Optional[string]
+}
+
+type PutCityPhotoInput struct {
+    CityId Optional[CityId]
+    Caption Optional[string]
+    Photo Optional[Photo]
+}
+
+type PutCityPhotoOutput struct {
+    Photo *PhotoSummary
+}
+
 // Sky preserves unrecognized string values.
 type Sky string
 const (
@@ -102,6 +129,8 @@ type ThrottlingError struct {
 }
 func (e *ThrottlingError) Error() string { return e.Metadata.Error() }
 func (e *ThrottlingError) Unwrap() error { return e.Metadata }
+
+type Thumbnail = []byte
 
 type ValidationError struct {
     Message string

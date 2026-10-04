@@ -69,8 +69,13 @@ at a time and `build()` names the missing ones.
 
 Types are generated with serde and `Validate`. Errors implement
 `crucible::ModelledError` (wire name, status, fault). None of it is
-protocol-specific: bindings (label, query, header, body) are data in
-`OperationInfo`, read by whichever protocol serves the request.
+protocol-specific: bindings (label, query, header, body, payload) are data
+in `OperationInfo`, read by whichever protocol serves the request.
+
+A Smithy `blob` is `crucible::Blob`, which holds `bytes::Bytes`: base64 in
+a JSON body, its byte count checked by `@length`. An `@httpPayload` blob is
+the request body itself, and its `Blob` shares the body's buffer rather than
+copying it.
 
 ## Laying out a service
 
@@ -232,10 +237,13 @@ the chain it writes the response. Several can be registered, and the first to
 claim a request serves it.
 
 - `JsonProtocol` implements `crucible.protocols#json` (`smithy/crucible.smithy`):
-  HTTP bindings, a JSON body, errors with `"__type"`.
+  HTTP bindings, a JSON body, errors with `"__type"`. An input payload is
+  the body unparsed, whatever its content type; an output payload is
+  written raw under the blob's media type, and an absent one sends no body.
 - `InvokeProtocol` serves direct invocations: an operation called by name
   with its whole input as JSON, answered `{"output": ..}` or
-  `{"error": {"__type": .., ..}}`. Lambda's direct invokes arrive this way,
+  `{"error": {"__type": .., ..}}`. A payload blob is base64 there, like any
+  blob in JSON. Lambda's direct invokes arrive this way,
   and `Crucible::invoke(name, input)` calls it in process. The request is
   marked by an extension only the framework sets, so no HTTP client can
   forge one.
@@ -275,6 +283,9 @@ standard asks; without it, the protocol answers its own `UnknownOperation`
 model keeps its own enum convention. Otherwise the service gives the builder
 `on_rejection(|rejection| ..)`, and `Violation::kind` tells a malformed
 request from a broken constraint.
+
+A required member that is missing (a payload sent as an empty body, say)
+is a broken constraint naming the member.
 
 A request body over the limit is refused unread, as the validation error.
 `Builder::body_limit` sets the service-wide limit (10 MiB by default);
@@ -411,7 +422,8 @@ operation an error enum (`GetCityError`) of the errors it declares, plus
 `Transport::send` builds a request from the operation's `OperationInfo`:
 `split::write_bound` writes the body members in one pass and hands back
 the labels (percent-encoded into the path), query parameters (repeated for
-lists) and headers. A response is read back the way the server reads a
+lists) and headers. A payload goes as its bytes, under its media type, and
+a payload response is read raw, sharing the response's buffer. A response is read back the way the server reads a
 request, with `bound::read` laying response-header members over the body. An
 error response decodes by its body's `__type`, else by status when exactly
 one declared error has it; anything else is `Error::Unknown` with the status,

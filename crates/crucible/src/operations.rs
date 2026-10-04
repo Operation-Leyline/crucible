@@ -140,14 +140,21 @@ impl OperationsBuilder {
 }
 
 /// An input that does not read as its type. A member a strict structure
-/// does not define is named in the path.
+/// does not define is named in the path, and so is a required member that
+/// is missing (a payload sent as an empty body, say).
 fn unreadable(error: serde_json::Error) -> Rejection {
     let message = error.to_string();
-    if let Some(member) = message
-        .strip_prefix("unknown field `")
-        .and_then(|rest| rest.split('`').next())
-    {
+    let named = |prefix: &str| {
+        message
+            .strip_prefix(prefix)
+            .and_then(|rest| rest.split('`').next())
+            .map(str::to_owned)
+    };
+    if let Some(member) = named("unknown field `") {
         return Rejection::malformed(member, "is not a member of this structure");
+    }
+    if let Some(member) = named("missing field `") {
+        return Rejection::constraint(member, "is required");
     }
     Rejection::malformed("", message)
 }

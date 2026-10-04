@@ -21,6 +21,7 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
                 | SimpleKind::Double => "number",
                 SimpleKind::Timestamp => "globalThis.Date",
                 SimpleKind::Document => "Document",
+                SimpleKind::Blob => "Uint8Array",
             }),
             _ => None,
         };
