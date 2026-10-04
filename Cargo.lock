@@ -388,6 +388,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "crucible-codegen-go",
+ "crucible-codegen-java",
  "crucible-codegen-python",
  "crucible-codegen-rust",
  "crucible-codegen-ts",
@@ -422,6 +423,16 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-go"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-common",
+ "crucible-smithy",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "crucible-codegen-java"
 version = "0.1.0"
 dependencies = [
  "crucible-codegen-common",
