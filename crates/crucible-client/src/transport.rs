@@ -154,12 +154,13 @@ impl Transport {
         }
     }
 
-    /// URL, bound headers and body, once: every attempt resends them.
+    /// URL, bound headers and body (with its content type), once: every
+    /// attempt resends them.
     fn prepare<E, I: serde::Serialize>(
         &self,
         info: &'static crucible_wire::operation::OperationInfo,
         input: &I,
-    ) -> Result<(String, HeaderMap, Option<Bytes>), Error<E>> {
+    ) -> Result<(String, HeaderMap, Option<Body>), Error<E>> {
         let mut body = Vec::with_capacity(128);
         let bound = split::write_bound(input, info.input, &mut body)
             .map_err(|error| Error::Invalid(error.to_string()))?;
@@ -217,14 +218,20 @@ impl Transport {
                         .map_err(|e| Error::Invalid(e.to_string()))?;
                     headers.insert(name, value);
                 }
-                Location::Label | Location::Body => {}
+                Location::Label | Location::Body | Location::Payload(_) => {}
             }
         }
-        let has_body = info
-            .input
-            .iter()
-            .any(|member| member.location == Location::Body);
-        Ok((url, headers, has_body.then(|| Bytes::from(body))))
+        // A payload is sent raw under its media type; an absent one sends
+        // no body.
+        let body = match Location::payload(info.input) {
+            Some((_, media_type)) => (!body.is_empty()).then(|| (media_type, Bytes::from(body))),
+            None => info
+                .input
+                .iter()
+                .any(|member| member.location == Location::Body)
+                .then(|| (JSON, Bytes::from(body))),
+        };
+        Ok((url, headers, body))
     }
 
     async fn request<E>(
@@ -232,18 +239,20 @@ impl Transport {
         method: Method,
         url: &str,
         bound_headers: &HeaderMap,
-        body: Option<Bytes>,
+        body: Option<Body>,
     ) -> Result<reqwest::Request, Error<E>> {
         let url = reqwest::Url::parse(url).map_err(|error| Error::Invalid(error.to_string()))?;
         let mut request = reqwest::Request::new(method, url);
         let headers = request.headers_mut();
         headers.extend(self.config.headers.clone());
         headers.extend(bound_headers.clone());
-        if let Some(body) = body {
-            headers.insert(
-                http::header::CONTENT_TYPE,
-                HeaderValue::from_static("application/json"),
-            );
+        if let Some((content_type, body)) = body {
+            let content_type = match content_type {
+                JSON => HeaderValue::from_static(JSON),
+                media_type => HeaderValue::from_str(media_type)
+                    .map_err(|error| Error::Invalid(error.to_string()))?,
+            };
+            headers.insert(http::header::CONTENT_TYPE, content_type);
             *request.body_mut() = Some(reqwest::Body::from(body));
         }
         if let Some(token) = &self.config.token {
@@ -264,21 +273,32 @@ impl Transport {
     }
 }
 
+/// A request body: its content type and bytes.
+type Body = (&'static str, Bytes);
+
+const JSON: &str = "application/json";
+
 fn decode_output<O, E>(
     members: &'static [MemberInfo],
     headers: &HeaderMap,
-    body: &[u8],
+    body: &Bytes,
 ) -> Result<O::Output, Error<E>>
 where
     O: Operation,
     O::Output: DeserializeOwned,
 {
-    let bound = header_members(members, headers).map_err(Error::Decode)?;
+    let mut bound = header_members(members, headers).map_err(Error::Decode)?;
+    if let Some((member, _)) = Location::payload(members) {
+        // The body is the payload, whatever it holds; it shares the
+        // response's buffer.
+        bound.push((member.name, BoundValue::Bytes(body.clone())));
+        return bound::read(&[], bound).map_err(|error| Error::Decode(error.to_string()));
+    }
     // An operation without output answers `null` or nothing; both read as `{}`.
     let body = if body.trim_ascii() == b"null" {
         &[]
     } else {
-        body
+        &body[..]
     };
     bound::read(body, bound).map_err(|error| Error::Decode(error.to_string()))
 }

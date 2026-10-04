@@ -28,8 +28,8 @@ async with AsyncClient(token=async_access_token) as client:
 
 Models are keyword-only dataclasses. `UNSET` omits a member; `None` writes
 explicit JSON null. Required input members are constructor arguments.
-Timestamps use timezone-aware `datetime`, and integer values retain signed
-64-bit precision. Unknown enum strings and union alternatives survive decoding
+Timestamps use timezone-aware `datetime`, blobs are `bytes` (base64 in JSON,
+raw as a payload), and integer values retain signed 64-bit precision. Unknown enum strings and union alternatives survive decoding
 and re-encoding. Modeled exceptions subclass `ServiceError`, carrying typed
 modeled fields plus HTTP status, request ID, and headers in `metadata`.
 

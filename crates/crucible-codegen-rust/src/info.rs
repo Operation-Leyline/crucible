@@ -8,7 +8,8 @@ use crucible_smithy::ir::{
 use crate::names::literal;
 
 /// `&[MemberInfo { .. }, ..]` for a structure, with each member's location
-/// taken from `bindings` (labels, query and headers; the rest is body).
+/// taken from `bindings` (labels, query, headers and the payload; the rest is
+/// body).
 pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindings) -> String {
     let infos: Vec<String> = structure
         .members
@@ -20,10 +21,12 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
                 format!("Query({})", literal(&b.name))
             } else if let Some(b) = find(&bindings.headers, &member.name) {
                 format!("Header({})", literal(&b.name.to_ascii_lowercase()))
+            } else if let Some(p) = bindings.payload.as_ref().filter(|p| p.member == member.name) {
+                format!("Payload({})", literal(&p.media_type))
             } else {
                 "Body".to_owned()
             };
-            let scalar = if location == "Body" {
+            let scalar = if location == "Body" || location.starts_with("Payload") {
                 "Json".to_owned()
             } else {
                 scalar(service, member)
@@ -76,7 +79,8 @@ fn scalar(service: &Service, member: &Member) -> String {
                 TimestampFormat::HttpDate => "HttpDate",
             },
             SimpleKind::String => "String",
-            SimpleKind::Document => "Json",
+            // Never bound: lowering refuses a blob in a label, query or header.
+            SimpleKind::Document | SimpleKind::Blob => "Json",
         }
         .to_owned(),
         _ => "String".to_owned(),

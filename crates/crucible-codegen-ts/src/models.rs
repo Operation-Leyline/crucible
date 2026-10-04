@@ -20,6 +20,7 @@ pub(crate) fn emit(service: &Service) -> String {
                     SimpleKind::String => "string",
                     SimpleKind::Timestamp => "globalThis.Date",
                     SimpleKind::Document => "Document",
+                    SimpleKind::Blob => "Uint8Array",
                     _ => "number",
                 };
                 out.push_str(&format!("export type {name} = {ts};\n"));

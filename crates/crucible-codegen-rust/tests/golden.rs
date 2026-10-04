@@ -46,6 +46,20 @@ fn non_throttling_retryability_reaches_client_metadata() {
     );
 }
 
+#[test]
+fn a_sensitive_blob_payload_is_redacted_from_logs() {
+    let service = edited(|model| {
+        model["shapes"]["example.weather#Photo"]["traits"]["smithy.api#sensitive"] = json!({});
+    });
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(
+        code.contains(
+            "name: \"photo\", location: ::crucible::operation::Location::Payload(\"image/jpeg\"), scalar: ::crucible::operation::Scalar::Json, redaction: &::crucible::operation::Redaction::Sensitive"
+        ),
+        "{code}"
+    );
+}
+
 fn matches_golden(code: &str, file: &str) {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden")
@@ -221,7 +235,9 @@ fn scaffold_plans_a_file_per_operation_in_a_folder_per_resource() {
         [
             "city/create_city.rs",
             "city/get_city.rs",
+            "city/get_city_photo.rs",
             "city/list_cities.rs",
+            "city/put_city_photo.rs",
             "service/ping.rs",
             "service/status.rs",
         ]

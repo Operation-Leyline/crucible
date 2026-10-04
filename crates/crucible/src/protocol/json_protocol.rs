@@ -1,6 +1,6 @@
 //! `crucible.protocols#json` (smithy/crucible.smithy): members bound to the
-//! URI path, query string and headers, the rest in a JSON object body;
-//! errors carry `"__type"`.
+//! URI path, query string and headers, the rest in a JSON object body, or a
+//! blob payload as the whole body, raw; errors carry `"__type"`.
 
 use axum::body::Body;
 use axum::http::request::Parts;
@@ -84,6 +84,18 @@ impl Protocol for JsonProtocol {
         match job.resolution() {
             Some(Resolution::Success(output)) => {
                 let op = operation.expect("an output implies an operation");
+                if let Some((_, media_type)) = Location::payload(op.output) {
+                    // The payload's bytes are the body, under its own media type.
+                    let mut body = Vec::new();
+                    return match output.write_json_split(op.output, &mut body) {
+                        Ok(headers) => respond(
+                            op.status,
+                            headers,
+                            (!body.is_empty()).then_some((media_type, body)),
+                        ),
+                        Err(error) => serialization_failure(error),
+                    };
+                }
                 let has_body = op.output.iter().any(|m| m.location == Location::Body);
                 let has_headers = op
                     .output
@@ -96,14 +108,14 @@ impl Protocol for JsonProtocol {
                     }
                     let mut body = Vec::with_capacity(256);
                     return match output.write_json(&mut body) {
-                        Ok(()) => respond(op.status, Vec::new(), Some(body)),
+                        Ok(()) => respond(op.status, Vec::new(), Some((JSON, body))),
                         Err(error) => serialization_failure(error),
                     };
                 }
                 // Header members leave the body as it is written.
                 let mut body = Vec::with_capacity(256);
                 match output.write_json_split(op.output, &mut body) {
-                    Ok(headers) => respond(op.status, headers, has_body.then_some(body)),
+                    Ok(headers) => respond(op.status, headers, has_body.then_some((JSON, body))),
                     Err(error) => serialization_failure(error),
                 }
             }
@@ -138,7 +150,8 @@ impl Handler for JsonProtocol {
 }
 
 /// Reads the input: bound members from the request's labels, query and
-/// headers, the rest from the JSON body, then validates it.
+/// headers, the rest from the JSON body, then validates it. A payload is the
+/// body itself, unparsed, whatever its content type.
 fn read_input(job: &mut Job) -> Result<()> {
     // A direct invocation is the invoke protocol's to read.
     if job.request().extensions.get::<Invocation>().is_some() || job.input().is_some() {
@@ -154,7 +167,12 @@ fn read_input(job: &mut Job) -> Result<()> {
         job.decode_json(job.body())?
     } else {
         let bound = bound_members(op, job)?;
-        job.decode_bound(job.body(), bound)?
+        // A payload took the body as bytes: there is no JSON to read.
+        let body = match Location::payload(op.input) {
+            Some(_) => &[][..],
+            None => job.body(),
+        };
+        job.decode_bound(body, bound)?
     };
     job.set_input(input);
     Ok(())
@@ -173,6 +191,9 @@ fn bound_members<'a>(
         let wire = wire_name(member);
         let value = match (member.location, member.scalar) {
             (Location::Body, _) => continue,
+            // An empty body is no payload: a required one is missing.
+            (Location::Payload(_), _) if job.body().is_empty() => continue,
+            (Location::Payload(_), _) => Ok(BoundValue::Bytes(job.body().clone())),
             (Location::Label, scalar) => {
                 match job.labels().iter().find(|(name, _)| *name == member.name) {
                     Some((_, text)) => BoundValue::parse(Cow::Borrowed(text.as_str()), scalar),
@@ -220,7 +241,7 @@ fn bound_members<'a>(
 fn wire_name(member: &MemberInfo) -> &'static str {
     match member.location {
         Location::Query(name) | Location::Header(name) => name,
-        Location::Label | Location::Body => member.name,
+        Location::Label | Location::Body | Location::Payload(_) => member.name,
     }
 }
 
@@ -232,17 +253,19 @@ fn malformed(path: &str, message: &str) -> Violation {
     }
 }
 
+const JSON: &str = "application/json";
+
 fn error_response(error: &dyn ModelledError) -> Response {
     let mut body = Vec::with_capacity(128);
     match error.write_json(&mut body) {
-        Ok(headers) => respond(error.info().status, headers, Some(body)),
+        Ok(headers) => respond(error.info().status, headers, Some((JSON, body))),
         Err(error) => serialization_failure(error),
     }
 }
 
 fn framework_response(error: &FrameworkError) -> Response {
     let body = serde_json::json!({ "__type": error.name(), "message": error.message() });
-    respond(error.status(), Vec::new(), Some(to_bytes(&body)))
+    respond(error.status(), Vec::new(), Some((JSON, to_bytes(&body))))
 }
 
 fn serialization_failure(error: serde_json::Error) -> Response {
@@ -257,15 +280,28 @@ fn to_bytes(value: &Value) -> Vec<u8> {
     serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec())
 }
 
-fn respond(status: u16, headers: Vec<(&'static str, String)>, body: Option<Vec<u8>>) -> Response {
+/// A JSON body's content type costs no allocation; a payload's media type
+/// is checked by lowering, so the fallback is for hand-written descriptions.
+fn content_type_header(content_type: &'static str) -> HeaderValue {
+    if content_type == JSON {
+        HeaderValue::from_static(JSON)
+    } else {
+        HeaderValue::from_str(content_type)
+            .unwrap_or(HeaderValue::from_static("application/octet-stream"))
+    }
+}
+
+/// `body` is the content type and the bytes.
+fn respond(
+    status: u16,
+    headers: Vec<(&'static str, String)>,
+    body: Option<(&'static str, Vec<u8>)>,
+) -> Response {
     let status = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     let mut response = match body {
-        Some(body) => (
+        Some((content_type, body)) => (
             status,
-            [(
-                header::CONTENT_TYPE,
-                HeaderValue::from_static("application/json"),
-            )],
+            [(header::CONTENT_TYPE, content_type_header(content_type))],
             body,
         )
             .into_response(),

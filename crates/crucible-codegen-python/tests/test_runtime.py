@@ -119,6 +119,38 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(sent[1].url.params["nextToken"], "same")
         self.assertEqual(sent[0].url.params.get_list("tag"), ["a", "b"])
 
+    def test_payloads_travel_raw_and_blobs_in_json_are_base64(self):
+        # Not UTF-8, and JSON-looking in places: neither may be reinterpreted.
+        photo = b"\xff\xd8{\"a\":1}\x00\x80"
+        sent = []
+        responses = [
+            httpx.Response(200, json={"photo": {"size": len(photo), "thumbnail": "/9h7ImEiOjF9", "caption": "harbour"}}),
+            httpx.Response(200, content=photo, headers={"content-type": "image/jpeg", "x-photo-caption": "harbour"}),
+            httpx.Response(200),
+        ]
+        def respond(request):
+            sent.append(request)
+            return responses.pop(0)
+        with httpx.Client(transport=httpx.MockTransport(respond)) as http:
+            client = Client(http=http)
+            stored = client.put_city_photo(m.PutCityPhotoInput(city_id="c-00000001", caption="harbour", photo=photo))
+            read = client.get_city_photo(m.GetCityPhotoInput(city_id="c-00000001"))
+            empty = client.get_city_photo(m.GetCityPhotoInput(city_id="c-00000001"))
+            with self.assertRaisesRegex(TypeError, "bytes"):
+                client.put_city_photo(m.PutCityPhotoInput(city_id="c-00000001", photo="text"))  # type: ignore[arg-type]
+        self.assertEqual(sent[0].content, photo)
+        self.assertEqual(sent[0].headers["content-type"], "image/jpeg")
+        self.assertEqual(sent[0].headers["x-photo-caption"], "harbour")
+        self.assertEqual(sent[0].headers["x-amz-content-sha256"], hashlib.sha256(photo).hexdigest())
+        self.assertEqual(stored.photo.thumbnail, photo[:9])
+        self.assertEqual(read.photo, photo)
+        self.assertEqual(read.caption, "harbour")
+        self.assertEqual(empty.photo, b"")
+        codec = _Codec(m._SCHEMA, m._CLASSES)
+        self.assertEqual(codec.convert("example.weather#Thumbnail", b"\xff\xd8{\"a\":1}"), "/9h7ImEiOjF9")
+        with self.assertRaisesRegex(ValueError, "base64"):
+            codec.convert("example.weather#Thumbnail", "not base64!", decode=True)
+
     def test_unknown_values_and_int64(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
         sky = codec.convert("example.weather#Sky", "new-sky", decode=True)
@@ -238,6 +270,20 @@ class HttpTests(unittest.IsolatedAsyncioTestCase):
         async with AsyncClient(endpoint) as client:
             pages = [p async for p in client.list_cities_pages(m.ListCitiesInput(max_results=1))]
             self.assertTrue(any(c.name == "python-http" for p in pages for c in p.cities))
+
+    async def test_payloads_over_http(self):
+        endpoint = os.environ["WEATHER_URL"]
+        photo = b"\xff\xd8{\"looks\": \"like json\"}\x00\x80"
+        async with AsyncClient(endpoint) as client:
+            city = await client.create_city(m.CreateCityInput(name="python-photo"))
+            stored = await client.put_city_photo(m.PutCityPhotoInput(city_id=city.city.id, caption="aurora", photo=photo))
+            self.assertEqual(stored.photo.size, len(photo))
+            self.assertEqual(stored.photo.thumbnail, photo[:8])
+            read = await client.get_city_photo(m.GetCityPhotoInput(city_id=city.city.id))
+            self.assertEqual(read.photo, photo)
+            self.assertEqual(read.caption, "aurora")
+            with self.assertRaises(m.ValidationError):
+                await client.put_city_photo(m.PutCityPhotoInput(city_id=city.city.id, photo=bytes(4097)))
 
 
 if __name__ == "__main__":

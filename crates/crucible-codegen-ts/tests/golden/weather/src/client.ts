@@ -20,6 +20,10 @@ export class WeatherClient {
     return this.#transport.send(spec.GetCity, input, options);
   }
 
+  getCityPhoto(input: m.GetCityPhotoInput, options?: RequestOptions): Promise<m.GetCityPhotoOutput> {
+    return this.#transport.send(spec.GetCityPhoto, input, options);
+  }
+
   listCities(input: m.ListCitiesInput = {}, options?: RequestOptions): Promise<m.ListCitiesOutput> {
     return this.#transport.send(spec.ListCities, input, options);
   }
@@ -31,6 +35,13 @@ export class WeatherClient {
 
   ping(options?: RequestOptions): Promise<void> {
     return this.#transport.send(spec.Ping, {}, options);
+  }
+
+  /**
+   * Stores a city's photo exactly as sent.
+   */
+  putCityPhoto(input: m.PutCityPhotoInput, options?: RequestOptions): Promise<m.PutCityPhotoOutput> {
+    return this.#transport.send(spec.PutCityPhoto, input, options);
   }
 
   status(input: m.StatusInput = {}, options?: RequestOptions): Promise<m.StatusOutput> {

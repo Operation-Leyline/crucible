@@ -1,4 +1,4 @@
-use crucible_smithy::ir::{Binding, Fault, Paginated, Shape, SimpleKind, TimestampFormat};
+use crucible_smithy::ir::{Binding, Fault, Paginated, Payload, Shape, SimpleKind, TimestampFormat};
 use crucible_smithy::{Error, Model, ShapeId};
 use serde_json::{Value, json};
 
@@ -58,7 +58,15 @@ fn finds_operations_through_resources_sorted_by_name() {
     let names: Vec<&str> = service.operations.iter().map(|op| op.name()).collect();
     assert_eq!(
         names,
-        ["CreateCity", "GetCity", "ListCities", "Ping", "Status"]
+        [
+            "CreateCity",
+            "GetCity",
+            "GetCityPhoto",
+            "ListCities",
+            "Ping",
+            "PutCityPhoto",
+            "Status"
+        ]
     );
     assert_eq!(service.auth, [id("smithy.api#httpBearerAuth")]);
     assert_eq!(service.title.as_deref(), Some("Weather"));
@@ -94,7 +102,7 @@ fn binds_labels_queries_headers_and_body() {
     assert_eq!(create.traits[&id("example.weather#tier")], json!("write"));
 
     assert_eq!(create.resource, Some(id("example.weather#City")));
-    let ping = &service.operations[3];
+    let ping = &service.operations[4];
     assert_eq!(ping.resource, None);
     assert_eq!((ping.input.as_ref(), ping.output.as_ref()), (None, None));
 }
@@ -123,8 +131,13 @@ fn operation_errors_come_before_service_errors() {
 #[test]
 fn pagination_merges_service_defaults() {
     let service = weather();
+    let list = service
+        .operations
+        .iter()
+        .find(|op| op.name() == "ListCities")
+        .unwrap();
     assert_eq!(
-        service.operations[2].paginated,
+        list.paginated,
         Some(Paginated {
             input_token: "nextToken".into(),
             output_token: "nextToken".into(),
@@ -224,19 +237,142 @@ fn refuses_unflattened_mixins() {
 }
 
 #[test]
-fn refuses_blobs_and_streaming() {
+fn refuses_streaming_blobs() {
     let messages = refused(|model| {
         shape(model, "Blobby")
             .clone_from(&json!({ "type": "blob", "traits": { "smithy.api#streaming": {} } }));
         shape(model, "Coordinates")["members"]["raw"] =
             json!({ "target": "example.weather#Blobby" });
     });
+    assert_eq!(messages.len(), 1, "{messages:?}");
+    assert!(messages[0].contains("@streaming"), "{messages:?}");
+}
+
+fn operation<'s>(
+    service: &'s crucible_smithy::ir::Service,
+    name: &str,
+) -> &'s crucible_smithy::ir::Operation {
+    service
+        .operations
+        .iter()
+        .find(|op| op.name() == name)
+        .unwrap()
+}
+
+#[test]
+fn a_blob_payload_is_the_whole_body() {
+    let service = weather();
+    let put = operation(&service, "PutCityPhoto");
+    assert_eq!(
+        put.request.payload,
+        Some(Payload {
+            member: "photo".into(),
+            media_type: "image/jpeg".into()
+        })
+    );
+    assert!(put.request.body.is_empty());
+    assert_eq!(put.request.headers[0].name, "X-Photo-Caption");
+    assert_eq!(put.response.payload, None);
+    assert_eq!(put.response.body, ["photo"]);
+
+    let get = operation(&service, "GetCityPhoto");
+    assert_eq!(get.response.payload.as_ref().unwrap().member, "photo");
+    assert!(get.response.body.is_empty());
+
+    let Some(Shape::Simple(photo)) = service.shape(&id("example.weather#Photo")) else {
+        panic!("photo not lowered");
+    };
+    assert_eq!(photo.kind, SimpleKind::Blob);
+    let length = photo.constraints.length.clone().unwrap();
+    assert_eq!((length.min, length.max), (Some(1), Some(4096)));
+}
+
+#[test]
+fn a_payload_without_a_media_type_is_octet_stream() {
+    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+    shape(&mut model, "Photo")["traits"]
+        .as_object_mut()
+        .unwrap()
+        .remove("smithy.api#mediaType");
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let put = operation(&service, "PutCityPhoto");
+    assert_eq!(
+        put.request.payload.as_ref().unwrap().media_type,
+        "application/octet-stream"
+    );
+}
+
+#[test]
+fn refuses_payloads_it_does_not_carry() {
+    let messages = refused(|model| {
+        shape(model, "PutCityPhotoInput")["members"]["photo"]["target"] =
+            json!("example.weather#Coordinates");
+        shape(model, "GetCityPhotoOutput")["members"]["photo"]["target"] =
+            json!("smithy.api#String");
+    });
+    assert_eq!(messages.len(), 2, "{messages:?}");
     assert!(
-        messages.iter().any(|m| m.contains("@streaming")),
+        messages[0].contains("GetCityPhotoOutput$photo")
+            && messages[0].contains("a string payload is not supported"),
         "{messages:?}"
     );
     assert!(
-        messages.iter().any(|m| m.contains("blob shapes")),
+        messages[1].contains("PutCityPhotoInput$photo")
+            && messages[1].contains("a structure payload is not supported"),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn refuses_a_payload_beside_body_members() {
+    let messages = refused(|model| {
+        shape(model, "PutCityPhotoInput")["members"]["note"] =
+            json!({ "target": "smithy.api#String" });
+    });
+    assert_eq!(messages.len(), 1, "{messages:?}");
+    assert!(
+        messages[0].contains("PutCityPhotoInput$note")
+            && messages[0].contains("the body is the @httpPayload member `photo`"),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn refuses_payloads_on_errors_and_nested_structures() {
+    let messages = refused(|model| {
+        shape(model, "NotFoundError")["members"]["raw"] = json!({
+            "target": "example.weather#Thumbnail",
+            "traits": { "smithy.api#httpPayload": {} }
+        });
+        shape(model, "PhotoSummary")["members"]["thumbnail"]["traits"]["smithy.api#httpPayload"] =
+            json!({});
+    });
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("NotFoundError$raw") && m.contains("not supported on an error")),
+        "{messages:?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("PhotoSummary$thumbnail") && m.contains("binds only")),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn refuses_blobs_in_headers() {
+    let messages = refused(|model| {
+        shape(model, "PutCityPhotoInput")["members"]["caption"]["target"] =
+            json!("example.weather#Thumbnail");
+    });
+    assert_eq!(messages.len(), 1, "{messages:?}");
+    assert!(
+        messages[0].contains("@httpHeader cannot carry example.weather#Thumbnail"),
         "{messages:?}"
     );
 }
@@ -312,4 +448,17 @@ fn chooses_among_services() {
         model.lower(Some(&id("a#B"))),
         Err(Error::UnknownService(_))
     ));
+}
+
+#[test]
+fn refuses_a_media_type_that_is_not_a_header_value() {
+    let messages = refused(|model| {
+        shape(model, "Photo")["traits"]["smithy.api#mediaType"] = json!("image/jpeg\n");
+    });
+    assert!(
+        messages
+            .iter()
+            .all(|m| m.contains("example.weather#Photo") && m.contains("not a valid header value")),
+        "{messages:?}"
+    );
 }

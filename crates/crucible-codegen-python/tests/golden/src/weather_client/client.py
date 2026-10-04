@@ -14,6 +14,9 @@ class Client(SyncClient):
     def get_city(self, input: m.GetCityInput, **options: Any) -> m.GetCityOutput:
         return self._call("GetCity", input, **options)
 
+    def get_city_photo(self, input: m.GetCityPhotoInput, **options: Any) -> m.GetCityPhotoOutput:
+        return self._call("GetCityPhoto", input, **options)
+
     def list_cities(self, input: m.ListCitiesInput | None = None, **options: Any) -> m.ListCitiesOutput:
         return self._call("ListCities", input, **options)
 
@@ -23,6 +26,10 @@ class Client(SyncClient):
 
     def ping(self, **options: Any) -> None:
         return self._call("Ping", None, **options)
+
+    def put_city_photo(self, input: m.PutCityPhotoInput, **options: Any) -> m.PutCityPhotoOutput:
+        "Stores a city's photo exactly as sent."
+        return self._call("PutCityPhoto", input, **options)
 
     def status(self, input: m.StatusInput | None = None, **options: Any) -> m.StatusOutput:
         return self._call("Status", input, **options)
@@ -37,6 +44,9 @@ class AsyncClient(AsyncClientBase):
     async def get_city(self, input: m.GetCityInput, **options: Any) -> m.GetCityOutput:
         return await self._call("GetCity", input, **options)
 
+    async def get_city_photo(self, input: m.GetCityPhotoInput, **options: Any) -> m.GetCityPhotoOutput:
+        return await self._call("GetCityPhoto", input, **options)
+
     async def list_cities(self, input: m.ListCitiesInput | None = None, **options: Any) -> m.ListCitiesOutput:
         return await self._call("ListCities", input, **options)
 
@@ -46,6 +56,10 @@ class AsyncClient(AsyncClientBase):
 
     async def ping(self, **options: Any) -> None:
         return await self._call("Ping", None, **options)
+
+    async def put_city_photo(self, input: m.PutCityPhotoInput, **options: Any) -> m.PutCityPhotoOutput:
+        "Stores a city's photo exactly as sent."
+        return await self._call("PutCityPhoto", input, **options)
 
     async def status(self, input: m.StatusInput | None = None, **options: Any) -> m.StatusOutput:
         return await self._call("Status", input, **options)

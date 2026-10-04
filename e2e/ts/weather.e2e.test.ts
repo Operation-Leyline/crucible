@@ -108,3 +108,19 @@ test("throttling is retried, then surfaces with its header member", async () => 
 test("an operation with empty input and output round-trips", async () => {
   assert.deepEqual(await client.status(), {});
 });
+
+test("a photo travels as raw bytes both ways", async () => {
+  const { city } = await client.createCity({ name: unique("alta") });
+  const photo = new Uint8Array([0xff, 0xd8, ...new TextEncoder().encode('{"looks":"like json"}'), 0x00, 0x80]);
+  const stored = await client.putCityPhoto({ cityId: city.id, caption: "aurora", photo });
+  assert.equal(stored.photo.size, photo.length);
+  assert.deepEqual(stored.photo.thumbnail, photo.slice(0, 8), "base64 in JSON");
+
+  const read = await client.getCityPhoto({ cityId: city.id });
+  assert.deepEqual(read.photo, photo);
+  assert.equal(read.caption, "aurora");
+
+  const tooLong = await client.putCityPhoto({ cityId: city.id, photo: new Uint8Array(4097) }).catch(e => e);
+  assert.ok(tooLong instanceof ValidationError);
+  assert.equal(tooLong.fieldList?.[0]?.path, "photo");
+});

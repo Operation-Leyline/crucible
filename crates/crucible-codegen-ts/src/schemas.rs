@@ -21,6 +21,7 @@ pub(crate) fn emit(service: &Service) -> String {
         let members: Vec<String> = structure
             .members
             .iter()
+            .filter(|member| !is_payload(service, id, &member.name))
             .filter_map(|member| {
                 body_schema(service, &converting, member)
                     .map(|schema| format!("{}: {schema}", property(&member.name)))
@@ -54,6 +55,7 @@ pub(crate) fn emit(service: &Service) -> String {
 
     // Import only the helpers this model uses, so no import is ever unused.
     let helpers: Vec<&str> = [
+        "blob",
         "boolean",
         "list",
         "map",
@@ -88,15 +90,34 @@ pub(crate) fn schema_name(service: &Service, id: &ShapeId) -> String {
     format!("S_{}", service.name_of(id))
 }
 
+/// Whether `member` of `structure` is an operation's payload: its bytes
+/// travel raw, so no schema converts them.
+fn is_payload(service: &Service, structure: &ShapeId, member: &str) -> bool {
+    service.operations.iter().any(|op| {
+        let payload = |io: &Option<ShapeId>, bindings: &crucible_smithy::ir::Bindings| {
+            io.as_ref() == Some(structure)
+                && bindings
+                    .payload
+                    .as_ref()
+                    .is_some_and(|p| p.member == member)
+        };
+        payload(&op.input, &op.request) || payload(&op.output, &op.response)
+    })
+}
+
 /// Structures and unions whose wire form differs from their model form at any
-/// depth: they hold a timestamp, or a member whose default the client fills.
+/// depth: they hold a timestamp or a blob (not a payload), or a member whose
+/// default the client fills.
 pub(crate) fn converting(service: &Service) -> BTreeSet<ShapeId> {
     let mut set = BTreeSet::new();
     loop {
         let before = set.len();
         for (id, shape) in &service.shapes {
             if let Shape::Structure(structure) | Shape::Union(structure) = shape {
-                let differs = |m: &Member| m.default.is_some() || needs(service, &set, &m.target);
+                let differs = |m: &Member| {
+                    m.default.is_some()
+                        || (needs(service, &set, &m.target) && !is_payload(service, id, &m.name))
+                };
                 if structure.members.iter().any(differs) {
                     set.insert(id.clone());
                 }
@@ -110,7 +131,9 @@ pub(crate) fn converting(service: &Service) -> BTreeSet<ShapeId> {
 
 fn needs(service: &Service, set: &BTreeSet<ShapeId>, target: &ShapeId) -> bool {
     match service.shape(target) {
-        Some(Shape::Simple(simple)) => simple.kind == SimpleKind::Timestamp,
+        Some(Shape::Simple(simple)) => {
+            matches!(simple.kind, SimpleKind::Timestamp | SimpleKind::Blob)
+        }
         Some(Shape::List(list)) => needs(service, set, &list.member.target),
         Some(Shape::Map(map)) => needs(service, set, &map.value.target),
         Some(Shape::Structure(_) | Shape::Union(_)) => set.contains(target),
@@ -128,6 +151,7 @@ pub(crate) fn body_schema(
         Shape::Simple(simple) if simple.kind == SimpleKind::Timestamp => {
             Some(timestamp(service, member))
         }
+        Shape::Simple(simple) if simple.kind == SimpleKind::Blob => Some("blob".to_owned()),
         Shape::List(list) => {
             body_schema(service, converting, &list.member).map(|item| format!("list({item})"))
         }
@@ -148,7 +172,7 @@ fn binding_schema(service: &Service, member: &Member) -> Option<String> {
         Shape::Simple(simple) => match simple.kind {
             SimpleKind::Timestamp => Some(timestamp(service, member)),
             SimpleKind::Boolean => Some("boolean".to_owned()),
-            SimpleKind::String | SimpleKind::Document => None,
+            SimpleKind::String | SimpleKind::Document | SimpleKind::Blob => None,
             _ => Some("number".to_owned()),
         },
         Shape::List(list) => Some(format!(
@@ -250,9 +274,19 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
                 fields.push(format!("input: {}", schema_name(service, id)));
             }
         }
+        if let Some(payload) = &op.request.payload {
+            fields.push(format!(
+                "payload: {{ member: {}, mediaType: {} }}",
+                literal(&payload.member),
+                literal(&payload.media_type)
+            ));
+        }
     }
     if let (Some(id), Some(output)) = (op.output.as_ref(), structure(service, op.output.as_ref())) {
         let mut parts = vec![format!("body: {}", !op.response.body.is_empty())];
+        if let Some(payload) = &op.response.payload {
+            parts.push(format!("payload: {}", literal(&payload.member)));
+        }
         if converting.contains(id) {
             parts.push(format!("schema: {}", schema_name(service, id)));
         }

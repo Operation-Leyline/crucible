@@ -18,6 +18,12 @@ in lowering, language syntax and naming in the emitter, and transport behavior
 in a small native runtime. New targets initially bundle their runtime with
 their generated package. Public APIs follow the language's conventions.
 
+A Smithy `blob` is `crucible_client::Blob` (bytes) in Rust, `Uint8Array` in
+TypeScript and `bytes` in Python. In a JSON body it is standard, padded
+base64. An `@httpPayload` blob is sent as the bytes themselves with the
+blob's media type, and the body digest covers exactly those bytes; a payload
+response is read as bytes, an empty body as empty bytes.
+
 Leyline's endpoint, authentication configuration, exact-byte body digest,
 and package identity are explicit package configuration. Framework code must
 not branch on Leyline service or operation names. Database conveniences such

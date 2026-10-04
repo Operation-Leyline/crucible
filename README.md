@@ -96,8 +96,8 @@ repositories {
     }
 }
 dependencies {
-    implementation("crucible:crucible-traits:0.1.0")
-    smithyBuild("crucible:crucible-traits:0.1.0")
+    implementation("crucible:crucible-traits:0.2.0")
+    smithyBuild("crucible:crucible-traits:0.2.0")
 }
 ```
 

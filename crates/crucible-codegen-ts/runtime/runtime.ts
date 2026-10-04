@@ -17,6 +17,8 @@ export type TimestampFormat = "date-time" | "http-date" | "epoch-seconds";
  */
 export type Schema =
   | { readonly kind: "string" | "number" | "boolean" }
+  /** Bytes (`Uint8Array`), base64 text in a JSON body. */
+  | { readonly kind: "blob" }
   | { readonly kind: "timestamp"; readonly format: TimestampFormat }
   | { readonly kind: "list"; readonly member: Schema }
   | { readonly kind: "map"; readonly value: Schema }
@@ -30,6 +32,7 @@ export type Schema =
 export const string: Schema = { kind: "string" };
 export const number: Schema = { kind: "number" };
 export const boolean: Schema = { kind: "boolean" };
+export const blob: Schema = { kind: "blob" };
 export const timestamp = (format: TimestampFormat): Schema => ({ kind: "timestamp", format });
 export const list = (member: Schema): Schema => ({ kind: "list", member });
 export const map = (value: Schema): Schema => ({ kind: "map", value });
@@ -51,6 +54,8 @@ export function toWire(schema: Schema | undefined, value: unknown): unknown {
   switch (schema.kind) {
     case "timestamp":
       return formatTimestamp(value as Date, schema.format);
+    case "blob":
+      return toBase64(value as Uint8Array);
     case "list":
       return (value as unknown[]).map(item => toWire(schema.member, item));
     case "map":
@@ -67,6 +72,8 @@ export function fromWire(schema: Schema | undefined, value: unknown): unknown {
   switch (schema.kind) {
     case "timestamp":
       return parseTimestamp(value as string | number);
+    case "blob":
+      return fromBase64(value as string);
     case "list":
       return (value as unknown[]).map(item => fromWire(schema.member, item));
     case "map":
@@ -110,6 +117,24 @@ export function formatTimestamp(value: Date, format: TimestampFormat): string | 
   }
 }
 
+/** Standard, padded base64: how a JSON body carries a blob. */
+export function toBase64(bytes: Uint8Array): string {
+  if (!(bytes instanceof Uint8Array)) throw new TypeError("a blob is a Uint8Array");
+  let binary = "";
+  // Chunked, so a large blob does not overflow the argument list.
+  for (let at = 0; at < bytes.length; at += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+  }
+  return btoa(binary);
+}
+
+export function fromBase64(text: string): Uint8Array {
+  const binary = atob(text);
+  const bytes = new Uint8Array(binary.length);
+  for (let at = 0; at < binary.length; at++) bytes[at] = binary.charCodeAt(at);
+  return bytes;
+}
+
 export function parseTimestamp(value: string | number): Date {
   const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
   if (Number.isNaN(date.getTime())) throw new TypeError(`not a timestamp: ${String(value)}`);
@@ -127,9 +152,13 @@ export interface OperationSpec {
   readonly headers?: readonly (readonly [member: string, header: string, schema?: Schema])[];
   /** Input members in the JSON body; absent when the request has no body. */
   readonly body?: readonly string[];
+  /** The input member that is the whole body, raw (`@httpPayload`), and its content type. */
+  readonly payload?: { readonly member: string; readonly mediaType: string };
   readonly input?: Schema;
   readonly output?: {
     readonly body: boolean;
+    /** The output member that is the whole body, read as bytes. */
+    readonly payload?: string;
     readonly schema?: Schema;
     readonly headers?: readonly (readonly [member: string, header: string, schema?: Schema])[];
   };
@@ -242,12 +271,18 @@ export class Transport {
       // Invalid inputs are caller errors, not transport failures.
       const request = this.#request(operation, values, options);
       let response: Response | undefined;
-      let text: string;
+      let text = "";
+      let bytes: Uint8Array | undefined;
       try {
         response = await this.#dispatch(request);
         // Fetch resolves at the headers; required bodies can still fail.
-        // A successful operation without a modeled body needs only headers.
-        text = response.ok && !operation.output?.body ? "" : await response.text();
+        // A successful operation without a modeled body needs only headers;
+        // a payload is read as the bytes sent, never as text.
+        if (response.ok && operation.output?.payload !== undefined) {
+          bytes = new Uint8Array(await response.arrayBuffer());
+        } else if (!response.ok || operation.output?.body) {
+          text = await response.text();
+        }
       } catch (error) {
         if (isAbort(error, options.signal)) throw error;
         const network = new NetworkError(error);
@@ -256,7 +291,7 @@ export class Transport {
         await sleep(delay ?? backoff(attempt, retry), options.signal);
         continue;
       }
-      if (response.ok) return this.#decodeOutput(operation, response, text) as O;
+      if (response.ok) return this.#decodeOutput(operation, response, text, bytes) as O;
       const error = this.#decodeError(operation, response, text);
       const throttled = error.$retryable?.throttling === true;
       const transient = error.$retryable !== undefined || RETRYABLE_STATUS.has(response.status);
@@ -296,20 +331,33 @@ export class Transport {
       const value = values[member];
       if (value !== undefined && value !== null) headers.set(header, headerValue(value, schema));
     }
-    let body: string | undefined;
+    let body: BodyInit | undefined;
     if (operation.body !== undefined) {
       const picked: Record<string, unknown> = {};
       for (const member of operation.body) if (values[member] !== undefined) picked[member] = values[member];
       body = JSON.stringify(toWire(operation.input, picked));
       headers.set("content-type", "application/json");
     }
+    if (operation.payload !== undefined) {
+      // The bytes go as they are: a body digest covers exactly these.
+      const value = values[operation.payload.member];
+      if (value !== undefined && value !== null) {
+        if (!(value instanceof Uint8Array)) {
+          throw new TypeError(`${operation.name}: \`${operation.payload.member}\` is a Uint8Array`);
+        }
+        body = value as BodyInit;
+        headers.set("content-type", operation.payload.mediaType);
+      }
+    }
     return new Request(url, { method: operation.method, headers, body, signal: options.signal });
   }
 
-  #decodeOutput(operation: OperationSpec, response: Response, text: string): unknown {
+  #decodeOutput(operation: OperationSpec, response: Response, text: string, bytes: Uint8Array | undefined): unknown {
     const output = operation.output;
     if (output === undefined) return {};
-    const body = output.body ? readJson(text) : {};
+    const body = output.payload !== undefined
+      ? { [output.payload]: bytes ?? new Uint8Array() }
+      : output.body ? readJson(text) : {};
     const decoded = fromWire(output.schema, body ?? {}) as Record<string, unknown>;
     readHeaders(response.headers, output.headers, decoded);
     return decoded;

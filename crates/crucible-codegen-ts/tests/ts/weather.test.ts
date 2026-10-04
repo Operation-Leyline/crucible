@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { ConflictError, NetworkError, ServiceError, Sky, ThrottlingError, WeatherClient } from "./generated/src/index.js";
 import type { Middleware } from "./generated/src/index.js";
-import { Transport, string } from "./generated/src/runtime.js";
+import { Transport, blob, fromWire, string, toWire } from "./generated/src/runtime.js";
 import type { OperationSpec } from "./generated/src/runtime.js";
 
 interface Sent {
@@ -271,6 +271,51 @@ test("caller middleware runs on every attempt after the client's own", async () 
   await new WeatherClient({ fetch, token, middleware: [home], retry: quick }).ping();
   assert.deepEqual(seen, ["Bearer t1", "Bearer t2"], "the token provider is asked per attempt");
   assert.equal(sent[1].headers.get("x-home"), "use1");
+});
+
+test("a payload goes raw under its media type, and the digest covers exactly those bytes", async () => {
+  // Not UTF-8, and JSON-looking in places: neither may be reinterpreted.
+  const photo = new Uint8Array([0xff, 0xd8, 0x7b, 0x22, 0x00, 0x80, 0xfe, 0x01, 0x02]);
+  const seen: { headers: Headers; bytes: Uint8Array }[] = [];
+  const responses = [
+    json(200, { photo: { size: 9, thumbnail: "/9h7IgCA/gE=", caption: "harbour" } }),
+    new Response(photo, { headers: { "content-type": "image/jpeg", "x-photo-caption": "harbour" } }),
+    new Response(null, { status: 200 }),
+  ];
+  const fetch = async (request: Request): Promise<Response> => {
+    seen.push({ headers: request.headers, bytes: new Uint8Array(await request.arrayBuffer()) });
+    return responses.shift()!;
+  };
+  const client = new WeatherClient({ fetch });
+
+  const stored = await client.putCityPhoto({ cityId: "c-00000001", caption: "harbour", photo });
+  assert.deepEqual(seen[0].bytes, photo);
+  assert.equal(seen[0].headers.get("content-type"), "image/jpeg");
+  assert.equal(seen[0].headers.get("x-photo-caption"), "harbour");
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", photo));
+  const hex = Array.from(digest, b => b.toString(16).padStart(2, "0")).join("");
+  assert.equal(seen[0].headers.get("x-amz-content-sha256"), hex);
+  assert.ok(stored.photo.thumbnail instanceof Uint8Array, "base64 in JSON decodes to bytes");
+  assert.deepEqual(stored.photo.thumbnail, photo.slice(0, 8));
+
+  const read = await client.getCityPhoto({ cityId: "c-00000001" });
+  assert.deepEqual(read.photo, photo);
+  assert.equal(read.caption, "harbour");
+  const empty = await client.getCityPhoto({ cityId: "c-00000001" });
+  assert.deepEqual(empty.photo, new Uint8Array());
+
+  await assert.rejects(
+    client.putCityPhoto({ cityId: "c-00000001", photo: "text" as unknown as Uint8Array }),
+    /Uint8Array/,
+  );
+});
+
+test("a blob in a JSON body is standard padded base64", () => {
+  const bytes = new Uint8Array([0xff, 0xd8, 0x7b, 0x22, 0x00, 0x80, 0xfe, 0x01, 0x02]);
+  assert.equal(toWire(blob, bytes), "/9h7IgCA/gEC");
+  assert.deepEqual(fromWire(blob, "/9h7IgCA/gEC"), bytes);
+  const large = new Uint8Array(100_000).map((_, i) => i % 251);
+  assert.deepEqual(fromWire(blob, toWire(blob, large)), large);
 });
 
 test("enums are values and types", () => {

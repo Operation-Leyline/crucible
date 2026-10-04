@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import copy
 import hashlib
 import inspect
@@ -77,6 +79,12 @@ class NetworkError(Exception):
     """Transport failed before a complete response could be read."""
 
 
+def _has_body(op: dict[str, Any]) -> bool:
+    """Whether a successful response carries a body to read."""
+    response = op["response"]
+    return bool(response["body"]) or response.get("payload") is not None
+
+
 def _check_credentials(request: httpx.Request) -> None:
     if "authorization" not in request.headers or request.url.scheme == "https":
         return
@@ -106,6 +114,20 @@ def _timestamp(value: Any, fmt: str, decode: bool) -> Any:
     return value.isoformat().replace("+00:00", "Z")
 
 
+def _blob(value: Any, decode: bool) -> Any:
+    """Bytes as standard, padded base64 in JSON. A payload is already bytes."""
+    if decode:
+        if isinstance(value, bytes):
+            return value
+        try:
+            return base64.b64decode(value, validate=True)
+        except (binascii.Error, TypeError, ValueError) as error:
+            raise ValueError("a blob must be base64") from error
+    if not isinstance(value, (bytes, bytearray, memoryview)):
+        raise TypeError("blobs must be bytes")
+    return base64.b64encode(value).decode("ascii")
+
+
 class _Codec:
     def __init__(self, schema: dict[str, Any], classes: dict[str, Any]) -> None:
         self.schema = schema
@@ -124,6 +146,8 @@ class _Codec:
         kind = shape["kind"]
         if kind == "timestamp":
             return _timestamp(value, fmt or shape["format"], decode)
+        if kind == "blob":
+            return _blob(value, decode)
         if kind == "enum":
             return self.classes[target](value) if decode else str(value)
         if kind == "list":
@@ -279,6 +303,15 @@ class _Base:
         if op["request"]["body"]:
             body = json.dumps({k: values[k] for k in op["request"]["body"] if k in values}, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
             headers["content-type"] = "application/json"
+        payload = op["request"].get("payload")
+        if payload is not None:
+            # The bytes go as they are: a body digest covers exactly these.
+            value = original(payload[0])
+            if value is not None and not isinstance(value, Unset):
+                if not isinstance(value, (bytes, bytearray, memoryview)):
+                    raise TypeError(f"{payload[0]} must be bytes")
+                body = bytes(value)
+                headers["content-type"] = payload[1]
         return op, self._endpoint + uri, body, headers
 
     def _decode(self, op: dict[str, Any], response: httpx.Response, body: bytes) -> Any:
@@ -286,7 +319,9 @@ class _Base:
             target = op["output"]
             if target is None:
                 return None
-            values = json.loads(body) if body else {}
+            payload = op["response"].get("payload")
+            # A payload is the body as received, whatever it holds.
+            values: dict[str, Any] = {payload[0]: body} if payload is not None else json.loads(body) if body else {}
             for member, header in op["response"]["headers"]:
                 if header in response.headers:
                     m = self._codec.shapes[target]["members"][member]
@@ -395,7 +430,7 @@ class SyncClient(_Base):
             try:
                 response = self._http.send(request, stream=True)
                 try:
-                    data = b"" if response.is_success and not op["response"]["body"] else response.read()
+                    data = b"" if response.is_success and not _has_body(op) else response.read()
                 finally:
                     response.close()
             except httpx.TransportError as error:
@@ -473,7 +508,7 @@ class AsyncClientBase(_Base):
             try:
                 response = await self._http.send(request, stream=True)
                 try:
-                    data = b"" if response.is_success and not op["response"]["body"] else await response.aread()
+                    data = b"" if response.is_success and not _has_body(op) else await response.aread()
                 finally:
                     await response.aclose()
             except httpx.TransportError as error:
