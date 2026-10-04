@@ -435,6 +435,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "crucible-codegen-dart"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-common",
+ "crucible-smithy",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "crucible-codegen-go"
 version = "0.1.0"
 dependencies = [
