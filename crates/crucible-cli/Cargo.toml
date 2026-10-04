@@ -17,6 +17,7 @@ crucible-codegen-rust.workspace = true
 crucible-codegen-ts.workspace = true
 crucible-codegen-python.workspace = true
 crucible-codegen-go.workspace = true
+crucible-codegen-java.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 clap.workspace = true
 
