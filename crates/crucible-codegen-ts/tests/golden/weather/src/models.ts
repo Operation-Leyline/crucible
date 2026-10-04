@@ -12,8 +12,8 @@ export interface CitySummary {
   id: CityId;
   name: CityName;
   population: number;
-  updatedAt?: Date;
-  createdAt?: Date;
+  updatedAt?: globalThis.Date;
+  createdAt?: globalThis.Date;
 }
 
 export interface Coordinates {
@@ -32,7 +32,7 @@ export interface CreateCityOutput {
   city: CitySummary;
 }
 
-export type DateTime = Date;
+export type DateTime = globalThis.Date;
 
 export type Forecast = Partial<Record<Sky, Document>>;
 
