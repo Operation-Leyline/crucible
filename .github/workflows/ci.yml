@@ -13,6 +13,19 @@ permissions:
   contents: read
 
 jobs:
+  dart:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        sdk: ['3.6.2', stable]
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: '${{ matrix.sdk }}' }
+      - run: python3 tools/test-dart.py
   swift-linux:
     runs-on: ubuntu-latest
     container: swift:6.0.3-jammy

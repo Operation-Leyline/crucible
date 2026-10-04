@@ -1,0 +1,186 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:crypto/crypto.dart';
+import 'package:weather_client/weather_client.dart';
+import 'package:weather_client/src/runtime/codec.dart';
+import 'package:weather_client/src/runtime/json.dart';
+import 'package:weather_client/src/models.dart' show decodeModel;
+import 'package:weather_client/src/schema.dart';
+import 'fixtures.dart';
+
+HttpResponse response(int status, [String body = '{}', Map<String,String> headers = const {}]) =>
+  HttpResponse(status:status, body:Uint8List.fromList(utf8.encode(body)), headers:headers);
+final class Fake implements HttpTransport {
+  final FutureOr<HttpResponse> Function(int, HttpRequest, bool) handler;
+  final requests = <HttpRequest>[];
+  final cancellations = <CancellationToken>[];
+  var closed = false;
+  Fake(this.handler);
+  @override
+  Future<HttpResponse> send(HttpRequest request, {required bool readBody, required CancellationToken cancellation}) async {
+    cancellation.throwIfCancelled(); requests.add(request); cancellations.add(cancellation);
+    return await handler(requests.length, request, readBody);
+  }
+  @override
+  void close() { closed = true; }
+}
+Client client(Fake transport, {int maxAttempts = 3, TokenProvider? token, List<Middleware> middleware = const [], Duration timeout = const Duration(seconds: 5)}) =>
+  Client(ClientConfig(endpoint:'http://127.0.0.1', transport:transport, maxAttempts:maxAttempts,
+    baseDelay:Duration.zero, token:token, middleware:middleware, timeout:timeout));
+void main() {
+  final codec = WireCodec(wireObject(exactJsonDecode(schemaSource)), decodeModel);
+  for (final item in jsonDecode(retryCases) as List) {
+    test('shared retry ${item['name']}', () async {
+      final fake = Fake((attempt, request, read) {
+        final body = <String,Object?>{};
+        if (item['error'] != null) body['__type'] = item['error'];
+        return response(attempt <= (item['failures'] as int) ? item['status'] as int : 200, jsonEncode(body), {'x-amzn-errortype':'Throttled'});
+      });
+      final sdk = client(fake, maxAttempts:item['maxAttempts'] as int);
+      var success = false;
+      try { if (item['safe'] as bool) { await sdk.retrySafe(); } else { await sdk.retryUnsafe(); } success = true; }
+      on ServiceError { }
+      expect(success, item['success']); expect(fake.requests.length, item['attempts']);
+      sdk.close(); expect(fake.closed, isFalse);
+    });
+  }
+  test('shared header lists', () {
+    for (final item in jsonDecode(headerCases) as List) {
+      final member = {'target':'example.weather#Tags'};
+      expect(codec.header(member, item['wire'] as String), item['values']);
+      expect(codec.header(member, codec.bound(item['values'])), item['values']);
+    }
+  });
+  test('exact models, null, defaults and unknown values', () {
+    final context = codec.context('example.weather#CitySummary');
+    final value = codec.decode(exactJsonDecode('{"id":"x","name":"n","population":9223372036854775807,"createdAt":-0.000000001}'), context) as CitySummary;
+    expect(value.population, BigInt.parse('9223372036854775807'));
+    expect(value.createdAt.value, Timestamp(BigInt.from(-1), 999999999));
+    expect(exactJsonEncode(codec.encode(value, context)), contains('9223372036854775807'));
+    final defaults = codec.decode(exactJsonDecode('{"id":"x","name":"n"}'), context) as CitySummary;
+    expect(defaults.population, BigInt.zero);
+    final input = codec.encode(const CreateCityInput(name:Field.value('n'), location:Field.nullValue()), codec.context('example.weather#CreateCityInput'));
+    expect(wireObject(input)['location'], isNull); expect(wireObject(input).containsKey('clientToken'), isFalse);
+    final union = codec.context('example.weather#Location');
+    final unknown = exactJsonDecode('{"future":{"n":9223372036854775807}}');
+    expect(exactJsonEncode(codec.encode(codec.decode(unknown, union), union)), exactJsonEncode(unknown));
+    expect(codec.decode({'unknown':<String,Object?>{}}, union), isA<LocationUnknown>());
+    expect(() => codec.decode([null], codec.context('example.weather#Tags')), throwsFormatException);
+  });
+  test('retry bytes, digest, per-attempt hooks and caller input', () async {
+    var token = 0;
+    final fake = Fake((attempt, request, read) {
+      expect(request.headers['authorization'], 'Bearer $attempt');
+      expect(request.headers['x-amz-content-sha256'], sha256.convert(request.body!).toString());
+      expect(request.headers['x-expected-revision'], '7');
+      return attempt == 1 ? response(503, '{"__type":"Future"}') : response(201, '{"city":{"id":"x","name":"n"}}');
+    });
+    final sdk = client(fake, token:() => '${++token}', middleware:[(request) => request.copyWith(body:Uint8List.fromList([...request.body!,32]))]);
+    final input = CreateCityInput(name:const Field.value('n'), expectedRevision:Field.value(BigInt.from(7)));
+    await sdk.createCity(input);
+    expect(fake.requests, hasLength(2)); expect(fake.requests[0].body, fake.requests[1].body);
+    expect(input.clientToken.isSet, isFalse);
+    expect((jsonDecode(utf8.decode(fake.requests[0].body!)) as Map)['clientToken'], isNotEmpty);
+  });
+  test('bindings and raw empty payload semantics', () async {
+    final fake = Fake((_, request, read) {
+      expect(request.url.toString(), contains('a%2Fb%20%2A%3F%23%C3%A9'));
+      expect(request.url.toString(), contains('at=2026-10-01T00%3A00%3A00Z'));
+      return response(200, '{"city":{"id":"x","name":"n"}}', {'x-request-id':'request'});
+    });
+    final output = await client(fake).getCity(GetCityInput(cityId:const Field.value('a/b *?#é'), at:Field.value(Timestamp.parse('2026-10-01T00:00:00Z'))));
+    expect(output.requestId.value, 'request');
+    for (final bytes in [Uint8List.fromList([0,128,255]), Uint8List(0)]) {
+      final raw = Fake((_, request, read) { expect(read, isTrue); return HttpResponse(status:200, body:bytes); });
+      expect((await client(raw).getCityPhoto(const GetCityPhotoInput(cityId:Field.value('x')))).photo.value, bytes);
+    }
+    final empty = Fake((_, request, read) {
+      expect(request.body, isNull); expect(request.headers.containsKey('content-type'), isFalse);
+      expect(request.headers.containsKey('x-amz-content-sha256'), isFalse);
+      return response(200, '{"photo":{"size":0,"thumbnail":""}}');
+    });
+    await client(empty).putCityPhoto(PutCityPhotoInput(cityId:const Field.value('x'), photo:Field.value(Uint8List(0))));
+  });
+  test('malformed modeled errors retain retry metadata; malformed success does not retry', () async {
+    final fake = Fake((_, request, read) => response(429, '{"__type":"ThrottlingError","message":42,"requestId":"body"}', {'x-request-id':'header'}));
+    try { await client(fake, maxAttempts:2).ping(); fail('Expected error'); }
+    on ServiceError catch(error) {
+      expect(error.metadata.status, 429); expect(error.metadata.requestId, 'header'); expect(error.metadata.throttling, isTrue);
+    }
+    expect(fake.requests, hasLength(2));
+    final malformed = Fake((_, request, read) => response(200, '{bad'));
+    await expectLater(client(malformed).getCity(const GetCityInput(cityId:Field.value('x'))), throwsFormatException);
+    expect(malformed.requests, hasLength(1));
+  });
+  test('lazy pagination, input snapshot and token cycles', () async {
+    final tags = ['original'];
+    final fake = Fake((_, request, read) {
+      expect(request.url.queryParameters['tag'], 'original');
+      return response(200, '{"cities":[],"nextToken":"same"}');
+    });
+    final pages = client(fake).listCitiesPages(ListCitiesInput(maxResults:const Field.value(1), tags:Field.value(tags)));
+    tags[0] = 'changed'; expect(fake.requests, isEmpty);
+    final iterator = StreamIterator(pages);
+    expect(await iterator.moveNext(), isTrue); expect(await iterator.moveNext(), isTrue);
+    await expectLater(iterator.moveNext(), throwsStateError); expect(fake.requests, hasLength(2));
+    await iterator.cancel();
+  });
+  test('deadline and cancellation stop uncooperative hooks before sending', () async {
+    final fake = Fake((_, request, read) => response(200));
+    final hook = Completer<String>();
+    final sdk = client(fake, token:() => hook.future, timeout:const Duration(milliseconds:30));
+    await expectLater(sdk.ping(), throwsA(isA<TimeoutException>()));
+    hook.complete('late'); await Future<void>.delayed(const Duration(milliseconds:20));
+    expect(fake.requests, isEmpty);
+    final cancellation = CancellationToken()..cancel();
+    await expectLater(client(fake).ping(cancellation:cancellation), throwsA(isA<CancelledException>()));
+    expect(fake.requests, isEmpty);
+  });
+  test('subscription cancellation aborts an in-flight page', () async {
+    final started = Completer<void>();
+    final reply = Completer<HttpResponse>();
+    final fake = Fake((_, request, read) { started.complete(); return reply.future; });
+    final subscription = client(fake).listCitiesPages(const ListCitiesInput()).listen((_) => fail('Cancelled page delivered'));
+    await started.future;
+    await subscription.cancel().timeout(const Duration(seconds:1));
+    expect(fake.cancellations.single.isCancelled, isTrue);
+    reply.complete(response(200, '{"cities":[],"nextToken":"more"}'));
+    await Future<void>.delayed(const Duration(milliseconds:20));
+    expect(fake.requests, hasLength(1));
+  });
+  test('paused pagination does not fetch ahead', () async {
+    final fake = Fake((_, request, read) => response(200, '{"cities":[],"nextToken":"more"}'));
+    final iterator = StreamIterator(client(fake).listCitiesPages(const ListCitiesInput()));
+    expect(await iterator.moveNext(), isTrue);
+    await Future<void>.delayed(const Duration(milliseconds:20));
+    expect(fake.requests, hasLength(1));
+    await iterator.cancel();
+  });
+  test('large retry delays cannot overflow browser timers', () async {
+    final fake = Fake((_, request, read) => response(503, '{}', {'retry-after':'2147484'}));
+    await expectLater(client(fake, timeout:const Duration(milliseconds:80)).retrySafe(), throwsA(isA<TimeoutException>()));
+    expect(fake.requests, hasLength(1));
+  });
+  test('large deadlines wait for caller cancellation', () async {
+    final hook = Completer<String>();
+    final started = Completer<void>();
+    final fake = Fake((_, request, read) => response(200));
+    final cancellation = CancellationToken();
+    final result = client(fake, timeout:const Duration(days:100), token:() { started.complete(); return hook.future; }).ping(cancellation:cancellation);
+    final checked = expectLater(result, throwsA(isA<CancelledException>()));
+    await started.future;
+    await Future<void>.delayed(const Duration(milliseconds:40));
+    cancellation.cancel();
+    await checked;
+    hook.complete('late');
+    await Future<void>.delayed(const Duration(milliseconds:20));
+    expect(fake.requests, isEmpty);
+  });
+  test('insecure credentials are rejected before transport', () async {
+    final fake = Fake((_, request, read) => response(200));
+    final sdk = Client(ClientConfig(endpoint:'http://example.invalid', transport:fake, token:() => 'secret'));
+    await expectLater(sdk.ping(), throwsArgumentError); expect(fake.requests, isEmpty);
+  });
+}
