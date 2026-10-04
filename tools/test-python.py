@@ -1,0 +1,59 @@
+"""Generate, type-check, and exercise a Python SDK with this interpreter."""
+import os
+import queue
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import threading
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def run(*args, **kwargs):
+    subprocess.run(args, cwd=ROOT, check=True, **kwargs)
+
+
+def qualify(package):
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
+        "crates/crucible-smithy/tests/fixtures/weather.json", "--out", str(package),
+        "--package-name", "weather-client", "--module-name", "weather_client",
+        "--endpoint", "https://weather.example", "--content-sha256")
+    env = dict(os.environ, PYTHONPATH=str(package / "src"))
+    run(sys.executable, "-m", "mypy", str(package / "src"))
+    run("cargo", "build", "--locked", "-q", "--manifest-path", "e2e/Cargo.toml", "-p", "weather-service")
+    target = Path(os.environ.get("CARGO_TARGET_DIR", "e2e/target"))
+    if not target.is_absolute():
+        target = ROOT / target
+    binary = target / "debug" / ("weather-service.exe" if os.name == "nt" else "weather-service")
+    server = subprocess.Popen([str(binary)], cwd=ROOT, stdout=subprocess.PIPE,
+                              text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    try:
+        started = queue.Queue()
+        def drain():
+            started.put(server.stdout.readline().strip())
+            for _ in server.stdout:
+                pass
+        threading.Thread(target=drain, daemon=True).start()
+        line = started.get(timeout=30)
+        if not line.startswith("listening on "):
+            raise RuntimeError("weather service failed to start: " + line)
+        env["WEATHER_URL"] = "http://" + line.removeprefix("listening on ")
+        run(sys.executable, "-m", "unittest", "discover", "-s", "crates/crucible-codegen-python/tests",
+            "-p", "test_*.py", "-v", env=env)
+    finally:
+        server.terminate()
+        server.wait(timeout=10)
+    run(sys.executable, "-m", "build", "--wheel", str(package))
+    with tempfile.TemporaryDirectory() as installed:
+        wheel = next((package / "dist").glob("*.whl"))
+        run(sys.executable, "-m", "pip", "install", "--no-deps", "--target", installed, str(wheel))
+        run(sys.executable, "-c", "from weather_client import Client, CreateCityInput; from importlib.resources import files; assert files('weather_client').joinpath('py.typed').is_file(); assert files('weather_client').joinpath('crucible.json').is_file()",
+            env=dict(os.environ, PYTHONPATH=installed))
+
+
+if __name__ == "__main__":
+    # Cargo caches can restore generated output without its ownership marker.
+    # A fresh owned directory also prevents stale output from hiding failures.
+    with tempfile.TemporaryDirectory(prefix="crucible-python-") as output:
+        qualify(Path(output) / "sdk")
