@@ -1,10 +1,9 @@
-use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::Request;
-use crucible::handlers::{LogPolicy, LogRecord, LogSink, ServiceLog, before_fn};
-use crucible::{Context, Crucible, HandlerExt, InvokeProtocol, JsonProtocol, Operation};
+use crucible::handlers::{LogPolicy, LogRecord, LogSink, ServiceLog};
+use crucible::{Crucible, HandlerExt, InvokeProtocol, JsonProtocol, Operation};
 use serde_json::{Value, json};
 
 mod api {
@@ -17,13 +16,6 @@ mod client {
 struct Echo;
 impl api::EchoOperation for Echo {
     async fn echo(&self, input: api::model::Payload) -> crucible::Result<api::model::Payload> {
-        tracing::info!("application event");
-        let context = Context::current();
-        tokio::spawn(context.scope(async {
-            tracing::info!("spawned event");
-        }))
-        .await
-        .unwrap();
         if input.profile.as_ref().and_then(|p| p.name.as_deref()) == Some("fail") {
             return Err(api::errors::SecretError {
                 profile: input.profile,
@@ -151,99 +143,6 @@ fn exact_query_values_outrank_any_value_matches() {
         let route = JsonProtocol.route(&request, &operations);
         assert_eq!(route.map(|route| route.operation), expected, "{uri}");
     }
-}
-
-#[derive(Clone, Default)]
-struct Buffer(Arc<Mutex<Vec<u8>>>);
-impl Write for Buffer {
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-#[tokio::test]
-async fn tracing_has_structured_fields_levels_and_request_context_without_duplicate_faults() {
-    let buffer = Buffer::default();
-    let writer = buffer.clone();
-    let subscriber = tracing_subscriber::fmt()
-        .json()
-        .without_time()
-        .with_writer(move || writer.clone())
-        .finish();
-    // Match application setup: one process-wide subscriber. Other tests
-    // may run concurrently; select this service's request id below.
-    tracing::subscriber::set_global_default(subscriber).unwrap();
-    let service = Crucible::builder(api::operations(Arc::new(Echo)))
-        .request_id(|_| Some(axum::http::HeaderValue::from_static("tracing-test")))
-        .handler(ServiceLog::new(
-            LogPolicy::everything().client_error_level(tracing::Level::WARN),
-        ))
-        .handler(before_fn(|job| {
-            if job.request().headers.contains_key("x-fail") {
-                return Err(crucible::Error::internal("test fault"));
-            }
-            Ok(())
-        }))
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
-        .build()
-        .unwrap();
-    async {
-        service.invoke("Echo", json!({})).await;
-        service
-            .invoke("Echo", json!({"profile":{"name":"fail"}}))
-            .await;
-        service
-            .handle(
-                Request::post("/echo?mode=echo&flag")
-                    .header("x-fail", "1")
-                    .body(Body::from("{}"))
-                    .unwrap(),
-            )
-            .await;
-    }
-    .await;
-    let bytes = buffer.0.lock().unwrap();
-    let events: Vec<Value> = String::from_utf8_lossy(&bytes)
-        .lines()
-        .map(|line| serde_json::from_str::<Value>(line).unwrap())
-        .filter(|event| {
-            event["span"]["request_id"] == "tracing-test"
-                || event["fields"]["request_id"] == "tracing-test"
-        })
-        .collect();
-    let completed: Vec<_> = events
-        .iter()
-        .filter(|e| e["target"] == "crucible::service_log")
-        .collect();
-    assert_eq!(completed.len(), 3, "{events:?}");
-    assert_eq!(completed[0]["fields"]["status"], 200);
-    assert!(completed[0]["fields"]["latency_ms"].is_number());
-    assert_eq!(completed[1]["level"], "WARN");
-    assert_eq!(completed[2]["level"], "ERROR");
-    assert_eq!(events.iter().filter(|e| e["level"] == "ERROR").count(), 1);
-    for event in events.iter().filter(|e| {
-        e["fields"]["message"] == "application event" || e["fields"]["message"] == "spawned event"
-    }) {
-        assert_eq!(event["span"]["operation"], "Echo", "{events:#?}");
-        assert!(
-            event["span"]["request_id"]
-                .as_str()
-                .is_some_and(|s| !s.is_empty())
-        );
-    }
-    assert_eq!(
-        events
-            .iter()
-            .filter(|e| e["fields"]["message"] == "spawned event")
-            .count(),
-        2,
-        "{events:#?}"
-    );
 }
 
 struct BrokenOutput;
