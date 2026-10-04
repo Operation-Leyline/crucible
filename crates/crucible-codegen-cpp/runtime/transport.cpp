@@ -1,0 +1,213 @@
+#include "transport.hpp"
+#include <curl/curl.h>
+#include <charconv>
+#include <climits>
+#include <exception>
+#include <limits>
+#include <mutex>
+#include <string_view>
+#ifdef __linux__
+#include <cerrno>
+#include <pthread.h>
+#include <signal.h>
+#endif
+
+namespace crucible_generated::runtime {
+namespace {
+// OpenSSL can write to a closed socket even with libcurl's NOSIGNAL option.
+// Block only this thread during owned network work; preserve the caller's mask.
+class SigpipeBlock {
+#ifdef __linux__
+    sigset_t old_{};
+    sigset_t pipe_{};
+    bool consume_ = false;
+public:
+    SigpipeBlock() {
+        sigemptyset(&pipe_);
+        sigaddset(&pipe_, SIGPIPE);
+        if (pthread_sigmask(SIG_BLOCK, &pipe_, &old_) != 0) throw std::runtime_error("Cannot block network SIGPIPE");
+        sigset_t pending{};
+        sigpending(&pending);
+        consume_ = sigismember(&old_, SIGPIPE) == 0 && sigismember(&pending, SIGPIPE) == 0;
+    }
+    ~SigpipeBlock() {
+        if (consume_) {
+            const timespec immediate{};
+            while (sigtimedwait(&pipe_, nullptr, &immediate) < 0 && errno == EINTR) {}
+        }
+        pthread_sigmask(SIG_SETMASK, &old_, nullptr);
+    }
+#endif
+};
+void initialize() {
+    // Process lifetime initialization avoids racing another client's active handles.
+    static const auto result = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (result != CURLE_OK) throw NetworkError(curl_easy_strerror(result));
+}
+struct UrlDeleter { void operator()(CURLU* value) const { curl_url_cleanup(value); } };
+struct CurlStringDeleter { void operator()(char* value) const { curl_free(value); } };
+std::optional<std::string> part(CURLU* url, CURLUPart name) {
+    char* raw = nullptr;
+    const auto code = curl_url_get(url, name, &raw, 0);
+    std::unique_ptr<char, CurlStringDeleter> owned(raw);
+    if (code == CURLUE_OK) return std::string(raw);
+    return std::nullopt;
+}
+bool token(std::string_view text) {
+    if (text.empty()) return false;
+    for (const unsigned char byte : text) if (!((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') || (byte >= '0' && byte <= '9') || std::string_view("!#$%&'*+-.^_`|~").find(static_cast<char>(byte)) != std::string_view::npos)) return false;
+    return true;
+}
+struct EasyDeleter { void operator()(CURL* value) const { curl_easy_cleanup(value); } };
+struct ListDeleter { void operator()(curl_slist* value) const { curl_slist_free_all(value); } };
+template<class T> void option(CURL* easy, CURLoption name, T value) {
+    const auto code = curl_easy_setopt(easy, name, value);
+    if (code != CURLE_OK) throw NetworkError(curl_easy_strerror(code));
+}
+void multi_check(CURLMcode code) { if (code != CURLM_OK) throw NetworkError(curl_multi_strerror(code)); }
+struct Transfer {
+    HttpResponse response;
+    bool read_body;
+    bool discarded = false;
+    std::exception_ptr failure;
+    static size_t body(char* bytes, size_t size, size_t count, void* opaque) noexcept {
+        auto& self = *static_cast<Transfer*>(opaque);
+        try {
+            if (size && count > (std::numeric_limits<size_t>::max)() / size) throw NetworkError("Response size overflow");
+            self.response.body.append(bytes, size * count);
+            return size * count;
+        } catch (...) { self.failure = std::current_exception(); return 0; }
+    }
+    static size_t header(char* bytes, size_t size, size_t count, void* opaque) noexcept {
+        auto& self = *static_cast<Transfer*>(opaque);
+        try {
+            if (size && count > (std::numeric_limits<size_t>::max)() / size) throw NetworkError("Header size overflow");
+            const std::string_view line(bytes, size * count);
+            if (line.starts_with("HTTP/")) {
+                self.response = {};
+                const auto space = line.find(' ');
+                if (space == std::string_view::npos || space + 4 > line.size()) throw NetworkError("Invalid HTTP status");
+                const auto status = line.substr(space + 1, 3);
+                const auto parsed = std::from_chars(status.data(), status.data() + status.size(), self.response.status);
+                if (parsed.ec != std::errc() || parsed.ptr != status.data() + status.size()) throw NetworkError("Invalid HTTP status");
+            } else if (line == "\r\n" || line == "\n") {
+                if (!self.read_body && self.response.status >= 200 && self.response.status < 300) { self.discarded = true; return 0; }
+            } else {
+                const auto colon = line.find(':');
+                if (colon != std::string_view::npos) {
+                    auto value = line.substr(colon + 1);
+                    while (!value.empty() && (value.front() == ' ' || value.front() == '\t')) value.remove_prefix(1);
+                    while (!value.empty() && (value.back() == ' ' || value.back() == '\t' || value.back() == '\r' || value.back() == '\n')) value.remove_suffix(1);
+                    const auto name = lower(std::string(line.substr(0, colon)));
+                    const auto [item, inserted] = self.response.headers.emplace(name, value);
+                    if (!inserted) item->second += ", " + std::string(value);
+                }
+            }
+            return size * count;
+        } catch (...) { self.failure = std::current_exception(); return 0; }
+    }
+};
+}
+std::string lower(std::string text) { for (char& byte : text) if (byte >= 'A' && byte <= 'Z') byte = static_cast<char>(byte + ('a' - 'A')); return text; }
+void validate_url(const std::string& text, bool endpoint, bool credentials) {
+    initialize();
+    for (const unsigned char byte : text) if (byte <= 32 || byte == 127) throw std::invalid_argument("Invalid URL character");
+    std::unique_ptr<CURLU, UrlDeleter> url(curl_url());
+    if (!url) throw std::bad_alloc();
+    if (curl_url_set(url.get(), CURLUPART_URL, text.c_str(), 0) != CURLUE_OK) throw std::invalid_argument("Invalid absolute HTTP(S) URL");
+    const auto scheme = part(url.get(), CURLUPART_SCHEME);
+    const auto host = part(url.get(), CURLUPART_HOST);
+    if (!scheme || (*scheme != "http" && *scheme != "https") || !host || host->empty() || part(url.get(), CURLUPART_USER) || part(url.get(), CURLUPART_PASSWORD)) throw std::invalid_argument("Absolute HTTP(S) URL without credentials required");
+    if (part(url.get(), CURLUPART_FRAGMENT) || (endpoint && part(url.get(), CURLUPART_QUERY))) throw std::invalid_argument("Endpoint cannot contain query or fragment");
+    const auto hostname = lower(*host);
+    if (credentials && *scheme != "https" && hostname != "localhost" && hostname != "127.0.0.1" && hostname != "[::1]") throw std::invalid_argument("Credentials require HTTPS or loopback HTTP");
+}
+void validate_request(const HttpRequest& request) {
+    if (!token(request.method)) throw std::invalid_argument("Invalid HTTP method");
+    if (request.method == "HEAD" && request.body && !request.body->empty()) throw std::invalid_argument("libcurl HEAD requests cannot carry a body");
+    bool credentials = false;
+    for (const auto& [name, value] : request.headers) {
+        if (!token(name) || value.find_first_of(std::string("\r\n\0", 3)) != std::string::npos) throw std::invalid_argument("Invalid HTTP header");
+        if (lower(name) == "authorization") credentials = true;
+    }
+    validate_url(request.url, false, credentials);
+}
+struct CurlTransport::State {
+    std::mutex mutex;
+    CURLM* multi = nullptr;
+    bool closed = false;
+    State() { initialize(); if (!(curl_version_info(CURLVERSION_NOW)->features & CURL_VERSION_ASYNCHDNS)) throw std::runtime_error("libcurl asynchronous DNS support is required"); multi = curl_multi_init(); if (!multi) throw std::bad_alloc(); }
+    ~State() {
+        if (multi) {
+            // A failed signal-mask setup cannot safely perform TLS teardown.
+            try { [[maybe_unused]] const SigpipeBlock signals; curl_multi_cleanup(multi); } catch (...) {}
+        }
+    }
+};
+CurlTransport::CurlTransport() : state_(std::make_unique<State>()) {}
+CurlTransport::~CurlTransport() = default;
+void CurlTransport::close() { std::lock_guard lock(state_->mutex); [[maybe_unused]] const SigpipeBlock signals; state_->closed = true; if (state_->multi) { curl_multi_cleanup(state_->multi); state_->multi = nullptr; } }
+HttpResponse CurlTransport::send(const HttpRequest& request, bool read_body, const CallScope& scope) {
+    scope.check();
+    validate_request(request);
+    std::unique_lock lock(state_->mutex, std::defer_lock);
+    while (!lock.try_lock()) scope.wait(0.01);
+    scope.check();
+    if (state_->closed) throw std::logic_error("Transport is closed");
+    [[maybe_unused]] const SigpipeBlock signals;
+    std::unique_ptr<CURL, EasyDeleter> easy(curl_easy_init());
+    if (!easy) throw std::bad_alloc();
+    Transfer transfer{{}, read_body, false, {}};
+    option(easy.get(), CURLOPT_URL, request.url.c_str());
+    option(easy.get(), CURLOPT_CUSTOMREQUEST, request.method.c_str());
+    option(easy.get(), CURLOPT_NOSIGNAL, 1L);
+    option(easy.get(), CURLOPT_FOLLOWLOCATION, 0L);
+    option(easy.get(), CURLOPT_MAXREDIRS, 0L);
+    option(easy.get(), CURLOPT_PATH_AS_IS, 1L);
+    option(easy.get(), CURLOPT_SUPPRESS_CONNECT_HEADERS, 1L);
+    option(easy.get(), CURLOPT_HTTP_CONTENT_DECODING, 0L);
+#if LIBCURL_VERSION_NUM >= 0x075500
+    option(easy.get(), CURLOPT_PROTOCOLS_STR, "http,https");
+#else
+    option(easy.get(), CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+#endif
+    const double milliseconds = std::ceil(scope.remaining() * 1000.0);
+    option(easy.get(), CURLOPT_TIMEOUT_MS, milliseconds >= static_cast<double>(LONG_MAX) ? LONG_MAX : (std::max)(1L, static_cast<long>(milliseconds)));
+    option(easy.get(), CURLOPT_WRITEFUNCTION, &Transfer::body);
+    option(easy.get(), CURLOPT_WRITEDATA, &transfer);
+    option(easy.get(), CURLOPT_HEADERFUNCTION, &Transfer::header);
+    option(easy.get(), CURLOPT_HEADERDATA, &transfer);
+    if (request.body) {
+        if (request.body->size() > static_cast<std::size_t>((std::numeric_limits<curl_off_t>::max)())) throw std::invalid_argument("Request body too large");
+        option(easy.get(), CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(request.body->size()));
+        option(easy.get(), CURLOPT_POSTFIELDS, request.body->data());
+    }
+    if (request.method == "HEAD") option(easy.get(), CURLOPT_NOBODY, 1L);
+    std::unique_ptr<curl_slist, ListDeleter> headers;
+    auto append = [&](const std::string& text) { auto* next = curl_slist_append(headers.get(), text.c_str()); if (!next) throw std::bad_alloc(); (void)headers.release(); headers.reset(next); };
+    for (const auto& [name, value] : request.headers) if (lower(name) != "accept-encoding" && lower(name) != "expect") append(name + (value.empty() ? ";" : ": " + value));
+    append("Accept-Encoding: identity");
+    append("Expect:");
+    option(easy.get(), CURLOPT_HTTPHEADER, headers.get());
+    multi_check(curl_multi_add_handle(state_->multi, easy.get()));
+    struct Remove { CURLM* multi; CURL* easy; ~Remove() { curl_multi_remove_handle(multi, easy); } } remove{state_->multi, easy.get()};
+    int running = 0;
+    do {
+        scope.check();
+        multi_check(curl_multi_perform(state_->multi, &running));
+        if (!running) break;
+        int ready = 0;
+        multi_check(curl_multi_poll(state_->multi, nullptr, 0, 25, &ready));
+    } while (running);
+    scope.check();
+    if (transfer.failure) std::rethrow_exception(transfer.failure);
+    CURLcode result = CURLE_FAILED_INIT;
+    int pending = 0;
+    while (const auto* message = curl_multi_info_read(state_->multi, &pending)) if (message->msg == CURLMSG_DONE && message->easy_handle == easy.get()) result = message->data.result;
+    if (transfer.discarded && result == CURLE_WRITE_ERROR) return std::move(transfer.response);
+    if (result == CURLE_OPERATION_TIMEDOUT) throw DeadlineError();
+    if (result != CURLE_OK) throw NetworkError(curl_easy_strerror(result));
+    if (transfer.response.status < 100) throw NetworkError("Missing HTTP response status");
+    return std::move(transfer.response);
+}
+}

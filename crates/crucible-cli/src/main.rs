@@ -75,6 +75,23 @@ enum Target {
         #[arg(long)]
         content_sha256: bool,
     },
+    /// A C++20 CMake package with native models and libcurl transport.
+    Cpp {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        package_name: String,
+        #[arg(long)]
+        namespace: String,
+        #[arg(long, default_value = "0.0.0")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        #[arg(long)]
+        content_sha256: bool,
+    },
     /// A PHP Composer package with typed operations and lazy pagination.
     Php {
         #[command(flatten)]
@@ -326,6 +343,35 @@ fn generate(target: Target) -> Result<(), String> {
                 },
             )
             .map_err(|d| format!("cannot generate the Ruby client:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
+        Target::Cpp {
+            source,
+            out,
+            package_name,
+            namespace,
+            package_version,
+            endpoint,
+            content_sha256,
+        } => {
+            let service = lower(&source)?;
+            let files = crucible_codegen_cpp::emit(
+                &service,
+                &crucible_codegen_cpp::Options {
+                    package_name,
+                    namespace,
+                    package_version,
+                    endpoint,
+                    content_sha256,
+                },
+            )
+            .map_err(|d| format!("cannot generate the C++ client:\n{d}"))?;
             output::write(
                 &out,
                 files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),

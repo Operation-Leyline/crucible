@@ -1,0 +1,6 @@
+{
+  "name": "crucible-native-qualification",
+  "version-string": "0.0.0",
+  "dependencies": ["curl", "openssl"],
+  "builtin-baseline": "19780d9cdf84d0944cf9a318666703b89ab6629c"
+}

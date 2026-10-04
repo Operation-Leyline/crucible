@@ -1,0 +1,152 @@
+#include "weather_client/client.hpp"
+#include "weather_client/schema.hpp"
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <thread>
+
+using namespace crucible_generated;
+using namespace crucible_generated::runtime;
+using namespace crucible_generated::models;
+void check(bool condition, const std::string& message) { if (!condition) throw std::runtime_error(message); }
+template<class E = std::invalid_argument, class F> E rejects(F action) { try { action(); } catch (const E& error) { return error; } throw std::runtime_error("Expected exception"); }
+std::string env(const char* name) { const auto* value = std::getenv(name); if (!value) throw std::runtime_error(std::string("Missing ") + name); return value; }
+Json fixture(const char* name) { std::ifstream stream(env(name)); if (!stream) throw std::runtime_error("Missing fixture"); return Json::parse(std::string(std::istreambuf_iterator<char>(stream), {})); }
+struct Fake : Transport {
+    std::function<HttpResponse(unsigned, const HttpRequest&)> handler;
+    std::vector<HttpRequest> requests;
+    bool closed = false;
+    explicit Fake(std::function<HttpResponse(unsigned, const HttpRequest&)> handler) : handler(std::move(handler)) {}
+    HttpResponse send(const HttpRequest& request, bool, const CallScope&) override { requests.push_back(request); return handler(static_cast<unsigned>(requests.size()), request); }
+    void close() override { closed = true; }
+};
+ClientConfig config(const std::shared_ptr<Transport>& transport = {}) { ClientConfig result; result.endpoint = "https://example.invalid"; result.transport = transport; result.base_delay = 0; return result; }
+std::string bytes(const Blob& value) { std::string result; for (const auto byte : value) result += static_cast<char>(byte); return result; }
+int main() {
+    rejects([] { validate_request({"https://example.invalid", "GET\r\nX: y", {}, {}}); });
+    rejects([] { validate_request({"https://example.invalid", "GET", {{"x", "a\r\nb"}}, {}}); });
+    rejects([] { validate_url("http://example.invalid", false, true); });
+    rejects([] { validate_url("https://user:password@example.invalid", false); });
+    rejects([] { validate_url("https://example.invalid?x", true); });
+    rejects([] { validate_request({"https://example.invalid", "HEAD", {}, "abc"}); });
+    CreateCityInput input(Field<std::string>::of("C++"), Field<Location>::of(Location{LocationUnknown{"future", Json::parse(R"({"long":9223372036854775807})")}}));
+    const auto context = schema().context("example.weather#CreateCityInput");
+    const auto wire = Codec<CreateCityInput>::encode(input, context);
+    check(!wire.find("clientToken"), "Absent input");
+    const auto copy = Codec<CreateCityInput>::decode(wire, context);
+    check(std::get<LocationUnknown>(copy.location.value().value).value.at("long").number().integer() == INT64_MAX, "Unknown union exact document");
+    input.name = Field<std::string>::null();
+    check(Codec<CreateCityInput>::encode(input, context).at("name").is_null(), "Explicit null input");
+    const Schema simple(Json::parse(R"({"shapes":{"doc":{"kind":"document"},"long":{"kind":"long"},"str":{"kind":"string"},"list":{"kind":"list","member":{"target":"str"}},"parent":{"kind":"structure","members":{"doc":{"target":"doc","default":null},"count":{"target":"long","default":9223372036854775807},"optional":{"target":"long","default":2}}}}})"));
+    const auto parent = simple.context("parent");
+    check(read<Json>(Json::parse(R"({"doc":null})"), parent, "doc").is_null(), "Required document null");
+    rejects([&] { (void)read<Json>(Json(Json::Object{}), parent, "doc"); });
+    check(read<std::int64_t>(Json(Json::Object{}), parent, "count") == INT64_MAX, "Exact default");
+    rejects([&] { (void)read<std::int64_t>(Json::parse(R"({"count":null})"), parent, "count"); });
+    check(optional<std::int64_t>(Json(Json::Object{}), parent, "optional").value() == 2, "Optional default");
+    check(optional<std::int64_t>(Json::parse(R"({"optional":null})"), parent, "optional").is_null(), "Null overrides default");
+    const auto header_cases = fixture("HEADER_CASES");
+    for (const auto& row : header_cases.array()) {
+        const auto descriptor = Json::parse(R"({"target":"list"})");
+        check(header(simple, descriptor, row.at("wire").string()).dump() == row.at("values").dump(), "Shared header fixture");
+        check(header(simple, descriptor, bound(row.at("values"))).dump() == row.at("values").dump(), "Header round trip");
+    }
+    const auto retry_cases = fixture("RETRY_CASES");
+    for (const auto& row : retry_cases.array()) {
+        auto fake = std::make_shared<Fake>([&](unsigned attempt, const HttpRequest&) {
+            Json::Object body;
+            if (const auto* error = row.find("error"); error && !error->is_null()) body.emplace("__type", *error);
+            return HttpResponse{attempt <= row.at("failures").number().integer() ? static_cast<int>(row.at("status").number().integer()) : 200, {{"x-amzn-errortype", "Throttled"}}, Json(std::move(body)).dump()};
+        });
+        auto settings = config(fake);
+        settings.max_attempts = static_cast<unsigned>(row.at("maxAttempts").number().integer());
+        Client client(settings);
+        bool success = false;
+        try { if (row.at("safe").boolean()) (void)client.retry_safe(); else (void)client.retry_unsafe(); success = true; } catch (const ServiceError&) {}
+        check(success == row.at("success").boolean() && fake->requests.size() == static_cast<std::size_t>(row.at("attempts").number().integer()), "Retry fixture " + row.at("name").string());
+        client.close();
+        check(!fake->closed, "Caller transport ownership");
+    }
+    auto fake = std::make_shared<Fake>([](unsigned, const HttpRequest& request) {
+        check(request.url.find("a%2Fb%20%2A%3F%23%C3%A9") != std::string::npos, "Label escaping");
+        check(request.url.find("at=2026-10-01T00%3A00%3A00Z") != std::string::npos, "Query timestamp");
+        return HttpResponse{200, {{"X-Request-Id", "bound"}}, R"({"city":{"id":"x","name":"n"}})"};
+    });
+    check(Client(config(fake)).get_city(GetCityInput(Field<std::string>::of("a/b *?#é"), Field<Timestamp>::of(Timestamp::parse("2026-10-01T00:00:00Z")))).request_id.value() == "bound", "Bound response header");
+    fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{429, {{"x-request-id", "header"}}, R"({"__type":"ThrottlingError","message":42})"}; });
+    auto settings = config(fake); settings.max_attempts = 2;
+    const auto malformed = rejects<ServiceError>([&] { (void)Client(settings).ping(); });
+    check(malformed.metadata().throttling && malformed.metadata().request_id == "header" && fake->requests.size() == 2, "Malformed modeled error retains metadata");
+    fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{200, {}, "{bad"}; });
+    rejects([&] { (void)Client(config(fake)).get_city(GetCityInput(Field<std::string>::of("x"))); });
+    check(fake->requests.size() == 1, "Malformed success never retries");
+    fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{200, {}, R"({"cities":[],"nextToken":"same"})"}; });
+    auto pages = Client(config(fake)).list_cities_pages(ListCitiesInput());
+    check(fake->requests.empty(), "Lazy pagination");
+    (void)pages.next(); (void)pages.next();
+    rejects([&] { (void)pages.next(); });
+    check(fake->requests.size() == 2, "Pagination cycle");
+    fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{503, {{"retry-after", "2147484"}}, "{}"}; });
+    settings = config(fake); settings.timeout = 0.05;
+    rejects<DeadlineError>([&] { (void)Client(settings).retry_safe(); });
+    check(fake->requests.size() == 1, "Retry deadline");
+    std::stop_source stopped; stopped.request_stop();
+    fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{200, {}, "{}"}; });
+    rejects<CancelledError>([&] { (void)Client(config(fake)).ping(stopped.get_token()); });
+    check(fake->requests.empty(), "Precancelled call");
+    fake = std::make_shared<Fake>([](unsigned, const HttpRequest& request) {
+        check(request.headers.at("authorization") == "Bearer middleware", "Case-insensitive middleware assignment");
+        check(request.headers.at("CONTENT-TYPE") == "custom/type", "Case-insensitive content type assignment");
+        return HttpResponse{201, {}, R"({"city":{"id":"x","name":"n"}})"};
+    });
+    settings = config(fake);
+    settings.token = [] { return "provider"; };
+    settings.middleware.push_back([](HttpRequest request) { request.headers["Authorization"] = "Bearer middleware"; request.headers["Content-Type"] = "custom/type"; return request; });
+    (void)Client(settings).create_city(CreateCityInput(Field<std::string>::of("middleware")));
+    settings = config(); settings.endpoint = env("WEATHER_URL"); settings.token = [] { return "weather-token"; };
+    Client client(settings);
+    const auto city = client.create_city(CreateCityInput(Field<std::string>::of("C++ city"))).city;
+    check(client.get_city(GetCityInput(Field<std::string>::of(city.id))).city.name == "C++ city", "Real create/read");
+    const Blob photo{std::byte{0}, std::byte{128}, std::byte{255}};
+    (void)client.put_city_photo(PutCityPhotoInput(Field<std::string>::of(city.id), {}, Field<Blob>::of(photo)));
+    check(client.get_city_photo(GetCityPhotoInput(Field<std::string>::of(city.id))).photo.value() == photo, "Real raw payload");
+    check(client.list_cities_pages(ListCitiesInput({}, Field<std::int32_t>::of(1))).next().has_value(), "Real pagination");
+    rejects<ConflictError>([&] { (void)client.create_city(CreateCityInput(Field<std::string>::of("C++ city"))); });
+    (void)client.ping(); client.close();
+    const auto endpoint = env("FIXTURE_URL") + "/native/";
+    for (const auto* path : {"partial", "bad-length"}) {
+        settings = config(); settings.endpoint = endpoint + path;
+        Client native(settings);
+        check(bytes(native.get_city_photo(GetCityPhotoInput(Field<std::string>::of("x"))).photo.value()) == "complete", "Network body retry");
+        native.close();
+    }
+    settings = config(); settings.endpoint = endpoint + "not-modified"; settings.max_attempts = 1;
+    check(rejects<ServiceError>([&] { (void)Client(settings).get_city(GetCityInput(Field<std::string>::of("x"))); }).metadata().status == 304, "Bodyless 304");
+    settings = config(); settings.endpoint = endpoint + "empty-header"; settings.headers = {{"x-empty", ""}};
+    (void)Client(settings).ping();
+    settings = config(); settings.endpoint = endpoint + "stall"; settings.timeout = 0.15;
+    auto start = std::chrono::steady_clock::now();
+    rejects<DeadlineError>([&] { (void)Client(settings).get_city(GetCityInput(Field<std::string>::of("x"))); });
+    check(std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < 1.5, "Stalled body deadline");
+    settings.timeout = 5;
+    std::stop_source cancellation;
+    std::jthread cancel([&] { std::this_thread::sleep_for(std::chrono::milliseconds(100)); cancellation.request_stop(); });
+    start = std::chrono::steady_clock::now();
+    rejects<CancelledError>([&] { (void)Client(settings).get_city(GetCityInput(Field<std::string>::of("x")), cancellation.get_token()); });
+    check(std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < 1.5, "Stalled body cancellation");
+    settings = config(); settings.endpoint = endpoint + "discard"; settings.timeout = 0.5;
+    (void)Client(settings).ping();
+    settings = config(); settings.endpoint = endpoint + "redirect"; settings.max_attempts = 1;
+    check(rejects<ServiceError>([&] { (void)Client(settings).ping(); }).metadata().status == 302, "Redirect refusal");
+    unsigned token = 0;
+    settings = config(); settings.endpoint = endpoint + "echo"; settings.token = [&] { return std::to_string(++token); };
+    (void)Client(settings).create_city(CreateCityInput(Field<std::string>::of("x")));
+    check(token == 2, "Real refreshed retry credential");
+    token = 0; settings.endpoint = endpoint + "cache";
+    Client cache(settings);
+    check(cache.get_city(GetCityInput(Field<std::string>::of("c"))).city.name == "Bearer 1", "First credential");
+    check(cache.get_city(GetCityInput(Field<std::string>::of("c"))).city.name == "Bearer 2", "No cached credential response");
+    cache.close();
+    std::cout << "C++ native models, shared fixtures, and real HTTP passed\n";
+}

@@ -26,6 +26,7 @@ crucible-codegen-java = { path = "crates/crucible-codegen-java" }
 crucible-codegen-csharp = { path = "crates/crucible-codegen-csharp" }
 crucible-codegen-kotlin = { path = "crates/crucible-codegen-kotlin" }
 crucible-codegen-swift = { path = "crates/crucible-codegen-swift" }
+crucible-codegen-cpp = { path = "crates/crucible-codegen-cpp" }
 crucible-codegen-ruby = { path = "crates/crucible-codegen-ruby" }
 crucible-codegen-php = { path = "crates/crucible-codegen-php" }
 crucible-codegen-dart = { path = "crates/crucible-codegen-dart" }

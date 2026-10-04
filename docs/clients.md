@@ -9,7 +9,7 @@ support conditional on finding an individual consumer.
 | Baseline | TypeScript/JavaScript, Rust | Shared retry conformance runs in CI |
 | 1 | Python, Go, Java, C# | Implemented; native package and HTTP gates run in CI |
 | 2 | Kotlin, Swift, Dart, PHP, Ruby | Implemented; native package and HTTP gates run in CI |
-| Extension | C++, C, R | API and packaging scope still to be defined |
+| Extension | C++, C, R | C++ implemented; C and R remain |
 
 ## Architecture
 
@@ -110,6 +110,11 @@ and renamed packages. CI checks PHP 8.3 and 8.5. See
 tests, installs a gem into a separate consumer, and loads empty and renamed
 packages. CI checks Ruby 3.3 and 4.0. See [Ruby clients](ruby-client.md) for
 native model classes, synchronous calls, and lazy pagination.
+
+`python tools/test-cpp.py` installs a CMake package, compiles a separate native
+consumer, and runs shared fixtures and real HTTP tests. CI covers GCC with
+address/undefined-behavior sanitizers and MSVC. See [C++ clients](cpp-client.md)
+for native model types, transport ownership, and package configuration.
 
 ## Remaining acceptance work
 
