@@ -13,6 +13,16 @@ permissions:
   contents: read
 
 jobs:
+  csharp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - run: python tools/test-csharp.py
   java:
     runs-on: ubuntu-latest
     steps:

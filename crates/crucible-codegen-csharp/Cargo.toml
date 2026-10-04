@@ -1,0 +1,15 @@
+[package]
+name = "crucible-codegen-csharp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+crucible-smithy.workspace = true
+crucible-codegen-common.workspace = true
+serde_json.workspace = true
+sha2 = "0.10"
+
+[lints]
+workspace = true

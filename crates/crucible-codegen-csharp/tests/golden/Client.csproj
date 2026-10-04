@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><LangVersion>12</LangVersion>
+    <PackageId>Example.Weather</PackageId><Version>0.0.0-dev</Version><AssemblyName>Example.Weather</AssemblyName><RootNamespace>Example.Weather</RootNamespace><IsTrimmable>false</IsTrimmable>
+  </PropertyGroup>
+  <ItemGroup><EmbeddedResource Include="schema.json" LogicalName="crucible.schema.json"/><EmbeddedResource Include="crucible.json" LogicalName="crucible.provenance.json"/></ItemGroup>
+</Project>

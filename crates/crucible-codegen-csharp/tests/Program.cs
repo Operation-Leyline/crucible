@@ -1,0 +1,238 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Example.Weather;
+using Example.Weather.Models;
+
+static class Program
+{
+    static void Check(bool ok, string message) { if (!ok) throw new Exception(message); }
+    static JsonNode J(string text) => JsonNode.Parse(text)!;
+    static readonly Type RuntimeType = typeof(Client).Assembly.GetType("Example.Weather.ClientRuntime")!;
+    static object Runtime(ClientConfig config, JsonObject? schema = null, Dictionary<string, Type>? registry = null) =>
+        Activator.CreateInstance(RuntimeType, BindingFlags.NonPublic | BindingFlags.Instance, null,
+            schema is null ? [config, "", false] : [config, "", false, schema, registry!], null)!;
+    static object? Invoke(object runtime, string name, params object?[] args)
+    {
+        try { return RuntimeType.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(runtime, args); }
+        catch (TargetInvocationException e) { ExceptionDispatchInfo.Capture(e.InnerException!).Throw(); throw; }
+    }
+    static JsonNode Encode(object runtime, string target, object value) => (JsonNode)Invoke(runtime, "Encode", target, value, null)!;
+    static object Decode(object runtime, string target, string json) => Invoke(runtime, "Decode", target, J(json), null)!;
+    static Task<Unit> Call(object runtime) => (Task<Unit>)RuntimeType.GetMethod("CallAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+        .MakeGenericMethod(typeof(Unit)).Invoke(runtime, ["Retry", null, CancellationToken.None])!;
+
+    sealed record Request(string Path, Dictionary<string, string> Headers, byte[] Body);
+    sealed record Response(int Status, string Body, Dictionary<string, string>? Headers = null, bool Truncated = false, bool Stall = false);
+    sealed class Server : IAsyncDisposable
+    {
+        readonly TcpListener listener = new(IPAddress.Loopback, 0);
+        readonly CancellationTokenSource stop = new();
+        readonly Task loop;
+        public string Endpoint { get; }
+        public int Attempts;
+        public Server(Func<Request, Response> handler)
+        {
+            listener.Start(); Endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+            loop = Task.Run(async () => {
+                try
+                {
+                    while (!stop.IsCancellationRequested)
+                    {
+                        using var socket = await listener.AcceptTcpClientAsync(stop.Token);
+                        await using var stream = socket.GetStream();
+                        var head = new List<byte>(); var one = new byte[1];
+                        while (true)
+                        {
+                            if (await stream.ReadAsync(one, stop.Token) == 0) throw new IOException("missing request headers");
+                            head.Add(one[0]);
+                            if (head.Count >= 4 && head.TakeLast(4).SequenceEqual(new byte[] { 13, 10, 13, 10 })) break;
+                        }
+                        var lines = Encoding.ASCII.GetString(head.ToArray()).Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+                        var headers = lines.Skip(1).Select(line => line.Split(':', 2)).ToDictionary(p => p[0], p => p[1].Trim(), StringComparer.OrdinalIgnoreCase);
+                        var body = new byte[int.Parse(headers.GetValueOrDefault("Content-Length", "0"))];
+                        await stream.ReadExactlyAsync(body, stop.Token);
+                        Attempts++;
+                        var response = handler(new(lines[0].Split(' ')[1], headers, body));
+                        var bytes = Encoding.UTF8.GetBytes(response.Body);
+                        var responseHeaders = $"HTTP/1.1 {response.Status} Test\r\nContent-Length: {bytes.Length + (response.Truncated ? 10 : 0)}\r\nConnection: close\r\n";
+                        if (response.Headers is not null) foreach (var (key, value) in response.Headers) responseHeaders += $"{key}: {value}\r\n";
+                        await stream.WriteAsync(Encoding.ASCII.GetBytes(responseHeaders + "\r\n"), stop.Token);
+                        if (response.Stall) await Task.Delay(5000, stop.Token);
+                        await stream.WriteAsync(bytes, stop.Token);
+                    }
+                }
+                catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+                catch (IOException) when (stop.IsCancellationRequested) { }
+            });
+        }
+        public async ValueTask DisposeAsync() { stop.Cancel(); listener.Stop(); await loop; stop.Dispose(); }
+    }
+    static async Task RetryCases(string path)
+    {
+        var cases = J(File.ReadAllText(path)).AsArray();
+        cases.Add(J("""{"name":"renamed-error","safe":false,"status":429,"error":"RenamedThrottle","failures":1,"maxAttempts":3,"attempts":2,"success":true}"""));
+        cases.Add(J("""{"name":"explicit-empty-error","safe":false,"status":429,"error":"","failures":1,"maxAttempts":3,"attempts":1,"success":false}"""));
+        cases.Add(J("""{"name":"explicit-unknown-error","safe":false,"status":429,"error":"ns#Throttled","failures":1,"maxAttempts":3,"attempts":1,"success":false}"""));
+        foreach (var test in cases)
+        {
+            int count = 0;
+            await using var server = new Server(_ => new(++count <= test!["failures"]!.GetValue<int>() ? test["status"]!.GetValue<int>() : 200,
+                new JsonObject { ["__type"] = test!["error"]?.DeepClone() }.ToJsonString()));
+            var schema = J("""{"bearer":false,"shapes":{},"operations":{"Retry":{"method":"POST","uri":"/","input":null,"output":null,"token":null,"request":{"labels":[],"query":[],"headers":[],"body":[]},"response":{"headers":[],"body":[]},"errors":["Ordinary","Transient","Throttled"]}}}""").AsObject();
+            var types = new Dictionary<string, Type>();
+            foreach (var name in new[] { "Ordinary", "Transient", "Throttled" })
+            {
+                var shape = J("""{"kind":"structure","members":{},"error":{"headers":[]}}""");
+                shape["name"] = name == "Throttled" && test!["name"]!.GetValue<string>() == "renamed-error" ? "RenamedThrottle" : name; shape["error"]!["status"] = name == "Throttled" ? 429 : 400;
+                shape["error"]!["retryable"] = name != "Ordinary"; shape["error"]!["throttling"] = name == "Throttled";
+                schema["shapes"]![name] = shape; types[name] = typeof(ServiceError);
+            }
+            schema["operations"]!["Retry"]!["safe"] = test!["safe"]!.DeepClone();
+            var runtime = Runtime(new() { Endpoint = server.Endpoint, MaxAttempts = test["maxAttempts"]!.GetValue<int>(), BaseDelay = TimeSpan.Zero }, schema, types);
+            bool success = false;
+            try { await Call(runtime).WaitAsync(TimeSpan.FromSeconds(5)); success = true; } catch (ServiceError) { }
+            finally { ((IDisposable)runtime).Dispose(); }
+            Check(count == test["attempts"]!.GetValue<int>() && success == test["success"]!.GetValue<bool>(), test["name"]!.ToString());
+        }
+    }
+    static void Serialization(string path)
+    {
+        var runtime = Runtime(new() { Endpoint = "https://example.invalid" });
+        try
+        {
+            Check(Decode(runtime, "example.weather#Sky", "\"future\"").ToString() == "future", "unknown enum");
+            const string unknown = """{"future":{"n":9223372036854775807}}""";
+            Check(JsonNode.DeepEquals(Encode(runtime, "example.weather#Location", Decode(runtime, "example.weather#Location", unknown)), J(unknown)), "unknown union");
+            Check(Encode(runtime, "example.weather#Location", new Location { Unknown = new Unit() }).ToJsonString() == "{\"unknown\":{}}", "unit union");
+            var city = (CitySummary)Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x","createdAt":-0.0000001,"population":9223372036854775807}""");
+            Check(city.Population == long.MaxValue && city.CreatedAt.Value == DateTimeOffset.UnixEpoch.AddTicks(-1), "number and timestamp precision");
+            Check(((CitySummary)Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x"}""")).Population == 0, "absent default");
+            try { Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x","population":null}"""); throw new Exception("null default accepted"); } catch (JsonException) { }
+            var input = new CreateCityInput { Name = "x", Location = Optional<Location>.Null };
+            var encoded = Encode(runtime, "example.weather#CreateCityInput", input).AsObject();
+            Check(encoded.ContainsKey("location") && encoded["location"] is null && !encoded.ContainsKey("clientToken"), "presence");
+            var forecast = (Forecast)Decode(runtime, "example.weather#Forecast", """{"future":{"n":9223372036854775807}}""");
+            Check(forecast[new Sky("future")]["n"]!.GetValue<long>() == long.MaxValue, "enum keys and document precision");
+            foreach (var test in J(File.ReadAllText(path)).AsArray())
+            {
+                var actual = (JsonNode)Invoke(runtime, "Header", J("""{"target":"example.weather#Tags"}"""), test!["wire"]!.GetValue<string>())!;
+                Check(JsonNode.DeepEquals(actual, test["values"]), "header list");
+            }
+            var date = (JsonNode)Invoke(runtime, "Encode", "example.weather#DateTime", DateTimeOffset.Parse("2026-10-01T00:00:00Z"), "http-date")!;
+            Check(date.GetValue<string>() == "Thu, 01 Oct 2026 00:00:00 GMT", "HTTP date");
+            Check((TimeSpan)Invoke(runtime, "Delay", 10, new Dictionary<string, string> { ["Retry-After"] = "0" })! == TimeSpan.Zero, "zero Retry-After overrides jitter");
+            Check((TimeSpan)Invoke(runtime, "Delay", 0, new Dictionary<string, string> { ["Retry-After"] = "123" })! == TimeSpan.FromSeconds(123), "Retry-After exceeds jitter cap");
+        }
+        finally { ((IDisposable)runtime).Dispose(); }
+    }
+    static async Task HttpBehavior()
+    {
+        var sent = new List<byte[]>(); int credentials = 0;
+        await using (var server = new Server(request => {
+            sent.Add(request.Body);
+            Check(request.Headers["x-amz-content-sha256"] == Convert.ToHexString(SHA256.HashData(request.Body)).ToLowerInvariant(), "digest");
+            Check(request.Headers["Authorization"] == "Bearer " + sent.Count, "auth refresh");
+            Check(request.Headers["x-expected-revision"] == "7", "header binding");
+            return sent.Count == 1 ? new(503, "{\"__type\":\"FutureError\"}") : new(200, """{"city":{"id":"c","name":"x"}}""");
+        }))
+        {
+            using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero, Token = _ => ValueTask.FromResult<string?>((++credentials).ToString()),
+                Middleware = [async (request, ct) => { var content = await request.Content!.ReadAsStringAsync(ct); request.Content.Dispose(); request.Content = new StringContent(content + " "); }] });
+            var input = new CreateCityInput { Name = "x", ExpectedRevision = 7L };
+            await client.CreateCityAsync(input);
+            Check(!input.ClientToken.IsSet && sent[0].SequenceEqual(sent[1]), "token reuse and caller immutability");
+        }
+        await using (var server = new Server(request => {
+            Check(request.Path.Contains("a%2Fb%20%2A%3F%23%C3%A9", StringComparison.OrdinalIgnoreCase), "label encoding " + request.Path);
+            return new(200, """{"city":{"id":"x","name":"x"}}""", new() { ["x-request-id"] = "r1" });
+        }))
+        {
+            using var client = new Client(new() { Endpoint = server.Endpoint });
+            var city = await client.GetCityAsync(new() { CityId = "a/b *?#é" });
+            Check(city.RequestIdValue.Value == "r1", "response header");
+        }
+        await using (var server = new Server(_ => new(400, """{"__type":"ValidationError","message":"bad","requestId":"body"}""", new() { ["x-request-id"] = "wire" })))
+        {
+            using var client = new Client(new() { Endpoint = server.Endpoint });
+            try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("typed error missing"); }
+            catch (ValidationError e) { Check(e.RequestId == "wire" && e.RequestIdValue.Value == "body" && e.Message == "bad" && e.StatusCode == 400, "error metadata"); }
+        }
+        await using (var server = new Server(_ => new(400, """{"__type":"FutureError","requestId":{}}""", new() { ["x-request-id"] = "wire" })))
+        {
+            using var client = new Client(new() { Endpoint = server.Endpoint });
+            try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("error missing"); }
+            catch (ServiceError e) { Check(e.ErrorName == "FutureError" && e.RequestId == "wire", "malformed metadata"); }
+        }
+    }
+    static async Task FailureBehavior()
+    {
+        await using (var server = new Server(_ => new(200, "invalid")))
+        {
+            using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
+            try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("JSON accepted"); } catch (JsonException) { }
+            Check(server.Attempts == 1, "malformed JSON retried");
+        }
+        int requests = 0;
+        await using (var server = new Server(_ => new(200, """{"city":{"id":"x","name":"x"}}""", Truncated: ++requests == 1)))
+        {
+            using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
+            await client.GetCityAsync(new() { CityId = "x" }); Check(requests == 2, "truncated body retry");
+        }
+        await using (var server = new Server(_ => new(200, "ignored", Stall: true)))
+        {
+            using var client = new Client(new() { Endpoint = server.Endpoint });
+            await client.PingAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        await using (var server = new Server(_ => new(200, "{}")))
+        {
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var release = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var client = new Client(new() { Endpoint = server.Endpoint, Token = _ => { entered.SetResult(); return new(release.Task); } });
+            using var cancel = new CancellationTokenSource();
+            var call = client.PingAsync(cancel.Token); await entered.Task.WaitAsync(TimeSpan.FromSeconds(2)); cancel.Cancel();
+            try { await call.WaitAsync(TimeSpan.FromSeconds(2)); throw new Exception("not canceled"); } catch (OperationCanceledException) { }
+            release.SetResult("token"); await Task.Delay(50); Check(server.Attempts == 0, "sent canceled request");
+        }
+        using (var client = new Client(new() { Endpoint = "http://example.invalid", Token = _ => ValueTask.FromResult<string?>("secret") }))
+        {
+            try { await client.PingAsync(); throw new Exception("plaintext credentials allowed"); } catch (ArgumentException) { }
+        }
+        int pages = 0;
+        await using (var server = new Server(_ => { pages++; return new(200, """{"cities":[],"nextToken":"same"}"""); }))
+        {
+            using var client = new Client(new() { Endpoint = server.Endpoint });
+            var input = new ListCitiesInput();
+            try { await foreach (var _ in client.ListCitiesPagesAsync(input)) { } throw new Exception("cycle accepted"); } catch (InvalidOperationException) { }
+            Check(pages == 2 && !input.NextToken.IsSet, "cycle detection and input mutation");
+        }
+    }
+    sealed class NonPumpingContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state) => throw new Exception("SDK hook captured caller context");
+    }
+    static async Task Weather()
+    {
+        using var client = new Client(new() { Endpoint = Environment.GetEnvironmentVariable("WEATHER_URL"), Token = async _ => { await Task.Delay(1); return "test-token"; } });
+        var input = new CreateCityInput { Name = "csharp-http", Location = new Location { Unknown = new Unit() } };
+        var previous = SynchronizationContext.Current;
+        CreateCityOutput city;
+        try { SynchronizationContext.SetSynchronizationContext(new NonPumpingContext()); city = client.CreateCity(input); }
+        finally { SynchronizationContext.SetSynchronizationContext(previous); }
+        Check((await client.GetCityAsync(new() { CityId = city.City.Id })).City.Name == "csharp-http", "weather get");
+        try { await client.CreateCityAsync(input); throw new Exception("missing conflict"); } catch (ConflictError) { }
+        bool found = false;
+        await foreach (var page in client.ListCitiesPagesAsync(new() { MaxResults = 1 })) found |= page.Cities.Any(c => c.Name == "csharp-http");
+        Check(found, "weather pagination");
+    }
+    static async Task Main(string[] args)
+    {
+        await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await FailureBehavior(); await Weather();
+        Console.WriteLine("C# client conformance and weather HTTP passed");
+    }
+}
