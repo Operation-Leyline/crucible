@@ -5,6 +5,7 @@ import asyncio
 import copy
 import hashlib
 import inspect
+import ipaddress
 import json
 import math
 import random
@@ -74,6 +75,18 @@ class ServiceError(Exception):
 
 class NetworkError(Exception):
     """Transport failed before a complete response could be read."""
+
+
+def _check_credentials(request: httpx.Request) -> None:
+    if "authorization" not in request.headers or request.url.scheme == "https":
+        return
+    host = request.url.host
+    try:
+        loopback = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        loopback = host == "localhost"
+    if not loopback:
+        raise ValueError("refusing to send credentials over plaintext HTTP outside loopback")
 
 
 def _timestamp(value: Any, fmt: str, decode: bool) -> Any:
@@ -373,6 +386,7 @@ class SyncClient(_Base):
                 request.headers["authorization"] = f"Bearer {token}"
             for middleware in self._middleware:
                 middleware(request)
+            _check_credentials(request)
             if self._digest and request.content:
                 request.headers["x-amz-content-sha256"] = hashlib.sha256(request.content).hexdigest()
             response = None
@@ -450,6 +464,7 @@ class AsyncClientBase(_Base):
                 result = middleware(request)
                 if inspect.isawaitable(result):
                     await result
+            _check_credentials(request)
             if self._digest and request.content:
                 request.headers["x-amz-content-sha256"] = hashlib.sha256(request.content).hexdigest()
             response = None

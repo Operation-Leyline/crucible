@@ -31,6 +31,11 @@ CLASSES = {name: ServiceError for name in ("Ordinary", "Transient", "Throttled")
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_cleartext_credentials_are_rejected_before_send(self):
+        with httpx.Client(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:
+            with self.assertRaisesRegex(ValueError, "plaintext"):
+                Client("http://example.invalid", http=http, token="secret").ping()
+
     def test_shared_retries(self):
         for case in CASES:
             with self.subTest(case=case["name"]):
@@ -157,6 +162,11 @@ class RuntimeTests(unittest.TestCase):
 
 
 class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cleartext_credentials_are_rejected_before_send(self):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:
+            with self.assertRaisesRegex(ValueError, "plaintext"):
+                await AsyncClient("http://example.invalid", http=http, token="secret").ping()
+
     async def test_shared_retries(self):
         for case in CASES:
             with self.subTest(case=case["name"]):
