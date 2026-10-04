@@ -78,9 +78,14 @@ impl Protocol for JsonProtocol {
                     .any(|m| matches!(m.location, Location::Header(_)));
                 if !has_headers {
                     // Straight to bytes, with no JSON value in between.
+                    if !has_body {
+                        return respond(op.status, Vec::new(), None);
+                    }
                     let mut body = Vec::with_capacity(256);
-                    let written = !has_body || output.write_json(&mut body).is_ok();
-                    return respond(op.status, Vec::new(), (has_body && written).then_some(body));
+                    return match output.write_json(&mut body) {
+                        Ok(()) => respond(op.status, Vec::new(), Some(body)),
+                        Err(_) => framework_response(&FrameworkError::InternalFailure),
+                    };
                 }
                 // Header members leave the body as it is written.
                 let mut body = Vec::with_capacity(256);
