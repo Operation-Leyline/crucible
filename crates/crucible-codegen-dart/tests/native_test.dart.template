@@ -1,0 +1,29 @@
+@TestOn('vm')
+library;
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:weather_client/weather_client.dart';
+import 'fixtures.dart';
+
+void main() {
+  test('real weather HTTP, typed errors, pagination and binary payloads', () async {
+    final sdk = Client(ClientConfig(endpoint:weatherUrl, token:() => 'test-token'));
+    addTearDown(sdk.close);
+    await sdk.ping();
+    const input = CreateCityInput(name:Field.value('dart-http'), location:Field.value(LocationUnknown(Unit())));
+    final city = (await sdk.createCity(input)).city;
+    final fetched = await sdk.getCity(GetCityInput(cityId:Field.value(city.id)));
+    expect(fetched.city.name, 'dart-http'); expect(fetched.requestId.value, isNotNull);
+    final bytes = Uint8List.fromList([0,1,255,128,13,10,65,66,67]);
+    final stored = await sdk.putCityPhoto(PutCityPhotoInput(cityId:Field.value(city.id), caption:const Field.value('binary'), photo:Field.value(bytes)));
+    expect(stored.photo.size, 9); expect(stored.photo.thumbnail, bytes.sublist(0,8));
+    final photo = await sdk.getCityPhoto(GetCityPhotoInput(cityId:Field.value(city.id)));
+    expect(photo.photo.value, bytes); expect(photo.caption.value, 'binary');
+    await expectLater(sdk.createCity(input), throwsA(isA<ConflictError>()));
+    var found = false;
+    await for (final page in sdk.listCitiesPages(const ListCitiesInput(maxResults:Field.value(1)))) {
+      found = found || page.cities.any((item) => item.id == city.id);
+    }
+    expect(found, isTrue);
+  });
+}

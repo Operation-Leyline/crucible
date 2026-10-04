@@ -8,8 +8,12 @@ import 'timestamp.dart';
 final class Field<T> {
   final bool isSet;
   final T? value;
-  const Field.unset() : isSet = false, value = null;
-  const Field.nullValue() : isSet = true, value = null;
+  const Field.unset()
+      : isSet = false,
+        value = null;
+  const Field.nullValue()
+      : isSet = true,
+        value = null;
   const Field.value(T this.value) : isSet = true;
 }
 
@@ -79,9 +83,8 @@ final class WireContext {
   void put(Map<String, Object?> values, String name, Object? value) {
     if (value is Field) {
       if (!value.isSet) return;
-      values[name] = value.value == null
-          ? null
-          : codec.encode(value.value, member(name));
+      values[name] =
+          value.value == null ? null : codec.encode(value.value, member(name));
     } else {
       values[name] = codec.encode(value, member(name));
     }
@@ -131,9 +134,8 @@ final class WireCodec {
         if (value is! JsonNumber)
           throw const FormatException('Expected JSON number');
         final number = double.parse(value.text);
-        final result = kind == 'float'
-            ? (Float32List(1)..[0] = number)[0]
-            : number;
+        final result =
+            kind == 'float' ? (Float32List(1)..[0] = number)[0] : number;
         if (!result.isFinite)
           throw const FormatException('Floating-point overflow');
         return result;
@@ -152,10 +154,10 @@ final class WireCodec {
       case 'timestamp':
         return switch (context.format) {
           'epoch-seconds' => Timestamp.fromEpoch(
-            value is JsonNumber
-                ? value
-                : throw const FormatException('Expected epoch number'),
-          ),
+              value is JsonNumber
+                  ? value
+                  : throw const FormatException('Expected epoch number'),
+            ),
           'http-date' => Timestamp.parseHttp(wireString(value)),
           _ => Timestamp.parse(wireString(value)),
         };
@@ -184,9 +186,8 @@ final class WireCodec {
       case 'float':
       case 'double':
         if (value is! double) throw const FormatException('Expected double');
-        final result = kind == 'float'
-            ? (Float32List(1)..[0] = value)[0]
-            : value;
+        final result =
+            kind == 'float' ? (Float32List(1)..[0] = value)[0] : value;
         if (!result.isFinite)
           throw const FormatException('Non-finite floating-point number');
         return JsonNumber(result.toString());
@@ -283,18 +284,16 @@ final class WireCodec {
     if (value is String || value is JsonNumber || value is bool)
       return value.toString();
     if (value is List) {
-      return value
-          .map((item) {
-            final text = bound(item);
-            return text.isEmpty ||
-                    text.contains(',') ||
-                    text.contains('"') ||
-                    text.contains('\\') ||
-                    text.trim() != text
-                ? jsonEncode(text)
-                : text;
-          })
-          .join(', ');
+      return value.map((item) {
+        final text = bound(item);
+        return text.isEmpty ||
+                text.contains(',') ||
+                text.contains('"') ||
+                text.contains('\\') ||
+                text.trim() != text
+            ? jsonEncode(text)
+            : text;
+      }).join(', ');
     }
     throw const FormatException('Expected bound scalar');
   }

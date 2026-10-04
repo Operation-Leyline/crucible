@@ -19,8 +19,8 @@ final class JsonNumber {
     }
     final negative = text.startsWith('-');
     final parts = (negative ? text.substring(1) : text).toLowerCase().split(
-      'e',
-    );
+          'e',
+        );
     final decimal = parts.first.split('.');
     var digits = decimal.join().replaceFirst(RegExp(r'^0+'), '');
     if (digits.isEmpty) return BigInt.zero;
@@ -28,8 +28,7 @@ final class JsonNumber {
     if (exponent == null || exponent.abs() > 10000) {
       throw const FormatException('Numeric exponent outside typed range');
     }
-    final power =
-        exponent -
+    final power = exponent -
         (decimal.length == 2 ? decimal[1].length : 0) +
         fractionDigits;
     if (digits.length + power > maxWholeDigits + fractionDigits) {
@@ -72,8 +71,7 @@ final class JsonValue {
     if (value == null ||
         value is bool ||
         value is String ||
-        value is JsonNumber)
-      return value;
+        value is JsonNumber) return value;
     if (value is JsonValue) return _freeze(value.value, depth);
     if (value is BigInt) return JsonNumber(value.toString());
     if (value is num) return JsonNumber(value.toString());

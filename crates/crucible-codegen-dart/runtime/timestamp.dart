@@ -132,10 +132,8 @@ final class Timestamp {
     final date = _textDate();
     final base =
         '${date.year.toString().padLeft(4, '0')}-${_two(date.month)}-${_two(date.day)}T${_two(date.hour)}:${_two(date.minute)}:${_two(date.second)}';
-    final fraction = nanoseconds
-        .toString()
-        .padLeft(9, '0')
-        .replaceFirst(RegExp(r'0+$'), '');
+    final fraction =
+        nanoseconds.toString().padLeft(9, '0').replaceFirst(RegExp(r'0+$'), '');
     return '$base${fraction.isEmpty ? '' : '.$fraction'}Z';
   }
 

@@ -2,14 +2,29 @@
 //!
 //! Exact value codecs are shared by the native and JavaScript Dart backends.
 
+mod client;
 mod models;
+use crucible_smithy::Diagnostics;
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const JSON_RUNTIME: &str = include_str!("../runtime/json.dart");
 pub const TIMESTAMP_RUNTIME: &str = include_str!("../runtime/timestamp.dart");
 pub const CODEC_RUNTIME: &str = include_str!("../runtime/codec.dart");
 pub const ERROR_RUNTIME: &str = include_str!("../runtime/errors.dart");
+
+pub struct Options {
+    pub package_name: String,
+    pub package_version: String,
+    pub endpoint: Option<String>,
+    pub content_sha256: bool,
+}
+pub struct File {
+    pub path: String,
+    pub contents: String,
+}
 
 fn literal(value: &str) -> String {
     serde_json::to_string(value)
@@ -23,6 +38,21 @@ fn method(value: &str) -> String {
         chars.next().expect("name").to_ascii_lowercase(),
         chars.as_str()
     )
+}
+fn enum_constant(value: &str) -> String {
+    if !value.contains('_') && value.chars().any(|c| c.is_ascii_lowercase()) {
+        return field(&method(value));
+    }
+    let mut result = String::new();
+    for (index, word) in value.split('_').filter(|word| !word.is_empty()).enumerate() {
+        let word = word.to_ascii_lowercase();
+        result.push_str(&if index == 0 {
+            word
+        } else {
+            models::variant(&word)
+        });
+    }
+    field(&result)
 }
 fn field(value: &str) -> String {
     if [
@@ -101,6 +131,12 @@ fn field(value: &str) -> String {
         "hashCode",
         "toString",
         "noSuchMethod",
+        "core",
+        "typed",
+        "json",
+        "stamp",
+        "wire",
+        "errors",
     ]
     .contains(&value)
         || value.starts_with('_')
@@ -132,4 +168,205 @@ fn ty(service: &Service, id: &ShapeId) -> String {
 /// applied by the client generator before this stage.
 pub fn emit_models(service: &Service) -> String {
     models::emit(service)
+}
+
+fn identifier(value: &str) -> bool {
+    value.starts_with(|c: char| c.is_ascii_alphabetic())
+        && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+fn diagnose(service: &Service, options: &Options) -> Diagnostics {
+    let mut result = Diagnostics::default();
+    if !identifier(&options.package_name)
+        || options.package_name.chars().any(|c| c.is_ascii_uppercase())
+    {
+        result.push(
+            &service.id,
+            "Dart package name must be a lowercase identifier",
+        );
+    }
+    let mut names = BTreeSet::from_iter(
+        [
+            "core",
+            "typed",
+            "json",
+            "stamp",
+            "wire",
+            "errors",
+            "Unit",
+            "decodeModel",
+            "decodeError",
+            "Client",
+            "ClientConfig",
+            "Field",
+            "Timestamp",
+            "JsonValue",
+            "JsonNumber",
+            "HttpTransport",
+            "HttpRequest",
+            "HttpResponse",
+            "DefaultHttpTransport",
+            "CancellationToken",
+            "CancelledException",
+            "ServiceError",
+            "ErrorMetadata",
+            "UnknownServiceError",
+            "NetworkException",
+            "TokenProvider",
+            "Middleware",
+            "context",
+            "value",
+            "object",
+            "target",
+            "key",
+            "item",
+            "entry",
+            "other",
+        ]
+        .map(str::to_string),
+    );
+    let mut aliases = BTreeMap::new();
+    for (id, shape) in &service.shapes {
+        if matches!(shape, Shape::Simple(_) | Shape::Unit) {
+            continue;
+        }
+        let name = service.name_of(id);
+        if !identifier(name) || field(name) != name || !names.insert(name.into()) {
+            result.push(id, "invalid or colliding Dart model name");
+        }
+        match shape {
+            Shape::Structure(s) => {
+                let mut members = BTreeSet::new();
+                for member in &s.members {
+                    let member_name = field(&member.name);
+                    if !identifier(&member_name)
+                        || member_name == name
+                        || !members.insert(member_name)
+                    {
+                        result.push(&id.with_member(&member.name), "Dart member name collision");
+                    }
+                }
+            }
+            Shape::Union(s) => {
+                for suffix in std::iter::once("UnknownVariant".to_string())
+                    .chain(s.members.iter().map(|m| models::variant(&m.name)))
+                {
+                    if !names.insert(format!("{name}{suffix}")) {
+                        result.push(id, "Dart union variant class collision");
+                    }
+                }
+            }
+            Shape::Enum(e) => {
+                let mut values = BTreeSet::from_iter(
+                    [
+                        name,
+                        "value",
+                        "toWire",
+                        "hashCode",
+                        "runtimeType",
+                        "toString",
+                        "noSuchMethod",
+                    ]
+                    .map(str::to_string),
+                );
+                for value in &e.values {
+                    let constant = enum_constant(&value.name);
+                    if !identifier(&constant) || !values.insert(constant) {
+                        result.push(id, "invalid or colliding Dart enum constant");
+                    }
+                }
+            }
+            Shape::List(l) => {
+                aliases.insert(id, &l.member.target);
+            }
+            Shape::Map(m) => {
+                aliases.insert(id, &m.value.target);
+            }
+            _ => {}
+        }
+    }
+    for id in aliases.keys() {
+        let mut next = *id;
+        let mut seen = BTreeSet::new();
+        while let Some(target) = aliases.get(next) {
+            if target == id {
+                result.push(
+                    id,
+                    "Dart cannot represent a recursive collection type alias",
+                );
+                break;
+            }
+            if !seen.insert(target) {
+                break;
+            }
+            next = target;
+        }
+    }
+    let mut methods = BTreeSet::from_iter(["Client", "close"].map(str::to_string));
+    for op in &service.operations {
+        if matches!(op.method.as_str(), "GET" | "HEAD")
+            && (!op.request.body.is_empty() || op.request.payload.is_some())
+        {
+            result.push(
+                &op.id,
+                "Dart browser transport cannot send a GET or HEAD body",
+            );
+        }
+        let name = field(&method(op.name()));
+        for suffix in std::iter::once("").chain(op.paginated.is_some().then_some("Pages")) {
+            if !methods.insert(format!("{name}{suffix}")) {
+                result.push(&op.id, "Dart operation name collision");
+            }
+        }
+    }
+    result
+}
+
+pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    let diagnostics = diagnose(service, options);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    let schema =
+        serde_json::to_string(&crucible_codegen_common::schema(service, field)).expect("schema");
+    let provenance = serde_json::to_string_pretty(&serde_json::json!({
+        "generatorVersion": env!("CARGO_PKG_VERSION"), "service": service.id.to_string(),
+        "serviceVersion": service.version, "packageVersion": options.package_version,
+        "schemaSha256": format!("{:x}", Sha256::digest(schema.as_bytes()))
+    }))
+    .expect("provenance");
+    let manifest = serde_json::to_string_pretty(&serde_json::json!({
+        "name": options.package_name, "version": options.package_version,
+        "description": format!("Generated {} client", service.name_of(&service.id)),
+        "environment": {"sdk": ">=3.6.2 <4.0.0"},
+        "dependencies": {"http": "^1.6.0", "crypto": "^3.0.6"}
+    }))
+    .expect("manifest");
+    let mut files = vec![
+        File {path:"pubspec.yaml".into(), contents:manifest},
+        File {path:"crucible.json".into(), contents:provenance},
+        File {path:"lib/src/schema.dart".into(), contents:format!("// Generated by Crucible. DO NOT EDIT.\nconst schemaSource = {};\n", literal(&schema))},
+        File {path:"lib/src/models.dart".into(), contents:models::emit(service)},
+        File {path:"lib/src/client.dart".into(), contents:client::emit(service, options)},
+        File {path:format!("lib/{}.dart", options.package_name), contents: "export 'src/client.dart';\nexport 'src/models.dart' hide decodeModel, decodeError;\nexport 'src/runtime/config.dart';\nexport 'src/runtime/codec.dart' show Field;\nexport 'src/runtime/json.dart' show JsonValue, JsonNumber;\nexport 'src/runtime/timestamp.dart';\nexport 'src/runtime/errors.dart';\nexport 'src/runtime/cancellation.dart' show CancellationToken;\nexport 'src/runtime/transport.dart';\n".into()},
+    ];
+    for (name, contents) in [
+        ("json", JSON_RUNTIME),
+        ("timestamp", TIMESTAMP_RUNTIME),
+        ("codec", CODEC_RUNTIME),
+        ("errors", ERROR_RUNTIME),
+        ("cancellation", include_str!("../runtime/cancellation.dart")),
+        ("config", include_str!("../runtime/config.dart")),
+        ("transport", include_str!("../runtime/transport.dart")),
+        (
+            "client_runtime",
+            include_str!("../runtime/client_runtime.dart"),
+        ),
+    ] {
+        files.push(File {
+            path: format!("lib/src/runtime/{name}.dart"),
+            contents: contents.into(),
+        });
+    }
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
 }

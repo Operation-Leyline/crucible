@@ -388,6 +388,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "crucible-codegen-csharp",
+ "crucible-codegen-dart",
  "crucible-codegen-go",
  "crucible-codegen-java",
  "crucible-codegen-kotlin",

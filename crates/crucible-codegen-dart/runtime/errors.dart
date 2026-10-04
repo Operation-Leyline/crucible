@@ -6,8 +6,14 @@ final class ErrorMetadata {
   final Map<String, String> headers;
   final bool retryable;
   final bool throttling;
-  const ErrorMetadata({this.name = 'UnknownError', this.message = '', this.status = 0,
-    this.requestId, this.headers = const {}, this.retryable = false, this.throttling = false});
+  const ErrorMetadata(
+      {this.name = 'UnknownError',
+      this.message = '',
+      this.status = 0,
+      this.requestId,
+      this.headers = const {},
+      this.retryable = false,
+      this.throttling = false});
 }
 
 abstract class ServiceError implements Exception {
@@ -16,15 +22,18 @@ abstract class ServiceError implements Exception {
   @override
   String toString() => '${metadata.name}: ${metadata.message}';
 }
+
 final class UnknownServiceError extends ServiceError {
   const UnknownServiceError(super.metadata);
 }
+
 final class NetworkException implements Exception {
   final Object cause;
   const NetworkException(this.cause);
   @override
   String toString() => 'NetworkException: $cause';
 }
+
 final class CancelledException implements Exception {
   const CancelledException();
   @override
