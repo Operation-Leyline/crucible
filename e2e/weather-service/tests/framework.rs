@@ -276,3 +276,38 @@ async fn a_strict_input_refuses_a_member_it_does_not_define() {
     assert_eq!(body["__type"], "ValidationError", "{body}");
     assert_eq!(body["fieldList"][0]["path"], "nmae", "{body}");
 }
+
+#[tokio::test]
+async fn an_operation_can_take_a_smaller_body_than_the_service() {
+    let body = json!({ "name": "Lima", "clientToken": "x".repeat(80) }).to_string();
+    let create = || {
+        axum::http::Request::post("/cities")
+            .header("content-type", "application/json")
+            .body(axum::body::Body::from(body.clone()))
+            .unwrap()
+    };
+    let limited = weather_service::builder(memory())
+        .operation_body_limit::<api::CreateCity>(64)
+        .build()
+        .unwrap();
+    let response = limited.handle(create()).await;
+    assert_eq!(response.status(), 400);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let refused: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        refused["message"]
+            .as_str()
+            .unwrap()
+            .contains("larger than 64 bytes"),
+        "{refused}"
+    );
+
+    let by_rule = weather_service::builder(memory())
+        .body_limits(|op| op.readonly.then_some(16))
+        .build()
+        .unwrap();
+    let response = by_rule.handle(create()).await;
+    assert_eq!(response.status(), 201, "CreateCity is not read-only");
+}

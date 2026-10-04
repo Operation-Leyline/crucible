@@ -223,6 +223,12 @@ plus `message`. Otherwise the service gives the builder
 `on_rejection(|rejection| ..)`, and `Violation::kind` tells a malformed
 request from a broken constraint.
 
+A request body over the limit is refused unread, as the validation error.
+`Builder::body_limit` sets the service-wide limit (10 MiB by default);
+`operation_body_limit::<GetCity>(bytes)` overrides it for one operation and
+`body_limits(|op| ..)` for any rule over `OperationInfo`, such as a trait in
+the model, resolved once at `build`.
+
 Inputs ignore members the model does not define, unless the structure is
 strict: marked `@crucible.protocols#strict`, or every structure an input
 reaches when the service generates with `strict_inputs()`. A strict

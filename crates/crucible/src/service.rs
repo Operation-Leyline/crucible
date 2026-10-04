@@ -1,6 +1,7 @@
 //! The orchestrator: routes a request, runs the handler chain around the
 //! operation, and has the routing protocol write the response.
 
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
@@ -15,6 +16,7 @@ use crate::context::{Context, RequestMeta};
 use crate::error::{Error, FrameworkError, ModelledError};
 use crate::handler::{Handler, Job, Outcome};
 use crate::handlers::{ExceptionTranslator, ServiceLog};
+use crate::operation::{Operation, OperationInfo};
 use crate::operations::{Invoke, Operations};
 use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Route};
 use crate::validate::Rejection;
@@ -63,6 +65,8 @@ struct Inner {
     protocols: Vec<usize>,
     reject: Reject,
     body_limit: usize,
+    /// Per-operation overrides of `body_limit`, by operation name.
+    body_limits: HashMap<&'static str, usize>,
     request_id: Option<RequestIdSource>,
 }
 
@@ -74,6 +78,7 @@ impl Crucible {
             layers: Vec::new(),
             reject: None,
             body_limit: DEFAULT_BODY_LIMIT,
+            body_limits: Vec::new(),
             request_id: None,
         }
     }
@@ -181,7 +186,11 @@ impl Crucible {
             context.set_deadline(deadline);
         }
 
-        let body = axum::body::to_bytes(body, inner.body_limit).await;
+        let limit = entry
+            .and_then(|entry| inner.body_limits.get(entry.info.name))
+            .copied()
+            .unwrap_or(inner.body_limit);
+        let body = axum::body::to_bytes(body, limit).await;
         let mut job = Job {
             service: inner.operations.service,
             context: context.clone(),
@@ -198,7 +207,6 @@ impl Crucible {
             input_snapshot: None,
         };
         if body.is_err() {
-            let limit = inner.body_limit;
             job.outcome = Some(Outcome::Failed(
                 Rejection::malformed("", format!("the body is larger than {limit} bytes")).into(),
             ));
@@ -288,8 +296,11 @@ pub struct Builder {
     layers: Vec<Wrap>,
     reject: Option<Reject>,
     body_limit: usize,
+    body_limits: Vec<BodyLimit>,
     request_id: Option<RequestIdSource>,
 }
+
+type BodyLimit = Box<dyn Fn(&OperationInfo) -> Option<usize> + Send + Sync>;
 
 impl Builder {
     /// Appends a handler to the chain, inside every handler added before it:
@@ -363,8 +374,27 @@ impl Builder {
         self
     }
 
+    /// The largest request body any operation reads; larger ones are refused
+    /// unread as a validation error.
     pub fn body_limit(mut self, bytes: usize) -> Self {
         self.body_limit = bytes;
+        self
+    }
+
+    /// A body limit for one operation, overriding [`Builder::body_limit`].
+    pub fn operation_body_limit<O: Operation>(self, bytes: usize) -> Self {
+        let name = O::INFO.name;
+        self.body_limits(move |op| (op.name == name).then_some(bytes))
+    }
+
+    /// Body limits chosen per operation, for example from a trait in the
+    /// model: `limits(op)` is asked once per operation at `build`, and
+    /// `None` keeps the service-wide limit. Later calls win.
+    pub fn body_limits(
+        mut self,
+        limits: impl Fn(&OperationInfo) -> Option<usize> + Send + Sync + 'static,
+    ) -> Self {
+        self.body_limits.push(Box::new(limits));
         self
     }
 
@@ -384,6 +414,20 @@ impl Builder {
             (None, Some(generated)) => Arc::new(generated) as Reject,
             (None, None) => return Err(BuildError::NoRejection),
         };
+        let body_limits = self
+            .operations
+            .service
+            .operations
+            .iter()
+            .filter_map(|op| {
+                let limit = self
+                    .body_limits
+                    .iter()
+                    .rev()
+                    .find_map(|limits| limits(op))?;
+                Some((op.name, limit))
+            })
+            .collect();
         let core = Crucible {
             inner: Arc::new(Inner {
                 operations: self.operations,
@@ -391,6 +435,7 @@ impl Builder {
                 protocols,
                 reject,
                 body_limit: self.body_limit,
+                body_limits,
                 request_id: self.request_id,
             }),
             endpoint: None,
