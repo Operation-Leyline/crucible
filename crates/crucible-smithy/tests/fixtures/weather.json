@@ -26,6 +26,10 @@
             "type": "structure",
             "traits": { "smithy.api#trait": {}, "smithy.api#protocolDefinition": {} }
         },
+        "crucible.protocols#strict": {
+            "type": "structure",
+            "traits": { "smithy.api#trait": { "selector": "structure" } }
+        },
         "example.weather#tier": {
             "type": "string",
             "traits": { "smithy.api#trait": { "selector": "operation" } }
@@ -79,7 +83,7 @@
                     "traits": { "smithy.api#httpHeader": "X-Expected-Revision" }
                 }
             },
-            "traits": { "smithy.api#input": {} }
+            "traits": { "smithy.api#input": {}, "crucible.protocols#strict": {} }
         },
         "example.weather#CreateCityOutput": {
             "type": "structure",

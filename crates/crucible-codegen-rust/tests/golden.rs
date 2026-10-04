@@ -82,6 +82,7 @@ fn a_configured_error_that_is_not_an_error_fails_generation() {
     let options = Options {
         validation_error: Some("example.weather#CitySummary".parse().unwrap()),
         internal_error: Some("example.weather#Missing".parse().unwrap()),
+        ..Options::default()
     };
     let diagnostics = generate(&service, &options).unwrap_err();
     let messages: Vec<String> = diagnostics.iter().map(ToString::to_string).collect();
@@ -101,7 +102,7 @@ fn a_configured_validation_error_crucible_cannot_fill_fails_generation() {
     });
     let options = Options {
         validation_error: Some("example.weather#ConflictError".parse().unwrap()),
-        internal_error: None,
+        ..Options::default()
     };
     let diagnostics = generate(&service, &options).unwrap_err();
     assert!(
@@ -125,4 +126,35 @@ fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one(
     assert!(code.contains(
         "pages.fresh_token(|input| input.client_token = Some(::crucible_client::idempotency_token()))"
     ));
+}
+
+#[test]
+fn strict_structures_refuse_unknown_members_on_the_server_only() {
+    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let strict = "#[serde(deny_unknown_fields)]\n    pub struct ";
+    let marked = generate(&service, &Options::default()).unwrap();
+    assert!(marked.contains(&format!("{strict}CreateCityInput")));
+    assert!(
+        !marked.contains(&format!("{strict}GetCityInput")),
+        "unmarked"
+    );
+
+    let all = Options {
+        strict_inputs: true,
+        ..Options::default()
+    };
+    let everything = generate(&service, &all).unwrap();
+    for input in ["GetCityInput", "ListCitiesInput", "Coordinates"] {
+        assert!(everything.contains(&format!("{strict}{input}")), "{input}");
+    }
+    assert!(
+        !everything.contains(&format!("{strict}CitySummary")),
+        "output only"
+    );
+
+    let client = generate_client(&service).unwrap();
+    assert!(
+        !client.contains("deny_unknown_fields"),
+        "clients stay lenient"
+    );
 }

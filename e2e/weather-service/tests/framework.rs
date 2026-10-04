@@ -260,3 +260,19 @@ async fn a_rejected_request_carries_its_request_id_in_the_body_too() {
     let body: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["requestId"], header.as_str(), "{body}");
 }
+
+#[tokio::test]
+async fn a_strict_input_refuses_a_member_it_does_not_define() {
+    let request = axum::http::Request::post("/cities")
+        .header("content-type", "application/json")
+        .body(axum::body::Body::from(r#"{"name":"Lima","nmae":"typo"}"#))
+        .unwrap();
+    let response = service().handle(request).await;
+    assert_eq!(response.status(), 400);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["__type"], "ValidationError", "{body}");
+    assert_eq!(body["fieldList"][0]["path"], "nmae", "{body}");
+}

@@ -139,9 +139,21 @@ impl OperationsBuilder {
     }
 }
 
+/// An input that does not read as its type. A member a strict structure
+/// does not define is named in the path.
+fn unreadable(error: serde_json::Error) -> Rejection {
+    let message = error.to_string();
+    if let Some(member) = message
+        .strip_prefix("unknown field `")
+        .and_then(|rest| rest.split('`').next())
+    {
+        return Rejection::malformed(member, "is not a member of this structure");
+    }
+    Rejection::malformed("", message)
+}
+
 fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let input: O::Input = serde_json::from_value(value)
-        .map_err(|error| Rejection::malformed("", error.to_string()))?;
+    let input: O::Input = serde_json::from_value(value).map_err(unreadable)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -154,8 +166,7 @@ fn decode_json<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>
     } else {
         bytes
     };
-    let input: O::Input = serde_json::from_slice(bytes)
-        .map_err(|error| Rejection::malformed("", error.to_string()))?;
+    let input: O::Input = serde_json::from_slice(bytes).map_err(unreadable)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -165,8 +176,7 @@ fn decode_bound<'a, O: Operation>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
 ) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let input: O::Input = crate::protocol::read_bound(body, bound)
-        .map_err(|error| Rejection::malformed("", error.to_string()))?;
+    let input: O::Input = crate::protocol::read_bound(body, bound).map_err(unreadable)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }

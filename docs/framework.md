@@ -223,6 +223,13 @@ plus `message`. Otherwise the service gives the builder
 `on_rejection(|rejection| ..)`, and `Violation::kind` tells a malformed
 request from a broken constraint.
 
+Inputs ignore members the model does not define, unless the structure is
+strict: marked `@crucible.protocols#strict`, or every structure an input
+reaches when the service generates with `strict_inputs()`. A strict
+structure answers an unknown member with the validation error, its path
+naming the member. Clients never generate strict, so a newer service can add
+members without breaking them.
+
 An error the generator fills (validation or internal) that has a string
 `requestId` member gets the id of the request it answers, the same one as
 the `x-request-id` header. A translation or `on_rejection` that builds such

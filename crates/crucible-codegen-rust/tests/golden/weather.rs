@@ -36,6 +36,7 @@ pub mod model {
 
     #[derive(Debug, Clone, PartialEq, ::crucible::__private::serde::Serialize, ::crucible::__private::serde::Deserialize)]
     #[serde(crate = "::crucible::__private::serde")]
+    #[serde(deny_unknown_fields)]
     pub struct CreateCityInput {
         #[serde(rename = "name")]
         pub name: CityName,

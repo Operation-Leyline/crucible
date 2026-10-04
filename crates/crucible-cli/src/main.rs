@@ -86,6 +86,9 @@ enum Target {
         /// service's one server error with status 500.
         #[arg(long)]
         internal_error: Option<ShapeId>,
+        /// Every structure an input reaches refuses unknown members.
+        #[arg(long)]
+        strict_inputs: bool,
     },
 }
 
@@ -126,11 +129,13 @@ fn generate(target: Target) -> Result<(), String> {
             client,
             validation_error,
             internal_error,
+            strict_inputs,
         } => {
             let service = lower(&source)?;
             let options = crucible_codegen_rust::Options {
                 validation_error,
                 internal_error,
+                strict_inputs,
             };
             let code = if client {
                 crucible_codegen_rust::generate_client(&service)

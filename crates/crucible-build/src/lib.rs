@@ -111,6 +111,13 @@ impl Codegen {
         self
     }
 
+    /// Every structure an input reaches refuses unknown members, not only
+    /// those marked `@crucible.protocols#strict`. Server side only.
+    pub fn strict_inputs(mut self) -> Self {
+        self.options.strict_inputs = true;
+        self
+    }
+
     /// The error internal failures are answered with. Server side only.
     pub fn internal_error(mut self, id: &str) -> Self {
         self.options.internal_error = Some(parse(id));
