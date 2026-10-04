@@ -316,6 +316,23 @@ fn method(text: &str) -> String {
         chars.as_str()
     )
 }
+fn enum_constant(text: &str) -> String {
+    if !text.contains('_') && text.chars().any(|c| c.is_ascii_lowercase()) {
+        return method(text);
+    }
+    let mut result = String::new();
+    for (index, word) in text.split('_').filter(|word| !word.is_empty()).enumerate() {
+        let word = word.to_ascii_lowercase();
+        if index == 0 {
+            result.push_str(&word);
+        } else {
+            let mut chars = word.chars();
+            result.push(chars.next().expect("nonempty word").to_ascii_uppercase());
+            result.push_str(chars.as_str());
+        }
+    }
+    result
+}
 fn ty(service: &Service, id: &ShapeId, module: &str) -> String {
     match service.shape(id).expect("lowered shape") {
         Shape::Unit => format!("{module}.Models.Unit"),
@@ -387,8 +404,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 ["rawValue", "fromWire", "toWire", "init", "self"].map(str::to_string),
             );
             for value in &e.values {
-                if !values.insert(method(&value.name)) {
-                    diagnostics.push(id, "Swift enum constant name collision");
+                let name = enum_constant(&value.name);
+                if !identifier(&name) || !values.insert(name) {
+                    diagnostics.push(id, "invalid or colliding Swift enum constant name");
                 }
             }
         }
@@ -460,6 +478,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: contents.replace("\r\n", "\n"),
         });
     }
-    files.push(File { path: "Package.swift".into(), contents: format!("// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: {},\n    platforms: [.macOS(.v12), .iOS(.v15)],\n    products: [.library(name: {}, targets: [{}])],\n    dependencies: [.package(url: \"https://github.com/apple/swift-crypto.git\", exact: \"3.10.0\")],\n    targets: [.target(name: {}, dependencies: [.product(name: \"Crypto\", package: \"swift-crypto\")], resources: [.process(\"Resources\")])]\n)\n", literal(&options.package_name), literal(&options.module_name), literal(&options.module_name), literal(&options.module_name)) });
+    files.push(File { path: "Package.swift".into(), contents: format!("// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: {},\n    platforms: [.macOS(.v12), .iOS(.v15)],\n    products: [.library(name: {}, targets: [{}])],\n    dependencies: [.package(url: \"https://github.com/apple/swift-crypto.git\", from: \"3.10.0\")],\n    targets: [.target(name: {}, dependencies: [.product(name: \"Crypto\", package: \"swift-crypto\")], resources: [.process(\"Resources\")])]\n)\n", literal(&options.package_name), literal(&options.module_name), literal(&options.module_name), literal(&options.module_name)) });
     Ok(files)
 }

@@ -376,8 +376,8 @@ public enum Models {
     public struct `Sky`: Swift.RawRepresentable, Swift.Hashable, Swift.Sendable, WeatherClient.WireCodable {
         public let rawValue: Swift.String
         public init(rawValue: Swift.String) { self.rawValue = rawValue }
-        public static let `cLEAR` = Self(rawValue: "clear")
-        public static let `cLOUDY` = Self(rawValue: "cloudy")
+        public static let `clear` = Self(rawValue: "clear")
+        public static let `cloudy` = Self(rawValue: "cloudy")
         static func fromWire(_ value: WeatherClient.JSONValue, _ context: WeatherClient.WireContext) throws -> Self { Self(rawValue: try value.string) }
         func toWire(_ context: WeatherClient.WireContext) throws -> WeatherClient.JSONValue { .string(rawValue) }
     }
@@ -485,10 +485,10 @@ public enum Models {
     public struct `ValidationReason`: Swift.RawRepresentable, Swift.Hashable, Swift.Sendable, WeatherClient.WireCodable {
         public let rawValue: Swift.String
         public init(rawValue: Swift.String) { self.rawValue = rawValue }
-        public static let `uNKNOWN_OPERATION` = Self(rawValue: "unknownOperation")
-        public static let `cANNOT_PARSE` = Self(rawValue: "cannotParse")
-        public static let `fIELD_VALIDATION_FAILED` = Self(rawValue: "fieldValidationFailed")
-        public static let `oTHER` = Self(rawValue: "other")
+        public static let `unknownOperation` = Self(rawValue: "unknownOperation")
+        public static let `cannotParse` = Self(rawValue: "cannotParse")
+        public static let `fieldValidationFailed` = Self(rawValue: "fieldValidationFailed")
+        public static let `other` = Self(rawValue: "other")
         static func fromWire(_ value: WeatherClient.JSONValue, _ context: WeatherClient.WireContext) throws -> Self { Self(rawValue: try value.string) }
         func toWire(_ context: WeatherClient.WireContext) throws -> WeatherClient.JSONValue { .string(rawValue) }
     }

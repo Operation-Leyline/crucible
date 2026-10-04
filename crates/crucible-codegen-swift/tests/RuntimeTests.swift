@@ -230,6 +230,16 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         let echoed = try await echo.createCity(.init(name: .value("x"), expectedRevision: .value(7)))
         XCTAssertEqual(echoed.city.name, "x")
     }
+    func testNativeCallsDoNotReuseCachedResponsesAcrossCredentials() async throws {
+        let fixture = ProcessInfo.processInfo.environment["FIXTURE_URL"]!
+        let counter = Counter()
+        let client = try Client(ClientConfig(endpoint: fixture + "/cache", token: { String(await counter.next()) }))
+        defer { client.close() }
+        let first = try await client.getCity(.init(cityId: .value("c")))
+        let second = try await client.getCity(.init(cityId: .value("c")))
+        XCTAssertEqual(first.city.name, "Bearer 1")
+        XCTAssertEqual(second.city.name, "Bearer 2")
+    }
     func testRealWeatherHTTP() async throws {
         let client = try Client(ClientConfig(endpoint: ProcessInfo.processInfo.environment["WEATHER_URL"]!, token: { "test-token" }))
         defer { client.close() }

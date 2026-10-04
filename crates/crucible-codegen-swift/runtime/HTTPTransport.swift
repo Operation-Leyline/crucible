@@ -12,6 +12,10 @@ public final class URLSessionTransport: HTTPTransport, Sendable {
         configuration.timeoutIntervalForRequest = timeout
         configuration.timeoutIntervalForResource = timeout
         configuration.httpShouldSetCookies = false
+        // Each logical SDK call must reach the service, including after writes
+        // and when the credential provider changes the caller's identity.
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         let delegate = SessionDelegate()
         let queue = OperationQueue(); queue.maxConcurrentOperationCount = 1
         self.delegate = delegate

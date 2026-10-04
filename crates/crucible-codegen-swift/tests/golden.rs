@@ -94,6 +94,36 @@ fn repeated_emission_is_identical() {
 }
 
 #[test]
+fn enum_constants_use_swift_names_and_diagnose_normalized_collisions() {
+    let mut model = weather();
+    model["shapes"]["example.weather#Sky"]["members"] = json!({
+        "CLEAR": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "clear"}},
+        "PARTLY_CLOUDY": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "partly"}},
+        "alreadyCamel": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "camel"}}
+    });
+    let files = emit(&lower(&model), &options()).unwrap();
+    let models = &files
+        .iter()
+        .find(|file| file.path.ends_with("Models.swift"))
+        .unwrap()
+        .contents;
+    for name in ["clear", "partlyCloudy", "alreadyCamel"] {
+        assert!(
+            models.contains(&format!("public static let `{name}` =")),
+            "{name}"
+        );
+    }
+    model["shapes"]["example.weather#Sky"]["members"]["partlyCloudy"] =
+        json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "duplicate"}});
+    let diagnostics = emit(&lower(&model), &options()).err().unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.message == "invalid or colliding Swift enum constant name")
+    );
+}
+
+#[test]
 fn reserved_and_path_names_are_diagnosed() {
     let service = lower(&weather());
     for name in ["../bad", "bad/name", "_"] {

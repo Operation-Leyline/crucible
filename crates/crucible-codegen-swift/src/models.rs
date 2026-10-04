@@ -1,4 +1,4 @@
-use super::{field, literal, method, ty};
+use super::{enum_constant, field, literal, method, ty};
 use crucible_smithy::ir::{Service, Shape};
 
 pub fn emit(service: &Service, module: &str) -> String {
@@ -28,7 +28,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                 for value in &enumeration.values {
                     out.push_str(&format!(
                         "        public static let `{}` = Self(rawValue: {})\n",
-                        method(&value.name),
+                        enum_constant(&value.name),
                         literal(&value.value)
                     ));
                 }

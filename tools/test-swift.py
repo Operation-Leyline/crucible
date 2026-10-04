@@ -31,6 +31,7 @@ def swift(command, package, scratch, *args, **kwargs):
 def fixture():
     failures = []
     requests = []
+    cached_requests = []
     lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
@@ -50,6 +51,12 @@ def fixture():
             try:
                 if self.path.startswith("/redirect/"):
                     self.respond(302, headers={"Location": "/unexpected"})
+                elif self.path.startswith("/cache/"):
+                    token = self.headers.get("authorization")
+                    with lock:
+                        cached_requests.append(token)
+                    self.respond(200, json.dumps({"city": {"id": "c", "name": token}}).encode(),
+                        headers={"Cache-Control": "public, max-age=3600"})
                 elif self.path.startswith(("/discard/", "/stall/")):
                     self.send_response(200)
                     # Declare the media type so Darwin need not sniff a stalled
@@ -92,6 +99,7 @@ def fixture():
         yield f"http://127.0.0.1:{server.server_port}"
         assert not failures, failures
         assert len(requests) == 2, requests
+        assert cached_requests == ["Bearer 1", "Bearer 2"], cached_requests
     finally:
         server.shutdown()
         server.server_close()
