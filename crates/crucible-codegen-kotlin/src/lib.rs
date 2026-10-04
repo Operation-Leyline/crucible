@@ -1,0 +1,349 @@
+//! Kotlin models and coroutine clients for JVM and Android.
+mod models;
+use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use crucible_smithy::{Diagnostics, ShapeId};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
+
+pub struct Options {
+    pub group_id: String,
+    pub artifact_id: String,
+    pub package_name: String,
+    pub package_version: String,
+    pub endpoint: Option<String>,
+    pub content_sha256: bool,
+}
+pub struct File {
+    pub path: String,
+    pub contents: String,
+}
+fn literal(text: &str) -> String {
+    let mut result = String::from("\"");
+    for ch in text.chars() {
+        match ch {
+            '\\' => result.push_str("\\\\"),
+            '"' => result.push_str("\\\""),
+            '$' => result.push_str("\\$"),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            ch if ch.is_control() => result.push_str(&format!("\\u{:04x}", u32::from(ch))),
+            ch => result.push(ch),
+        }
+    }
+    result.push('"');
+    result
+}
+fn identifier(text: &str) -> bool {
+    text != "_"
+        && text.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+        && text.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+fn keyword(text: &str) -> bool {
+    [
+        "as",
+        "break",
+        "class",
+        "continue",
+        "do",
+        "else",
+        "false",
+        "for",
+        "fun",
+        "if",
+        "in",
+        "interface",
+        "is",
+        "null",
+        "object",
+        "package",
+        "return",
+        "super",
+        "this",
+        "throw",
+        "true",
+        "try",
+        "typealias",
+        "typeof",
+        "val",
+        "var",
+        "when",
+        "while",
+    ]
+    .contains(&text)
+}
+fn field(text: &str) -> String {
+    if [
+        "class",
+        "message",
+        "cause",
+        "stackTrace",
+        "suppressed",
+        "localizedMessage",
+        "errorName",
+        "status",
+        "requestId",
+        "headers",
+        "retryable",
+        "throttling",
+    ]
+    .contains(&text)
+    {
+        format!("{text}Value")
+    } else {
+        text.into()
+    }
+}
+fn method(text: &str) -> String {
+    let mut chars = text.chars();
+    format!(
+        "{}{}",
+        chars.next().expect("name").to_ascii_lowercase(),
+        chars.as_str()
+    )
+}
+fn ty(service: &Service, id: &ShapeId) -> String {
+    match service.shape(id).expect("lowered target") {
+        Shape::Unit => "Models.Unit".into(),
+        Shape::Simple(s) => match s.kind {
+            SimpleKind::String => "kotlin.String",
+            SimpleKind::Boolean => "kotlin.Boolean",
+            SimpleKind::Byte => "kotlin.Byte",
+            SimpleKind::Short => "kotlin.Short",
+            SimpleKind::Integer => "kotlin.Int",
+            SimpleKind::Long => "kotlin.Long",
+            SimpleKind::Float => "kotlin.Float",
+            SimpleKind::Double => "kotlin.Double",
+            SimpleKind::Timestamp => "java.time.Instant",
+            SimpleKind::Document => "com.google.gson.JsonElement",
+            SimpleKind::Blob => "kotlin.ByteArray",
+        }
+        .into(),
+        _ => format!("Models.`{}`", service.name_of(id)),
+    }
+}
+pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    let mut diagnostics = Diagnostics::default();
+    if !options
+        .package_name
+        .split('.')
+        .all(|s| identifier(s) && !keyword(s))
+    {
+        diagnostics.push(
+            &service.id,
+            "Kotlin package must contain non-keyword identifiers separated by dots",
+        );
+    }
+    for (name, value) in [
+        ("groupId", &options.group_id),
+        ("artifactId", &options.artifact_id),
+        ("version", &options.package_version),
+    ] {
+        if value.is_empty()
+            || !value
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
+        {
+            diagnostics.push(&service.id, format!("invalid Maven {name}"));
+        }
+    }
+    let mut names = BTreeSet::from_iter(
+        [
+            "Unit",
+            "Models",
+            "kotlin",
+            "java",
+            "com",
+            options.package_name.split('.').next().unwrap_or(""),
+        ]
+        .map(str::to_string),
+    );
+    for (id, shape) in &service.shapes {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+            continue;
+        }
+        let name = service.name_of(id);
+        if !identifier(name) || !names.insert(name.into()) {
+            diagnostics.push(id, "invalid or colliding Kotlin model name");
+        }
+        if let Shape::Structure(s) | Shape::Union(s) = shape {
+            let mut members = BTreeSet::new();
+            let mut accessors = BTreeSet::from_iter(
+                [
+                    "getClass",
+                    "getMessage",
+                    "getCause",
+                    "getStackTrace",
+                    "getSuppressed",
+                    "getLocalizedMessage",
+                    "getErrorName",
+                    "getStatus",
+                    "getRequestId",
+                    "getHeaders",
+                    "getRetryable",
+                    "getThrottling",
+                ]
+                .map(str::to_string),
+            );
+            let mut variants = BTreeSet::from([
+                "UnknownVariant".to_string(),
+                "Models".to_string(),
+                name.to_string(),
+            ]);
+            if matches!(shape, Shape::Union(_)) && name == "UnknownVariant" {
+                diagnostics.push(id, "Kotlin union name collides with its unknown variant");
+            }
+            for m in &s.members {
+                let member = field(&m.name);
+                if !members.insert(member.clone()) {
+                    diagnostics.push(&id.with_member(&m.name), "Kotlin member name collision");
+                }
+                if matches!(shape, Shape::Structure(_)) {
+                    let is_property = member.starts_with("is")
+                        && member
+                            .as_bytes()
+                            .get(2)
+                            .is_some_and(|c| !c.is_ascii_lowercase());
+                    let suffix = if is_property {
+                        member[2..].to_string()
+                    } else {
+                        models::variant(&member)
+                    };
+                    let getter = if is_property {
+                        member
+                    } else {
+                        format!("get{suffix}")
+                    };
+                    let setter = format!("set{suffix}");
+                    if !accessors.insert(getter) || !accessors.insert(setter) {
+                        diagnostics.push(
+                            &id.with_member(&m.name),
+                            "Kotlin JVM accessor name collision",
+                        );
+                    }
+                }
+                if matches!(shape, Shape::Union(_)) && !variants.insert(models::variant(&m.name)) {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "Kotlin union variant name collision",
+                    );
+                }
+            }
+        }
+        if let Shape::Enum(e) = shape {
+            let mut values = BTreeSet::from(["Companion".to_string()]);
+            for v in &e.values {
+                if !values.insert(v.name.to_uppercase()) {
+                    diagnostics.push(id, "Kotlin enum constant name collision");
+                }
+            }
+        }
+    }
+    let mut methods = BTreeSet::from_iter(
+        [
+            "wait",
+            "notify",
+            "notifyAll",
+            "getClass",
+            "equals",
+            "hashCode",
+            "toString",
+            "close",
+        ]
+        .map(str::to_string),
+    );
+    for op in &service.operations {
+        if matches!(op.method.as_str(), "GET" | "HEAD")
+            && (!op.request.body.is_empty() || op.request.payload.is_some())
+        {
+            diagnostics.push(
+                &op.id,
+                "Kotlin OkHttp transport cannot send a GET or HEAD body",
+            );
+        }
+        for suffix in [""]
+            .into_iter()
+            .chain(op.paginated.is_some().then_some("Pages"))
+        {
+            if !methods.insert(format!("{}{suffix}", method(op.name()))) {
+                diagnostics.push(&op.id, "Kotlin client method name collision");
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    let package = &options.package_name;
+    let header = format!("// Generated by Crucible. DO NOT EDIT.\npackage {package}\n\n");
+    let source = format!("src/main/kotlin/{}", package.replace('.', "/"));
+    let resource = format!("src/main/resources/{}", package.replace('.', "/"));
+    let schema = serde_json::to_string(&crucible_codegen_common::schema(service, field))
+        .expect("schema serializes");
+    let (models, codecs) = models::emit(service, package);
+    let mut client = format!(
+        "class Client(config: ClientConfig) : java.io.Closeable {{\n    private val runtime = ClientRuntime(config, {}, {})\n    override fun close() = runtime.close()\n",
+        literal(options.endpoint.as_deref().unwrap_or("")),
+        options.content_sha256
+    );
+    for op in &service.operations {
+        let name = method(op.name());
+        let input = op.input.as_ref().map(|id| ty(service, id));
+        let output = op
+            .output
+            .as_ref()
+            .map_or("Models.Unit".into(), |id| ty(service, id));
+        let parameter = input
+            .as_ref()
+            .map_or(String::new(), |t| format!("input: {t}"));
+        let argument = if input.is_some() { "input" } else { "null" };
+        client.push_str(&format!("    suspend fun `{name}`({parameter}): {output} = runtime.call({}, {argument}) as {output}\n",literal(op.name())));
+        if op.paginated.is_some() {
+            client.push_str(&format!("    fun `{name}Pages`({parameter}): kotlinx.coroutines.flow.Flow<{output}> = kotlinx.coroutines.flow.flow {{\n        runtime.pages({}, {argument}).collect {{ emit(it as {output}) }}\n    }}\n",literal(op.name())));
+        }
+    }
+    client.push_str("}\n");
+    let provenance=serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
+    let mut files = vec![
+        File {
+            path: format!("{source}/Models.kt"),
+            contents: format!("{header}{models}"),
+        },
+        File {
+            path: format!("{source}/ModelCodecs.kt"),
+            contents: format!("{header}{codecs}"),
+        },
+        File {
+            path: format!("{source}/Client.kt"),
+            contents: format!("{header}{client}"),
+        },
+        File {
+            path: format!("{resource}/schema.json"),
+            contents: schema,
+        },
+        File {
+            path: format!("{resource}/crucible.json"),
+            contents: provenance,
+        },
+    ];
+    for (name, body) in [
+        ("ClientConfig", include_str!("../runtime/ClientConfig.kt")),
+        ("OptionalValue", include_str!("../runtime/OptionalValue.kt")),
+        ("ClientRuntime", include_str!("../runtime/ClientRuntime.kt")),
+        ("JsonCodec", include_str!("../runtime/JsonCodec.kt")),
+        ("ServiceError", include_str!("../runtime/ServiceError.kt")),
+    ] {
+        files.push(File {
+            path: format!("{source}/{name}.kt"),
+            contents: format!("{header}{}", body.replace("\r\n", "\n")),
+        });
+    }
+    files.push(File {
+        path: "pom.xml".into(),
+        contents: include_str!("../runtime/pom.xml")
+            .replace("\r\n", "\n")
+            .replace("@GROUP@", &options.group_id)
+            .replace("@ARTIFACT@", &options.artifact_id)
+            .replace("@VERSION@", &options.package_version),
+    });
+    Ok(files)
+}

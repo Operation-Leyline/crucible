@@ -75,7 +75,26 @@ enum Target {
         #[arg(long)]
         content_sha256: bool,
     },
-    /// A Java 17 Maven package with synchronous and asynchronous clients.
+    /// A Kotlin JVM/Android package with suspend operations and Flow pagination.
+    Kotlin {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        group_id: String,
+        #[arg(long)]
+        artifact_id: String,
+        #[arg(long)]
+        package_name: String,
+        #[arg(long, default_value = "0.0.0-SNAPSHOT")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        #[arg(long)]
+        content_sha256: bool,
+    },
+    /// A Java client package.
     Java {
         #[command(flatten)]
         source: Source,
@@ -241,6 +260,37 @@ fn generate(target: Target) -> Result<(), String> {
                 },
             )
             .map_err(|d| format!("cannot generate the C# client:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
+        Target::Kotlin {
+            source,
+            out,
+            group_id,
+            artifact_id,
+            package_name,
+            package_version,
+            endpoint,
+            content_sha256,
+        } => {
+            let service = lower(&source)?;
+            let files = crucible_codegen_kotlin::emit(
+                &service,
+                &crucible_codegen_kotlin::Options {
+                    group_id,
+                    artifact_id,
+                    package_name,
+                    package_version,
+                    endpoint,
+                    content_sha256,
+                },
+            )
+            .map_err(|d| format!("cannot generate the Kotlin client:\n{d}"))?;
             output::write(
                 &out,
                 files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
