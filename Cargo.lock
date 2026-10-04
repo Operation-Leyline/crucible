@@ -394,6 +394,7 @@ dependencies = [
  "crucible-codegen-kotlin",
  "crucible-codegen-php",
  "crucible-codegen-python",
+ "crucible-codegen-ruby",
  "crucible-codegen-rust",
  "crucible-codegen-swift",
  "crucible-codegen-ts",
@@ -488,6 +489,16 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-python"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-common",
+ "crucible-smithy",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "crucible-codegen-ruby"
 version = "0.1.0"
 dependencies = [
  "crucible-codegen-common",

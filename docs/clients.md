@@ -8,7 +8,7 @@ support conditional on finding an individual consumer.
 |---|---|---|
 | Baseline | TypeScript/JavaScript, Rust | Shared retry conformance runs in CI |
 | 1 | Python, Go, Java, C# | Implemented; native package and HTTP gates run in CI |
-| 2 | Kotlin, Swift, Dart, PHP, Ruby | Kotlin, Swift, Dart, and PHP implemented; Ruby planned |
+| 2 | Kotlin, Swift, Dart, PHP, Ruby | Implemented; native package and HTTP gates run in CI |
 | Extension | C++, C, R | API and packaging scope still to be defined |
 
 ## Architecture
@@ -105,6 +105,11 @@ JavaScript. CI checks the minimum SDK and current stable SDK. See
 tests, installs a Composer archive into a separate consumer, and loads empty
 and renamed packages. CI checks PHP 8.3 and 8.5. See
 [PHP clients](php-client.md) for synchronous calls, model types, and limits.
+
+`python tools/test-ruby.py` runs exact codecs, shared fixtures, and native HTTP
+tests, installs a gem into a separate consumer, and loads empty and renamed
+packages. CI checks Ruby 3.3 and 4.0. See [Ruby clients](ruby-client.md) for
+native model classes, synchronous calls, and lazy pagination.
 
 ## Remaining acceptance work
 

@@ -13,6 +13,19 @@ permissions:
   contents: read
 
 jobs:
+  ruby:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruby: ['3.3', '4.0']
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: ruby/setup-ruby@v1
+        with: { ruby-version: '${{ matrix.ruby }}' }
+      - run: python3 tools/test-ruby.py
   php:
     runs-on: ubuntu-latest
     strategy:
