@@ -1,8 +1,8 @@
-use crate::names::field;
+//! Compact runtime descriptions of already-lowered wire semantics.
 use crucible_smithy::ir::{Bindings, Fault, Member, Service, Shape, SimpleKind, TimestampFormat};
 use serde_json::{Value, json};
 
-fn member(service: &Service, m: &Member) -> Value {
+fn member(service: &Service, m: &Member, field: &impl Fn(&str) -> String) -> Value {
     json!({"target": m.target.to_string(), "attribute": field(&m.name),
         "required": m.required, "default": m.default,
         "format": format(service.timestamp_format(m))})
@@ -21,7 +21,7 @@ fn bindings(b: &Bindings) -> Value {
         "headers": b.headers.iter().map(|x| json!([x.member,x.name])).collect::<Vec<_>>(), "body": b.body})
 }
 
-pub fn schema(service: &Service) -> Value {
+pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
     let shapes: serde_json::Map<String, Value> = service.shapes.iter().map(|(id, shape)| {
         let mut value = match shape {
             Shape::Unit => json!({"kind":"unit"}),
@@ -31,10 +31,10 @@ pub fn schema(service: &Service) -> Value {
                 SimpleKind::Float => "float", SimpleKind::Double => "double", SimpleKind::Timestamp => "timestamp", SimpleKind::Document => "document",
             }, "format": format(s.timestamp_format.unwrap_or(TimestampFormat::DateTime))}),
             Shape::Enum(e) => json!({"kind":"enum", "values":e.values.iter().map(|v| &v.value).collect::<Vec<_>>()}),
-            Shape::List(l) => json!({"kind":"list", "member":member(service,&l.member)}),
-            Shape::Map(m) => json!({"kind":"map", "key":member(service,&m.key), "value":member(service,&m.value)}),
+            Shape::List(l) => json!({"kind":"list", "member":member(service,&l.member,&field)}),
+            Shape::Map(m) => json!({"kind":"map", "key":member(service,&m.key,&field), "value":member(service,&m.value,&field)}),
             Shape::Structure(s) | Shape::Union(s) => {
-                let members: serde_json::Map<_,_> = s.members.iter().map(|m| (m.name.clone(),member(service,m))).collect();
+                let members: serde_json::Map<_,_> = s.members.iter().map(|m| (m.name.clone(),member(service,m,&field))).collect();
                 let mut v = json!({"kind": if matches!(shape,Shape::Union(_)) {"union"} else {"structure"}, "members":members});
                 if let Some(e) = &s.error {
                     v["error"] = json!({"status":e.status,"fault":if e.fault == Fault::Client {"client"} else {"server"},
