@@ -26,7 +26,11 @@ crucible-codegen-java = { path = "crates/crucible-codegen-java" }
 clap = { version = "4", features = ["derive"] }
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
+# The runtime crates (crucible, crucible-wire, crucible-client) must not turn
+# on `preserve_order`: features unify across a consumer's build, and a
+# service that hashes or compares JSON maps relies on their sorted order.
+# The generators, which only run at build time, opt in for stable output.
+serde_json = { version = "1", features = ["raw_value"] }
 thiserror = "2"
 
 [workspace.lints.rust]
