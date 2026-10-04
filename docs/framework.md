@@ -83,6 +83,14 @@ requests, so it is a task-local the orchestrator sets around the call.
 **Decision:** a task spawned inside an implementation does not inherit it;
 `context.scope(future)` carries it across.
 
+The request id comes from `Builder::request_id(source)` when the service
+names one (an inbound header behind a trusted edge), else from the host, else
+it is a fresh UUID; an id that is empty or over 128 bytes is replaced. On
+Lambda the host supplies an HTTP event's own request id, or the invocation's
+id for a direct invoke, and the invocation deadline, so a handler can budget
+work against the time the function has left. Hosts pass both through a
+`RequestMeta` request extension.
+
 ## The orchestrator and the handler chain
 
 The service builder takes handlers in order. Each request:

@@ -36,14 +36,14 @@ pub mod service;
 // at the paths generated code names.
 pub use crucible_wire::{error, operation, time, validate};
 
-pub use context::{Context, WithContext};
+pub use context::{Context, RequestMeta, WithContext};
 pub use error::{Error, FrameworkError, ModelledError, Result};
 pub use handler::{AsyncHandler, Handler, Hook, Job, Outcome, Resolution};
 pub use handlers::HandlerExt;
 pub use operation::{Operation, OperationInfo, ServiceInfo};
 pub use operations::{MissingOperations, Operations};
 pub use protocol::{InvokeProtocol, JsonProtocol, Protocol};
-pub use service::{BuildError, Builder, Crucible, Endpoint};
+pub use service::{BuildError, Builder, Crucible, Endpoint, RequestIdSource};
 
 /// `#[crucible::async_trait]` for implementing [`AsyncHandler`] and
 /// `OperationHandler` with `async fn`.

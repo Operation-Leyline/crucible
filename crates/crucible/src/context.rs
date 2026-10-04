@@ -13,6 +13,15 @@ tokio::task_local! {
     static CURRENT: Arc<Context>;
 }
 
+/// What a host knows about a request before the service sees it, put in
+/// the request's extensions: the id the platform gave it, and when the
+/// platform stops waiting. The Lambda host sets both from the invocation.
+#[derive(Debug, Clone, Default)]
+pub struct RequestMeta {
+    pub request_id: Option<HeaderValue>,
+    pub deadline: Option<Instant>,
+}
+
 #[derive(Debug)]
 pub struct Context {
     /// Visible ASCII by construction, so `request_id` reads it as text.
