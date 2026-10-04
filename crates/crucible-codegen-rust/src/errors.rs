@@ -118,7 +118,7 @@ pub(crate) fn reject(service: &Service, validation: Option<&ShapeId>) -> Option<
     let Some(Shape::Structure(structure)) = service.shape(id) else {
         return None;
     };
-    let fields = fill(structure, |member| match member.name.as_str() {
+    let fields = fill(service, structure, |member| match member.name.as_str() {
         "message" if simple_kind(service, &member.target) == Some(SimpleKind::String) => {
             Some("rejection.summary()".to_owned())
         }
@@ -139,7 +139,7 @@ pub(crate) fn internal(service: &Service, internal: Option<&ShapeId>) -> Option<
     let Some(Shape::Structure(structure)) = service.shape(id) else {
         return None;
     };
-    let fields = fill(structure, |member| match member.name.as_str() {
+    let fields = fill(service, structure, |member| match member.name.as_str() {
         "message" if simple_kind(service, &member.target) == Some(SimpleKind::String) => Some(
             "\"The request failed. Quote its request id when reporting it.\".to_owned()".to_owned(),
         ),
@@ -154,12 +154,29 @@ pub(crate) fn internal(service: &Service, internal: Option<&ShapeId>) -> Option<
 
 /// Field initializers for every member: `value` fills what it can, optional
 /// members it cannot are `None`, and a required one it cannot fails the lot.
-fn fill(structure: &Structure, value: impl Fn(&Member) -> Option<String>) -> Option<Vec<String>> {
+/// A string `requestId` member, the way a model carries the request id in
+/// every error body, takes the id of the request being answered.
+fn fill(
+    service: &Service,
+    structure: &Structure,
+    value: impl Fn(&Member) -> Option<String>,
+) -> Option<Vec<String>> {
+    const REQUEST_ID: &str =
+        "::crucible::Context::try_current().map(|context| context.request_id().to_owned())";
     structure
         .members
         .iter()
         .map(|member| {
             let rust = field(&member.name);
+            if member.name == "requestId"
+                && simple_kind(service, &member.target) == Some(SimpleKind::String)
+            {
+                return Some(if member.optional_on_server() {
+                    format!("{rust}: {REQUEST_ID}")
+                } else {
+                    format!("{rust}: {REQUEST_ID}.unwrap_or_default()")
+                });
+            }
             match (value(member), member.optional_on_server()) {
                 (Some(value), true) => Some(format!("{rust}: Some({value})")),
                 (Some(value), false) => Some(format!("{rust}: {value}")),
@@ -177,10 +194,12 @@ fn field_list(service: &Service, member: &Member) -> Option<String> {
     let Some(Shape::Structure(item)) = service.shape(&list.member.target) else {
         return None;
     };
-    let fields = fill(item, |field_member| match field_member.name.as_str() {
-        "path" | "name" => Some("violation.path.clone()".to_owned()),
-        "message" => Some("violation.message.clone()".to_owned()),
-        _ => None,
+    let fields = fill(service, item, |field_member| {
+        match field_member.name.as_str() {
+            "path" | "name" => Some("violation.path.clone()".to_owned()),
+            "message" => Some("violation.message.clone()".to_owned()),
+            _ => None,
+        }
     })?;
     let cap = member
         .constraints

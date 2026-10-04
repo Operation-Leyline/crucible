@@ -11,7 +11,34 @@ use crate::names::{doc, field, function, literal, variant};
 use crate::types::{boxed_members, builtin, field_type, rust_type, timestamp_module};
 
 /// The body of `pub mod model { ... }`.
-pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
+/// The structures that refuse unknown members: those marked
+/// `@crucible.protocols#strict`, and with `all_inputs` every structure an
+/// input reaches.
+pub(crate) fn strict_shapes(service: &Service, all_inputs: bool) -> BTreeSet<ShapeId> {
+    let marker = ShapeId::new("crucible.protocols", "strict");
+    let mut strict: BTreeSet<ShapeId> = service
+        .shapes
+        .iter()
+        .filter_map(|(id, shape)| match shape {
+            Shape::Structure(s) if s.traits.contains_key(&marker) => Some(id.clone()),
+            _ => None,
+        })
+        .collect();
+    if all_inputs {
+        strict.extend(
+            input_reachable(service)
+                .into_iter()
+                .filter(|id| matches!(service.shape(id), Some(Shape::Structure(_)))),
+        );
+    }
+    strict
+}
+
+pub(crate) fn emit(
+    service: &Service,
+    strict: &BTreeSet<ShapeId>,
+    diagnostics: &mut Diagnostics,
+) -> String {
     let boxed = boxed_members(service);
     let validated = input_reachable(service);
     let mut patterns = Patterns::default();
@@ -57,6 +84,9 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             Shape::Structure(structure) => {
                 doc(&mut out, "", structure.docs.as_deref());
                 out.push_str(crate::DERIVE);
+                if strict.contains(id) {
+                    out.push_str("#[serde(deny_unknown_fields)]\n");
+                }
                 out.push_str(&format!("pub struct {name} {{\n"));
                 for member in &structure.members {
                     let is_boxed = boxed.contains(&id.with_member(&member.name));

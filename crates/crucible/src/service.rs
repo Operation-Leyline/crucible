@@ -1,6 +1,7 @@
 //! The orchestrator: routes a request, runs the handler chain around the
 //! operation, and has the routing protocol write the response.
 
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
@@ -11,10 +12,11 @@ use axum::response::Response;
 use tower::util::BoxCloneSyncService;
 use tower::{Layer, Service, ServiceExt};
 
-use crate::context::Context;
+use crate::context::{Context, RequestMeta};
 use crate::error::{Error, FrameworkError, ModelledError};
-use crate::handler::{Handler, Job, Outcome};
+use crate::handler::{Handler, Job, Outcome, Prepare};
 use crate::handlers::{ExceptionTranslator, ServiceLog};
+use crate::operation::{Operation, OperationInfo};
 use crate::operations::{Invoke, Operations};
 use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Route};
 use crate::validate::Rejection;
@@ -29,6 +31,13 @@ type Reject = Arc<dyn Fn(&Rejection) -> Box<dyn ModelledError> + Send + Sync>;
 pub type Endpoint = BoxCloneSyncService<Request<Body>, Response, Infallible>;
 
 type Wrap = Box<dyn FnOnce(Endpoint) -> Endpoint + Send + Sync>;
+
+/// Picks a request's id from the request: an inbound header a trusted edge
+/// sets, say. `None` falls back to the host's id, then a fresh one.
+pub type RequestIdSource = fn(&axum::http::request::Parts) -> Option<HeaderValue>;
+
+/// The longest request id taken from outside; a longer one is replaced.
+const MAX_REQUEST_ID: usize = 128;
 
 /// A random UUID (v4) as a header value, formatted once.
 fn request_id() -> HeaderValue {
@@ -56,6 +65,9 @@ struct Inner {
     protocols: Vec<usize>,
     reject: Reject,
     body_limit: usize,
+    /// Per-operation overrides of `body_limit`, by operation shape id.
+    body_limits: HashMap<&'static str, usize>,
+    request_id: Option<RequestIdSource>,
 }
 
 impl Crucible {
@@ -66,6 +78,8 @@ impl Crucible {
             layers: Vec::new(),
             reject: None,
             body_limit: DEFAULT_BODY_LIMIT,
+            body_limits: Vec::new(),
+            request_id: None,
         }
     }
 
@@ -85,12 +99,24 @@ impl Crucible {
     /// one pass. For direct Lambda invokes and in-process callers; needs an
     /// [`InvokeProtocol`] in the chain.
     pub async fn invoke_json(&self, operation: &str, input: impl Into<Bytes>) -> Bytes {
+        self.invoke_json_with(operation, input, RequestMeta::default())
+            .await
+    }
+
+    /// [`Crucible::invoke_json`] with what the host knows about the call.
+    pub async fn invoke_json_with(
+        &self,
+        operation: &str,
+        input: impl Into<Bytes>,
+        meta: RequestMeta,
+    ) -> Bytes {
         let mut request = Request::post("/")
             .body(Body::from(input.into()))
             .expect("a POST to / is a valid request");
         request.extensions_mut().insert(Invocation {
             operation: operation.to_owned(),
         });
+        request.extensions_mut().insert(meta);
         let response = self.handle(request).await;
         axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
@@ -142,14 +168,29 @@ impl Crucible {
         let entry = route
             .as_ref()
             .and_then(|route| inner.operations.entry(route.operation));
+        let meta = parts.extensions.get::<RequestMeta>();
+        let id = inner
+            .request_id
+            .and_then(|source| source(&parts))
+            .or_else(|| meta.and_then(|meta| meta.request_id.clone()))
+            .filter(|id| !id.is_empty() && id.len() <= MAX_REQUEST_ID && id.to_str().is_ok())
+            .unwrap_or_else(request_id);
+        let deadline = meta.and_then(|meta| meta.deadline);
         let parts = Arc::new(parts);
         let context = Arc::new(Context::new(
-            request_id(),
+            id,
             entry.map(|entry| entry.info),
             parts.clone(),
         ));
+        if let Some(deadline) = deadline {
+            context.set_deadline(deadline);
+        }
 
-        let body = axum::body::to_bytes(body, inner.body_limit).await;
+        let limit = entry
+            .and_then(|entry| inner.body_limits.get(entry.info.id))
+            .copied()
+            .unwrap_or(inner.body_limit);
+        let body = axum::body::to_bytes(body, limit).await;
         let mut job = Job {
             service: inner.operations.service,
             context: context.clone(),
@@ -166,7 +207,6 @@ impl Crucible {
             input_snapshot: None,
         };
         if body.is_err() {
-            let limit = inner.body_limit;
             job.outcome = Some(Outcome::Failed(
                 Rejection::malformed("", format!("the body is larger than {limit} bytes")).into(),
             ));
@@ -256,7 +296,11 @@ pub struct Builder {
     layers: Vec<Wrap>,
     reject: Option<Reject>,
     body_limit: usize,
+    body_limits: Vec<BodyLimit>,
+    request_id: Option<RequestIdSource>,
 }
+
+type BodyLimit = Box<dyn Fn(&OperationInfo) -> Option<usize> + Send + Sync>;
 
 impl Builder {
     /// Appends a handler to the chain, inside every handler added before it:
@@ -322,12 +366,43 @@ impl Builder {
         self
     }
 
+    /// Where a request's id comes from, before the host's id (the Lambda
+    /// invocation's) and a fresh one. Ids empty or over 128 bytes are
+    /// replaced. Trust an inbound header only behind an edge that sets it.
+    pub fn request_id(mut self, source: RequestIdSource) -> Self {
+        self.request_id = Some(source);
+        self
+    }
+
+    /// The largest request body any operation reads; larger ones are refused
+    /// unread as a validation error.
     pub fn body_limit(mut self, bytes: usize) -> Self {
         self.body_limit = bytes;
         self
     }
 
-    pub fn build(self) -> Result<Crucible, BuildError> {
+    /// A body limit for one operation, overriding [`Builder::body_limit`].
+    pub fn operation_body_limit<O: Operation>(self, bytes: usize) -> Self {
+        let id = O::INFO.id;
+        self.body_limits(move |op| (op.id == id).then_some(bytes))
+    }
+
+    /// Body limits chosen per operation, for example from a trait in the
+    /// model: `limits(op)` is asked once per operation at `build`, and
+    /// `None` keeps the service-wide limit. Later calls win.
+    pub fn body_limits(
+        mut self,
+        limits: impl Fn(&OperationInfo) -> Option<usize> + Send + Sync + 'static,
+    ) -> Self {
+        self.body_limits.push(Box::new(limits));
+        self
+    }
+
+    pub fn build(mut self) -> Result<Crucible, BuildError> {
+        let prepare = Prepare::new(self.operations.service);
+        for handler in &mut self.handlers {
+            handler.prepare(&prepare).map_err(BuildError::Prepare)?;
+        }
         let protocols: Vec<usize> = self
             .handlers
             .iter()
@@ -343,6 +418,20 @@ impl Builder {
             (None, Some(generated)) => Arc::new(generated) as Reject,
             (None, None) => return Err(BuildError::NoRejection),
         };
+        let body_limits = self
+            .operations
+            .service
+            .operations
+            .iter()
+            .filter_map(|op| {
+                let limit = self
+                    .body_limits
+                    .iter()
+                    .rev()
+                    .find_map(|limits| limits(op))?;
+                Some((op.id, limit))
+            })
+            .collect();
         let core = Crucible {
             inner: Arc::new(Inner {
                 operations: self.operations,
@@ -350,6 +439,8 @@ impl Builder {
                 protocols,
                 reject,
                 body_limit: self.body_limit,
+                body_limits,
+                request_id: self.request_id,
             }),
             endpoint: None,
         };
@@ -380,6 +471,8 @@ pub enum BuildError {
     /// The service's validation error needs members crucible cannot fill:
     /// give the builder `on_rejection`.
     NoRejection,
+    /// A handler's `prepare` refused the service, saying why.
+    Prepare(String),
 }
 
 impl fmt::Display for BuildError {
@@ -389,6 +482,7 @@ impl fmt::Display for BuildError {
             Self::NoRejection => {
                 "the validation error has required members crucible cannot fill: call on_rejection"
             }
+            Self::Prepare(reason) => reason,
         })
     }
 }

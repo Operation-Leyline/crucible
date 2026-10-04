@@ -35,3 +35,9 @@ namespace crucible.protocols
     ]
 )
 structure json {}
+
+/// A structure that refuses members it does not define: a request naming an
+/// unknown member is a validation error, not silently ignored. Server side
+/// only; clients stay lenient, so a newer service can add members.
+@trait(selector: "structure")
+structure strict {}

@@ -70,12 +70,24 @@ pub struct OperationInfo {
 }
 
 impl OperationInfo {
-    /// A trait's JSON value, as written in the model.
+    /// A trait's JSON value, as written in the model. It is parsed on each
+    /// call: a handler reads its traits once, in `Handler::prepare`.
     pub fn trait_value(&self, id: &str) -> Option<Value> {
+        trait_value(self.traits, id)
+    }
+
+    /// A trait's value as `T`: `Ok(None)` when the operation does not have
+    /// it, an error when its value is not a `T`.
+    pub fn trait_as<T: DeserializeOwned>(&self, id: &str) -> serde_json::Result<Option<T>> {
         self.traits
             .iter()
             .find(|(trait_id, _)| *trait_id == id)
-            .and_then(|(_, json)| serde_json::from_str(json).ok())
+            .map(|(_, json)| serde_json::from_str(json))
+            .transpose()
+    }
+
+    pub fn has_trait(&self, id: &str) -> bool {
+        self.traits.iter().any(|(trait_id, _)| *trait_id == id)
     }
 
     pub fn declares(&self, error: &str) -> bool {
@@ -97,6 +109,26 @@ pub struct MemberInfo {
     pub scalar: Scalar,
     /// `@sensitive`: never written to a log.
     pub sensitive: bool,
+    /// The model's own traits on the member: shape id and JSON value.
+    pub traits: &'static [(&'static str, &'static str)],
+}
+
+impl MemberInfo {
+    /// A trait's JSON value, as written in the model.
+    pub fn trait_value(&self, id: &str) -> Option<Value> {
+        trait_value(self.traits, id)
+    }
+
+    pub fn has_trait(&self, id: &str) -> bool {
+        self.traits.iter().any(|(trait_id, _)| *trait_id == id)
+    }
+}
+
+fn trait_value(traits: &[(&str, &str)], id: &str) -> Option<Value> {
+    traits
+        .iter()
+        .find(|(trait_id, _)| *trait_id == id)
+        .and_then(|(_, json)| serde_json::from_str(json).ok())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

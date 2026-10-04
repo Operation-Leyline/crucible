@@ -83,6 +83,14 @@ requests, so it is a task-local the orchestrator sets around the call.
 **Decision:** a task spawned inside an implementation does not inherit it;
 `context.scope(future)` carries it across.
 
+The request id comes from `Builder::request_id(source)` when the service
+names one (an inbound header behind a trusted edge), else from the host, else
+it is a fresh UUID; an id that is empty or over 128 bytes is replaced. On
+Lambda the host supplies an HTTP event's own request id, or the invocation's
+id for a direct invoke, and the invocation deadline, so a handler can budget
+work against the time the function has left. Hosts pass both through a
+`RequestMeta` request extension.
+
 ## The orchestrator and the handler chain
 
 The service builder takes handlers in order. Each request:
@@ -155,6 +163,15 @@ ordinary handlers with nothing private. On top of the trait:
   takes metrics records.
 - **Exception rules**: `ExceptionTranslator::translate::<E>` by type, or
   `translate_with` over any error.
+- **The model's own traits**: `OperationInfo::traits` and
+  `MemberInfo::traits` carry every trait outside Smithy's namespaces, as
+  written in the model. `Handler::prepare(&mut self, &Prepare)` runs once
+  at `build`: a handler reads them there (`trait_as::<T>(id)`,
+  `has_trait(id)`) into its own per-operation table, and an `Err` fails the
+  build, so a missing or malformed trait never reaches a request.
+  `prepare.operations()` yields only the operations the handler runs for, so
+  a scoped handler (`.only(..)`) is not refused over operations it skips;
+  `prepare.service()` is the whole service.
 - **Answering a request**: `job.respond(response)` in a `before` hook sends
   `response` as it is. The remaining `before` hooks, decoding and the
   operation are skipped; `after` hooks (the answering handler's included) see
@@ -214,6 +231,24 @@ generator fills it when it can: `message`, and a `fieldList` of `path`/`name`
 plus `message`. Otherwise the service gives the builder
 `on_rejection(|rejection| ..)`, and `Violation::kind` tells a malformed
 request from a broken constraint.
+
+A request body over the limit is refused unread, as the validation error.
+`Builder::body_limit` sets the service-wide limit (10 MiB by default);
+`operation_body_limit::<GetCity>(bytes)` overrides it for one operation and
+`body_limits(|op| ..)` for any rule over `OperationInfo`, such as a trait in
+the model, resolved once at `build`.
+
+Inputs ignore members the model does not define, unless the structure is
+strict: marked `@crucible.protocols#strict`, or every structure an input
+reaches when the service generates with `strict_inputs()`. A strict
+structure answers an unknown member with the validation error, its path
+naming the member. Clients never generate strict, so a newer service can add
+members without breaking them.
+
+An error the generator fills (validation or internal) that has a string
+`requestId` member gets the id of the request it answers, the same one as
+the `x-request-id` header. A translation or `on_rejection` that builds such
+an error itself reads it from `Context::try_current()`.
 
 ## The service log
 

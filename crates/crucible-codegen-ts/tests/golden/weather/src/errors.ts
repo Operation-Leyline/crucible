@@ -31,6 +31,7 @@ export class ThrottlingError extends ServiceError {
 
 export class ValidationError extends ServiceError {
   declare readonly fieldList?: m.ValidationFieldList;
+  declare readonly requestId?: string;
 
   constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
     super("ValidationError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);

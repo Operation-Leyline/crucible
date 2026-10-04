@@ -242,3 +242,187 @@ async fn lambda_answers_direct_invokes_and_http_events_alike() {
         "{answered}"
     );
 }
+
+#[tokio::test]
+async fn a_rejected_request_carries_its_request_id_in_the_body_too() {
+    let request = axum::http::Request::get("/cities/nope")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let response = service().handle(request).await;
+    assert_eq!(response.status(), 400);
+    let header = response.headers()["x-request-id"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["requestId"], header.as_str(), "{body}");
+}
+
+#[tokio::test]
+async fn a_strict_input_refuses_a_member_it_does_not_define() {
+    let request = axum::http::Request::post("/cities")
+        .header("content-type", "application/json")
+        .body(axum::body::Body::from(r#"{"name":"Lima","nmae":"typo"}"#))
+        .unwrap();
+    let response = service().handle(request).await;
+    assert_eq!(response.status(), 400);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["__type"], "ValidationError", "{body}");
+    assert_eq!(body["fieldList"][0]["path"], "nmae", "{body}");
+}
+
+#[tokio::test]
+async fn an_operation_can_take_a_smaller_body_than_the_service() {
+    let body = json!({ "name": "Lima", "clientToken": "x".repeat(80) }).to_string();
+    let create = || {
+        axum::http::Request::post("/cities")
+            .header("content-type", "application/json")
+            .body(axum::body::Body::from(body.clone()))
+            .unwrap()
+    };
+    let limited = weather_service::builder(memory())
+        .operation_body_limit::<api::CreateCity>(64)
+        .build()
+        .unwrap();
+    let response = limited.handle(create()).await;
+    assert_eq!(response.status(), 400);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let refused: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        refused["message"]
+            .as_str()
+            .unwrap()
+            .contains("larger than 64 bytes"),
+        "{refused}"
+    );
+
+    let by_rule = weather_service::builder(memory())
+        .body_limits(|op| op.readonly.then_some(16))
+        .build()
+        .unwrap();
+    let response = by_rule.handle(create()).await;
+    assert_eq!(response.status(), 201, "CreateCity is not read-only");
+}
+
+/// Reads the model's traits once, at build: the operation's tier and the
+/// input members marked audited. Each request then looks its table up.
+#[derive(Default)]
+struct Audited {
+    table: std::collections::HashMap<&'static str, (String, Vec<&'static str>)>,
+    seen: Arc<Mutex<Vec<String>>>,
+}
+
+impl crucible::Handler for Audited {
+    fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
+        for op in prepare.operations() {
+            let tier = op
+                .trait_as::<String>("example.weather#tier")
+                .map_err(|error| format!("{}: bad tier: {error}", op.name))?;
+            let audited: Vec<&'static str> = op
+                .input
+                .iter()
+                .filter(|member| member.has_trait("example.weather#audited"))
+                .map(|member| member.name)
+                .collect();
+            if let Some(tier) = tier {
+                self.table.insert(op.name, (tier, audited));
+            }
+        }
+        Ok(())
+    }
+
+    fn after<'a>(&'a self, job: &'a mut crucible::Job) -> crucible::Hook<'a, ()> {
+        if let (Some(op), Some(input)) = (job.operation(), job.input_snapshot())
+            && let Some((tier, audited)) = self.table.get(op.name)
+        {
+            for member in audited {
+                self.seen
+                    .lock()
+                    .unwrap()
+                    .push(format!("{} {tier} {member}={}", op.name, input[*member]));
+            }
+        }
+        crucible::Hook::Ready(())
+    }
+
+    fn before<'a>(
+        &'a self,
+        job: &'a mut crucible::Job,
+    ) -> crucible::Hook<'a, crucible::Result<()>> {
+        job.snapshot_input();
+        crucible::Hook::Ready(Ok(()))
+    }
+}
+
+#[tokio::test]
+async fn handlers_read_operation_and_member_traits_once_at_build() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let service = weather_service::builder(memory())
+        .handler(Audited {
+            seen: seen.clone(),
+            ..Audited::default()
+        })
+        .build()
+        .unwrap();
+    service
+        .invoke("CreateCity", json!({ "name": "Lima" }))
+        .await;
+    service.invoke("Ping", json!({})).await;
+    assert_eq!(*seen.lock().unwrap(), [r#"CreateCity write name="Lima""#]);
+}
+
+struct WantsNumericTier;
+
+impl crucible::Handler for WantsNumericTier {
+    fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
+        for op in prepare.operations() {
+            op.trait_as::<u32>("example.weather#tier")
+                .map_err(|_| format!("{}: example.weather#tier must be a number", op.name))?;
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_handler_refusing_the_model_fails_the_build() {
+    let refused = weather_service::builder(memory())
+        .handler(WantsNumericTier)
+        .build()
+        .err()
+        .expect("the build fails");
+    assert_eq!(
+        refused,
+        crucible::BuildError::Prepare(
+            "CreateCity: example.weather#tier must be a number".to_owned()
+        )
+    );
+}
+
+#[tokio::test]
+async fn a_scoped_handler_prepares_only_for_the_operations_it_runs_for() {
+    use crucible::HandlerExt;
+    // CreateCity's tier is text, but this handler never runs for it.
+    weather_service::builder(memory())
+        .handler(WantsNumericTier.only(&["GetCity", "Ping"]))
+        .build()
+        .expect("the scope leaves CreateCity out");
+}
+
+#[tokio::test]
+async fn an_inner_scope_cannot_widen_an_outer_one() {
+    use crucible::HandlerExt;
+    // The inner scope admits everything, CreateCity included; the outer one
+    // leaves CreateCity out, so its text tier is never checked.
+    weather_service::builder(memory())
+        .handler(WantsNumericTier.when(|_| true).only(&["GetCity", "Ping"]))
+        .build()
+        .expect("the outer scope still leaves CreateCity out");
+}

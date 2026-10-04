@@ -62,6 +62,70 @@ pub trait Handler: Send + Sync + 'static {
     fn as_protocol(&self) -> Option<&dyn Protocol> {
         None
     }
+
+    /// Runs once, at `build`: where a handler reads the model's traits into
+    /// its own per-operation table, rather than parsing them on every
+    /// request. [`Prepare::operations`] yields the operations the handler
+    /// runs for (all of them, unless it is scoped), [`Prepare::service`] the
+    /// whole service. An error fails the build, so a missing or malformed
+    /// trait is found before the first request.
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        let _ = prepare;
+        Ok(())
+    }
+}
+
+/// The service as a handler sees it at `build`: the whole of it, and the
+/// operations the handler's scope includes.
+#[derive(Clone, Copy)]
+pub struct Prepare<'a> {
+    service: &'static ServiceInfo,
+    scope: Option<&'a (dyn Fn(&OperationInfo) -> bool + 'a)>,
+    /// The scope this one narrows: an operation must pass both.
+    outer: Option<&'a Prepare<'a>>,
+}
+
+impl<'a> Prepare<'a> {
+    pub(crate) fn new(service: &'static ServiceInfo) -> Self {
+        Self {
+            service,
+            scope: None,
+            outer: None,
+        }
+    }
+
+    pub fn service(&self) -> &'static ServiceInfo {
+        self.service
+    }
+
+    /// Whether the handler runs for `operation`.
+    pub fn applies(&self, operation: &OperationInfo) -> bool {
+        self.outer.is_none_or(|outer| outer.applies(operation))
+            && self.scope.is_none_or(|scope| scope(operation))
+    }
+
+    /// The operations the handler runs for.
+    pub fn operations(&self) -> impl Iterator<Item = &'static OperationInfo> + '_ {
+        self.service
+            .operations
+            .iter()
+            .copied()
+            .filter(|op| self.applies(op))
+    }
+
+    /// The same service, narrowed to the operations `scope` accepts too: for
+    /// a handler that wraps another and runs it for fewer operations. It
+    /// only ever narrows: an operation outside this scope stays outside.
+    pub fn within<'b>(&'b self, scope: &'b (dyn Fn(&OperationInfo) -> bool + 'b)) -> Prepare<'b>
+    where
+        'a: 'b,
+    {
+        Prepare {
+            service: self.service,
+            scope: Some(scope),
+            outer: Some(self),
+        }
+    }
 }
 
 /// A handler written with `async fn` hooks: every type implementing it is a
@@ -77,9 +141,19 @@ pub trait AsyncHandler: Send + Sync + 'static {
     async fn after(&self, job: &mut Job) {
         let _ = job;
     }
+
+    /// As [`Handler::prepare`].
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        let _ = prepare;
+        Ok(())
+    }
 }
 
 impl<T: AsyncHandler> Handler for T {
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        AsyncHandler::prepare(self, prepare)
+    }
+
     fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         Hook::Wait(AsyncHandler::before(self, job))
     }

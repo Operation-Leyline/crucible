@@ -46,12 +46,16 @@ pub struct Options {
     /// be an error whose only required member is `message`, or generation
     /// fails.
     pub internal_error: Option<ShapeId>,
+    /// Every structure an input reaches refuses members it does not define.
+    /// Without it, only structures with `@crucible.protocols#strict` do.
+    pub strict_inputs: bool,
 }
 
 /// The generated file's contents.
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
-    let model = models::emit(service, &mut diagnostics);
+    let strict = models::strict_shapes(service, options.strict_inputs);
+    let model = models::emit(service, &strict, &mut diagnostics);
     let errors = errors::emit(service, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
     let configured_validation = options.validation_error.as_ref();
@@ -107,7 +111,8 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
 /// The generated client file's contents, for `crucible_client::include_client!()`.
 pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
-    let model = models::emit(service, &mut diagnostics);
+    // A client reads what a newer service sends: never strict.
+    let model = models::emit(service, &Default::default(), &mut diagnostics);
     let errors = errors::emit(service, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
     let client = client::emit(service, &mut diagnostics);

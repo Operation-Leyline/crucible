@@ -30,9 +30,10 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
                 scalar(service, member)
             };
             format!(
-                "::crucible::operation::MemberInfo {{ name: {}, location: ::crucible::operation::Location::{location}, scalar: ::crucible::operation::Scalar::{scalar}, sensitive: {} }}",
+                "::crucible::operation::MemberInfo {{ name: {}, location: ::crucible::operation::Location::{location}, scalar: ::crucible::operation::Scalar::{scalar}, sensitive: {}, traits: {} }}",
                 literal(&member.name),
-                sensitive(service, member)
+                sensitive(service, member),
+                custom_traits(&member.traits)
             )
         })
         .collect();

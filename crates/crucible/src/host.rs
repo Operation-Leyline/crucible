@@ -105,7 +105,8 @@ pub async fn lambda(service: Crucible) -> Result<(), BoxError> {
     lambda_runtime::run(lambda_runtime::service_fn(
         move |event: lambda_runtime::LambdaEvent<Box<serde_json::value::RawValue>>| {
             let service = service.clone();
-            async move { lambda_event_json(&service, event.payload.get()).await }
+            let meta = invocation_meta(&event.context);
+            async move { lambda_event_json_with(&service, event.payload.get(), meta).await }
         },
     ))
     .await
@@ -121,7 +122,33 @@ pub async fn lambda_event_json(
     service: &Crucible,
     payload: &str,
 ) -> Result<Box<serde_json::value::RawValue>, BoxError> {
-    lambda_event::handle(service, payload).await
+    lambda_event_json_with(service, payload, crate::RequestMeta::default()).await
+}
+
+/// [`lambda_event_json`] with what the runtime knows about the invocation:
+/// its id (used unless an HTTP event carries its own request id) and its
+/// deadline, which handlers read from the context.
+#[cfg(feature = "lambda")]
+pub async fn lambda_event_json_with(
+    service: &Crucible,
+    payload: &str,
+    meta: crate::RequestMeta,
+) -> Result<Box<serde_json::value::RawValue>, BoxError> {
+    lambda_event::handle(service, payload, meta).await
+}
+
+/// The invocation's id and deadline (milliseconds since the epoch) as the
+/// context holds them.
+#[cfg(feature = "lambda")]
+fn invocation_meta(context: &lambda_runtime::Context) -> crate::RequestMeta {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let left = std::time::Duration::from_millis(context.deadline).saturating_sub(now);
+    crate::RequestMeta {
+        request_id: axum::http::HeaderValue::from_str(&context.request_id).ok(),
+        deadline: (context.deadline > 0).then(|| std::time::Instant::now() + left),
+    }
 }
 
 /// [`lambda_event_json`] with JSON values, for tests.
@@ -144,12 +171,12 @@ mod lambda_event {
     use std::borrow::Cow;
 
     use axum::body::{Body, Bytes};
-    use axum::http::{HeaderMap, Request};
+    use axum::http::{HeaderMap, HeaderValue, Request};
     use lambda_http::aws_lambda_events::alb::AlbTargetGroupResponse;
     use lambda_http::aws_lambda_events::apigw::{
         ApiGatewayProxyResponse, ApiGatewayV2httpResponse,
     };
-    use lambda_http::request::{LambdaRequest, RequestOrigin};
+    use lambda_http::request::{LambdaRequest, RequestContext, RequestOrigin};
     use serde::Deserialize;
     use serde::de::IgnoredAny;
     use serde_json::value::{RawValue, to_raw_value};
@@ -173,9 +200,20 @@ mod lambda_event {
         http_method: Option<IgnoredAny>,
     }
 
+    /// The request id an API Gateway event carries in its request context.
+    fn event_request_id(extensions: &axum::http::Extensions) -> Option<HeaderValue> {
+        let id = match extensions.get::<RequestContext>()? {
+            RequestContext::ApiGatewayV2(context) => context.request_id.as_deref(),
+            RequestContext::ApiGatewayV1(context) => context.request_id.as_deref(),
+            _ => None,
+        };
+        HeaderValue::from_str(id?).ok()
+    }
+
     pub(super) async fn handle(
         service: &Crucible,
         payload: &str,
+        meta: crate::RequestMeta,
     ) -> Result<Box<RawValue>, BoxError> {
         let envelope: Envelope<'_> = serde_json::from_str(payload)?;
         let operation = envelope
@@ -186,7 +224,7 @@ mod lambda_event {
         {
             let input = envelope.input.map_or("{}", RawValue::get);
             let answer = service
-                .invoke_json(&operation, Bytes::copy_from_slice(input.as_bytes()))
+                .invoke_json_with(&operation, Bytes::copy_from_slice(input.as_bytes()), meta)
                 .await;
             // A custom protocol may answer bytes that are not JSON.
             let answer = String::from_utf8(answer.to_vec())
@@ -199,7 +237,13 @@ mod lambda_event {
         }
         let request: LambdaRequest = serde_json::from_str(payload)?;
         let origin = request.request_origin();
-        let (parts, body) = axum::http::Request::<lambda_http::Body>::from(request).into_parts();
+        let (mut parts, body) =
+            axum::http::Request::<lambda_http::Body>::from(request).into_parts();
+        let event_id = event_request_id(&parts.extensions);
+        parts.extensions.insert(crate::RequestMeta {
+            request_id: event_id.or(meta.request_id),
+            deadline: meta.deadline,
+        });
         let body = match body {
             lambda_http::Body::Text(text) => text.into_bytes(),
             lambda_http::Body::Binary(bytes) => bytes,
