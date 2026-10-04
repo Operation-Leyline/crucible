@@ -13,6 +13,23 @@ permissions:
   contents: read
 
 jobs:
+  php:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.3', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: curl, json, zip
+          tools: composer:v2
+          coverage: none
+      - run: python3 tools/test-php.py
   dart:
     runs-on: ubuntu-latest
     strategy:
