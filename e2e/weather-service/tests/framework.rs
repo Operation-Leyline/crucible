@@ -321,11 +321,8 @@ struct Audited {
 }
 
 impl crucible::Handler for Audited {
-    fn prepare(
-        &mut self,
-        service: &'static crucible::operation::ServiceInfo,
-    ) -> Result<(), String> {
-        for op in service.operations {
+    fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
+        for op in prepare.operations() {
             let tier = op
                 .trait_as::<String>("example.weather#tier")
                 .map_err(|error| format!("{}: bad tier: {error}", op.name))?;
@@ -385,11 +382,8 @@ async fn handlers_read_operation_and_member_traits_once_at_build() {
 struct WantsNumericTier;
 
 impl crucible::Handler for WantsNumericTier {
-    fn prepare(
-        &mut self,
-        service: &'static crucible::operation::ServiceInfo,
-    ) -> Result<(), String> {
-        for op in service.operations {
+    fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
+        for op in prepare.operations() {
             op.trait_as::<u32>("example.weather#tier")
                 .map_err(|_| format!("{}: example.weather#tier must be a number", op.name))?;
         }
@@ -410,4 +404,14 @@ async fn a_handler_refusing_the_model_fails_the_build() {
             "CreateCity: example.weather#tier must be a number".to_owned()
         )
     );
+}
+
+#[tokio::test]
+async fn a_scoped_handler_prepares_only_for_the_operations_it_runs_for() {
+    use crucible::HandlerExt;
+    // CreateCity's tier is text, but this handler never runs for it.
+    weather_service::builder(memory())
+        .handler(WantsNumericTier.only(&["GetCity", "Ping"]))
+        .build()
+        .expect("the scope leaves CreateCity out");
 }

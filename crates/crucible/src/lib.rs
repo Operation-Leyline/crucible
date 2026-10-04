@@ -38,7 +38,7 @@ pub use crucible_wire::{error, operation, time, validate};
 
 pub use context::{Context, RequestMeta, WithContext};
 pub use error::{Error, FrameworkError, ModelledError, Result};
-pub use handler::{AsyncHandler, Handler, Hook, Job, Outcome, Resolution};
+pub use handler::{AsyncHandler, Handler, Hook, Job, Outcome, Prepare, Resolution};
 pub use handlers::HandlerExt;
 pub use operation::{Operation, OperationInfo, ServiceInfo};
 pub use operations::{MissingOperations, Operations};

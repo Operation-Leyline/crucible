@@ -128,3 +128,19 @@ async fn the_services_own_source_comes_first_and_bad_ids_are_replaced() {
         "no deadline over plain HTTP"
     );
 }
+
+#[tokio::test]
+async fn an_id_that_is_not_text_is_replaced() {
+    let (service, seen) = recording(Some(edge_id));
+    let request = Request::get("/ping")
+        .header("x-edge-id", HeaderValue::from_bytes(b"id-\xff").unwrap())
+        .body(Body::empty())
+        .unwrap();
+    let response = service.handle(request).await;
+    let id = response.headers()["x-request-id"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(id.len(), 36, "a fresh UUID");
+    assert_eq!(seen.lock().unwrap()[0].0, id, "logs and the header agree");
+}

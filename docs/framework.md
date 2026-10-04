@@ -165,10 +165,13 @@ ordinary handlers with nothing private. On top of the trait:
   `translate_with` over any error.
 - **The model's own traits**: `OperationInfo::traits` and
   `MemberInfo::traits` carry every trait outside Smithy's namespaces, as
-  written in the model. `Handler::prepare(&mut self, &ServiceInfo)` runs once
+  written in the model. `Handler::prepare(&mut self, &Prepare)` runs once
   at `build`: a handler reads them there (`trait_as::<T>(id)`,
   `has_trait(id)`) into its own per-operation table, and an `Err` fails the
   build, so a missing or malformed trait never reaches a request.
+  `prepare.operations()` yields only the operations the handler runs for, so
+  a scoped handler (`.only(..)`) is not refused over operations it skips;
+  `prepare.service()` is the whole service.
 - **Answering a request**: `job.respond(response)` in a `before` hook sends
   `response` as it is. The remaining `before` hooks, decoding and the
   operation are skipped; `after` hooks (the answering handler's included) see

@@ -22,8 +22,8 @@ pub use service_log::{Fields, LogPolicy, LogSink, ServiceLog, TracingSink};
 
 use crate::context::Context;
 use crate::error::{Error, Result};
-use crate::handler::{Handler, Hook, Job, Outcome};
-use crate::operation::{Operation, OperationInfo, ServiceInfo};
+use crate::handler::{Handler, Hook, Job, Outcome, Prepare};
+use crate::operation::{Operation, OperationInfo};
 use crate::protocol::Protocol;
 
 /// Scoping for every handler.
@@ -99,8 +99,12 @@ impl<H: Handler> Handler for Scoped<H> {
         self.inner.as_protocol()
     }
 
-    fn prepare(&mut self, service: &'static ServiceInfo) -> std::result::Result<(), String> {
-        self.inner.prepare(service)
+    /// The inner handler prepares for the operations this scope (and any
+    /// scope around it) runs it for.
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        let applies = &self.applies;
+        let scope = |op: &OperationInfo| prepare.applies(op) && applies(op);
+        self.inner.prepare(&prepare.within(&scope))
     }
 }
 

@@ -14,7 +14,7 @@ use tower::{Layer, Service, ServiceExt};
 
 use crate::context::{Context, RequestMeta};
 use crate::error::{Error, FrameworkError, ModelledError};
-use crate::handler::{Handler, Job, Outcome};
+use crate::handler::{Handler, Job, Outcome, Prepare};
 use crate::handlers::{ExceptionTranslator, ServiceLog};
 use crate::operation::{Operation, OperationInfo};
 use crate::operations::{Invoke, Operations};
@@ -65,7 +65,7 @@ struct Inner {
     protocols: Vec<usize>,
     reject: Reject,
     body_limit: usize,
-    /// Per-operation overrides of `body_limit`, by operation name.
+    /// Per-operation overrides of `body_limit`, by operation shape id.
     body_limits: HashMap<&'static str, usize>,
     request_id: Option<RequestIdSource>,
 }
@@ -173,7 +173,7 @@ impl Crucible {
             .request_id
             .and_then(|source| source(&parts))
             .or_else(|| meta.and_then(|meta| meta.request_id.clone()))
-            .filter(|id| !id.is_empty() && id.len() <= MAX_REQUEST_ID)
+            .filter(|id| !id.is_empty() && id.len() <= MAX_REQUEST_ID && id.to_str().is_ok())
             .unwrap_or_else(request_id);
         let deadline = meta.and_then(|meta| meta.deadline);
         let parts = Arc::new(parts);
@@ -187,7 +187,7 @@ impl Crucible {
         }
 
         let limit = entry
-            .and_then(|entry| inner.body_limits.get(entry.info.name))
+            .and_then(|entry| inner.body_limits.get(entry.info.id))
             .copied()
             .unwrap_or(inner.body_limit);
         let body = axum::body::to_bytes(body, limit).await;
@@ -383,8 +383,8 @@ impl Builder {
 
     /// A body limit for one operation, overriding [`Builder::body_limit`].
     pub fn operation_body_limit<O: Operation>(self, bytes: usize) -> Self {
-        let name = O::INFO.name;
-        self.body_limits(move |op| (op.name == name).then_some(bytes))
+        let id = O::INFO.id;
+        self.body_limits(move |op| (op.id == id).then_some(bytes))
     }
 
     /// Body limits chosen per operation, for example from a trait in the
@@ -399,9 +399,9 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Result<Crucible, BuildError> {
-        let service = self.operations.service;
+        let prepare = Prepare::new(self.operations.service);
         for handler in &mut self.handlers {
-            handler.prepare(service).map_err(BuildError::Prepare)?;
+            handler.prepare(&prepare).map_err(BuildError::Prepare)?;
         }
         let protocols: Vec<usize> = self
             .handlers
@@ -429,7 +429,7 @@ impl Builder {
                     .iter()
                     .rev()
                     .find_map(|limits| limits(op))?;
-                Some((op.name, limit))
+                Some((op.id, limit))
             })
             .collect();
         let core = Crucible {

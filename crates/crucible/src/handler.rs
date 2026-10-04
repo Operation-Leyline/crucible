@@ -63,13 +63,59 @@ pub trait Handler: Send + Sync + 'static {
         None
     }
 
-    /// Runs once, at `build`, with the service's description: where a
-    /// handler reads the model's traits into its own per-operation table,
-    /// rather than parsing them on every request. An error fails the build,
-    /// so a missing or malformed trait is found before the first request.
-    fn prepare(&mut self, service: &'static ServiceInfo) -> std::result::Result<(), String> {
-        let _ = service;
+    /// Runs once, at `build`: where a handler reads the model's traits into
+    /// its own per-operation table, rather than parsing them on every
+    /// request. [`Prepare::operations`] yields the operations the handler
+    /// runs for (all of them, unless it is scoped), [`Prepare::service`] the
+    /// whole service. An error fails the build, so a missing or malformed
+    /// trait is found before the first request.
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        let _ = prepare;
         Ok(())
+    }
+}
+
+/// The service as a handler sees it at `build`: the whole of it, and the
+/// operations the handler's scope includes.
+#[derive(Clone, Copy)]
+pub struct Prepare<'a> {
+    service: &'static ServiceInfo,
+    scope: Option<&'a (dyn Fn(&OperationInfo) -> bool + 'a)>,
+}
+
+impl<'a> Prepare<'a> {
+    pub(crate) fn new(service: &'static ServiceInfo) -> Self {
+        Self {
+            service,
+            scope: None,
+        }
+    }
+
+    pub fn service(&self) -> &'static ServiceInfo {
+        self.service
+    }
+
+    /// Whether the handler runs for `operation`.
+    pub fn applies(&self, operation: &OperationInfo) -> bool {
+        self.scope.is_none_or(|scope| scope(operation))
+    }
+
+    /// The operations the handler runs for.
+    pub fn operations(&self) -> impl Iterator<Item = &'static OperationInfo> + '_ {
+        self.service
+            .operations
+            .iter()
+            .copied()
+            .filter(|op| self.applies(op))
+    }
+
+    /// The same service, narrowed to the operations `scope` accepts too: for
+    /// a handler that wraps another and runs it for fewer operations.
+    pub fn within<'b>(&self, scope: &'b (dyn Fn(&OperationInfo) -> bool + 'b)) -> Prepare<'b> {
+        Prepare {
+            service: self.service,
+            scope: Some(scope),
+        }
     }
 }
 
@@ -88,15 +134,15 @@ pub trait AsyncHandler: Send + Sync + 'static {
     }
 
     /// As [`Handler::prepare`].
-    fn prepare(&mut self, service: &'static ServiceInfo) -> std::result::Result<(), String> {
-        let _ = service;
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        let _ = prepare;
         Ok(())
     }
 }
 
 impl<T: AsyncHandler> Handler for T {
-    fn prepare(&mut self, service: &'static ServiceInfo) -> std::result::Result<(), String> {
-        AsyncHandler::prepare(self, service)
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        AsyncHandler::prepare(self, prepare)
     }
 
     fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
