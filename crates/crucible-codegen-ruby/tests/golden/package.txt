@@ -1,0 +1,838 @@
+=== crucible.json ===
+{
+  "generatorVersion": "0.1.0",
+  "service": "example.weather#Weather",
+  "serviceVersion": "2026-10-01",
+  "packageVersion": "0.0.0",
+  "schemaSha256": "8bbafc2ee509c6f70fb2da08e8bcdf9de8953944425a785fe788c40f2a78c453"
+}
+=== lib/weather_client.rb ===
+# frozen_string_literal: true
+require_relative 'weather_client/runtime/unit'
+require_relative 'weather_client/runtime/json_number'
+require_relative 'weather_client/runtime/exact_json'
+require_relative 'weather_client/runtime/json_value'
+require_relative 'weather_client/runtime/timestamp'
+require_relative 'weather_client/runtime/wire_context'
+require_relative 'weather_client/runtime/wire_codec'
+require_relative 'weather_client/runtime/error_metadata'
+require_relative 'weather_client/runtime/service_error'
+require_relative 'weather_client/runtime/cancellation_token'
+require_relative 'weather_client/runtime/call_scope'
+require_relative 'weather_client/runtime/client_config'
+require_relative 'weather_client/runtime/http_request'
+require_relative 'weather_client/runtime/http_response'
+require_relative 'weather_client/runtime/net_http_transport'
+require_relative 'weather_client/runtime/client_runtime'
+require_relative 'weather_client/models/city_summary'
+require_relative 'weather_client/models/conflict_error'
+require_relative 'weather_client/models/coordinates'
+require_relative 'weather_client/models/create_city_input'
+require_relative 'weather_client/models/create_city_output'
+require_relative 'weather_client/models/get_city_input'
+require_relative 'weather_client/models/get_city_output'
+require_relative 'weather_client/models/get_city_photo_input'
+require_relative 'weather_client/models/get_city_photo_output'
+require_relative 'weather_client/models/list_cities_input'
+require_relative 'weather_client/models/list_cities_output'
+require_relative 'weather_client/models/location'
+require_relative 'weather_client/models/not_found_error'
+require_relative 'weather_client/models/photo_summary'
+require_relative 'weather_client/models/put_city_photo_input'
+require_relative 'weather_client/models/put_city_photo_output'
+require_relative 'weather_client/models/sky'
+require_relative 'weather_client/models/status_input'
+require_relative 'weather_client/models/status_output'
+require_relative 'weather_client/models/throttling_error'
+require_relative 'weather_client/models/validation_error'
+require_relative 'weather_client/models/validation_field'
+require_relative 'weather_client/models/validation_reason'
+require_relative 'weather_client/models/registry'
+module Weather
+  def self.codec
+    @codec ||= Runtime::WireCodec.new(Runtime::ExactJson.decode(::File.read(::File.join(__dir__, 'weather_client/schema.json'))), Models::Registry::TYPES)
+  end
+end
+require_relative 'weather_client/client'
+
+=== lib/weather_client/client.rb ===
+# frozen_string_literal: true
+module Weather
+  class Client
+    def initialize(config = Runtime::ClientConfig.new)
+      @runtime = Runtime::ClientRuntime.new(config, ::Weather.codec, endpoint: '', digest: true)
+    end
+    def close = @runtime.close
+    def create_city(input, cancellation: nil)
+      @runtime.call('CreateCity', input, cancellation: cancellation)
+    end
+    def get_city(input, cancellation: nil)
+      @runtime.call('GetCity', input, cancellation: cancellation)
+    end
+    def get_city_photo(input, cancellation: nil)
+      @runtime.call('GetCityPhoto', input, cancellation: cancellation)
+    end
+    def list_cities(input, cancellation: nil)
+      @runtime.call('ListCities', input, cancellation: cancellation)
+    end
+    def list_cities_pages(input, cancellation: nil)
+      @runtime.pages('ListCities', input, cancellation: cancellation)
+    end
+    def ping(cancellation: nil)
+      @runtime.call('Ping', Runtime::Unit.new, cancellation: cancellation)
+    end
+    def put_city_photo(input, cancellation: nil)
+      @runtime.call('PutCityPhoto', input, cancellation: cancellation)
+    end
+    def status(input, cancellation: nil)
+      @runtime.call('Status', input, cancellation: cancellation)
+    end
+  end
+end
+
+=== lib/weather_client/models/city_summary.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class CitySummary
+      attr_reader :id
+      attr_reader :name
+      attr_reader :population
+      attr_reader :updated_at
+      attr_reader :created_at
+      def initialize(id:, name:, population:, updated_at: ::Weather::Runtime::UNSET, created_at: ::Weather::Runtime::UNSET)
+        @id = id
+        @name = name
+        @population = population
+        @updated_at = updated_at
+        @created_at = created_at
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          id: context.read('id', object, optional: false),
+          name: context.read('name', object, optional: false),
+          population: context.read('population', object, optional: false),
+          updated_at: context.read('updatedAt', object, optional: true),
+          created_at: context.read('createdAt', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'id', @id, optional: false)
+        context.put(object, 'name', @name, optional: false)
+        context.put(object, 'population', @population, optional: false)
+        context.put(object, 'updatedAt', @updated_at, optional: true)
+        context.put(object, 'createdAt', @created_at, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/conflict_error.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class ConflictError < ::Weather::Runtime::ServiceError
+      attr_reader :message_value
+      def initialize(message_value:, metadata: ::Weather::Runtime::ErrorMetadata.new)
+        super(metadata)
+        @message_value = message_value
+      end
+      def self.from_wire(value, context, metadata = ::Weather::Runtime::ErrorMetadata.new)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          message_value: context.read('message', object, optional: false),
+          metadata: metadata,
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'message', @message_value, optional: false)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/coordinates.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class Coordinates
+      attr_reader :latitude
+      attr_reader :longitude
+      def initialize(latitude:, longitude:)
+        @latitude = latitude
+        @longitude = longitude
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          latitude: context.read('latitude', object, optional: false),
+          longitude: context.read('longitude', object, optional: false),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'latitude', @latitude, optional: false)
+        context.put(object, 'longitude', @longitude, optional: false)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/create_city_input.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class CreateCityInput
+      attr_reader :name
+      attr_reader :location
+      attr_reader :client_token
+      attr_reader :expected_revision
+      def initialize(name: ::Weather::Runtime::UNSET, location: ::Weather::Runtime::UNSET, client_token: ::Weather::Runtime::UNSET, expected_revision: ::Weather::Runtime::UNSET)
+        @name = name
+        @location = location
+        @client_token = client_token
+        @expected_revision = expected_revision
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          name: context.read('name', object, optional: true),
+          location: context.read('location', object, optional: true),
+          client_token: context.read('clientToken', object, optional: true),
+          expected_revision: context.read('expectedRevision', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'name', @name, optional: true)
+        context.put(object, 'location', @location, optional: true)
+        context.put(object, 'clientToken', @client_token, optional: true)
+        context.put(object, 'expectedRevision', @expected_revision, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/create_city_output.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class CreateCityOutput
+      attr_reader :city
+      def initialize(city:)
+        @city = city
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          city: context.read('city', object, optional: false),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'city', @city, optional: false)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/get_city_input.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class GetCityInput
+      attr_reader :city_id
+      attr_reader :at
+      def initialize(city_id: ::Weather::Runtime::UNSET, at: ::Weather::Runtime::UNSET)
+        @city_id = city_id
+        @at = at
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          city_id: context.read('cityId', object, optional: true),
+          at: context.read('at', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'cityId', @city_id, optional: true)
+        context.put(object, 'at', @at, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/get_city_output.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class GetCityOutput
+      attr_reader :city
+      attr_reader :forecast
+      attr_reader :request_id
+      def initialize(city:, forecast: ::Weather::Runtime::UNSET, request_id: ::Weather::Runtime::UNSET)
+        @city = city
+        @forecast = forecast
+        @request_id = request_id
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          city: context.read('city', object, optional: false),
+          forecast: context.read('forecast', object, optional: true),
+          request_id: context.read('requestId', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'city', @city, optional: false)
+        context.put(object, 'forecast', @forecast, optional: true)
+        context.put(object, 'requestId', @request_id, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/get_city_photo_input.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class GetCityPhotoInput
+      attr_reader :city_id
+      def initialize(city_id: ::Weather::Runtime::UNSET)
+        @city_id = city_id
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          city_id: context.read('cityId', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'cityId', @city_id, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/get_city_photo_output.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class GetCityPhotoOutput
+      attr_reader :caption
+      attr_reader :photo
+      def initialize(caption: ::Weather::Runtime::UNSET, photo: ::Weather::Runtime::UNSET)
+        @caption = caption
+        @photo = photo
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          caption: context.read('caption', object, optional: true),
+          photo: context.read('photo', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'caption', @caption, optional: true)
+        context.put(object, 'photo', @photo, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/list_cities_input.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class ListCitiesInput
+      attr_reader :next_token
+      attr_reader :max_results
+      attr_reader :tags
+      def initialize(next_token: ::Weather::Runtime::UNSET, max_results: ::Weather::Runtime::UNSET, tags: ::Weather::Runtime::UNSET)
+        @next_token = next_token
+        @max_results = max_results
+        @tags = tags
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          next_token: context.read('nextToken', object, optional: true),
+          max_results: context.read('maxResults', object, optional: true),
+          tags: context.read('tags', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'nextToken', @next_token, optional: true)
+        context.put(object, 'maxResults', @max_results, optional: true)
+        context.put(object, 'tags', @tags, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/list_cities_output.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class ListCitiesOutput
+      attr_reader :cities
+      attr_reader :next_token
+      def initialize(cities:, next_token: ::Weather::Runtime::UNSET)
+        @cities = cities
+        @next_token = next_token
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          cities: context.read('cities', object, optional: false),
+          next_token: context.read('nextToken', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'cities', @cities, optional: false)
+        context.put(object, 'nextToken', @next_token, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/location.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class Location
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        raise ::ArgumentError, 'Union requires one member' unless object.size == 1
+        key, value = object.first
+        case key
+        when 'coordinates' then CoordinatesVariant.new(value.nil? ? nil : context.codec.decode(value, context.member(key)))
+        when 'unknown' then UnknownVariant.new(value.nil? ? nil : context.codec.decode(value, context.member(key)))
+        else Unknown.new(key, ::Weather::Runtime::JsonValue.new(value))
+        end
+      end
+      class CoordinatesVariant < Location
+        attr_reader :value
+        def initialize(value)
+          @value = value
+          freeze
+        end
+        def to_wire(context)
+          {'coordinates' => @value.nil? ? nil : context.codec.encode(@value, context.member('coordinates'))}
+        end
+      end
+      class UnknownVariant < Location
+        attr_reader :value
+        def initialize(value)
+          @value = value
+          freeze
+        end
+        def to_wire(context)
+          {'unknown' => @value.nil? ? nil : context.codec.encode(@value, context.member('unknown'))}
+        end
+      end
+      class Unknown < Location
+        attr_reader :name, :value
+        def initialize(name, value)
+          @name = ::Weather::Runtime::WireCodec.string(name).freeze
+          raise ::ArgumentError, 'Expected JsonValue' unless value.is_a?(::Weather::Runtime::JsonValue)
+          @value = value
+          freeze
+        end
+        def to_wire(context)
+          raise ::ArgumentError, 'Unknown variant name is declared' if context.shape.fetch('members').key?(@name)
+          {@name => @value.value}
+        end
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/not_found_error.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class NotFoundError < ::Weather::Runtime::ServiceError
+      attr_reader :message_value
+      attr_reader :resource_id
+      def initialize(message_value:, resource_id: ::Weather::Runtime::UNSET, metadata: ::Weather::Runtime::ErrorMetadata.new)
+        super(metadata)
+        @message_value = message_value
+        @resource_id = resource_id
+      end
+      def self.from_wire(value, context, metadata = ::Weather::Runtime::ErrorMetadata.new)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          message_value: context.read('message', object, optional: false),
+          resource_id: context.read('resourceId', object, optional: true),
+          metadata: metadata,
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'message', @message_value, optional: false)
+        context.put(object, 'resourceId', @resource_id, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/photo_summary.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class PhotoSummary
+      attr_reader :size
+      attr_reader :thumbnail
+      attr_reader :caption
+      def initialize(size:, thumbnail:, caption: ::Weather::Runtime::UNSET)
+        @size = size
+        @thumbnail = thumbnail
+        @caption = caption
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          size: context.read('size', object, optional: false),
+          thumbnail: context.read('thumbnail', object, optional: false),
+          caption: context.read('caption', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'size', @size, optional: false)
+        context.put(object, 'thumbnail', @thumbnail, optional: false)
+        context.put(object, 'caption', @caption, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/put_city_photo_input.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class PutCityPhotoInput
+      attr_reader :city_id
+      attr_reader :caption
+      attr_reader :photo
+      def initialize(city_id: ::Weather::Runtime::UNSET, caption: ::Weather::Runtime::UNSET, photo: ::Weather::Runtime::UNSET)
+        @city_id = city_id
+        @caption = caption
+        @photo = photo
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          city_id: context.read('cityId', object, optional: true),
+          caption: context.read('caption', object, optional: true),
+          photo: context.read('photo', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'cityId', @city_id, optional: true)
+        context.put(object, 'caption', @caption, optional: true)
+        context.put(object, 'photo', @photo, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/put_city_photo_output.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class PutCityPhotoOutput
+      attr_reader :photo
+      def initialize(photo:)
+        @photo = photo
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          photo: context.read('photo', object, optional: false),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'photo', @photo, optional: false)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/registry.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    module Registry
+      TYPES = {
+        'example.weather#CitySummary' => CitySummary,
+        'example.weather#ConflictError' => ConflictError,
+        'example.weather#Coordinates' => Coordinates,
+        'example.weather#CreateCityInput' => CreateCityInput,
+        'example.weather#CreateCityOutput' => CreateCityOutput,
+        'example.weather#GetCityInput' => GetCityInput,
+        'example.weather#GetCityOutput' => GetCityOutput,
+        'example.weather#GetCityPhotoInput' => GetCityPhotoInput,
+        'example.weather#GetCityPhotoOutput' => GetCityPhotoOutput,
+        'example.weather#ListCitiesInput' => ListCitiesInput,
+        'example.weather#ListCitiesOutput' => ListCitiesOutput,
+        'example.weather#Location' => Location,
+        'example.weather#NotFoundError' => NotFoundError,
+        'example.weather#PhotoSummary' => PhotoSummary,
+        'example.weather#PutCityPhotoInput' => PutCityPhotoInput,
+        'example.weather#PutCityPhotoOutput' => PutCityPhotoOutput,
+        'example.weather#Sky' => Sky,
+        'example.weather#StatusInput' => StatusInput,
+        'example.weather#StatusOutput' => StatusOutput,
+        'example.weather#ThrottlingError' => ThrottlingError,
+        'example.weather#ValidationError' => ValidationError,
+        'example.weather#ValidationField' => ValidationField,
+        'example.weather#ValidationReason' => ValidationReason,
+      }.freeze
+    end
+  end
+end
+
+=== lib/weather_client/models/sky.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class Sky
+      attr_reader :value
+      def initialize(value)
+        @value = ::Weather::Runtime::WireCodec.string(value).freeze
+        freeze
+      end
+      def self.from_wire(value, _context) = new(value)
+      def to_wire(_context) = @value
+      def ==(other) = other.is_a?(self.class) && @value == other.value
+      alias eql? ==
+      def hash = @value.hash
+      CLEAR = new('clear')
+      CLOUDY = new('cloudy')
+    end
+  end
+end
+
+=== lib/weather_client/models/status_input.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class StatusInput
+      def initialize()
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+        )
+      end
+      def to_wire(context)
+        object = {}
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/status_output.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class StatusOutput
+      def initialize()
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+        )
+      end
+      def to_wire(context)
+        object = {}
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/throttling_error.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class ThrottlingError < ::Weather::Runtime::ServiceError
+      attr_reader :message_value
+      attr_reader :retry_after
+      def initialize(message_value:, retry_after: ::Weather::Runtime::UNSET, metadata: ::Weather::Runtime::ErrorMetadata.new)
+        super(metadata)
+        @message_value = message_value
+        @retry_after = retry_after
+      end
+      def self.from_wire(value, context, metadata = ::Weather::Runtime::ErrorMetadata.new)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          message_value: context.read('message', object, optional: false),
+          retry_after: context.read('retryAfter', object, optional: true),
+          metadata: metadata,
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'message', @message_value, optional: false)
+        context.put(object, 'retryAfter', @retry_after, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/validation_error.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class ValidationError < ::Weather::Runtime::ServiceError
+      attr_reader :message_value
+      attr_reader :reason
+      attr_reader :field_list
+      attr_reader :request_id
+      def initialize(message_value:, reason:, field_list: ::Weather::Runtime::UNSET, request_id: ::Weather::Runtime::UNSET, metadata: ::Weather::Runtime::ErrorMetadata.new)
+        super(metadata)
+        @message_value = message_value
+        @reason = reason
+        @field_list = field_list
+        @request_id = request_id
+      end
+      def self.from_wire(value, context, metadata = ::Weather::Runtime::ErrorMetadata.new)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          message_value: context.read('message', object, optional: false),
+          reason: context.read('reason', object, optional: false),
+          field_list: context.read('fieldList', object, optional: true),
+          request_id: context.read('requestId', object, optional: true),
+          metadata: metadata,
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'message', @message_value, optional: false)
+        context.put(object, 'reason', @reason, optional: false)
+        context.put(object, 'fieldList', @field_list, optional: true)
+        context.put(object, 'requestId', @request_id, optional: true)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/validation_field.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class ValidationField
+      attr_reader :path
+      attr_reader :message_value
+      def initialize(path:, message_value:)
+        @path = path
+        @message_value = message_value
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Weather::Runtime::WireCodec.object(value)
+        new(
+          path: context.read('path', object, optional: false),
+          message_value: context.read('message', object, optional: false),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'path', @path, optional: false)
+        context.put(object, 'message', @message_value, optional: false)
+        object
+      end
+    end
+  end
+end
+
+=== lib/weather_client/models/validation_reason.rb ===
+# frozen_string_literal: true
+module Weather
+  module Models
+    class ValidationReason
+      attr_reader :value
+      def initialize(value)
+        @value = ::Weather::Runtime::WireCodec.string(value).freeze
+        freeze
+      end
+      def self.from_wire(value, _context) = new(value)
+      def to_wire(_context) = @value
+      def ==(other) = other.is_a?(self.class) && @value == other.value
+      alias eql? ==
+      def hash = @value.hash
+      UNKNOWN_OPERATION = new('unknownOperation')
+      CANNOT_PARSE = new('cannotParse')
+      FIELD_VALIDATION_FAILED = new('fieldValidationFailed')
+      OTHER = new('other')
+    end
+  end
+end
+
+=== lib/weather_client/schema.json ===
+{"service":"example.weather#Weather","version":"2026-10-01","shapes":{"example.weather#CityId":{"kind":"string","format":"date-time","name":"CityId"},"example.weather#CityName":{"kind":"string","format":"date-time","name":"CityName"},"example.weather#CitySummaries":{"kind":"list","member":{"target":"example.weather#CitySummary","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"CitySummaries"},"example.weather#CitySummary":{"kind":"structure","members":{"id":{"target":"example.weather#CityId","attribute":"id","required":true,"default":null,"format":"date-time"},"name":{"target":"example.weather#CityName","attribute":"name","required":true,"default":null,"format":"date-time"},"population":{"target":"smithy.api#Long","attribute":"population","required":false,"default":0,"format":"date-time"},"updatedAt":{"target":"smithy.api#Timestamp","attribute":"updated_at","required":false,"default":null,"format":"date-time"},"createdAt":{"target":"smithy.api#Timestamp","attribute":"created_at","required":false,"default":null,"format":"epoch-seconds"}},"name":"CitySummary"},"example.weather#ConflictError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"message_value","required":true,"default":null,"format":"date-time"}},"error":{"status":409,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"ConflictError"},"example.weather#Coordinates":{"kind":"structure","members":{"latitude":{"target":"smithy.api#Double","attribute":"latitude","required":true,"default":null,"format":"date-time"},"longitude":{"target":"smithy.api#Double","attribute":"longitude","required":true,"default":null,"format":"date-time"}},"name":"Coordinates"},"example.weather#CreateCityInput":{"kind":"structure","members":{"name":{"target":"example.weather#CityName","attribute":"name","required":true,"default":null,"format":"date-time"},"location":{"target":"example.weather#Location","attribute":"location","required":false,"default":null,"format":"date-time"},"clientToken":{"target":"smithy.api#String","attribute":"client_token","required":false,"default":null,"format":"date-time"},"expectedRevision":{"target":"smithy.api#Long","attribute":"expected_revision","required":false,"default":null,"format":"date-time"}},"name":"CreateCityInput"},"example.weather#CreateCityOutput":{"kind":"structure","members":{"city":{"target":"example.weather#CitySummary","attribute":"city","required":true,"default":null,"format":"date-time"}},"name":"CreateCityOutput"},"example.weather#DateTime":{"kind":"timestamp","format":"date-time","name":"DateTime"},"example.weather#Forecast":{"kind":"map","key":{"target":"example.weather#Sky","attribute":"key","required":false,"default":null,"format":"date-time"},"value":{"target":"smithy.api#Document","attribute":"value","required":false,"default":null,"format":"date-time"},"name":"Forecast"},"example.weather#GetCityInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"city_id","required":true,"default":null,"format":"date-time"},"at":{"target":"example.weather#DateTime","attribute":"at","required":false,"default":null,"format":"date-time"}},"name":"GetCityInput"},"example.weather#GetCityOutput":{"kind":"structure","members":{"city":{"target":"example.weather#CitySummary","attribute":"city","required":true,"default":null,"format":"date-time"},"forecast":{"target":"example.weather#Forecast","attribute":"forecast","required":false,"default":null,"format":"date-time"},"requestId":{"target":"smithy.api#String","attribute":"request_id","required":false,"default":null,"format":"date-time"}},"name":"GetCityOutput"},"example.weather#GetCityPhotoInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"city_id","required":true,"default":null,"format":"date-time"}},"name":"GetCityPhotoInput"},"example.weather#GetCityPhotoOutput":{"kind":"structure","members":{"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"},"photo":{"target":"example.weather#Photo","attribute":"photo","required":false,"default":null,"format":"date-time"}},"name":"GetCityPhotoOutput"},"example.weather#ListCitiesInput":{"kind":"structure","members":{"nextToken":{"target":"smithy.api#String","attribute":"next_token","required":false,"default":null,"format":"date-time"},"maxResults":{"target":"smithy.api#Integer","attribute":"max_results","required":false,"default":null,"format":"date-time"},"tags":{"target":"example.weather#Tags","attribute":"tags","required":false,"default":null,"format":"date-time"}},"name":"ListCitiesInput"},"example.weather#ListCitiesOutput":{"kind":"structure","members":{"cities":{"target":"example.weather#CitySummaries","attribute":"cities","required":true,"default":null,"format":"date-time"},"nextToken":{"target":"smithy.api#String","attribute":"next_token","required":false,"default":null,"format":"date-time"}},"name":"ListCitiesOutput"},"example.weather#Location":{"kind":"union","members":{"coordinates":{"target":"example.weather#Coordinates","attribute":"coordinates","required":false,"default":null,"format":"date-time"},"unknown":{"target":"smithy.api#Unit","attribute":"unknown","required":false,"default":null,"format":"date-time"}},"name":"Location"},"example.weather#NotFoundError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"message_value","required":true,"default":null,"format":"date-time"},"resourceId":{"target":"smithy.api#String","attribute":"resource_id","required":false,"default":null,"format":"date-time"}},"error":{"status":404,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"NotFoundError"},"example.weather#Photo":{"kind":"blob","format":"date-time","name":"Photo"},"example.weather#PhotoSummary":{"kind":"structure","members":{"size":{"target":"smithy.api#Integer","attribute":"size","required":true,"default":null,"format":"date-time"},"thumbnail":{"target":"example.weather#Thumbnail","attribute":"thumbnail","required":true,"default":null,"format":"date-time"},"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"}},"name":"PhotoSummary"},"example.weather#PutCityPhotoInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"city_id","required":true,"default":null,"format":"date-time"},"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"},"photo":{"target":"example.weather#Photo","attribute":"photo","required":true,"default":null,"format":"date-time"}},"name":"PutCityPhotoInput"},"example.weather#PutCityPhotoOutput":{"kind":"structure","members":{"photo":{"target":"example.weather#PhotoSummary","attribute":"photo","required":true,"default":null,"format":"date-time"}},"name":"PutCityPhotoOutput"},"example.weather#Sky":{"kind":"enum","values":["clear","cloudy"],"name":"Sky"},"example.weather#StatusInput":{"kind":"structure","members":{},"name":"StatusInput"},"example.weather#StatusOutput":{"kind":"structure","members":{},"name":"StatusOutput"},"example.weather#Tags":{"kind":"list","member":{"target":"smithy.api#String","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"Tags"},"example.weather#ThrottlingError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"message_value","required":true,"default":null,"format":"date-time"},"retryAfter":{"target":"smithy.api#Integer","attribute":"retry_after","required":false,"default":null,"format":"date-time"}},"error":{"status":429,"fault":"client","retryable":true,"throttling":true,"headers":[["retryAfter","Retry-After"]]},"name":"ThrottlingError"},"example.weather#Thumbnail":{"kind":"blob","format":"date-time","name":"Thumbnail"},"example.weather#ValidationError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"message_value","required":true,"default":null,"format":"date-time"},"reason":{"target":"example.weather#ValidationReason","attribute":"reason","required":true,"default":null,"format":"date-time"},"fieldList":{"target":"example.weather#ValidationFieldList","attribute":"field_list","required":false,"default":null,"format":"date-time"},"requestId":{"target":"smithy.api#String","attribute":"request_id","required":false,"default":null,"format":"date-time"}},"error":{"status":400,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"ValidationError"},"example.weather#ValidationField":{"kind":"structure","members":{"path":{"target":"smithy.api#String","attribute":"path","required":true,"default":null,"format":"date-time"},"message":{"target":"smithy.api#String","attribute":"message_value","required":true,"default":null,"format":"date-time"}},"name":"ValidationField"},"example.weather#ValidationFieldList":{"kind":"list","member":{"target":"example.weather#ValidationField","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"ValidationFieldList"},"example.weather#ValidationReason":{"kind":"enum","values":["unknownOperation","cannotParse","fieldValidationFailed","other"],"name":"ValidationReason"},"smithy.api#Document":{"kind":"document","format":"date-time","name":"Document"},"smithy.api#Double":{"kind":"double","format":"date-time","name":"Double"},"smithy.api#Integer":{"kind":"integer","format":"date-time","name":"Integer"},"smithy.api#Long":{"kind":"long","format":"date-time","name":"Long"},"smithy.api#String":{"kind":"string","format":"date-time","name":"String"},"smithy.api#Timestamp":{"kind":"timestamp","format":"date-time","name":"Timestamp"},"smithy.api#Unit":{"kind":"unit","name":"Unit"}},"operations":{"CreateCity":{"method":"POST","uri":"/cities","input":"example.weather#CreateCityInput","output":"example.weather#CreateCityOutput","request":{"labels":[],"query":[],"headers":[["expectedRevision","X-Expected-Revision"]],"body":["name","location","clientToken"],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":["city"],"payload":null},"errors":["example.weather#ConflictError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":"clientToken","pagination":null},"GetCity":{"method":"GET","uri":"/cities/{cityId}","input":"example.weather#GetCityInput","output":"example.weather#GetCityOutput","request":{"labels":["cityId"],"query":[["at","at"]],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[["requestId","X-Request-Id"]],"body":["city","forecast"],"payload":null},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"GetCityPhoto":{"method":"GET","uri":"/cities/{cityId}/photo","input":"example.weather#GetCityPhotoInput","output":"example.weather#GetCityPhotoOutput","request":{"labels":["cityId"],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[["caption","X-Photo-Caption"]],"body":[],"payload":["photo","image/jpeg"]},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"ListCities":{"method":"GET","uri":"/cities","input":"example.weather#ListCitiesInput","output":"example.weather#ListCitiesOutput","request":{"labels":[],"query":[["nextToken","nextToken"],["maxResults","maxResults"],["tags","tag"]],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":["cities","nextToken"],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":{"input":"nextToken","output":["nextToken"],"items":"cities","pageSize":"maxResults"}},"Ping":{"method":"GET","uri":"/ping","input":null,"output":null,"request":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"PutCityPhoto":{"method":"PUT","uri":"/cities/{cityId}/photo","input":"example.weather#PutCityPhotoInput","output":"example.weather#PutCityPhotoOutput","request":{"labels":["cityId"],"query":[],"headers":[["caption","X-Photo-Caption"]],"body":[],"payload":["photo","image/jpeg"]},"response":{"labels":[],"query":[],"headers":[],"body":["photo"],"payload":null},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"Status":{"method":"GET","uri":"/status","input":"example.weather#StatusInput","output":"example.weather#StatusOutput","request":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null}},"bearer":true}
+=== weather_client.gemspec ===
+# frozen_string_literal: true
+Gem::Specification.new do |spec|
+  spec.name = 'weather_client'
+  spec.version = '0.0.0'
+  spec.summary = 'Generated Weather client'
+  spec.authors = ['Package maintainers']
+  spec.required_ruby_version = '>= 3.3', '< 5'
+  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']
+  spec.require_paths = ['lib']
+  spec.add_dependency 'json', '>= 2.7', '< 3'
+  spec.add_dependency 'net-http', '>= 0.4', '< 1'
+  spec.add_dependency 'base64', '>= 0.2', '< 1'
+  spec.add_dependency 'date', '>= 3.3', '< 4'
+  spec.add_dependency 'time', '>= 0.3', '< 1'
+  spec.add_dependency 'securerandom', '>= 0.3', '< 1'
+  spec.add_dependency 'digest', '>= 3.1', '< 4'
+end

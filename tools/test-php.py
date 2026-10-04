@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
-from php_http_fixture import fixture
+from sdk_http_fixture import fixture
 
 PHP = os.environ.get("PHP", "php")
 COMPOSER = os.environ.get("COMPOSER_PHAR")
