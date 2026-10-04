@@ -104,8 +104,17 @@ translation see failures too. The protocol that routed the request writes
 the response last, after every `after`.
 
 ```rust
-#[crucible::async_trait]
 pub trait Handler: Send + Sync + 'static {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> { Hook::Ready(Ok(())) }
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> { Hook::Ready(()) }
+}
+
+// A hook that waits on something returns a future instead:
+//     Hook::wait(async move { self.limiter.check(job.operation()).await })
+// Or write hooks as `async fn` by implementing AsyncHandler, which is a
+// Handler too, at the cost of an allocation per call.
+#[crucible::async_trait]
+pub trait AsyncHandler: Send + Sync + 'static {
     async fn before(&self, job: &mut Job) -> crucible::Result<()> { Ok(()) }
     async fn after(&self, job: &mut Job) {}
 }
