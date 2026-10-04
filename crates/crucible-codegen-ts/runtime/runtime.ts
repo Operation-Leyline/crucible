@@ -241,18 +241,19 @@ export class Transport {
     for (let attempt = 1; ; attempt++) {
       // Invalid inputs are caller errors, not transport failures.
       const request = this.#request(operation, values, options);
-      let response: Response;
+      let response: Response | undefined;
       let text: string;
       try {
         response = await this.#dispatch(request);
-        // Fetch resolves at the headers; a connection can still fail while
-        // reading either a success or an error body.
-        text = await response.text();
+        // Fetch resolves at the headers; required bodies can still fail.
+        // A successful operation without a modeled body needs only headers.
+        text = response.ok && !operation.output?.body ? "" : await response.text();
       } catch (error) {
         if (isAbort(error, options.signal)) throw error;
         const network = new NetworkError(error);
         if (!operation.retrySafe || attempt >= maxAttempts) throw network;
-        await sleep(backoff(attempt, retry), options.signal);
+        const delay = response === undefined ? undefined : retryAfter(response);
+        await sleep(delay ?? backoff(attempt, retry), options.signal);
         continue;
       }
       if (response.ok) return this.#decodeOutput(operation, response, text) as O;

@@ -218,7 +218,7 @@ implementation runs, the error is classified:
 
 - **A modelled error the operation declares**: answered as itself.
 - **A modelled error it does not declare**: a bug. It becomes an internal
-  failure and is logged.
+  failure.
 - **Anything else**: an internal failure.
 
 The `ExceptionTranslator` handler maps internal failures to modelled errors
@@ -226,11 +226,13 @@ with registered translations (`|e: &ThrottledByDependency| ThrottlingException
 {..}`). What nothing translates is answered as the service's internal error
 (its one 500 server error, filled by the generator) or the protocol's own
 `InternalFailure`. Either way the response has a fixed message, never the
-error's text, which is logged with the request id. **Decision:** typed
+error's text. An applicable `ServiceLog` with failure logging enabled records
+the cause with the request id, provided it ran before any handler whose
+`before` hook failed (see [The service log](#the-service-log)). **Decision:** typed
 per-operation error enums would check at compile time which errors an
 operation returns. They are traded away for "return anything, translate
 centrally". The check moves to runtime, where an undeclared error is caught
-and logged as a bug.
+as a bug and logging follows the configured policy.
 
 A request that breaks the model becomes the service's validation error. The
 generator fills it when it can: `message`, a `fieldList` of `path`/`name`
@@ -269,6 +271,14 @@ an error itself reads it from `Context::try_current()`.
 response status, including serialization failures. The record contains the
 request id, operation, status, outcome, latency, error type, and optional
 payload fields. By default it records failures only.
+
+Place `ServiceLog` first in the handler chain, with failure logging enabled
+for every operation whose failures should be recorded. A missing, disabled,
+or scoped-out service log emits no failure record. A service log placed after
+a handler whose `before` hook fails never runs its completion hook, so it
+cannot record that failure's cause. Protocols provide no fallback error log.
+The default `TracingSink` also requires an installed subscriber whose filters
+enable the event.
 
 Per-operation `LogPolicy` controls successes, failures, and input, output,
 and modelled-error fields. `@sensitive` members and targets are removed
