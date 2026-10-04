@@ -82,3 +82,11 @@ export interface ValidationField {
 }
 
 export type ValidationFieldList = ValidationField[];
+
+export const ValidationReason = {
+  UNKNOWN_OPERATION: "unknownOperation",
+  CANNOT_PARSE: "cannotParse",
+  FIELD_VALIDATION_FAILED: "fieldValidationFailed",
+  OTHER: "other",
+} as const;
+export type ValidationReason = (typeof ValidationReason)[keyof typeof ValidationReason];

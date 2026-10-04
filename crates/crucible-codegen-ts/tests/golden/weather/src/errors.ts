@@ -30,6 +30,7 @@ export class ThrottlingError extends ServiceError {
 }
 
 export class ValidationError extends ServiceError {
+  declare readonly reason: m.ValidationReason;
   declare readonly fieldList?: m.ValidationFieldList;
   declare readonly requestId?: string;
 

@@ -149,6 +149,31 @@ pub mod model {
 
     pub type ValidationFieldList = ::std::vec::Vec<ValidationField>;
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client::__private::serde")]
+    pub enum ValidationReason {
+        #[serde(rename = "unknownOperation")]
+        UnknownOperation,
+        #[serde(rename = "cannotParse")]
+        CannotParse,
+        #[serde(rename = "fieldValidationFailed")]
+        FieldValidationFailed,
+        #[serde(rename = "other")]
+        Other,
+    }
+
+    impl ValidationReason {
+        /// The value on the wire.
+        pub fn as_str(&self) -> &'static str {
+            match self {
+                Self::UnknownOperation => "unknownOperation",
+                Self::CannotParse => "cannotParse",
+                Self::FieldValidationFailed => "fieldValidationFailed",
+                Self::Other => "other",
+            }
+        }
+    }
+
     mod defaults {
         pub(super) fn city_summary__population() -> i64 {
             0
@@ -359,6 +384,8 @@ pub mod errors {
     pub struct ValidationError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
+        #[serde(rename = "reason")]
+        pub reason: super::model::ValidationReason,
         #[serde(rename = "fieldList", default, skip_serializing_if = "::std::option::Option::is_none")]
         pub field_list: ::std::option::Option<super::model::ValidationFieldList>,
         #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
@@ -372,6 +399,7 @@ pub mod errors {
         throttling: false,
         members: &[
             ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, sensitive: false, traits: &[] },
+            ::crucible_client::operation::MemberInfo { name: "reason", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, sensitive: false, traits: &[] },
             ::crucible_client::operation::MemberInfo { name: "fieldList", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, sensitive: false, traits: &[] },
             ::crucible_client::operation::MemberInfo { name: "requestId", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, sensitive: false, traits: &[] },
         ],

@@ -95,6 +95,11 @@ impl Protocol for JsonProtocol {
             }
             Some(Resolution::Modelled(error)) => error_response(error),
             Some(Resolution::Rejected(rejection)) => error_response(&*(answers.reject)(rejection)),
+            Some(Resolution::Framework(FrameworkError::UnknownOperation))
+                if answers.unknown.is_some() =>
+            {
+                error_response(&*(answers.unknown.expect("checked"))())
+            }
             Some(Resolution::Framework(error)) => framework_response(&error),
             Some(Resolution::Internal(error)) => {
                 tracing::error!(

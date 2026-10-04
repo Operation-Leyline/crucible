@@ -91,6 +91,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     }
     let functions = operations::Functions {
         classify: errors::classify(service),
+        unknown: errors::unknown(service, validation.as_ref()),
         reject,
         internal: internal_fn,
     };

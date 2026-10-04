@@ -241,10 +241,20 @@
             "type": "structure",
             "members": {
                 "message": { "target": "smithy.api#String", "traits": { "smithy.api#required": {} } },
+                "reason": { "target": "example.weather#ValidationReason", "traits": { "smithy.api#required": {} } },
                 "fieldList": { "target": "example.weather#ValidationFieldList" },
                 "requestId": { "target": "smithy.api#String" }
             },
             "traits": { "smithy.api#error": "client", "smithy.api#httpError": 400 }
+        },
+        "example.weather#ValidationReason": {
+            "type": "enum",
+            "members": {
+                "UNKNOWN_OPERATION": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": "unknownOperation" } },
+                "CANNOT_PARSE": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": "cannotParse" } },
+                "FIELD_VALIDATION_FAILED": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": "fieldValidationFailed" } },
+                "OTHER": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": "other" } }
+            }
         },
         "example.weather#ValidationFieldList": {
             "type": "list",

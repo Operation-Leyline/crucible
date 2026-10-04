@@ -7,7 +7,7 @@ use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::info::{constant, error_bindings, members};
 use crate::models::member_field;
-use crate::names::{doc, field, literal};
+use crate::names::{doc, field, literal, variant};
 use crate::types::{boxed_members, simple_kind};
 
 pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
@@ -123,12 +123,69 @@ pub(crate) fn reject(service: &Service, validation: Option<&ShapeId>) -> Option<
             Some("rejection.summary()".to_owned())
         }
         "fieldList" => field_list(service, member),
+        "reason" => {
+            let malformed = enum_value(service, member, "cannotParse")?;
+            let broken = enum_value(service, member, "fieldValidationFailed")?;
+            Some(format!(
+                "if rejection.is_malformed() {{ {malformed} }} else {{ {broken} }}"
+            ))
+        }
         _ => None,
     })?;
     Some(format!(
         "fn reject(rejection: &::crucible::validate::Rejection) -> ::std::boxed::Box<dyn ::crucible::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
         service.name_of(id),
         fields.join(",\n        ")
+    ))
+}
+
+/// `fn unknown()`: the validation error a request no operation serves gets,
+/// when the error's `reason` enum has the standard `unknownOperation` value
+/// and nothing else required is left unfilled. Without it, the protocol
+/// answers its own `UnknownOperation`.
+pub(crate) fn unknown(service: &Service, validation: Option<&ShapeId>) -> Option<String> {
+    let id = validation?;
+    let Some(Shape::Structure(structure)) = service.shape(id) else {
+        return None;
+    };
+    let reason = structure.member("reason")?;
+    enum_value(service, reason, "unknownOperation")?;
+    let fields = fill(service, structure, |member| match member.name.as_str() {
+        "message" if simple_kind(service, &member.target) == Some(SimpleKind::String) => {
+            Some("\"No operation matches the request's method and path.\".to_owned()".to_owned())
+        }
+        "reason" => enum_value(service, member, "unknownOperation"),
+        _ => None,
+    })?;
+    Some(format!(
+        "fn unknown() -> ::std::boxed::Box<dyn ::crucible::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
+        service.name_of(id),
+        fields.join(",\n        ")
+    ))
+}
+
+/// `model::Enum::Variant` for the value of `member`'s enum target that is
+/// the standard value `standard`, if it has one. Spelling is the model's:
+/// `cannotParse`, `cannot_parse` and `CANNOT_PARSE` all match, so a service
+/// keeps its own enum casing.
+fn enum_value(service: &Service, member: &Member, standard: &str) -> Option<String> {
+    let Some(Shape::Enum(values)) = service.shape(&member.target) else {
+        return None;
+    };
+    let folded = |text: &str| -> String {
+        text.chars()
+            .filter(|c| *c != '_')
+            .map(|c| c.to_ascii_lowercase())
+            .collect()
+    };
+    let value = values
+        .values
+        .iter()
+        .find(|value| folded(&value.value) == folded(standard))?;
+    Some(format!(
+        "model::{}::{}",
+        service.name_of(&member.target),
+        variant(&value.name)
     ))
 }
 

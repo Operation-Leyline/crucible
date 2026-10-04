@@ -34,6 +34,11 @@ pub struct ServiceInfo {
     /// The error an internal failure is answered with, carrying only a fixed
     /// message; `None` answers the protocol's own `InternalFailure`.
     pub internal: Option<InternalFn>,
+    /// The error a request no operation serves is answered with: the
+    /// validation error with reason `unknownOperation`, when the model has
+    /// that standard reason; `None` answers the protocol's own
+    /// `UnknownOperation`.
+    pub unknown: Option<InternalFn>,
 }
 
 pub type Classify =

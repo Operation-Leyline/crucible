@@ -57,14 +57,24 @@ async fn direct_invokes_round_trip_through_the_chain() {
     assert_eq!(invalid["error"]["fieldList"][0]["path"], "cityId");
 
     let unknown = service.invoke("Teleport", json!({})).await;
-    assert_eq!(unknown["error"]["__type"], "UnknownOperation");
+    assert_eq!(unknown["error"]["__type"], "ValidationError");
+    assert_eq!(unknown["error"]["reason"], "unknownOperation");
 }
 
 #[tokio::test]
-async fn an_unknown_route_is_a_404_in_the_protocol_format() {
+async fn an_unknown_route_is_the_standard_validation_error() {
     let (status, body) = get(&service(), "/nowhere").await;
-    assert_eq!(status, 404);
-    assert_eq!(body["__type"], "UnknownOperation");
+    assert_eq!(status, 400);
+    assert_eq!(body["__type"], "ValidationError");
+    assert_eq!(body["reason"], "unknownOperation");
+}
+
+#[tokio::test]
+async fn a_rejection_says_whether_the_request_was_malformed_or_broke_a_constraint() {
+    let (_, broken) = get(&service(), "/cities/nope").await;
+    assert_eq!(broken["reason"], "fieldValidationFailed", "{broken}");
+    let (_, malformed) = get(&service(), "/cities?maxResults=many").await;
+    assert_eq!(malformed["reason"], "cannotParse", "{malformed}");
 }
 
 #[derive(Debug)]

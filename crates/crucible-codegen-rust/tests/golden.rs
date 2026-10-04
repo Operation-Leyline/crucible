@@ -158,3 +158,38 @@ fn strict_structures_refuse_unknown_members_on_the_server_only() {
         "clients stay lenient"
     );
 }
+
+#[test]
+fn without_the_standard_reason_an_unknown_operation_keeps_the_protocol_answer() {
+    let service = edited(|model| {
+        let members = &mut model["shapes"]["example.weather#ValidationError"]["members"];
+        members.as_object_mut().unwrap().remove("reason");
+    });
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(code.contains("    unknown: None,"), "{code}");
+    assert!(!code.contains("fn unknown("));
+}
+
+#[test]
+fn the_standard_reason_matches_whatever_casing_the_model_uses() {
+    let service = edited(|model| {
+        let members = &mut model["shapes"]["example.weather#ValidationReason"]["members"];
+        for (_, member) in members.as_object_mut().unwrap() {
+            let value = member["traits"]["smithy.api#enumValue"].as_str().unwrap();
+            let snake: String = value
+                .chars()
+                .flat_map(|c| {
+                    if c.is_ascii_uppercase() {
+                        vec!['_', c.to_ascii_lowercase()]
+                    } else {
+                        vec![c]
+                    }
+                })
+                .collect();
+            member["traits"]["smithy.api#enumValue"] = json!(snake);
+        }
+    });
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(code.contains("model::ValidationReason::CannotParse } else { model::ValidationReason::FieldValidationFailed }"));
+    assert!(code.contains("reason: model::ValidationReason::UnknownOperation"));
+}

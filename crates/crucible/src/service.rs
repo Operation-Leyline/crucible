@@ -220,6 +220,7 @@ impl Crucible {
                 let answers = Answers {
                     reject: &*inner.reject,
                     internal: inner.operations.service.internal,
+                    unknown: inner.operations.service.unknown,
                 };
                 let protocol = inner.handlers[protocol]
                     .as_protocol()
