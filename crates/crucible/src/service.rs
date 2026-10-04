@@ -184,7 +184,13 @@ impl Crucible {
                 let protocol = inner.handlers[protocol]
                     .as_protocol()
                     .expect("indexed as a protocol");
-                let mut response = protocol.write(&job, &answers);
+                let mut response = match job.outcome.take() {
+                    Some(Outcome::Answered(response)) => response,
+                    outcome => {
+                        job.outcome = outcome;
+                        protocol.write(&job, &answers)
+                    }
+                };
                 for (name, value) in job.response_headers.drain() {
                     if let Some(name) = name {
                         response.headers_mut().insert(name, value);
@@ -216,6 +222,11 @@ impl Crucible {
                     break;
                 }
                 ran += 1;
+                // A handler that answered ends the `before` hooks; its own
+                // `after` still runs.
+                if job.outcome.is_some() {
+                    break;
+                }
             }
         }
         if job.outcome.is_none() {

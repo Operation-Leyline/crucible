@@ -64,7 +64,10 @@ impl Protocol for InvokeProtocol {
                     None => framework_body(&FrameworkError::InternalFailure),
                 }
             }
-            None => framework_body(&FrameworkError::InternalFailure),
+            // An answered request never reaches the protocol.
+            Some(Resolution::Answered { .. }) | None => {
+                framework_body(&FrameworkError::InternalFailure)
+            }
         };
         respond(status, serde_json::to_vec(&body).unwrap_or_default())
     }

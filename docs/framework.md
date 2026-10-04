@@ -155,6 +155,12 @@ ordinary handlers with nothing private. On top of the trait:
   takes metrics records.
 - **Exception rules**: `ExceptionTranslator::translate::<E>` by type, or
   `translate_with` over any error.
+- **Answering a request**: `job.respond(response)` in a `before` hook sends
+  `response` as it is. The remaining `before` hooks, decoding and the
+  operation are skipped; `after` hooks (the answering handler's included) see
+  `Resolution::Answered { status }`, so a service log records it and a meter
+  can skip it. For a response from elsewhere, such as relaying a request
+  forwarded to another region.
 - **Layers**: `Builder::layer(l)` wraps the whole service in any tower
   layer, outside the handler chain, first added outermost. It is for work on
   the response as it leaves, such as compression or counting bytes after

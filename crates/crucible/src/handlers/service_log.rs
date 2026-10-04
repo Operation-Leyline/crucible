@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use serde_json::{Map, Value, json};
 
-use crate::handler::{Handler, Hook, Job, Outcome, Resolution};
+use crate::handler::{Handler, Hook, Job, Resolution};
 use crate::operation::{MemberInfo, Operation};
 
 /// Which members of a structure a record carries.
@@ -199,7 +199,7 @@ impl ServiceLog {
             Resolution::Internal(error) => {
                 object.insert("cause".to_owned(), Value::String(error.chain()));
             }
-            Resolution::Framework(_) => {}
+            Resolution::Framework(_) | Resolution::Answered { .. } => {}
         }
         record
     }
@@ -220,7 +220,7 @@ impl Handler for ServiceLog {
         let Some(resolution) = job.resolution() else {
             return Hook::Ready(());
         };
-        let succeeded = matches!(job.outcome(), Some(Outcome::Output(_)));
+        let succeeded = resolution.class(job.operation()) == "success";
         if (succeeded && policy.successes) || (!succeeded && policy.failures) {
             self.sink.write(&self.record(job, policy, &resolution));
         }

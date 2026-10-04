@@ -8,6 +8,7 @@ use std::sync::Arc;
 use axum::body::Bytes;
 use axum::http::HeaderMap;
 use axum::http::request::Parts;
+use axum::response::Response;
 use serde_json::Value;
 
 use crate::context::Context;
@@ -92,6 +93,9 @@ impl<T: AsyncHandler> Handler for T {
 pub enum Outcome {
     Output(Box<dyn Output>),
     Failed(Error),
+    /// A handler answered with a response of its own ([`Job::respond`]):
+    /// the operation did not run, and the protocol does not rewrite it.
+    Answered(Response),
 }
 
 /// How an outcome is answered, decided once for the protocol, the service
@@ -106,6 +110,10 @@ pub enum Resolution<'a> {
     Framework(FrameworkError),
     /// Anything else: logged, and answered with no detail.
     Internal(&'a Error),
+    /// A handler answered with its own response, sent as it is.
+    Answered {
+        status: u16,
+    },
 }
 
 impl Resolution<'_> {
@@ -117,6 +125,7 @@ impl Resolution<'_> {
             Self::Rejected(_) => 400,
             Self::Framework(error) => error.status(),
             Self::Internal(_) => 500,
+            Self::Answered { status } => *status,
         }
     }
 
@@ -132,7 +141,7 @@ impl Resolution<'_> {
     /// The error's wire name, when the request failed.
     pub fn error_name(&self) -> Option<&'static str> {
         match self {
-            Self::Success(_) => None,
+            Self::Success(_) | Self::Answered { .. } => None,
             Self::Modelled(error) => Some(error.info().name),
             Self::Rejected(_) => Some("ValidationError"),
             Self::Framework(error) => Some(error.name()),
@@ -205,6 +214,17 @@ impl Job {
         }
     }
 
+    /// Answers the request with `response` as it is: the remaining `before`
+    /// hooks, decoding and the operation are skipped, `after` hooks run (this
+    /// handler's included) and see [`Resolution::Answered`], and the protocol
+    /// does not rewrite it. For a response from elsewhere: relaying a request
+    /// forwarded to another region, or a cached answer. Headers from
+    /// [`Job::response_headers_mut`] are still added, and `x-request-id`
+    /// when the response has none.
+    pub fn respond(&mut self, response: Response) {
+        self.outcome = Some(Outcome::Answered(response));
+    }
+
     /// Headers added to the response, whatever its outcome.
     pub fn response_headers_mut(&mut self) -> &mut HeaderMap {
         &mut self.response_headers
@@ -263,6 +283,9 @@ impl Job {
         Some(match self.outcome.as_ref()? {
             Outcome::Output(output) => Resolution::Success(output.as_ref()),
             Outcome::Failed(error) => self.resolve_error(error),
+            Outcome::Answered(response) => Resolution::Answered {
+                status: response.status().as_u16(),
+            },
         })
     }
 
