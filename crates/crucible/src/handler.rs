@@ -81,6 +81,8 @@ pub trait Handler: Send + Sync + 'static {
 pub struct Prepare<'a> {
     service: &'static ServiceInfo,
     scope: Option<&'a (dyn Fn(&OperationInfo) -> bool + 'a)>,
+    /// The scope this one narrows: an operation must pass both.
+    outer: Option<&'a Prepare<'a>>,
 }
 
 impl<'a> Prepare<'a> {
@@ -88,6 +90,7 @@ impl<'a> Prepare<'a> {
         Self {
             service,
             scope: None,
+            outer: None,
         }
     }
 
@@ -97,7 +100,8 @@ impl<'a> Prepare<'a> {
 
     /// Whether the handler runs for `operation`.
     pub fn applies(&self, operation: &OperationInfo) -> bool {
-        self.scope.is_none_or(|scope| scope(operation))
+        self.outer.is_none_or(|outer| outer.applies(operation))
+            && self.scope.is_none_or(|scope| scope(operation))
     }
 
     /// The operations the handler runs for.
@@ -110,11 +114,16 @@ impl<'a> Prepare<'a> {
     }
 
     /// The same service, narrowed to the operations `scope` accepts too: for
-    /// a handler that wraps another and runs it for fewer operations.
-    pub fn within<'b>(&self, scope: &'b (dyn Fn(&OperationInfo) -> bool + 'b)) -> Prepare<'b> {
+    /// a handler that wraps another and runs it for fewer operations. It
+    /// only ever narrows: an operation outside this scope stays outside.
+    pub fn within<'b>(&'b self, scope: &'b (dyn Fn(&OperationInfo) -> bool + 'b)) -> Prepare<'b>
+    where
+        'a: 'b,
+    {
         Prepare {
             service: self.service,
             scope: Some(scope),
+            outer: Some(self),
         }
     }
 }

@@ -102,9 +102,8 @@ impl<H: Handler> Handler for Scoped<H> {
     /// The inner handler prepares for the operations this scope (and any
     /// scope around it) runs it for.
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
-        let applies = &self.applies;
-        let scope = |op: &OperationInfo| prepare.applies(op) && applies(op);
-        self.inner.prepare(&prepare.within(&scope))
+        let scope: &dyn Fn(&OperationInfo) -> bool = &*self.applies;
+        self.inner.prepare(&prepare.within(scope))
     }
 }
 

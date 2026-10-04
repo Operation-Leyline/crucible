@@ -415,3 +415,14 @@ async fn a_scoped_handler_prepares_only_for_the_operations_it_runs_for() {
         .build()
         .expect("the scope leaves CreateCity out");
 }
+
+#[tokio::test]
+async fn an_inner_scope_cannot_widen_an_outer_one() {
+    use crucible::HandlerExt;
+    // The inner scope admits everything, CreateCity included; the outer one
+    // leaves CreateCity out, so its text tier is never checked.
+    weather_service::builder(memory())
+        .handler(WantsNumericTier.when(|_| true).only(&["GetCity", "Ping"]))
+        .build()
+        .expect("the outer scope still leaves CreateCity out");
+}
