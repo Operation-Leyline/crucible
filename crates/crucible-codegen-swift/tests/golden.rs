@@ -271,6 +271,83 @@ fn module_keywords_and_emitted_types_are_diagnosed_but_package_names_are_indepen
     }
 }
 
+#[test]
+fn imported_type_module_names_are_diagnosed() {
+    let service = void_service("Ping");
+    for name in [
+        "String",
+        "Data",
+        "Date",
+        "Bool",
+        "Array",
+        "Dictionary",
+        "Optional",
+        "Result",
+        "Set",
+        "Error",
+        "Sendable",
+        "Equatable",
+        "Hashable",
+        "RawRepresentable",
+        "FixedWidthInteger",
+        "CustomStringConvertible",
+        "Int",
+        "Int8",
+        "Int16",
+        "Int32",
+        "Int64",
+        "UInt8",
+        "UInt32",
+        "UInt64",
+        "Float",
+        "Double",
+        "Void",
+        "Never",
+        "UnicodeScalar",
+        "UTF8",
+        "URL",
+        "URLComponents",
+        "URLRequest",
+        "URLResponse",
+        "HTTPURLResponse",
+        "URLSession",
+        "URLSessionTask",
+        "URLSessionDataTask",
+        "URLSessionConfiguration",
+        "URLSessionDataDelegate",
+        "JSONEncoder",
+        "JSONDecoder",
+        "DateFormatter",
+        "ISO8601DateFormatter",
+        "Locale",
+        "TimeZone",
+        "TimeInterval",
+        "NSLock",
+        "NSObject",
+        "OperationQueue",
+        "Bundle",
+        "Task",
+        "CancellationError",
+        "CheckedContinuation",
+        "AsyncSequence",
+        "AsyncIteratorProtocol",
+        "URLError",
+        "SHA256",
+    ] {
+        let mut config = options();
+        config.module_name = name.into();
+        let diagnostics = emit(&service, &config).err().unwrap();
+        assert_eq!(diagnostics.len(), 1, "{name}: {diagnostics}");
+        assert_eq!(
+            diagnostics.iter().next().unwrap().message,
+            "invalid Swift module name"
+        );
+        config.module_name = options().module_name;
+        config.package_name = name.into();
+        assert!(emit(&service, &config).is_ok(), "package name {name}");
+    }
+}
+
 fn recursive_service(shapes: Value) -> Service {
     let mut model = json!({
         "smithy": "2.0",

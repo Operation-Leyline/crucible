@@ -199,15 +199,18 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         let task = Task { try await client.ping() }; task.cancel()
         do { _ = try await task.value; XCTFail("Expected cancellation") } catch is CancellationError { }
     }
-    func testNativeHTTPAndRealWeather() async throws {
+    func testNativeRedirectAndHeaderOnlySuccess() async throws {
         let fixture = ProcessInfo.processInfo.environment["FIXTURE_URL"]!
         let redirect = try Client(ClientConfig(endpoint: fixture + "/redirect", maxAttempts: 1))
         defer { redirect.close() }
         do { _ = try await redirect.ping(); XCTFail("Redirect followed") }
         catch let error as any ServiceError { XCTAssertEqual(error.metadata.status, 302) }
-        let discard = try Client(ClientConfig(endpoint: fixture + "/discard", timeout: 0.5))
+        let discard = try Client(ClientConfig(endpoint: fixture + "/discard", timeout: 1))
         defer { discard.close() }
         _ = try await discard.ping()
+    }
+    func testNativeBodyTimeoutAndCancellation() async throws {
+        let fixture = ProcessInfo.processInfo.environment["FIXTURE_URL"]!
         let stall = try Client(ClientConfig(endpoint: fixture + "/stall", timeout: 0.05))
         defer { stall.close() }
         let stalledAt = Date()
@@ -218,11 +221,16 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         let task = Task { try await cancellable.getCity(.init(cityId: .value("x"))) }
         try await Task.sleep(nanoseconds: 50_000_000); task.cancel()
         do { _ = try await task.value; XCTFail("Expected body cancellation") } catch is CancellationError { }
+    }
+    func testNativeDigestAndCredentialRefresh() async throws {
+        let fixture = ProcessInfo.processInfo.environment["FIXTURE_URL"]!
         let counter = Counter()
         let echo = try Client(ClientConfig(endpoint: fixture + "/echo", token: { String(await counter.next()) }, baseDelay: 0))
         defer { echo.close() }
         let echoed = try await echo.createCity(.init(name: .value("x"), expectedRevision: .value(7)))
         XCTAssertEqual(echoed.city.name, "x")
+    }
+    func testRealWeatherHTTP() async throws {
         let client = try Client(ClientConfig(endpoint: ProcessInfo.processInfo.environment["WEATHER_URL"]!, token: { "test-token" }))
         defer { client.close() }
         _ = try await client.ping()

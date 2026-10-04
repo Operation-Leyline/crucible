@@ -19,9 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
+      - run: apt-get update && apt-get install -y curl python3
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: apt-get update && apt-get install -y python3
       - run: python3 tools/test-swift.py
   swift-apple:
     runs-on: macos-15

@@ -39,6 +39,7 @@ def fixture():
 
         def respond(self, status, body=b"{}", headers=None):
             self.send_response(status)
+            self.send_header("Content-Type", "application/json")
             for name, value in (headers or {}).items():
                 self.send_header(name, value)
             self.send_header("Content-Length", str(len(body)))
@@ -51,10 +52,13 @@ def fixture():
                     self.respond(302, headers={"Location": "/unexpected"})
                 elif self.path.startswith(("/discard/", "/stall/")):
                     self.send_response(200)
+                    # Declare the media type so Darwin need not sniff a stalled
+                    # body to infer it before delivering response metadata.
+                    self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", "100")
                     self.end_headers()
                     self.wfile.flush()
-                    time.sleep(2)
+                    time.sleep(5)
                     self.wfile.write(b"x" * 100)
                 else:
                     failures.append("Unexpected native request: " + self.path)
