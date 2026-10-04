@@ -3,7 +3,7 @@
 //! failure, answered with no detail.
 
 use crate::error::Error;
-use crate::handler::{Handler, Job, Resolution};
+use crate::handler::{Handler, Hook, Job, Resolution};
 
 type Rule = Box<dyn Fn(&(dyn std::error::Error + 'static)) -> Option<Error> + Send + Sync>;
 
@@ -46,11 +46,10 @@ impl ExceptionTranslator {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for ExceptionTranslator {
-    async fn after(&self, job: &mut Job) {
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
         let Some(Resolution::Internal(error)) = job.resolution() else {
-            return;
+            return Hook::Ready(());
         };
         if let Some(translated) = self.translation(error) {
             tracing::debug!(
@@ -60,5 +59,6 @@ impl Handler for ExceptionTranslator {
             );
             job.replace_error(translated);
         }
+        Hook::Ready(())
     }
 }

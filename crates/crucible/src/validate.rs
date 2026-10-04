@@ -97,10 +97,54 @@ impl<T: Validate> Validate for Box<T> {
     }
 }
 
-/// Collects violations while walking a value.
+/// One step of a violation's path: a member name from the model, a list
+/// index, or a map key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Step {
+    Member(&'static str),
+    Index(usize),
+    Key(String),
+}
+
+impl From<&'static str> for Step {
+    fn from(name: &'static str) -> Self {
+        Self::Member(name)
+    }
+}
+
+impl From<usize> for Step {
+    fn from(index: usize) -> Self {
+        Self::Index(index)
+    }
+}
+
+impl From<&String> for Step {
+    fn from(key: &String) -> Self {
+        Self::Key(key.clone())
+    }
+}
+
+impl From<String> for Step {
+    fn from(key: String) -> Self {
+        Self::Key(key)
+    }
+}
+
+impl fmt::Display for Step {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Member(name) => f.write_str(name),
+            Self::Index(index) => write!(f, "{index}"),
+            Self::Key(key) => f.write_str(key),
+        }
+    }
+}
+
+/// Collects violations while walking a value. The path is built into text
+/// only when a violation needs it, so a valid input costs no strings.
 #[derive(Default)]
 pub struct Validator {
-    path: Vec<String>,
+    path: Vec<Step>,
     violations: Vec<Violation>,
 }
 
@@ -117,15 +161,21 @@ impl Validator {
         }
     }
 
-    pub fn at(&mut self, segment: impl fmt::Display, check: impl FnOnce(&mut Self)) {
-        self.path.push(segment.to_string());
+    pub fn at(&mut self, step: impl Into<Step>, check: impl FnOnce(&mut Self)) {
+        self.path.push(step.into());
         check(self);
         self.path.pop();
     }
 
     pub fn fail(&mut self, message: impl Into<String>) {
+        let path = self
+            .path
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("/");
         self.violations.push(Violation {
-            path: self.path.join("/"),
+            path,
             message: message.into(),
             kind: ViolationKind::Constraint,
         });

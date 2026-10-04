@@ -1,19 +1,23 @@
 //! Text on the wire: query strings, header lists, percent-encoding.
 
-/// `a=1&b=x%20y&b=z` into decoded pairs, in order. `+` is a space.
-pub fn parse_query(query: &str) -> Vec<(String, String)> {
-    query
-        .split('&')
-        .filter(|pair| !pair.is_empty())
-        .map(|pair| {
-            let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
-            (percent_decode(key, true), percent_decode(value, true))
-        })
-        .collect()
+use std::borrow::Cow;
+
+/// The decoded values of query parameter `param`, in order, borrowed from
+/// `query` unless they need decoding. `+` is a space.
+pub fn query_values<'q>(query: &'q str, param: &'q str) -> impl Iterator<Item = Cow<'q, str>> {
+    query.split('&').filter_map(move |pair| {
+        let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+        (!pair.is_empty() && percent_decode(key, true) == param)
+            .then(|| percent_decode(value, true))
+    })
 }
 
-/// Percent-decoding; `plus` reads `+` as a space, as query strings do.
-pub fn percent_decode(text: &str, plus: bool) -> String {
+/// Percent-decoding, borrowing when there is nothing to decode; `plus` reads
+/// `+` as a space, as query strings do.
+pub fn percent_decode(text: &str, plus: bool) -> Cow<'_, str> {
+    if !text.bytes().any(|b| b == b'%' || (plus && b == b'+')) {
+        return Cow::Borrowed(text);
+    }
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
@@ -34,7 +38,7 @@ pub fn percent_decode(text: &str, plus: bool) -> String {
         }
         i += 1;
     }
-    String::from_utf8_lossy(&out).into_owned()
+    Cow::Owned(String::from_utf8_lossy(&out).into_owned())
 }
 
 /// A header list: comma-separated, items quoted when they hold a comma or quote.
@@ -95,12 +99,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn queries_decode_in_order() {
-        assert_eq!(
-            parse_query("a=1&b=x%20y&b=z+w&flag"),
-            [("a", "1"), ("b", "x y"), ("b", "z w"), ("flag", "")]
-                .map(|(k, v)| (k.to_owned(), v.to_owned()))
-        );
+    fn query_values_decode_only_what_they_must() {
+        let values: Vec<_> = query_values("a=1&b=x%20y&b=z+w&flag", "b").collect();
+        assert_eq!(values, ["x y", "z w"]);
+        assert!(matches!(
+            query_values("a=1", "a").next(),
+            Some(Cow::Borrowed("1"))
+        ));
     }
 
     #[test]

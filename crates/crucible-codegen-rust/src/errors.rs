@@ -62,7 +62,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             members(service, structure, &error_bindings(&error.headers))
         ));
         out.push_str(&format!(
-            "impl ::crucible::ModelledError for {name} {{\n    fn info(&self) -> &'static ErrorInfo {{\n        &{}\n    }}\n\n    fn to_json(&self) -> ::crucible::__private::serde_json::Value {{\n        ::crucible::__private::serde_json::to_value(self).unwrap_or_default()\n    }}\n}}\n\n",
+            "impl ::crucible::ModelledError for {name} {{\n    fn info(&self) -> &'static ErrorInfo {{\n        &{}\n    }}\n\n    fn to_json(&self) -> ::crucible::__private::serde_json::Value {{\n        ::crucible::__private::serde_json::to_value(self).unwrap_or_default()\n    }}\n\n    fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {{\n        ::crucible::error::write_error(self, out)\n    }}\n}}\n\n",
             info_static(name)
         ));
         let message = structure

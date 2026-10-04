@@ -4,7 +4,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use axum::body::Body;
+use axum::body::{Body, Bytes};
 use axum::http::{HeaderValue, Request};
 use axum::response::Response;
 
@@ -16,7 +16,18 @@ use crate::operations::{Invoke, Operations};
 use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Route};
 use crate::validate::Rejection;
 
+/// The invocation answer when no protocol answered with JSON.
+pub(crate) const INVOKE_FAILURE: &str =
+    r#"{"error":{"__type":"InternalFailure","message":"no protocol answered the invocation"}}"#;
+
 type Reject = Arc<dyn Fn(&Rejection) -> Box<dyn ModelledError> + Send + Sync>;
+
+/// A random UUID (v4) as a header value, formatted once.
+fn request_id() -> HeaderValue {
+    let mut text = [0u8; uuid::fmt::Hyphenated::LENGTH];
+    let text = uuid::Uuid::new_v4().hyphenated().encode_lower(&mut text);
+    HeaderValue::from_str(text).expect("a UUID is visible ASCII")
+}
 
 /// Bodies above this are refused unread, unless the builder says otherwise.
 pub const DEFAULT_BODY_LIMIT: usize = 10 * 1024 * 1024;
@@ -55,22 +66,31 @@ impl Crucible {
         })
     }
 
-    /// Calls an operation by name with its input as JSON, through the whole
-    /// handler chain, without HTTP: for direct Lambda invokes and in-process
-    /// callers. Needs an [`InvokeProtocol`] in the chain.
-    pub async fn invoke(&self, operation: &str, input: serde_json::Value) -> serde_json::Value {
+    /// Calls an operation by name with its input as JSON bytes, through the
+    /// whole handler chain, without HTTP, and answers `{"output": ..}` or
+    /// `{"error": ..}` as bytes. The input is read straight from `input`, in
+    /// one pass. For direct Lambda invokes and in-process callers; needs an
+    /// [`InvokeProtocol`] in the chain.
+    pub async fn invoke_json(&self, operation: &str, input: impl Into<Bytes>) -> Bytes {
         let mut request = Request::post("/")
-            .body(Body::from(input.to_string()))
+            .body(Body::from(input.into()))
             .expect("a POST to / is a valid request");
         request.extensions_mut().insert(Invocation {
             operation: operation.to_owned(),
         });
         let response = self.handle(request).await;
-        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
-            .unwrap_or_default();
-        serde_json::from_slice(&bytes).unwrap_or_else(|_| {
-            serde_json::json!({ "error": { "__type": "InternalFailure", "message": "no protocol answered the invocation" } })
+            .unwrap_or_else(|_| Bytes::from_static(INVOKE_FAILURE.as_bytes()))
+    }
+
+    /// [`Crucible::invoke_json`] with JSON values, for tests and callers
+    /// that already hold one.
+    pub async fn invoke(&self, operation: &str, input: serde_json::Value) -> serde_json::Value {
+        let input = serde_json::to_vec(&input).unwrap_or_default();
+        let answer = self.invoke_json(operation, input).await;
+        serde_json::from_slice(&answer).unwrap_or_else(|_| {
+            serde_json::from_str(INVOKE_FAILURE).expect("the failure envelope is JSON")
         })
     }
 
@@ -97,10 +117,11 @@ impl Crucible {
         let entry = route
             .as_ref()
             .and_then(|route| inner.operations.entry(route.operation));
+        let parts = Arc::new(parts);
         let context = Arc::new(Context::new(
-            uuid::Uuid::new_v4().to_string(),
+            request_id(),
             entry.map(|entry| entry.info),
-            parts.headers.clone(),
+            parts.clone(),
         ));
 
         let body = axum::body::to_bytes(body, inner.body_limit).await;
@@ -111,6 +132,8 @@ impl Crucible {
             body: body.as_ref().cloned().unwrap_or_default(),
             labels: route.map(|Route { labels, .. }| labels).unwrap_or_default(),
             decode: entry.map(|entry| entry.decode),
+            decode_json: entry.map(|entry| entry.decode_json),
+            decode_bound: entry.map(|entry| entry.decode_bound),
             input: None,
             outcome: None,
             response_headers: Default::default(),
@@ -144,9 +167,9 @@ impl Crucible {
                 }
                 // An operation that models its own `x-request-id` member keeps it.
                 if !response.headers().contains_key("x-request-id") {
-                    if let Ok(id) = HeaderValue::from_str(job.context.request_id()) {
-                        response.headers_mut().insert("x-request-id", id);
-                    }
+                    response
+                        .headers_mut()
+                        .insert("x-request-id", job.context.request_id_header().clone());
                 }
                 response
             })
@@ -163,7 +186,7 @@ impl Crucible {
         let mut ran = if refused_early { handlers.len() } else { 0 };
         if !refused_early {
             for handler in handlers {
-                if let Err(error) = handler.before(job).await {
+                if let Err(error) = handler.before(job).resolve().await {
                     job.outcome = Some(Outcome::Failed(error));
                     break;
                 }
@@ -186,7 +209,7 @@ impl Crucible {
             });
         }
         for handler in handlers[..ran].iter().rev() {
-            handler.after(job).await;
+            handler.after(job).resolve().await;
         }
     }
 }

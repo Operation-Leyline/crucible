@@ -4,7 +4,8 @@
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use axum::http::{Extensions, HeaderMap};
+use axum::http::request::Parts;
+use axum::http::{Extensions, HeaderMap, HeaderValue};
 
 use crate::operation::OperationInfo;
 
@@ -14,26 +15,28 @@ tokio::task_local! {
 
 #[derive(Debug)]
 pub struct Context {
-    request_id: String,
+    /// Visible ASCII by construction, so `request_id` reads it as text.
+    request_id: HeaderValue,
     operation: Option<&'static OperationInfo>,
     received: Instant,
     deadline: Mutex<Option<Instant>>,
-    headers: HeaderMap,
+    /// Shared with the job, not copied: one request head per request.
+    request: Arc<Parts>,
     attributes: Mutex<Extensions>,
 }
 
 impl Context {
     pub(crate) fn new(
-        request_id: String,
+        request_id: HeaderValue,
         operation: Option<&'static OperationInfo>,
-        headers: HeaderMap,
+        request: Arc<Parts>,
     ) -> Self {
         Self {
             request_id,
             operation,
             received: Instant::now(),
             deadline: Mutex::new(None),
-            headers,
+            request,
             attributes: Mutex::new(Extensions::new()),
         }
     }
@@ -60,6 +63,10 @@ impl Context {
 
     /// The id this request goes by in logs and in the `x-request-id` header.
     pub fn request_id(&self) -> &str {
+        self.request_id.to_str().unwrap_or_default()
+    }
+
+    pub(crate) fn request_id_header(&self) -> &HeaderValue {
         &self.request_id
     }
 
@@ -81,7 +88,7 @@ impl Context {
     }
 
     pub fn headers(&self) -> &HeaderMap {
-        &self.headers
+        &self.request.headers
     }
 
     /// A value a handler stored for this request, such as the caller.

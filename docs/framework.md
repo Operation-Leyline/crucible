@@ -104,8 +104,17 @@ translation see failures too. The protocol that routed the request writes
 the response last, after every `after`.
 
 ```rust
-#[crucible::async_trait]
 pub trait Handler: Send + Sync + 'static {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> { Hook::Ready(Ok(())) }
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> { Hook::Ready(()) }
+}
+
+// A hook that waits on something returns a future instead:
+//     Hook::wait(async move { self.limiter.check(job.operation()).await })
+// Or write hooks as `async fn` by implementing AsyncHandler, which is a
+// Handler too, at the cost of an allocation per call.
+#[crucible::async_trait]
+pub trait AsyncHandler: Send + Sync + 'static {
     async fn before(&self, job: &mut Job) -> crucible::Result<()> { Ok(()) }
     async fn after(&self, job: &mut Job) {}
 }
@@ -235,18 +244,46 @@ HTTP-only layers (compression, CORS, timeouts).
 ## Performance
 
 The goal is a framework whose abstraction costs little next to the
-operation. Today, per request:
+operation. Two benchmarks in `e2e/weather-service/benches` measure it, in
+process, against the same read written straight on axum:
 
-- **Routing** scans the operations' paths.
-- **Input** is parsed to a JSON value, merged with the bound members, then
-  deserialized into the typed input. That is a second pass over the body.
-- **The chain** costs a boxed future per handler call.
-- **The context** is one `Arc`, with a mutex for attributes.
-- **The request id** is a UUID v4.
+- **`allocations`**: heap allocations and bytes per request. It is
+  deterministic, so it is the number to compare changes by on a busy
+  machine.
+- **`requests`**: criterion timings.
 
-Planned, each measured with a benchmark before and after it lands:
+| request | allocations at first | now | bare axum |
+|---|---|---|---|
+| `get_city` (label, query, header out) | 89 | 37 | 40 |
+| `list_cities` (10 items) | 200 | 50 | |
+| `create_city` (a replay: the token names an existing city) | 62 | 27 | |
+| `ping` | 20 | 12 | |
+| rejected label (validation error) | 83 | 54 | |
+| direct invoke, JSON bytes in and out | 116 | 28 | |
+| Lambda direct invoke, from the raw event | | 33 | |
 
-- a prefix-tree router built once at startup
-- deserializing the body straight into the typed input when no member is
-  bound, and the bound members alone otherwise
-- a cheaper request id
+In time, `get_city` is about on a par with hand-written axum (3.3 µs against
+3.6 µs on the same run), down from 7 µs.
+
+What got it there:
+
+- **Input in one pass.** An input that is all body is deserialized straight
+  from the body bytes. One with bound members is deserialized from a single
+  map that chains the bound members (checked against their kinds first, so
+  violations still name the parameter or header) with the body.
+- **Output in one pass.** An output, an error and an invoke answer are each
+  serialized straight to bytes. Header members are taken out as the body is
+  written.
+- **Hooks that do not wait do not allocate.** `Handler` hooks return
+  `Hook::Ready` or a future; only `AsyncHandler` and waiting hooks box one.
+- **Lambda direct invokes from the raw event.** The input is a slice of the
+  event text, read once.
+- **Lazy validation paths.** A violation's path is built into text only
+  when a violation happens.
+- **Borrowed text.** Query parameters are looked up and decoded per bound
+  member, borrowing when nothing needs decoding. Label names are the model's
+  `'static` strings.
+- **Smaller fixed costs.** The request id is formatted once and shared with
+  the response header, the request head is shared between the job and the
+  context, routes are indexed by path length, and generated header names are
+  lowercase.

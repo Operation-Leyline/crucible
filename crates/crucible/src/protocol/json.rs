@@ -6,12 +6,14 @@ use axum::body::Body;
 use axum::http::request::Parts;
 use axum::http::{HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use serde_json::{Map, Number, Value};
+use std::borrow::Cow;
 
-use super::text::{join_header, parse_query, percent_decode, split_header};
-use super::{Answers, Invocation, Protocol, Route};
+use serde_json::Value;
+
+use super::text::{percent_decode, query_values, split_header};
+use super::{Answers, BoundValue, Invocation, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
-use crate::handler::{Handler, Job, Resolution};
+use crate::handler::{Handler, Hook, Job, Resolution};
 use crate::operation::{Location, MemberInfo, OperationInfo, Scalar, Segment};
 use crate::operations::Operations;
 use crate::time;
@@ -29,9 +31,8 @@ impl Protocol for JsonProtocol {
             .filter(|s| !s.is_empty())
             .collect();
         let mut best: Option<(usize, Route)> = None;
-        for entry in operations.entries.values() {
-            let op = entry.info;
-            if op.method != request.method.as_str() || op.path.len() != path.len() {
+        for &op in operations.routes(path.len()) {
+            if op.method != request.method.as_str() {
                 continue;
             }
             let mut labels = Vec::new();
@@ -46,7 +47,7 @@ impl Protocol for JsonProtocol {
                         text == part
                     }
                     Segment::Label(name) => {
-                        labels.push(((*name).to_owned(), percent_decode(part, false)));
+                        labels.push((*name, percent_decode(part, false).into_owned()));
                         true
                     }
                 });
@@ -70,14 +71,28 @@ impl Protocol for JsonProtocol {
         match job.resolution() {
             Some(Resolution::Success(output)) => {
                 let op = operation.expect("an output implies an operation");
-                let body = output.to_json();
-                let (headers, body) = split_members(op.output, body);
-                let body = op
+                let has_body = op.output.iter().any(|m| m.location == Location::Body);
+                let has_headers = op
                     .output
                     .iter()
-                    .any(|m| m.location == Location::Body)
-                    .then_some(body);
-                respond(op.status, headers, body)
+                    .any(|m| matches!(m.location, Location::Header(_)));
+                if !has_headers {
+                    // Straight to bytes, with no JSON value in between.
+                    if !has_body {
+                        return respond(op.status, Vec::new(), None);
+                    }
+                    let mut body = Vec::with_capacity(256);
+                    return match output.write_json(&mut body) {
+                        Ok(()) => respond(op.status, Vec::new(), Some(body)),
+                        Err(_) => framework_response(&FrameworkError::InternalFailure),
+                    };
+                }
+                // Header members leave the body as it is written.
+                let mut body = Vec::with_capacity(256);
+                match output.write_json_split(op.output, &mut body) {
+                    Ok(headers) => respond(op.status, headers, has_body.then_some(body)),
+                    Err(_) => framework_response(&FrameworkError::InternalFailure),
+                }
             }
             Some(Resolution::Modelled(error)) => error_response(error),
             Some(Resolution::Rejected(rejection)) => error_response(&*(answers.reject)(rejection)),
@@ -99,22 +114,9 @@ impl Protocol for JsonProtocol {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for JsonProtocol {
-    /// Reads the input: bound members from the request's labels, query and
-    /// headers, the rest from the JSON body, then validates it.
-    async fn before(&self, job: &mut Job) -> Result<()> {
-        // A direct invocation is the invoke protocol's to read.
-        if job.request().extensions.get::<Invocation>().is_some() || job.input().is_some() {
-            return Ok(());
-        }
-        let Some(op) = job.operation() else {
-            return Err(FrameworkError::UnknownOperation.into());
-        };
-        let value = read_input(op, job)?;
-        let input = job.decode(value)?;
-        job.set_input(input);
-        Ok(())
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        Hook::Ready(read_input(job))
     }
 
     fn as_protocol(&self) -> Option<&dyn Protocol> {
@@ -122,77 +124,87 @@ impl Handler for JsonProtocol {
     }
 }
 
-fn read_input(op: &OperationInfo, job: &Job) -> std::result::Result<Value, Rejection> {
-    let mut object =
-        if op.input.iter().any(|m| m.location == Location::Body) && !job.body().is_empty() {
-            match serde_json::from_slice::<Value>(job.body()) {
-                Ok(Value::Object(object)) => object,
-                Ok(_) => return Err(Rejection::malformed("", "the body must be a JSON object")),
-                Err(error) => {
-                    return Err(Rejection::malformed(
-                        "",
-                        format!("the body is not valid JSON: {error}"),
-                    ));
-                }
-            }
-        } else {
-            Map::new()
-        };
-    let query = job
-        .request()
-        .uri
-        .query()
-        .map(parse_query)
-        .unwrap_or_default();
+/// Reads the input: bound members from the request's labels, query and
+/// headers, the rest from the JSON body, then validates it.
+fn read_input(job: &mut Job) -> Result<()> {
+    // A direct invocation is the invoke protocol's to read.
+    if job.request().extensions.get::<Invocation>().is_some() || job.input().is_some() {
+        return Ok(());
+    }
+    let Some(op) = job.operation() else {
+        return Err(FrameworkError::UnknownOperation.into());
+    };
+    // Either way the input is read in one pass, with no JSON value in
+    // between: from the body alone, or from the bound members and the
+    // body together.
+    let input = if op.input.iter().all(|m| m.location == Location::Body) {
+        job.decode_json(job.body())?
+    } else {
+        let bound = bound_members(op, job)?;
+        job.decode_bound(job.body(), bound)?
+    };
+    job.set_input(input);
+    Ok(())
+}
+
+/// The bound members, checked against their kinds. The body is read with
+/// them, in one pass, by `Job::decode_bound`.
+fn bound_members<'a>(
+    op: &OperationInfo,
+    job: &'a Job,
+) -> std::result::Result<Vec<(&'static str, BoundValue<'a>)>, Rejection> {
+    let query = job.request().uri.query().unwrap_or("");
+    let mut bound = Vec::new();
     let mut violations = Vec::new();
     for member in op.input {
-        let texts: Vec<String> = match member.location {
-            Location::Body => continue,
-            Location::Label => job
-                .labels()
-                .iter()
-                .filter(|(name, _)| name == member.name)
-                .map(|(_, value)| value.clone())
-                .collect(),
-            Location::Query(param) => query
-                .iter()
-                .filter(|(key, _)| key == param)
-                .map(|(_, v)| v.clone())
-                .collect(),
-            Location::Header(name) => match job.request().headers.get(name) {
-                None => Vec::new(),
-                Some(value) => match value.to_str() {
-                    Ok(text) if matches!(member.scalar, Scalar::List(_)) => split_header(text),
-                    Ok(text) => vec![text.to_owned()],
-                    Err(_) => {
-                        violations.push(malformed(name, "is not visible ASCII"));
-                        continue;
-                    }
-                },
-            },
-        };
         let wire = wire_name(member);
-        let value = match member.scalar {
-            Scalar::List(item) if !texts.is_empty() => texts
-                .iter()
-                .map(|text| from_text(text, *item))
-                .collect::<std::result::Result<Vec<_>, _>>()
-                .map(Value::Array),
-            Scalar::List(_) => continue,
-            scalar => match texts.first() {
+        let value = match (member.location, member.scalar) {
+            (Location::Body, _) => continue,
+            (Location::Label, scalar) => {
+                match job.labels().iter().find(|(name, _)| *name == member.name) {
+                    Some((_, text)) => from_text(Cow::Borrowed(text.as_str()), scalar),
+                    None => continue,
+                }
+            }
+            (Location::Query(param), Scalar::List(item)) => {
+                let items: std::result::Result<Vec<BoundValue<'a>>, String> =
+                    query_values(query, param)
+                        .map(|text| from_text(text, *item))
+                        .collect();
+                match items {
+                    Ok(items) if items.is_empty() => continue,
+                    other => other.map(BoundValue::List),
+                }
+            }
+            (Location::Query(param), scalar) => match query_values(query, param).next() {
                 Some(text) => from_text(text, scalar),
                 None => continue,
             },
+            (Location::Header(name), scalar) => {
+                let Some(value) = job.request().headers.get(name) else {
+                    continue;
+                };
+                let Ok(text) = value.to_str() else {
+                    violations.push(malformed(name, "is not visible ASCII"));
+                    continue;
+                };
+                match scalar {
+                    Scalar::List(item) => split_header(text)
+                        .into_iter()
+                        .map(|text| from_text(Cow::Owned(text), *item))
+                        .collect::<std::result::Result<Vec<_>, _>>()
+                        .map(BoundValue::List),
+                    scalar => from_text(Cow::Borrowed(text), scalar),
+                }
+            }
         };
         match value {
-            Ok(value) => {
-                object.insert(member.name.to_owned(), value);
-            }
+            Ok(value) => bound.push((member.name, value)),
             Err(message) => violations.push(malformed(wire, &message)),
         }
     }
     if violations.is_empty() {
-        Ok(Value::Object(object))
+        Ok(bound)
     } else {
         Err(Rejection { violations })
     }
@@ -214,86 +226,73 @@ fn malformed(path: &str, message: &str) -> Violation {
     }
 }
 
-fn from_text(text: &str, scalar: Scalar) -> std::result::Result<Value, String> {
+/// A bound member's text as its kind, or why it is not one.
+fn from_text(text: Cow<'_, str>, scalar: Scalar) -> std::result::Result<BoundValue<'_>, String> {
     match scalar {
-        Scalar::String | Scalar::Json => Ok(Value::String(text.to_owned())),
+        Scalar::String | Scalar::Json => Ok(BoundValue::Text(text)),
         Scalar::Integer => text
             .parse::<i64>()
-            .map(Value::from)
+            .map(BoundValue::Integer)
             .map_err(|_| format!("must be an integer (`{text}` is not)")),
         Scalar::Float | Scalar::EpochSeconds => text
             .parse::<f64>()
             .ok()
-            .and_then(Number::from_f64)
-            .map(Value::Number)
+            .filter(|n| n.is_finite())
+            .map(BoundValue::Float)
             .ok_or_else(|| format!("must be a number (`{text}` is not)")),
-        Scalar::Boolean => match text {
-            "true" => Ok(Value::Bool(true)),
-            "false" => Ok(Value::Bool(false)),
+        Scalar::Boolean => match &*text {
+            "true" => Ok(BoundValue::Boolean(true)),
+            "false" => Ok(BoundValue::Boolean(false)),
             _ => Err("must be true or false".to_owned()),
         },
-        Scalar::DateTime => time::parse_date_time(text)
-            .map(|_| Value::String(text.to_owned()))
-            .ok_or_else(|| "must be an RFC 3339 timestamp".to_owned()),
-        Scalar::HttpDate => time::http_date::parse(text)
-            .map(|_| Value::String(text.to_owned()))
-            .ok_or_else(|| "must be an HTTP date".to_owned()),
+        Scalar::DateTime => match time::parse_date_time(&text) {
+            Some(_) => Ok(BoundValue::Text(text)),
+            None => Err("must be an RFC 3339 timestamp".to_owned()),
+        },
+        Scalar::HttpDate => match time::http_date::parse(&text) {
+            Some(_) => Ok(BoundValue::Text(text)),
+            None => Err("must be an HTTP date".to_owned()),
+        },
         Scalar::List(_) => Err("a list cannot hold a list here".to_owned()),
     }
 }
 
-fn to_text(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        Value::Array(items) => join_header(items.iter().map(to_text)),
-        other => other.to_string(),
-    }
-}
-
-/// Moves header members out of a serialized structure: the header pairs, and
-/// what is left for the body.
-fn split_members(members: &[MemberInfo], value: Value) -> (Vec<(&'static str, String)>, Value) {
-    let Value::Object(mut object) = value else {
-        return (Vec::new(), value);
-    };
-    let mut headers = Vec::new();
-    for member in members {
-        if let Location::Header(name) = member.location {
-            if let Some(value) = object.remove(member.name).filter(|v| !v.is_null()) {
-                headers.push((name, to_text(&value)));
-            }
-        }
-    }
-    (headers, Value::Object(object))
-}
-
 fn error_response(error: &dyn ModelledError) -> Response {
-    let info = error.info();
-    let (headers, mut body) = split_members(info.members, error.to_json());
-    if let Value::Object(object) = &mut body {
-        object.insert("__type".to_owned(), Value::String(info.name.to_owned()));
+    let mut body = Vec::with_capacity(128);
+    match error.write_json(&mut body) {
+        Ok(headers) => respond(error.info().status, headers, Some(body)),
+        Err(_) => framework_response(&FrameworkError::InternalFailure),
     }
-    respond(info.status, headers, Some(body))
 }
 
 fn framework_response(error: &FrameworkError) -> Response {
     let body = serde_json::json!({ "__type": error.name(), "message": error.message() });
-    respond(error.status(), Vec::new(), Some(body))
+    respond(error.status(), Vec::new(), Some(to_bytes(&body)))
 }
 
-fn respond(status: u16, headers: Vec<(&'static str, String)>, body: Option<Value>) -> Response {
+fn to_bytes(value: &Value) -> Vec<u8> {
+    serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec())
+}
+
+fn respond(status: u16, headers: Vec<(&'static str, String)>, body: Option<Vec<u8>>) -> Response {
     let status = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     let mut response = match body {
         Some(body) => (
             status,
-            [(header::CONTENT_TYPE, "application/json")],
-            body.to_string(),
+            [(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            )],
+            body,
         )
             .into_response(),
         None => (status, Body::empty()).into_response(),
     };
     for (name, value) in headers {
-        if let (Ok(name), Ok(value)) = (HeaderName::try_from(name), HeaderValue::try_from(value)) {
+        // Generated header names are lowercase, so they parse without copying.
+        let name =
+            HeaderName::from_lowercase(name.as_bytes()).or_else(|_| HeaderName::try_from(name));
+        if let (Ok(name), Ok(value)) = (name, HeaderValue::try_from(value)) {
             response.headers_mut().insert(name, value);
         }
     }

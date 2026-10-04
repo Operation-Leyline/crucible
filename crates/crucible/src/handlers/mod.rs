@@ -22,7 +22,7 @@ pub use service_log::{Fields, LogPolicy, LogSink, ServiceLog, TracingSink};
 
 use crate::context::Context;
 use crate::error::{Error, Result};
-use crate::handler::{Handler, Job, Outcome};
+use crate::handler::{Handler, Hook, Job, Outcome};
 use crate::operation::{Operation, OperationInfo};
 use crate::protocol::Protocol;
 
@@ -78,19 +78,20 @@ impl<H> Scoped<H> {
     }
 }
 
-#[async_trait::async_trait]
 impl<H: Handler> Handler for Scoped<H> {
-    async fn before(&self, job: &mut Job) -> Result<()> {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         if self.applies(job) {
-            self.inner.before(job).await
+            self.inner.before(job)
         } else {
-            Ok(())
+            Hook::Ready(Ok(()))
         }
     }
 
-    async fn after(&self, job: &mut Job) {
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
         if self.applies(job) {
-            self.inner.after(job).await;
+            self.inner.after(job)
+        } else {
+            Hook::Ready(())
         }
     }
 
@@ -131,19 +132,19 @@ impl FnHandler {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for FnHandler {
-    async fn before(&self, job: &mut Job) -> Result<()> {
-        match &self.before {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        Hook::Ready(match &self.before {
             Some(before) => before(job),
             None => Ok(()),
-        }
+        })
     }
 
-    async fn after(&self, job: &mut Job) {
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
         if let Some(after) = &self.after {
             after(job);
         }
+        Hook::Ready(())
     }
 }
 
@@ -175,34 +176,34 @@ pub fn for_operation<O: Operation, H: OperationHandler<O>>(handler: H) -> ForOpe
     }
 }
 
-#[async_trait::async_trait]
 impl<O: Operation, H: OperationHandler<O>> Handler for ForOperation<O, H> {
-    async fn before(&self, job: &mut Job) -> Result<()> {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        // Other operations skip it without allocating.
         if job.operation().is_none_or(|op| op.name != O::INFO.name) {
-            return Ok(());
+            return Hook::Ready(Ok(()));
         }
-        let input = job
+        let job: &'a Job = job;
+        let Some(input) = job
             .input()
             .and_then(|input| input.as_any().downcast_ref::<O::Input>())
-            .ok_or_else(|| {
-                Error::internal(format!(
-                    "the {} handler runs before the protocol handler has read the input",
-                    O::INFO.name
-                ))
-            })?;
-        let context = job.context().clone();
-        self.handler.before(input, &context).await
+        else {
+            return Hook::Ready(Err(Error::internal(format!(
+                "the {} handler runs before the protocol handler has read the input",
+                O::INFO.name
+            ))));
+        };
+        Hook::Wait(self.handler.before(input, job.context()))
     }
 
-    async fn after(&self, job: &mut Job) {
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
         if job.operation().is_none_or(|op| op.name != O::INFO.name) {
-            return;
+            return Hook::Ready(());
         }
+        let job: &'a Job = job;
         let output = match job.outcome() {
             Some(Outcome::Output(output)) => output.as_any().downcast_ref::<O::Output>(),
             _ => None,
         };
-        let context = job.context().clone();
-        self.handler.after(output, &context).await;
+        Hook::Wait(self.handler.after(output, job.context()))
     }
 }

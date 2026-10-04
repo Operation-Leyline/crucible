@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 
 use crucible::handlers::{ExceptionTranslator, ServiceLog};
 use crucible::validate::Rejection;
-use crucible::{Crucible, Handler, InvokeProtocol, Job, JsonProtocol, WithContext};
+use crucible::{Crucible, Handler, Hook, InvokeProtocol, Job, JsonProtocol, WithContext};
 
 pub mod api {
     crucible::include_service!();
@@ -123,9 +123,15 @@ struct FailTimes {
     seen: Mutex<BTreeMap<String, u32>>,
 }
 
-#[crucible::async_trait]
+/// It never waits, so it answers its hook at once rather than as a future.
 impl Handler for FailTimes {
-    async fn before(&self, job: &mut Job) -> crucible::Result<()> {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+        Hook::Ready(self.check(job))
+    }
+}
+
+impl FailTimes {
+    fn check(&self, job: &Job) -> crucible::Result<()> {
         let header = |name: &str| {
             job.request()
                 .headers

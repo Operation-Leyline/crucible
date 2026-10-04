@@ -20,7 +20,7 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
             } else if let Some(b) = find(&bindings.query, &member.name) {
                 format!("Query({})", literal(&b.name))
             } else if let Some(b) = find(&bindings.headers, &member.name) {
-                format!("Header({})", literal(&b.name))
+                format!("Header({})", literal(&b.name.to_ascii_lowercase()))
             } else {
                 "Body".to_owned()
             };
