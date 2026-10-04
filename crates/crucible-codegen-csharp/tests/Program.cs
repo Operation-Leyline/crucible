@@ -170,6 +170,45 @@ static class Program
             catch (ServiceError e) { Check(e.ErrorName == "FutureError" && e.RequestId == "wire", "malformed metadata"); }
         }
     }
+    static async Task MalformedModeledErrors()
+    {
+        foreach (var body in new[] {
+            """{"__type":"ValidationError","message":{},"reason":"other"}""",
+            """{"__type":"ValidationError","message":"invalid reason","reason":42}""",
+            """{"__type":"ValidationError","message":"invalid list","fieldList":{}}"""
+        })
+        {
+            await using var server = new Server(_ => new(400, body, new() { ["x-request-id"] = "malformed-id", ["x-error-detail"] = "retained" }));
+            using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
+            try { await client.PingAsync(); throw new Exception("malformed modeled error ignored"); }
+            catch (ServiceError error)
+            {
+                Check(error.GetType() == typeof(ServiceError), "malformed modeled fields did not use generic error");
+                Check(error.ErrorName == "ValidationError" && error.StatusCode == 400 && error.RequestId == "malformed-id" && error.Headers["x-error-detail"] == "retained", "malformed error lost HTTP metadata");
+                Check(!error.Retryable && !error.Throttling && server.Attempts == 1, "ordinary malformed error retried");
+            }
+        }
+
+        using var schemaStream = typeof(Client).Assembly.GetManifestResourceStream("crucible.schema.json")!;
+        var schema = JsonNode.Parse(schemaStream)!.AsObject();
+        schema["operations"] = J("""{"Retry":{"method":"POST","uri":"/","input":null,"output":null,"token":null,"safe":false,"request":{"labels":[],"query":[],"headers":[],"body":[]},"response":{"headers":[],"body":[]},"errors":["example.weather#ThrottlingError"]}}""");
+        var registry = (Dictionary<string, Type>)typeof(Client).Assembly.GetType("Example.Weather.ModelRegistry")!.GetField("Types", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        foreach (var (body, header) in new[] {
+            ("""{"__type":"ThrottlingError","message":{}}""", "0"),
+            ("""{"__type":"ThrottlingError","message":"overflow","retryAfter":2147483648}""", (string?)null),
+            ("""{"__type":"ThrottlingError","message":"invalid header"}""", "not-a-number")
+        })
+        {
+            int attempts = 0;
+            var headers = new Dictionary<string, string> { ["x-request-id"] = "throttle-id" };
+            if (header is not null) headers["Retry-After"] = header;
+            await using var server = new Server(_ => ++attempts == 1 ? new(429, body, headers) : new(200, "{}"));
+            var runtime = Runtime(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero }, schema, registry);
+            try { await Call(runtime).WaitAsync(TimeSpan.FromSeconds(5)); }
+            finally { ((IDisposable)runtime).Dispose(); }
+            Check(attempts == 2, "malformed modeled throttle did not retry unsafe operation");
+        }
+    }
     static async Task FailureBehavior()
     {
         await using (var server = new Server(_ => new(200, "invalid")))
@@ -232,7 +271,7 @@ static class Program
     }
     static async Task Main(string[] args)
     {
-        await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await FailureBehavior(); await Weather();
+        await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await MalformedModeledErrors(); await FailureBehavior(); await Weather();
         Console.WriteLine("C# client conformance and weather HTTP passed");
     }
 }

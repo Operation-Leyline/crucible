@@ -326,16 +326,24 @@ internal sealed class ClientRuntime : IDisposable
         string? target;
         if (name is not null) target = candidates.Find(id => Text(Shape(id)["name"]) == name);
         else { var matches = candidates.Where(id => Shape(id)["error"]!["status"]!.GetValue<int>() == status).ToList(); target = matches.Count == 1 ? matches[0] : null; }
+        ServiceError error = new();
+        var metadata = target is null ? null : Shape(target)["error"];
         if (target is not null)
         {
-            foreach (var binding in Shape(target)["error"]!["headers"]!.AsArray())
+            try
             {
-                var member = Text(binding![0])!;
-                if (headers.TryGetValue(Text(binding[1])!, out var value)) body[member] = Header(Shape(target)["members"]![member]!, value);
+                foreach (var binding in metadata!["headers"]!.AsArray())
+                {
+                    var member = Text(binding![0])!;
+                    if (headers.TryGetValue(Text(binding[1])!, out var value)) body[member] = Header(Shape(target)["members"]![member]!, value);
+                }
+                error = (ServiceError)Decode(target, body)!;
+            }
+            catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or OverflowException or ArgumentOutOfRangeException)
+            {
+                // Malformed wire members must not erase HTTP metadata or modeled retry policy.
             }
         }
-        var error = target is null ? new ServiceError() : (ServiceError)Decode(target, body)!;
-        var metadata = target is null ? null : Shape(target)["error"];
         name ??= target is null ? "UnknownError" : Text(Shape(target)["name"])!;
         var requestId = headers.GetValueOrDefault("x-request-id") ?? StringValue(body["requestId"]);
         error.Initialize(name, StringValue(body["message"]) ?? $"HTTP {status}", status, requestId, headers, Flag(metadata?["retryable"]), Flag(metadata?["throttling"]));
