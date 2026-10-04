@@ -357,18 +357,21 @@ mod tests {
             location: Location::Body,
             scalar: Scalar::Json,
             sensitive: false,
+            traits: &[],
         },
         MemberInfo {
             name: "requestId",
             location: Location::Header("x-request-id"),
             scalar: Scalar::String,
             sensitive: false,
+            traits: &[],
         },
         MemberInfo {
             name: "tags",
             location: Location::Header("x-tags"),
             scalar: Scalar::List(&Scalar::String),
             sensitive: false,
+            traits: &[],
         },
     ];
 

@@ -23,7 +23,7 @@ pub use service_log::{Fields, LogPolicy, LogSink, ServiceLog, TracingSink};
 use crate::context::Context;
 use crate::error::{Error, Result};
 use crate::handler::{Handler, Hook, Job, Outcome};
-use crate::operation::{Operation, OperationInfo};
+use crate::operation::{Operation, OperationInfo, ServiceInfo};
 use crate::protocol::Protocol;
 
 /// Scoping for every handler.
@@ -97,6 +97,10 @@ impl<H: Handler> Handler for Scoped<H> {
 
     fn as_protocol(&self) -> Option<&dyn Protocol> {
         self.inner.as_protocol()
+    }
+
+    fn prepare(&mut self, service: &'static ServiceInfo) -> std::result::Result<(), String> {
+        self.inner.prepare(service)
     }
 }
 

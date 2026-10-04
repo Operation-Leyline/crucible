@@ -163,6 +163,12 @@ ordinary handlers with nothing private. On top of the trait:
   takes metrics records.
 - **Exception rules**: `ExceptionTranslator::translate::<E>` by type, or
   `translate_with` over any error.
+- **The model's own traits**: `OperationInfo::traits` and
+  `MemberInfo::traits` carry every trait outside Smithy's namespaces, as
+  written in the model. `Handler::prepare(&mut self, &ServiceInfo)` runs once
+  at `build`: a handler reads them there (`trait_as::<T>(id)`,
+  `has_trait(id)`) into its own per-operation table, and an `Err` fails the
+  build, so a missing or malformed trait never reaches a request.
 - **Answering a request**: `job.respond(response)` in a `before` hook sends
   `response` as it is. The remaining `before` hooks, decoding and the
   operation are skipped; `after` hooks (the answering handler's included) see

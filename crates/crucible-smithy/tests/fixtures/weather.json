@@ -26,6 +26,10 @@
             "type": "structure",
             "traits": { "smithy.api#trait": {}, "smithy.api#protocolDefinition": {} }
         },
+        "example.weather#audited": {
+            "type": "structure",
+            "traits": { "smithy.api#trait": { "selector": "member" } }
+        },
         "crucible.protocols#strict": {
             "type": "structure",
             "traits": { "smithy.api#trait": { "selector": "structure" } }
@@ -71,7 +75,7 @@
             "members": {
                 "name": {
                     "target": "example.weather#CityName",
-                    "traits": { "smithy.api#required": {}, "smithy.api#length": { "max": 40 } }
+                    "traits": { "smithy.api#required": {}, "smithy.api#length": { "max": 40 }, "example.weather#audited": {} }
                 },
                 "location": { "target": "example.weather#Location" },
                 "clientToken": {

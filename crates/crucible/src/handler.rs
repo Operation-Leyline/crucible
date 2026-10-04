@@ -62,6 +62,15 @@ pub trait Handler: Send + Sync + 'static {
     fn as_protocol(&self) -> Option<&dyn Protocol> {
         None
     }
+
+    /// Runs once, at `build`, with the service's description: where a
+    /// handler reads the model's traits into its own per-operation table,
+    /// rather than parsing them on every request. An error fails the build,
+    /// so a missing or malformed trait is found before the first request.
+    fn prepare(&mut self, service: &'static ServiceInfo) -> std::result::Result<(), String> {
+        let _ = service;
+        Ok(())
+    }
 }
 
 /// A handler written with `async fn` hooks: every type implementing it is a
@@ -77,9 +86,19 @@ pub trait AsyncHandler: Send + Sync + 'static {
     async fn after(&self, job: &mut Job) {
         let _ = job;
     }
+
+    /// As [`Handler::prepare`].
+    fn prepare(&mut self, service: &'static ServiceInfo) -> std::result::Result<(), String> {
+        let _ = service;
+        Ok(())
+    }
 }
 
 impl<T: AsyncHandler> Handler for T {
+    fn prepare(&mut self, service: &'static ServiceInfo) -> std::result::Result<(), String> {
+        AsyncHandler::prepare(self, service)
+    }
+
     fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         Hook::Wait(AsyncHandler::before(self, job))
     }

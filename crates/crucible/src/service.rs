@@ -398,7 +398,11 @@ impl Builder {
         self
     }
 
-    pub fn build(self) -> Result<Crucible, BuildError> {
+    pub fn build(mut self) -> Result<Crucible, BuildError> {
+        let service = self.operations.service;
+        for handler in &mut self.handlers {
+            handler.prepare(service).map_err(BuildError::Prepare)?;
+        }
         let protocols: Vec<usize> = self
             .handlers
             .iter()
@@ -467,6 +471,8 @@ pub enum BuildError {
     /// The service's validation error needs members crucible cannot fill:
     /// give the builder `on_rejection`.
     NoRejection,
+    /// A handler's `prepare` refused the service, saying why.
+    Prepare(String),
 }
 
 impl fmt::Display for BuildError {
@@ -476,6 +482,7 @@ impl fmt::Display for BuildError {
             Self::NoRejection => {
                 "the validation error has required members crucible cannot fill: call on_rejection"
             }
+            Self::Prepare(reason) => reason,
         })
     }
 }

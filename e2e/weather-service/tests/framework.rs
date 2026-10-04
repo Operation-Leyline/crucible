@@ -311,3 +311,103 @@ async fn an_operation_can_take_a_smaller_body_than_the_service() {
     let response = by_rule.handle(create()).await;
     assert_eq!(response.status(), 201, "CreateCity is not read-only");
 }
+
+/// Reads the model's traits once, at build: the operation's tier and the
+/// input members marked audited. Each request then looks its table up.
+#[derive(Default)]
+struct Audited {
+    table: std::collections::HashMap<&'static str, (String, Vec<&'static str>)>,
+    seen: Arc<Mutex<Vec<String>>>,
+}
+
+impl crucible::Handler for Audited {
+    fn prepare(
+        &mut self,
+        service: &'static crucible::operation::ServiceInfo,
+    ) -> Result<(), String> {
+        for op in service.operations {
+            let tier = op
+                .trait_as::<String>("example.weather#tier")
+                .map_err(|error| format!("{}: bad tier: {error}", op.name))?;
+            let audited: Vec<&'static str> = op
+                .input
+                .iter()
+                .filter(|member| member.has_trait("example.weather#audited"))
+                .map(|member| member.name)
+                .collect();
+            if let Some(tier) = tier {
+                self.table.insert(op.name, (tier, audited));
+            }
+        }
+        Ok(())
+    }
+
+    fn after<'a>(&'a self, job: &'a mut crucible::Job) -> crucible::Hook<'a, ()> {
+        if let (Some(op), Some(input)) = (job.operation(), job.input_snapshot())
+            && let Some((tier, audited)) = self.table.get(op.name)
+        {
+            for member in audited {
+                self.seen
+                    .lock()
+                    .unwrap()
+                    .push(format!("{} {tier} {member}={}", op.name, input[*member]));
+            }
+        }
+        crucible::Hook::Ready(())
+    }
+
+    fn before<'a>(
+        &'a self,
+        job: &'a mut crucible::Job,
+    ) -> crucible::Hook<'a, crucible::Result<()>> {
+        job.snapshot_input();
+        crucible::Hook::Ready(Ok(()))
+    }
+}
+
+#[tokio::test]
+async fn handlers_read_operation_and_member_traits_once_at_build() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let service = weather_service::builder(memory())
+        .handler(Audited {
+            seen: seen.clone(),
+            ..Audited::default()
+        })
+        .build()
+        .unwrap();
+    service
+        .invoke("CreateCity", json!({ "name": "Lima" }))
+        .await;
+    service.invoke("Ping", json!({})).await;
+    assert_eq!(*seen.lock().unwrap(), [r#"CreateCity write name="Lima""#]);
+}
+
+struct WantsNumericTier;
+
+impl crucible::Handler for WantsNumericTier {
+    fn prepare(
+        &mut self,
+        service: &'static crucible::operation::ServiceInfo,
+    ) -> Result<(), String> {
+        for op in service.operations {
+            op.trait_as::<u32>("example.weather#tier")
+                .map_err(|_| format!("{}: example.weather#tier must be a number", op.name))?;
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_handler_refusing_the_model_fails_the_build() {
+    let refused = weather_service::builder(memory())
+        .handler(WantsNumericTier)
+        .build()
+        .err()
+        .expect("the build fails");
+    assert_eq!(
+        refused,
+        crucible::BuildError::Prepare(
+            "CreateCity: example.weather#tier must be a number".to_owned()
+        )
+    );
+}
