@@ -4,7 +4,7 @@
 //! The answer is `{"output": ...}` or `{"error": {"__type": ..., ...}}`.
 
 use axum::http::request::Parts;
-use axum::http::{StatusCode, header};
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
 
@@ -12,7 +12,6 @@ use super::{Answers, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
 use crate::handler::{Handler, Job, Resolution};
 use crate::operations::Operations;
-use crate::validate::Rejection;
 
 /// Marks a request as a direct invocation of `operation`. Set only by the
 /// framework, as a request extension, so no HTTP client can forge one.
@@ -40,7 +39,16 @@ impl Protocol for InvokeProtocol {
 
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
         let (status, body) = match job.resolution() {
-            Some(Resolution::Success(output)) => (200, json!({ "output": output.to_json() })),
+            Some(Resolution::Success(output)) => {
+                // `{"output": ..}` written straight to bytes.
+                let mut body = Vec::with_capacity(256);
+                body.extend_from_slice(b"{\"output\":");
+                if output.write_json(&mut body).is_ok() {
+                    body.push(b'}');
+                    return respond(200, body);
+                }
+                framework_body(&FrameworkError::InternalFailure)
+            }
             Some(Resolution::Modelled(error)) => error_body(error),
             Some(Resolution::Rejected(rejection)) => error_body(&*(answers.reject)(rejection)),
             Some(Resolution::Framework(error)) => framework_body(&error),
@@ -58,14 +66,21 @@ impl Protocol for InvokeProtocol {
             }
             None => framework_body(&FrameworkError::InternalFailure),
         };
-        let status = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-        (
-            status,
-            [(header::CONTENT_TYPE, "application/json")],
-            body.to_string(),
-        )
-            .into_response()
+        respond(status, serde_json::to_vec(&body).unwrap_or_default())
     }
+}
+
+fn respond(status: u16, body: Vec<u8>) -> Response {
+    let status = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    (
+        status,
+        [(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        )],
+        body,
+    )
+        .into_response()
 }
 
 #[async_trait::async_trait]
@@ -78,14 +93,7 @@ impl Handler for InvokeProtocol {
         if job.operation().is_none() {
             return Err(FrameworkError::UnknownOperation.into());
         }
-        let value = if job.body().is_empty() {
-            json!({})
-        } else {
-            serde_json::from_slice(job.body()).map_err(|error| {
-                Rejection::malformed("", format!("the input is not valid JSON: {error}"))
-            })?
-        };
-        let input = job.decode(value)?;
+        let input = job.decode_json(job.body())?;
         job.set_input(input);
         Ok(())
     }

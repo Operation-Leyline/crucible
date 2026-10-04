@@ -18,3 +18,13 @@ crucible-build = { path = "../../crates/crucible-build" }
 
 [dev-dependencies]
 axum = "0.8"
+criterion = { version = "0.7", default-features = false, features = ["async_tokio"] }
+tower = { version = "0.5", features = ["util"] }
+
+[[bench]]
+name = "requests"
+harness = false
+
+[[bench]]
+name = "allocations"
+harness = false

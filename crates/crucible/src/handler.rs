@@ -92,14 +92,16 @@ impl Resolution<'_> {
 }
 
 pub(crate) type Decode = fn(Value) -> std::result::Result<Box<dyn Input>, Rejection>;
+pub(crate) type DecodeJson = fn(&[u8]) -> std::result::Result<Box<dyn Input>, Rejection>;
 
 pub struct Job {
     pub(crate) service: &'static ServiceInfo,
     pub(crate) context: Arc<Context>,
-    pub(crate) request: Parts,
+    pub(crate) request: Arc<Parts>,
     pub(crate) body: Bytes,
-    pub(crate) labels: Vec<(String, String)>,
+    pub(crate) labels: Vec<(&'static str, String)>,
     pub(crate) decode: Option<Decode>,
+    pub(crate) decode_json: Option<DecodeJson>,
     pub(crate) input: Option<Box<dyn Input>>,
     pub(crate) outcome: Option<Outcome>,
     pub(crate) response_headers: HeaderMap,
@@ -131,7 +133,7 @@ impl Job {
     }
 
     /// URI labels the routing protocol matched, percent-decoded.
-    pub fn labels(&self) -> &[(String, String)] {
+    pub fn labels(&self) -> &[(&'static str, String)] {
         &self.labels
     }
 
@@ -162,6 +164,16 @@ impl Job {
     pub fn decode(&self, value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
         match self.decode {
             Some(decode) => decode(value),
+            None => Err(Rejection::malformed("", "no operation serves this request")),
+        }
+    }
+
+    /// Reads JSON bytes straight into the operation's input, in one pass, and
+    /// validates it: for an input that is the whole body. For protocol
+    /// handlers.
+    pub fn decode_json(&self, bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
+        match self.decode_json {
+            Some(decode) => decode(bytes),
             None => Err(Rejection::malformed("", "no operation serves this request")),
         }
     }

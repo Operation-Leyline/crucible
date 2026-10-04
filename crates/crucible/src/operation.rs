@@ -174,12 +174,18 @@ impl<T: Serialize + Any + Send + Sync> Input for T {
 /// An operation's output, seen by handlers without knowing its type.
 pub trait Output: Any + Send + Sync {
     fn to_json(&self) -> Value;
+    /// Serializes straight into `out`, with no JSON value in between.
+    fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<()>;
     fn as_any(&self) -> &dyn Any;
 }
 
 impl<T: Serialize + Any + Send + Sync> Output for T {
     fn to_json(&self) -> Value {
         serde_json::to_value(self).unwrap_or(Value::Null)
+    }
+
+    fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<()> {
+        serde_json::to_writer(out, self)
     }
 
     fn as_any(&self) -> &dyn Any {

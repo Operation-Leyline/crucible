@@ -21,7 +21,8 @@ use crate::validate::Rejection;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Route {
     pub operation: &'static str,
-    pub labels: Vec<(String, String)>,
+    /// Label names (from the model) and their decoded values.
+    pub labels: Vec<(&'static str, String)>,
 }
 
 /// Builds the response errors are answered with.

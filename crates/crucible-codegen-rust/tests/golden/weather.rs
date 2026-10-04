@@ -320,7 +320,7 @@ pub mod errors {
         throttling: true,
         members: &[
             ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
-            ::crucible::operation::MemberInfo { name: "retryAfter", location: ::crucible::operation::Location::Header("Retry-After"), scalar: ::crucible::operation::Scalar::Integer, sensitive: false },
+            ::crucible::operation::MemberInfo { name: "retryAfter", location: ::crucible::operation::Location::Header("retry-after"), scalar: ::crucible::operation::Scalar::Integer, sensitive: false },
         ],
     };
 
@@ -394,7 +394,7 @@ static CREATE_CITY_OPERATION: ::crucible::OperationInfo = ::crucible::OperationI
         ::crucible::operation::MemberInfo { name: "name", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
         ::crucible::operation::MemberInfo { name: "location", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
         ::crucible::operation::MemberInfo { name: "clientToken", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
-        ::crucible::operation::MemberInfo { name: "expectedRevision", location: ::crucible::operation::Location::Header("X-Expected-Revision"), scalar: ::crucible::operation::Scalar::Integer, sensitive: false },
+        ::crucible::operation::MemberInfo { name: "expectedRevision", location: ::crucible::operation::Location::Header("x-expected-revision"), scalar: ::crucible::operation::Scalar::Integer, sensitive: false },
     ],
     output: &[
         ::crucible::operation::MemberInfo { name: "city", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
@@ -432,7 +432,7 @@ static GET_CITY_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo
     output: &[
         ::crucible::operation::MemberInfo { name: "city", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
         ::crucible::operation::MemberInfo { name: "forecast", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
-        ::crucible::operation::MemberInfo { name: "requestId", location: ::crucible::operation::Location::Header("X-Request-Id"), scalar: ::crucible::operation::Scalar::String, sensitive: false },
+        ::crucible::operation::MemberInfo { name: "requestId", location: ::crucible::operation::Location::Header("x-request-id"), scalar: ::crucible::operation::Scalar::String, sensitive: false },
     ],
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: true,

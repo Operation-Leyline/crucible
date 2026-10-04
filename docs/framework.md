@@ -235,18 +235,39 @@ HTTP-only layers (compression, CORS, timeouts).
 ## Performance
 
 The goal is a framework whose abstraction costs little next to the
-operation. Today, per request:
+operation. Two benchmarks in `e2e/weather-service/benches` measure it, in
+process, against the same read written straight on axum:
 
-- **Routing** scans the operations' paths.
-- **Input** is parsed to a JSON value, merged with the bound members, then
-  deserialized into the typed input. That is a second pass over the body.
-- **The chain** costs a boxed future per handler call.
-- **The context** is one `Arc`, with a mutex for attributes.
-- **The request id** is a UUID v4.
+- **`allocations`**: heap allocations and bytes per request. It is
+  deterministic, so it is the number to compare changes by on a busy
+  machine.
+- **`requests`**: criterion timings.
 
-Planned, each measured with a benchmark before and after it lands:
+| request | allocations at first | now | bare axum |
+|---|---|---|---|
+| `list_cities` (10 items) | 200 | 61 | |
+| `create_city` | 62 | 41 | |
+| `get_city` (label, query, header out) | 89 | 75 | 40 |
+| direct invoke `get_city` | 116 | 72 | |
 
-- a prefix-tree router built once at startup
-- deserializing the body straight into the typed input when no member is
-  bound, and the bound members alone otherwise
-- a cheaper request id
+What got it there:
+
+- **One-pass input**: an input with no member bound outside the body
+  (every direct invoke, most writes) is deserialized straight from the body
+  bytes.
+- **Direct output**: an output with no header member is serialized straight
+  to bytes, with no JSON value in between. Invoke responses too.
+- **Lazy validation paths**: a violation's path is built into text only
+  when a violation happens.
+- **Borrowed text**: query parameters are looked up and decoded per bound
+  member, borrowing when nothing needs decoding. Label names are the
+  model's `'static` strings.
+- **Smaller fixed costs**: the request id is formatted once and shared with
+  the response header, the request head is shared between the job and the
+  context, and routes are indexed by path length.
+
+Next, each measured the same way:
+
+- inputs with bound members, and outputs with header members, without the
+  intermediate JSON value
+- Lambda direct invokes deserialized from the raw event, not through a value

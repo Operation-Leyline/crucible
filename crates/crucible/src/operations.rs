@@ -2,7 +2,7 @@
 //! orchestrator calls. Generated code fills it: `operations(service)` for one
 //! type implementing every operation, or `Operations::builder` for several.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -21,16 +21,21 @@ pub type Call<S, I, O> = fn(Arc<S>, I) -> BoxFuture<Result<O>>;
 pub(crate) type Invoke =
     Arc<dyn Fn(Box<dyn Input>) -> BoxFuture<Result<Box<dyn Output>>> + Send + Sync>;
 type Decode = fn(Value) -> std::result::Result<Box<dyn Input>, Rejection>;
+type DecodeJson = fn(&[u8]) -> std::result::Result<Box<dyn Input>, Rejection>;
 
 pub(crate) struct Entry {
     pub info: &'static OperationInfo,
     pub decode: Decode,
+    pub decode_json: DecodeJson,
     pub invoke: Invoke,
 }
 
 pub struct Operations {
     pub(crate) service: &'static ServiceInfo,
     pub(crate) entries: BTreeMap<&'static str, Entry>,
+    /// Operations by path length, built once, so routing a request compares
+    /// only the paths that could match.
+    routes: HashMap<usize, Vec<&'static OperationInfo>>,
 }
 
 impl Operations {
@@ -39,6 +44,7 @@ impl Operations {
             operations: Operations {
                 service,
                 entries: BTreeMap::new(),
+                routes: HashMap::new(),
             },
         }
     }
@@ -49,6 +55,11 @@ impl Operations {
 
     pub(crate) fn entry(&self, name: &str) -> Option<&Entry> {
         self.entries.get(name)
+    }
+
+    /// The operations whose path has `segments` segments.
+    pub fn routes(&self, segments: usize) -> &[&'static OperationInfo] {
+        self.routes.get(&segments).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -88,6 +99,7 @@ impl OperationsBuilder {
             Entry {
                 info: O::INFO,
                 decode: decode::<O>,
+                decode_json: decode_json::<O>,
                 invoke,
             },
         );
@@ -95,7 +107,15 @@ impl OperationsBuilder {
     }
 
     /// The table, or the operations the service has not implemented.
-    pub fn build(self) -> std::result::Result<Operations, MissingOperations> {
+    pub fn build(mut self) -> std::result::Result<Operations, MissingOperations> {
+        for entry in self.operations.entries.values() {
+            let info = entry.info;
+            self.operations
+                .routes
+                .entry(info.path.len())
+                .or_default()
+                .push(info);
+        }
         let missing: Vec<&'static str> = self
             .operations
             .service
@@ -114,6 +134,20 @@ impl OperationsBuilder {
 
 fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
     let input: O::Input = serde_json::from_value(value)
+        .map_err(|error| Rejection::malformed("", error.to_string()))?;
+    Validator::check(&input)?;
+    Ok(Box::new(input))
+}
+
+/// The input straight from JSON bytes, in one pass: for an input with no
+/// member bound outside the body. An empty body is `{}`.
+fn decode_json<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
+    let bytes = if bytes.is_empty() {
+        b"{}".as_slice()
+    } else {
+        bytes
+    };
+    let input: O::Input = serde_json::from_slice(bytes)
         .map_err(|error| Rejection::malformed("", error.to_string()))?;
     Validator::check(&input)?;
     Ok(Box::new(input))

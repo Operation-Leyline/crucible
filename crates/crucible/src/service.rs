@@ -18,6 +18,13 @@ use crate::validate::Rejection;
 
 type Reject = Arc<dyn Fn(&Rejection) -> Box<dyn ModelledError> + Send + Sync>;
 
+/// A random UUID (v4) as a header value, formatted once.
+fn request_id() -> HeaderValue {
+    let mut text = [0u8; uuid::fmt::Hyphenated::LENGTH];
+    let text = uuid::Uuid::new_v4().hyphenated().encode_lower(&mut text);
+    HeaderValue::from_str(text).expect("a UUID is visible ASCII")
+}
+
 /// Bodies above this are refused unread, unless the builder says otherwise.
 pub const DEFAULT_BODY_LIMIT: usize = 10 * 1024 * 1024;
 
@@ -97,10 +104,11 @@ impl Crucible {
         let entry = route
             .as_ref()
             .and_then(|route| inner.operations.entry(route.operation));
+        let parts = Arc::new(parts);
         let context = Arc::new(Context::new(
-            uuid::Uuid::new_v4().to_string(),
+            request_id(),
             entry.map(|entry| entry.info),
-            parts.headers.clone(),
+            parts.clone(),
         ));
 
         let body = axum::body::to_bytes(body, inner.body_limit).await;
@@ -111,6 +119,7 @@ impl Crucible {
             body: body.as_ref().cloned().unwrap_or_default(),
             labels: route.map(|Route { labels, .. }| labels).unwrap_or_default(),
             decode: entry.map(|entry| entry.decode),
+            decode_json: entry.map(|entry| entry.decode_json),
             input: None,
             outcome: None,
             response_headers: Default::default(),
@@ -144,9 +153,9 @@ impl Crucible {
                 }
                 // An operation that models its own `x-request-id` member keeps it.
                 if !response.headers().contains_key("x-request-id") {
-                    if let Ok(id) = HeaderValue::from_str(job.context.request_id()) {
-                        response.headers_mut().insert("x-request-id", id);
-                    }
+                    response
+                        .headers_mut()
+                        .insert("x-request-id", job.context.request_id_header().clone());
                 }
                 response
             })
