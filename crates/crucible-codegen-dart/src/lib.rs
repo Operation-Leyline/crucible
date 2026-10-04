@@ -312,6 +312,9 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             );
         }
         let name = field(&method(op.name()));
+        if !identifier(&name) {
+            result.push(&op.id, "invalid Dart operation name");
+        }
         for suffix in std::iter::once("").chain(op.paginated.is_some().then_some("Pages")) {
             if !methods.insert(format!("{name}{suffix}")) {
                 result.push(&op.id, "Dart operation name collision");

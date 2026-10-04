@@ -210,6 +210,19 @@ fn decoder_local_names_are_diagnosed() {
 }
 
 #[test]
+fn underscore_digit_operation_is_diagnosed_after_mapping() {
+    let mut service = lower(&weather());
+    service.operations[0].id = "example.weather#_123Operation".parse().unwrap();
+    assert!(
+        emit(&service, &options())
+            .err()
+            .unwrap()
+            .iter()
+            .any(|d| d.message == "invalid Dart operation name")
+    );
+}
+
+#[test]
 fn void_and_empty_clients_do_not_require_a_unit_schema() {
     let empty: Value = serde_json::from_str(include_str!(
         "../../../tests/conformance/empty-service.json"
