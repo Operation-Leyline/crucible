@@ -16,6 +16,9 @@ pub struct Paginator<O: Operation, E> {
     token: fn(&O::Output) -> Option<&str>,
     input_token: fn(&O::Input) -> Option<&str>,
     set_token: fn(&mut O::Input, String),
+    /// Fills the idempotency token afresh before each page, when the caller
+    /// left it empty: each page is its own request.
+    fresh_token: Option<fn(&mut O::Input)>,
     errors: PhantomData<fn() -> E>,
 }
 
@@ -40,14 +43,24 @@ where
             token,
             input_token,
             set_token,
+            fresh_token: None,
             errors: PhantomData,
         }
+    }
+
+    #[doc(hidden)]
+    pub fn fresh_token(mut self, fill: fn(&mut O::Input)) -> Self {
+        self.fresh_token = Some(fill);
+        self
     }
 
     /// The next page, or `None` after the last. A failed page ends the
     /// paging: retries have already run inside the call.
     pub async fn next_page(&mut self) -> Option<Result<O::Output, Error<E>>> {
-        let input = self.next.take()?;
+        let mut input = self.next.take()?;
+        if let Some(fill) = self.fresh_token {
+            fill(&mut input);
+        }
         let output = match self.transport.send::<O, E>(&input).await {
             Ok(output) => output,
             Err(error) => return Some(Err(error)),

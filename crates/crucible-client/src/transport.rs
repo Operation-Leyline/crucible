@@ -119,7 +119,19 @@ impl Transport {
             };
             let status = response.status().as_u16();
             let response_headers = response.headers().clone();
-            let bytes = response.bytes().await.map_err(Error::Transport)?;
+            // A connection lost mid-body is the same fault as one lost before
+            // the response: retried under the same rule.
+            let bytes = match response.bytes().await {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    if retry_safe && attempt < retry.max_attempts {
+                        tokio::time::sleep(backoff(attempt, &retry)).await;
+                        attempt += 1;
+                        continue;
+                    }
+                    return Err(Error::Transport(error));
+                }
+            };
             if (200..300).contains(&status) {
                 return decode_output::<O, E>(info.output, &response_headers, &bytes);
             }

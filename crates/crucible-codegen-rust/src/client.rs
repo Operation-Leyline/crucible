@@ -182,8 +182,22 @@ fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> St
     };
     let name = op.name();
     let errors = error_type(op);
+    // A token the caller left empty is filled per page, so every page is
+    // retried under its own key; a caller's own token is kept.
+    let (start, finish) = match token_member(service, op) {
+        Some(member) if member.name != input.name => {
+            let rust = field(&member.name);
+            (
+                format!("let fresh = input.{rust}.is_none();\n        let pages = "),
+                format!(
+                    ";\n        if fresh {{\n            pages.fresh_token(|input| input.{rust} = Some(::crucible::idempotency_token()))\n        }} else {{\n            pages\n        }}"
+                ),
+            )
+        }
+        _ => (String::new(), String::new()),
+    };
     format!(
-        "\n    /// Every page of {name}, one request each.\n    pub fn {}_pages(&self, input: {}) -> ::crucible::Paginator<{name}, {errors}> {{\n        ::crucible::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        )\n    }}\n",
+        "\n    /// Every page of {name}, one request each.\n    pub fn {}_pages(&self, input: {}) -> ::crucible::Paginator<{name}, {errors}> {{\n        {start}::crucible::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){finish}\n    }}\n",
         function(name).trim_start_matches("r#"),
         input_type(service, op),
         get(output, "output"),

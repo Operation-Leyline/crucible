@@ -111,3 +111,18 @@ fn a_configured_validation_error_crucible_cannot_fill_fails_generation() {
         "{diagnostics}"
     );
 }
+
+#[test]
+fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one() {
+    let service = edited(|model| {
+        model["shapes"]["example.weather#ListCitiesInput"]["members"]["clientToken"] = json!({ "target": "smithy.api#String", "traits": { "smithy.api#idempotencyToken": {} } });
+    });
+    let code = generate_client(&service).unwrap();
+    assert!(
+        code.contains("let fresh = input.client_token.is_none();"),
+        "{code}"
+    );
+    assert!(code.contains(
+        "pages.fresh_token(|input| input.client_token = Some(::crucible_client::idempotency_token()))"
+    ));
+}
