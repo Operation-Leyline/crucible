@@ -51,6 +51,11 @@ impl Protocol for InvokeProtocol {
             }
             Some(Resolution::Modelled(error)) => error_body(error),
             Some(Resolution::Rejected(rejection)) => error_body(&*(answers.reject)(rejection)),
+            Some(Resolution::Framework(FrameworkError::UnknownOperation))
+                if answers.unknown.is_some() =>
+            {
+                error_body(&*(answers.unknown.expect("checked"))())
+            }
             Some(Resolution::Framework(error)) => framework_body(&error),
             Some(Resolution::Internal(error)) => {
                 tracing::error!(

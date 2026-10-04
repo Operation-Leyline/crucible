@@ -13,6 +13,7 @@ pub(crate) struct Functions {
     pub classify: String,
     pub reject: Option<String>,
     pub internal: Option<String>,
+    pub unknown: Option<String>,
 }
 
 pub(crate) fn emit(
@@ -39,6 +40,10 @@ pub(crate) fn emit(
     if let Some(internal) = &functions.internal {
         out.push('\n');
         out.push_str(internal);
+    }
+    if let Some(unknown) = &functions.unknown {
+        out.push('\n');
+        out.push_str(unknown);
     }
     out.push_str(&service_info(service, &functions));
     out.push_str(&registration(service));
@@ -170,13 +175,14 @@ fn service_info(service: &Service, functions: &Functions) -> String {
         }
     };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible::ServiceInfo = ::crucible::ServiceInfo {{\n    id: {},\n    version: {},\n    operations: &[\n        {},\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n}};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible::ServiceInfo = ::crucible::ServiceInfo {{\n    id: {},\n    version: {},\n    operations: &[\n        {},\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),
         errors.join(", "),
         option(functions.reject.is_some(), "reject"),
         option(functions.internal.is_some(), "internal"),
+        option(functions.unknown.is_some(), "unknown"),
     )
 }
 

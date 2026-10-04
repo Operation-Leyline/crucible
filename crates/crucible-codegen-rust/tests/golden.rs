@@ -158,3 +158,14 @@ fn strict_structures_refuse_unknown_members_on_the_server_only() {
         "clients stay lenient"
     );
 }
+
+#[test]
+fn without_the_standard_reason_an_unknown_operation_keeps_the_protocol_answer() {
+    let service = edited(|model| {
+        let members = &mut model["shapes"]["example.weather#ValidationError"]["members"];
+        members.as_object_mut().unwrap().remove("reason");
+    });
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(code.contains("    unknown: None,"), "{code}");
+    assert!(!code.contains("fn unknown("));
+}

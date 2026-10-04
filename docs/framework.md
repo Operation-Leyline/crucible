@@ -227,8 +227,13 @@ centrally". The check moves to runtime, where an undeclared error is caught
 and logged as a bug.
 
 A request that breaks the model becomes the service's validation error. The
-generator fills it when it can: `message`, and a `fieldList` of `path`/`name`
-plus `message`. Otherwise the service gives the builder
+generator fills it when it can: `message`, a `fieldList` of `path`/`name`
+plus `message`, and the standard `reason` enum (`cannotParse` for a request
+that does not read as its input, `fieldValidationFailed` for a broken
+constraint). When that enum also has `unknownOperation`, a request no
+operation serves gets the validation error with that reason (400), as the
+standard asks; without it, the protocol answers its own `UnknownOperation`
+(404). Otherwise the service gives the builder
 `on_rejection(|rejection| ..)`, and `Violation::kind` tells a malformed
 request from a broken constraint.
 

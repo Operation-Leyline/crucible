@@ -150,6 +150,31 @@ pub mod model {
 
     pub type ValidationFieldList = ::std::vec::Vec<ValidationField>;
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible::__private::serde::Serialize, ::crucible::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible::__private::serde")]
+    pub enum ValidationReason {
+        #[serde(rename = "unknownOperation")]
+        UnknownOperation,
+        #[serde(rename = "cannotParse")]
+        CannotParse,
+        #[serde(rename = "fieldValidationFailed")]
+        FieldValidationFailed,
+        #[serde(rename = "other")]
+        Other,
+    }
+
+    impl ValidationReason {
+        /// The value on the wire.
+        pub fn as_str(&self) -> &'static str {
+            match self {
+                Self::UnknownOperation => "unknownOperation",
+                Self::CannotParse => "cannotParse",
+                Self::FieldValidationFailed => "fieldValidationFailed",
+                Self::Other => "other",
+            }
+        }
+    }
+
     mod defaults {
         pub(super) fn city_summary__population() -> i64 {
             0
@@ -360,6 +385,8 @@ pub mod errors {
     pub struct ValidationError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
+        #[serde(rename = "reason")]
+        pub reason: super::model::ValidationReason,
         #[serde(rename = "fieldList", default, skip_serializing_if = "::std::option::Option::is_none")]
         pub field_list: ::std::option::Option<super::model::ValidationFieldList>,
         #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
@@ -373,6 +400,7 @@ pub mod errors {
         throttling: false,
         members: &[
             ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
+            ::crucible::operation::MemberInfo { name: "reason", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
             ::crucible::operation::MemberInfo { name: "fieldList", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
             ::crucible::operation::MemberInfo { name: "requestId", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false, traits: &[] },
         ],
@@ -581,7 +609,17 @@ fn classify<'a>(error: &'a (dyn ::std::error::Error + 'static)) -> ::std::option
 fn reject(rejection: &::crucible::validate::Rejection) -> ::std::boxed::Box<dyn ::crucible::ModelledError> {
     ::std::boxed::Box::new(errors::ValidationError {
         message: rejection.summary(),
+        reason: if rejection.is_malformed() { model::ValidationReason::CannotParse } else { model::ValidationReason::FieldValidationFailed },
         field_list: Some(rejection.violations.iter().map(|violation| model::ValidationField { path: violation.path.clone(), message: violation.message.clone() }).collect()),
+        request_id: ::crucible::Context::try_current().map(|context| context.request_id().to_owned())
+    })
+}
+
+fn unknown() -> ::std::boxed::Box<dyn ::crucible::ModelledError> {
+    ::std::boxed::Box::new(errors::ValidationError {
+        message: "No operation matches the request's method and path.".to_owned(),
+        reason: model::ValidationReason::UnknownOperation,
+        field_list: None,
         request_id: ::crucible::Context::try_current().map(|context| context.request_id().to_owned())
     })
 }
@@ -601,6 +639,7 @@ pub static SERVICE: ::crucible::ServiceInfo = ::crucible::ServiceInfo {
     classify,
     reject: Some(reject),
     internal: None,
+    unknown: Some(unknown),
 };
 
 /// Registers implementations one operation at a time, for a service split

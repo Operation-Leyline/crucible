@@ -32,6 +32,9 @@ pub struct Answers<'a> {
     pub reject: &'a (dyn Fn(&Rejection) -> Box<dyn ModelledError> + Send + Sync),
     /// The internal error, when the service models one.
     pub internal: Option<crate::operation::InternalFn>,
+    /// The error for a request no operation serves, when the service models
+    /// one.
+    pub unknown: Option<crate::operation::InternalFn>,
 }
 
 pub trait Protocol: Send + Sync {
