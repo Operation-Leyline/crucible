@@ -1,0 +1,892 @@
+=== composer.json ===
+{
+  "name": "example/weather-client",
+  "version": "0.0.0",
+  "type": "library",
+  "description": "Generated Weather client",
+  "require": {
+    "php": ">=8.3 <9",
+    "php-64bit": "*",
+    "ext-curl": "*",
+    "ext-json": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Example\\Weather\\": "src/"
+    }
+  }
+}
+=== crucible.json ===
+{
+  "generatorVersion": "0.1.0",
+  "service": "example.weather#Weather",
+  "serviceVersion": "2026-10-01",
+  "packageVersion": "0.0.0",
+  "schemaSha256": "3bc6c41e37913e49c3569c1ebd6693ffa969667db5794e19655bc1cb349828f9"
+}
+=== src/Client.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather;
+
+final class Client
+{
+    private readonly Runtime\ClientRuntime $runtime;
+    public function __construct(Runtime\ClientConfig $config = new Runtime\ClientConfig())
+    {
+        $this->runtime = new Runtime\ClientRuntime($config, Schema::codec(), Models\Decoder::error(...), '', true);
+    }
+    public function close(): void { $this->runtime->close(); }
+    public function createCity(\Example\Weather\Models\CreateCityInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\CreateCityOutput
+    {
+        return $this->runtime->call('CreateCity', $input, $cancellation);
+    }
+    public function getCity(\Example\Weather\Models\GetCityInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\GetCityOutput
+    {
+        return $this->runtime->call('GetCity', $input, $cancellation);
+    }
+    public function getCityPhoto(\Example\Weather\Models\GetCityPhotoInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\GetCityPhotoOutput
+    {
+        return $this->runtime->call('GetCityPhoto', $input, $cancellation);
+    }
+    public function listCities(\Example\Weather\Models\ListCitiesInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\ListCitiesOutput
+    {
+        return $this->runtime->call('ListCities', $input, $cancellation);
+    }
+    /** @return \Generator<int, \Example\Weather\Models\ListCitiesOutput> */
+    public function listCitiesPages(\Example\Weather\Models\ListCitiesInput $input, ?Runtime\CancellationToken $cancellation = null): \Generator
+    {
+        return $this->runtime->pages('ListCities', $input, $cancellation);
+    }
+    public function ping(?Runtime\CancellationToken $cancellation = null): Runtime\Unit
+    {
+        return $this->runtime->call('Ping', new Runtime\Unit(), $cancellation);
+    }
+    public function putCityPhoto(\Example\Weather\Models\PutCityPhotoInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\PutCityPhotoOutput
+    {
+        return $this->runtime->call('PutCityPhoto', $input, $cancellation);
+    }
+    public function status(\Example\Weather\Models\StatusInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\StatusOutput
+    {
+        return $this->runtime->call('Status', $input, $cancellation);
+    }
+}
+
+=== src/Models/CitySummary.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class CitySummary implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param string $id
+     * @param string $name
+     * @param int $population
+     * @param \Example\Weather\Runtime\Field<\Example\Weather\Runtime\Timestamp> $updatedAt
+     * @param \Example\Weather\Runtime\Field<\Example\Weather\Runtime\Timestamp> $createdAt
+     */
+    public function __construct(
+        public readonly string $id,
+        public readonly string $name,
+        public readonly int $population,
+        public readonly \Example\Weather\Runtime\Field $updatedAt = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $createdAt = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            id: $context->read('id', $object),
+            name: $context->read('name', $object),
+            population: $context->read('population', $object),
+            updatedAt: $context->optional('updatedAt', $object),
+            createdAt: $context->optional('createdAt', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'id', $this->id);
+        $context->put($object, 'name', $this->name);
+        $context->put($object, 'population', $this->population);
+        $context->put($object, 'updatedAt', $this->updatedAt);
+        $context->put($object, 'createdAt', $this->createdAt);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/ConflictError.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class ConflictError extends \Example\Weather\Runtime\ServiceError implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param string $messageValue
+     */
+    public function __construct(
+        public readonly string $messageValue,
+        \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata(),
+    ) { parent::__construct($metadata); }
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context, \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata()): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            messageValue: $context->read('message', $object),
+            metadata: $metadata,
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'message', $this->messageValue);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/Coordinates.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class Coordinates implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param float $latitude
+     * @param float $longitude
+     */
+    public function __construct(
+        public readonly float $latitude,
+        public readonly float $longitude,
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            latitude: $context->read('latitude', $object),
+            longitude: $context->read('longitude', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'latitude', $this->latitude);
+        $context->put($object, 'longitude', $this->longitude);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/CreateCityInput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class CreateCityInput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Runtime\Field<string> $name
+     * @param \Example\Weather\Runtime\Field<\Example\Weather\Models\Location> $location
+     * @param \Example\Weather\Runtime\Field<string> $clientToken
+     * @param \Example\Weather\Runtime\Field<int> $expectedRevision
+     */
+    public function __construct(
+        public readonly \Example\Weather\Runtime\Field $name = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $location = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $clientToken = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $expectedRevision = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            name: $context->optional('name', $object),
+            location: $context->optional('location', $object),
+            clientToken: $context->optional('clientToken', $object),
+            expectedRevision: $context->optional('expectedRevision', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'name', $this->name);
+        $context->put($object, 'location', $this->location);
+        $context->put($object, 'clientToken', $this->clientToken);
+        $context->put($object, 'expectedRevision', $this->expectedRevision);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/CreateCityOutput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class CreateCityOutput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Models\CitySummary $city
+     */
+    public function __construct(
+        public readonly \Example\Weather\Models\CitySummary $city,
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            city: $context->read('city', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'city', $this->city);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/Decoder.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class Decoder
+{
+    public static function model(string $target, mixed $value, \Example\Weather\Runtime\WireContext $context): mixed
+    {
+        return match ($target) {
+            'example.weather#CitySummary' => CitySummary::fromWire($value, $context),
+            'example.weather#ConflictError' => ConflictError::fromWire($value, $context),
+            'example.weather#Coordinates' => Coordinates::fromWire($value, $context),
+            'example.weather#CreateCityInput' => CreateCityInput::fromWire($value, $context),
+            'example.weather#CreateCityOutput' => CreateCityOutput::fromWire($value, $context),
+            'example.weather#GetCityInput' => GetCityInput::fromWire($value, $context),
+            'example.weather#GetCityOutput' => GetCityOutput::fromWire($value, $context),
+            'example.weather#GetCityPhotoInput' => GetCityPhotoInput::fromWire($value, $context),
+            'example.weather#GetCityPhotoOutput' => GetCityPhotoOutput::fromWire($value, $context),
+            'example.weather#ListCitiesInput' => ListCitiesInput::fromWire($value, $context),
+            'example.weather#ListCitiesOutput' => ListCitiesOutput::fromWire($value, $context),
+            'example.weather#Location' => Location::fromWire($value, $context),
+            'example.weather#NotFoundError' => NotFoundError::fromWire($value, $context),
+            'example.weather#PhotoSummary' => PhotoSummary::fromWire($value, $context),
+            'example.weather#PutCityPhotoInput' => PutCityPhotoInput::fromWire($value, $context),
+            'example.weather#PutCityPhotoOutput' => PutCityPhotoOutput::fromWire($value, $context),
+            'example.weather#Sky' => new Sky(\Example\Weather\Runtime\WireCodec::string($value)),
+            'example.weather#StatusInput' => StatusInput::fromWire($value, $context),
+            'example.weather#StatusOutput' => StatusOutput::fromWire($value, $context),
+            'example.weather#ThrottlingError' => ThrottlingError::fromWire($value, $context),
+            'example.weather#ValidationError' => ValidationError::fromWire($value, $context),
+            'example.weather#ValidationField' => ValidationField::fromWire($value, $context),
+            'example.weather#ValidationReason' => new ValidationReason(\Example\Weather\Runtime\WireCodec::string($value)),
+            default => throw new \UnexpectedValueException('Unknown model: ' . $target),
+        };
+    }
+    public static function error(string $target, mixed $value, \Example\Weather\Runtime\WireContext $context, \Example\Weather\Runtime\ErrorMetadata $metadata): \Example\Weather\Runtime\ServiceError
+    {
+        return match ($target) {
+            'example.weather#ConflictError' => ConflictError::fromWire($value, $context, $metadata),
+            'example.weather#NotFoundError' => NotFoundError::fromWire($value, $context, $metadata),
+            'example.weather#ThrottlingError' => ThrottlingError::fromWire($value, $context, $metadata),
+            'example.weather#ValidationError' => ValidationError::fromWire($value, $context, $metadata),
+            default => new \Example\Weather\Runtime\UnknownServiceError($metadata),
+        };
+    }
+}
+
+=== src/Models/GetCityInput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class GetCityInput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Runtime\Field<string> $cityId
+     * @param \Example\Weather\Runtime\Field<\Example\Weather\Runtime\Timestamp> $at
+     */
+    public function __construct(
+        public readonly \Example\Weather\Runtime\Field $cityId = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $at = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            cityId: $context->optional('cityId', $object),
+            at: $context->optional('at', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'cityId', $this->cityId);
+        $context->put($object, 'at', $this->at);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/GetCityOutput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class GetCityOutput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Models\CitySummary $city
+     * @param \Example\Weather\Runtime\Field<array<string|int, \Example\Weather\Runtime\JsonValue>> $forecast
+     * @param \Example\Weather\Runtime\Field<string> $requestId
+     */
+    public function __construct(
+        public readonly \Example\Weather\Models\CitySummary $city,
+        public readonly \Example\Weather\Runtime\Field $forecast = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $requestId = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            city: $context->read('city', $object),
+            forecast: $context->optional('forecast', $object),
+            requestId: $context->optional('requestId', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'city', $this->city);
+        $context->put($object, 'forecast', $this->forecast);
+        $context->put($object, 'requestId', $this->requestId);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/GetCityPhotoInput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class GetCityPhotoInput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Runtime\Field<string> $cityId
+     */
+    public function __construct(
+        public readonly \Example\Weather\Runtime\Field $cityId = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            cityId: $context->optional('cityId', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'cityId', $this->cityId);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/GetCityPhotoOutput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class GetCityPhotoOutput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Runtime\Field<string> $caption
+     * @param \Example\Weather\Runtime\Field<string> $photo
+     */
+    public function __construct(
+        public readonly \Example\Weather\Runtime\Field $caption = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $photo = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            caption: $context->optional('caption', $object),
+            photo: $context->optional('photo', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'caption', $this->caption);
+        $context->put($object, 'photo', $this->photo);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/ListCitiesInput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class ListCitiesInput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Runtime\Field<string> $nextToken
+     * @param \Example\Weather\Runtime\Field<int> $maxResults
+     * @param \Example\Weather\Runtime\Field<list<string>> $tags
+     */
+    public function __construct(
+        public readonly \Example\Weather\Runtime\Field $nextToken = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $maxResults = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $tags = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            nextToken: $context->optional('nextToken', $object),
+            maxResults: $context->optional('maxResults', $object),
+            tags: $context->optional('tags', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'nextToken', $this->nextToken);
+        $context->put($object, 'maxResults', $this->maxResults);
+        $context->put($object, 'tags', $this->tags);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/ListCitiesOutput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class ListCitiesOutput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param list<\Example\Weather\Models\CitySummary> $cities
+     * @param \Example\Weather\Runtime\Field<string> $nextToken
+     */
+    public function __construct(
+        public readonly array $cities,
+        public readonly \Example\Weather\Runtime\Field $nextToken = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            cities: $context->read('cities', $object),
+            nextToken: $context->optional('nextToken', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'cities', $this->cities);
+        $context->put($object, 'nextToken', $this->nextToken);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/Location.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+abstract class Location implements \Example\Weather\Runtime\WireModel
+{
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        if (count($object->members) !== 1) throw new \UnexpectedValueException('Union requires one member');
+        $key = (string)array_key_first($object->members);
+        $value = $object->get($key);
+        return match ($key) {
+            'coordinates' => new LocationCoordinates($value === null ? null : $context->codec->decode($value, $context->member($key))),
+            'unknown' => new LocationUnknown($value === null ? null : $context->codec->decode($value, $context->member($key))),
+            default => new LocationUnknownVariant($key, new \Example\Weather\Runtime\JsonValue($value)),
+        };
+    }
+}
+
+=== src/Models/LocationCoordinates.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class LocationCoordinates extends Location
+{
+    /** @param \Example\Weather\Models\Coordinates|null $value */
+    public function __construct(public readonly ?\Example\Weather\Models\Coordinates $value) {}
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        return new \Example\Weather\Runtime\JsonObject(['coordinates' => $this->value === null ? null : $context->codec->encode($this->value, $context->member('coordinates'))]);
+    }
+}
+
+=== src/Models/LocationUnknown.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class LocationUnknown extends Location
+{
+    /** @param \Example\Weather\Runtime\Unit|null $value */
+    public function __construct(public readonly ?\Example\Weather\Runtime\Unit $value) {}
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        return new \Example\Weather\Runtime\JsonObject(['unknown' => $this->value === null ? null : $context->codec->encode($this->value, $context->member('unknown'))]);
+    }
+}
+
+=== src/Models/LocationUnknownVariant.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class LocationUnknownVariant extends Location
+{
+    public function __construct(public readonly string $name, public readonly \Example\Weather\Runtime\JsonValue $value) {}
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        if (\Example\Weather\Runtime\WireCodec::object($context->shape()->get('members'))->has($this->name)) throw new \UnexpectedValueException('Unknown variant name is declared');
+        return new \Example\Weather\Runtime\JsonObject([$this->name => $this->value->value()]);
+    }
+}
+
+=== src/Models/NotFoundError.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class NotFoundError extends \Example\Weather\Runtime\ServiceError implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param string $messageValue
+     * @param \Example\Weather\Runtime\Field<string> $resourceId
+     */
+    public function __construct(
+        public readonly string $messageValue,
+        public readonly \Example\Weather\Runtime\Field $resourceId = new \Example\Weather\Runtime\Field(),
+        \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata(),
+    ) { parent::__construct($metadata); }
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context, \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata()): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            messageValue: $context->read('message', $object),
+            resourceId: $context->optional('resourceId', $object),
+            metadata: $metadata,
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'message', $this->messageValue);
+        $context->put($object, 'resourceId', $this->resourceId);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/PhotoSummary.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class PhotoSummary implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param int $size
+     * @param string $thumbnail
+     * @param \Example\Weather\Runtime\Field<string> $caption
+     */
+    public function __construct(
+        public readonly int $size,
+        public readonly string $thumbnail,
+        public readonly \Example\Weather\Runtime\Field $caption = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            size: $context->read('size', $object),
+            thumbnail: $context->read('thumbnail', $object),
+            caption: $context->optional('caption', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'size', $this->size);
+        $context->put($object, 'thumbnail', $this->thumbnail);
+        $context->put($object, 'caption', $this->caption);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/PutCityPhotoInput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class PutCityPhotoInput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Runtime\Field<string> $cityId
+     * @param \Example\Weather\Runtime\Field<string> $caption
+     * @param \Example\Weather\Runtime\Field<string> $photo
+     */
+    public function __construct(
+        public readonly \Example\Weather\Runtime\Field $cityId = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $caption = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $photo = new \Example\Weather\Runtime\Field(),
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            cityId: $context->optional('cityId', $object),
+            caption: $context->optional('caption', $object),
+            photo: $context->optional('photo', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'cityId', $this->cityId);
+        $context->put($object, 'caption', $this->caption);
+        $context->put($object, 'photo', $this->photo);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/PutCityPhotoOutput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class PutCityPhotoOutput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param \Example\Weather\Models\PhotoSummary $photo
+     */
+    public function __construct(
+        public readonly \Example\Weather\Models\PhotoSummary $photo,
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            photo: $context->read('photo', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'photo', $this->photo);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/Sky.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final readonly class Sky implements \Example\Weather\Runtime\WireModel
+{
+    public function __construct(public string $value) {}
+    public const CLEAR = 'clear';
+    public const CLOUDY = 'cloudy';
+    public function toWire(\Example\Weather\Runtime\WireContext $context): string { return $this->value; }
+}
+
+=== src/Models/StatusInput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class StatusInput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     */
+    public function __construct(
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/StatusOutput.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class StatusOutput implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     */
+    public function __construct(
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/ThrottlingError.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class ThrottlingError extends \Example\Weather\Runtime\ServiceError implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param string $messageValue
+     * @param \Example\Weather\Runtime\Field<int> $retryAfter
+     */
+    public function __construct(
+        public readonly string $messageValue,
+        public readonly \Example\Weather\Runtime\Field $retryAfter = new \Example\Weather\Runtime\Field(),
+        \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata(),
+    ) { parent::__construct($metadata); }
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context, \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata()): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            messageValue: $context->read('message', $object),
+            retryAfter: $context->optional('retryAfter', $object),
+            metadata: $metadata,
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'message', $this->messageValue);
+        $context->put($object, 'retryAfter', $this->retryAfter);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/ValidationError.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class ValidationError extends \Example\Weather\Runtime\ServiceError implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param string $messageValue
+     * @param \Example\Weather\Models\ValidationReason $reason
+     * @param \Example\Weather\Runtime\Field<list<\Example\Weather\Models\ValidationField>> $fieldList
+     * @param \Example\Weather\Runtime\Field<string> $requestId
+     */
+    public function __construct(
+        public readonly string $messageValue,
+        public readonly \Example\Weather\Models\ValidationReason $reason,
+        public readonly \Example\Weather\Runtime\Field $fieldList = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Field $requestId = new \Example\Weather\Runtime\Field(),
+        \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata(),
+    ) { parent::__construct($metadata); }
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context, \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata()): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            messageValue: $context->read('message', $object),
+            reason: $context->read('reason', $object),
+            fieldList: $context->optional('fieldList', $object),
+            requestId: $context->optional('requestId', $object),
+            metadata: $metadata,
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'message', $this->messageValue);
+        $context->put($object, 'reason', $this->reason);
+        $context->put($object, 'fieldList', $this->fieldList);
+        $context->put($object, 'requestId', $this->requestId);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/ValidationField.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final class ValidationField implements \Example\Weather\Runtime\WireModel
+{
+    /**
+     * @param string $path
+     * @param string $messageValue
+     */
+    public function __construct(
+        public readonly string $path,
+        public readonly string $messageValue,
+    ) {}
+    public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
+    {
+        $object = \Example\Weather\Runtime\WireCodec::object($value);
+        return new self(
+            path: $context->read('path', $object),
+            messageValue: $context->read('message', $object),
+        );
+    }
+    public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'path', $this->path);
+        $context->put($object, 'message', $this->messageValue);
+        return new \Example\Weather\Runtime\JsonObject($object);
+    }
+}
+
+=== src/Models/ValidationReason.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather\Models;
+
+final readonly class ValidationReason implements \Example\Weather\Runtime\WireModel
+{
+    public function __construct(public string $value) {}
+    public const UNKNOWN_OPERATION = 'unknownOperation';
+    public const CANNOT_PARSE = 'cannotParse';
+    public const FIELD_VALIDATION_FAILED = 'fieldValidationFailed';
+    public const OTHER = 'other';
+    public function toWire(\Example\Weather\Runtime\WireContext $context): string { return $this->value; }
+}
+
+=== src/Schema.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather;
+
+final class Schema
+{
+    public static function codec(): Runtime\WireCodec
+    {
+        static $codec = null;
+        return $codec ??= new Runtime\WireCodec(Runtime\WireCodec::object(Runtime\ExactJson::decode(file_get_contents(__DIR__ . '/schema.json'))), Models\Decoder::model(...));
+    }
+}
+
+=== src/schema.json ===
+{"service":"example.weather#Weather","version":"2026-10-01","shapes":{"example.weather#CityId":{"kind":"string","format":"date-time","name":"CityId"},"example.weather#CityName":{"kind":"string","format":"date-time","name":"CityName"},"example.weather#CitySummaries":{"kind":"list","member":{"target":"example.weather#CitySummary","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"CitySummaries"},"example.weather#CitySummary":{"kind":"structure","members":{"id":{"target":"example.weather#CityId","attribute":"id","required":true,"default":null,"format":"date-time"},"name":{"target":"example.weather#CityName","attribute":"name","required":true,"default":null,"format":"date-time"},"population":{"target":"smithy.api#Long","attribute":"population","required":false,"default":0,"format":"date-time"},"updatedAt":{"target":"smithy.api#Timestamp","attribute":"updatedAt","required":false,"default":null,"format":"date-time"},"createdAt":{"target":"smithy.api#Timestamp","attribute":"createdAt","required":false,"default":null,"format":"epoch-seconds"}},"name":"CitySummary"},"example.weather#ConflictError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"messageValue","required":true,"default":null,"format":"date-time"}},"error":{"status":409,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"ConflictError"},"example.weather#Coordinates":{"kind":"structure","members":{"latitude":{"target":"smithy.api#Double","attribute":"latitude","required":true,"default":null,"format":"date-time"},"longitude":{"target":"smithy.api#Double","attribute":"longitude","required":true,"default":null,"format":"date-time"}},"name":"Coordinates"},"example.weather#CreateCityInput":{"kind":"structure","members":{"name":{"target":"example.weather#CityName","attribute":"name","required":true,"default":null,"format":"date-time"},"location":{"target":"example.weather#Location","attribute":"location","required":false,"default":null,"format":"date-time"},"clientToken":{"target":"smithy.api#String","attribute":"clientToken","required":false,"default":null,"format":"date-time"},"expectedRevision":{"target":"smithy.api#Long","attribute":"expectedRevision","required":false,"default":null,"format":"date-time"}},"name":"CreateCityInput"},"example.weather#CreateCityOutput":{"kind":"structure","members":{"city":{"target":"example.weather#CitySummary","attribute":"city","required":true,"default":null,"format":"date-time"}},"name":"CreateCityOutput"},"example.weather#DateTime":{"kind":"timestamp","format":"date-time","name":"DateTime"},"example.weather#Forecast":{"kind":"map","key":{"target":"example.weather#Sky","attribute":"key","required":false,"default":null,"format":"date-time"},"value":{"target":"smithy.api#Document","attribute":"value","required":false,"default":null,"format":"date-time"},"name":"Forecast"},"example.weather#GetCityInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"cityId","required":true,"default":null,"format":"date-time"},"at":{"target":"example.weather#DateTime","attribute":"at","required":false,"default":null,"format":"date-time"}},"name":"GetCityInput"},"example.weather#GetCityOutput":{"kind":"structure","members":{"city":{"target":"example.weather#CitySummary","attribute":"city","required":true,"default":null,"format":"date-time"},"forecast":{"target":"example.weather#Forecast","attribute":"forecast","required":false,"default":null,"format":"date-time"},"requestId":{"target":"smithy.api#String","attribute":"requestId","required":false,"default":null,"format":"date-time"}},"name":"GetCityOutput"},"example.weather#GetCityPhotoInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"cityId","required":true,"default":null,"format":"date-time"}},"name":"GetCityPhotoInput"},"example.weather#GetCityPhotoOutput":{"kind":"structure","members":{"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"},"photo":{"target":"example.weather#Photo","attribute":"photo","required":false,"default":null,"format":"date-time"}},"name":"GetCityPhotoOutput"},"example.weather#ListCitiesInput":{"kind":"structure","members":{"nextToken":{"target":"smithy.api#String","attribute":"nextToken","required":false,"default":null,"format":"date-time"},"maxResults":{"target":"smithy.api#Integer","attribute":"maxResults","required":false,"default":null,"format":"date-time"},"tags":{"target":"example.weather#Tags","attribute":"tags","required":false,"default":null,"format":"date-time"}},"name":"ListCitiesInput"},"example.weather#ListCitiesOutput":{"kind":"structure","members":{"cities":{"target":"example.weather#CitySummaries","attribute":"cities","required":true,"default":null,"format":"date-time"},"nextToken":{"target":"smithy.api#String","attribute":"nextToken","required":false,"default":null,"format":"date-time"}},"name":"ListCitiesOutput"},"example.weather#Location":{"kind":"union","members":{"coordinates":{"target":"example.weather#Coordinates","attribute":"coordinates","required":false,"default":null,"format":"date-time"},"unknown":{"target":"smithy.api#Unit","attribute":"unknown","required":false,"default":null,"format":"date-time"}},"name":"Location"},"example.weather#NotFoundError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"messageValue","required":true,"default":null,"format":"date-time"},"resourceId":{"target":"smithy.api#String","attribute":"resourceId","required":false,"default":null,"format":"date-time"}},"error":{"status":404,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"NotFoundError"},"example.weather#Photo":{"kind":"blob","format":"date-time","name":"Photo"},"example.weather#PhotoSummary":{"kind":"structure","members":{"size":{"target":"smithy.api#Integer","attribute":"size","required":true,"default":null,"format":"date-time"},"thumbnail":{"target":"example.weather#Thumbnail","attribute":"thumbnail","required":true,"default":null,"format":"date-time"},"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"}},"name":"PhotoSummary"},"example.weather#PutCityPhotoInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"cityId","required":true,"default":null,"format":"date-time"},"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"},"photo":{"target":"example.weather#Photo","attribute":"photo","required":true,"default":null,"format":"date-time"}},"name":"PutCityPhotoInput"},"example.weather#PutCityPhotoOutput":{"kind":"structure","members":{"photo":{"target":"example.weather#PhotoSummary","attribute":"photo","required":true,"default":null,"format":"date-time"}},"name":"PutCityPhotoOutput"},"example.weather#Sky":{"kind":"enum","values":["clear","cloudy"],"name":"Sky"},"example.weather#StatusInput":{"kind":"structure","members":{},"name":"StatusInput"},"example.weather#StatusOutput":{"kind":"structure","members":{},"name":"StatusOutput"},"example.weather#Tags":{"kind":"list","member":{"target":"smithy.api#String","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"Tags"},"example.weather#ThrottlingError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"messageValue","required":true,"default":null,"format":"date-time"},"retryAfter":{"target":"smithy.api#Integer","attribute":"retryAfter","required":false,"default":null,"format":"date-time"}},"error":{"status":429,"fault":"client","retryable":true,"throttling":true,"headers":[["retryAfter","Retry-After"]]},"name":"ThrottlingError"},"example.weather#Thumbnail":{"kind":"blob","format":"date-time","name":"Thumbnail"},"example.weather#ValidationError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"messageValue","required":true,"default":null,"format":"date-time"},"reason":{"target":"example.weather#ValidationReason","attribute":"reason","required":true,"default":null,"format":"date-time"},"fieldList":{"target":"example.weather#ValidationFieldList","attribute":"fieldList","required":false,"default":null,"format":"date-time"},"requestId":{"target":"smithy.api#String","attribute":"requestId","required":false,"default":null,"format":"date-time"}},"error":{"status":400,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"ValidationError"},"example.weather#ValidationField":{"kind":"structure","members":{"path":{"target":"smithy.api#String","attribute":"path","required":true,"default":null,"format":"date-time"},"message":{"target":"smithy.api#String","attribute":"messageValue","required":true,"default":null,"format":"date-time"}},"name":"ValidationField"},"example.weather#ValidationFieldList":{"kind":"list","member":{"target":"example.weather#ValidationField","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"ValidationFieldList"},"example.weather#ValidationReason":{"kind":"enum","values":["unknownOperation","cannotParse","fieldValidationFailed","other"],"name":"ValidationReason"},"smithy.api#Document":{"kind":"document","format":"date-time","name":"Document"},"smithy.api#Double":{"kind":"double","format":"date-time","name":"Double"},"smithy.api#Integer":{"kind":"integer","format":"date-time","name":"Integer"},"smithy.api#Long":{"kind":"long","format":"date-time","name":"Long"},"smithy.api#String":{"kind":"string","format":"date-time","name":"String"},"smithy.api#Timestamp":{"kind":"timestamp","format":"date-time","name":"Timestamp"},"smithy.api#Unit":{"kind":"unit","name":"Unit"}},"operations":{"CreateCity":{"method":"POST","uri":"/cities","input":"example.weather#CreateCityInput","output":"example.weather#CreateCityOutput","request":{"labels":[],"query":[],"headers":[["expectedRevision","X-Expected-Revision"]],"body":["name","location","clientToken"],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":["city"],"payload":null},"errors":["example.weather#ConflictError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":"clientToken","pagination":null},"GetCity":{"method":"GET","uri":"/cities/{cityId}","input":"example.weather#GetCityInput","output":"example.weather#GetCityOutput","request":{"labels":["cityId"],"query":[["at","at"]],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[["requestId","X-Request-Id"]],"body":["city","forecast"],"payload":null},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"GetCityPhoto":{"method":"GET","uri":"/cities/{cityId}/photo","input":"example.weather#GetCityPhotoInput","output":"example.weather#GetCityPhotoOutput","request":{"labels":["cityId"],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[["caption","X-Photo-Caption"]],"body":[],"payload":["photo","image/jpeg"]},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"ListCities":{"method":"GET","uri":"/cities","input":"example.weather#ListCitiesInput","output":"example.weather#ListCitiesOutput","request":{"labels":[],"query":[["nextToken","nextToken"],["maxResults","maxResults"],["tags","tag"]],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":["cities","nextToken"],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":{"input":"nextToken","output":["nextToken"],"items":"cities","pageSize":"maxResults"}},"Ping":{"method":"GET","uri":"/ping","input":null,"output":null,"request":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"PutCityPhoto":{"method":"PUT","uri":"/cities/{cityId}/photo","input":"example.weather#PutCityPhotoInput","output":"example.weather#PutCityPhotoOutput","request":{"labels":["cityId"],"query":[],"headers":[["caption","X-Photo-Caption"]],"body":[],"payload":["photo","image/jpeg"]},"response":{"labels":[],"query":[],"headers":[],"body":["photo"],"payload":null},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"Status":{"method":"GET","uri":"/status","input":"example.weather#StatusInput","output":"example.weather#StatusOutput","request":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null}},"bearer":true}

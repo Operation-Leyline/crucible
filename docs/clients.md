@@ -8,7 +8,7 @@ support conditional on finding an individual consumer.
 |---|---|---|
 | Baseline | TypeScript/JavaScript, Rust | Shared retry conformance runs in CI |
 | 1 | Python, Go, Java, C# | Implemented; native package and HTTP gates run in CI |
-| 2 | Kotlin, Swift, Dart, PHP, Ruby | Kotlin, Swift, and Dart implemented; remaining targets planned |
+| 2 | Kotlin, Swift, Dart, PHP, Ruby | Kotlin, Swift, Dart, and PHP implemented; Ruby planned |
 | Extension | C++, C, R | API and packaging scope still to be defined |
 
 ## Architecture
@@ -100,6 +100,11 @@ See [Swift clients](swift-client.md) for its API and representation limits.
 the real weather service, and compiles a separate consumer to native code and
 JavaScript. CI checks the minimum SDK and current stable SDK. See
 [Dart clients](dart-client.md) for model types, browser requirements, and limits.
+
+`python tools/test-php.py` runs exact codecs, shared fixtures, and native HTTP
+tests, installs a Composer archive into a separate consumer, and loads empty
+and renamed packages. CI checks PHP 8.3 and 8.5. See
+[PHP clients](php-client.md) for synchronous calls, model types, and limits.
 
 ## Remaining acceptance work
 
