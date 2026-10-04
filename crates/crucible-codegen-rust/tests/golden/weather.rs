@@ -361,6 +361,8 @@ pub mod errors {
         pub message: ::std::string::String,
         #[serde(rename = "fieldList", default, skip_serializing_if = "::std::option::Option::is_none")]
         pub field_list: ::std::option::Option<super::model::ValidationFieldList>,
+        #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
+        pub request_id: ::std::option::Option<::std::string::String>,
     }
 
     pub(super) static VALIDATION_ERROR_INFO: ErrorInfo = ErrorInfo {
@@ -371,6 +373,7 @@ pub mod errors {
         members: &[
             ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
             ::crucible::operation::MemberInfo { name: "fieldList", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
+            ::crucible::operation::MemberInfo { name: "requestId", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, sensitive: false },
         ],
     };
 
@@ -577,7 +580,8 @@ fn classify<'a>(error: &'a (dyn ::std::error::Error + 'static)) -> ::std::option
 fn reject(rejection: &::crucible::validate::Rejection) -> ::std::boxed::Box<dyn ::crucible::ModelledError> {
     ::std::boxed::Box::new(errors::ValidationError {
         message: rejection.summary(),
-        field_list: Some(rejection.violations.iter().map(|violation| model::ValidationField { path: violation.path.clone(), message: violation.message.clone() }).collect())
+        field_list: Some(rejection.violations.iter().map(|violation| model::ValidationField { path: violation.path.clone(), message: violation.message.clone() }).collect()),
+        request_id: ::crucible::Context::try_current().map(|context| context.request_id().to_owned())
     })
 }
 

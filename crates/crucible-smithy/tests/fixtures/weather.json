@@ -233,7 +233,8 @@
             "type": "structure",
             "members": {
                 "message": { "target": "smithy.api#String", "traits": { "smithy.api#required": {} } },
-                "fieldList": { "target": "example.weather#ValidationFieldList" }
+                "fieldList": { "target": "example.weather#ValidationFieldList" },
+                "requestId": { "target": "smithy.api#String" }
             },
             "traits": { "smithy.api#error": "client", "smithy.api#httpError": 400 }
         },

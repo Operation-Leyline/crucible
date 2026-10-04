@@ -242,3 +242,21 @@ async fn lambda_answers_direct_invokes_and_http_events_alike() {
         "{answered}"
     );
 }
+
+#[tokio::test]
+async fn a_rejected_request_carries_its_request_id_in_the_body_too() {
+    let request = axum::http::Request::get("/cities/nope")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let response = service().handle(request).await;
+    assert_eq!(response.status(), 400);
+    let header = response.headers()["x-request-id"]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(body["requestId"], header.as_str(), "{body}");
+}

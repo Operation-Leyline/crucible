@@ -361,6 +361,8 @@ pub mod errors {
         pub message: ::std::string::String,
         #[serde(rename = "fieldList", default, skip_serializing_if = "::std::option::Option::is_none")]
         pub field_list: ::std::option::Option<super::model::ValidationFieldList>,
+        #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
+        pub request_id: ::std::option::Option<::std::string::String>,
     }
 
     pub(super) static VALIDATION_ERROR_INFO: ErrorInfo = ErrorInfo {
@@ -371,6 +373,7 @@ pub mod errors {
         members: &[
             ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, sensitive: false },
             ::crucible_client::operation::MemberInfo { name: "fieldList", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, sensitive: false },
+            ::crucible_client::operation::MemberInfo { name: "requestId", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, sensitive: false },
         ],
     };
 

@@ -215,6 +215,11 @@ plus `message`. Otherwise the service gives the builder
 `on_rejection(|rejection| ..)`, and `Violation::kind` tells a malformed
 request from a broken constraint.
 
+An error the generator fills (validation or internal) that has a string
+`requestId` member gets the id of the request it answers, the same one as
+the `x-request-id` header. A translation or `on_rejection` that builds such
+an error itself reads it from `Context::try_current()`.
+
 ## The service log
 
 `ServiceLog` writes one structured record per request to its `LogSink`. The
