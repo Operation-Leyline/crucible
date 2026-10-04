@@ -28,7 +28,7 @@ static class Program
         .MakeGenericMethod(typeof(Unit)).Invoke(runtime, ["Retry", null, CancellationToken.None])!;
 
     sealed record Request(string Path, Dictionary<string, string> Headers, byte[] Body);
-    sealed record Response(int Status, string Body, Dictionary<string, string>? Headers = null, bool Truncated = false, bool Stall = false);
+    sealed record Response(int Status, string Body, Dictionary<string, string>? Headers = null, bool Truncated = false, bool Stall = false, byte[]? BinaryBody = null);
     sealed class Server : IAsyncDisposable
     {
         readonly TcpListener listener = new(IPAddress.Loopback, 0);
@@ -59,7 +59,7 @@ static class Program
                         await stream.ReadExactlyAsync(body, stop.Token);
                         Attempts++;
                         var response = handler(new(lines[0].Split(' ')[1], headers, body));
-                        var bytes = Encoding.UTF8.GetBytes(response.Body);
+                        var bytes = response.BinaryBody ?? Encoding.UTF8.GetBytes(response.Body);
                         var responseHeaders = $"HTTP/1.1 {response.Status} Test\r\nContent-Length: {bytes.Length + (response.Truncated ? 10 : 0)}\r\nConnection: close\r\n";
                         if (response.Headers is not null) foreach (var (key, value) in response.Headers) responseHeaders += $"{key}: {value}\r\n";
                         await stream.WriteAsync(Encoding.ASCII.GetBytes(responseHeaders + "\r\n"), stop.Token);
@@ -107,6 +107,11 @@ static class Program
         var runtime = Runtime(new() { Endpoint = "https://example.invalid" });
         try
         {
+            byte[] blob = [0xff, 0, 0x80, 0x01];
+            Check(Encode(runtime, "example.weather#Thumbnail", blob).GetValue<string>() == "/wCAAQ==", "blob base64 encoding");
+            Check(((byte[])Decode(runtime, "example.weather#Thumbnail", "\"/wCAAQ==\"")).SequenceEqual(blob), "blob base64 decoding");
+            Check(((byte[])Decode(runtime, "example.weather#Thumbnail", "\"\"")).Length == 0, "empty JSON blob");
+            try { Decode(runtime, "example.weather#Thumbnail", "\"invalid!\""); throw new Exception("invalid base64 accepted"); } catch (FormatException) { }
             Check(Decode(runtime, "example.weather#Sky", "\"future\"").ToString() == "future", "unknown enum");
             const string unknown = """{"future":{"n":9223372036854775807}}""";
             Check(JsonNode.DeepEquals(Encode(runtime, "example.weather#Location", Decode(runtime, "example.weather#Location", unknown)), J(unknown)), "unknown union");
@@ -170,6 +175,36 @@ static class Program
             try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("error missing"); }
             catch (ServiceError e) { Check(e.ErrorName == "FutureError" && e.RequestId == "wire", "malformed metadata"); }
         }
+    }
+    static async Task Payloads()
+    {
+        byte[] photo = [0xff, 0xd8, (byte)'{', (byte)'"', (byte)'a', (byte)'"', (byte)':', (byte)'1', (byte)'}', 0, 0x80];
+        int calls = 0;
+        await using var server = new Server(request => {
+            int call = ++calls;
+            if (call <= 2)
+            {
+                Check(request.Body.SequenceEqual(photo), "payload request bytes");
+                Check(request.Headers["Content-Type"] == "image/jpeg" && request.Headers["X-Photo-Caption"] == "harbour", "payload request bindings");
+                Check(request.Headers["x-amz-content-sha256"] == Convert.ToHexString(SHA256.HashData(photo)).ToLowerInvariant(), "raw payload digest");
+                return call == 1 ? new(503, "{\"__type\":\"FutureError\"}") : new(200, """{"photo":{"size":11,"thumbnail":"/9h7ImEiOjE=","caption":"harbour"}}""");
+            }
+            if (call == 3) return new(200, "", new() { ["Content-Type"] = "image/jpeg", ["X-Photo-Caption"] = "harbour" }, BinaryBody: photo);
+            if (call == 4) return new(200, "");
+            Check(request.Body.Length == 0 && !request.Headers.ContainsKey("Content-Type"), "empty payload request");
+            Check(request.Headers["x-amz-content-sha256"] == Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant(), "empty payload digest");
+            return new(200, """{"photo":{"size":0,"thumbnail":""}}""");
+        });
+        using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
+        var stored = await client.PutCityPhotoAsync(new() { CityId = "c-00000001", Caption = "harbour", Photo = photo });
+        Check(stored.Photo.Thumbnail.SequenceEqual(photo.Take(8)), "JSON thumbnail decoding");
+        var get = new GetCityPhotoInput { CityId = "c-00000001" };
+        var read = await client.GetCityPhotoAsync(get);
+        Check(read.Photo.IsSet && read.Photo.Value.SequenceEqual(photo) && read.Caption.Value == "harbour", "raw response and header binding");
+        var empty = await client.GetCityPhotoAsync(get);
+        Check(empty.Photo.IsSet && empty.Photo.Value.Length == 0, "empty raw response presence");
+        await client.PutCityPhotoAsync(new() { CityId = "c-00000001", Photo = Array.Empty<byte>() });
+        Check(calls == 5, "payload retry count");
     }
     static async Task MalformedModeledErrors()
     {
@@ -306,10 +341,15 @@ static class Program
         bool found = false;
         await foreach (var page in client.ListCitiesPagesAsync(new() { MaxResults = 1 })) found |= page.Cities.Any(c => c.Name == "csharp-http");
         Check(found, "weather pagination");
+        byte[] photo = [0xff, (byte)'{', (byte)'"', (byte)'a', (byte)'"', (byte)':', (byte)'1', (byte)'}', 0, 0x80];
+        var stored = await client.PutCityPhotoAsync(new() { CityId = city.City.Id, Caption = "aurora", Photo = photo });
+        Check(stored.Photo.Size == photo.Length && stored.Photo.Thumbnail.SequenceEqual(photo.Take(8)), "weather payload size and thumbnail");
+        var read = await client.GetCityPhotoAsync(new() { CityId = city.City.Id });
+        Check(read.Photo.IsSet && read.Photo.Value.SequenceEqual(photo) && read.Caption.Value == "aurora", "weather payload round trip");
     }
     static async Task Main(string[] args)
     {
-        await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await MalformedModeledErrors(); await NumericListErrors(); await FailureBehavior(); await Weather();
+        await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await Payloads(); await MalformedModeledErrors(); await NumericListErrors(); await FailureBehavior(); await Weather();
         Console.WriteLine("C# client conformance and weather HTTP passed");
     }
 }

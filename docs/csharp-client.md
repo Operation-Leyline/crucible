@@ -57,6 +57,8 @@ not become a default and is rejected for nonnullable value properties.
 String enums are records accepting unknown strings. Unions expose one present
 modeled member or an `UnknownVariant` containing a name and `JsonNode`. Unknown
 JSON documents retain integer tokens; `long` preserves signed 64-bit values.
+Blobs use `byte[]`, encoded as standard base64 in JSON. A modeled blob payload
+is sent and received as raw bytes, with its declared media type on requests.
 Timestamps use `DateTimeOffset` with 100-nanosecond precision and the .NET date
 range. Epoch fractions below that precision are truncated toward zero. The
 runtime uses reflection and is not qualified for trimming or Native AOT.

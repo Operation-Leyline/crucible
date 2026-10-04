@@ -59,6 +59,7 @@ internal sealed class ClientRuntime : IDisposable
         if (value is null) return null;
         switch (kind)
         {
+            case "blob": return JsonValue.Create(Convert.ToBase64String((byte[])value));
             case "timestamp": return WriteTime((DateTimeOffset)value, format ?? Text(shape["format"]));
             case "enum": return JsonValue.Create(value.ToString());
             case "document": return ((JsonNode)value).DeepClone();
@@ -104,6 +105,7 @@ internal sealed class ClientRuntime : IDisposable
         {
             case "unit": if (value.AsObject().Count != 0) throw new JsonException("Unit requires an empty object"); return new Unit();
             case "string": return value.GetValue<string>();
+            case "blob": return Convert.FromBase64String(value.GetValue<string>());
             case "boolean": return value.GetValue<bool>();
             case "byte": return checked((sbyte)Integer(value));
             case "short": return checked((short)Integer(value));
@@ -233,6 +235,11 @@ internal sealed class ClientRuntime : IDisposable
             foreach (var m in request["body"]!.AsArray()) { var key = Text(m)!; if (values.ContainsKey(key)) obj[key] = values[key]?.DeepClone(); }
             body = Encoding.UTF8.GetBytes(obj.ToJsonString(JsonOptions)); headers["Content-Type"] = "application/json";
         }
+        if (request["payload"] is JsonArray payload && values[Text(payload[0])!] is JsonNode encoded)
+        {
+            var bytes = Convert.FromBase64String(encoded.GetValue<string>());
+            if (bytes.Length != 0) { body = bytes; headers["Content-Type"] = Text(payload[1])!; }
+        }
         return new(op, new Uri(config.Endpoint + path), headers, body);
     }
     private static bool Secure(Uri uri) => uri.Scheme == "https" || uri.Scheme == "http" &&
@@ -293,11 +300,14 @@ internal sealed class ClientRuntime : IDisposable
                 using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
                 var headers = response.Headers.Concat(response.Content.Headers).GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => string.Join(", ", g.SelectMany(h => h.Value)), StringComparer.OrdinalIgnoreCase);
-                bool hasBody = op["response"]!["body"]!.AsArray().Count != 0;
+                var payload = op["response"]!["payload"] as JsonArray;
+                bool hasBody = op["response"]!["body"]!.AsArray().Count != 0 || payload is not null;
                 var bytes = response.IsSuccessStatusCode && !hasBody ? [] : await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
-                    var body = bytes.Length == 0 ? new JsonObject() : JsonNode.Parse(bytes)!.AsObject();
+                    // Payload bytes are present even when empty and never parsed as JSON.
+                    var body = payload is not null || bytes.Length == 0 ? new JsonObject() : JsonNode.Parse(bytes)!.AsObject();
+                    if (payload is not null) body[Text(payload[0])!] = Convert.ToBase64String(bytes);
                     var target = Text(op["output"]);
                     if (target is null) return (T)(object)new Unit();
                     foreach (var binding in op["response"]!["headers"]!.AsArray())

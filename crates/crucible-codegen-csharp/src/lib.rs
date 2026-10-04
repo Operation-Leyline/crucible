@@ -77,6 +77,7 @@ fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
             SimpleKind::Double => "double",
             SimpleKind::Timestamp => "global::System.DateTimeOffset",
             SimpleKind::Document => "global::System.Text.Json.Nodes.JsonNode",
+            SimpleKind::Blob => "byte[]",
         }
         .into(),
         _ => format!("global::{ns}.Models.@{}", service.name_of(id)),
