@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use serde_json::{Map, Value, json};
 
-use crate::handler::{Handler, Job, Outcome, Resolution};
+use crate::handler::{Handler, Hook, Job, Outcome, Resolution};
 use crate::operation::{MemberInfo, Operation};
 
 /// Which members of a structure a record carries.
@@ -205,25 +205,25 @@ impl ServiceLog {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for ServiceLog {
-    async fn before(&self, job: &mut Job) -> crate::Result<()> {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crate::Result<()>> {
         // The input is consumed by the operation, so a policy that logs it
         // asks for a copy first.
         if self.policy(job).input != Fields::None {
             job.snapshot_input();
         }
-        Ok(())
+        Hook::Ready(Ok(()))
     }
 
-    async fn after(&self, job: &mut Job) {
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
         let policy = self.policy(job);
         let Some(resolution) = job.resolution() else {
-            return;
+            return Hook::Ready(());
         };
         let succeeded = matches!(job.outcome(), Some(Outcome::Output(_)));
         if (succeeded && policy.successes) || (!succeeded && policy.failures) {
             self.sink.write(&self.record(job, policy, &resolution));
         }
+        Hook::Ready(())
     }
 }

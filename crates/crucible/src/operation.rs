@@ -176,6 +176,13 @@ pub trait Output: Any + Send + Sync {
     fn to_json(&self) -> Value;
     /// Serializes straight into `out`, with no JSON value in between.
     fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<()>;
+    /// Serializes straight into `out` without the members `members` binds
+    /// to headers, returning those as (header, text).
+    fn write_json_split(
+        &self,
+        members: &[MemberInfo],
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<Vec<(&'static str, String)>>;
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -186,6 +193,14 @@ impl<T: Serialize + Any + Send + Sync> Output for T {
 
     fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<()> {
         serde_json::to_writer(out, self)
+    }
+
+    fn write_json_split(
+        &self,
+        members: &[MemberInfo],
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<Vec<(&'static str, String)>> {
+        crate::protocol::split::write(self, members, out)
     }
 
     fn as_any(&self) -> &dyn Any {

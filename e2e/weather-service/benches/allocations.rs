@@ -118,11 +118,19 @@ fn main() {
             send(&service, get("/cities/not-an-id"))
         })
         .await;
-        measure("invoke_get_city", || async {
+        measure("invoke_json_get_city", || async {
             service
-                .invoke("GetCity", json!({ "cityId": "c-00000050" }))
+                .invoke_json("GetCity", &br#"{"cityId":"c-00000050"}"#[..])
                 .await
-                .to_string()
+                .len()
+        })
+        .await;
+        let event = r#"{"operation":"GetCity","input":{"cityId":"c-00000050"}}"#;
+        measure("lambda_invoke_get_city", || async {
+            crucible::host::lambda_event_json(&service, event)
+                .await
+                .unwrap()
+                .get()
                 .len()
         })
         .await;

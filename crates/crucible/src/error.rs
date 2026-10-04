@@ -83,6 +83,25 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     fn info(&self) -> &'static ErrorInfo;
     /// Every member, as on the wire; the protocol moves header members out.
     fn to_json(&self) -> Value;
+
+    /// The body (members plus `"__type"`) straight into `out`, without the
+    /// header members, which come back as (header, text). Generated errors
+    /// write in one pass through [`write_error`]; this default goes through
+    /// [`ModelledError::to_json`].
+    fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<Vec<(&'static str, String)>> {
+        let info = self.info();
+        crate::protocol::split::write_typed(&self.to_json(), info.members, Some(info.name), out)
+    }
+}
+
+/// How a generated error implements [`ModelledError::write_json`]: one pass,
+/// no JSON value in between.
+pub fn write_error<E: ModelledError + serde::Serialize>(
+    error: &E,
+    out: &mut Vec<u8>,
+) -> serde_json::Result<Vec<(&'static str, String)>> {
+    let info = error.info();
+    crate::protocol::split::write_typed(error, info.members, Some(info.name), out)
 }
 
 /// Errors the framework answers itself, outside any model: a request no

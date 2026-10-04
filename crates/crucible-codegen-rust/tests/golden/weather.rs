@@ -256,6 +256,10 @@ pub mod errors {
         fn to_json(&self) -> ::crucible::__private::serde_json::Value {
             ::crucible::__private::serde_json::to_value(self).unwrap_or_default()
         }
+
+        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
+            ::crucible::error::write_error(self, out)
+        }
     }
 
     impl ::std::fmt::Display for ConflictError {
@@ -293,6 +297,10 @@ pub mod errors {
 
         fn to_json(&self) -> ::crucible::__private::serde_json::Value {
             ::crucible::__private::serde_json::to_value(self).unwrap_or_default()
+        }
+
+        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
+            ::crucible::error::write_error(self, out)
         }
     }
 
@@ -332,6 +340,10 @@ pub mod errors {
         fn to_json(&self) -> ::crucible::__private::serde_json::Value {
             ::crucible::__private::serde_json::to_value(self).unwrap_or_default()
         }
+
+        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
+            ::crucible::error::write_error(self, out)
+        }
     }
 
     impl ::std::fmt::Display for ThrottlingError {
@@ -369,6 +381,10 @@ pub mod errors {
 
         fn to_json(&self) -> ::crucible::__private::serde_json::Value {
             ::crucible::__private::serde_json::to_value(self).unwrap_or_default()
+        }
+
+        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
+            ::crucible::error::write_error(self, out)
         }
     }
 

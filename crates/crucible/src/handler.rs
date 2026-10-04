@@ -2,6 +2,7 @@
 //! `before` hooks in order, to the operation, then back through the `after`
 //! hooks in reverse.
 
+use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::body::Bytes;
@@ -15,26 +16,75 @@ use crate::operation::{Input, OperationInfo, Output, ServiceInfo};
 use crate::protocol::Protocol;
 use crate::validate::Rejection;
 
+/// What a hook gives back: its result now, or a future to wait for. A hook
+/// that needs no waiting returns `Ready` and costs no allocation; one that
+/// does returns `Hook::wait(async move { .. })`.
+pub enum Hook<'a, T> {
+    Ready(T),
+    Wait(Pin<Box<dyn Future<Output = T> + Send + 'a>>),
+}
+
+impl<'a, T> Hook<'a, T> {
+    pub fn wait(future: impl Future<Output = T> + Send + 'a) -> Self {
+        Self::Wait(Box::pin(future))
+    }
+
+    /// The result, waiting for it if it is not ready.
+    pub async fn resolve(self) -> T {
+        match self {
+            Self::Ready(value) => value,
+            Self::Wait(future) => future.await,
+        }
+    }
+}
+
 /// A step in every request. Both hooks have defaults, so a handler writes
-/// only the one it needs.
-#[async_trait::async_trait]
+/// only the one it needs. A hook that awaits something returns
+/// [`Hook::wait`]; for writing hooks as `async fn`, implement
+/// [`AsyncHandler`] instead.
 pub trait Handler: Send + Sync + 'static {
     /// Runs in chain order before the operation. An error stops the chain:
     /// the operation does not run, and it becomes the request's outcome.
-    async fn before(&self, job: &mut Job) -> Result<()> {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         let _ = job;
-        Ok(())
+        Hook::Ready(Ok(()))
     }
 
     /// Runs in reverse chain order after the operation, or after a `before`
     /// failed, for every handler whose `before` succeeded.
-    async fn after(&self, job: &mut Job) {
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
         let _ = job;
+        Hook::Ready(())
     }
 
     /// A protocol handler routes requests and writes responses too.
     fn as_protocol(&self) -> Option<&dyn Protocol> {
         None
+    }
+}
+
+/// A handler written with `async fn` hooks: every type implementing it is a
+/// [`Handler`]. Each call allocates its future, which a handler that never
+/// waits avoids by implementing `Handler` directly.
+#[async_trait::async_trait]
+pub trait AsyncHandler: Send + Sync + 'static {
+    async fn before(&self, job: &mut Job) -> Result<()> {
+        let _ = job;
+        Ok(())
+    }
+
+    async fn after(&self, job: &mut Job) {
+        let _ = job;
+    }
+}
+
+impl<T: AsyncHandler> Handler for T {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        Hook::Wait(AsyncHandler::before(self, job))
+    }
+
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
+        Hook::Wait(AsyncHandler::after(self, job))
     }
 }
 
@@ -102,6 +152,7 @@ pub struct Job {
     pub(crate) labels: Vec<(&'static str, String)>,
     pub(crate) decode: Option<Decode>,
     pub(crate) decode_json: Option<DecodeJson>,
+    pub(crate) decode_bound: Option<crate::operations::DecodeBound>,
     pub(crate) input: Option<Box<dyn Input>>,
     pub(crate) outcome: Option<Outcome>,
     pub(crate) response_headers: HeaderMap,
@@ -174,6 +225,20 @@ impl Job {
     pub fn decode_json(&self, bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
         match self.decode_json {
             Some(decode) => decode(bytes),
+            None => Err(Rejection::malformed("", "no operation serves this request")),
+        }
+    }
+
+    /// Reads the operation's input from its bound members (already checked
+    /// against their kinds) and its JSON body in one pass, and validates it.
+    /// For protocol handlers.
+    pub fn decode_bound<'a>(
+        &self,
+        body: &'a [u8],
+        bound: Vec<(&'static str, crate::protocol::BoundValue<'a>)>,
+    ) -> std::result::Result<Box<dyn Input>, Rejection> {
+        match self.decode_bound {
+            Some(decode) => decode(body, bound),
             None => Err(Rejection::malformed("", "no operation serves this request")),
         }
     }

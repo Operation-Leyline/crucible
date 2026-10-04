@@ -103,24 +103,35 @@ async fn shutdown() {
 #[cfg(feature = "lambda")]
 pub async fn lambda(service: Crucible) -> Result<(), BoxError> {
     lambda_runtime::run(lambda_runtime::service_fn(
-        move |event: lambda_runtime::LambdaEvent<serde_json::Value>| {
+        move |event: lambda_runtime::LambdaEvent<Box<serde_json::value::RawValue>>| {
             let service = service.clone();
-            async move { lambda_event(&service, event.payload).await }
+            async move { lambda_event_json(&service, event.payload.get()).await }
         },
     ))
     .await
 }
 
-/// One Lambda event, answered as its source expects: a direct invoke
-/// (`{"operation": "GetCity", "input": {..}}`) gets `{"output": ..}` or
-/// `{"error": ..}`; an HTTP event (Function URL, API Gateway, ALB) gets that
-/// source's response shape. For tests, and for a runtime loop of your own.
+/// One Lambda event as raw JSON, answered as its source expects: a direct
+/// invoke (`{"operation": "GetCity", "input": {..}}`) gets `{"output": ..}`
+/// or `{"error": ..}`, its input read straight from the event text; an HTTP
+/// event (Function URL, API Gateway, ALB) gets that source's response shape.
+/// For a runtime loop of your own.
+#[cfg(feature = "lambda")]
+pub async fn lambda_event_json(
+    service: &Crucible,
+    payload: &str,
+) -> Result<Box<serde_json::value::RawValue>, BoxError> {
+    lambda_event::handle(service, payload).await
+}
+
+/// [`lambda_event_json`] with JSON values, for tests.
 #[cfg(feature = "lambda")]
 pub async fn lambda_event(
     service: &Crucible,
     payload: serde_json::Value,
 ) -> Result<serde_json::Value, BoxError> {
-    lambda_event::handle(service, payload).await
+    let answer = lambda_event_json(service, &payload.to_string()).await?;
+    Ok(serde_json::from_str(answer.get())?)
 }
 
 #[cfg(not(feature = "lambda"))]
@@ -130,29 +141,53 @@ pub async fn lambda(_: Crucible) -> Result<(), BoxError> {
 
 #[cfg(feature = "lambda")]
 mod lambda_event {
-    use axum::body::Body;
+    use std::borrow::Cow;
+
+    use axum::body::{Body, Bytes};
     use axum::http::{HeaderMap, Request};
     use lambda_http::aws_lambda_events::alb::AlbTargetGroupResponse;
     use lambda_http::aws_lambda_events::apigw::{
         ApiGatewayProxyResponse, ApiGatewayV2httpResponse,
     };
     use lambda_http::request::{LambdaRequest, RequestOrigin};
-    use serde_json::Value;
+    use serde::Deserialize;
+    use serde::de::IgnoredAny;
+    use serde_json::value::{RawValue, to_raw_value};
 
     use super::BoxError;
     use crate::service::Crucible;
 
-    /// One Lambda event: a direct invoke (`{"operation": .., "input": ..}`)
-    /// or an HTTP event, answered in the shape its source expects.
-    pub(super) async fn handle(service: &Crucible, payload: Value) -> Result<Value, BoxError> {
-        if let Some(operation) = invoked_operation(&payload) {
-            let input = payload
-                .get("input")
-                .cloned()
-                .unwrap_or(Value::Object(Default::default()));
-            return Ok(service.invoke(&operation, input).await);
+    /// What tells a direct invoke from an HTTP event, read without building
+    /// the event: the input stays a slice of the event text.
+    #[derive(Deserialize)]
+    struct Envelope<'a> {
+        #[serde(borrow, default)]
+        operation: Option<Cow<'a, str>>,
+        #[serde(borrow, default)]
+        input: Option<&'a RawValue>,
+        #[serde(rename = "requestContext", default)]
+        request_context: Option<IgnoredAny>,
+        #[serde(rename = "httpMethod", default)]
+        http_method: Option<IgnoredAny>,
+    }
+
+    pub(super) async fn handle(
+        service: &Crucible,
+        payload: &str,
+    ) -> Result<Box<RawValue>, BoxError> {
+        let envelope: Envelope<'_> = serde_json::from_str(payload)?;
+        if let (Some(operation), None, None) = (
+            envelope.operation.as_deref(),
+            &envelope.request_context,
+            &envelope.http_method,
+        ) {
+            let input = envelope.input.map_or("{}", RawValue::get);
+            let answer = service
+                .invoke_json(operation, Bytes::copy_from_slice(input.as_bytes()))
+                .await;
+            return Ok(RawValue::from_string(String::from_utf8(answer.to_vec())?)?);
         }
-        let request: LambdaRequest = serde_json::from_value(payload)?;
+        let request: LambdaRequest = serde_json::from_str(payload)?;
         let origin = request.request_origin();
         let (parts, body) = axum::http::Request::<lambda_http::Body>::from(request).into_parts();
         let body = match body {
@@ -181,15 +216,6 @@ mod lambda_event {
         )
     }
 
-    /// A direct invoke names an operation and carries no HTTP envelope.
-    fn invoked_operation(payload: &Value) -> Option<String> {
-        let object = payload.as_object()?;
-        if object.contains_key("requestContext") || object.contains_key("httpMethod") {
-            return None;
-        }
-        object.get("operation")?.as_str().map(str::to_owned)
-    }
-
     fn respond(
         origin: RequestOrigin,
         status: i64,
@@ -197,7 +223,7 @@ mod lambda_event {
         body: Option<lambda_http::Body>,
         base64: bool,
         reason: Option<&str>,
-    ) -> Result<Value, BoxError> {
+    ) -> Result<Box<RawValue>, BoxError> {
         Ok(match origin {
             RequestOrigin::ApiGatewayV1 => {
                 let mut response = ApiGatewayProxyResponse::default();
@@ -206,7 +232,7 @@ mod lambda_event {
                 response.is_base64_encoded = base64;
                 // API Gateway v1 merges both header fields, so only one is set.
                 response.multi_value_headers = headers;
-                serde_json::to_value(response)?
+                to_raw_value(&response)?
             }
             RequestOrigin::ApiGatewayV2 => {
                 let mut response = ApiGatewayV2httpResponse::default();
@@ -214,7 +240,7 @@ mod lambda_event {
                 response.body = body;
                 response.is_base64_encoded = base64;
                 response.headers = headers;
-                serde_json::to_value(response)?
+                to_raw_value(&response)?
             }
             RequestOrigin::Alb => {
                 let mut response = AlbTargetGroupResponse::default();
@@ -226,7 +252,7 @@ mod lambda_event {
                 // An ALB reads one field or the other, depending on its configuration.
                 response.headers = headers.clone();
                 response.multi_value_headers = headers;
-                serde_json::to_value(response)?
+                to_raw_value(&response)?
             }
             _ => return Err("unsupported Lambda event source".into()),
         })

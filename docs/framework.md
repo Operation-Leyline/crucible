@@ -245,29 +245,36 @@ process, against the same read written straight on axum:
 
 | request | allocations at first | now | bare axum |
 |---|---|---|---|
-| `list_cities` (10 items) | 200 | 61 | |
-| `create_city` | 62 | 41 | |
-| `get_city` (label, query, header out) | 89 | 75 | 40 |
-| direct invoke `get_city` | 116 | 72 | |
+| `get_city` (label, query, header out) | 89 | 37 | 40 |
+| `list_cities` (10 items) | 200 | 50 | |
+| `create_city` | 62 | 27 | |
+| `ping` | 20 | 12 | |
+| rejected label (validation error) | 83 | 54 | |
+| direct invoke, JSON bytes in and out | 116 | 28 | |
+| Lambda direct invoke, from the raw event | | 33 | |
+
+In time, `get_city` is about on a par with hand-written axum (3.3 µs against
+3.6 µs on the same run), down from 7 µs.
 
 What got it there:
 
-- **One-pass input**: an input with no member bound outside the body
-  (every direct invoke, most writes) is deserialized straight from the body
-  bytes.
-- **Direct output**: an output with no header member is serialized straight
-  to bytes, with no JSON value in between. Invoke responses too.
-- **Lazy validation paths**: a violation's path is built into text only
+- **Input in one pass.** An input that is all body is deserialized straight
+  from the body bytes. One with bound members is deserialized from a single
+  map that chains the bound members (checked against their kinds first, so
+  violations still name the parameter or header) with the body.
+- **Output in one pass.** An output, an error and an invoke answer are each
+  serialized straight to bytes. Header members are taken out as the body is
+  written.
+- **Hooks that do not wait do not allocate.** `Handler` hooks return
+  `Hook::Ready` or a future; only `AsyncHandler` and waiting hooks box one.
+- **Lambda direct invokes from the raw event.** The input is a slice of the
+  event text, read once.
+- **Lazy validation paths.** A violation's path is built into text only
   when a violation happens.
-- **Borrowed text**: query parameters are looked up and decoded per bound
-  member, borrowing when nothing needs decoding. Label names are the
-  model's `'static` strings.
-- **Smaller fixed costs**: the request id is formatted once and shared with
+- **Borrowed text.** Query parameters are looked up and decoded per bound
+  member, borrowing when nothing needs decoding. Label names are the model's
+  `'static` strings.
+- **Smaller fixed costs.** The request id is formatted once and shared with
   the response header, the request head is shared between the job and the
-  context, and routes are indexed by path length.
-
-Next, each measured the same way:
-
-- inputs with bound members, and outputs with header members, without the
-  intermediate JSON value
-- Lambda direct invokes deserialized from the raw event, not through a value
+  context, routes are indexed by path length, and generated header names are
+  lowercase.

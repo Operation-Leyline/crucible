@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use super::{Answers, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
-use crate::handler::{Handler, Job, Resolution};
+use crate::handler::{Handler, Hook, Job, Resolution};
 use crate::operations::Operations;
 
 /// Marks a request as a direct invocation of `operation`. Set only by the
@@ -83,10 +83,19 @@ fn respond(status: u16, body: Vec<u8>) -> Response {
         .into_response()
 }
 
-#[async_trait::async_trait]
 impl Handler for InvokeProtocol {
+    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        Hook::Ready(self.read_input(job))
+    }
+
+    fn as_protocol(&self) -> Option<&dyn Protocol> {
+        Some(self)
+    }
+}
+
+impl InvokeProtocol {
     /// The whole input is the request body.
-    async fn before(&self, job: &mut Job) -> Result<()> {
+    fn read_input(&self, job: &mut Job) -> Result<()> {
         if !self.owns(job.request()) {
             return Ok(());
         }
@@ -97,13 +106,10 @@ impl Handler for InvokeProtocol {
         job.set_input(input);
         Ok(())
     }
-
-    fn as_protocol(&self) -> Option<&dyn Protocol> {
-        Some(self)
-    }
 }
 
 fn error_body(error: &dyn ModelledError) -> (u16, Value) {
+    // Header members stay in an invoke's error: there are no headers.
     let mut fields = error.to_json();
     if let Value::Object(object) = &mut fields {
         object.insert(

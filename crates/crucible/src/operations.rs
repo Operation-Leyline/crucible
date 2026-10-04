@@ -11,6 +11,7 @@ use serde_json::Value;
 
 use crate::error::{Error, Result};
 use crate::operation::{Input, Operation, OperationInfo, Output, ServiceInfo};
+use crate::protocol::BoundValue;
 use crate::validate::{Rejection, Validator};
 
 pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
@@ -22,11 +23,16 @@ pub(crate) type Invoke =
     Arc<dyn Fn(Box<dyn Input>) -> BoxFuture<Result<Box<dyn Output>>> + Send + Sync>;
 type Decode = fn(Value) -> std::result::Result<Box<dyn Input>, Rejection>;
 type DecodeJson = fn(&[u8]) -> std::result::Result<Box<dyn Input>, Rejection>;
+pub(crate) type DecodeBound = for<'a> fn(
+    &'a [u8],
+    Vec<(&'static str, BoundValue<'a>)>,
+) -> std::result::Result<Box<dyn Input>, Rejection>;
 
 pub(crate) struct Entry {
     pub info: &'static OperationInfo,
     pub decode: Decode,
     pub decode_json: DecodeJson,
+    pub decode_bound: DecodeBound,
     pub invoke: Invoke,
 }
 
@@ -100,6 +106,7 @@ impl OperationsBuilder {
                 info: O::INFO,
                 decode: decode::<O>,
                 decode_json: decode_json::<O>,
+                decode_bound: decode_bound::<O>,
                 invoke,
             },
         );
@@ -148,6 +155,17 @@ fn decode_json<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>
         bytes
     };
     let input: O::Input = serde_json::from_slice(bytes)
+        .map_err(|error| Rejection::malformed("", error.to_string()))?;
+    Validator::check(&input)?;
+    Ok(Box::new(input))
+}
+
+/// The input from its bound members and its JSON body, in one pass.
+fn decode_bound<'a, O: Operation>(
+    body: &'a [u8],
+    bound: Vec<(&'static str, BoundValue<'a>)>,
+) -> std::result::Result<Box<dyn Input>, Rejection> {
+    let input: O::Input = crate::protocol::read_bound(body, bound)
         .map_err(|error| Rejection::malformed("", error.to_string()))?;
     Validator::check(&input)?;
     Ok(Box::new(input))

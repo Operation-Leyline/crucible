@@ -4,7 +4,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use axum::body::Body;
+use axum::body::{Body, Bytes};
 use axum::http::{HeaderValue, Request};
 use axum::response::Response;
 
@@ -62,23 +62,34 @@ impl Crucible {
         })
     }
 
-    /// Calls an operation by name with its input as JSON, through the whole
-    /// handler chain, without HTTP: for direct Lambda invokes and in-process
-    /// callers. Needs an [`InvokeProtocol`] in the chain.
-    pub async fn invoke(&self, operation: &str, input: serde_json::Value) -> serde_json::Value {
+    /// Calls an operation by name with its input as JSON bytes, through the
+    /// whole handler chain, without HTTP, and answers `{"output": ..}` or
+    /// `{"error": ..}` as bytes. The input is read straight from `input`, in
+    /// one pass. For direct Lambda invokes and in-process callers; needs an
+    /// [`InvokeProtocol`] in the chain.
+    pub async fn invoke_json(&self, operation: &str, input: impl Into<Bytes>) -> Bytes {
         let mut request = Request::post("/")
-            .body(Body::from(input.to_string()))
+            .body(Body::from(input.into()))
             .expect("a POST to / is a valid request");
         request.extensions_mut().insert(Invocation {
             operation: operation.to_owned(),
         });
         let response = self.handle(request).await;
-        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
-            .unwrap_or_default();
-        serde_json::from_slice(&bytes).unwrap_or_else(|_| {
-            serde_json::json!({ "error": { "__type": "InternalFailure", "message": "no protocol answered the invocation" } })
-        })
+            .unwrap_or_else(|_| {
+                Bytes::from_static(
+                    br#"{"error":{"__type":"InternalFailure","message":"no protocol answered the invocation"}}"#,
+                )
+            })
+    }
+
+    /// [`Crucible::invoke_json`] with JSON values, for tests and callers
+    /// that already hold one.
+    pub async fn invoke(&self, operation: &str, input: serde_json::Value) -> serde_json::Value {
+        let input = serde_json::to_vec(&input).unwrap_or_default();
+        let answer = self.invoke_json(operation, input).await;
+        serde_json::from_slice(&answer).unwrap_or(serde_json::Value::Null)
     }
 
     pub async fn handle(&self, request: Request<Body>) -> Response {
@@ -120,6 +131,7 @@ impl Crucible {
             labels: route.map(|Route { labels, .. }| labels).unwrap_or_default(),
             decode: entry.map(|entry| entry.decode),
             decode_json: entry.map(|entry| entry.decode_json),
+            decode_bound: entry.map(|entry| entry.decode_bound),
             input: None,
             outcome: None,
             response_headers: Default::default(),
@@ -172,7 +184,7 @@ impl Crucible {
         let mut ran = if refused_early { handlers.len() } else { 0 };
         if !refused_early {
             for handler in handlers {
-                if let Err(error) = handler.before(job).await {
+                if let Err(error) = handler.before(job).resolve().await {
                     job.outcome = Some(Outcome::Failed(error));
                     break;
                 }
@@ -195,7 +207,7 @@ impl Crucible {
             });
         }
         for handler in handlers[..ran].iter().rev() {
-            handler.after(job).await;
+            handler.after(job).resolve().await;
         }
     }
 }

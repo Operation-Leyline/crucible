@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use crate::handler::{Handler, Job};
+use crate::handler::{Handler, Hook, Job};
 use crate::operation::OperationInfo;
 
 #[derive(Debug, Clone)]
@@ -33,11 +33,10 @@ impl<R: Recorder> Metrics<R> {
     }
 }
 
-#[async_trait::async_trait]
 impl<R: Recorder> Handler for Metrics<R> {
-    async fn after(&self, job: &mut Job) {
+    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
         let Some(resolution) = job.resolution() else {
-            return;
+            return Hook::Ready(());
         };
         let operation = job.operation();
         self.recorder.record(&RequestRecord {
@@ -48,5 +47,6 @@ impl<R: Recorder> Handler for Metrics<R> {
             error: resolution.error_name(),
             latency: job.context().received().elapsed(),
         });
+        Hook::Ready(())
     }
 }
