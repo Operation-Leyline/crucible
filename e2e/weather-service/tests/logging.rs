@@ -120,6 +120,39 @@ async fn literal_queries_select_the_operation_and_the_generated_client_sends_the
     assert_eq!(records[6]["operation"], "Other");
 }
 
+#[test]
+fn exact_query_values_outrank_any_value_matches() {
+    use crucible::protocol::Protocol;
+
+    struct AnyMode;
+    impl Operation for AnyMode {
+        const INFO: &'static crucible::OperationInfo = &crucible::OperationInfo {
+            literal_query: &[("mode", None)],
+            ..*api::Echo::INFO
+        };
+        type Input = api::model::Payload;
+        type Output = api::model::Payload;
+    }
+
+    // Echo sorts before Other, so a tie would incorrectly select Echo.
+    let operations = crucible::Operations::builder(&api::SERVICE)
+        .add::<AnyMode, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<api::Other, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .build()
+        .unwrap();
+    for (uri, expected) in [
+        ("/echo?mode=other", Some("Other")),
+        ("/echo?mode=oth%65r", Some("Other")),
+        ("/echo?mode=echo", Some("Echo")),
+        ("/echo?mode", Some("Echo")),
+        ("/echo", None),
+    ] {
+        let (request, _) = Request::post(uri).body(()).unwrap().into_parts();
+        let route = JsonProtocol.route(&request, &operations);
+        assert_eq!(route.map(|route| route.operation), expected, "{uri}");
+    }
+}
+
 #[derive(Clone, Default)]
 struct Buffer(Arc<Mutex<Vec<u8>>>);
 impl Write for Buffer {

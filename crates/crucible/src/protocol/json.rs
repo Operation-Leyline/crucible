@@ -29,7 +29,7 @@ impl Protocol for JsonProtocol {
             .split('/')
             .filter(|s| !s.is_empty())
             .collect();
-        let mut best: Option<((usize, usize), Route)> = None;
+        let mut best: Option<((usize, usize, usize), Route)> = None;
         for &op in operations.routes(path.len()) {
             if op.method != request.method.as_str() {
                 continue;
@@ -58,8 +58,14 @@ impl Protocol for JsonProtocol {
                     }
                 });
             // A literal beats a label in the same place: `cities/search`
-            // over `cities/{cityId}`.
-            let specificity = (literals, op.literal_query.len());
+            // over `cities/{cityId}`. With equal query constraint counts,
+            // an exact value beats a constraint that only requires the key.
+            let exact_query_values = op
+                .literal_query
+                .iter()
+                .filter(|(_, expected)| expected.is_some())
+                .count();
+            let specificity = (literals, op.literal_query.len(), exact_query_values);
             if matched && best.as_ref().is_none_or(|(most, _)| specificity > *most) {
                 best = Some((
                     specificity,
