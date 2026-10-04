@@ -5,3 +5,4 @@ crates/crucible-codegen-ts/tests/ts/dist/
 e2e/generated/
 e2e/target/
 e2e/ts/dist/
+dist/

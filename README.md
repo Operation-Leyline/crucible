@@ -69,10 +69,27 @@ async fn main() -> Result<(), crucible::host::BoxError> {
 
 ## Models
 
-Copy [smithy/crucible.smithy](smithy/crucible.smithy) into the model's source
-directory and put `@crucible.protocols#json` on the service. That file
-specifies crucible's HTTP+JSON protocol. Build with a projection that
-flattens mixins:
+Depend on the `crucible-traits` jar and put `@crucible.protocols#json` on the
+service. The jar carries [smithy/crucible.smithy](smithy/crucible.smithy),
+which specifies crucible's HTTP+JSON protocol (and `@strict`); it is attached
+to each `traits-v<version>` release, so a Gradle build reads it with no
+credentials:
+
+```kotlin
+repositories {
+    ivy {
+        url = uri("https://github.com/Operation-Leyline/crucible/releases/download")
+        patternLayout { artifact("traits-v[revision]/[module]-[revision].[ext]") }
+        metadataSources { artifact() }
+    }
+}
+dependencies {
+    implementation("crucible:crucible-traits:0.1.0")
+    smithyBuild("crucible:crucible-traits:0.1.0")
+}
+```
+
+Build with a projection that flattens mixins:
 
 ```json
 "projections": {

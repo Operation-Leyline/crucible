@@ -24,6 +24,7 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
+      - run: python -m unittest discover -s tools -p "test_*.py"
 
   # The generated TypeScript client, compiled and run against a fake fetch.
   typescript:

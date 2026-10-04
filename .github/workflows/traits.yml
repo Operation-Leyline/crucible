@@ -1,0 +1,37 @@
+name: Traits
+
+# Publishes smithy/crucible.smithy as a Smithy model jar, attached to a GitHub
+# release `traits-v<version>`. Models depend on it like any trait package; a
+# public release asset needs no credentials to download. A version is
+# released once: bump smithy/version.txt to publish a change.
+
+on:
+  push:
+    branches: [main]
+    paths: [smithy/**, tools/build_traits_jar.py]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - run: python -m unittest discover -s tools -p "test_*.py"
+      - name: Release the jar unless this version already is
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(cat smithy/version.txt)"
+          tag="traits-v$version"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag is already released"
+            exit 0
+          fi
+          jar="$(python tools/build_traits_jar.py dist)"
+          gh release create "$tag" "$jar" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "crucible-traits $version" \
+            --notes "The crucible.protocols Smithy traits (json, strict) as a model jar."
