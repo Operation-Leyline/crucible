@@ -1,12 +1,15 @@
 //! The orchestrator: routes a request, runs the handler chain around the
 //! operation, and has the routing protocol write the response.
 
+use std::convert::Infallible;
 use std::fmt;
 use std::sync::Arc;
 
-use axum::body::{Body, Bytes};
+use axum::body::{Body, Bytes, HttpBody};
 use axum::http::{HeaderValue, Request};
 use axum::response::Response;
+use tower::util::BoxCloneSyncService;
+use tower::{Layer, Service, ServiceExt};
 
 use crate::context::Context;
 use crate::error::{Error, FrameworkError, ModelledError};
@@ -22,6 +25,11 @@ pub(crate) const INVOKE_FAILURE: &str =
 
 type Reject = Arc<dyn Fn(&Rejection) -> Box<dyn ModelledError> + Send + Sync>;
 
+/// The service as a tower service: what a [`Builder::layer`] wraps.
+pub type Endpoint = BoxCloneSyncService<Request<Body>, Response, Infallible>;
+
+type Wrap = Box<dyn FnOnce(Endpoint) -> Endpoint + Send + Sync>;
+
 /// A random UUID (v4) as a header value, formatted once.
 fn request_id() -> HeaderValue {
     let mut text = [0u8; uuid::fmt::Hyphenated::LENGTH];
@@ -36,6 +44,9 @@ pub const DEFAULT_BODY_LIMIT: usize = 10 * 1024 * 1024;
 #[derive(Clone)]
 pub struct Crucible {
     inner: Arc<Inner>,
+    /// The layered service, when the builder added layers; every entry point
+    /// goes through it. Without layers requests go straight to the chain.
+    endpoint: Option<Endpoint>,
 }
 
 struct Inner {
@@ -52,13 +63,15 @@ impl Crucible {
         Builder {
             operations,
             handlers: Vec::new(),
+            layers: Vec::new(),
             reject: None,
             body_limit: DEFAULT_BODY_LIMIT,
         }
     }
 
-    /// An axum router that hands every request to the service; HTTP layers
-    /// (compression, CORS, timeouts) wrap it as usual.
+    /// An axum router that hands every request to the service, through its
+    /// layers. Layers added here instead apply on this host only; prefer
+    /// [`Builder::layer`], which every host runs.
     pub fn into_router(self) -> axum::Router {
         axum::Router::new().fallback(move |request: Request<Body>| {
             let service = self.clone();
@@ -94,7 +107,19 @@ impl Crucible {
         })
     }
 
+    /// Answers one request: through the layers, then the handler chain.
     pub async fn handle(&self, request: Request<Body>) -> Response {
+        match &self.endpoint {
+            Some(endpoint) => match endpoint.clone().oneshot(request).await {
+                Ok(response) => response,
+                Err(never) => match never {},
+            },
+            None => self.dispatch(request).await,
+        }
+    }
+
+    /// The handler chain around the operation, under the layers.
+    async fn dispatch(&self, request: Request<Body>) -> Response {
         let inner = &self.inner;
         let (parts, body) = request.into_parts();
         let routed = inner.protocols.iter().find_map(|&index| {
@@ -217,6 +242,7 @@ impl Crucible {
 pub struct Builder {
     operations: Operations,
     handlers: Vec<Box<dyn Handler>>,
+    layers: Vec<Wrap>,
     reject: Option<Reject>,
     body_limit: usize,
 }
@@ -244,6 +270,35 @@ impl Builder {
             .handler(ExceptionTranslator::new())
             .handler(JsonProtocol)
             .handler(InvokeProtocol)
+    }
+
+    /// Wraps the whole service in a tower layer, outside the handler chain:
+    /// for work on the response as sent, such as compression or counting
+    /// the bytes that leave. Like handlers, the first added is outermost.
+    /// Every host runs the layers: HTTP, Lambda HTTP events and direct
+    /// invokes alike, so swapping hosts keeps them. A layer's errors must be
+    /// answered inside it (tower's `HandleErrorLayer`); the response body may
+    /// be any HTTP body.
+    pub fn layer<L, S, B>(mut self, layer: L) -> Self
+    where
+        L: Layer<Endpoint, Service = S> + Send + Sync + 'static,
+        S: Service<Request<Body>, Response = axum::http::Response<B>, Error = Infallible>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+        S::Future: Send + 'static,
+        B: HttpBody<Data = Bytes> + Send + 'static,
+        B::Error: Into<axum::BoxError>,
+    {
+        self.layers.push(Box::new(move |inner: Endpoint| {
+            BoxCloneSyncService::new(
+                layer
+                    .layer(inner)
+                    .map_response(|response: axum::http::Response<B>| response.map(Body::new)),
+            )
+        }));
+        self
     }
 
     /// How a rejected request becomes the service's validation error. Needed
@@ -277,7 +332,7 @@ impl Builder {
             (None, Some(generated)) => Arc::new(generated) as Reject,
             (None, None) => return Err(BuildError::NoRejection),
         };
-        Ok(Crucible {
+        let core = Crucible {
             inner: Arc::new(Inner {
                 operations: self.operations,
                 handlers: self.handlers,
@@ -285,6 +340,24 @@ impl Builder {
                 reject,
                 body_limit: self.body_limit,
             }),
+            endpoint: None,
+        };
+        if self.layers.is_empty() {
+            return Ok(core);
+        }
+        let chain = core.clone();
+        let mut endpoint: Endpoint =
+            BoxCloneSyncService::new(tower::service_fn(move |request: Request<Body>| {
+                let chain = chain.clone();
+                async move { Ok::<_, Infallible>(chain.dispatch(request).await) }
+            }));
+        // The last added wraps the chain first, so the first added is outermost.
+        for wrap in self.layers.into_iter().rev() {
+            endpoint = wrap(endpoint);
+        }
+        Ok(Crucible {
+            endpoint: Some(endpoint),
+            ..core
         })
     }
 }

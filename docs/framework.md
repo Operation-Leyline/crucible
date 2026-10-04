@@ -155,6 +155,12 @@ ordinary handlers with nothing private. On top of the trait:
   takes metrics records.
 - **Exception rules**: `ExceptionTranslator::translate::<E>` by type, or
   `translate_with` over any error.
+- **Layers**: `Builder::layer(l)` wraps the whole service in any tower
+  layer, outside the handler chain, first added outermost. It is for work on
+  the response as it leaves, such as compression or counting bytes after
+  compression, which a handler (it sees the outcome, not the bytes) cannot
+  do. Every host runs the layers, Lambda included; a service with none pays
+  nothing for them.
 - **The request context**: a handler stores typed values with
   `context.set_attribute(..)`; implementations read them with
   `self.context().attribute::<T>()`.
@@ -238,8 +244,9 @@ The same binary runs in both places, so moving a service between them is a
 deployment change. `host::serve(service, Host::..)` picks explicitly,
 `host::http_on(service, listener)` takes a bound socket, and
 `host::lambda_event(service, payload)` answers one event (for tests or a
-runtime loop of your own). `into_router()` gives an `axum::Router` for
-HTTP-only layers (compression, CORS, timeouts).
+runtime loop of your own). Layers given to `Builder::layer` run on every
+host, so they move with the service; `into_router()` gives an
+`axum::Router` for layers that belong to one HTTP deployment only.
 
 ## Clients
 

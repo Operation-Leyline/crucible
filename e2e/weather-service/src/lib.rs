@@ -162,6 +162,11 @@ impl FailTimes {
 /// The service over `cities`: every operation on one `Weather`, the default
 /// chain plus the test hook, and the store's errors translated.
 pub fn service(cities: Arc<dyn CityStore>) -> Crucible {
+    builder(cities).build().expect("the weather service builds")
+}
+
+/// [`service`] before `build`, for a caller that adds layers.
+pub fn builder(cities: Arc<dyn CityStore>) -> crucible::Builder {
     let translator = ExceptionTranslator::new().translate(|taken: &NameTaken| {
         ConflictError {
             message: taken.to_string(),
@@ -174,6 +179,4 @@ pub fn service(cities: Arc<dyn CityStore>) -> Crucible {
         .handler(FailTimes::default())
         .handler(JsonProtocol)
         .handler(InvokeProtocol)
-        .build()
-        .expect("the weather service builds")
 }
