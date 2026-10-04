@@ -256,7 +256,7 @@ process, against the same read written straight on axum:
 |---|---|---|---|
 | `get_city` (label, query, header out) | 89 | 37 | 40 |
 | `list_cities` (10 items) | 200 | 50 | |
-| `create_city` | 62 | 27 | |
+| `create_city` (a replay: the token names an existing city) | 62 | 27 | |
 | `ping` | 20 | 12 | |
 | rejected label (validation error) | 83 | 54 | |
 | direct invoke, JSON bytes in and out | 116 | 28 | |

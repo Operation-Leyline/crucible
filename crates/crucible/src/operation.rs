@@ -174,15 +174,21 @@ impl<T: Serialize + Any + Send + Sync> Input for T {
 /// An operation's output, seen by handlers without knowing its type.
 pub trait Output: Any + Send + Sync {
     fn to_json(&self) -> Value;
-    /// Serializes straight into `out`, with no JSON value in between.
-    fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<()>;
-    /// Serializes straight into `out` without the members `members` binds
-    /// to headers, returning those as (header, text).
+    /// Serializes into `out`. Every serializable output writes straight to
+    /// bytes; this default, for other implementors, goes through `to_json`.
+    fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<()> {
+        serde_json::to_writer(out, &self.to_json())
+    }
+    /// Serializes into `out` without the members `members` binds to
+    /// headers, returning those as (header, text). The default goes through
+    /// `to_json`, as `write_json`'s does.
     fn write_json_split(
         &self,
         members: &[MemberInfo],
         out: &mut Vec<u8>,
-    ) -> serde_json::Result<Vec<(&'static str, String)>>;
+    ) -> serde_json::Result<Vec<(&'static str, String)>> {
+        crate::protocol::split::write(&self.to_json(), members, out)
+    }
     fn as_any(&self) -> &dyn Any;
 }
 

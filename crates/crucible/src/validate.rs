@@ -124,6 +124,12 @@ impl From<&String> for Step {
     }
 }
 
+impl From<String> for Step {
+    fn from(key: String) -> Self {
+        Self::Key(key)
+    }
+}
+
 impl fmt::Display for Step {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
