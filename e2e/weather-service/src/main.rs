@@ -1,6 +1,11 @@
 //! Serves the weather service over HTTP on the address in argv[1] (default
 //! `127.0.0.1:0`), printing `listening on <address>` once it accepts
-//! connections. tools/test-e2e.sh reads that line.
+//! connections. tools/test-e2e.sh reads that line. A deployment would call
+//! `crucible::host::run` with a database-backed `CityStore` instead.
+
+use std::sync::Arc;
+
+use weather_service::MemoryCities;
 
 #[tokio::main]
 async fn main() {
@@ -9,7 +14,10 @@ async fn main() {
         .unwrap_or_else(|| "127.0.0.1:0".to_owned());
     let listener = tokio::net::TcpListener::bind(&address).await.expect("bind");
     println!("listening on {}", listener.local_addr().expect("address"));
-    crucible::host::http_on(weather_service::service(), listener)
-        .await
-        .expect("serve");
+    crucible::host::http_on(
+        weather_service::service(Arc::new(MemoryCities::default())),
+        listener,
+    )
+    .await
+    .expect("serve");
 }

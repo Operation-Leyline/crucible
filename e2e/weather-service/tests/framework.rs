@@ -11,7 +11,15 @@ use crucible::handlers::{
 use crucible::{Context, Crucible, HandlerExt, InvokeProtocol, JsonProtocol};
 use serde_json::{Value, json};
 use weather_service::api::{self, model};
-use weather_service::{Weather, service};
+use weather_service::{MemoryCities, Weather};
+
+fn memory() -> Arc<MemoryCities> {
+    Arc::new(MemoryCities::default())
+}
+
+fn service() -> Crucible {
+    weather_service::service(memory())
+}
 
 async fn get(service: &Crucible, uri: &str) -> (u16, Value) {
     let request = axum::http::Request::get(uri)
@@ -71,7 +79,7 @@ impl std::fmt::Display for Database {
 impl std::error::Error for Database {}
 
 fn failing(translator: ExceptionTranslator) -> Crucible {
-    Crucible::builder(api::operations(Arc::new(Weather::default())))
+    Crucible::builder(api::operations(Arc::new(Weather::new(memory()))))
         .handler(translator)
         .handler(before_fn(|_| Err(Database("password=hunter2").into())).only(&["Ping"]))
         .handler(JsonProtocol)
@@ -124,7 +132,7 @@ async fn the_service_log_writes_failures_by_default_and_more_where_asked() {
     let log = ServiceLog::errors_only()
         .operation::<api::CreateCity>(LogPolicy::everything().output(Fields::Only(vec!["city"])))
         .sink(records.clone());
-    let service = Crucible::builder(api::operations(Arc::new(Weather::default())))
+    let service = Crucible::builder(api::operations(Arc::new(Weather::new(memory()))))
         .handler(log)
         .handler(JsonProtocol)
         .handler(InvokeProtocol)
@@ -167,7 +175,7 @@ impl OperationHandler<api::GetCity> for Audit {
 #[tokio::test]
 async fn typed_operation_handlers_see_their_input() {
     let seen = Arc::new(Mutex::new(Vec::new()));
-    let service = Crucible::builder(api::operations(Arc::new(Weather::default())))
+    let service = Crucible::builder(api::operations(Arc::new(Weather::new(memory()))))
         .handler(JsonProtocol)
         .handler(InvokeProtocol)
         .handler(for_operation(Audit(seen.clone())))
@@ -182,7 +190,7 @@ async fn typed_operation_handlers_see_their_input() {
 
 #[tokio::test]
 async fn a_service_split_across_types_names_what_it_left_out() {
-    let weather = Arc::new(Weather::default());
+    let weather = Arc::new(Weather::new(memory()));
     let missing = api::builder()
         .ping(weather.clone())
         .get_city(weather)

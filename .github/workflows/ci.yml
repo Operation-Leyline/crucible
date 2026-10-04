@@ -50,5 +50,5 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: cargo fmt --all --check --manifest-path e2e/Cargo.toml
-      - run: cargo clippy --manifest-path e2e/Cargo.toml --all-targets -- -D warnings
+      - run: cargo clippy --manifest-path e2e/Cargo.toml --all-targets --locked -- -D warnings
       - run: bash tools/test-e2e.sh

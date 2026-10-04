@@ -10,8 +10,8 @@ cd "$(dirname "$0")/.."
 
 cargo run -q -p crucible-cli -- generate ts crates/crucible-smithy/tests/fixtures/weather.json \
   --out e2e/generated/weather-ts --package-name @example/weather >/dev/null
-cargo test -q --manifest-path e2e/Cargo.toml
-cargo build -q --manifest-path e2e/Cargo.toml
+cargo test -q --locked --manifest-path e2e/Cargo.toml
+cargo build -q --locked --manifest-path e2e/Cargo.toml
 
 target="${CARGO_TARGET_DIR:-e2e/target}"
 bin="$target/debug/weather-service"

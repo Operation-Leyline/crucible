@@ -16,7 +16,7 @@
 //!     }
 //! }
 //!
-//! let service = Crucible::builder(api::operations(Arc::new(Weather::default())))
+//! let service = Crucible::builder(api::operations(Arc::new(Weather::new(store))))
 //!     .handler(ServiceLog::errors_only())
 //!     .handler(ExceptionTranslator::new())
 //!     .handler(JsonProtocol)

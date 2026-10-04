@@ -154,11 +154,14 @@ impl Crucible {
     }
 
     /// `before` in order, the operation, then `after` in reverse for every
-    /// handler whose `before` succeeded.
+    /// handler whose `before` succeeded. A request refused before the chain
+    /// starts (an oversized body) runs no `before` but every `after`, so the
+    /// service log and metrics still see it.
     async fn run(&self, job: &mut Job, invoke: Option<Invoke>) {
         let handlers = &self.inner.handlers;
-        let mut ran = 0;
-        if job.outcome.is_none() {
+        let refused_early = job.outcome.is_some();
+        let mut ran = if refused_early { handlers.len() } else { 0 };
+        if !refused_early {
             for handler in handlers {
                 if let Err(error) = handler.before(job).await {
                     job.outcome = Some(Outcome::Failed(error));
@@ -196,8 +199,9 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Appends a handler to the chain. Order is execution order for
-    /// `before`, and the reverse for `after`.
+    /// Appends a handler to the chain, inside every handler added before it:
+    /// the first added is outermost. `before` hooks run in the order added,
+    /// `after` hooks in reverse.
     pub fn handler(mut self, handler: impl Handler) -> Self {
         self.handlers.push(Box::new(handler));
         self

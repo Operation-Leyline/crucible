@@ -196,6 +196,27 @@ fn field_list(service: &Service, member: &Member) -> Option<String> {
     ))
 }
 
+/// A configured error must be an error structure the service reaches; a typo
+/// fails generation here rather than surfacing as a runtime build error.
+pub(crate) fn configured_error(
+    service: &Service,
+    configured: Option<&ShapeId>,
+    what: &str,
+    diagnostics: &mut Diagnostics,
+) -> bool {
+    let Some(id) = configured else {
+        return true;
+    };
+    let is_error = matches!(service.shape(id), Some(Shape::Structure(s)) if s.error.is_some());
+    if !is_error {
+        diagnostics.push(
+            id,
+            format!("the configured {what} is not an @error structure the service reaches"),
+        );
+    }
+    is_error
+}
+
 /// The error a rejected request becomes: the configured one, else the
 /// service's one error named `*Validation*`.
 pub(crate) fn validation_error(service: &Service, configured: Option<&ShapeId>) -> Option<ShapeId> {

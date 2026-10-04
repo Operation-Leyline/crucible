@@ -54,7 +54,8 @@ impl api::GetCityOperation for Weather {
 // weather-service/src/main.rs
 #[tokio::main]
 async fn main() -> Result<(), crucible::host::BoxError> {
-    let service = Crucible::builder(api::operations(Arc::new(Weather::default())))
+    let cities = Arc::new(DynamoCities::from_env().await?);  // data lives outside the process
+    let service = Crucible::builder(api::operations(Arc::new(Weather::new(cities))))
         .defaults()   // service log (errors only), exception translator, protocols
         .build()?;
     crucible::host::run(service).await   // Lambda inside Lambda, HTTP on $PORT elsewhere

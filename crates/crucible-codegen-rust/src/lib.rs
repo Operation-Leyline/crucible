@@ -25,13 +25,21 @@ pub(crate) const DERIVE_ENUM: &str = "#[derive(Debug, Clone, Copy, PartialEq, Eq
 
 const ALLOW: &str = "#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]\n";
 
+/// Which errors the generated code fills in itself. Both are optional:
+/// without a validation error crucible can fill, the service gives the
+/// builder `on_rejection`; without an internal error, internal failures are
+/// answered with the protocol's own `InternalFailure`.
 #[derive(Debug, Clone, Default)]
 pub struct Options {
-    /// The error a rejected request becomes; defaults to the service's one
-    /// error named `*Validation*`.
+    /// The error a rejected request becomes. Unset, the service's one error
+    /// named `*Validation*`, if it has exactly one. Set, it must be an error
+    /// crucible can fill (`message`, and a `fieldList` of `path`/`name` +
+    /// `message`), or generation fails.
     pub validation_error: Option<ShapeId>,
-    /// The error an internal failure is answered with; defaults to the
-    /// service's one server error with status 500.
+    /// The error an internal failure is answered with. Unset, the service's
+    /// one server error with status 500, if it has exactly one. Set, it must
+    /// be an error whose only required member is `message`, or generation
+    /// fails.
     pub internal_error: Option<ShapeId>,
 }
 
@@ -41,12 +49,41 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     let model = models::emit(service, &mut diagnostics);
     let errors = errors::emit(service, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
-    let validation = errors::validation_error(service, options.validation_error.as_ref());
-    let internal = errors::internal_error(service, options.internal_error.as_ref());
+    let configured_validation = options.validation_error.as_ref();
+    let configured_internal = options.internal_error.as_ref();
+    let validation_ok = errors::configured_error(
+        service,
+        configured_validation,
+        "validation error",
+        &mut diagnostics,
+    );
+    let internal_ok = errors::configured_error(
+        service,
+        configured_internal,
+        "internal error",
+        &mut diagnostics,
+    );
+    let validation = errors::validation_error(service, configured_validation);
+    let internal = errors::internal_error(service, configured_internal);
+    let reject = errors::reject(service, validation.as_ref());
+    let internal_fn = errors::internal(service, internal.as_ref());
+    if let (Some(id), true, None) = (configured_validation, validation_ok, &reject) {
+        diagnostics.push(
+            id,
+            "the configured validation error has required members crucible cannot fill; \
+             leave it unset and give the builder on_rejection instead",
+        );
+    }
+    if let (Some(id), true, None) = (configured_internal, internal_ok, &internal_fn) {
+        diagnostics.push(
+            id,
+            "the configured internal error has required members besides `message`",
+        );
+    }
     let functions = operations::Functions {
         classify: errors::classify(service),
-        reject: errors::reject(service, validation.as_ref()),
-        internal: errors::internal(service, internal.as_ref()),
+        reject,
+        internal: internal_fn,
     };
     let operations = operations::emit(service, functions, &mut diagnostics);
     if !diagnostics.is_empty() {
