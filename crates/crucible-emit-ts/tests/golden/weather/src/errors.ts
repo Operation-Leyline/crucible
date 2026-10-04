@@ -2,10 +2,20 @@
 
 import { ServiceError } from "./runtime.js";
 import type { ResponseMetadata } from "./runtime.js";
+import type * as m from "./models.js";
 
 export class ConflictError extends ServiceError {
   constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
     super("ConflictError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
+    Object.assign(this, fields);
+  }
+}
+
+export class NotFoundError extends ServiceError {
+  declare readonly resourceId?: string;
+
+  constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
+    super("NotFoundError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
     Object.assign(this, fields);
   }
 }
@@ -15,6 +25,15 @@ export class ThrottlingError extends ServiceError {
 
   constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
     super("ThrottlingError", typeof fields.message === "string" ? fields.message : "", metadata, "client", { throttling: true });
+    Object.assign(this, fields);
+  }
+}
+
+export class ValidationError extends ServiceError {
+  declare readonly fieldList?: m.ValidationFieldList;
+
+  constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
+    super("ValidationError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
     Object.assign(this, fields);
   }
 }

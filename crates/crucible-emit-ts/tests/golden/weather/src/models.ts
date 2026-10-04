@@ -69,3 +69,10 @@ export const Sky = {
 export type Sky = (typeof Sky)[keyof typeof Sky];
 
 export type Tags = string[];
+
+export interface ValidationField {
+  path: string;
+  message: string;
+}
+
+export type ValidationFieldList = ValidationField[];

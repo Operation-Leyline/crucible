@@ -66,6 +66,23 @@ enum Target {
         #[arg(long)]
         package_json: Option<PathBuf>,
     },
+    /// An axum server crate: traits to implement and a router.
+    RustServer {
+        #[command(flatten)]
+        source: Source,
+        /// The directory to write the crate to. crucible owns it: it is
+        /// emptied and rewritten on every run.
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        crate_name: String,
+        #[arg(long, default_value = "0.0.0")]
+        crate_version: String,
+        /// The error a rejected request becomes; defaults to the service's
+        /// one error named *Validation*.
+        #[arg(long)]
+        validation_error: Option<ShapeId>,
+    },
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -99,6 +116,31 @@ fn lower(source: &Source) -> Result<Service, String> {
 
 fn generate(target: Target) -> Result<(), String> {
     match target {
+        Target::RustServer {
+            source,
+            out,
+            crate_name,
+            crate_version,
+            validation_error,
+        } => {
+            let service = lower(&source)?;
+            let options = crucible_emit_rust::Options {
+                crate_name,
+                crate_version,
+                validation_error,
+            };
+            let files =
+                crucible_emit_rust::emit_server(&service, &options).map_err(|diagnostics| {
+                    format!("cannot generate the Rust server:\n{diagnostics}")
+                })?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
         Target::Ts {
             source,
             out,

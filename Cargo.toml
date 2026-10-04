@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+# The end-to-end harness builds generated crates: its own workspace.
+exclude = ["e2e"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +13,7 @@ repository = "https://github.com/Operation-Leyline/crucible"
 
 [workspace.dependencies]
 crucible-core = { path = "crates/crucible-core" }
+crucible-emit-rust = { path = "crates/crucible-emit-rust" }
 crucible-emit-ts = { path = "crates/crucible-emit-ts" }
 clap = { version = "4", features = ["derive"] }
 indexmap = { version = "2", features = ["serde"] }

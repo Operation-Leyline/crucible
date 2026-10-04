@@ -55,6 +55,23 @@ merges a JSON file over the generated `package.json` for publishing settings.
 The output directory belongs to crucible: it is emptied on every run, except
 `node_modules` and `dist`.
 
+Generate an axum server crate:
+
+```bash
+cargo run -p crucible-cli -- generate rust-server model.json --out generated/server --crate-name acme-api
+```
+
+It has a trait per resource (`CityApi`, plus `<Service>Api` for operations
+the service binds directly) whose methods take a typed, already-validated
+input and return the output or the operation's error enum. `router(service)`
+is an `axum::Router` for all of them. A request that breaks the model (bad
+JSON, a missing or malformed member, a length, range or pattern broken)
+never reaches a handler: it becomes the service's validation error through
+the `Reject` trait. crucible fills it when it can (`message`, and a
+`fieldList` of `path`/`name` + `message`); otherwise the service implements
+`reject`. Generation fails, rather than the server at startup, on a
+`@pattern` the regex crate cannot run or routes axum would refuse.
+
 ## Supported Smithy
 
 `crucible.protocols#json` with bearer auth. Labels, query parameters and headers carry simple

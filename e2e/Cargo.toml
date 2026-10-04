@@ -1,0 +1,5 @@
+# The end-to-end harness: generated crates, built and served. Its own
+# workspace, because what it builds is generated (see tools/test-e2e.sh).
+[workspace]
+resolver = "3"
+members = ["weather-server"]

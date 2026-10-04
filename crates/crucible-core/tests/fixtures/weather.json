@@ -11,7 +11,8 @@
                 { "target": "example.weather#City" }
             ],
             "errors": [
-                { "target": "example.weather#ThrottlingError" }
+                { "target": "example.weather#ThrottlingError" },
+                { "target": "example.weather#ValidationError" }
             ],
             "traits": {
                 "crucible.protocols#json": {},
@@ -82,6 +83,7 @@
             "type": "operation",
             "input": { "target": "example.weather#GetCityInput" },
             "output": { "target": "example.weather#GetCityOutput" },
+            "errors": [ { "target": "example.weather#NotFoundError" } ],
             "traits": {
                 "smithy.api#http": { "method": "GET", "uri": "/cities/{cityId}" },
                 "smithy.api#readonly": {}
@@ -203,12 +205,39 @@
                 "CLOUDY": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": "cloudy" } }
             }
         },
+        "example.weather#NotFoundError": {
+            "type": "structure",
+            "members": {
+                "message": { "target": "smithy.api#String", "traits": { "smithy.api#required": {} } },
+                "resourceId": { "target": "smithy.api#String" }
+            },
+            "traits": { "smithy.api#error": "client", "smithy.api#httpError": 404 }
+        },
         "example.weather#ConflictError": {
             "type": "structure",
             "members": {
                 "message": { "target": "smithy.api#String", "traits": { "smithy.api#required": {} } }
             },
             "traits": { "smithy.api#error": "client", "smithy.api#httpError": 409 }
+        },
+        "example.weather#ValidationError": {
+            "type": "structure",
+            "members": {
+                "message": { "target": "smithy.api#String", "traits": { "smithy.api#required": {} } },
+                "fieldList": { "target": "example.weather#ValidationFieldList" }
+            },
+            "traits": { "smithy.api#error": "client", "smithy.api#httpError": 400 }
+        },
+        "example.weather#ValidationFieldList": {
+            "type": "list",
+            "member": { "target": "example.weather#ValidationField" }
+        },
+        "example.weather#ValidationField": {
+            "type": "structure",
+            "members": {
+                "path": { "target": "smithy.api#String", "traits": { "smithy.api#required": {} } },
+                "message": { "target": "smithy.api#String", "traits": { "smithy.api#required": {} } }
+            }
         },
         "example.weather#ThrottlingError": {
             "type": "structure",

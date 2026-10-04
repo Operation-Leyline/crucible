@@ -21,7 +21,7 @@ export const CreateCity: OperationSpec = {
   headers: [["expectedRevision", "X-Expected-Revision", number]],
   body: ["name", "location", "clientToken"],
   output: { body: true, schema: S_CreateCityOutput },
-  errors: ["ConflictError", "ThrottlingError"],
+  errors: ["ConflictError", "ThrottlingError", "ValidationError"],
   idempotencyToken: "clientToken",
   retrySafe: true,
 };
@@ -32,7 +32,7 @@ export const GetCity: OperationSpec = {
   path: ["cities", { label: "cityId" }],
   query: [["at", "at", timestamp("date-time")]],
   output: { body: true, schema: S_GetCityOutput, headers: [["requestId", "X-Request-Id"]] },
-  errors: ["ThrottlingError"],
+  errors: ["NotFoundError", "ThrottlingError", "ValidationError"],
   retrySafe: true,
 };
 
@@ -42,7 +42,7 @@ export const ListCities: OperationSpec = {
   path: ["cities"],
   query: [["nextToken", "nextToken"], ["maxResults", "maxResults", number], ["tags", "tag", list(string)]],
   output: { body: true, schema: S_ListCitiesOutput },
-  errors: ["ThrottlingError"],
+  errors: ["ThrottlingError", "ValidationError"],
   retrySafe: true,
 };
 
@@ -50,11 +50,13 @@ export const Ping: OperationSpec = {
   name: "Ping",
   method: "GET",
   path: ["ping"],
-  errors: ["ThrottlingError"],
+  errors: ["ThrottlingError", "ValidationError"],
   retrySafe: true,
 };
 
 export const errors: Readonly<Record<string, ErrorSpec>> = {
   ConflictError: { status: 409, create: (fields, metadata) => new e.ConflictError(fields, metadata) },
+  NotFoundError: { status: 404, create: (fields, metadata) => new e.NotFoundError(fields, metadata) },
   ThrottlingError: { status: 429, headers: [["retryAfter", "Retry-After", number]], create: (fields, metadata) => new e.ThrottlingError(fields, metadata) },
+  ValidationError: { status: 400, create: (fields, metadata) => new e.ValidationError(fields, metadata) },
 };

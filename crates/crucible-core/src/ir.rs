@@ -208,6 +208,8 @@ pub struct Retryable {
 #[derive(Debug, Clone)]
 pub struct Operation {
     pub id: ShapeId,
+    /// The resource that binds the operation; `None` when the service does.
+    pub resource: Option<ShapeId>,
     pub docs: Option<String>,
     pub method: String,
     pub uri: Uri,

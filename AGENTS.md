@@ -12,6 +12,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 cargo run -p crucible-cli -- check <model.json>
 bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=... to reuse a local tsc)
+bash tools/test-e2e.sh            # generated Rust server + generated TS client over real HTTP
 CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended output change
 ```
 
@@ -24,9 +25,11 @@ On a shared machine, use your own `CARGO_TARGET_DIR` and a low
 |---|---|
 | `crucible-core` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
 | `crucible-emit-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
+| `crucible-emit-rust` | the axum server crate: IR → `.rs` files, and `runtime/server.rs`, copied into every generated crate |
 | `crucible-cli` | the `crucible` binary: argument parsing, reporting, and writing output directories it owns (`.crucible` marker) |
 
-The Rust emitters arrive with phases 2 and 3. Keep these rules:
+`e2e/` is its own Cargo workspace that builds generated code (`weather-server`
+implements the weather fixture). The Rust client is next. Keep these rules:
 
 - Smithy semantics are settled once, in core: nullability, effective
   constraints, HTTP bindings, errors, pagination, timestamp formats. An

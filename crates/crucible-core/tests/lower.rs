@@ -66,7 +66,9 @@ fn binds_labels_queries_headers_and_body() {
     assert_eq!(create.idempotency_token.as_deref(), Some("clientToken"));
     assert_eq!(create.traits[&id("example.weather#tier")], json!("write"));
 
+    assert_eq!(create.resource, Some(id("example.weather#City")));
     let ping = &service.operations[3];
+    assert_eq!(ping.resource, None);
     assert_eq!((ping.input.as_ref(), ping.output.as_ref()), (None, None));
 }
 
@@ -77,7 +79,8 @@ fn operation_errors_come_before_service_errors() {
         service.operations[0].errors,
         [
             id("example.weather#ConflictError"),
-            id("example.weather#ThrottlingError")
+            id("example.weather#ThrottlingError"),
+            id("example.weather#ValidationError")
         ]
     );
     let Some(Shape::Structure(throttling)) = service.shape(&id("example.weather#ThrottlingError"))

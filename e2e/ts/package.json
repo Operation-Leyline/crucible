@@ -1,0 +1,5 @@
+{
+  "name": "crucible-e2e",
+  "private": true,
+  "type": "module"
+}

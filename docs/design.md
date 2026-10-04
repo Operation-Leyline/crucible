@@ -101,9 +101,12 @@ consumer's tests, then replaces it.
    once it moves to the new client.
 2. **Rust client.** reqwest-based, with the same features. The oracle is
    `sdk/rust/tests/wire.rs`.
-3. **Rust server.** axum. One handler trait per resource, typed input
-   structs validated before the handler runs, and typed output and error
-   enums. Custom traits feed named extension points (Leyline's audit capture
+3. **Rust server.** Built (`crucible generate rust-server`), ahead of the
+   Rust client, because a generated server lets the TypeScript client be
+   tested end to end without any project (`tools/test-e2e.sh`). axum, one
+   trait per resource, typed inputs validated before the handler runs, an
+   error enum per operation, and a `Reject` trait for the validation error.
+   Leyline's full model generates and compiles. Custom traits feed named extension points (Leyline's audit capture
    and request classes) instead of side generators. The oracle is Leyline's
    service tests plus integ.
 

@@ -82,7 +82,9 @@ impl<'m> Lowerer<'m> {
         let mut operations: Vec<Operation> = self
             .operation_ids(shape)
             .into_iter()
-            .filter_map(|op| self.operation(&op, &service_errors, default_pagination))
+            .filter_map(|(op, resource)| {
+                self.operation(&op, resource, &service_errors, default_pagination)
+            })
             .collect();
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
         Service {
@@ -143,14 +145,17 @@ impl<'m> Lowerer<'m> {
                 .is_some_and(|definition| definition.traits.contains_key(&smithy(marker)))
     }
 
-    /// Every operation the service binds, directly or through its resources.
-    fn operation_ids(&self, service: &ast::Shape) -> BTreeSet<ShapeId> {
-        let mut operations: BTreeSet<ShapeId> = service
+    /// Every operation the service binds, with the resource that binds it
+    /// (`None` for the service itself). An operation two resources bind
+    /// belongs to the first one reached.
+    fn operation_ids(&self, service: &ast::Shape) -> BTreeMap<ShapeId, Option<ShapeId>> {
+        let mut operations: BTreeMap<ShapeId, Option<ShapeId>> = service
             .operations
             .iter()
-            .map(|r| r.target.clone())
+            .map(|r| (r.target.clone(), None))
             .collect();
-        let mut resources: Vec<&ShapeId> = service.resources.iter().map(|r| &r.target).collect();
+        let mut resources: Vec<&ShapeId> =
+            service.resources.iter().rev().map(|r| &r.target).collect();
         let mut seen = BTreeSet::new();
         while let Some(id) = resources.pop() {
             if !seen.insert(id) {
@@ -167,15 +172,17 @@ impl<'m> Lowerer<'m> {
                 &resource.delete,
                 &resource.list,
             ];
-            operations.extend(lifecycle.into_iter().flatten().map(|r| r.target.clone()));
-            operations.extend(
-                resource
-                    .operations
-                    .iter()
-                    .chain(&resource.collection_operations)
-                    .map(|r| r.target.clone()),
-            );
-            resources.extend(resource.resources.iter().map(|r| &r.target));
+            let bound = lifecycle
+                .into_iter()
+                .flatten()
+                .chain(&resource.operations)
+                .chain(&resource.collection_operations);
+            for operation in bound {
+                operations
+                    .entry(operation.target.clone())
+                    .or_insert_with(|| Some(id.clone()));
+            }
+            resources.extend(resource.resources.iter().rev().map(|r| &r.target));
         }
         operations
     }
@@ -183,6 +190,7 @@ impl<'m> Lowerer<'m> {
     fn operation(
         &mut self,
         id: &ShapeId,
+        resource: Option<ShapeId>,
         service_errors: &[ShapeId],
         default_pagination: Option<&Value>,
     ) -> Option<Operation> {
@@ -245,6 +253,7 @@ impl<'m> Lowerer<'m> {
 
         Some(Operation {
             id: id.clone(),
+            resource,
             docs: string_trait(&shape.traits, "documentation"),
             method,
             uri,
