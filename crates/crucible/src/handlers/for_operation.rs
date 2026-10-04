@@ -39,7 +39,7 @@ pub fn for_operation<O: Operation, H: OperationHandler<O>>(handler: H) -> ForOpe
 impl<O: Operation, H: OperationHandler<O>> Handler for ForOperation<O, H> {
     fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         // Other operations skip it without allocating.
-        if job.operation().is_none_or(|op| op.name != O::INFO.name) {
+        if job.operation().is_none_or(|op| op.id != O::INFO.id) {
             return Hook::Ready(Ok(()));
         }
         let job: &'a Job = job;
@@ -56,7 +56,7 @@ impl<O: Operation, H: OperationHandler<O>> Handler for ForOperation<O, H> {
     }
 
     fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
-        if job.operation().is_none_or(|op| op.name != O::INFO.name) {
+        if job.operation().is_none_or(|op| op.id != O::INFO.id) {
             return Hook::Ready(());
         }
         let job: &'a Job = job;
