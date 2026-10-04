@@ -32,4 +32,8 @@ export class WeatherClient {
   ping(options?: RequestOptions): Promise<void> {
     return this.#transport.send(spec.Ping, {}, options);
   }
+
+  status(input: m.StatusInput = {}, options?: RequestOptions): Promise<m.StatusOutput> {
+    return this.#transport.send(spec.Status, input, options);
+  }
 }

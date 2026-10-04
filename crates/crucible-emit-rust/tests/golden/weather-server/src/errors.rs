@@ -221,3 +221,31 @@ impl PingError {
         }
     }
 }
+
+/// The errors Status can return.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StatusError {
+    ThrottlingError(ThrottlingError),
+    ValidationError(ValidationError),
+}
+
+impl ::std::convert::From<ThrottlingError> for StatusError {
+    fn from(error: ThrottlingError) -> Self {
+        Self::ThrottlingError(error)
+    }
+}
+
+impl ::std::convert::From<ValidationError> for StatusError {
+    fn from(error: ValidationError) -> Self {
+        Self::ValidationError(error)
+    }
+}
+
+impl StatusError {
+    pub(crate) fn into_response(self) -> ::axum::response::Response {
+        match self {
+            Self::ThrottlingError(error) => crate::runtime::error_response(&error),
+            Self::ValidationError(error) => crate::runtime::error_response(&error),
+        }
+    }
+}

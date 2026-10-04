@@ -32,7 +32,10 @@ fn shape<'a>(model: &'a mut Value, name: &str) -> &'a mut Value {
 fn finds_operations_through_resources_sorted_by_name() {
     let service = weather();
     let names: Vec<&str> = service.operations.iter().map(|op| op.name()).collect();
-    assert_eq!(names, ["CreateCity", "GetCity", "ListCities", "Ping"]);
+    assert_eq!(
+        names,
+        ["CreateCity", "GetCity", "ListCities", "Ping", "Status"]
+    );
     assert_eq!(service.auth, [id("smithy.api#httpBearerAuth")]);
     assert_eq!(service.title.as_deref(), Some("Weather"));
 }

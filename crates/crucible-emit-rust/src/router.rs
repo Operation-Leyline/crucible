@@ -302,10 +302,14 @@ fn reader(
             }
         })
         .collect();
+    let fields = if fields.is_empty() {
+        " {}".to_owned()
+    } else {
+        format!(" {{\n        {},\n    }}", fields.join(",\n        "))
+    };
     out.push_str(&format!(
-        "    let input = crate::models::{} {{\n        {},\n    }};\n    let mut validator = Validator::default();\n    input.validate(&mut validator);\n    validator.finish()?;\n    Ok(input)\n}}\n",
+        "    let input = crate::models::{}{fields};\n    let mut validator = Validator::default();\n    input.validate(&mut validator);\n    validator.finish()?;\n    Ok(input)\n}}\n",
         service.name_of(input_id),
-        fields.join(",\n        ")
     ));
     out
 }

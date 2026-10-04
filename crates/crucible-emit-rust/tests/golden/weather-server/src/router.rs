@@ -13,6 +13,7 @@ where
         .route("/cities", ::axum::routing::post(create_city::<S>).get(list_cities::<S>))
         .route("/cities/{cityId}", ::axum::routing::get(get_city::<S>))
         .route("/ping", ::axum::routing::get(ping::<S>))
+        .route("/status", ::axum::routing::get(status::<S>))
         .with_state(service)
 }
 
@@ -184,4 +185,40 @@ async fn ping<S: crate::api::WeatherApi + crate::api::Reject>(
 
 fn write_ping() -> ::axum::response::Response {
     crate::runtime::ok_response::<()>(200, ::std::vec::Vec::new(), None)
+}
+
+async fn status<S: crate::api::WeatherApi + crate::api::Reject>(
+    ::axum::extract::State(service): ::axum::extract::State<S>,
+    ::axum::extract::RawQuery(query): ::axum::extract::RawQuery,
+    method: ::axum::http::Method,
+    uri: ::axum::http::Uri,
+    headers: ::axum::http::HeaderMap,
+    extensions: ::axum::http::Extensions,
+    body: ::axum::body::Bytes,
+) -> ::axum::response::Response {
+    let parts = Parts::new(None, query.as_deref(), &headers);
+    let input = match read_status(&parts, &body) {
+        Ok(input) => input,
+        Err(rejection) => return crate::runtime::error_response(&service.reject(rejection)),
+    };
+    let ctx = crate::runtime::Context { method, uri, headers, extensions };
+    match service.status(&ctx, input).await {
+        Ok(output) => write_status(&output),
+        Err(error) => error.into_response(),
+    }
+}
+
+fn read_status(parts: &Parts, body: &::axum::body::Bytes) -> ::std::result::Result<crate::models::StatusInput, Rejection> {
+    let _ = parts;
+    let _ = body;
+    let input = crate::models::StatusInput {};
+    let mut validator = Validator::default();
+    input.validate(&mut validator);
+    validator.finish()?;
+    Ok(input)
+}
+
+fn write_status(output: &crate::models::StatusOutput) -> ::axum::response::Response {
+    let headers = ::std::vec::Vec::new();
+    crate::runtime::ok_response(200, headers, None::<&()>)
 }

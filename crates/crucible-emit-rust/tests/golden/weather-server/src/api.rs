@@ -41,4 +41,10 @@ pub trait WeatherApi: Send + Sync {
         &self,
         ctx: &Context,
     ) -> impl ::std::future::Future<Output = ::std::result::Result<(), crate::errors::PingError>> + Send;
+
+    fn status(
+        &self,
+        ctx: &Context,
+        input: crate::models::StatusInput,
+    ) -> impl ::std::future::Future<Output = ::std::result::Result<crate::models::StatusOutput, crate::errors::StatusError>> + Send;
 }

@@ -13,11 +13,11 @@ use weather_api::Context;
 use weather_api::api::{CityApi, Reject, WeatherApi};
 use weather_api::errors::{
     ConflictError, CreateCityError, GetCityError, ListCitiesError, NotFoundError, PingError,
-    ThrottlingError,
+    StatusError, ThrottlingError,
 };
 use weather_api::models::{
     CitySummary, CreateCityInput, CreateCityOutput, GetCityInput, GetCityOutput, ListCitiesInput,
-    ListCitiesOutput, Sky,
+    ListCitiesOutput, Sky, StatusInput, StatusOutput,
 };
 
 #[derive(Default)]
@@ -62,6 +62,10 @@ impl WeatherApi for Weather {
     async fn ping(&self, ctx: &Context) -> Result<(), PingError> {
         self.throttle(ctx)?;
         Ok(())
+    }
+
+    async fn status(&self, _ctx: &Context, _input: StatusInput) -> Result<StatusOutput, StatusError> {
+        Ok(StatusOutput {})
     }
 }
 

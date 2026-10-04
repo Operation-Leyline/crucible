@@ -104,3 +104,7 @@ test("throttling is retried, then surfaces with its header member", async () => 
   assert.ok(error instanceof ThrottlingError, String(error));
   assert.equal(error.retryAfter, 0);
 });
+
+test("an operation with empty input and output round-trips", async () => {
+  assert.deepEqual(await client.status(), {});
+});

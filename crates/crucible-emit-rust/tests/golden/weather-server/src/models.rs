@@ -132,6 +132,14 @@ impl ToText for Sky {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, ::serde::Serialize, ::serde::Deserialize)]
+pub struct StatusInput {
+}
+
+#[derive(Debug, Clone, PartialEq, ::serde::Serialize, ::serde::Deserialize)]
+pub struct StatusOutput {
+}
+
 pub type Tags = ::std::vec::Vec<::std::string::String>;
 
 #[derive(Debug, Clone, PartialEq, ::serde::Serialize, ::serde::Deserialize)]
@@ -212,5 +220,11 @@ impl Validate for Location {
             Self::Unknown(_) => {
             }
         }
+    }
+}
+
+impl Validate for StatusInput {
+    fn validate(&self, validator: &mut Validator) {
+        let _ = validator;
     }
 }

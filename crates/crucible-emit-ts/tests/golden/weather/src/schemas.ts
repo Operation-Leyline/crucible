@@ -54,6 +54,15 @@ export const Ping: OperationSpec = {
   retrySafe: true,
 };
 
+export const Status: OperationSpec = {
+  name: "Status",
+  method: "GET",
+  path: ["status"],
+  output: { body: false },
+  errors: ["ThrottlingError", "ValidationError"],
+  retrySafe: true,
+};
+
 export const errors: Readonly<Record<string, ErrorSpec>> = {
   ConflictError: { status: 409, create: (fields, metadata) => new e.ConflictError(fields, metadata) },
   NotFoundError: { status: 404, create: (fields, metadata) => new e.NotFoundError(fields, metadata) },

@@ -5,7 +5,8 @@
             "type": "service",
             "version": "2026-10-01",
             "operations": [
-                { "target": "example.weather#Ping" }
+                { "target": "example.weather#Ping" },
+                { "target": "example.weather#Status" }
             ],
             "resources": [
                 { "target": "example.weather#City" }
@@ -42,6 +43,14 @@
             "output": { "target": "smithy.api#Unit" },
             "traits": { "smithy.api#http": { "method": "GET", "uri": "/ping" }, "smithy.api#readonly": {} }
         },
+        "example.weather#Status": {
+            "type": "operation",
+            "input": { "target": "example.weather#StatusInput" },
+            "output": { "target": "example.weather#StatusOutput" },
+            "traits": { "smithy.api#http": { "method": "GET", "uri": "/status" }, "smithy.api#readonly": {} }
+        },
+        "example.weather#StatusInput": { "type": "structure", "members": {}, "traits": { "smithy.api#input": {} } },
+        "example.weather#StatusOutput": { "type": "structure", "members": {}, "traits": { "smithy.api#output": {} } },
         "example.weather#CreateCity": {
             "type": "operation",
             "input": { "target": "example.weather#CreateCityInput" },

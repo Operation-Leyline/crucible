@@ -68,6 +68,12 @@ export const Sky = {
 } as const;
 export type Sky = (typeof Sky)[keyof typeof Sky];
 
+export interface StatusInput {
+}
+
+export interface StatusOutput {
+}
+
 export type Tags = string[];
 
 export interface ValidationField {
