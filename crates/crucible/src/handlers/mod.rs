@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 pub use exceptions::ExceptionTranslator;
 pub use metrics::{Metrics, Recorder, RequestRecord};
-pub use service_log::{Fields, LogPolicy, LogSink, ServiceLog, TracingSink};
+pub use service_log::{Fields, LogPolicy, LogRecord, LogSink, ServiceLog, TracingSink};
 
 use crate::context::Context;
 use crate::error::{Error, Result};
@@ -79,6 +79,11 @@ impl<H> Scoped<H> {
 }
 
 impl<H: Handler> Handler for Scoped<H> {
+    fn complete(&self, job: &Job, response: &axum::response::Response) {
+        if self.applies(job) {
+            self.inner.complete(job, response);
+        }
+    }
     fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         if self.applies(job) {
             self.inner.before(job)

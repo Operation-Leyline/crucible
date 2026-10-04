@@ -29,9 +29,16 @@ impl Protocol for JsonProtocol {
             .split('/')
             .filter(|s| !s.is_empty())
             .collect();
-        let mut best: Option<(usize, Route)> = None;
+        let mut best: Option<((usize, usize), Route)> = None;
         for &op in operations.routes(path.len()) {
             if op.method != request.method.as_str() {
+                continue;
+            }
+            let query = request.uri.query().unwrap_or("");
+            if !op.literal_query.iter().all(|(key, expected)| {
+                query_values(query, key)
+                    .any(|value| expected.is_none_or(|expected| value == expected))
+            }) {
                 continue;
             }
             let mut labels = Vec::new();
@@ -52,9 +59,10 @@ impl Protocol for JsonProtocol {
                 });
             // A literal beats a label in the same place: `cities/search`
             // over `cities/{cityId}`.
-            if matched && best.as_ref().is_none_or(|(most, _)| literals > *most) {
+            let specificity = (literals, op.literal_query.len());
+            if matched && best.as_ref().is_none_or(|(most, _)| specificity > *most) {
                 best = Some((
-                    literals,
+                    specificity,
                     Route {
                         operation: op.name,
                         labels,
@@ -83,14 +91,14 @@ impl Protocol for JsonProtocol {
                     let mut body = Vec::with_capacity(256);
                     return match output.write_json(&mut body) {
                         Ok(()) => respond(op.status, Vec::new(), Some(body)),
-                        Err(_) => framework_response(&FrameworkError::InternalFailure),
+                        Err(error) => serialization_failure(error),
                     };
                 }
                 // Header members leave the body as it is written.
                 let mut body = Vec::with_capacity(256);
                 match output.write_json_split(op.output, &mut body) {
                     Ok(headers) => respond(op.status, headers, has_body.then_some(body)),
-                    Err(_) => framework_response(&FrameworkError::InternalFailure),
+                    Err(error) => serialization_failure(error),
                 }
             }
             Some(Resolution::Modelled(error)) => error_response(error),
@@ -101,18 +109,10 @@ impl Protocol for JsonProtocol {
                 error_response(&*(answers.unknown.expect("checked"))())
             }
             Some(Resolution::Framework(error)) => framework_response(&error),
-            Some(Resolution::Internal(error)) => {
-                tracing::error!(
-                    request_id = job.context().request_id(),
-                    operation = operation.map_or("unknown", |op| op.name),
-                    error = error.chain(),
-                    "internal failure"
-                );
-                match answers.internal {
-                    Some(internal) => error_response(&*internal()),
-                    None => framework_response(&FrameworkError::InternalFailure),
-                }
-            }
+            Some(Resolution::Internal(_)) => match answers.internal {
+                Some(internal) => error_response(&*internal()),
+                None => framework_response(&FrameworkError::InternalFailure),
+            },
             // An answered request never reaches the protocol.
             Some(Resolution::Answered { .. }) | None => {
                 framework_response(&FrameworkError::InternalFailure)
@@ -230,13 +230,21 @@ fn error_response(error: &dyn ModelledError) -> Response {
     let mut body = Vec::with_capacity(128);
     match error.write_json(&mut body) {
         Ok(headers) => respond(error.info().status, headers, Some(body)),
-        Err(_) => framework_response(&FrameworkError::InternalFailure),
+        Err(error) => serialization_failure(error),
     }
 }
 
 fn framework_response(error: &FrameworkError) -> Response {
     let body = serde_json::json!({ "__type": error.name(), "message": error.message() });
     respond(error.status(), Vec::new(), Some(to_bytes(&body)))
+}
+
+fn serialization_failure(error: serde_json::Error) -> Response {
+    let mut response = framework_response(&FrameworkError::InternalFailure);
+    response
+        .extensions_mut()
+        .insert(super::SerializationFailure(error.to_string()));
+    response
 }
 
 fn to_bytes(value: &Value) -> Vec<u8> {

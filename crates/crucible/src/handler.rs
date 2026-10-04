@@ -58,6 +58,14 @@ pub trait Handler: Send + Sync + 'static {
         Hook::Ready(())
     }
 
+    /// Observes the serialized response after all `after` hooks. Runs in
+    /// reverse order for the same handlers as `after`. Outer tower layers
+    /// and body streaming have not run yet. An answered response has been
+    /// moved out of the job; inspect `response` for its status.
+    fn complete(&self, job: &Job, response: &Response) {
+        let _ = (job, response);
+    }
+
     /// A protocol handler routes requests and writes responses too.
     fn as_protocol(&self) -> Option<&dyn Protocol> {
         None
@@ -142,6 +150,10 @@ pub trait AsyncHandler: Send + Sync + 'static {
         let _ = job;
     }
 
+    fn complete(&self, job: &Job, response: &Response) {
+        let _ = (job, response);
+    }
+
     /// As [`Handler::prepare`].
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         let _ = prepare;
@@ -150,6 +162,9 @@ pub trait AsyncHandler: Send + Sync + 'static {
 }
 
 impl<T: AsyncHandler> Handler for T {
+    fn complete(&self, job: &Job, response: &Response) {
+        AsyncHandler::complete(self, job, response);
+    }
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         AsyncHandler::prepare(self, prepare)
     }

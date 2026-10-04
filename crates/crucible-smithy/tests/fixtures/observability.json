@@ -1,0 +1,186 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.observability#Observability": {
+      "type": "service",
+      "version": "1",
+      "operations": [
+        {
+          "target": "example.observability#Echo"
+        },
+        {
+          "target": "example.observability#Other"
+        }
+      ],
+      "errors": [
+        {
+          "target": "example.observability#ValidationError"
+        },
+        {
+          "target": "example.observability#SecretError"
+        }
+      ],
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#httpBearerAuth": {}
+      }
+    },
+    "example.observability#Echo": {
+      "type": "operation",
+      "input": {
+        "target": "example.observability#Payload"
+      },
+      "output": {
+        "target": "example.observability#Payload"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/echo?mode=echo&flag"
+        },
+        "smithy.api#idempotent": {}
+      }
+    },
+    "example.observability#Other": {
+      "type": "operation",
+      "input": {
+        "target": "example.observability#Payload"
+      },
+      "output": {
+        "target": "example.observability#Payload"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/echo?mode=other"
+        },
+        "smithy.api#idempotent": {}
+      }
+    },
+    "example.observability#Payload": {
+      "type": "structure",
+      "members": {
+        "profile": {
+          "target": "example.observability#Profile"
+        },
+        "profiles": {
+          "target": "example.observability#Profiles"
+        },
+        "byName": {
+          "target": "example.observability#ProfilesByName"
+        },
+        "choice": {
+          "target": "example.observability#Choice"
+        },
+        "hiddenKeys": {
+          "target": "example.observability#HiddenKeys"
+        },
+        "whole": {
+          "target": "example.observability#Whole"
+        },
+        "secretTarget": {
+          "target": "example.observability#Secret"
+        }
+      }
+    },
+    "example.observability#Profile": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String"
+        },
+        "password": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#sensitive": {}
+          }
+        },
+        "child": {
+          "target": "example.observability#Profile"
+        }
+      }
+    },
+    "example.observability#Profiles": {
+      "type": "list",
+      "member": {
+        "target": "example.observability#Profile"
+      }
+    },
+    "example.observability#ProfilesByName": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "example.observability#Profile"
+      }
+    },
+    "example.observability#HiddenKeys": {
+      "type": "map",
+      "key": {
+        "target": "example.observability#Secret"
+      },
+      "value": {
+        "target": "smithy.api#String"
+      }
+    },
+    "example.observability#Choice": {
+      "type": "union",
+      "members": {
+        "profile": {
+          "target": "example.observability#Profile"
+        },
+        "secret": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#sensitive": {}
+          }
+        }
+      }
+    },
+    "example.observability#Secret": {
+      "type": "string",
+      "traits": {
+        "smithy.api#sensitive": {}
+      }
+    },
+    "example.observability#Whole": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#sensitive": {}
+      },
+      "members": {
+        "value": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.observability#ValidationError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.observability#SecretError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 409
+      },
+      "members": {
+        "profile": {
+          "target": "example.observability#Profile"
+        },
+        "message": {
+          "target": "smithy.api#String"
+        }
+      }
+    }
+  }
+}

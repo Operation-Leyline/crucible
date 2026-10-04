@@ -28,6 +28,8 @@ pub mod context;
 pub mod handler;
 pub mod handlers;
 pub mod host;
+#[cfg(feature = "logging")]
+pub mod logging;
 pub mod operations;
 pub mod protocol;
 pub mod service;

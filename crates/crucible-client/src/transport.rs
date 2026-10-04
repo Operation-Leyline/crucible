@@ -185,6 +185,15 @@ impl Transport {
             url.push('/');
         }
         let mut separator = '?';
+        for (name, value) in info.literal_query {
+            url.push(separator);
+            separator = '&';
+            encode(&mut url, name);
+            if let Some(value) = value {
+                url.push('=');
+                encode(&mut url, value);
+            }
+        }
         let mut headers = HeaderMap::new();
         for (member, value) in &bound {
             match member.location {

@@ -1,7 +1,6 @@
 //! The `'static` descriptions generated code hands the framework: members
 //! and where they travel, operations, errors, the service.
 
-use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{
     Binding, Bindings, Member, Service, Shape, SimpleKind, Structure, TimestampFormat,
 };
@@ -30,9 +29,11 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
                 scalar(service, member)
             };
             format!(
-                "::crucible::operation::MemberInfo {{ name: {}, location: ::crucible::operation::Location::{location}, scalar: ::crucible::operation::Scalar::{scalar}, sensitive: {}, traits: {} }}",
+                "::crucible::operation::MemberInfo {{ name: {}, location: ::crucible::operation::Location::{location}, scalar: ::crucible::operation::Scalar::{scalar}, redaction: {}, traits: {} }}",
                 literal(&member.name),
-                sensitive(service, member),
+                if structure.sensitive() {
+                    "&::crucible::operation::Redaction::Sensitive".to_owned()
+                } else { redaction_member(service, member, "__redaction::") },
                 custom_traits(&member.traits)
             )
         })
@@ -82,18 +83,62 @@ fn scalar(service: &Service, member: &Member) -> String {
     }
 }
 
-/// `@sensitive` on the member or its target.
-fn sensitive(service: &Service, member: &Member) -> bool {
-    let id = ShapeId::new("smithy.api", "sensitive");
-    let target = match service.shape(&member.target) {
-        Some(Shape::Simple(s)) => s.traits.contains_key(&id),
-        Some(Shape::Structure(s) | Shape::Union(s)) => s.traits.contains_key(&id),
-        Some(Shape::List(l)) => l.traits.contains_key(&id),
-        Some(Shape::Map(m)) => m.traits.contains_key(&id),
-        Some(Shape::Enum(e)) => e.traits.contains_key(&id),
-        _ => false,
-    };
-    target || member.traits.contains_key(&id)
+fn redaction_member(service: &Service, member: &Member, prefix: &str) -> String {
+    if service.sensitive(member) {
+        "&::crucible::operation::Redaction::Sensitive".to_owned()
+    } else {
+        let index = service
+            .shapes
+            .keys()
+            .position(|id| id == &member.target)
+            .expect("reachable target");
+        format!("&{prefix}R_{index}")
+    }
+}
+
+/// A graph of static references also represents recursive model shapes.
+pub(crate) fn redactions(service: &Service) -> String {
+    let mut out = String::from(
+        "#[allow(dead_code)]\nmod __redaction {\n    use ::crucible::operation::Redaction;\n",
+    );
+    for (index, shape) in service.shapes.values().enumerate() {
+        let policy = if shape.sensitive() {
+            "Redaction::Sensitive".to_owned()
+        } else {
+            match shape {
+                Shape::Structure(s) | Shape::Union(s) => {
+                    let members = s
+                        .members
+                        .iter()
+                        .map(|m| {
+                            format!(
+                                "({}, {})",
+                                literal(&m.name),
+                                redaction_member(service, m, "")
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("Redaction::Structure(&[{members}])")
+                }
+                Shape::List(l) => format!(
+                    "Redaction::List({})",
+                    redaction_member(service, &l.member, "")
+                ),
+                Shape::Map(m) if service.sensitive(&m.key) => "Redaction::Sensitive".to_owned(),
+                Shape::Map(m) => format!(
+                    "Redaction::Map({})",
+                    redaction_member(service, &m.value, "")
+                ),
+                _ => "Redaction::Public".to_owned(),
+            }
+        };
+        out.push_str(&format!(
+            "    pub(super) static R_{index}: Redaction = {policy};\n"
+        ));
+    }
+    out.push_str("}\n\n");
+    out
 }
 
 /// Traits from outside Smithy's and AWS's namespaces: the model's own.

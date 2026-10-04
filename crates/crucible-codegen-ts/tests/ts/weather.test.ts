@@ -6,6 +6,7 @@ import { test } from "node:test";
 
 import { ConflictError, NetworkError, ServiceError, Sky, ThrottlingError, WeatherClient } from "./generated/src/index.js";
 import type { Middleware } from "./generated/src/index.js";
+import { Transport } from "./generated/src/runtime.js";
 
 interface Sent {
   method: string;
@@ -32,6 +33,55 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 
 const quick = { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 2 };
+
+test("a body failure never replays an unsafe operation", async () => {
+  let calls = 0;
+  const transport = new Transport({ endpoint: "https://weather.example", retry: quick, fetch: async () => {
+    calls++;
+    return new Response(new ReadableStream({ start(c) { c.error(new TypeError("disconnected")); } }));
+  } }, { middleware: [], bearer: false }, {});
+  const error = await transport.send({ name: "Unsafe", method: "POST", path: ["unsafe"], errors: [], retrySafe: false }, {}).catch(e => e);
+  assert.ok(error instanceof NetworkError);
+  assert.equal(calls, 1);
+});
+
+test("body transport failures retry for success and error responses", async () => {
+  for (const status of [200, 503]) {
+    const broken = new Response(new ReadableStream({
+      start(controller) { controller.error(new TypeError("connection lost mid-body")); },
+    }), { status });
+    const { sent, fetch } = fake(broken, json(200, { cities: [] }));
+    const output = await new WeatherClient({ fetch, retry: quick }).listCities({});
+    assert.deepEqual(output.cities, []);
+    assert.equal(sent.length, 2);
+  }
+});
+
+test("invalid input and invalid response JSON are not network failures", async () => {
+  const { sent, fetch } = fake(new Response("not json", { status: 200 }));
+  const client = new WeatherClient({ fetch, retry: quick });
+  const invalid = await client.getCity({ cityId: "" }).catch(e => e);
+  assert.ok(invalid instanceof TypeError);
+  assert.equal(sent.length, 0);
+  const malformed = await client.listCities({}).catch(e => e);
+  assert.ok(malformed instanceof SyntaxError);
+  assert.equal(sent.length, 1);
+});
+
+test("aborting an error body preserves cancellation without retry", async () => {
+  let calls = 0;
+  const controller = new AbortController();
+  const reason = new DOMException("cancelled", "AbortError");
+  const fetch = async () => {
+    calls++;
+    return new Response(new ReadableStream({
+      pull(stream) { controller.abort(reason); stream.error(reason); },
+    }), { status: 503 });
+  };
+  const error = await new WeatherClient({ fetch, retry: quick }).listCities({}, { signal: controller.signal }).catch(e => e);
+  assert.equal(error, reason);
+  assert.equal(calls, 1);
+});
 
 test("labels are encoded, queries repeat, timestamps take their location's format", async () => {
   const { sent, fetch } = fake(json(200, { city: { id: "c-1", name: "Oslo" } }, { "X-Request-Id": "r-1" }));

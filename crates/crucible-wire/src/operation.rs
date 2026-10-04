@@ -61,6 +61,8 @@ pub struct OperationInfo {
     pub resource: Option<&'static str>,
     pub method: &'static str,
     pub path: &'static [Segment],
+    /// Literal query parameters required by the modeled URI.
+    pub literal_query: &'static [(&'static str, Option<&'static str>)],
     /// The status of a successful response.
     pub status: u16,
     pub input: &'static [MemberInfo],
@@ -112,10 +114,70 @@ pub struct MemberInfo {
     pub name: &'static str,
     pub location: Location,
     pub scalar: Scalar,
-    /// `@sensitive`: never written to a log.
-    pub sensitive: bool,
+    /// Static, recursive logging policy resolved from the model.
+    pub redaction: &'static Redaction,
     /// The model's own traits on the member: shape id and JSON value.
     pub traits: &'static [(&'static str, &'static str)],
+}
+
+/// Logging metadata, including recursive shapes. References are static so
+/// recursive models need no per-request schema construction.
+pub enum Redaction {
+    Public,
+    Sensitive,
+    Structure(&'static [(&'static str, &'static Redaction)]),
+    List(&'static Redaction),
+    Map(&'static Redaction),
+}
+
+impl std::fmt::Debug for Redaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Following static references here would recurse forever for a
+        // recursive model, even though redacting a finite value terminates.
+        f.write_str(match self {
+            Self::Public => "Public",
+            Self::Sensitive => "Sensitive",
+            Self::Structure(_) => "Structure(..)",
+            Self::List(_) => "List(..)",
+            Self::Map(_) => "Map(..)",
+        })
+    }
+}
+
+impl Redaction {
+    /// Removes sensitive content in place. False means the whole value is
+    /// sensitive and its parent must omit it.
+    pub fn redact(&self, value: &mut Value) -> bool {
+        match self {
+            Self::Sensitive => return false,
+            Self::Public => {}
+            Self::Structure(members) => {
+                if let Value::Object(object) = value {
+                    object.retain(|name, value| {
+                        members
+                            .iter()
+                            .find(|(member, _)| name == member)
+                            .is_some_and(|(_, policy)| policy.redact(value))
+                    });
+                }
+            }
+            Self::List(policy) => {
+                if let Value::Array(items) = value {
+                    for item in items {
+                        if !policy.redact(item) {
+                            *item = Value::Null;
+                        }
+                    }
+                }
+            }
+            Self::Map(policy) => {
+                if let Value::Object(object) = value {
+                    object.retain(|_, value| policy.redact(value));
+                }
+            }
+        }
+        true
+    }
 }
 
 impl MemberInfo {

@@ -117,6 +117,18 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str) -> Stri
             }
         })
         .collect();
+    let query = op
+        .uri
+        .query
+        .iter()
+        .map(|(name, value)| {
+            let value = value.as_ref().map_or("None".to_owned(), |value| {
+                format!("Some({})", literal(value))
+            });
+            format!("({}, {value})", literal(name))
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
     let input = structure(service, op.input.as_ref())
         .map_or("&[]".to_owned(), |s| members(service, s, &op.request));
     let output = structure(service, op.output.as_ref())
@@ -136,7 +148,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str) -> Stri
             format!("Some({})", literal(token))
         });
     out.push_str(&format!(
-        "static {}: ::crucible::OperationInfo = ::crucible::OperationInfo {{\n    id: {},\n    name: {},\n    resource: {resource},\n    method: {},\n    path: &[{}],\n    status: {},\n    input: {input},\n    output: {output},\n    errors: &[{}],\n    readonly: {},\n    idempotent: {},\n    idempotency_token: {token},\n    traits: {},\n}};\n\n",
+        "static {}: ::crucible::OperationInfo = ::crucible::OperationInfo {{\n    id: {},\n    name: {},\n    resource: {resource},\n    method: {},\n    path: &[{}],\n    literal_query: &[{query}],\n    status: {},\n    input: {input},\n    output: {output},\n    errors: &[{}],\n    readonly: {},\n    idempotent: {},\n    idempotency_token: {token},\n    traits: {},\n}};\n\n",
         operation_static(op),
         literal(&op.id.to_string()),
         literal(name),
