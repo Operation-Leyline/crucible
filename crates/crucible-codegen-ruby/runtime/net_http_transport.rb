@@ -77,10 +77,12 @@ module CrucibleGenerated
               discarded = true
               throw :irrelevant_body, HttpResponse.new(status, headers: headers)
             end
+            length = response['content-length']
+            raise EOFError, 'Invalid Content-Length' if length && !/\A[0-9]+\z/.match?(length)
+            expected = length && ::Kernel.Integer(length, 10)
             body = +''.b
             response.read_body { |chunk| body << chunk }
-            length = response['content-length']
-            if request.method != 'HEAD' && status >= 200 && ![204, 304].include?(status) && length && !response['transfer-encoding'] && body.bytesize != ::Kernel.Integer(length, 10)
+            if request.method != 'HEAD' && status >= 200 && ![204, 304].include?(status) && expected && !response['transfer-encoding'] && body.bytesize != expected
               raise EOFError, 'Truncated response body'
             end
             decoded = HttpResponse.new(status, headers: headers, body: body)
@@ -91,7 +93,7 @@ module CrucibleGenerated
         result
       rescue ::Net::OpenTimeout, ::Net::ReadTimeout, ::Net::WriteTimeout => error
         raise DeadlineError, error.message
-      rescue ::IOError, ::EOFError, ::SystemCallError, ::SocketError, ::OpenSSL::SSL::SSLError, ::Net::HTTPBadResponse, ::Net::ProtocolError => error
+      rescue ::IOError, ::EOFError, ::SystemCallError, ::SocketError, ::OpenSSL::SSL::SSLError, ::Net::HTTPBadResponse, ::Net::HTTPHeaderSyntaxError, ::Net::ProtocolError => error
         raise NetworkError, error.message
       end
     end

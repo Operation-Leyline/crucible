@@ -684,7 +684,7 @@ fn summary(service: &Service) -> String {
     if !custom.is_empty() {
         out.push_str("  custom traits:\n");
         for (id, uses) in custom {
-            out.push_str(&format!("    {id} Ã—{uses}\n"));
+            out.push_str(&format!("    {id} ×{uses}\n"));
         }
     }
     out

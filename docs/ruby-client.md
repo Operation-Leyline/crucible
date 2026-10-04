@@ -37,8 +37,12 @@ end
 Each model has keyword constructor arguments and readers in `Models`.
 Ordinary model instances are frozen; their arrays and strings remain native
 Ruby values. A call snapshots its input before invoking hooks. Optional
-members default to `Runtime::UNSET`; `nil` means explicit null. Required
-members are constructor arguments. Missing response members receive modeled
+members default to `Runtime::UNSET`; `nil` means explicit null. Members that
+the IR makes non-optional on clients are required constructor arguments.
+Smithy input structures and `@clientOptional` members allow omission even
+when marked `@required`: missing HTTP labels are rejected before transport,
+while missing body/query/header members are left for service validation.
+Missing response members receive modeled
 defaults, while explicit null does not. Names use snake_case, with a
 `_value` suffix where a member would hide a keyword or runtime method.
 
@@ -62,7 +66,9 @@ no body or content type. Optional SHA-256 covers bytes after middleware.
 Token providers and middleware run on every attempt. Generated idempotency
 tokens and input bytes remain stable across retries. A single deadline covers
 the call and retry waits. `CancellationToken` supports both `cancel` and an
-optional polling block. Cancellation is permanent once observed. Network I/O
+optional polling block. A retry delay extending past the call deadline ends
+with `DeadlineError`; cancellation can interrupt the wait.
+Cancellation is permanent once observed. Network I/O
 runs in an owned worker so a stalled connection can be interrupted; synchronous
 caller hooks must cooperate, with deadline checks before and after each hook.
 Pagination snapshots input when created, fetches on iteration, detects token

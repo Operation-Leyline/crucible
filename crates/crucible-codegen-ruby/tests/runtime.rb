@@ -155,6 +155,9 @@ rejects(ConflictError) { client.create_city(CreateCityInput.new(name: 'Ruby city
 client.ping
 client.close
 fixture = ENV.fetch('FIXTURE_URL') + '/native/'
+client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'bad-length', base_delay: 0))
+check(client.get_city_photo(GetCityPhotoInput.new(city_id: 'x')).photo == 'complete', 'Malformed Content-Length retries')
+client.close
 client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'not-modified', max_attempts: 1))
 check(rejects(ServiceError) { client.get_city(GetCityInput.new(city_id: 'x')) }.metadata.status == 304, 'Bodyless 304 retains wire status')
 client.close

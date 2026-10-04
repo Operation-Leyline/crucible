@@ -50,7 +50,19 @@ def fixture():
 
         def do_GET(self):
             try:
-                if "/not-modified/" in self.path:
+                if "/bad-length/" in self.path:
+                    with lock:
+                        calls = requests.setdefault(self.path, [])
+                        calls.append(True)
+                    if len(calls) < 3:
+                        self.send_response(200)
+                        self.send_header("Content-Length", "12invalid")
+                        self.end_headers()
+                        self.wfile.write(b"abc")
+                        self.close_connection = True
+                    else:
+                        self.respond(200, b"complete")
+                elif "/not-modified/" in self.path:
                     self.send_response(304)
                     self.send_header("Content-Length", "100")
                     self.end_headers()
@@ -130,6 +142,9 @@ def fixture():
             assert requests[f"/{platform}/cache/cities/c"] == ["Bearer 1", "Bearer 2"], requests
             assert len(set(connections[f"/{platform}/cache/cities/c"])) == 1, connections
             assert len(requests[f"/{platform}/partial/cities/x/photo"]) == 3, requests
+            malformed = requests.get(f"/{platform}/bad-length/cities/x/photo")
+            if malformed is not None:
+                assert len(malformed) == 3, requests
     finally:
         server.shutdown()
         server.server_close()
