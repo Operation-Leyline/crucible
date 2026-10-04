@@ -61,18 +61,6 @@ pub fn enum_member(s: &str) -> String {
     name
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reserved_member_spellings_remain_accessible() {
-        assert_eq!(field("__value"), "member__value");
-        assert_eq!(field("__init__"), "member__init__");
-        assert_eq!(enum_member("_foo_"), "VALUE_FOO_");
-    }
-}
-
 pub fn ty(service: &Service, id: &ShapeId, prefix: &str) -> String {
     if !id.is_prelude() {
         return format!("{prefix}{}", service.name_of(id));
@@ -89,5 +77,17 @@ pub fn ty(service: &Service, id: &ShapeId, prefix: &str) -> String {
         }
         .into(),
         _ => unreachable!("prelude shape"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reserved_member_spellings_remain_accessible() {
+        assert_eq!(field("__value"), "member__value");
+        assert_eq!(field("__init__"), "member__init__");
+        assert_eq!(enum_member("_foo_"), "VALUE_FOO_");
     }
 }
