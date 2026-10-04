@@ -57,9 +57,10 @@ def fixture():
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", "100")
                     self.end_headers()
+                    self.wfile.write(b"{")
                     self.wfile.flush()
                     time.sleep(5)
-                    self.wfile.write(b"x" * 100)
+                    self.wfile.write(b"x" * 99)
                 else:
                     failures.append("Unexpected native request: " + self.path)
                     self.respond(500)
