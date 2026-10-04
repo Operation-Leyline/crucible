@@ -1,8 +1,9 @@
 $version: "2"
 
-// crucible's protocol. Copy this file into a model's source directory and
-// put `@crucible.protocols#json` on the service. crucible generates only this
-// protocol; a model may carry another beside it for other tools.
+// crucible's protocol. A model depends on the crucible-traits jar (released
+// from this file; see README.md) and puts `@crucible.protocols#json` on the
+// service. crucible generates only this protocol; a model may carry another
+// beside it for other tools.
 
 namespace crucible.protocols
 
