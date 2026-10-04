@@ -13,6 +13,30 @@ permissions:
   contents: read
 
 jobs:
+  swift-linux:
+    runs-on: ubuntu-latest
+    container: swift:6.0.3-jammy
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - run: apt-get update && apt-get install -y build-essential curl python3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: python3 tools/test-swift.py
+  swift-apple:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: swift --version
+      - run: python3 tools/test-swift.py
+        env:
+          SWIFT_TEST_OUTPUT: ${{ runner.temp }}/crucible-swift
+      - name: Build the generated package for iOS Simulator
+        working-directory: ${{ runner.temp }}/crucible-swift/sdk
+        run: xcodebuild -scheme Weather -destination 'generic/platform=iOS Simulator' -derivedDataPath '${{ runner.temp }}/swift-ios' CODE_SIGNING_ALLOWED=NO build
   kotlin:
     runs-on: ubuntu-latest
     steps:

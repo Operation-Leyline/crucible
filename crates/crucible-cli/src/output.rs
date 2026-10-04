@@ -31,7 +31,7 @@ pub(crate) fn write<'a>(
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or_default();
-            if matches!(name, "node_modules" | "dist" | "target") {
+            if matches!(name, "node_modules" | "dist" | "target" | ".build") {
                 continue;
             }
             if path.is_dir() {

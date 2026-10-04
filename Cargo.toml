@@ -25,6 +25,7 @@ crucible-codegen-go = { path = "crates/crucible-codegen-go" }
 crucible-codegen-java = { path = "crates/crucible-codegen-java" }
 crucible-codegen-csharp = { path = "crates/crucible-codegen-csharp" }
 crucible-codegen-kotlin = { path = "crates/crucible-codegen-kotlin" }
+crucible-codegen-swift = { path = "crates/crucible-codegen-swift" }
 clap = { version = "4", features = ["derive"] }
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }

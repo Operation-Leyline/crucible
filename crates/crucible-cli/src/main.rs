@@ -58,6 +58,23 @@ enum Command {
 
 #[derive(Subcommand)]
 enum Target {
+    /// A Swift package with native async operations and AsyncSequence pagination.
+    Swift {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        package_name: String,
+        #[arg(long)]
+        module_name: String,
+        #[arg(long, default_value = "0.0.0-dev")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        #[arg(long)]
+        content_sha256: bool,
+    },
     /// A .NET 8 NuGet package with synchronous and asynchronous clients.
     Csharp {
         #[command(flatten)]
@@ -239,6 +256,35 @@ fn lower(source: &Source) -> Result<Service, String> {
 
 fn generate(target: Target) -> Result<(), String> {
     match target {
+        Target::Swift {
+            source,
+            out,
+            package_name,
+            module_name,
+            package_version,
+            endpoint,
+            content_sha256,
+        } => {
+            let service = lower(&source)?;
+            let files = crucible_codegen_swift::emit(
+                &service,
+                &crucible_codegen_swift::Options {
+                    package_name,
+                    module_name,
+                    package_version,
+                    endpoint,
+                    content_sha256,
+                },
+            )
+            .map_err(|d| format!("cannot generate the Swift client:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
         Target::Csharp {
             source,
             out,

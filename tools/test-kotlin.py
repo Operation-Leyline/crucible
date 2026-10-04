@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import xml.etree.ElementTree as ET
 from sdk_test_support import ROOT, run, weather
+from sdk_conformance_model import qualification_model
 
 MAVEN = os.environ.get("MAVEN", "mvn")
 REPO = "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo")
@@ -15,33 +16,6 @@ def generate(model, output, package="example.weather"):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
         str(model), "--out", str(output), "--group-id", "example", "--artifact-id", "weather-kotlin",
         "--package-name", package, "--package-version", "0.0.0-test", "--content-sha256")
-
-
-def qualification_model(output):
-    model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    shapes = model["shapes"]
-    service = shapes["example.weather#Weather"]
-    global_errors = service.pop("errors")
-    for shape in shapes.values():
-        if shape["type"] == "operation":
-            shape.setdefault("errors", []).extend(global_errors)
-    for name in ["Ordinary", "Transient", "Throttled"]:
-        traits = {"smithy.api#error": "client", "smithy.api#httpError": 429 if name == "Throttled" else 400}
-        if name != "Ordinary":
-            traits["smithy.api#retryable"] = {"throttling": name == "Throttled"}
-        shapes["example.weather#" + name] = {"type": "structure", "traits": traits,
-            "members": {"message": {"target": "smithy.api#String"}}}
-    for name in ["RetrySafe", "RetryUnsafe"]:
-        traits = {"smithy.api#http": {"method": "POST", "uri": "/retry"}}
-        if name == "RetrySafe":
-            traits["smithy.api#idempotent"] = {}
-        shapes["example.weather#" + name] = {"type": "operation", "traits": traits,
-            "input": {"target": "smithy.api#Unit"}, "output": {"target": "smithy.api#Unit"},
-            "errors": [{"target": "example.weather#" + error} for error in ["Ordinary", "Transient", "Throttled"]]}
-        service["operations"].append({"target": "example.weather#" + name})
-    path = output / "model.json"
-    path.write_text(json.dumps(model), encoding="utf-8")
-    return path
 
 
 def qualify(output):

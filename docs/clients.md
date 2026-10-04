@@ -8,7 +8,7 @@ support conditional on finding an individual consumer.
 |---|---|---|
 | Baseline | TypeScript/JavaScript, Rust | Shared retry conformance runs in CI |
 | 1 | Python, Go, Java, C# | Implemented; native package and HTTP gates run in CI |
-| 2 | Kotlin, Swift, Dart, PHP, Ruby | Kotlin implemented; remaining targets planned |
+| 2 | Kotlin, Swift, Dart, PHP, Ruby | Kotlin and Swift implemented; remaining targets planned |
 | Extension | C++, C, R | API and packaging scope still to be defined |
 
 ## Architecture
@@ -90,6 +90,11 @@ consumer, and runs shared cases and weather-service HTTP tests. See
 consumer. `python tools/test-kotlin-android.py` builds and runs an Android
 consumer on an emulator. See [Kotlin clients](kotlin-client.md) for model APIs,
 transport lifecycle, and platform limits.
+
+`python tools/test-swift.py` builds a Swift package and separate consumer,
+runs shared fixtures and native weather-service HTTP tests, and compiles empty
+and renamed models. CI runs on Linux and macOS and builds for iOS Simulator.
+See [Swift clients](swift-client.md) for its API and representation limits.
 
 ## Remaining acceptance work
 
