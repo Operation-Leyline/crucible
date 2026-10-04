@@ -339,7 +339,7 @@ internal sealed class ClientRuntime : IDisposable
                 }
                 error = (ServiceError)Decode(target, body)!;
             }
-            catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or OverflowException or ArgumentOutOfRangeException)
+            catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or OverflowException or ArgumentException)
             {
                 // Malformed wire members must not erase HTTP metadata or modeled retry policy.
             }

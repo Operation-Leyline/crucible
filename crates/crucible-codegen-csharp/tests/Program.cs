@@ -69,6 +69,7 @@ static class Program
                 }
                 catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
                 catch (IOException) when (stop.IsCancellationRequested) { }
+                catch (ObjectDisposedException) when (stop.IsCancellationRequested) { }
             });
         }
         public async ValueTask DisposeAsync() { stop.Cancel(); listener.Stop(); await loop; stop.Dispose(); }
@@ -209,6 +210,43 @@ static class Program
             Check(attempts == 2, "malformed modeled throttle did not retry unsafe operation");
         }
     }
+    public sealed class NumericValues : List<int> { }
+    public sealed class NumericListError : ServiceError
+    {
+        public Optional<NumericValues> Values { get; set; }
+    }
+    static async Task NumericListErrors()
+    {
+        var schema = J("""{"bearer":false,"shapes":{"Integer":{"kind":"integer"},"NumericValues":{"kind":"list","member":{"target":"Integer","format":"date-time"}},"NumericListError":{"kind":"structure","name":"NumericListError","members":{"values":{"target":"NumericValues","attribute":"Values","default":null,"format":"date-time"}},"error":{"status":400,"retryable":false,"throttling":false,"headers":[]}}},"operations":{"Retry":{"method":"POST","uri":"/","input":null,"output":null,"token":null,"safe":false,"request":{"labels":[],"query":[],"headers":[],"body":[]},"response":{"headers":[],"body":[]},"errors":["NumericListError"]}}}""").AsObject();
+        var registry = new Dictionary<string, Type> { ["NumericValues"] = typeof(NumericValues), ["NumericListError"] = typeof(NumericListError) };
+        const string malformed = """{"__type":"NumericListError","values":[null]}""";
+        foreach (bool throttling in new[] { false, true })
+        {
+            int status = throttling ? 429 : 400;
+            var traits = schema["shapes"]!["NumericListError"]!["error"]!;
+            traits["status"] = status; traits["retryable"] = throttling; traits["throttling"] = throttling;
+            await using var server = new Server(_ => new(status, malformed, new() { ["x-request-id"] = "numeric-id", ["x-error-detail"] = "retained" }));
+            var runtime = Runtime(new() { Endpoint = server.Endpoint, MaxAttempts = 1 }, schema, registry);
+            try
+            {
+                var valid = (NumericListError)Decode(runtime, "NumericListError", """{"values":[1]}""");
+                Check(valid.Values.IsSet && valid.Values.Value.SequenceEqual(new[] { 1 }), "valid modeled numeric list did not decode");
+                try { await Call(runtime); throw new Exception("null numeric list error ignored"); }
+                catch (ServiceError error)
+                {
+                    Check(error.GetType() == typeof(ServiceError) && error.ErrorName == "NumericListError" && error.StatusCode == status && error.RequestId == "numeric-id" && error.Headers["x-error-detail"] == "retained", "numeric list failure lost HTTP metadata");
+                    Check(error.Retryable == throttling && error.Throttling == throttling && server.Attempts == 1, "numeric list failure lost retry traits or attempt limit");
+                }
+            }
+            finally { ((IDisposable)runtime).Dispose(); }
+        }
+        int attempts = 0;
+        await using var retryServer = new Server(_ => ++attempts == 1 ? new(429, malformed) : new(200, "{}"));
+        var retryRuntime = Runtime(new() { Endpoint = retryServer.Endpoint, BaseDelay = TimeSpan.Zero }, schema, registry);
+        try { await Call(retryRuntime).WaitAsync(TimeSpan.FromSeconds(5)); }
+        finally { ((IDisposable)retryRuntime).Dispose(); }
+        Check(attempts == 2, "null numeric list throttle did not retry unsafe operation");
+    }
     static async Task FailureBehavior()
     {
         await using (var server = new Server(_ => new(200, "invalid")))
@@ -271,7 +309,7 @@ static class Program
     }
     static async Task Main(string[] args)
     {
-        await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await MalformedModeledErrors(); await FailureBehavior(); await Weather();
+        await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await MalformedModeledErrors(); await NumericListErrors(); await FailureBehavior(); await Weather();
         Console.WriteLine("C# client conformance and weather HTTP passed");
     }
 }
