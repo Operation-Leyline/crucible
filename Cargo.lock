@@ -387,6 +387,7 @@ name = "crucible-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "crucible-codegen-csharp",
  "crucible-codegen-go",
  "crucible-codegen-java",
  "crucible-codegen-python",
@@ -419,6 +420,16 @@ version = "0.1.0"
 dependencies = [
  "crucible-smithy",
  "serde_json",
+]
+
+[[package]]
+name = "crucible-codegen-csharp"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-common",
+ "crucible-smithy",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

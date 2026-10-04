@@ -58,6 +58,23 @@ enum Command {
 
 #[derive(Subcommand)]
 enum Target {
+    /// A .NET 8 NuGet package with synchronous and asynchronous clients.
+    Csharp {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        namespace: String,
+        #[arg(long)]
+        package_id: String,
+        #[arg(long, default_value = "0.0.0-dev")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        #[arg(long)]
+        content_sha256: bool,
+    },
     /// A Java 17 Maven package with synchronous and asynchronous clients.
     Java {
         #[command(flatten)]
@@ -203,6 +220,35 @@ fn lower(source: &Source) -> Result<Service, String> {
 
 fn generate(target: Target) -> Result<(), String> {
     match target {
+        Target::Csharp {
+            source,
+            out,
+            namespace,
+            package_id,
+            package_version,
+            endpoint,
+            content_sha256,
+        } => {
+            let service = lower(&source)?;
+            let files = crucible_codegen_csharp::emit(
+                &service,
+                &crucible_codegen_csharp::Options {
+                    namespace,
+                    package_id,
+                    package_version,
+                    endpoint,
+                    content_sha256,
+                },
+            )
+            .map_err(|d| format!("cannot generate the C# client:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
         Target::Java {
             source,
             out,
