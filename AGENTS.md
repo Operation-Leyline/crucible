@@ -14,7 +14,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 cargo run -p crucible-cli -- check <model.json>
 bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=... to reuse a local tsc)
-bash tools/test-e2e.sh            # e2e/ service: in-process framework tests, then the TS client over HTTP
+bash tools/test-e2e.sh            # e2e/: framework tests, the Rust client over HTTP, then the TS client
 CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended output change
 ```
 
@@ -29,14 +29,17 @@ reviewed by CodeRabbit; never push to main.
 | Crate | Owns |
 |---|---|
 | `crucible` | the framework: orchestrator and handler chain, context, protocols, validation, errors, built-in handlers, hosting (HTTP, Lambda) |
+| `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
+| `crucible-client` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
-| `crucible-codegen-rust` | IR → the Rust code a service plugs into the framework (one file) |
-| `crucible-build` | build scripts: model packages publish their AST, services generate from it |
+| `crucible-codegen-rust` | IR → the Rust code a service plugs into the framework, or a client (one file each) |
+| `crucible-build` | build scripts: model packages publish their AST, services and clients generate from it |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
 | `crucible-cli` | `check`, `generate ts`, `generate rust` (the build-script output, for reading) |
 
-`e2e/` is its own Cargo workspace: `weather-model` (a model package) and
-`weather-service` (a service package that generates in `build.rs`). It is the
+`e2e/` is its own Cargo workspace: `weather-model` (a model package),
+`weather-service` (a service package that generates in `build.rs`) and
+`weather-client` (a client package, tested against the service over HTTP). It is the
 example service and the integration test. Keep these rules:
 
 - Smithy semantics are settled once, in `crucible-smithy`: nullability,

@@ -66,14 +66,18 @@ enum Target {
         #[arg(long)]
         package_json: Option<PathBuf>,
     },
-    /// The Rust code a service plugs into the crucible framework, as one
-    /// file: what `crucible-build` writes from a build script, for reading.
+    /// The Rust code a service plugs into the crucible framework, or a
+    /// client, as one file: what `crucible-build` writes from a build
+    /// script, for reading.
     Rust {
         #[command(flatten)]
         source: Source,
         /// The file to write.
         #[arg(long)]
         out: PathBuf,
+        /// The client instead of the server side.
+        #[arg(long)]
+        client: bool,
         /// The error a rejected request becomes; defaults to the service's
         /// one error named *Validation*.
         #[arg(long)]
@@ -119,6 +123,7 @@ fn generate(target: Target) -> Result<(), String> {
         Target::Rust {
             source,
             out,
+            client,
             validation_error,
             internal_error,
         } => {
@@ -127,7 +132,12 @@ fn generate(target: Target) -> Result<(), String> {
                 validation_error,
                 internal_error,
             };
-            let code = crucible_codegen_rust::generate(&service, &options)
+            let code = if client {
+                crucible_codegen_rust::generate_client(&service)
+            } else {
+                crucible_codegen_rust::generate(&service, &options)
+            };
+            let code = code
                 .map_err(|diagnostics| format!("cannot generate the Rust code:\n{diagnostics}"))?;
             std::fs::write(&out, code)
                 .map_err(|error| format!("cannot write {}: {error}", out.display()))?;

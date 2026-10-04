@@ -9,7 +9,7 @@ use crate::operation::{Location, MemberInfo};
 
 /// Writes `value` (a structure) into `out` as a JSON object without the
 /// members `members` binds to headers, and returns those as (header, text).
-pub(crate) fn write<T: Serialize + ?Sized>(
+pub fn write<T: Serialize + ?Sized>(
     value: &T,
     members: &[MemberInfo],
     out: &mut Vec<u8>,
@@ -19,27 +19,69 @@ pub(crate) fn write<T: Serialize + ?Sized>(
 
 /// [`write`], with `"__type": type_name` appended when one is given: how an
 /// error body names its error.
-pub(crate) fn write_typed<T: Serialize + ?Sized>(
+pub fn write_typed<T: Serialize + ?Sized>(
     value: &T,
     members: &[MemberInfo],
     type_name: Option<&'static str>,
     out: &mut Vec<u8>,
 ) -> serde_json::Result<Vec<(&'static str, String)>> {
-    let mut headers = Vec::new();
+    let mut taken = Vec::new();
     value.serialize(Split {
         members,
+        take: Take::Headers,
         type_name,
         out,
-        headers: &mut headers,
+        taken: &mut taken,
     })?;
-    Ok(headers)
+    Ok(taken
+        .into_iter()
+        .filter_map(|(member, value)| match member.location {
+            Location::Header(header) => Some((header, text(&value))),
+            _ => None,
+        })
+        .collect())
+}
+
+/// Writes `value` (an input) into `out` as a JSON object of its body
+/// members only, and returns every bound member (label, query parameter or
+/// header) with its value: what a client needs to build the request.
+pub fn write_bound<T: Serialize + ?Sized>(
+    value: &T,
+    members: &'static [MemberInfo],
+    out: &mut Vec<u8>,
+) -> serde_json::Result<Vec<(&'static MemberInfo, Value)>> {
+    let mut taken = Vec::new();
+    value.serialize(Split {
+        members,
+        take: Take::Bound,
+        type_name: None,
+        out,
+        taken: &mut taken,
+    })?;
+    Ok(taken
+        .into_iter()
+        .map(|(member, value)| {
+            let member = members
+                .iter()
+                .find(|m| m.name == member.name)
+                .expect("taken members are this structure's");
+            (member, value)
+        })
+        .collect())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Take {
+    Headers,
+    Bound,
 }
 
 struct Split<'s> {
     members: &'s [MemberInfo],
+    take: Take,
     type_name: Option<&'static str>,
     out: &'s mut Vec<u8>,
-    headers: &'s mut Vec<(&'static str, String)>,
+    taken: &'s mut Vec<(MemberInfo, Value)>,
 }
 
 struct Fields<'s> {
@@ -56,19 +98,19 @@ impl SerializeStruct for Fields<'_> {
         key: &'static str,
         value: &T,
     ) -> serde_json::Result<()> {
-        let header = self
-            .split
-            .members
-            .iter()
-            .find_map(|member| match member.location {
-                Location::Header(header) if member.name == key => Some(header),
-                _ => None,
-            });
-        if let Some(header) = header {
+        let take = self.split.take;
+        let taken = self.split.members.iter().find(|member| {
+            member.name == key
+                && matches!(
+                    (take, member.location),
+                    (_, Location::Header(_)) | (Take::Bound, Location::Label | Location::Query(_))
+                )
+        });
+        if let Some(member) = taken {
             let value = serde_json::to_value(value)?;
             let empty = matches!(&value, Value::Array(items) if items.is_empty());
             if !value.is_null() && !empty {
-                self.split.headers.push((header, text(&value)));
+                self.split.taken.push((*member, value));
             }
             return Ok(());
         }
@@ -138,10 +180,10 @@ impl ser::SerializeMap for Entries<'_> {
 }
 
 /// A header member's value as header text: a list is comma-separated.
-fn text(value: &Value) -> String {
+pub fn text(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
-        Value::Array(items) => super::text::join_header(items.iter().map(text)),
+        Value::Array(items) => crate::text::join_header(items.iter().map(text)),
         other => other.to_string(),
     }
 }

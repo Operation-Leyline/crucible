@@ -1,4 +1,4 @@
-//! Build-script support for the two kinds of package.
+//! Build-script support for the three kinds of package.
 //!
 //! A **model package** holds Smithy sources and the JSON AST its smithy
 //! build produces. Its manifest sets `links = "<name>"`, and its `build.rs`
@@ -15,8 +15,17 @@
 //! fn main() { crucible_build::service("weather_model").generate(); }
 //! ```
 //!
-//! and includes it with `crucible::include_service!()`. Cargo pins the model
-//! version like any other dependency.
+//! and includes it with `crucible::include_service!()`.
+//!
+//! A **client package** depends on the model package too, and generates a
+//! client for it:
+//!
+//! ```ignore
+//! fn main() { crucible_build::client("weather_model").generate(); }
+//! ```
+//!
+//! and includes it with `crucible_client::include_client!()`. Cargo pins the
+//! model version like any other dependency.
 
 use std::path::{Path, PathBuf};
 
@@ -32,37 +41,61 @@ pub fn publish_model(path: impl AsRef<Path>) {
     println!("cargo::metadata=model={}", path.display());
 }
 
-/// From a service package's `build.rs`: generates from the model published
-/// by the dependency whose manifest says `links = "<links>"`.
-pub fn service(links: &str) -> Service {
+/// From a service package's `build.rs`: generates the server side from the
+/// model published by the dependency whose manifest says `links = "<links>"`.
+pub fn service(links: &str) -> Codegen {
+    Codegen::from_model(published(links))
+}
+
+/// From a client package's `build.rs`: generates a client from the model
+/// published by the dependency whose manifest says `links = "<links>"`.
+pub fn client(links: &str) -> Codegen {
+    Codegen::client_from_model(published(links))
+}
+
+fn published(links: &str) -> PathBuf {
     let variable = format!("DEP_{}_MODEL", links.to_ascii_uppercase().replace('-', "_"));
-    let model = std::env::var_os(&variable).map(PathBuf::from).unwrap_or_else(|| {
+    std::env::var_os(&variable).map(PathBuf::from).unwrap_or_else(|| {
         panic!(
             "crucible: {variable} is not set. Depend on the model package (a normal dependency, \
              whose manifest says `links = \"{links}\"`) and have its build.rs call \
              crucible_build::publish_model"
         )
-    });
-    Service::from_model(model)
+    })
 }
 
 /// What to generate, and from which model.
 #[derive(Debug, Clone)]
-pub struct Service {
+pub struct Codegen {
     model: PathBuf,
     service: Option<ShapeId>,
     options: Options,
-    file: String,
+    side: Side,
 }
 
-impl Service {
-    /// From a model file directly, for a model inside the service package.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Side {
+    Server,
+    Client,
+}
+
+impl Codegen {
+    /// The server side, from a model file directly: for a model inside the
+    /// service package.
     pub fn from_model(model: impl AsRef<Path>) -> Self {
         Self {
             model: absolute(model.as_ref()),
             service: None,
             options: Options::default(),
-            file: "crucible_service.rs".to_owned(),
+            side: Side::Server,
+        }
+    }
+
+    /// A client, from a model file directly.
+    pub fn client_from_model(model: impl AsRef<Path>) -> Self {
+        Self {
+            side: Side::Client,
+            ..Self::from_model(model)
         }
     }
 
@@ -72,13 +105,13 @@ impl Service {
         self
     }
 
-    /// The error a rejected request becomes.
+    /// The error a rejected request becomes. Server side only.
     pub fn validation_error(mut self, id: &str) -> Self {
         self.options.validation_error = Some(parse(id));
         self
     }
 
-    /// The error internal failures are answered with.
+    /// The error internal failures are answered with. Server side only.
     pub fn internal_error(mut self, id: &str) -> Self {
         self.options.internal_error = Some(parse(id));
         self
@@ -93,8 +126,11 @@ impl Service {
             .unwrap_or_else(|message| panic!("crucible: {message}"));
         let out =
             PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR: run from a build script"));
-        std::fs::write(out.join(&self.file), code)
-            .expect("crucible: cannot write the generated code");
+        let file = match self.side {
+            Side::Server => "crucible_service.rs",
+            Side::Client => "crucible_client.rs",
+        };
+        std::fs::write(out.join(file), code).expect("crucible: cannot write the generated code");
     }
 
     /// The generated code, or why there is none.
@@ -105,7 +141,11 @@ impl Service {
         let service = model
             .lower(self.service.as_ref())
             .map_err(|error| error.to_string())?;
-        crucible_codegen_rust::generate(&service, &self.options).map_err(|diagnostics| {
+        let generated = match self.side {
+            Side::Server => crucible_codegen_rust::generate(&service, &self.options),
+            Side::Client => crucible_codegen_rust::generate_client(&service),
+        };
+        generated.map_err(|diagnostics| {
             format!(
                 "cannot generate from {}:\n{diagnostics}",
                 self.model.display()

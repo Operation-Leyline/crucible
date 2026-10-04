@@ -90,7 +90,7 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     /// [`ModelledError::to_json`].
     fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<Vec<(&'static str, String)>> {
         let info = self.info();
-        crate::protocol::split::write_typed(&self.to_json(), info.members, Some(info.name), out)
+        crate::split::write_typed(&self.to_json(), info.members, Some(info.name), out)
     }
 }
 
@@ -101,7 +101,7 @@ pub fn write_error<E: ModelledError + serde::Serialize>(
     out: &mut Vec<u8>,
 ) -> serde_json::Result<Vec<(&'static str, String)>> {
     let info = error.info();
-    crate::protocol::split::write_typed(error, info.members, Some(info.name), out)
+    crate::split::write_typed(error, info.members, Some(info.name), out)
 }
 
 /// Errors the framework answers itself, outside any model: a request no

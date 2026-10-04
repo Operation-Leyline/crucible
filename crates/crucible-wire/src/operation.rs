@@ -187,7 +187,7 @@ pub trait Output: Any + Send + Sync {
         members: &[MemberInfo],
         out: &mut Vec<u8>,
     ) -> serde_json::Result<Vec<(&'static str, String)>> {
-        crate::protocol::split::write(&self.to_json(), members, out)
+        crate::split::write(&self.to_json(), members, out)
     }
     fn as_any(&self) -> &dyn Any;
 }
@@ -206,7 +206,7 @@ impl<T: Serialize + Any + Send + Sync> Output for T {
         members: &[MemberInfo],
         out: &mut Vec<u8>,
     ) -> serde_json::Result<Vec<(&'static str, String)>> {
-        crate::protocol::split::write(self, members, out)
+        crate::split::write(self, members, out)
     }
 
     fn as_any(&self) -> &dyn Any {

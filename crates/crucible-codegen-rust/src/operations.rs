@@ -49,7 +49,7 @@ fn operation_static(operation: &Operation) -> String {
     format!("{}_OPERATION", constant(operation.name()))
 }
 
-fn input_type(service: &Service, operation: &Operation) -> String {
+pub(crate) fn input_type(service: &Service, operation: &Operation) -> String {
     operation
         .input
         .as_ref()
@@ -58,13 +58,13 @@ fn input_type(service: &Service, operation: &Operation) -> String {
         })
 }
 
-fn output_type(service: &Service, operation: &Operation) -> String {
+pub(crate) fn output_type(service: &Service, operation: &Operation) -> String {
     operation.output.as_ref().map_or("()".to_owned(), |id| {
         format!("model::{}", service.name_of(id))
     })
 }
 
-fn structure<'s>(
+pub(crate) fn structure<'s>(
     service: &'s Service,
     id: Option<&ShapeId>,
 ) -> Option<&'s crucible_smithy::ir::Structure> {
@@ -75,6 +75,25 @@ fn structure<'s>(
 }
 
 fn operation_items(service: &Service, op: &Operation) -> String {
+    let name = op.name();
+    let mut out = marker(service, op, &output_type(service, op));
+    doc(&mut out, "", op.docs.as_deref());
+    let parameter = if op.input.is_some() {
+        format!(", input: {}", input_type(service, op))
+    } else {
+        String::new()
+    };
+    out.push_str(&format!(
+        "pub trait {name}Operation: ::crucible::WithContext + Send + Sync + 'static {{\n    fn {}(&self{parameter}) -> impl ::std::future::Future<Output = ::crucible::Result<{}>> + Send;\n}}\n",
+        function(name),
+        output_type(service, op),
+    ));
+    out
+}
+
+/// The marker type, its `OperationInfo` and its `Operation` impl, with
+/// `output_ty` as the output type: a client reads a missing output as `Unit`.
+pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str) -> String {
     let name = op.name();
     let mut out = String::from("\n");
     doc(&mut out, "", op.docs.as_deref());
@@ -128,18 +147,7 @@ fn operation_items(service: &Service, op: &Operation) -> String {
         "impl ::crucible::Operation for {name} {{\n    const INFO: &'static ::crucible::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n}}\n\n",
         operation_static(op),
         input_type(service, op),
-        output_type(service, op),
-    ));
-    doc(&mut out, "", op.docs.as_deref());
-    let parameter = if op.input.is_some() {
-        format!(", input: {}", input_type(service, op))
-    } else {
-        String::new()
-    };
-    out.push_str(&format!(
-        "pub trait {name}Operation: ::crucible::WithContext + Send + Sync + 'static {{\n    fn {}(&self{parameter}) -> impl ::std::future::Future<Output = ::crucible::Result<{}>> + Send;\n}}\n",
-        function(name),
-        output_type(service, op),
+        output_ty,
     ));
     out
 }

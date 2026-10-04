@@ -4,7 +4,7 @@
 use std::fs;
 use std::path::Path;
 
-use crucible_codegen_rust::{Options, generate};
+use crucible_codegen_rust::{Options, generate, generate_client};
 use crucible_smithy::Model;
 use serde_json::{Value, json};
 
@@ -23,17 +23,30 @@ fn edited(edit: impl FnOnce(&mut Value)) -> crucible_smithy::ir::Service {
 fn weather_matches_the_golden_file() {
     let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
     let code = generate(&service, &Options::default()).unwrap();
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/weather.rs");
+    matches_golden(&code, "weather.rs");
+}
+
+#[test]
+fn weather_client_matches_the_golden_file() {
+    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let code = generate_client(&service).unwrap();
+    matches_golden(&code, "weather_client.rs");
+}
+
+fn matches_golden(code: &str, file: &str) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden")
+        .join(file);
     if std::env::var_os("CRUCIBLE_BLESS").is_some() {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(&path, &code).unwrap();
+        fs::write(&path, code).unwrap();
     }
     let golden = fs::read_to_string(&path)
         .unwrap_or_default()
         .replace("\r\n", "\n");
     assert!(
         golden == code,
-        "generated code differs from tests/golden/weather.rs; review it and rerun with CRUCIBLE_BLESS=1"
+        "generated code differs from tests/golden/{file}; review it and rerun with CRUCIBLE_BLESS=1"
     );
 }
 
@@ -97,4 +110,19 @@ fn a_configured_validation_error_crucible_cannot_fill_fails_generation() {
             .any(|d| d.message.contains("on_rejection")),
         "{diagnostics}"
     );
+}
+
+#[test]
+fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one() {
+    let service = edited(|model| {
+        model["shapes"]["example.weather#ListCitiesInput"]["members"]["clientToken"] = json!({ "target": "smithy.api#String", "traits": { "smithy.api#idempotencyToken": {} } });
+    });
+    let code = generate_client(&service).unwrap();
+    assert!(
+        code.contains("let fresh = input.client_token.is_none();"),
+        "{code}"
+    );
+    assert!(code.contains(
+        "pages.fresh_token(|input| input.client_token = Some(::crucible_client::idempotency_token()))"
+    ));
 }

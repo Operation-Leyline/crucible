@@ -1,0 +1,21 @@
+# A client package: depends on the model package and generates a client for
+# it in build.rs. Its tests drive the weather service over real HTTP.
+[package]
+name = "weather-client"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+crucible-client = { path = "../../crates/crucible-client" }
+weather-model = { path = "../weather-model" }
+
+[build-dependencies]
+crucible-build = { path = "../../crates/crucible-build" }
+
+[dev-dependencies]
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+crucible = { path = "../../crates/crucible" }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+weather-service = { path = "../weather-service" }

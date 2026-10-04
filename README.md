@@ -7,8 +7,10 @@ API into it.
   handler chain around every operation, a request context, protocols,
   validation, error translation, a service log, metrics plumbing, and hosting
   on Lambda or a dedicated server, swappable without code changes.
-- **`crucible-build`**: run from a service's `build.rs`. It reads the model
-  package the service depends on and generates a trait per operation.
+- **`crucible-build`**: run from a service's or client's `build.rs`. It
+  reads the model package the package depends on and generates a trait per
+  operation, or a typed client.
+- **`crucible-client`**: the runtime generated Rust clients use.
 - **`crucible-cli`**: `check` a model, and generate a TypeScript client.
 
 Straight from Smithy, with no OpenAPI step, so what OpenAPI drops survives:
@@ -80,6 +82,35 @@ flattens mixins:
 
 `cargo run -p crucible-cli -- check model.json` lists every construct crucible
 cannot generate from, all in one run.
+
+## Rust clients
+
+A client package depends on the same model package and generates in
+`build.rs`:
+
+```rust
+// weather-client/build.rs
+fn main() { crucible_build::client("weather_model").generate(); }
+
+// weather-client/src/lib.rs
+crucible_client::include_client!();
+```
+
+```rust
+let client = Client::new(Config::new("https://weather.example.com").token(Token::fixed(key)));
+let city = client.get_city(GetCityInput { city_id: id, at: None }).await?;
+match client.create_city(input).await {
+    Err(Error::Service(CreateCityError::ConflictError(error))) => { /* a modelled error */ }
+    other => { /* .. */ }
+}
+let mut pages = client.list_cities_pages(ListCitiesInput { max_results: Some(50), next_token: None, tags: None });
+while let Some(page) = pages.next_page().await { /* .. */ }
+```
+
+It shares the model types, validation and wire code with the server, so
+the two cannot disagree. Each operation's errors are an enum of the errors
+it declares. Retries, idempotency tokens and interceptors work as in the
+TypeScript client.
 
 ## TypeScript clients
 

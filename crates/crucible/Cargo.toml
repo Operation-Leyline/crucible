@@ -17,6 +17,7 @@ http = ["tokio/net", "tokio/signal"]
 lambda = ["dep:lambda_http", "dep:lambda_runtime"]
 
 [dependencies]
+crucible-wire.workspace = true
 async-trait = "0.1"
 axum = "0.8"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
