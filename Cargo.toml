@@ -12,6 +12,7 @@ publish = false
 repository = "https://github.com/Operation-Leyline/crucible"
 
 [workspace.dependencies]
+crucible = { path = "crates/crucible" }
 crucible-smithy = { path = "crates/crucible-smithy" }
 crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
 crucible-codegen-ts = { path = "crates/crucible-codegen-ts" }

@@ -1,5 +1,5 @@
-//! `models.rs`: a Rust type per shape, serde attributes for the wire, and
-//! `Validate` for every shape an operation input reaches.
+//! The `model` module: a Rust type per shape, serde attributes for the wire,
+//! and `Validate` for every shape an operation input reaches.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -10,11 +10,8 @@ use serde_json::Value;
 use crate::names::{doc, field, function, literal, variant};
 use crate::types::{boxed_members, builtin, field_type, rust_type, timestamp_module};
 
-pub(crate) struct Models {
-    pub code: String,
-}
-
-pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> Models {
+/// The body of `pub mod model { ... }`.
+pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
     let boxed = boxed_members(service);
     let validated = input_reachable(service);
     let mut patterns = Patterns::default();
@@ -59,7 +56,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> Models {
             Shape::Enum(values) => enumeration(&mut out, id, name, values, diagnostics),
             Shape::Structure(structure) => {
                 doc(&mut out, "", structure.docs.as_deref());
-                out.push_str("#[derive(Debug, Clone, PartialEq, ::serde::Serialize, ::serde::Deserialize)]\n");
+                out.push_str(crate::DERIVE);
                 out.push_str(&format!("pub struct {name} {{\n"));
                 for member in &structure.members {
                     let is_boxed = boxed.contains(&id.with_member(&member.name));
@@ -69,7 +66,6 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> Models {
                         id,
                         member,
                         is_boxed,
-                        "pub ",
                         "",
                         &mut defaults,
                         diagnostics,
@@ -79,7 +75,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> Models {
             }
             Shape::Union(union) => {
                 doc(&mut out, "", union.docs.as_deref());
-                out.push_str("#[derive(Debug, Clone, PartialEq, ::serde::Serialize, ::serde::Deserialize)]\n");
+                out.push_str(crate::DERIVE);
                 out.push_str(&format!("pub enum {name} {{\n"));
                 for member in &union.members {
                     doc(&mut out, "    ", member.docs.as_deref());
@@ -103,9 +99,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> Models {
         }
     }
 
-    let mut code = String::from(crate::HEADER);
-    code.push_str("#![allow(clippy::all)]\n\n");
-    code.push_str("use crate::runtime::{FromText, ToText, Validate, Validator};\n");
+    let mut code = String::from("use ::crucible::validate::{Validate, Validator};\n");
     code.push_str(&out);
     if !defaults.is_empty() {
         code.push_str("\nmod defaults {\n");
@@ -114,7 +108,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> Models {
     }
     code.push_str(&patterns.statics());
     code.push_str(&validations);
-    Models { code }
+    code
 }
 
 /// Shapes with a type of their own: everything but the prelude and errors.
@@ -150,9 +144,7 @@ fn enumeration(
         }
     }
     doc(out, "", values.docs.as_deref());
-    out.push_str(
-        "#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::serde::Serialize, ::serde::Deserialize)]\n",
-    );
+    out.push_str(crate::DERIVE_ENUM);
     out.push_str(&format!("pub enum {name} {{\n"));
     for value in &values.values {
         doc(out, "    ", value.docs.as_deref());
@@ -163,7 +155,9 @@ fn enumeration(
         ));
     }
     out.push_str("}\n\n");
-    out.push_str(&format!("impl {name} {{\n    /// The value on the wire.\n    pub fn as_str(&self) -> &'static str {{\n        match self {{\n"));
+    out.push_str(&format!(
+        "impl {name} {{\n    /// The value on the wire.\n    pub fn as_str(&self) -> &'static str {{\n        match self {{\n"
+    ));
     for value in &values.values {
         out.push_str(&format!(
             "            Self::{} => {},\n",
@@ -171,29 +165,12 @@ fn enumeration(
             literal(&value.value)
         ));
     }
-    out.push_str("        }\n    }\n}\n\n");
-    out.push_str(&format!(
-        "impl FromText for {name} {{\n    fn from_text(text: &str) -> ::std::result::Result<Self, ::std::string::String> {{\n        match text {{\n"
-    ));
-    for value in &values.values {
-        out.push_str(&format!(
-            "            {} => Ok(Self::{}),\n",
-            literal(&value.value),
-            variant(&value.name)
-        ));
-    }
-    let allowed: Vec<&str> = values.values.iter().map(|v| v.value.as_str()).collect();
-    out.push_str(&format!(
-        "            _ => Err({}.to_owned()),\n        }}\n    }}\n}}\n\n",
-        literal(&format!("must be one of: {}", allowed.join(", ")))
-    ));
-    out.push_str(&format!(
-        "impl ToText for {name} {{\n    fn to_text(&self) -> ::std::string::String {{\n        self.as_str().to_owned()\n    }}\n}}\n"
-    ));
+    out.push_str("        }\n    }\n}\n");
 }
 
-/// One struct field with its serde attributes. `skip_serializing` header
-/// members of outputs and errors, which travel outside the body.
+/// One public struct field with its serde attributes. Every member is
+/// serialized; the protocol moves bound members out of the body. `prefix`
+/// names model types from where the struct is (`super::model::` in errors).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn member_field(
     out: &mut String,
@@ -201,7 +178,6 @@ pub(crate) fn member_field(
     owner: &ShapeId,
     member: &Member,
     boxed: bool,
-    visibility: &str,
     prefix: &str,
     defaults: &mut String,
     diagnostics: &mut Diagnostics,
@@ -213,14 +189,15 @@ pub(crate) fn member_field(
         serde.push("default".to_owned());
         serde.push("skip_serializing_if = \"::std::option::Option::is_none\"".to_owned());
     } else if let Some(value) = &member.default {
-        match default_expr(service, member, value, prefix) {
+        let inner = format!("super::{prefix}");
+        match default_expr(service, member, value, &inner) {
             Some(expr) => {
                 let function = format!(
                     "{}__{}",
                     function(service.name_of(owner)),
                     function(&member.name).trim_start_matches("r#")
                 );
-                let ty = field_type(service, member, boxed, prefix_for_defaults(prefix));
+                let ty = field_type(service, member, boxed, &inner);
                 defaults.push_str(&format!(
                     "    pub(super) fn {function}() -> {ty} {{\n        {expr}\n    }}\n"
                 ));
@@ -240,33 +217,17 @@ pub(crate) fn member_field(
         };
         serde.push(format!("with = \"{module}\""));
     }
-    if member
-        .traits
-        .contains_key(&ShapeId::new("smithy.api", "httpHeader"))
-        && !is_input_struct(service, owner)
-    {
-        serde.push("skip_serializing".to_owned());
-    }
     out.push_str(&format!("    #[serde({})]\n", serde.join(", ")));
     out.push_str(&format!(
-        "    {visibility}{}: {},\n",
+        "    pub {}: {},\n",
         field(&member.name),
         field_type(service, member, boxed, prefix)
     ));
 }
 
-/// Default functions live in `models::defaults`, a child module: model types
-/// are one level up.
-fn prefix_for_defaults(prefix: &str) -> &str {
-    if prefix.is_empty() { "super::" } else { prefix }
-}
-
-fn is_input_struct(service: &Service, id: &ShapeId) -> bool {
-    matches!(service.shape(id), Some(Shape::Structure(s)) if s.traits.contains_key(&ShapeId::new("smithy.api", "input")))
-}
-
+/// A default value as Rust, in a `defaults` module that names model types
+/// with `prefix`.
 fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str) -> Option<String> {
-    let prefix = prefix_for_defaults(prefix);
     match (service.shape(&member.target)?, value) {
         (Shape::Enum(values), Value::String(text)) => {
             let value = values.values.iter().find(|v| v.value == *text)?;
@@ -291,7 +252,9 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
                 SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long,
                 Value::Number(n),
             ) => Some(n.to_string()),
-            (SimpleKind::Document, value) => Some(format!("::serde_json::json!({value})")),
+            (SimpleKind::Document, value) => {
+                Some(format!("::crucible::__private::serde_json::json!({value})"))
+            }
             _ => None,
         },
         (Shape::List(_) | Shape::Map(_), Value::Array(a)) if a.is_empty() => {
@@ -331,7 +294,7 @@ fn input_reachable(service: &Service) -> BTreeSet<ShapeId> {
 
 /// Regexes for `@pattern`, one static each, compiled on first use.
 #[derive(Default)]
-pub(crate) struct Patterns {
+struct Patterns {
     names: BTreeMap<String, String>,
 }
 
@@ -347,7 +310,7 @@ impl Patterns {
         entries.sort_by_key(|(_, name)| (name.len(), (*name).clone()));
         for (pattern, name) in entries {
             out.push_str(&format!(
-                "\nstatic {name}: ::std::sync::LazyLock<::regex::Regex> =\n    ::std::sync::LazyLock::new(|| ::regex::Regex::new({}).expect(\"checked by crucible\"));\n",
+                "\nstatic {name}: ::std::sync::LazyLock<::crucible::__private::regex::Regex> =\n    ::std::sync::LazyLock::new(|| ::crucible::__private::regex::Regex::new({}).expect(\"checked by crucible\"));\n",
                 literal(pattern)
             ));
         }

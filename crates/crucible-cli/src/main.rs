@@ -66,22 +66,22 @@ enum Target {
         #[arg(long)]
         package_json: Option<PathBuf>,
     },
-    /// An axum server crate: traits to implement and a router.
-    RustServer {
+    /// The Rust code a service plugs into the crucible framework, as one
+    /// file: what `crucible-build` writes from a build script, for reading.
+    Rust {
         #[command(flatten)]
         source: Source,
-        /// The directory to write the crate to. crucible owns it: it is
-        /// emptied and rewritten on every run.
+        /// The file to write.
         #[arg(long)]
         out: PathBuf,
-        #[arg(long)]
-        crate_name: String,
-        #[arg(long, default_value = "0.0.0")]
-        crate_version: String,
         /// The error a rejected request becomes; defaults to the service's
         /// one error named *Validation*.
         #[arg(long)]
         validation_error: Option<ShapeId>,
+        /// The error internal failures are answered with; defaults to the
+        /// service's one server error with status 500.
+        #[arg(long)]
+        internal_error: Option<ShapeId>,
     },
 }
 
@@ -116,29 +116,22 @@ fn lower(source: &Source) -> Result<Service, String> {
 
 fn generate(target: Target) -> Result<(), String> {
     match target {
-        Target::RustServer {
+        Target::Rust {
             source,
             out,
-            crate_name,
-            crate_version,
             validation_error,
+            internal_error,
         } => {
             let service = lower(&source)?;
             let options = crucible_codegen_rust::Options {
-                crate_name,
-                crate_version,
                 validation_error,
+                internal_error,
             };
-            let files =
-                crucible_codegen_rust::emit_server(&service, &options).map_err(|diagnostics| {
-                    format!("cannot generate the Rust server:\n{diagnostics}")
-                })?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
-            println!("wrote {} files to {}", files.len(), out.display());
+            let code = crucible_codegen_rust::generate(&service, &options)
+                .map_err(|diagnostics| format!("cannot generate the Rust code:\n{diagnostics}"))?;
+            std::fs::write(&out, code)
+                .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+            println!("wrote {}", out.display());
             Ok(())
         }
         Target::Ts {
