@@ -108,7 +108,10 @@ impl Protocol for JsonProtocol {
                     None => framework_response(&FrameworkError::InternalFailure),
                 }
             }
-            None => framework_response(&FrameworkError::InternalFailure),
+            // An answered request never reaches the protocol.
+            Some(Resolution::Answered { .. }) | None => {
+                framework_response(&FrameworkError::InternalFailure)
+            }
         }
     }
 }
