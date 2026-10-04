@@ -15,6 +15,7 @@ path = "src/main.rs"
 crucible-smithy.workspace = true
 crucible-codegen-rust.workspace = true
 crucible-codegen-ts.workspace = true
+crucible-codegen-python.workspace = true
 serde_json.workspace = true
 clap.workspace = true
 

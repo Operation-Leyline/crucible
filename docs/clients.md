@@ -6,8 +6,8 @@ support conditional on finding an individual consumer.
 
 | Wave | Targets | Status |
 |---|---|---|
-| Baseline | TypeScript/JavaScript, Rust | Generators exist; shared conformance is being added |
-| 1 | Python, Go, Java, C# | Planned, Python first |
+| Baseline | TypeScript/JavaScript, Rust | Shared retry conformance runs in CI |
+| 1 | Python, Go, Java, C# | Python implemented; remaining targets planned |
 | 2 | Kotlin, Swift, Dart, PHP, Ruby | Planned |
 | Extension | C++, C, R | API and packaging scope still to be defined |
 
@@ -59,6 +59,12 @@ loopback HTTP server. The TypeScript runner is
 generated package's runtime with fake fetch. Both run in the existing CI gates.
 This table tests runtime decisions; Rust generator tests separately verify
 that explicit retryability reaches generated metadata.
+
+The Python runner in `crates/crucible-codegen-python/tests/test_runtime.py`
+executes the same table for synchronous and asynchronous HTTPX clients.
+`python tools/test-python.py` also type-checks the generated package, drives
+the weather service over HTTP, builds a wheel, and installs it for an import
+check. See [Python clients](python-client.md) for usage and limits.
 
 ## Remaining acceptance work
 
