@@ -9,7 +9,7 @@ use axum::response::{IntoResponse, Response};
 use serde_json::{Map, Number, Value};
 
 use super::text::{join_header, parse_query, percent_decode, split_header};
-use super::{Answers, Protocol, Route};
+use super::{Answers, Invocation, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
 use crate::handler::{Handler, Job, Resolution};
 use crate::operation::{Location, MemberInfo, OperationInfo, Scalar, Segment};
@@ -104,6 +104,10 @@ impl Handler for JsonProtocol {
     /// Reads the input: bound members from the request's labels, query and
     /// headers, the rest from the JSON body, then validates it.
     async fn before(&self, job: &mut Job) -> Result<()> {
+        // A direct invocation is the invoke protocol's to read.
+        if job.request().extensions.get::<Invocation>().is_some() || job.input().is_some() {
+            return Ok(());
+        }
         let Some(op) = job.operation() else {
             return Err(FrameworkError::UnknownOperation.into());
         };

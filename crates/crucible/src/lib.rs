@@ -28,6 +28,7 @@ pub mod context;
 pub mod error;
 pub mod handler;
 pub mod handlers;
+pub mod host;
 pub mod operation;
 pub mod operations;
 pub mod protocol;
@@ -41,7 +42,7 @@ pub use handler::{Handler, Job, Outcome, Resolution};
 pub use handlers::HandlerExt;
 pub use operation::{Operation, OperationInfo, ServiceInfo};
 pub use operations::{MissingOperations, Operations};
-pub use protocol::{JsonProtocol, Protocol};
+pub use protocol::{InvokeProtocol, JsonProtocol, Protocol};
 pub use service::{BuildError, Builder, Crucible};
 
 /// `#[crucible::async_trait]` for implementing [`Handler`] with `async fn`.

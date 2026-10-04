@@ -1,8 +1,10 @@
 # crucible — agent instructions
 
-crucible generates servers and clients from a Smithy JSON AST, with no
-OpenAPI step. `CLAUDE.md` is a one-line `@AGENTS.md` import: edit this file.
-Read `docs/design.md` before a structural change.
+crucible is a service framework for Smithy-modelled APIs (`crates/crucible`)
+plus the generators that plug an API into it. `CLAUDE.md` is a one-line
+`@AGENTS.md` import: edit this file. Read `docs/framework.md` before changing
+the framework or the Rust codegen, `docs/design.md` before changing the model
+layer or the TypeScript client.
 
 ## Commands
 
@@ -12,33 +14,42 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 cargo run -p crucible-cli -- check <model.json>
 bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=... to reuse a local tsc)
-bash tools/test-e2e.sh            # generated Rust server + generated TS client over real HTTP
+bash tools/test-e2e.sh            # e2e/ service: in-process framework tests, then the TS client over HTTP
 CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended output change
 ```
 
 On a shared machine, use your own `CARGO_TARGET_DIR` and a low
 `CARGO_BUILD_JOBS`. Builds compete with other sessions' builds.
 
+Changes land by pull request (branch `claude/<slug>`, `gh pr create`),
+reviewed by CodeRabbit; never push to main.
+
 ## Boundaries
 
 | Crate | Owns |
 |---|---|
+| `crucible` | the framework: orchestrator and handler chain, context, protocols, validation, errors, built-in handlers, hosting (HTTP, Lambda) |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
+| `crucible-codegen-rust` | IR → the Rust code a service plugs into the framework (one file) |
+| `crucible-build` | build scripts: model packages publish their AST, services generate from it |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
-| `crucible-codegen-rust` | the axum server crate: IR → `.rs` files, and `runtime/server.rs`, copied into every generated crate |
-| `crucible-cli` | the `crucible` binary: argument parsing, reporting, and writing output directories it owns (`.crucible` marker) |
+| `crucible-cli` | `check`, `generate ts`, `generate rust` (the build-script output, for reading) |
 
-`e2e/` is its own Cargo workspace that builds generated code (`weather-server`
-implements the weather fixture). The Rust client is next. Keep these rules:
+`e2e/` is its own Cargo workspace: `weather-model` (a model package) and
+`weather-service` (a service package that generates in `build.rs`). It is the
+example service and the integration test. Keep these rules:
 
-- Smithy semantics are settled once, in core: nullability, effective
-  constraints, HTTP bindings, errors, pagination, timestamp formats. An
-  emitter that re-derives one of them will disagree with the others.
-- An emitter never reads the AST, only the IR. If it needs something the IR
+- Smithy semantics are settled once, in `crucible-smithy`: nullability,
+  effective constraints, HTTP bindings, errors, pagination, timestamp
+  formats. A generator that re-derives one of them will disagree with the
+  others.
+- A generator never reads the AST, only the IR. If it needs something the IR
   lacks, add it to the IR.
-- Project-specific behaviour (Leyline's audit capture, request classes) comes
-  from that project's traits through the raw `traits` maps and a named
-  extension point. Never through a check of the service name.
+- Generated Rust is thin: types, `'static` descriptions, traits. Behaviour
+  belongs in the framework, where it is written and tested once.
+- The framework is extended through its interfaces (`Handler`, `Protocol`,
+  `OperationHandler`, `LogSink`, `Recorder`, exception rules), never through
+  a check of a service or operation name inside the framework.
 - Unsupported Smithy is a diagnostic against the shape that uses it, never a
   silent skip. Every diagnostic is collected, so one run lists all of them.
 
@@ -48,6 +59,8 @@ implements the weather fixture). The Rust client is next. Keep these rules:
 - Comments explain why. Prefer explicit imports over globs.
 - Generated output is checked in under `crates/*/tests/golden/`. An output
   change shows up as a golden diff in review: read it before blessing.
+- Performance is a goal: no per-request work that a `'static` description or
+  build-time generation could do instead, and measure before claiming a win.
 - The TypeScript runtime has no dependencies and targets what browsers and
   Node 22 both provide (`fetch`, `Request`, `crypto.subtle`, `structuredClone`).
   A behaviour change gets a case in `crates/crucible-codegen-ts/tests/ts/`.

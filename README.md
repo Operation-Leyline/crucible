@@ -1,20 +1,75 @@
 # crucible
 
-Generates servers and clients straight from a Smithy model: an axum server and
-a Rust client, and a TypeScript client. There is no OpenAPI step in between,
-so the parts of the model OpenAPI drops survive: unions, idempotency tokens,
-pagination, every error shape, and a project's own traits.
+A service framework for Smithy-modelled APIs, and the generators that plug an
+API into it.
 
-Used by [Leyline](https://github.com/Operation-Leyline/leyline) and Pigeon.
+- **`crucible`**: the framework a service depends on. It provides an ordered
+  handler chain around every operation, a request context, protocols,
+  validation, error translation, a service log, metrics plumbing, and hosting
+  on Lambda or a dedicated server, swappable without code changes.
+- **`crucible-build`**: run from a service's `build.rs`. It reads the model
+  package the service depends on and generates a trait per operation.
+- **`crucible-cli`**: `check` a model, and generate a TypeScript client.
 
-## Use
+Straight from Smithy, with no OpenAPI step, so what OpenAPI drops survives:
+unions, idempotency tokens, pagination, every error shape, and a project's
+own traits. See [docs/framework.md](docs/framework.md).
+
+## A service
+
+**Model package**: Smithy sources, the JSON AST their smithy build produces,
+and two small files:
+
+```toml
+# weather-model/Cargo.toml
+[package]
+name = "weather-model"
+links = "weather_model"
+
+[build-dependencies]
+crucible-build = { git = "https://github.com/Operation-Leyline/crucible" }
+```
+```rust
+// weather-model/build.rs
+fn main() { crucible_build::publish_model("model/model.json"); }
+```
+
+**Service package**: depends on it, generates in `build.rs`, implements each
+operation's trait:
+
+```rust
+// weather-service/build.rs
+fn main() { crucible_build::service("weather_model").generate(); }
+
+// weather-service/src/lib.rs
+pub mod api { crucible::include_service!(); }
+
+impl api::GetCityOperation for Weather {
+    async fn get_city(&self, input: api::model::GetCityInput) -> crucible::Result<api::model::GetCityOutput> {
+        let request_id = self.context().request_id();
+        // ... `?` on any error; return modelled errors with `.into()`
+    }
+}
+
+// weather-service/src/main.rs
+#[tokio::main]
+async fn main() -> Result<(), crucible::host::BoxError> {
+    let service = Crucible::builder(api::operations(Arc::new(Weather::default())))
+        .defaults()   // service log (errors only), exception translator, protocols
+        .build()?;
+    crucible::host::run(service).await   // Lambda inside Lambda, HTTP on $PORT elsewhere
+}
+```
+
+[e2e/](e2e/) is a complete, tested example: `weather-model` and
+`weather-service`.
+
+## Models
 
 Copy [smithy/crucible.smithy](smithy/crucible.smithy) into the model's source
-directory and put `@crucible.protocols#json` on the service. It is crucible's
-own HTTP+JSON protocol, specified in that file. A model may carry another
-protocol beside it for other tools; crucible generates only its own.
-
-Add a projection that flattens mixins to the project's `smithy-build.json`:
+directory and put `@crucible.protocols#json` on the service. That file
+specifies crucible's HTTP+JSON protocol. Build with a projection that
+flattens mixins:
 
 ```json
 "projections": {
@@ -22,60 +77,27 @@ Add a projection that flattens mixins to the project's `smithy-build.json`:
 }
 ```
 
-Build the model, then point crucible at the projection's JSON AST:
+`cargo run -p crucible-cli -- check model.json` lists every construct crucible
+cannot generate from, all in one run.
 
-```bash
-cargo run -p crucible-cli -- check smithy/build/smithyprojections/smithy/crucible/model/model.json
-```
-
-`check` lowers the service and lists every construct crucible cannot
-generate from, all of them in one run.
-
-Generate a TypeScript client package (no dependencies; ESM; `fetch`-based):
+## TypeScript clients
 
 ```bash
 cargo run -p crucible-cli -- generate ts model.json --out generated/client-ts \
-  --package-name @acme/client --endpoint https://api.acme.dev --middleware content-sha256
+  --package-name @acme/client --endpoint https://api.acme.dev
 ```
 
-```ts
-const client = new AcmeClient({ token: () => session.token() });
-const { graph } = await client.createGraph({ organizationId, name: "movies" });
-for await (const page of client.paginateListGraphs({ organizationId })) { /* … */ }
-try { await client.deleteGraph({ organizationId, graphId }); }
-catch (error) { if (error instanceof ConflictException) console.log(error.reason); }
-```
-
-The client fills idempotency tokens (and writes them back into the input, so
-resending the same object replays rather than repeats), retries throttling
-always and other transient failures only when the operation is safe to repeat,
-decodes each modelled error into its own class, converts timestamps, applies
-`@default`s, and runs caller middleware on every attempt. `--package-json`
-merges a JSON file over the generated `package.json` for publishing settings.
-The output directory belongs to crucible: it is emptied on every run, except
-`node_modules` and `dist`.
-
-Generate an axum server crate:
-
-```bash
-cargo run -p crucible-cli -- generate rust-server model.json --out generated/server --crate-name acme-api
-```
-
-It has a trait per resource (`CityApi`, plus `<Service>Api` for operations
-the service binds directly) whose methods take a typed, already-validated
-input and return the output or the operation's error enum. `router(service)`
-is an `axum::Router` for all of them. A request that breaks the model (bad
-JSON, a missing or malformed member, a length, range or pattern broken)
-never reaches a handler: it becomes the service's validation error through
-the `Reject` trait. crucible fills it when it can (`message`, and a
-`fieldList` of `path`/`name` + `message`); otherwise the service implements
-`reject`. Generation fails, rather than the server at startup, on a
-`@pattern` the regex crate cannot run or routes axum would refuse.
+A dependency-free, `fetch`-based ESM package. It fills idempotency tokens
+(and writes them back into the input, so resending the same object replays
+rather than repeats). It retries throttling always, and other transient
+failures only when the operation is safe to repeat. Each modelled error
+decodes into its own class, timestamps are converted, `@default`s applied,
+and caller middleware runs on every attempt.
 
 ## Supported Smithy
 
-`crucible.protocols#json` with bearer auth. Labels, query parameters and headers carry simple
-values, enums, or lists of those; everything else goes in a JSON body. Blobs,
-streaming, `@httpPayload`, `@httpResponseCode`, greedy labels, big numbers,
-`intEnum` and `@jsonName` are refused with a diagnostic, never skipped.
-The subset grows when a model needs more. See [docs/design.md](docs/design.md).
+`crucible.protocols#json` with bearer auth. Labels, query parameters and
+headers carry simple values, enums, or lists of those; everything else goes
+in a JSON body. Blobs, streaming, `@httpPayload`, `@httpResponseCode`, greedy
+labels, big numbers, `intEnum` and `@jsonName` are refused with a diagnostic,
+never skipped. The subset grows when a model needs more.

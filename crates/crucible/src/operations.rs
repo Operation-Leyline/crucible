@@ -52,6 +52,15 @@ impl Operations {
     }
 }
 
+impl fmt::Debug for Operations {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Operations")
+            .field("service", &self.service.id)
+            .field("operations", &self.entries.keys().collect::<Vec<_>>())
+            .finish()
+    }
+}
+
 pub struct OperationsBuilder {
     operations: Operations,
 }

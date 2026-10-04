@@ -1,5 +1,6 @@
-# The end-to-end harness: generated crates, built and served. Its own
-# workspace, because what it builds is generated (see tools/test-e2e.sh).
+# The end-to-end harness: a model package and a service package, built the
+# way a real service is (see tools/test-e2e.sh). Its own workspace, so the
+# main workspace builds without generated code.
 [workspace]
 resolver = "3"
-members = ["weather-server"]
+members = ["weather-model", "weather-service"]

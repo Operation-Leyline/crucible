@@ -13,7 +13,7 @@ use crate::error::{Error, FrameworkError, ModelledError};
 use crate::handler::{Handler, Job, Outcome};
 use crate::handlers::{ExceptionTranslator, ServiceLog};
 use crate::operations::{Invoke, Operations};
-use crate::protocol::{Answers, JsonProtocol, Route};
+use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Route};
 use crate::validate::Rejection;
 
 type Reject = Arc<dyn Fn(&Rejection) -> Box<dyn ModelledError> + Send + Sync>;
@@ -55,6 +55,25 @@ impl Crucible {
         })
     }
 
+    /// Calls an operation by name with its input as JSON, through the whole
+    /// handler chain, without HTTP: for direct Lambda invokes and in-process
+    /// callers. Needs an [`InvokeProtocol`] in the chain.
+    pub async fn invoke(&self, operation: &str, input: serde_json::Value) -> serde_json::Value {
+        let mut request = Request::post("/")
+            .body(Body::from(input.to_string()))
+            .expect("a POST to / is a valid request");
+        request.extensions_mut().insert(Invocation {
+            operation: operation.to_owned(),
+        });
+        let response = self.handle(request).await;
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap_or_default();
+        serde_json::from_slice(&bytes).unwrap_or_else(|_| {
+            serde_json::json!({ "error": { "__type": "InternalFailure", "message": "no protocol answered the invocation" } })
+        })
+    }
+
     pub async fn handle(&self, request: Request<Body>) -> Response {
         let inner = &self.inner;
         let (parts, body) = request.into_parts();
@@ -66,7 +85,14 @@ impl Crucible {
         });
         let (protocol, route) = match routed {
             Some((index, route)) => (index, Some(route)),
-            None => (inner.protocols[0], None),
+            None => {
+                let owner = inner.protocols.iter().copied().find(|&index| {
+                    inner.handlers[index]
+                        .as_protocol()
+                        .is_some_and(|protocol| protocol.owns(&parts))
+                });
+                (owner.unwrap_or(inner.protocols[0]), None)
+            }
         };
         let entry = route
             .as_ref()
@@ -116,8 +142,11 @@ impl Crucible {
                         response.headers_mut().insert(name, value);
                     }
                 }
-                if let Ok(id) = HeaderValue::from_str(job.context.request_id()) {
-                    response.headers_mut().insert("x-request-id", id);
+                // An operation that models its own `x-request-id` member keeps it.
+                if !response.headers().contains_key("x-request-id") {
+                    if let Ok(id) = HeaderValue::from_str(job.context.request_id()) {
+                        response.headers_mut().insert("x-request-id", id);
+                    }
                 }
                 response
             })
@@ -187,6 +216,7 @@ impl Builder {
         self.handler(ServiceLog::errors_only())
             .handler(ExceptionTranslator::new())
             .handler(JsonProtocol)
+            .handler(InvokeProtocol)
     }
 
     /// How a rejected request becomes the service's validation error. Needed

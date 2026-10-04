@@ -2,12 +2,14 @@
 //! the response. Several can serve one service (an RPC and a REST one, say);
 //! the first in the chain to claim a request serves it.
 
+mod invoke;
 mod json;
 pub(crate) mod text;
 
 use axum::http::request::Parts;
 use axum::response::Response;
 
+pub use invoke::{Invocation, InvokeProtocol};
 pub use json::JsonProtocol;
 
 use crate::error::ModelledError;
@@ -33,6 +35,14 @@ pub struct Answers<'a> {
 pub trait Protocol: Send + Sync {
     /// The operation this request is, if this protocol serves it.
     fn route(&self, request: &Parts, operations: &Operations) -> Option<Route>;
+
+    /// Whether this protocol answers a request no operation matched, because
+    /// the request is in its format. The first protocol in the chain answers
+    /// the rest.
+    fn owns(&self, request: &Parts) -> bool {
+        let _ = request;
+        false
+    }
 
     /// The response for the job's outcome. Called once, after every handler.
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response;
