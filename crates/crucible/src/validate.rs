@@ -1,0 +1,190 @@
+//! Constraint checking. Generated `Validate` impls walk an input and record
+//! every violation; a request with any is rejected before an implementation
+//! sees it.
+
+use std::collections::BTreeSet;
+use std::fmt;
+
+use serde::Serialize;
+
+/// One way a request broke the model, at a `/`-separated path of member
+/// names, list indexes and map keys (or a parameter or header name).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Violation {
+    pub path: String,
+    pub message: String,
+    pub kind: ViolationKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViolationKind {
+    /// Not readable as the model's types: bad JSON, a word where a number
+    /// goes, an unknown enum value.
+    Malformed,
+    /// Readable, but outside the model: a required member missing, a length,
+    /// range or pattern broken.
+    Constraint,
+}
+
+impl fmt::Display for Violation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.path.is_empty() {
+            f.write_str(&self.message)
+        } else {
+            write!(f, "{}: {}", self.path, self.message)
+        }
+    }
+}
+
+/// A request that could not become an operation's input, with every
+/// violation found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rejection {
+    pub violations: Vec<Violation>,
+}
+
+impl Rejection {
+    pub fn constraint(path: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::of(ViolationKind::Constraint, path, message)
+    }
+
+    pub fn malformed(path: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::of(ViolationKind::Malformed, path, message)
+    }
+
+    fn of(kind: ViolationKind, path: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            violations: vec![Violation {
+                path: path.into(),
+                message: message.into(),
+                kind,
+            }],
+        }
+    }
+
+    pub fn is_malformed(&self) -> bool {
+        self.violations
+            .iter()
+            .any(|v| v.kind == ViolationKind::Malformed)
+    }
+
+    /// One line for an error message: the first violation, and how many more.
+    pub fn summary(&self) -> String {
+        match self.violations.as_slice() {
+            [] => "the request is invalid".to_owned(),
+            [only] => only.to_string(),
+            [first, rest @ ..] => format!("{first} (and {} more)", rest.len()),
+        }
+    }
+}
+
+impl fmt::Display for Rejection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.summary())
+    }
+}
+
+impl std::error::Error for Rejection {}
+
+/// A value that checks its own constraints and its members'.
+pub trait Validate {
+    fn validate(&self, validator: &mut Validator);
+}
+
+impl<T: Validate> Validate for Box<T> {
+    fn validate(&self, validator: &mut Validator) {
+        (**self).validate(validator);
+    }
+}
+
+/// Collects violations while walking a value.
+#[derive(Default)]
+pub struct Validator {
+    path: Vec<String>,
+    violations: Vec<Violation>,
+}
+
+impl Validator {
+    pub fn check<T: Validate>(value: &T) -> Result<(), Rejection> {
+        let mut validator = Self::default();
+        value.validate(&mut validator);
+        if validator.violations.is_empty() {
+            Ok(())
+        } else {
+            Err(Rejection {
+                violations: validator.violations,
+            })
+        }
+    }
+
+    pub fn at(&mut self, segment: impl fmt::Display, check: impl FnOnce(&mut Self)) {
+        self.path.push(segment.to_string());
+        check(self);
+        self.path.pop();
+    }
+
+    pub fn fail(&mut self, message: impl Into<String>) {
+        self.violations.push(Violation {
+            path: self.path.join("/"),
+            message: message.into(),
+            kind: ViolationKind::Constraint,
+        });
+    }
+
+    pub fn length(&mut self, length: usize, min: Option<u64>, max: Option<u64>) {
+        let length = length as u64;
+        match (min, max) {
+            (Some(min), Some(max)) if length < min || length > max => {
+                self.fail(format!("length must be between {min} and {max}, inclusive"))
+            }
+            (Some(min), None) if length < min => {
+                self.fail(format!("length must be at least {min}"))
+            }
+            (None, Some(max)) if length > max => self.fail(format!("length must be at most {max}")),
+            _ => {}
+        }
+    }
+
+    pub fn range_integer(&mut self, value: i128, min: Option<i128>, max: Option<i128>) {
+        if min.is_some_and(|min| value < min) || max.is_some_and(|max| value > max) {
+            self.fail(range_message(
+                min.map(|m| m.to_string()),
+                max.map(|m| m.to_string()),
+            ));
+        }
+    }
+
+    pub fn range_float(&mut self, value: f64, min: Option<f64>, max: Option<f64>) {
+        if min.is_some_and(|min| value < min) || max.is_some_and(|max| value > max) {
+            self.fail(range_message(
+                min.map(|m| m.to_string()),
+                max.map(|m| m.to_string()),
+            ));
+        }
+    }
+
+    pub fn pattern(&mut self, text: &str, regex: &regex::Regex, pattern: &str) {
+        if !regex.is_match(text) {
+            self.fail(format!("must match the pattern {pattern}"));
+        }
+    }
+
+    pub fn unique<T: Serialize>(&mut self, items: &[T]) {
+        let mut seen = BTreeSet::new();
+        for item in items {
+            if !seen.insert(serde_json::to_string(item).unwrap_or_default()) {
+                self.fail("items must be unique");
+                return;
+            }
+        }
+    }
+}
+
+fn range_message(min: Option<String>, max: Option<String>) -> String {
+    match (min, max) {
+        (Some(min), Some(max)) => format!("must be between {min} and {max}, inclusive"),
+        (Some(min), None) => format!("must be at least {min}"),
+        (None, Some(max)) => format!("must be at most {max}"),
+        (None, None) => "is out of range".to_owned(),
+    }
+}

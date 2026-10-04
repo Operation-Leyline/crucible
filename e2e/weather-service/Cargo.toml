@@ -1,0 +1,20 @@
+# A service package: depends on the model package, generates its operations
+# in build.rs, implements them, and hosts the result.
+[package]
+name = "weather-service"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+crucible = { path = "../../crates/crucible" }
+weather-model = { path = "../weather-model" }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+
+[build-dependencies]
+crucible-build = { path = "../../crates/crucible-build" }
+
+[dev-dependencies]
+axum = "0.8"

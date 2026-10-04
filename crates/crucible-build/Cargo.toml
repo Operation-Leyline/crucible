@@ -1,0 +1,15 @@
+[package]
+name = "crucible-build"
+description = "Build-script support: model packages publish their Smithy model, services generate code from it"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+crucible-codegen-rust.workspace = true
+crucible-smithy.workspace = true
+
+[lints]
+workspace = true

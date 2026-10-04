@@ -6,14 +6,14 @@ use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, TimestampFormat};
 
 pub(crate) const STRING: &str = "::std::string::String";
-pub(crate) const DATE_TIME: &str = "::chrono::DateTime<::chrono::Utc>";
+pub(crate) const DATE_TIME: &str = "::crucible::time::Timestamp";
 
 /// The Rust type of a target. Named shapes are qualified with `prefix`
-/// (`crate::models::` outside the models module).
+/// (`super::model::` outside the model module).
 pub(crate) fn rust_type(service: &Service, target: &ShapeId, prefix: &str) -> String {
     if target.is_prelude() {
         match service.shape(target) {
-            Some(Shape::Unit) => return "crate::runtime::Unit".to_owned(),
+            Some(Shape::Unit) => return "::crucible::operation::Unit".to_owned(),
             Some(Shape::Simple(simple)) => return builtin(simple.kind).to_owned(),
             _ => {}
         }
@@ -32,7 +32,7 @@ pub(crate) fn builtin(kind: SimpleKind) -> &'static str {
         SimpleKind::Float => "f32",
         SimpleKind::Double => "f64",
         SimpleKind::Timestamp => DATE_TIME,
-        SimpleKind::Document => "::serde_json::Value",
+        SimpleKind::Document => "::crucible::__private::serde_json::Value",
     }
 }
 
@@ -64,8 +64,8 @@ pub(crate) fn timestamp_module(service: &Service, member: &Member) -> Option<&'s
     }
     match service.timestamp_format(member) {
         TimestampFormat::DateTime => None,
-        TimestampFormat::EpochSeconds => Some("crate::runtime::epoch_seconds"),
-        TimestampFormat::HttpDate => Some("crate::runtime::http_date"),
+        TimestampFormat::EpochSeconds => Some("::crucible::time::epoch_seconds"),
+        TimestampFormat::HttpDate => Some("::crucible::time::http_date"),
     }
 }
 

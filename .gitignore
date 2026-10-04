@@ -1,8 +1,7 @@
 /target
 /.idea
-crates/crucible-emit-ts/tests/ts/generated/
-crates/crucible-emit-ts/tests/ts/dist/
+crates/crucible-codegen-ts/tests/ts/generated/
+crates/crucible-codegen-ts/tests/ts/dist/
 e2e/generated/
 e2e/target/
 e2e/ts/dist/
-e2e/Cargo.lock

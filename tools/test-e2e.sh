@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
-# Generates the weather fixture's Rust server and TypeScript client, serves
-# the one and drives it with the other over real HTTP (e2e/).
+# Builds the weather service (e2e/: a model package, and a service package
+# that generates its operations in build.rs), serves it, and drives it with
+# the generated TypeScript client over real HTTP. Also runs the service's
+# in-process framework tests.
 #
 #   TSC   the TypeScript compiler to run (default: TypeScript 5.9.3 via npx)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-model=crates/crucible-smithy/tests/fixtures/weather.json
-cargo run -q -p crucible-cli -- generate rust-server "$model" \
-  --out e2e/generated/weather-server --crate-name weather-api >/dev/null
-cargo run -q -p crucible-cli -- generate ts "$model" \
+cargo run -q -p crucible-cli -- generate ts crates/crucible-smithy/tests/fixtures/weather.json \
   --out e2e/generated/weather-ts --package-name @example/weather >/dev/null
-# A path dependency inside the harness directory joins its workspace.
-cargo build -q --manifest-path e2e/Cargo.toml
+cargo test -q --locked --manifest-path e2e/Cargo.toml
+cargo build -q --locked --manifest-path e2e/Cargo.toml
 
 target="${CARGO_TARGET_DIR:-e2e/target}"
-bin="$target/debug/weather-server"
+bin="$target/debug/weather-service"
 [[ -x "$bin" ]] || bin="$bin.exe"
 
 log="$(mktemp)"

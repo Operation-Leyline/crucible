@@ -37,8 +37,8 @@ jobs:
         with: { node-version: 22 }
       - run: bash tools/test-ts.sh
 
-  # The generated Rust server, served, and driven by the generated
-  # TypeScript client over real HTTP.
+  # The example service (e2e/): built the way a real one is, tested in
+  # process, then served and driven by the generated TypeScript client.
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -49,4 +49,6 @@ jobs:
         with: { workspaces: ". -> target\ne2e -> target" }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - run: cargo fmt --all --check --manifest-path e2e/Cargo.toml
+      - run: cargo clippy --manifest-path e2e/Cargo.toml --all-targets --locked -- -D warnings
       - run: bash tools/test-e2e.sh
