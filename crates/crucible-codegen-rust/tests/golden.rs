@@ -193,3 +193,45 @@ fn the_standard_reason_matches_whatever_casing_the_model_uses() {
     assert!(code.contains("model::ValidationReason::CannotParse } else { model::ValidationReason::FieldValidationFailed }"));
     assert!(code.contains("reason: model::ValidationReason::UnknownOperation"));
 }
+
+#[test]
+fn scaffold_plans_a_file_per_operation_in_a_folder_per_resource() {
+    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let stubs = crucible_codegen_rust::scaffold(&service, &Default::default());
+    let mut paths: Vec<String> = stubs
+        .iter()
+        .map(|stub| stub.path().to_string_lossy().replace('\\', "/"))
+        .collect();
+    paths.sort();
+    assert_eq!(
+        paths,
+        [
+            "city/create_city.rs",
+            "city/get_city.rs",
+            "city/list_cities.rs",
+            "service/ping.rs",
+            "service/status.rs",
+        ]
+    );
+    let get_city = stubs.iter().find(|stub| stub.module == "get_city").unwrap();
+    assert!(
+        get_city
+            .contents
+            .contains("use crate::contract::{model, GetCityOperation};")
+    );
+    assert!(
+        get_city
+            .contents
+            .contains("impl GetCityOperation for Service {")
+    );
+    assert!(get_city.contents.contains(
+        "async fn get_city(&self, input: model::GetCityInput) -> crucible::Result<model::GetCityOutput>"
+    ));
+    let ping = stubs.iter().find(|stub| stub.module == "ping").unwrap();
+    assert!(
+        ping.contents
+            .contains("use crate::contract::PingOperation;"),
+        "{}",
+        ping.contents
+    );
+}

@@ -7,16 +7,16 @@
 //! plumbing. See `docs/framework.md`.
 //!
 //! ```ignore
-//! mod api { crucible::include_service!(); }
+//! pub mod contract { crucible::include_service!(); }
 //!
-//! impl api::GetCityOperation for Weather {
-//!     async fn get_city(&self, input: api::model::GetCityInput) -> crucible::Result<api::model::GetCityOutput> {
+//! impl contract::GetCityOperation for Weather {
+//!     async fn get_city(&self, input: contract::model::GetCityInput) -> crucible::Result<contract::model::GetCityOutput> {
 //!         let id = self.context().request_id().to_owned();
 //!         ...
 //!     }
 //! }
 //!
-//! let service = Crucible::builder(api::operations(Arc::new(Weather::new(store))))
+//! let service = Crucible::builder(contract::operations(Arc::new(Weather::new(store))))
 //!     .handler(ServiceLog::errors_only())
 //!     .handler(ExceptionTranslator::new())
 //!     .handler(JsonProtocol)

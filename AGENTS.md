@@ -38,8 +38,11 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-cli` | `check`, `generate ts`, `generate rust` (the build-script output, for reading) |
 
 `e2e/` is its own Cargo workspace: `weather-model` (a model package),
-`weather-service` (a service package that generates in `build.rs`) and
-`weather-client` (a client package, tested against the service over HTTP). It is the
+`weather-service` (a service package that generates in `build.rs`, laid out
+as `docs/framework.md` "Laying out a service" says: `operations/<resource>/`,
+one file per operation; `handlers/`, one file per handler) and
+`weather-client` (a client package, tested against the service over HTTP).
+Code here follows the same rule: one type per file, named for it. It is the
 example service and the integration test. Keep these rules:
 
 - Smithy semantics are settled once, in `crucible-smithy`: nullability,

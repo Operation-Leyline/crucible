@@ -36,18 +36,30 @@ crucible-build = { git = "https://github.com/Operation-Leyline/crucible" }
 fn main() { crucible_build::publish_model("model/model.json"); }
 ```
 
-**Service package**: depends on it, generates in `build.rs`, implements each
-operation's trait:
+**Service package**: depends on it, generates in `build.rs`, and implements
+each operation's trait in a file of its own, in a folder per resource:
+
+```text
+weather-service/src/
+  lib.rs                   pub mod contract { crucible::include_service!(); }
+  operations/              one file per operation (`crucible scaffold` writes them)
+    mod.rs                 the service type
+    city/                  the City resource's operations
+      get_city.rs
+      create_city.rs
+    service/               operations the service itself binds
+      ping.rs
+  handlers/                one file per handler: handlers::FailTimes
+    fail_times.rs
+```
 
 ```rust
 // weather-service/build.rs
 fn main() { crucible_build::service("weather_model").generate(); }
 
-// weather-service/src/lib.rs
-pub mod api { crucible::include_service!(); }
-
-impl api::GetCityOperation for Weather {
-    async fn get_city(&self, input: api::model::GetCityInput) -> crucible::Result<api::model::GetCityOutput> {
+// weather-service/src/operations/city/get_city.rs
+impl GetCityOperation for Weather {
+    async fn get_city(&self, input: model::GetCityInput) -> crucible::Result<model::GetCityOutput> {
         let request_id = self.context().request_id();
         // ... `?` on any error; return modelled errors with `.into()`
     }
@@ -57,7 +69,7 @@ impl api::GetCityOperation for Weather {
 #[tokio::main]
 async fn main() -> Result<(), crucible::host::BoxError> {
     let cities = Arc::new(DynamoCities::from_env().await?);  // data lives outside the process
-    let service = Crucible::builder(api::operations(Arc::new(Weather::new(cities))))
+    let service = Crucible::builder(contract::operations(Arc::new(Weather::new(cities))))
         .defaults()   // service log (errors only), exception translator, protocols
         .build()?;
     crucible::host::run(service).await   // Lambda inside Lambda, HTTP on $PORT elsewhere
