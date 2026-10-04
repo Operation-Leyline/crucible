@@ -225,6 +225,8 @@ pub struct ErrorInfo {
     pub name: &'static str,
     pub status: u16,
     pub fault: Fault,
+    /// The model explicitly marks this error as retryable.
+    pub retryable: bool,
     pub throttling: bool,
     pub members: &'static [MemberInfo],
 }

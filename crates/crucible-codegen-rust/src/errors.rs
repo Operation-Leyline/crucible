@@ -55,8 +55,9 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             Fault::Server => "Server",
         };
         let throttling = error.retryable.is_some_and(|r| r.throttling);
+        let retryable = error.retryable.is_some();
         out.push_str(&format!(
-            "pub(super) static {}: ErrorInfo = ErrorInfo {{\n    name: {},\n    status: {},\n    fault: Fault::{fault},\n    throttling: {throttling},\n    members: {},\n}};\n\n",
+            "pub(super) static {}: ErrorInfo = ErrorInfo {{\n    name: {},\n    status: {},\n    fault: Fault::{fault},\n    retryable: {retryable},\n    throttling: {throttling},\n    members: {},\n}};\n\n",
             info_static(name),
             literal(name),
             error.status,

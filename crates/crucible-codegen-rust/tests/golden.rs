@@ -33,6 +33,19 @@ fn weather_client_matches_the_golden_file() {
     matches_golden(&code, "weather_client.rs");
 }
 
+#[test]
+fn non_throttling_retryability_reaches_client_metadata() {
+    let service = edited(|model| {
+        model["shapes"]["example.weather#ConflictError"]["traits"]["smithy.api#retryable"] =
+            json!({});
+    });
+    let code = generate_client(&service).unwrap();
+    assert!(
+        code.contains("retryable: true,\n        throttling: false,"),
+        "{code}"
+    );
+}
+
 fn matches_golden(code: &str, file: &str) {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden")

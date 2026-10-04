@@ -139,9 +139,9 @@ impl Transport {
             let (throttling, transient) = match &error {
                 Error::Service(error) => {
                     let info = error.info();
-                    (info.throttling, info.status >= 500)
+                    (info.throttling, info.retryable || retryable_status(status))
                 }
-                _ => (false, status >= 500),
+                _ => (false, retryable_status(status)),
             };
             if (throttling || (retry_safe && transient)) && attempt < retry.max_attempts {
                 let delay =
@@ -349,6 +349,11 @@ fn decode_error<E: OperationErrors>(status: u16, headers: &HeaderMap, body: &[u8
     }
 }
 
+// Keep the fallback status policy aligned with every client runtime.
+fn retryable_status(status: u16) -> bool {
+    matches!(status, 500 | 502 | 503 | 504)
+}
+
 /// Full jitter: a uniform delay up to an exponentially growing cap.
 fn backoff(attempt: u32, retry: &crate::config::Retry) -> Duration {
     let cap = retry
@@ -386,6 +391,7 @@ mod tests {
         name: "A",
         status: 400,
         fault: Fault::Client,
+        retryable: false,
         throttling: false,
         members: &[],
     };
@@ -393,6 +399,7 @@ mod tests {
         name: "B",
         status: 404,
         fault: Fault::Client,
+        retryable: false,
         throttling: false,
         members: &[],
     };
@@ -400,6 +407,7 @@ mod tests {
         name: "C",
         status: 400,
         fault: Fault::Client,
+        retryable: false,
         throttling: false,
         members: &[],
     };
