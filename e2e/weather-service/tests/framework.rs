@@ -10,7 +10,7 @@ use crucible::handlers::{
 };
 use crucible::{Context, Crucible, HandlerExt, InvokeProtocol, JsonProtocol};
 use serde_json::{Value, json};
-use weather_service::api::{self, model};
+use weather_service::contract::{self, model};
 use weather_service::{MemoryCities, Weather};
 
 fn memory() -> Arc<MemoryCities> {
@@ -89,7 +89,7 @@ impl std::fmt::Display for Database {
 impl std::error::Error for Database {}
 
 fn failing(translator: ExceptionTranslator) -> Crucible {
-    Crucible::builder(api::operations(Arc::new(Weather::new(memory()))))
+    Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
         .handler(translator)
         .handler(before_fn(|_| Err(Database("password=hunter2").into())).only(&["Ping"]))
         .handler(JsonProtocol)
@@ -109,7 +109,7 @@ async fn an_internal_failure_never_reaches_the_caller() {
 #[tokio::test]
 async fn the_exception_translator_maps_failures_to_modelled_errors() {
     let translator = ExceptionTranslator::new().translate(|error: &Database| {
-        api::errors::ThrottlingError {
+        contract::errors::ThrottlingError {
             message: format!("busy ({} chars hidden)", error.0.len()),
             retry_after: Some(1),
         }
@@ -140,9 +140,11 @@ impl LogSink for Records {
 async fn the_service_log_writes_failures_by_default_and_more_where_asked() {
     let records = Records::default();
     let log = ServiceLog::errors_only()
-        .operation::<api::CreateCity>(LogPolicy::everything().output(Fields::Only(vec!["city"])))
+        .operation::<contract::CreateCity>(
+            LogPolicy::everything().output(Fields::Only(vec!["city"])),
+        )
         .sink(records.clone());
-    let service = Crucible::builder(api::operations(Arc::new(Weather::new(memory()))))
+    let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
         .handler(log)
         .handler(JsonProtocol)
         .handler(InvokeProtocol)
@@ -174,7 +176,7 @@ async fn the_service_log_writes_failures_by_default_and_more_where_asked() {
 struct Audit(Arc<Mutex<Vec<String>>>);
 
 #[crucible::async_trait]
-impl OperationHandler<api::GetCity> for Audit {
+impl OperationHandler<contract::GetCity> for Audit {
     async fn before(&self, input: &model::GetCityInput, context: &Context) -> crucible::Result<()> {
         assert!(!context.request_id().is_empty());
         self.0.lock().unwrap().push(input.city_id.clone());
@@ -185,7 +187,7 @@ impl OperationHandler<api::GetCity> for Audit {
 #[tokio::test]
 async fn typed_operation_handlers_see_their_input() {
     let seen = Arc::new(Mutex::new(Vec::new()));
-    let service = Crucible::builder(api::operations(Arc::new(Weather::new(memory()))))
+    let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
         .handler(JsonProtocol)
         .handler(InvokeProtocol)
         .handler(for_operation(Audit(seen.clone())))
@@ -201,7 +203,7 @@ async fn typed_operation_handlers_see_their_input() {
 #[tokio::test]
 async fn a_service_split_across_types_names_what_it_left_out() {
     let weather = Arc::new(Weather::new(memory()));
-    let missing = api::builder()
+    let missing = contract::builder()
         .ping(weather.clone())
         .get_city(weather)
         .build()
@@ -297,7 +299,7 @@ async fn an_operation_can_take_a_smaller_body_than_the_service() {
             .unwrap()
     };
     let limited = weather_service::builder(memory())
-        .operation_body_limit::<api::CreateCity>(64)
+        .operation_body_limit::<contract::CreateCity>(64)
         .build()
         .unwrap();
     let response = limited.handle(create()).await;

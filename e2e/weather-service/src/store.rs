@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Mutex;
 
-use crate::api::model::CitySummary;
+use crate::contract::model::CitySummary;
 
 /// What a store needs to create a city; it assigns the id and timestamps.
 #[derive(Debug, Clone, PartialEq)]
