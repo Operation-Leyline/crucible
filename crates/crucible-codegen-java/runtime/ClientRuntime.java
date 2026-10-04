@@ -37,6 +37,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadLocalRandom;
@@ -51,6 +53,14 @@ final class ClientRuntime {
           .setStrictness(Strictness.STRICT)
           .create();
   private static final ScheduledThreadPoolExecutor TIMER = timer();
+  // User hooks and completion callbacks may block, so keep them off the timer and common pool.
+  private static final ExecutorService WORKERS =
+      Executors.newCachedThreadPool(
+          task -> {
+            var thread = new Thread(task, "crucible-client-worker");
+            thread.setDaemon(true);
+            return thread;
+          });
   private final HttpClient http;
   private final ClientConfig config;
   private final JsonObject schema;
@@ -506,7 +516,7 @@ final class ClientRuntime {
                 synchronized (this) {
                   if (isDone()) return;
                 }
-                CompletableFuture.runAsync(action);
+                WORKERS.execute(action);
               },
               delay,
               TimeUnit.NANOSECONDS);
@@ -526,7 +536,10 @@ final class ClientRuntime {
     Future<?> deadline =
         TIMER.schedule(
             () ->
-                result.completeExceptionally(new HttpTimeoutException("request deadline exceeded")),
+                WORKERS.execute(
+                    () ->
+                        result.completeExceptionally(
+                            new HttpTimeoutException("request deadline exceeded"))),
             config.timeout.toNanos(),
             TimeUnit.NANOSECONDS);
     result.whenComplete(
@@ -534,7 +547,7 @@ final class ClientRuntime {
           deadline.cancel(false);
           result.stop();
         });
-    CompletableFuture.runAsync(() -> attempt(prepared, output, result, 1, start));
+    WORKERS.execute(() -> attempt(prepared, output, result, 1, start));
     return result;
   }
 

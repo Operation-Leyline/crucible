@@ -408,12 +408,59 @@ public final class ClientTest {
     check(found, "weather pagination");
   }
 
+  static void independentDeadlines() throws Exception {
+    var callbackEntered = new CountDownLatch(1);
+    var releaseCallback = new CountDownLatch(1);
+    var releaseProviders = new CountDownLatch(1);
+    var config = new ClientConfig();
+    config.endpoint = "https://example.invalid";
+    config.timeout = Duration.ofMillis(250);
+    config.token =
+        () -> {
+          try {
+            releaseProviders.await();
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+          }
+          return "token";
+        };
+    try {
+      var first = new Client(config).pingAsync();
+      var callback =
+          first.whenComplete(
+              (value, error) -> {
+                callbackEntered.countDown();
+                try {
+                  check(releaseCallback.await(5, TimeUnit.SECONDS), "callback was not released");
+                } catch (InterruptedException e) {
+                  Thread.currentThread().interrupt();
+                  throw new AssertionError(e);
+                }
+              });
+      check(callbackEntered.await(2, TimeUnit.SECONDS), "first deadline did not complete");
+      var second = new Client(config).pingAsync();
+      try {
+        second.get(2, TimeUnit.SECONDS);
+        throw new AssertionError("independent deadline did not fail");
+      } catch (java.util.concurrent.ExecutionException e) {
+        check(
+            e.getCause() instanceof java.net.http.HttpTimeoutException,
+            "wrong independent deadline failure: " + e.getCause());
+      }
+      check(!callback.isDone(), "blocking callback unexpectedly returned");
+    } finally {
+      releaseCallback.countDown();
+      releaseProviders.countDown();
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     retries(Path.of(args[0]));
     serialization(Path.of(args[1]));
     httpBehavior();
     malformedAndInterruptedBodies();
     cancellation();
+    independentDeadlines();
     weather();
     System.out.println("Java client conformance and weather HTTP passed");
   }
