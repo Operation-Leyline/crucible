@@ -241,6 +241,40 @@ deployment change. `host::serve(service, Host::..)` picks explicitly,
 runtime loop of your own). `into_router()` gives an `axum::Router` for
 HTTP-only layers (compression, CORS, timeouts).
 
+## Clients
+
+`crucible_build::client("<links>")` generates a client from the same model
+package, into `crucible_client::include_client!()`. The model and error code
+is the server's, generated against `crucible-client`, which re-exports the
+wire types (`crucible-wire`) under the same paths the framework does. A
+server and a client built from one model share their types, validation and
+member bindings; neither can drift from the other.
+
+The generated file holds `model`, `errors`, the operation markers, and per
+operation an error enum (`GetCityError`) of the errors it declares, plus
+`Client` with one async method per operation and `*_pages` for
+`@paginated` ones.
+
+`Transport::send` builds a request from the operation's `OperationInfo`:
+`split::write_bound` writes the body members in one pass and hands back
+the labels (percent-encoded into the path), query parameters (repeated for
+lists) and headers. A response is read back the way the server reads a
+request, with `bound::read` laying response-header members over the body. An
+error response decodes by its body's `__type`, else by status when exactly
+one declared error has it; anything else is `Error::Unknown` with the status,
+type name, message and request id.
+
+Retries follow one rule: throttling errors always, other 5xx and transport
+failures only when the operation is safe to repeat (`@readonly`,
+`@idempotent`, or an idempotency token, which the client fills once per call
+so every attempt carries the same one). Delays are full-jitter exponential,
+and a `Retry-After` header wins. The bearer token (fixed, or a provider asked
+on every attempt), default headers and `Interceptor`s apply to every attempt,
+in that order.
+
+TLS is rustls with the ring provider, installed as the process default only
+when the application has not chosen one.
+
 ## Performance
 
 The goal is a framework whose abstraction costs little next to the

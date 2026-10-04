@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Builds the weather service (e2e/: a model package, and a service package
-# that generates its operations in build.rs), serves it, and drives it with
-# the generated TypeScript client over real HTTP. Also runs the service's
-# in-process framework tests.
+# Builds the weather service (e2e/: a model package, a service package that
+# generates its operations in build.rs, and a client package that generates a
+# Rust client), serves it, and drives it with the generated TypeScript client
+# over real HTTP. `cargo test` covers the service's in-process framework tests
+# and the Rust client against a served copy.
 #
 #   TSC   the TypeScript compiler to run (default: TypeScript 5.9.3 via npx)
 set -euo pipefail

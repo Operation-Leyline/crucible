@@ -12,6 +12,9 @@ use serde::de::{
     SeqAccess, Visitor,
 };
 
+use crate::operation::Scalar;
+use crate::{text, time};
+
 /// A bound member's value, already checked against its kind, so a bad one
 /// is a violation naming the parameter or header before deserializing starts.
 #[derive(Debug, Clone, PartialEq)]
@@ -23,9 +26,48 @@ pub enum BoundValue<'a> {
     List(Vec<BoundValue<'a>>),
 }
 
+impl<'a> BoundValue<'a> {
+    /// A bound member's text as its kind, or why it is not one: what a
+    /// server reads from a label, query parameter or header, and a client
+    /// from a response header.
+    pub fn parse(text: Cow<'a, str>, scalar: Scalar) -> Result<Self, String> {
+        match scalar {
+            Scalar::String | Scalar::Json => Ok(Self::Text(text)),
+            Scalar::Integer => text
+                .parse::<i64>()
+                .map(Self::Integer)
+                .map_err(|_| format!("must be an integer (`{text}` is not)")),
+            Scalar::Float | Scalar::EpochSeconds => text
+                .parse::<f64>()
+                .ok()
+                .filter(|n| n.is_finite())
+                .map(Self::Float)
+                .ok_or_else(|| format!("must be a number (`{text}` is not)")),
+            Scalar::Boolean => match &*text {
+                "true" => Ok(Self::Boolean(true)),
+                "false" => Ok(Self::Boolean(false)),
+                _ => Err("must be true or false".to_owned()),
+            },
+            Scalar::DateTime => match time::parse_date_time(&text) {
+                Some(_) => Ok(Self::Text(text)),
+                None => Err("must be an RFC 3339 timestamp".to_owned()),
+            },
+            Scalar::HttpDate => match time::http_date::parse(&text) {
+                Some(_) => Ok(Self::Text(text)),
+                None => Err("must be an HTTP date".to_owned()),
+            },
+            Scalar::List(item) => text::split_header(&text)
+                .into_iter()
+                .map(|item_text| Self::parse(Cow::Owned(item_text), *item))
+                .collect::<Result<Vec<_>, _>>()
+                .map(Self::List),
+        }
+    }
+}
+
 /// `T` from `body` (a JSON object, or empty for `{}`) with `bound` laid over
 /// it. A body member that is also bound is ignored: the bound value wins.
-pub(crate) fn read<'a, T: DeserializeOwned>(
+pub fn read<'a, T: DeserializeOwned>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
 ) -> Result<T, serde_json::Error> {

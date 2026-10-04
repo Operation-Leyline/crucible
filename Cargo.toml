@@ -13,6 +13,8 @@ repository = "https://github.com/Operation-Leyline/crucible"
 
 [workspace.dependencies]
 crucible = { path = "crates/crucible" }
+crucible-wire = { path = "crates/crucible-wire" }
+crucible-client = { path = "crates/crucible-client" }
 crucible-build = { path = "crates/crucible-build" }
 crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
 crucible-smithy = { path = "crates/crucible-smithy" }

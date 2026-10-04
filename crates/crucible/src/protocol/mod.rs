@@ -2,17 +2,14 @@
 //! the response. Several can serve one service (an RPC and a REST one, say);
 //! the first in the chain to claim a request serves it.
 
-mod bound;
 mod invoke;
 mod json;
-pub(crate) mod split;
-pub(crate) mod text;
 
 use axum::http::request::Parts;
 use axum::response::Response;
 
-pub use bound::BoundValue;
-pub(crate) use bound::read as read_bound;
+pub use crucible_wire::bound::BoundValue;
+pub(crate) use crucible_wire::bound::read as read_bound;
 pub use invoke::{Invocation, InvokeProtocol};
 pub use json::JsonProtocol;
 

@@ -3,4 +3,4 @@
 # main workspace builds without generated code.
 [workspace]
 resolver = "3"
-members = ["weather-model", "weather-service"]
+members = ["weather-client", "weather-model", "weather-service"]

@@ -10,14 +10,13 @@ use std::borrow::Cow;
 
 use serde_json::Value;
 
-use super::text::{percent_decode, query_values, split_header};
 use super::{Answers, BoundValue, Invocation, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
 use crate::handler::{Handler, Hook, Job, Resolution};
 use crate::operation::{Location, MemberInfo, OperationInfo, Scalar, Segment};
 use crate::operations::Operations;
-use crate::time;
 use crate::validate::{Rejection, Violation, ViolationKind};
+use crucible_wire::text::{percent_decode, query_values};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct JsonProtocol;
@@ -162,14 +161,14 @@ fn bound_members<'a>(
             (Location::Body, _) => continue,
             (Location::Label, scalar) => {
                 match job.labels().iter().find(|(name, _)| *name == member.name) {
-                    Some((_, text)) => from_text(Cow::Borrowed(text.as_str()), scalar),
+                    Some((_, text)) => BoundValue::parse(Cow::Borrowed(text.as_str()), scalar),
                     None => continue,
                 }
             }
             (Location::Query(param), Scalar::List(item)) => {
                 let items: std::result::Result<Vec<BoundValue<'a>>, String> =
                     query_values(query, param)
-                        .map(|text| from_text(text, *item))
+                        .map(|text| BoundValue::parse(text, *item))
                         .collect();
                 match items {
                     Ok(items) if items.is_empty() => continue,
@@ -177,7 +176,7 @@ fn bound_members<'a>(
                 }
             }
             (Location::Query(param), scalar) => match query_values(query, param).next() {
-                Some(text) => from_text(text, scalar),
+                Some(text) => BoundValue::parse(text, scalar),
                 None => continue,
             },
             (Location::Header(name), scalar) => {
@@ -188,14 +187,7 @@ fn bound_members<'a>(
                     violations.push(malformed(name, "is not visible ASCII"));
                     continue;
                 };
-                match scalar {
-                    Scalar::List(item) => split_header(text)
-                        .into_iter()
-                        .map(|text| from_text(Cow::Owned(text), *item))
-                        .collect::<std::result::Result<Vec<_>, _>>()
-                        .map(BoundValue::List),
-                    scalar => from_text(Cow::Borrowed(text), scalar),
-                }
+                BoundValue::parse(Cow::Borrowed(text), scalar)
             }
         };
         match value {
@@ -223,37 +215,6 @@ fn malformed(path: &str, message: &str) -> Violation {
         path: path.to_owned(),
         message: message.to_owned(),
         kind: ViolationKind::Malformed,
-    }
-}
-
-/// A bound member's text as its kind, or why it is not one.
-fn from_text(text: Cow<'_, str>, scalar: Scalar) -> std::result::Result<BoundValue<'_>, String> {
-    match scalar {
-        Scalar::String | Scalar::Json => Ok(BoundValue::Text(text)),
-        Scalar::Integer => text
-            .parse::<i64>()
-            .map(BoundValue::Integer)
-            .map_err(|_| format!("must be an integer (`{text}` is not)")),
-        Scalar::Float | Scalar::EpochSeconds => text
-            .parse::<f64>()
-            .ok()
-            .filter(|n| n.is_finite())
-            .map(BoundValue::Float)
-            .ok_or_else(|| format!("must be a number (`{text}` is not)")),
-        Scalar::Boolean => match &*text {
-            "true" => Ok(BoundValue::Boolean(true)),
-            "false" => Ok(BoundValue::Boolean(false)),
-            _ => Err("must be true or false".to_owned()),
-        },
-        Scalar::DateTime => match time::parse_date_time(&text) {
-            Some(_) => Ok(BoundValue::Text(text)),
-            None => Err("must be an RFC 3339 timestamp".to_owned()),
-        },
-        Scalar::HttpDate => match time::http_date::parse(&text) {
-            Some(_) => Ok(BoundValue::Text(text)),
-            None => Err("must be an HTTP date".to_owned()),
-        },
-        Scalar::List(_) => Err("a list cannot hold a list here".to_owned()),
     }
 }
 

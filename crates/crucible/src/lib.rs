@@ -25,16 +25,16 @@
 //! ```
 
 pub mod context;
-pub mod error;
 pub mod handler;
 pub mod handlers;
 pub mod host;
-pub mod operation;
 pub mod operations;
 pub mod protocol;
 pub mod service;
-pub mod time;
-pub mod validate;
+
+// What the server shares with clients lives in crucible-wire, re-exported
+// at the paths generated code names.
+pub use crucible_wire::{error, operation, time, validate};
 
 pub use context::{Context, WithContext};
 pub use error::{Error, FrameworkError, ModelledError, Result};
