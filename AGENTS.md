@@ -23,9 +23,9 @@ On a shared machine, use your own `CARGO_TARGET_DIR` and a low
 
 | Crate | Owns |
 |---|---|
-| `crucible-core` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
-| `crucible-emit-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
-| `crucible-emit-rust` | the axum server crate: IR → `.rs` files, and `runtime/server.rs`, copied into every generated crate |
+| `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
+| `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
+| `crucible-codegen-rust` | the axum server crate: IR → `.rs` files, and `runtime/server.rs`, copied into every generated crate |
 | `crucible-cli` | the `crucible` binary: argument parsing, reporting, and writing output directories it owns (`.crucible` marker) |
 
 `e2e/` is its own Cargo workspace that builds generated code (`weather-server`
@@ -50,9 +50,9 @@ implements the weather fixture). The Rust client is next. Keep these rules:
   change shows up as a golden diff in review: read it before blessing.
 - The TypeScript runtime has no dependencies and targets what browsers and
   Node 22 both provide (`fetch`, `Request`, `crypto.subtle`, `structuredClone`).
-  A behaviour change gets a case in `crates/crucible-emit-ts/tests/ts/`.
+  A behaviour change gets a case in `crates/crucible-codegen-ts/tests/ts/`.
 - Every new Smithy construct the subset accepts gets a fixture case in
-  `crates/crucible-core/tests/fixtures/` and a test. So does every
+  `crates/crucible-smithy/tests/fixtures/` and a test. So does every
   construct it refuses.
 - Generated code must be deterministic: sort by shape id or name, never by
   hash order or model-file order (member order is source order, which is

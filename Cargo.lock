@@ -112,37 +112,37 @@ name = "crucible-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
- "crucible-core",
- "crucible-emit-rust",
- "crucible-emit-ts",
+ "crucible-codegen-rust",
+ "crucible-codegen-ts",
+ "crucible-smithy",
  "serde_json",
 ]
 
 [[package]]
-name = "crucible-core"
+name = "crucible-codegen-rust"
+version = "0.1.0"
+dependencies = [
+ "crucible-smithy",
+ "regex",
+ "serde_json",
+]
+
+[[package]]
+name = "crucible-codegen-ts"
+version = "0.1.0"
+dependencies = [
+ "crucible-smithy",
+ "serde_json",
+]
+
+[[package]]
+name = "crucible-smithy"
 version = "0.1.0"
 dependencies = [
  "indexmap",
  "serde",
  "serde_json",
  "thiserror",
-]
-
-[[package]]
-name = "crucible-emit-rust"
-version = "0.1.0"
-dependencies = [
- "crucible-core",
- "regex",
- "serde_json",
-]
-
-[[package]]
-name = "crucible-emit-ts"
-version = "0.1.0"
-dependencies = [
- "crucible-core",
- "serde_json",
 ]
 
 [[package]]

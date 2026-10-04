@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-model=crates/crucible-core/tests/fixtures/weather.json
+model=crates/crucible-smithy/tests/fixtures/weather.json
 cargo run -q -p crucible-cli -- generate rust-server "$model" \
   --out e2e/generated/weather-server --crate-name weather-api >/dev/null
 cargo run -q -p crucible-cli -- generate ts "$model" \

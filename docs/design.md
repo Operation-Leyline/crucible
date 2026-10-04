@@ -53,7 +53,7 @@ protocols. crucible can emit OpenAPI from its IR when one is needed.
 ```
 smithy build (projection with flattenAndRemoveMixins)
   → model.json (JSON AST)
-  → crucible-core: parse → subset check → lower → ir::Service
+  → crucible-smithy: parse → subset check → lower → ir::Service
   → emitters: rust server · rust client · typescript client
 ```
 

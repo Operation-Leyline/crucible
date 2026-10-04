@@ -12,9 +12,9 @@ name = "crucible"
 path = "src/main.rs"
 
 [dependencies]
-crucible-core.workspace = true
-crucible-emit-rust.workspace = true
-crucible-emit-ts.workspace = true
+crucible-smithy.workspace = true
+crucible-codegen-rust.workspace = true
+crucible-codegen-ts.workspace = true
 serde_json.workspace = true
 clap.workspace = true
 

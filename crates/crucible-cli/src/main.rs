@@ -5,8 +5,8 @@ use std::process::ExitCode;
 mod output;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use crucible_core::ir::{Service, Shape, Traits};
-use crucible_core::{Model, ShapeId};
+use crucible_smithy::ir::{Service, Shape, Traits};
+use crucible_smithy::{Model, ShapeId};
 
 /// Generate servers and clients from a Smithy model.
 #[derive(Parser)]
@@ -124,13 +124,13 @@ fn generate(target: Target) -> Result<(), String> {
             validation_error,
         } => {
             let service = lower(&source)?;
-            let options = crucible_emit_rust::Options {
+            let options = crucible_codegen_rust::Options {
                 crate_name,
                 crate_version,
                 validation_error,
             };
             let files =
-                crucible_emit_rust::emit_server(&service, &options).map_err(|diagnostics| {
+                crucible_codegen_rust::emit_server(&service, &options).map_err(|diagnostics| {
                     format!("cannot generate the Rust server:\n{diagnostics}")
                 })?;
             output::write(
@@ -160,7 +160,7 @@ fn generate(target: Target) -> Result<(), String> {
                         .map_err(|error| format!("{} is not JSON: {error}", path.display()))
                 })
                 .transpose()?;
-            let options = crucible_emit_ts::Options {
+            let options = crucible_codegen_ts::Options {
                 package_name,
                 package_version,
                 client_name,
@@ -168,12 +168,14 @@ fn generate(target: Target) -> Result<(), String> {
                 middleware: middleware
                     .into_iter()
                     .map(|m| match m {
-                        MiddlewareArg::ContentSha256 => crucible_emit_ts::Middleware::ContentSha256,
+                        MiddlewareArg::ContentSha256 => {
+                            crucible_codegen_ts::Middleware::ContentSha256
+                        }
                     })
                     .collect(),
                 package_json,
             };
-            let files = crucible_emit_ts::emit(&service, &options).map_err(|diagnostics| {
+            let files = crucible_codegen_ts::emit(&service, &options).map_err(|diagnostics| {
                 format!(
                     "cannot generate the TypeScript client:
 {diagnostics}"

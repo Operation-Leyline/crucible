@@ -12,9 +12,9 @@ publish = false
 repository = "https://github.com/Operation-Leyline/crucible"
 
 [workspace.dependencies]
-crucible-core = { path = "crates/crucible-core" }
-crucible-emit-rust = { path = "crates/crucible-emit-rust" }
-crucible-emit-ts = { path = "crates/crucible-emit-ts" }
+crucible-smithy = { path = "crates/crucible-smithy" }
+crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
+crucible-codegen-ts = { path = "crates/crucible-codegen-ts" }
 clap = { version = "4", features = ["derive"] }
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
