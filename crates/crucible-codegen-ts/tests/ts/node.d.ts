@@ -4,6 +4,10 @@ declare module "node:test" {
   export function test(name: string, run: () => void | Promise<void>): void;
 }
 
+declare module "node:fs" {
+  export function readFileSync(path: URL, encoding: "utf8"): string;
+}
+
 declare module "node:assert/strict" {
   interface Assert {
     (value: unknown, message?: string): asserts value;

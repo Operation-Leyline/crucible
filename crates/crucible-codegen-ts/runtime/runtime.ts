@@ -325,7 +325,8 @@ export class Transport {
       headers: response.headers,
     };
     const name = errorName(body, operation, this.#errors, response.status);
-    const spec = name === undefined ? undefined : this.#errors[name];
+    const spec = name !== undefined && operation.errors.includes(name) && Object.hasOwn(this.#errors, name)
+      ? this.#errors[name] : undefined;
     if (spec === undefined) {
       const message = stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`;
       return new ServiceError(name ?? "UnknownError", message, metadata, response.status >= 500 ? "server" : "client");
@@ -347,7 +348,7 @@ function errorName(
   status: number,
 ): string | undefined {
   const named = stringField(body, "__type");
-  if (named !== undefined && named in errors) return named;
+  if (named !== undefined) return named;
   const byStatus = operation.errors.filter(name => errors[name]?.status === status);
   return byStatus.length === 1 ? byStatus[0] : undefined;
 }

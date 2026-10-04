@@ -1,0 +1,222 @@
+[
+  {
+    "name": "unknown-400",
+    "safe": true,
+    "status": 400,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unknown-401",
+    "safe": true,
+    "status": 401,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unknown-402",
+    "safe": true,
+    "status": 402,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unknown-403",
+    "safe": true,
+    "status": 403,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unknown-404",
+    "safe": true,
+    "status": 404,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unknown-408",
+    "safe": true,
+    "status": 408,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unknown-429",
+    "safe": true,
+    "status": 429,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unknown-500",
+    "safe": true,
+    "status": 500,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 2,
+    "success": true
+  },
+  {
+    "name": "unknown-501",
+    "safe": true,
+    "status": 501,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unknown-502",
+    "safe": true,
+    "status": 502,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 2,
+    "success": true
+  },
+  {
+    "name": "unknown-503",
+    "safe": true,
+    "status": 503,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 2,
+    "success": true
+  },
+  {
+    "name": "unknown-504",
+    "safe": true,
+    "status": 504,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 2,
+    "success": true
+  },
+  {
+    "name": "unknown-599",
+    "safe": true,
+    "status": 599,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unsafe-server-error",
+    "safe": false,
+    "status": 503,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "explicit-transient",
+    "safe": true,
+    "status": 400,
+    "error": "Transient",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 2,
+    "success": true
+  },
+  {
+    "name": "unsafe-explicit-transient",
+    "safe": false,
+    "status": 400,
+    "error": "Transient",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "unsafe-throttling",
+    "safe": false,
+    "status": 429,
+    "error": "Throttled",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 2,
+    "success": true
+  },
+  {
+    "name": "ordinary-client-error",
+    "safe": true,
+    "status": 400,
+    "error": "Ordinary",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "wire-status-over-model-status",
+    "safe": true,
+    "status": 503,
+    "error": "Ordinary",
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 2,
+    "success": true
+  },
+  {
+    "name": "attempt-limit",
+    "safe": true,
+    "status": 503,
+    "error": "Unmodeled",
+    "failures": 9,
+    "maxAttempts": 3,
+    "attempts": 3,
+    "success": false
+  },
+  {
+    "name": "retries-disabled",
+    "safe": true,
+    "status": 503,
+    "error": "Unmodeled",
+    "failures": 1,
+    "maxAttempts": 1,
+    "attempts": 1,
+    "success": false
+  },
+  {
+    "name": "status-fallback-throttling",
+    "safe": false,
+    "status": 429,
+    "error": null,
+    "failures": 1,
+    "maxAttempts": 3,
+    "attempts": 2,
+    "success": true
+  }
+]

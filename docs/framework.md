@@ -417,8 +417,9 @@ error response decodes by its body's `__type`, else by status when exactly
 one declared error has it; anything else is `Error::Unknown` with the status,
 type name, message and request id.
 
-Retries follow one rule: throttling errors always, other 5xx and transport
-failures only when the operation is safe to repeat (`@readonly`,
+Retries follow the [shared client contract](clients.md#http-retry-contract):
+modeled throttling errors are eligible for retry, while explicitly retryable
+errors, HTTP 500/502/503/504, and transport failures require an operation safe to repeat (`@readonly`,
 `@idempotent`, or an idempotency token, which the client fills once per call
 so every attempt carries the same one). Delays are full-jitter exponential,
 and a `Retry-After` header wins. The bearer token (fixed, or a provider asked

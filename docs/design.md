@@ -27,8 +27,8 @@ crucible reads the Smithy model itself, so none of those are lost.
 They are model-native and solve most of the above, but they bring their own
 router and runtimes (`aws-smithy-*`, `@smithy/*`), and customizing them means
 Kotlin/Java decorators against internal APIs. That just moves the patching into
-someone else's framework. A generator for one protocol and three targets is
-small enough to own.
+someone else's framework. Crucible owns one protocol and a shared semantic
+IR, with native emitters and runtimes for the [client language portfolio](clients.md).
 
 ## Protocol
 

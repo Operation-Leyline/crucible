@@ -269,6 +269,7 @@ pub mod errors {
         name: "ConflictError",
         status: 409,
         fault: Fault::Client,
+        retryable: false,
         throttling: false,
         members: &[
             ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
@@ -310,6 +311,7 @@ pub mod errors {
         name: "NotFoundError",
         status: 404,
         fault: Fault::Client,
+        retryable: false,
         throttling: false,
         members: &[
             ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
@@ -352,6 +354,7 @@ pub mod errors {
         name: "ThrottlingError",
         status: 429,
         fault: Fault::Client,
+        retryable: true,
         throttling: true,
         members: &[
             ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
@@ -398,6 +401,7 @@ pub mod errors {
         name: "ValidationError",
         status: 400,
         fault: Fault::Client,
+        retryable: false,
         throttling: false,
         members: &[
             ::crucible::operation::MemberInfo { name: "message", location: ::crucible::operation::Location::Body, scalar: ::crucible::operation::Scalar::Json, redaction: &__redaction::R_29, traits: &[] },
