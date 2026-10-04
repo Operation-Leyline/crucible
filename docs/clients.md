@@ -7,7 +7,7 @@ support conditional on finding an individual consumer.
 | Wave | Targets | Status |
 |---|---|---|
 | Baseline | TypeScript/JavaScript, Rust | Shared retry conformance runs in CI |
-| 1 | Python, Go, Java, C# | Python and Go implemented; Java and C# planned |
+| 1 | Python, Go, Java, C# | Python, Go, and Java implemented; C# next |
 | 2 | Kotlin, Swift, Dart, PHP, Ruby | Planned |
 | Extension | C++, C, R | API and packaging scope still to be defined |
 
@@ -71,6 +71,10 @@ the retry table over loopback HTTP. `python tools/test-go.py` runs it alongside
 weather-service tests, `go vet`, and a separate-module consumer check. Python
 and Go also share `tests/conformance/header-lists.json`.
 See [Go clients](go-client.md) for the generated API.
+
+`python tools/test-java.py` packages the Java SDK with Maven, then compiles a
+separate consumer against the jar and runs shared cases and weather-service
+HTTP tests. See [Java clients](java-client.md) for its API and lifecycle.
 
 ## Remaining acceptance work
 

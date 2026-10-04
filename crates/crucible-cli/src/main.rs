@@ -58,6 +58,25 @@ enum Command {
 
 #[derive(Subcommand)]
 enum Target {
+    /// A Java 17 Maven package with synchronous and asynchronous clients.
+    Java {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        group_id: String,
+        #[arg(long)]
+        artifact_id: String,
+        #[arg(long)]
+        package_name: String,
+        #[arg(long, default_value = "0.0.0-SNAPSHOT")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        #[arg(long)]
+        content_sha256: bool,
+    },
     /// A Go module with typed models and context-aware HTTP clients.
     Go {
         #[command(flatten)]
@@ -184,6 +203,37 @@ fn lower(source: &Source) -> Result<Service, String> {
 
 fn generate(target: Target) -> Result<(), String> {
     match target {
+        Target::Java {
+            source,
+            out,
+            group_id,
+            artifact_id,
+            package_name,
+            package_version,
+            endpoint,
+            content_sha256,
+        } => {
+            let service = lower(&source)?;
+            let files = crucible_codegen_java::emit(
+                &service,
+                &crucible_codegen_java::Options {
+                    group_id,
+                    artifact_id,
+                    package_name,
+                    package_version,
+                    endpoint,
+                    content_sha256,
+                },
+            )
+            .map_err(|d| format!("cannot generate the Java client:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
         Target::Go {
             source,
             out,
