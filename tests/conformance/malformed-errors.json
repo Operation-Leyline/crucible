@@ -1,0 +1,35 @@
+[
+  {
+    "name": "malformed throttling body member",
+    "status": 429,
+    "body": "{\"__type\":\"ThrottlingError\",\"message\":\"retry body\",\"retryAfter\":\"bad\",\"requestId\":\"body-id\"}",
+    "headers": {"x-request-id": "wire-id", "x-extra": "preserved"},
+    "error": "ThrottlingError",
+    "message": "retry body",
+    "requestId": "wire-id",
+    "retryable": true,
+    "throttling": true
+  },
+  {
+    "name": "malformed throttling header member",
+    "status": 429,
+    "body": "{\"__type\":\"ThrottlingError\",\"message\":\"retry header\",\"requestId\":\"body-id\"}",
+    "headers": {"retry-after": "invalid", "x-extra": "preserved"},
+    "error": "ThrottlingError",
+    "message": "retry header",
+    "requestId": "body-id",
+    "retryable": true,
+    "throttling": true
+  },
+  {
+    "name": "malformed ordinary body retains actual retryable status",
+    "status": 503,
+    "body": "{\"__type\":\"ValidationError\",\"message\":\"retry status\",\"reason\":\"other\",\"fieldList\":\"bad\",\"requestId\":\"body-id\"}",
+    "headers": {"x-extra": "preserved"},
+    "error": "ValidationError",
+    "message": "retry status",
+    "requestId": "body-id",
+    "retryable": false,
+    "throttling": false
+  }
+]

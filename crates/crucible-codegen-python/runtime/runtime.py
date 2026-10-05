@@ -54,6 +54,7 @@ class ResponseMetadata:
     status: int
     request_id: str | None
     headers: httpx.Headers
+    body: bytes = b""
 
 
 class ServiceError(Exception):
@@ -343,21 +344,29 @@ class _Base:
             if len(matches) == 1:
                 name = matches[0]
         target = declared.get(name)
-        metadata = ResponseMetadata(response.status_code, response.headers.get("x-request-id") or fields.get("requestId"), response.headers)
+        request_id = response.headers.get("x-request-id", fields.get("requestId"))
+        metadata = ResponseMetadata(response.status_code, request_id if isinstance(request_id, str) else None,
+                                    httpx.Headers(response.headers), body)
         converted: dict[str, Any] = {}
         error: dict[str, Any] = {}
         cls = ServiceError
         if target is not None:
             shape = self._codec.shapes[target]
             error = shape["error"]
-            cls = self._codec.classes[target]
-            for key, m in shape["members"].items():
-                converted[m["attribute"]] = self._codec.convert(m["target"], fields.get(key, UNSET), decode=True, fmt=m["format"])
-            for member, header in error["headers"]:
-                if header in response.headers:
-                    m = shape["members"][member]
-                    converted[m["attribute"]] = self._codec.read_header(m, response.headers[header])
-        raise cls(name=name or "UnknownError", message=str(fields.get("message", f"HTTP {response.status_code}")),
+            try:
+                for key, m in shape["members"].items():
+                    converted[m["attribute"]] = self._codec.convert(m["target"], fields.get(key, UNSET), decode=True, fmt=m["format"])
+                for member, header in error["headers"]:
+                    if header in response.headers:
+                        m = shape["members"][member]
+                        converted[m["attribute"]] = self._codec.read_header(m, response.headers[header])
+                cls = self._codec.classes[target]
+            except (ValueError, TypeError, OverflowError, AttributeError):
+                # A malformed modeled member must not hide the HTTP failure or its retry policy.
+                converted = {}
+        message = fields.get("message")
+        raise cls(name=name if name is not None else "UnknownError",
+                  message=message if isinstance(message, str) else f"HTTP {response.status_code}",
                   metadata=metadata, retryable=error.get("retryable", False),
                   throttling=error.get("throttling", False), fields=converted)
 

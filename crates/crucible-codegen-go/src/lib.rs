@@ -269,7 +269,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     for (id, shape) in &service.shapes {
         if matches!(shape,Shape::Structure(s) if s.error.is_some()) {
             let name = exported(service.name_of(id));
-            client.push_str(&format!(" case {}:\n  result := &{name}{{Metadata: metadata}}\n  if err := decodeModel(wireSchema, target, values, result); err != nil {{ return err }}\n  return result\n",literal(&id.to_string())));
+            client.push_str(&format!(" case {}:\n  result := &{name}{{Metadata: metadata}}\n  if err := decodeModel(wireSchema, target, values, result); err != nil {{ return metadata }}\n  return result\n",literal(&id.to_string())));
         }
     }
     client.push_str(" }\n return metadata\n}\n\n");

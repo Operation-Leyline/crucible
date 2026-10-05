@@ -14,19 +14,19 @@ func modeledError(target string, values map[string]any, metadata *ServiceError) 
  switch target {
  case "example.weather#ConflictError":
   result := &ConflictError{Metadata: metadata}
-  if err := decodeModel(wireSchema, target, values, result); err != nil { return err }
+  if err := decodeModel(wireSchema, target, values, result); err != nil { return metadata }
   return result
  case "example.weather#NotFoundError":
   result := &NotFoundError{Metadata: metadata}
-  if err := decodeModel(wireSchema, target, values, result); err != nil { return err }
+  if err := decodeModel(wireSchema, target, values, result); err != nil { return metadata }
   return result
  case "example.weather#ThrottlingError":
   result := &ThrottlingError{Metadata: metadata}
-  if err := decodeModel(wireSchema, target, values, result); err != nil { return err }
+  if err := decodeModel(wireSchema, target, values, result); err != nil { return metadata }
   return result
  case "example.weather#ValidationError":
   result := &ValidationError{Metadata: metadata}
-  if err := decodeModel(wireSchema, target, values, result); err != nil { return err }
+  if err := decodeModel(wireSchema, target, values, result); err != nil { return metadata }
   return result
  }
  return metadata

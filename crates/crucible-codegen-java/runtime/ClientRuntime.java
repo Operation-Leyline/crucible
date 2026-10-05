@@ -752,9 +752,16 @@ final class ClientRuntime {
       name = text(shape(target), "name");
     }
     JsonObject traits = target == null ? new JsonObject() : shape(target).getAsJsonObject("error");
-    if (target != null) applyHeaders(values, target, traits.getAsJsonArray("headers"), response);
-    ServiceError error =
-        target == null ? new ServiceError() : (ServiceError) decode(target, values, null);
+    ServiceError error = new ServiceError();
+    if (target != null) {
+      try {
+        JsonObject typedValues = values.deepCopy();
+        applyHeaders(typedValues, target, traits.getAsJsonArray("headers"), response);
+        error = (ServiceError) decode(target, typedValues, null);
+      } catch (RuntimeException ignored) {
+        // Malformed modeled members must not hide HTTP metadata or the retry policy.
+      }
+    }
     String message =
         values.has("message") && values.get("message").isJsonPrimitive()
             ? values.get("message").getAsString()
@@ -771,6 +778,7 @@ final class ClientRuntime {
         status,
         requestId,
         response.headers(),
+        response.body(),
         flag(traits, "retryable"),
         flag(traits, "throttling"));
     throw error;
