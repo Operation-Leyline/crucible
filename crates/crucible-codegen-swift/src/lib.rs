@@ -68,12 +68,39 @@ fn reserved_module(text: &str) -> bool {
         "WireError",
         "JSONReader",
         "WireNumber",
+        "ExactNumber",
+        "BigInteger",
+        "BigDecimal",
         "OptionalValue",
         "WireCodable",
         "WireContext",
         "WireCodec",
         "WireInteger",
         "Timestamp",
+        "BasicCredentials",
+        "AWSCredentials",
+        "CredentialsProvider",
+        "StaticCredentialsProvider",
+        "ClosureCredentialsProvider",
+        "CredentialChain",
+        "EnvironmentCredentialsProvider",
+        "ProfileCredentialsProvider",
+        "CachedCredentials",
+        "SigningOptions",
+        "SigV4Signer",
+        "AuthOutcome",
+        "ChecksumPolicy",
+        "ChecksumMismatchError",
+        "ChecksumSettings",
+        "Checksums",
+        "QueryDecimal",
+        "JMESPath",
+        "ResolvedEndpoint",
+        "Endpoints",
+        "WaiterOptions",
+        "WaiterError",
+        "WaiterTimeoutError",
+        "WaiterProgress",
         // Imported types used by generated sources. This is a maintained set,
         // not an exhaustive catalogue of every symbol Foundation exposes.
         "String",
@@ -134,6 +161,16 @@ fn reserved_module(text: &str) -> bool {
         "AsyncIteratorProtocol",
         "URLError",
         "SHA256",
+        "SHA512",
+        "HMAC",
+        "SymmetricKey",
+        "Insecure",
+        "Calendar",
+        "ProcessInfo",
+        "FileManager",
+        "Mirror",
+        "NSString",
+        "UUID",
         // Swift declaration, statement, expression, type and contextual keywords.
         "associatedtype",
         "class",
@@ -344,6 +381,8 @@ fn ty(service: &Service, id: &ShapeId, _module: &str) -> String {
     match service.shape(id).expect("lowered shape") {
         Shape::Unit => "Unit".into(),
         Shape::Simple(s) => match s.kind {
+            SimpleKind::BigInteger => "BigInteger".into(),
+            SimpleKind::BigDecimal => "BigDecimal".into(),
             SimpleKind::String => "Swift.String".into(),
             SimpleKind::Boolean => "Swift.Bool".into(),
             SimpleKind::Byte => "Swift.Int8".into(),
@@ -359,7 +398,38 @@ fn ty(service: &Service, id: &ShapeId, _module: &str) -> String {
         _ => format!("`{}`", model_name(service.name_of(id))),
     }
 }
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let mut diagnostics = Diagnostics::default();
     for (name, value) in [
         ("package name", &options.package_name),
@@ -410,12 +480,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
             }
         }
-        if let Shape::Enum(e) = shape {
+        if matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
             let mut values = BTreeSet::from_iter(
                 ["rawValue", "fromWire", "toWire", "init", "self"].map(str::to_string),
             );
-            for value in &e.values {
-                let name = enum_constant(&value.name);
+            let constants = match shape {
+                Shape::Enum(e) => e.values.iter().map(|value| &value.name).collect::<Vec<_>>(),
+                Shape::IntEnum(e) => e.values.iter().map(|value| &value.name).collect(),
+                _ => unreachable!(),
+            };
+            for value in constants {
+                let name = enum_constant(value);
                 if !identifier(&name) || !values.insert(name) {
                     diagnostics.push(id, "invalid or colliding Swift enum constant name");
                 }
@@ -438,6 +513,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         {
             if !methods.insert(format!("{}{suffix}", method(op.name()))) {
                 diagnostics.push(&op.id, "Swift operation name collision");
+            }
+        }
+        for waiter in op.waiters.keys() {
+            if !identifier(waiter) || !methods.insert(format!("waitUntil{waiter}")) {
+                diagnostics.push(&op.id, "invalid or colliding Swift waiter name");
             }
         }
     }
@@ -469,6 +549,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     for (name, contents) in [
         ("JSONValue", include_str!("../runtime/JSONValue.swift")),
         ("WireCodec", include_str!("../runtime/WireCodec.swift")),
+        ("BigNumbers", include_str!("../runtime/BigNumbers.swift")),
         ("Timestamp", include_str!("../runtime/Timestamp.swift")),
         (
             "ClientConfig",
@@ -479,6 +560,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/HTTPTransport.swift"),
         ),
         ("Deadline", include_str!("../runtime/Deadline.swift")),
+        ("Auth", include_str!("../runtime/Auth.swift")),
+        ("Checksums", include_str!("../runtime/Checksums.swift")),
+        ("Query", include_str!("../runtime/Query.swift")),
+        ("Endpoints", include_str!("../runtime/Endpoints.swift")),
+        ("Waiters", include_str!("../runtime/Waiters.swift")),
         (
             "ClientRuntime",
             include_str!("../runtime/ClientRuntime.swift"),

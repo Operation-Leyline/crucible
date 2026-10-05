@@ -1,0 +1,108 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.globals#Globals": {
+      "type": "service",
+      "version": "1",
+      "traits": { "crucible.protocols#json": {} },
+      "operations": [{ "target": "example.globals#JSON" }]
+    },
+    "example.globals#JSON": {
+      "type": "operation",
+      "traits": { "smithy.api#http": { "method": "POST", "uri": "/echo" } },
+      "input": { "target": "example.globals#EchoInput" },
+      "output": { "target": "example.globals#EchoOutput" },
+      "errors": [{ "target": "example.globals#Object" }, { "target": "example.globals#Error" }]
+    },
+    "example.globals#EchoInput": {
+      "type": "structure",
+      "traits": { "smithy.api#input": {} },
+      "members": {
+        "record": { "target": "example.globals#Record" },
+        "partial": { "target": "example.globals#Partial" },
+        "promise": { "target": "example.globals#Promise" },
+        "bytes": { "target": "smithy.api#Blob" },
+        "array": { "target": "example.globals#Array" },
+        "set": { "target": "example.globals#Set" },
+        "date": { "target": "example.globals#Date" },
+        "when": { "target": "smithy.api#Timestamp" },
+        "colors": { "target": "example.globals#ColorMap" },
+        "map": { "target": "example.globals#Map" },
+        "buffer": { "target": "example.globals#Uint8Array" }
+      }
+    },
+    "example.globals#EchoOutput": {
+      "type": "structure",
+      "traits": { "smithy.api#output": {} },
+      "members": {
+        "record": { "target": "example.globals#Record" },
+        "partial": { "target": "example.globals#Partial" },
+        "promise": { "target": "example.globals#Promise" },
+        "bytes": { "target": "smithy.api#Blob" },
+        "array": { "target": "example.globals#Array" },
+        "set": { "target": "example.globals#Set" },
+        "date": { "target": "example.globals#Date" },
+        "when": { "target": "smithy.api#Timestamp" },
+        "colors": { "target": "example.globals#ColorMap" },
+        "map": { "target": "example.globals#Map" },
+        "buffer": { "target": "example.globals#Uint8Array" }
+      }
+    },
+    "example.globals#Record": {
+      "type": "structure",
+      "members": { "name": { "target": "smithy.api#String" } }
+    },
+    "example.globals#Partial": {
+      "type": "structure",
+      "members": { "value": { "target": "smithy.api#Integer" } }
+    },
+    "example.globals#Promise": {
+      "type": "structure",
+      "members": { "settled": { "target": "smithy.api#Boolean" } }
+    },
+    "example.globals#Uint8Array": {
+      "type": "structure",
+      "members": { "size": { "target": "smithy.api#Integer" } }
+    },
+    "example.globals#Array": {
+      "type": "list",
+      "member": { "target": "example.globals#Record" }
+    },
+    "example.globals#Set": {
+      "type": "list",
+      "member": { "target": "smithy.api#String" }
+    },
+    "example.globals#Date": { "type": "string" },
+    "example.globals#Color": {
+      "type": "enum",
+      "members": {
+        "RED": { "target": "smithy.api#Unit" },
+        "BLUE": { "target": "smithy.api#Unit" }
+      }
+    },
+    "example.globals#ColorMap": {
+      "type": "map",
+      "key": { "target": "example.globals#Color" },
+      "value": { "target": "example.globals#Partial" }
+    },
+    "example.globals#Map": {
+      "type": "map",
+      "key": { "target": "smithy.api#String" },
+      "value": { "target": "example.globals#Record" }
+    },
+    "example.globals#Object": {
+      "type": "structure",
+      "traits": { "smithy.api#error": "client", "smithy.api#httpError": 400 },
+      "members": {
+        "message": { "target": "smithy.api#String" },
+        "data": { "target": "smithy.api#Blob" },
+        "record": { "target": "example.globals#Record" }
+      }
+    },
+    "example.globals#Error": {
+      "type": "structure",
+      "traits": { "smithy.api#error": "server", "smithy.api#httpError": 500 },
+      "members": { "message": { "target": "smithy.api#String" } }
+    }
+  }
+}

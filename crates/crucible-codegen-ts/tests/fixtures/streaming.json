@@ -1,0 +1,121 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.stream#Streaming": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.stream#Upload"
+        },
+        {
+          "target": "example.stream#Download"
+        },
+        {
+          "target": "example.stream#Sized"
+        }
+      ]
+    },
+    "example.stream#Stream": {
+      "type": "blob",
+      "traits": {
+        "smithy.api#streaming": {}
+      }
+    },
+    "example.stream#SizedStream": {
+      "type": "blob",
+      "traits": {
+        "smithy.api#streaming": {},
+        "smithy.api#requiresLength": {},
+        "smithy.api#length": {
+          "min": 3,
+          "max": 3
+        }
+      }
+    },
+    "example.stream#Upload": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/upload"
+        },
+        "smithy.api#idempotent": {}
+      },
+      "input": {
+        "target": "example.stream#UploadInput"
+      }
+    },
+    "example.stream#UploadInput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#Stream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.stream#Download": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/download"
+        },
+        "smithy.api#idempotent": {}
+      },
+      "output": {
+        "target": "example.stream#DownloadOutput"
+      }
+    },
+    "example.stream#DownloadOutput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#Stream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        },
+        "count": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpHeader": "x-count"
+          }
+        }
+      }
+    },
+    "example.stream#Sized": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/sized"
+        },
+        "smithy.api#idempotent": {}
+      },
+      "input": {
+        "target": "example.stream#SizedInput"
+      }
+    },
+    "example.stream#SizedInput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#SizedStream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        }
+      }
+    }
+  }
+}

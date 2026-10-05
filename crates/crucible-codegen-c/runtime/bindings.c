@@ -144,7 +144,134 @@ status crucible_generated_binding_digest(arena *storage, crucible_generated_requ
     }
     return OK;
 }
+static const yyjson_val *shape(const yyjson_val *schema, const yyjson_val *id);
+static status document(yyjson_mut_doc *doc, const yyjson_val *schema, const yyjson_val *target, const yyjson_val *value, bool encode, yyjson_mut_val **out, unsigned depth, error *issue) {
+    if (depth > 255) return fail(issue, "Document nesting limit");
+    const yyjson_val *type = shape(schema, target), *kind = get(type, "kind");
+    yyjson_mut_val *result = NULL;
+    if (!yyjson_is_null(value) && (named(kind, "structure") || named(kind, "union"))) {
+        if (!yyjson_is_obj(value)) return fail(issue, "Expected document object");
+        result = yyjson_mut_obj(doc);
+        size_t index, count; yyjson_val *key, *item;
+        const yyjson_val *members = get(type, "members");
+        yyjson_obj_foreach((yyjson_val *)value, index, count, key, item) {
+            string original = text(key), destination = original;
+            const yyjson_val *member = NULL;
+            size_t mi, mc; yyjson_val *mk, *mv;
+            yyjson_obj_foreach((yyjson_val *)members, mi, mc, mk, mv) {
+                string model = text(mk), wire = yyjson_is_str(get(mv, "jsonName")) ? text(get(mv, "jsonName")) : model;
+                if (crucible_generated_string_equal(original, encode ? model : wire)) { member = mv; destination = encode ? wire : model; break; }
+            }
+            yyjson_mut_val *converted;
+            /* JSON protocols may omit null structure members; documents keep explicit null. */
+            if (member && yyjson_is_null(item) && named(kind, "structure") && (crucible_generated_protocol_flags & CRUCIBLE_GENERATED_OMIT_NULL_MEMBERS)
+                && !named(get(shape(schema, get(member, "target")), "kind"), "document")) continue;
+            if (!member && !encode && named(kind, "union") && (crucible_generated_protocol_flags & CRUCIBLE_GENERATED_IGNORE_UNION_TYPE) && crucible_generated_string_equal(original, VIEW("__type"))) continue;
+            if (member) { TRY(document(doc, schema, get(member, "target"), item, encode, &converted, depth + 1, issue)); }
+            else {
+                if (!named(kind, "union")) continue;
+                if (encode) {
+                    yyjson_obj_foreach((yyjson_val *)members, mi, mc, mk, mv) {
+                        string wire = yyjson_is_str(get(mv, "jsonName")) ? text(get(mv, "jsonName")) : text(mk);
+                        if (crucible_generated_string_equal(original, wire)) return fail(issue, "Unknown variant name is declared");
+                    }
+                }
+                converted = yyjson_val_mut_copy(doc, item);
+            }
+            TRY(set(doc, result, destination, converted, issue));
+        }
+    } else if (!yyjson_is_null(value) && (named(kind, "list") || named(kind, "map"))) {
+        bool map = named(kind, "map");
+        if (map ? !yyjson_is_obj(value) : !yyjson_is_arr(value)) return fail(issue, "Expected collection document");
+        result = map ? yyjson_mut_obj(doc) : yyjson_mut_arr(doc);
+        const yyjson_val *child = get(get(type, map ? "value" : "member"), "target");
+        size_t index, count; yyjson_val *key, *item;
+        if (map) {
+            yyjson_obj_foreach((yyjson_val *)value, index, count, key, item) { yyjson_mut_val *converted; TRY(document(doc, schema, child, item, encode, &converted, depth + 1, issue)); TRY(set(doc, result, text(key), converted, issue)); }
+        } else {
+            yyjson_arr_foreach((yyjson_val *)value, index, count, item) { yyjson_mut_val *converted; TRY(document(doc, schema, child, item, encode, &converted, depth + 1, issue)); if (!yyjson_mut_arr_add_val(result, converted)) return crucible_generated_fail(issue, OOM, "JSON allocation failed"); }
+        }
+    } else result = yyjson_val_mut_copy(doc, value);
+    if (!result) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
+    *out = result; return OK;
+}
+static bool explicit_header(const yyjson_val *bindings, string name) {
+    size_t index, count; yyjson_val *pair;
+    yyjson_arr_foreach((yyjson_val *)get(bindings, "headers"), index, count, pair) {
+        crucible_generated_header item = {text(yyjson_arr_get(pair, 1)), VIEW("")};
+        if (crucible_generated_header_get((crucible_generated_headers){&item, 1}, name, NULL)) return true;
+    }
+    return false;
+}
 static const crucible_generated_shape blob_shape = {.kind = crucible_generated_kind_blob, .size = sizeof(crucible_generated_blob)};
+static status media(arena *storage, yyjson_mut_doc *doc, const yyjson_val *bindings, string member, const yyjson_val *value, bool encode, yyjson_mut_val **out, error *issue) {
+    const yyjson_val *encodings = get(bindings, "headerEncodings");
+    if (!named(yyjson_obj_getn((yyjson_val *)encodings, member.data, member.length), "base64")) { *out = yyjson_val_mut_copy(doc, value); return *out ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed"); }
+    if (yyjson_is_arr(value)) {
+        yyjson_mut_val *result = yyjson_mut_arr(doc); size_t index, count; yyjson_val *item;
+        yyjson_arr_foreach(value, index, count, item) { yyjson_mut_val *converted; TRY(media(storage, doc, bindings, member, item, encode, &converted, issue)); if (!yyjson_mut_arr_add_val(result, converted)) return crucible_generated_fail(issue, OOM, "JSON allocation failed"); }
+        *out = result; return OK;
+    }
+    if (!yyjson_is_str(value)) return fail(issue, "Expected media header string");
+    if (encode) {
+        string raw = text(value); crucible_generated_blob bytes = {(const unsigned char *)raw.data, raw.length}; const yyjson_val *encoded;
+        TRY(crucible_generated_model_encode(storage, &blob_shape, &bytes, &encoded, issue)); *out = yyjson_val_mut_copy(doc, encoded);
+    } else {
+        const void *decoded; TRY(crucible_generated_model_decode(storage, &blob_shape, value, &decoded, issue));
+        const crucible_generated_blob *bytes = decoded; string raw = {(const char *)bytes->data, bytes->length};
+        if (!crucible_generated_utf8(raw)) return fail(issue, "Invalid media header UTF-8");
+        *out = yyjson_mut_strncpy(doc, raw.data, raw.length);
+    }
+    return *out ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed");
+}
+static status media_bound(arena *storage, const yyjson_val *bindings, string member, const yyjson_val *value, string *out, error *issue) {
+    yyjson_mut_doc *doc; TRY(mutable(storage, &doc, issue)); yyjson_mut_val *converted;
+    TRY(media(storage, doc, bindings, member, value, true, &converted, issue)); const yyjson_val *owned;
+    TRY(crucible_generated_json_own(storage, converted, &owned, issue)); return bound(storage, owned, out, issue);
+}
+static const yyjson_val *payload_target(const yyjson_val *schema, const yyjson_val *target, const yyjson_val *bindings) {
+    string member = text(yyjson_arr_get((yyjson_val *)get(bindings, "payload"), 0));
+    return get(yyjson_obj_getn((yyjson_val *)get(shape(schema, target), "members"), member.data, member.length), "target");
+}
+static status read_payload(arena *storage, yyjson_mut_doc *doc, const yyjson_val *schema, const yyjson_val *target, const yyjson_val *bindings, crucible_generated_blob bytes, yyjson_mut_val **out, error *issue) {
+    const yyjson_val *kind = get(bindings, "payloadKind");
+    if (named(kind, "string")) {
+        string raw = {(const char *)bytes.data, bytes.length}; if (!crucible_generated_utf8(raw)) return fail(issue, "Invalid payload UTF-8");
+        *out = yyjson_mut_strncpy(doc, raw.data ? raw.data : "", raw.length);
+    } else if (named(kind, "document")) {
+        if (!bytes.length) { *out = yyjson_mut_null(doc); }
+        else { const yyjson_val *parsed; TRY(crucible_generated_json_parse(storage, (string){(const char *)bytes.data, bytes.length}, &parsed, issue)); return document(doc, schema, payload_target(schema, target, bindings), parsed, false, out, 0, issue); }
+    } else { const yyjson_val *encoded; TRY(crucible_generated_model_encode(storage, &blob_shape, &bytes, &encoded, issue)); *out = yyjson_val_mut_copy(doc, encoded); }
+    return *out ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed");
+}
+static int hex_digit(unsigned char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+}
+static bool query_reserved(const yyjson_val *op, string name) {
+    size_t index, count; yyjson_val *pair;
+    yyjson_arr_foreach((yyjson_val *)get(get(op, "request"), "query"), index, count, pair) if (crucible_generated_string_equal(text(yyjson_arr_get(pair, 1)), name)) return true;
+    string uri = text(get(op, "uri")); size_t start = 0;
+    while (start < uri.length && uri.data[start] != '?') ++start;
+    if (start == uri.length) return false;
+    ++start;
+    while (start < uri.length) {
+        size_t stop = start; while (stop < uri.length && uri.data[stop] != '=' && uri.data[stop] != '&') ++stop;
+        size_t cursor = 0; bool match = true;
+        for (size_t at = start; at < stop; ++at) {
+            unsigned char ch = (unsigned char)uri.data[at];
+            if (ch == '%' && at + 2 < stop) { int a = hex_digit((unsigned char)uri.data[at + 1]), b = hex_digit((unsigned char)uri.data[at + 2]); if (a >= 0 && b >= 0) { ch = (unsigned char)(a * 16 + b); at += 2; } }
+            if (cursor >= name.length || ch != (unsigned char)name.data[cursor]) match = false;
+            ++cursor;
+        }
+        if (match && cursor == name.length) return true;
+        while (stop < uri.length && uri.data[stop] != '&') ++stop;
+        start = stop + 1;
+    }
+    return false;
+}
 static status prepare_path(arena *storage, const yyjson_val *op, const yyjson_val *input, string endpoint, string *out, error *issue) {
     buffer path = {0}; status code = append(&path, endpoint, issue);
     string uri = text(get(op, "uri"));
@@ -152,12 +279,23 @@ static status prepare_path(arena *storage, const yyjson_val *op, const yyjson_va
         if (uri.data[i] != '{') { code = append(&path, (string){uri.data + i, 1}, issue); ++i; continue; }
         size_t end = i + 1; while (end < uri.length && uri.data[end] != '}') ++end;
         if (end == uri.length) { code = fail(issue, "Invalid operation URI"); break; }
-        const yyjson_val *value = yyjson_obj_getn((yyjson_val *)input, uri.data + i + 1, end - i - 1);
+        bool greedy = end > i + 1 && uri.data[end - 1] == '+';
+        const yyjson_val *value = yyjson_obj_getn((yyjson_val *)input, uri.data + i + 1, end - i - 1 - (greedy ? 1 : 0));
         string encoded;
         code = scalar(storage, value, &encoded, issue);
         if (!code && !encoded.length) code = fail(issue, "Empty HTTP label");
         if (!code && ((encoded.length == 1 && encoded.data[0] == '.') || (encoded.length == 2 && memcmp(encoded.data, "..", 2) == 0))) code = fail(issue, "Dot-segment HTTP label");
-        if (!code) code = escape(&path, encoded, issue);
+        if (!code && greedy) {
+            for (size_t start = 0; !code && start <= encoded.length;) {
+                size_t stop = start; while (stop < encoded.length && encoded.data[stop] != '/') ++stop;
+                string segment = {encoded.data + start, stop - start};
+                if ((segment.length == 1 && segment.data[0] == '.') || (segment.length == 2 && memcmp(segment.data, "..", 2) == 0)) { code = fail(issue, "Dot-segment HTTP label"); break; }
+                code = escape(&path, segment, issue);
+                if (stop == encoded.length) break;
+                if (!code) code = append(&path, VIEW("/"), issue);
+                start = stop + 1;
+            }
+        } else if (!code) code = escape(&path, encoded, issue);
         i = end + 1;
     }
     const yyjson_val *bindings = get(get(op, "request"), "query");
@@ -177,10 +315,34 @@ static status prepare_path(arena *storage, const yyjson_val *op, const yyjson_va
             if (!code) code = escape(&path, part, issue);
         }
     }
+    const yyjson_val *query_member = get(get(op, "request"), "queryParams");
+    if (!code && yyjson_is_str(query_member)) {
+        string member = text(query_member); const yyjson_val *map = yyjson_obj_getn((yyjson_val *)input, member.data, member.length);
+        size_t mi, mc; yyjson_val *key, *value;
+        yyjson_obj_foreach((yyjson_val *)map, mi, mc, key, value) {
+            if (code) break;
+            string name = text(key); if (query_reserved(op, name) || yyjson_is_null(value)) continue;
+            size_t length = yyjson_is_arr(value) ? yyjson_arr_size(value) : 1;
+            for (size_t n = 0; !code && n < length; ++n) {
+                const yyjson_val *item = yyjson_is_arr(value) ? yyjson_arr_get(value, n) : value;
+                if (yyjson_is_null(item)) continue;
+                string part; code = scalar(storage, item, &part, issue);
+                if (!code) code = append(&path, VIEW(memchr(path.data, '?', path.length) ? "&" : "?"), issue);
+                if (!code) code = escape(&path, name, issue);
+                if (!code) code = append(&path, VIEW("="), issue);
+                if (!code) code = escape(&path, part, issue);
+            }
+        }
+    }
     if (code) { free(path.data); return code; }
     return take(storage, &path, out, issue);
 }
-status crucible_generated_binding_prepare(arena *storage, const yyjson_val *op, const yyjson_val *input, string endpoint,
+static bool aws_json(const yyjson_val *schema) {
+    const yyjson_val *protocol = get(schema, "protocol");
+    return named(protocol, "awsJson1_0") || named(protocol, "awsJson1_1");
+}
+static bool aws_protocol(const yyjson_val *schema) { return aws_json(schema) || named(get(schema, "protocol"), "awsRestJson1"); }
+status crucible_generated_binding_prepare(arena *storage, const yyjson_val *schema, string operation_name, const yyjson_val *op, const yyjson_val *input, string endpoint,
     crucible_generated_headers headers, crucible_generated_request *out, error *issue) {
     if (!yyjson_is_obj(input)) return fail(issue, "Operation input must be an object");
     crucible_generated_request request = {0};
@@ -192,8 +354,19 @@ status crucible_generated_binding_prepare(arena *storage, const yyjson_val *op, 
         string member = text(yyjson_arr_get(pair, 0));
         const yyjson_val *value = yyjson_obj_getn((yyjson_val *)input, member.data, member.length);
         if (!value || yyjson_is_null(value)) continue;
-        string header; TRY(bound(storage, value, &header, issue));
+        string header; TRY(media_bound(storage, bindings, member, value, &header, issue));
         TRY(crucible_generated_header_set(storage, &request.headers, text(yyjson_arr_get(pair, 1)), header, issue));
+    }
+    yyjson_arr_foreach((yyjson_val *)get(bindings, "prefixHeaders"), index, count, pair) {
+        string member = text(yyjson_arr_get(pair, 0)), prefix = text(yyjson_arr_get(pair, 1));
+        const yyjson_val *map = yyjson_obj_getn((yyjson_val *)input, member.data, member.length);
+        size_t mi, mc; yyjson_val *key, *value;
+        yyjson_obj_foreach((yyjson_val *)map, mi, mc, key, value) {
+            buffer name = {0}; status appended = append(&name, prefix, issue); if (!appended) appended = append(&name, text(key), issue);
+            if (appended) { free(name.data); return appended; }
+            string header_name; TRY(take(storage, &name, &header_name, issue));
+            if (!explicit_header(bindings, header_name)) { string header; TRY(media_bound(storage, bindings, member, value, &header, issue)); TRY(crucible_generated_header_set(storage, &request.headers, header_name, header, issue)); }
+        }
     }
     if (yyjson_arr_size((yyjson_val *)get(bindings, "body"))) {
         yyjson_mut_doc *doc; TRY(mutable(storage, &doc, issue));
@@ -206,6 +379,8 @@ status crucible_generated_binding_prepare(arena *storage, const yyjson_val *op, 
         }
         const yyjson_val *owned; string encoded;
         TRY(crucible_generated_json_own(storage, body, &owned, issue));
+        TRY(document(doc, schema, get(op, "input"), owned, true, &body, 0, issue));
+        TRY(crucible_generated_json_own(storage, body, &owned, issue));
         TRY(crucible_generated_json_write(storage, owned, &encoded, issue));
         request.has_body = true; request.body = (crucible_generated_blob){(const unsigned char *)encoded.data, encoded.length};
         TRY(crucible_generated_header_set(storage, &request.headers, VIEW("content-type"), VIEW("application/json"), issue));
@@ -215,12 +390,30 @@ status crucible_generated_binding_prepare(arena *storage, const yyjson_val *op, 
         string member = text(yyjson_arr_get((yyjson_val *)payload, 0));
         const yyjson_val *value = yyjson_obj_getn((yyjson_val *)input, member.data, member.length);
         if (value && !yyjson_is_null(value)) {
-            const void *decoded;
-            TRY(crucible_generated_model_decode(storage, &blob_shape, value, &decoded, issue));
-            request.body = *(const crucible_generated_blob *)decoded;
-            request.has_body = request.body.length != 0;
-            if (request.has_body) { TRY(crucible_generated_header_set(storage, &request.headers, VIEW("content-type"), text(yyjson_arr_get((yyjson_val *)payload, 1)), issue)); }
+            const yyjson_val *kind = get(bindings, "payloadKind");
+            if (named(kind, "string")) { string raw = text(value); request.body = (crucible_generated_blob){(const unsigned char *)raw.data, raw.length}; }
+            else if (named(kind, "document")) {
+                yyjson_mut_doc *doc; TRY(mutable(storage, &doc, issue)); yyjson_mut_val *converted; const yyjson_val *owned; string raw;
+                TRY(document(doc, schema, payload_target(schema, get(op, "input"), bindings), value, true, &converted, 0, issue));
+                TRY(crucible_generated_json_own(storage, converted, &owned, issue)); TRY(crucible_generated_json_write(storage, owned, &raw, issue));
+                request.body = (crucible_generated_blob){(const unsigned char *)raw.data, raw.length};
+            } else { const void *decoded; TRY(crucible_generated_model_decode(storage, &blob_shape, value, &decoded, issue)); request.body = *(const crucible_generated_blob *)decoded; }
+            request.has_body = true;
+            TRY(crucible_generated_header_set(storage, &request.headers, VIEW("content-type"), text(yyjson_arr_get((yyjson_val *)payload, 1)), issue));
         }
+    }
+    if (aws_json(schema)) {
+        /* AWS JSON RPC always posts a JSON object and names the target operation. */
+        if (!request.has_body) { request.has_body = true; request.body = (crucible_generated_blob){(const unsigned char *)"{}", 2}; }
+        TRY(crucible_generated_header_set(storage, &request.headers, VIEW("content-type"), VIEW(named(get(schema, "protocol"), "awsJson1_0") ? "application/x-amz-json-1.0" : "application/x-amz-json-1.1"), issue));
+        string service = text(get(schema, "service"));
+        for (size_t i = service.length; i > 0; --i) if (service.data[i - 1] == '#') { service = (string){service.data + i, service.length - i}; break; }
+        buffer target = {0}; status joined = append(&target, service, issue);
+        if (!joined) joined = append(&target, VIEW("."), issue);
+        if (!joined) joined = append(&target, operation_name, issue);
+        if (joined) { free(target.data); return joined; }
+        string value; TRY(take(storage, &target, &value, issue));
+        TRY(crucible_generated_header_set(storage, &request.headers, VIEW("X-Amz-Target"), value, issue));
     }
     TRY(crucible_generated_validate_request(&request, issue));
     *out = request; return OK;
@@ -261,7 +454,7 @@ static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val 
         if (quoted) return fail(issue, "Unterminated quoted header");
         *out = array; return OK;
     }
-    if (named(kind, "byte") || named(kind, "short") || named(kind, "integer") || named(kind, "long") || named(kind, "float") || named(kind, "double") || named(kind, "boolean") || (named(kind, "timestamp") && named(get(member, "format"), "epoch-seconds"))) {
+    if (named(kind, "byte") || named(kind, "short") || named(kind, "integer") || named(kind, "long") || named(kind, "float") || named(kind, "double") || named(kind, "bigInteger") || named(kind, "bigDecimal") || named(kind, "intEnum") || named(kind, "boolean") || (named(kind, "timestamp") && named(get(member, "format"), "epoch-seconds"))) {
         const yyjson_val *parsed;
         TRY(crucible_generated_json_parse(storage, value, &parsed, issue));
         *out = yyjson_val_mut_copy(doc, parsed);
@@ -269,17 +462,42 @@ static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val 
     return *out ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed");
 }
 static status apply_headers(arena *storage, yyjson_mut_doc *doc, yyjson_mut_val *body, const yyjson_val *schema,
-    const yyjson_val *target, const yyjson_val *bindings, crucible_generated_headers headers, error *issue) {
+    const yyjson_val *target, const yyjson_val *bindings, crucible_generated_headers headers, int response_status, error *issue) {
     size_t index, count; yyjson_val *pair;
     const yyjson_val *members = get(shape(schema, target), "members");
-    yyjson_arr_foreach((yyjson_val *)bindings, index, count, pair) {
+    yyjson_arr_foreach((yyjson_val *)get(bindings, "headers"), index, count, pair) {
         string name = text(yyjson_arr_get(pair, 0)), value;
         if (crucible_generated_header_get(headers, text(yyjson_arr_get(pair, 1)), &value)) {
             yyjson_mut_val *converted;
             TRY(read_header(storage, doc, schema, yyjson_obj_getn((yyjson_val *)members, name.data, name.length), value, &converted, 0, issue));
+            const yyjson_val *owned; TRY(crucible_generated_json_own(storage, converted, &owned, issue));
+            TRY(media(storage, doc, bindings, name, owned, false, &converted, issue));
             TRY(set(doc, body, name, converted, issue));
         }
     }
+    yyjson_arr_foreach((yyjson_val *)get(bindings, "prefixHeaders"), index, count, pair) {
+        string prefix = text(yyjson_arr_get(pair, 1)); yyjson_mut_val *map = yyjson_mut_obj(doc);
+        for (size_t at = 0; at < headers.count; ++at) {
+            string name = headers.items[at].name;
+            if (name.length < prefix.length || explicit_header(bindings, name)) continue;
+            bool matches = true;
+            for (size_t n = 0; n < prefix.length; ++n) {
+                unsigned char a = (unsigned char)name.data[n], b = (unsigned char)prefix.data[n];
+                if (a >= 'A' && a <= 'Z') { a += 'a' - 'A'; }
+                if (b >= 'A' && b <= 'Z') { b += 'a' - 'A'; }
+                if (a != b) matches = false;
+            }
+            if (!matches) continue;
+            size_t length = name.length - prefix.length; char *key = crucible_generated_arena_alloc(storage, length + 1, issue); if (!key) return OOM;
+            for (size_t n = 0; n < length; ++n) { char ch = name.data[n + prefix.length]; key[n] = ch >= 'A' && ch <= 'Z' ? (char)(ch + 'a' - 'A') : ch; }
+            yyjson_mut_val *converted = yyjson_mut_strncpy(doc, headers.items[at].value.data, headers.items[at].value.length); const yyjson_val *owned;
+            TRY(crucible_generated_json_own(storage, converted, &owned, issue));
+            TRY(media(storage, doc, bindings, text(yyjson_arr_get(pair, 0)), owned, false, &converted, issue));
+            TRY(set(doc, map, (string){key, length}, converted, issue));
+        }
+        TRY(set(doc, body, text(yyjson_arr_get(pair, 0)), map, issue));
+    }
+    if (yyjson_is_str(get(bindings, "responseCode"))) { TRY(set(doc, body, text(get(bindings, "responseCode")), yyjson_mut_sint(doc, response_status), issue)); }
     return OK;
 }
 status crucible_generated_binding_success(arena *storage, const yyjson_val *schema, const yyjson_val *op,
@@ -289,17 +507,16 @@ status crucible_generated_binding_success(arena *storage, const yyjson_val *sche
     yyjson_mut_val *body = yyjson_mut_obj(doc);
     if (!body) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
     if (yyjson_is_arr(payload)) {
-        const yyjson_val *encoded;
-        TRY(crucible_generated_model_encode(storage, &blob_shape, &response->body, &encoded, issue));
-        TRY(set(doc, body, text(yyjson_arr_get((yyjson_val *)payload, 0)), yyjson_val_mut_copy(doc, encoded), issue));
+        yyjson_mut_val *value; TRY(read_payload(storage, doc, schema, get(op, "output"), bindings, response->body, &value, issue));
+        TRY(set(doc, body, text(yyjson_arr_get((yyjson_val *)payload, 0)), value, issue));
     } else if (yyjson_arr_size((yyjson_val *)get(bindings, "body")) && response->body.length) {
         const yyjson_val *parsed;
         TRY(crucible_generated_json_parse(storage, (string){(const char *)response->body.data, response->body.length}, &parsed, issue));
         if (!yyjson_is_obj(parsed)) return fail(issue, "Expected response object");
-        body = yyjson_val_mut_copy(doc, parsed);
+        TRY(document(doc, schema, get(op, "output"), parsed, false, &body, 0, issue));
         if (!body) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
     }
-    if (yyjson_is_str(get(op, "output"))) { TRY(apply_headers(storage, doc, body, schema, get(op, "output"), get(bindings, "headers"), response->headers, issue)); }
+    if (yyjson_is_str(get(op, "output"))) { TRY(apply_headers(storage, doc, body, schema, get(op, "output"), bindings, response->headers, response->status, issue)); }
     return crucible_generated_json_own(storage, body, out, issue);
 }
 status crucible_generated_binding_failure(arena *storage, const yyjson_val *schema, const yyjson_val *op,
@@ -309,35 +526,59 @@ status crucible_generated_binding_failure(arena *storage, const yyjson_val *sche
     status parsed = crucible_generated_json_parse(storage, (string){(const char *)result->response.body.data, result->response.body.length}, &body, &ignored);
     if (parsed == OOM) { if (issue) *issue = ignored; return parsed; }
     if (parsed || !yyjson_is_obj(body)) { TRY(crucible_generated_json_parse(storage, VIEW("{}"), &body, issue)); }
-    const yyjson_val *name = get(body, "__type"), *matched = NULL, *type = NULL;
-    if (!yyjson_is_str(name)) name = NULL;
+    const yyjson_val *matched = NULL, *type = NULL;
+    const bool aws = aws_protocol(schema);
+    bool has_name = yyjson_is_str(get(body, "__type"));
+    string wire_name = has_name ? text(get(body, "__type")) : VIEW(""), error_header;
+    if (crucible_generated_header_get(result->response.headers, VIEW("x-crucible-error"), &error_header)) { wire_name = error_header; has_name = true; }
+    if (aws) {
+        if (yyjson_is_str(get(body, "code"))) { wire_name = text(get(body, "code")); has_name = true; }
+        if (crucible_generated_header_get(result->response.headers, VIEW("x-amzn-errortype"), &error_header)) { wire_name = error_header; has_name = true; }
+        /* "namespace#Name:metadata" names the shape Name. */
+        const char *colon = wire_name.length ? memchr(wire_name.data, ':', wire_name.length) : NULL;
+        if (colon) wire_name.length = (size_t)(colon - wire_name.data);
+        for (size_t i = wire_name.length; i > 0; --i) if (wire_name.data[i - 1] == '#') { wire_name = (string){wire_name.data + i, wire_name.length - i}; break; }
+        has_name = has_name && wire_name.length;
+    }
     size_t index, count, matches = 0; yyjson_val *candidate;
     yyjson_arr_foreach((yyjson_val *)get(op, "errors"), index, count, candidate) {
         const yyjson_val *target = shape(schema, candidate);
         int64_t expected = 0;
         bool match;
-        if (name) match = crucible_generated_string_equal(text(name), text(get(target, "name")));
+        if (has_name) { const yyjson_val *wire_code = get(get(target, "error"), "wireCode"); match = crucible_generated_string_equal(wire_name, text(wire_code ? wire_code : get(target, "name"))); }
         else { TRY(crucible_generated_json_integer(get(get(target, "error"), "status"), 100, 599, &expected, issue)); match = expected == result->response.status; }
         if (match) { ++matches; matched = candidate; type = target; }
     }
     if (matches != 1) { matched = NULL; type = NULL; }
-    result->name = name ? text(name) : type ? text(get(type, "name")) : VIEW("UnknownError");
+    result->name = has_name ? wire_name : type ? text(get(type, "name")) : VIEW("UnknownError");
     TRY(crucible_generated_arena_copy(storage, result->name, &result->name, issue));
     const yyjson_val *message = get(body, "message");
+    if (!yyjson_is_str(message) && aws) message = get(body, "Message");
     if (yyjson_is_str(message)) result->message = text(message);
     else {
         char fallback[32]; (void)snprintf(fallback, sizeof(fallback), "HTTP %d", result->response.status);
         TRY(crucible_generated_arena_copy(storage, VIEW(fallback), &result->message, issue));
     }
-    if (!crucible_generated_header_get(result->response.headers, VIEW("x-request-id"), &result->request_id) && yyjson_is_str(get(body, "requestId"))) result->request_id = text(get(body, "requestId"));
+    bool request_id = crucible_generated_header_get(result->response.headers, VIEW("x-request-id"), &result->request_id);
+    if (aws) {
+        string aws_id;
+        if (crucible_generated_header_get(result->response.headers, VIEW("x-amzn-requestid"), &aws_id) || crucible_generated_header_get(result->response.headers, VIEW("x-amz-request-id"), &aws_id)) { result->request_id = aws_id; request_id = true; }
+    }
+    if (!request_id && yyjson_is_str(get(body, "requestId"))) result->request_id = text(get(body, "requestId"));
     const yyjson_val *traits = get(type, "error");
     result->retryable = yyjson_get_bool((yyjson_val *)get(traits, "retryable"));
     result->throttling = yyjson_get_bool((yyjson_val *)get(traits, "throttling"));
     if (matched) {
         const crucible_generated_shape *descriptor = crucible_generated_shape_lookup(text(matched));
         yyjson_mut_doc *doc; TRY(mutable(storage, &doc, issue));
-        yyjson_mut_val *typed = yyjson_val_mut_copy(doc, body);
-        status code = apply_headers(storage, doc, typed, schema, matched, get(traits, "headers"), result->response.headers, &ignored);
+        yyjson_mut_val *typed = NULL;
+        const yyjson_val *payload = get(traits, "payload"); status code;
+        if (yyjson_is_arr(payload)) {
+            yyjson_mut_val *value; typed = yyjson_mut_obj(doc);
+            code = read_payload(storage, doc, schema, matched, traits, result->response.body, &value, &ignored);
+            if (!code) code = set(doc, typed, text(yyjson_arr_get((yyjson_val *)payload, 0)), value, &ignored);
+        } else code = document(doc, schema, matched, body, false, &typed, 0, &ignored);
+        if (!code) code = apply_headers(storage, doc, typed, schema, matched, traits, result->response.headers, result->response.status, &ignored);
         const yyjson_val *value = NULL;
         if (!code) code = crucible_generated_json_own(storage, typed, &value, &ignored);
         if (!code) code = crucible_generated_model_decode(storage, descriptor, value, &result->modeled_error, &ignored);

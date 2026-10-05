@@ -53,7 +53,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     for (id, shape) in &service.shapes {
         if !matches!(
             shape,
-            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_)
+            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_)
         ) {
             continue;
         }
@@ -84,10 +84,15 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                     }
                 }
             }
-            Shape::Enum(enumeration) => {
+            Shape::Enum(_) | Shape::IntEnum(_) => {
                 let mut values = BTreeSet::new();
-                for value in &enumeration.values {
-                    let name = models::enum_constant(&value.name);
+                let constants = match shape {
+                    Shape::Enum(e) => e.values.iter().map(|value| &value.name).collect::<Vec<_>>(),
+                    Shape::IntEnum(e) => e.values.iter().map(|value| &value.name).collect(),
+                    _ => unreachable!(),
+                };
+                for value in constants {
+                    let name = models::enum_constant(value);
                     if !constant(&name) || !values.insert(name) {
                         diagnostics.push(id, "Ruby enum constant name collision");
                     }
@@ -105,11 +110,56 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 diagnostics.push(&op.id, "Ruby operation name collision");
             }
         }
+        for waiter in op.waiters.keys() {
+            let method = waiter_method(waiter);
+            if !names::method(&method) || !methods.insert(method) {
+                diagnostics.push(&op.id, "Ruby waiter method name collision");
+            }
+        }
     }
     diagnostics
 }
 
+fn waiter_method(name: &str) -> String {
+    format!("wait_until_{}", field(name))
+}
+
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
+        Feature::Streaming,
+        Feature::AwsRestXml,
+        Feature::AwsQuery,
+        Feature::Ec2Query,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -133,7 +183,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }))
         .expect("provenance"),
     });
-    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
+    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\n  spec.add_dependency 'zlib', '>= 3.0', '< 4'\n  spec.add_dependency 'ipaddr', '>= 1.2', '< 2'\n  spec.add_dependency 'stringio', '>= 3.0', '< 4'\n  spec.add_dependency 'rexml', '>= 3.2', '< 4'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
     let mut entry = String::from("# frozen_string_literal: true\n");
     for (name, source) in [
         ("unit", include_str!("../runtime/unit.rb")),
@@ -153,6 +203,29 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/cancellation_token.rb"),
         ),
         ("call_scope", include_str!("../runtime/call_scope.rb")),
+        (
+            "basic_credentials",
+            include_str!("../runtime/basic_credentials.rb"),
+        ),
+        (
+            "aws_credentials",
+            include_str!("../runtime/aws_credentials.rb"),
+        ),
+        (
+            "cached_credentials",
+            include_str!("../runtime/cached_credentials.rb"),
+        ),
+        ("credentials", include_str!("../runtime/credentials.rb")),
+        (
+            "authentication",
+            include_str!("../runtime/authentication.rb"),
+        ),
+        ("byte_stream", include_str!("../runtime/byte_stream.rb")),
+        ("query", include_str!("../runtime/query.rb")),
+        ("waiters", include_str!("../runtime/waiters.rb")),
+        ("endpoints", include_str!("../runtime/endpoints.rb")),
+        ("checksums", include_str!("../runtime/checksums.rb")),
+        ("xml_protocol", include_str!("../runtime/xml_protocol.rb")),
         ("client_config", include_str!("../runtime/client_config.rb")),
         ("http_request", include_str!("../runtime/http_request.rb")),
         ("http_response", include_str!("../runtime/http_response.rb")),
@@ -194,9 +267,26 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         } else {
             "Runtime::Unit.new"
         };
-        client.push_str(&format!("    def {name}({input}cancellation: nil)\n      @runtime.call({}, {value}, cancellation: cancellation)\n    end\n",literal(op.name())));
+        if op
+            .response
+            .payload
+            .as_ref()
+            .is_some_and(|payload| payload.streaming)
+        {
+            client.push_str(&format!("    def {name}({input}response_target: nil, cancellation: nil, &block)\n      @runtime.call({}, {value}, cancellation: cancellation, response_target: response_target, block: block)\n    end\n",literal(op.name())));
+        } else {
+            client.push_str(&format!("    def {name}({input}cancellation: nil)\n      @runtime.call({}, {value}, cancellation: cancellation)\n    end\n",literal(op.name())));
+        }
         if op.paginated.is_some() {
             client.push_str(&format!("    def {name}_pages(input, cancellation: nil)\n      @runtime.pages({}, input, cancellation: cancellation)\n    end\n",literal(op.name())));
+        }
+        for waiter in op.waiters.keys() {
+            client.push_str(&format!(
+                "    def {}({input}timeout:, min_delay: nil, max_delay: nil, cancellation: nil)\n      @runtime.wait({}, {}, {value}, timeout: timeout, min_delay: min_delay, max_delay: max_delay, cancellation: cancellation)\n    end\n",
+                waiter_method(waiter),
+                literal(op.name()),
+                literal(waiter)
+            ));
         }
     }
     client.push_str("  end\nend\n");

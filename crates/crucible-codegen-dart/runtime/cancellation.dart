@@ -48,6 +48,7 @@ final class CallScope {
   }
   void _expire() =>
       token.cancelWith(TimeoutException('Request deadline exceeded', timeout));
+  Duration get remaining => timeout - _watch.elapsed;
   void check() {
     if (_watch.elapsed >= timeout) _expire();
     token.throwIfCancelled();

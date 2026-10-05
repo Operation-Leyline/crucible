@@ -1,5 +1,5 @@
 use crate::{
-    Options,
+    Options, names,
     names::{literal, method, ty},
 };
 use crucible_smithy::ir::Service;
@@ -34,7 +34,28 @@ pub fn emit(service: &Service, options: &Options) -> String {
             .as_ref()
             .map(|id| ty(service, id, namespace, false))
             .unwrap_or("Runtime\\Unit".into());
-        out.push_str(&format!("    public function {name}({input}?Runtime\\CancellationToken $cancellation = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation);\n    }}\n"));
+        if op.response.payload.as_ref().is_some_and(|p| p.streaming) {
+            out.push_str(&format!("    /** @param null|\\Closure(string): void|resource $responseTarget receives the streamed body; null buffers it in a temporary stream */\n    public function {name}({input}?Runtime\\CancellationToken $cancellation = null, mixed $responseTarget = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation, $responseTarget);\n    }}\n"));
+        } else {
+            out.push_str(&format!("    public function {name}({input}?Runtime\\CancellationToken $cancellation = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation);\n    }}\n"));
+        }
+        for (waiter, description) in &op.waiters {
+            let mut docs = String::new();
+            if let Some(text) = &description.documentation {
+                for line in text.replace("*/", "*\\/").lines() {
+                    docs.push_str(&format!("\n     * {line}"));
+                }
+            }
+            if description.deprecated {
+                docs.push_str("\n     * @deprecated");
+            }
+            out.push_str(&format!(
+                "    /**{docs}\n     * Polls {} until the {waiter} waiter succeeds; null when an error acceptor succeeds.\n     * @throws Runtime\\WaiterException when a failure acceptor matches\n     * @throws Runtime\\WaiterTimeoutException when $timeout seconds pass first\n     */\n    public function {}({input}float $timeout, ?float $minDelay = null, ?float $maxDelay = null, ?Runtime\\CancellationToken $cancellation = null): ?{output}\n    {{\n        return $this->runtime->wait({operation}, {}, {argument}, $timeout, $minDelay, $maxDelay, $cancellation);\n    }}\n",
+                op.name(),
+                names::waiter(waiter),
+                literal(waiter),
+            ));
+        }
         if op.paginated.is_some() {
             out.push_str(&format!("    /** @return \\Generator<int, {output}> */\n    public function {name}Pages({input}?Runtime\\CancellationToken $cancellation = null): \\Generator\n    {{\n        return $this->runtime->pages({operation}, {argument}, $cancellation);\n    }}\n"));
         }

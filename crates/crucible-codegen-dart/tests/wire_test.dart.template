@@ -1,0 +1,40 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:wire_client/wire_client.dart' as sdk;
+
+final class Fake implements sdk.HttpTransport {
+  final bool failure;
+  Fake(this.failure);
+  @override
+  Future<sdk.HttpResponse> send(sdk.HttpRequest request, {required bool readBody, required sdk.CancellationToken cancellation}) async {
+    expect(readBody, true);
+    if (request.url.path == '/document') {
+      expect(request.headers['content-type'], 'application/json');
+      expect(jsonDecode(utf8.decode(request.body!)), {'name': 'record'});
+      return sdk.HttpResponse(status: 200, body: request.body!);
+    }
+    expect(request.headers['content-type'], 'text/plain');
+    expect(utf8.decode(request.body!), 'héllo');
+    expect(request.headers['x-meta'], 'eyJhIjoxfQ==, aGVsbG8=');
+    expect(request.headers['x-extra-trace'], 'aGVsbG8=');
+    return failure ? sdk.HttpResponse(status: 422, headers: {'x-crucible-error': 'TextError'}, body: Uint8List.fromList(utf8.encode('invalid text')))
+        : sdk.HttpResponse(status: 200, headers: {'x-meta': 'eyJhIjoxfQ==, aGVsbG8=', 'x-extra-trace': 'aGVsbG8='}, body: request.body!);
+  }
+  @override
+  void close() {}
+}
+void main() {
+  final input = sdk.TextInput(text: 'héllo', meta: ['{"a":1}', 'hello'], extras: {'trace': 'hello'});
+  test('raw string and modeled document payloads with media headers', () async {
+    final client = sdk.WireClient(sdk.ClientConfig(endpoint: 'http://127.0.0.1', transport: Fake(false)));
+    final output = await client.text(input);
+    expect(output.text, input.text); expect(output.meta, input.meta); expect(output.extras, input.extras);
+    expect((await client.document(sdk.DocumentInput(document: sdk.Record(name: 'record')))).document?.name, 'record');
+  });
+  test('modeled error raw payload', () async {
+    final client = sdk.WireClient(sdk.ClientConfig(endpoint: 'http://127.0.0.1', transport: Fake(true)));
+    try { await client.text(input); fail('Expected TextError'); }
+    on sdk.TextError catch (error) { expect(error.details, 'invalid text'); expect(error.metadata.status, 422); }
+  });
+}

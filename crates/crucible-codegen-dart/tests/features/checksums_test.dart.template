@@ -1,0 +1,103 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:checksum_client/checksum_client.dart';
+import 'package:checksum_client/src/runtime/checksums.dart' show checksumDigest;
+import 'vectors.dart';
+
+final class Fake implements HttpTransport {
+  final HttpResponse Function(HttpRequest) handler;
+  final requests = <HttpRequest>[];
+  Fake(this.handler);
+  @override
+  Future<HttpResponse> send(HttpRequest request, {required bool readBody, required CancellationToken cancellation}) async {
+    expect(readBody, isTrue);
+    requests.add(request);
+    return handler(request);
+  }
+
+  @override
+  void close() {}
+}
+
+void main() {
+  final vectors = jsonDecode(checksumVectors) as Map<String, Object?>;
+  final expected = (vectors['base64'] as Map).cast<String, String>();
+  final data = Uint8List.fromList(utf8.encode(vectors['inputUtf8'] as String));
+
+  test('published checksum vectors', () {
+    for (final entry in expected.entries) {
+      expect(checksumDigest(entry.key, data), entry.value, reason: entry.key);
+    }
+    expect(checksumDigest('MD5', const []), vectors['emptyMd5']);
+    expect(() => checksumDigest('XXHASH64', data), throwsArgumentError);
+  });
+
+  test('request algorithms, modeled defaults, response validation and overrides', () async {
+    var mode = 'normal';
+    final verified = <(String, String)>[];
+    final fake = Fake((request) {
+      final algorithm = request.headers['x-algorithm'];
+      if (mode != 'override' && mode != 'skip') {
+        final name = algorithm == null ? 'content-md5' : 'x-amz-checksum-${algorithm.toLowerCase()}';
+        expect(request.headers[name], (request.body?.isEmpty ?? true) ? vectors['emptyMd5'] : expected[algorithm ?? 'MD5'], reason: name);
+      }
+      final headers = {'x-amz-checksum-xxhash3': 'unmodeled'};
+      if (mode != 'unmodeled') headers['x-amz-checksum-${(algorithm ?? 'CRC32').toLowerCase()}'] = mode == 'bad' ? 'AAAA' : expected[algorithm ?? 'CRC32']!;
+      if (mode == 'one') headers['x-amz-checksum-sha256'] = 'AAAA';
+      return HttpResponse(status: 200, headers: headers, body: data);
+    });
+    final client = ChecksumsClient(ClientConfig(endpoint: 'https://example.test', transport: fake, checksumValidated: (operation, algorithm) => verified.add((operation, algorithm))));
+    await client.legacy(Input(data: data));
+    await client.requiredValue(Input(data: data));
+    await client.legacy(Input(data: Uint8List(0)));
+    expect(fake.requests.last.body, isNull);
+    final input = Input(data: data);
+    expect((await client.flexible(input)).data, data);
+    expect(input.algorithmPresence.isSet, isFalse);
+    expect(fake.requests.last.headers['x-validation'], 'ENABLED');
+    expect(fake.requests.last.headers['x-algorithm'], 'CRC32');
+    expect(verified.last, ('Flexible', 'CRC32'));
+    for (final algorithm in expected.keys) {
+      await client.flexible(Input(data: data, algorithm: Algorithm(algorithm)));
+      expect(verified.last, ('Flexible', algorithm));
+    }
+    mode = 'bad';
+    await expectLater(client.flexible(input), throwsA(isA<ChecksumException>().having((e) => e.algorithm, 'algorithm', 'CRC32')));
+    mode = 'one';
+    await client.flexible(input);
+    mode = 'unmodeled';
+    final count = verified.length;
+    await client.flexible(input);
+    expect(verified, hasLength(count));
+    mode = 'override';
+    await client.flexible(Input(data: data, checksum: 'supplied'));
+    expect(fake.requests.last.headers['x-amz-checksum-crc32'], 'supplied');
+    final sent = fake.requests.length;
+    await expectLater(client.flexible(Input(data: data, algorithm: Algorithm.xxhash64)), throwsArgumentError);
+    expect(fake.requests, hasLength(sent));
+    mode = 'skip';
+    await ChecksumsClient(ClientConfig(endpoint: 'https://example.test', transport: fake,
+        requestChecksumCalculation: ChecksumPolicy.whenRequired, responseChecksumValidation: ChecksumPolicy.whenRequired)).flexible(Input(data: data));
+    expect(fake.requests.last.headers.containsKey('x-algorithm'), isFalse);
+    expect(fake.requests.last.headers.containsKey('x-validation'), isFalse);
+    expect(fake.requests.last.headers.keys.where((name) => name.startsWith('x-amz-checksum-')), isEmpty);
+    mode = 'override';
+    await ChecksumsClient(ClientConfig(endpoint: 'https://example.test', transport: fake,
+        middleware: [(request) => request.copyWith(headers: {...request.headers, 'content-md5': 'supplied'})])).legacy(Input(data: data));
+    expect(fake.requests.last.headers['content-md5'], 'supplied');
+  });
+
+  test('checksums cover the bytes after middleware', () async {
+    final changed = Uint8List.fromList([...data, 33]);
+    final fake = Fake((request) {
+      expect(request.body, changed);
+      expect(request.headers['x-amz-checksum-crc32'], checksumDigest('CRC32', changed));
+      return HttpResponse(status: 200, headers: {'x-amz-checksum-crc32': 'AAAA'}, body: data);
+    });
+    final client = ChecksumsClient(ClientConfig(endpoint: 'https://example.test', transport: fake, middleware: [(request) => request.copyWith(body: changed)]));
+    await expectLater(client.flexible(Input(data: data)), throwsA(isA<ChecksumException>()));
+    expect(fake.requests, hasLength(1));
+  });
+}

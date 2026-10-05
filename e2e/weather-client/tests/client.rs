@@ -121,7 +121,10 @@ async fn a_modelled_error_arrives_as_its_variant() {
     client.create_city(create("tromso")).await.unwrap();
     // A fresh token each call, so the second is a new request, and a conflict.
     match client.create_city(create("tromso")).await {
-        Err(Error::Service(CreateCityError::ConflictError(error))) => {
+        Err(Error::Service(crucible_client::ServiceError {
+            error: CreateCityError::ConflictError(error),
+            ..
+        })) => {
             assert!(error.message.contains("exists"), "{}", error.message)
         }
         other => panic!("expected a conflict, got {other:?}"),
@@ -133,7 +136,10 @@ async fn a_modelled_error_arrives_as_its_variant() {
         })
         .await
     {
-        Err(Error::Service(GetCityError::NotFoundError(error))) => {
+        Err(Error::Service(crucible_client::ServiceError {
+            error: GetCityError::NotFoundError(error),
+            ..
+        })) => {
             assert_eq!(error.resource_id.as_deref(), Some("c-99999999"))
         }
         other => panic!("expected not found, got {other:?}"),
@@ -144,7 +150,10 @@ async fn a_modelled_error_arrives_as_its_variant() {
 async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
     let client = client().await;
     match client.create_city(create(&"x".repeat(41))).await {
-        Err(Error::Service(CreateCityError::ValidationError(error))) => {
+        Err(Error::Service(crucible_client::ServiceError {
+            error: CreateCityError::ValidationError(error),
+            ..
+        })) => {
             let fields = error.field_list.into_value().unwrap();
             assert_eq!(fields[0].path, "name");
             assert_eq!(fields[0].message, "length must be at most 40");
@@ -159,7 +168,10 @@ async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
         })
         .await
     {
-        Err(Error::Service(ListCitiesError::ValidationError(error))) => {
+        Err(Error::Service(crucible_client::ServiceError {
+            error: ListCitiesError::ValidationError(error),
+            ..
+        })) => {
             assert_eq!(error.field_list.into_value().unwrap()[0].path, "maxResults")
         }
         other => panic!("expected a validation error, got {other:?}"),
@@ -176,7 +188,10 @@ async fn labels_are_percent_encoded() {
         })
         .await
     {
-        Err(Error::Service(GetCityError::ValidationError(error))) => {
+        Err(Error::Service(crucible_client::ServiceError {
+            error: GetCityError::ValidationError(error),
+            ..
+        })) => {
             assert_eq!(error.field_list.into_value().unwrap()[0].path, "cityId")
         }
         other => panic!("expected the label to reach the server whole, got {other:?}"),
@@ -231,7 +246,10 @@ async fn throttling_is_retried_then_surfaces_with_its_header_member() {
     let endpoint = serve().await;
     failing(&endpoint, "brief", 2).ping().await.unwrap();
     match failing(&endpoint, "stubborn", 9).ping().await {
-        Err(Error::Service(PingError::ThrottlingError(error))) => {
+        Err(Error::Service(crucible_client::ServiceError {
+            error: PingError::ThrottlingError(error),
+            ..
+        })) => {
             assert_eq!(error.retry_after, Field::Value(0))
         }
         other => panic!("expected throttling, got {other:?}"),
@@ -333,7 +351,10 @@ async fn a_payload_travels_raw_both_ways() {
     assert!(
         matches!(
             refused,
-            Err(Error::Service(PutCityPhotoError::ValidationError(_)))
+            Err(Error::Service(crucible_client::ServiceError {
+                error: PutCityPhotoError::ValidationError(_),
+                ..
+            }))
         ),
         "{refused:?}"
     );
@@ -343,4 +364,33 @@ async fn a_payload_travels_raw_both_ways() {
 async fn an_unreachable_service_is_a_transport_error() {
     let client = WeatherClient::new(Config::new("http://127.0.0.1:9").retry(Retry::none()));
     assert!(matches!(client.ping().await, Err(Error::Transport(_))));
+}
+
+#[tokio::test]
+async fn generated_call_options_expose_deadlines_and_shared_cancellation() {
+    use crucible_client::{CallOptions, CancellationToken};
+    let client = client().await;
+    assert!(matches!(
+        client
+            .ping_with_options(CallOptions {
+                timeout: Some(std::time::Duration::ZERO),
+                cancellation: None,
+            })
+            .await,
+        Err(Error::Timeout)
+    ));
+    let cancellation = CancellationToken::new();
+    cancellation.cancel();
+    assert!(matches!(
+        client
+            .get_city_with_options(
+                GetCityInput::builder().city_id("never-sent").build(),
+                CallOptions {
+                    timeout: None,
+                    cancellation: Some(cancellation),
+                }
+            )
+            .await,
+        Err(Error::Cancelled)
+    ));
 }

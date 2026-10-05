@@ -266,6 +266,38 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - run: python tools/test-kotlin.py
+  kotlin-multiplatform:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            flags: ''
+          - os: macos-14
+            flags: '--native'
+          - os: windows-latest
+            flags: '--native'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.13' }
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Check pinned Gradle launcher precedence
+        if: runner.os == 'Windows'
+        run: python -m unittest discover -s tools -p "test_kotlin_tools.py"
+      - name: Consume published JVM, JavaScript, and host-native artifacts
+        run: python tools/test-kotlin-multiplatform.py ${{ matrix.flags }}
   kotlin-android:
     runs-on: ubuntu-latest
     steps:
@@ -277,6 +309,11 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.13' }
+      - name: Free space for Android userdata
+        run: |
+          # API 24+ emulators allocate at least 6 GiB plus startup headroom.
+          sudo rm -rf /usr/share/dotnet
+          df -h "$RUNNER_TEMP"
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -286,6 +323,7 @@ jobs:
         with:
           api-level: 26
           arch: x86_64
+          disk-size: 6G
           disable-animations: true
           script: python tools/test-kotlin-android.py
   csharp:
@@ -327,7 +365,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
-      - run: python -m pip install 'httpx>=0.28,<1' mypy build
+      - run: python -m pip install 'httpx>=0.28,<1' 'jmespath==1.0.1' mypy build
       - run: python tools/test-python.py
   rust:
     runs-on: ubuntu-latest

@@ -24,6 +24,9 @@ struct Source {
     /// The service to lower, when the model defines several.
     #[arg(long)]
     service: Option<ShapeId>,
+    /// Select a declared protocol by trait ID, for example aws.protocols#restJson1.
+    #[arg(long)]
+    protocol: Option<ShapeId>,
 }
 
 #[derive(Subcommand)]
@@ -32,6 +35,20 @@ enum Command {
     Check {
         #[command(flatten)]
         source: Source,
+        /// Check the capabilities of a particular generated client.
+        #[arg(long, value_enum)]
+        target: Option<ClientLanguage>,
+    },
+    /// Print the tested extended Smithy capabilities of each client as JSON.
+    Capabilities,
+    /// Export lowered Smithy HTTP protocol tests for a client's native runner.
+    Conformance {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long, value_enum)]
+        target: ClientLanguage,
+        #[arg(long)]
+        out: PathBuf,
     },
     /// Generate code for one target.
     Generate {
@@ -54,6 +71,62 @@ enum Command {
         #[arg(long, default_value = "crate::operations::Service")]
         service_type: String,
     },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ClientLanguage {
+    Rust,
+    Ts,
+    Python,
+    Go,
+    Java,
+    Kotlin,
+    Csharp,
+    Swift,
+    Dart,
+    Php,
+    Ruby,
+    Cpp,
+    C,
+    R,
+}
+
+impl ClientLanguage {
+    const ALL: [Self; 14] = [
+        Self::Rust,
+        Self::Ts,
+        Self::Python,
+        Self::Go,
+        Self::Java,
+        Self::Kotlin,
+        Self::Csharp,
+        Self::Swift,
+        Self::Dart,
+        Self::Php,
+        Self::Ruby,
+        Self::Cpp,
+        Self::C,
+        Self::R,
+    ];
+
+    fn capabilities(self) -> crucible_smithy::Capabilities {
+        match self {
+            Self::Rust => crucible_codegen_rust::client_capabilities(),
+            Self::Ts => crucible_codegen_ts::capabilities(),
+            Self::Python => crucible_codegen_python::capabilities(),
+            Self::Go => crucible_codegen_go::capabilities(),
+            Self::Java => crucible_codegen_java::capabilities(),
+            Self::Kotlin => crucible_codegen_kotlin::capabilities(),
+            Self::Csharp => crucible_codegen_csharp::capabilities(),
+            Self::Swift => crucible_codegen_swift::capabilities(),
+            Self::Dart => crucible_codegen_dart::capabilities(),
+            Self::Php => crucible_codegen_php::capabilities(),
+            Self::Ruby => crucible_codegen_ruby::capabilities(),
+            Self::Cpp => crucible_codegen_cpp::capabilities(),
+            Self::C => crucible_codegen_c::capabilities(),
+            Self::R => crucible_codegen_r::capabilities(),
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -234,7 +307,7 @@ enum Target {
         #[arg(long)]
         content_sha256: bool,
     },
-    /// A Kotlin JVM/Android package with suspend operations and Flow pagination.
+    /// A Kotlin Multiplatform package with suspend operations and Flow pagination.
     Kotlin {
         #[command(flatten)]
         source: Source,
@@ -363,7 +436,25 @@ enum MiddlewareArg {
 
 fn main() -> ExitCode {
     let result = match Cli::parse().command {
-        Command::Check { source } => lower(&source).map(|service| print!("{}", summary(&service))),
+        Command::Check { source, target } => lower_with_capabilities(
+            &source, &target.map(ClientLanguage::capabilities).unwrap_or_default(),
+        ).map(|service| print!("{}", summary(&service))),
+        Command::Capabilities => {
+            let capabilities: BTreeMap<_, _> = ClientLanguage::ALL.into_iter().map(|target| (
+                target.to_possible_value().expect("every language has a CLI name").get_name().to_owned(),
+                target.capabilities().iter().map(|feature| feature.name()).collect::<Vec<_>>(),
+            )).collect();
+            println!("{}", serde_json::to_string_pretty(&capabilities).expect("capabilities are JSON strings"));
+            Ok(())
+        }
+        Command::Conformance { source, target, out } => lower_with_capabilities(&source, &target.capabilities()).and_then(|service| {
+            let value = serde_json::json!({"schemaVersion":1, "service":service.id, "tests":service.protocol_tests});
+            let json = serde_json::to_string_pretty(&value).expect("protocol tests are JSON values");
+            output::write(&out, [("protocol-tests.json", json.as_str())])
+                .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+            println!("wrote {} protocol tests to {}", service.protocol_tests.len(), out.display());
+            Ok(())
+        }),
         Command::Generate { target } => generate(target),
         Command::Scaffold {
             source,
@@ -388,9 +479,26 @@ fn main() -> ExitCode {
 }
 
 fn lower(source: &Source) -> Result<Service, String> {
-    load_model(source)?
-        .lower(source.service.as_ref())
-        .map_err(|error| error.to_string())
+    lower_with_capabilities(source, &crucible_smithy::Capabilities::default())
+}
+
+fn lower_with_capabilities(
+    source: &Source,
+    capabilities: &crucible_smithy::Capabilities,
+) -> Result<Service, String> {
+    let model = load_model(source)?;
+    match &source.protocol {
+        Some(id) => {
+            let protocol = crucible_smithy::Protocol::ALL
+                .iter()
+                .copied()
+                .find(|protocol| protocol.trait_id() == *id)
+                .ok_or_else(|| format!("unsupported protocol {id}"))?;
+            model.lower_with_protocol(source.service.as_ref(), capabilities, protocol)
+        }
+        None => model.lower_with_capabilities(source.service.as_ref(), capabilities),
+    }
+    .map_err(|error| error.to_string())
 }
 
 fn lower_infrastructure(source: &Source) -> Result<Service, String> {
@@ -512,7 +620,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_ruby::capabilities())?;
             let files = crucible_codegen_ruby::emit(
                 &service,
                 &crucible_codegen_ruby::Options {
@@ -541,7 +649,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_c::capabilities())?;
             let files = crucible_codegen_c::emit(
                 &service,
                 &crucible_codegen_c::Options {
@@ -569,7 +677,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_r::capabilities())?;
             let files = crucible_codegen_r::emit(
                 &service,
                 &crucible_codegen_r::Options {
@@ -597,7 +705,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_cpp::capabilities())?;
             let files = crucible_codegen_cpp::emit(
                 &service,
                 &crucible_codegen_cpp::Options {
@@ -626,7 +734,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_php::capabilities())?;
             let files = crucible_codegen_php::emit(
                 &service,
                 &crucible_codegen_php::Options {
@@ -654,7 +762,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_dart::capabilities())?;
             let files = crucible_codegen_dart::emit(
                 &service,
                 &crucible_codegen_dart::Options {
@@ -682,7 +790,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service =
+                lower_with_capabilities(&source, &crucible_codegen_swift::capabilities())?;
             let files = crucible_codegen_swift::emit(
                 &service,
                 &crucible_codegen_swift::Options {
@@ -711,7 +820,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service =
+                lower_with_capabilities(&source, &crucible_codegen_csharp::capabilities())?;
             let files = crucible_codegen_csharp::emit(
                 &service,
                 &crucible_codegen_csharp::Options {
@@ -741,7 +851,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service =
+                lower_with_capabilities(&source, &crucible_codegen_kotlin::capabilities())?;
             let files = crucible_codegen_kotlin::emit(
                 &service,
                 &crucible_codegen_kotlin::Options {
@@ -772,7 +883,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_java::capabilities())?;
             let files = crucible_codegen_java::emit(
                 &service,
                 &crucible_codegen_java::Options {
@@ -801,7 +912,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_go::capabilities())?;
             let files = crucible_codegen_go::emit(
                 &service,
                 &crucible_codegen_go::Options {
@@ -829,7 +940,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower(&source)?;
+            let service =
+                lower_with_capabilities(&source, &crucible_codegen_python::capabilities())?;
             let files = crucible_codegen_python::emit(
                 &service,
                 &crucible_codegen_python::Options {
@@ -857,7 +969,12 @@ fn generate(target: Target) -> Result<(), String> {
             internal_error,
             strict_inputs,
         } => {
-            let service = lower(&source)?;
+            let capabilities = if client {
+                crucible_codegen_rust::client_capabilities()
+            } else {
+                crucible_codegen_rust::capabilities()
+            };
+            let service = lower_with_capabilities(&source, &capabilities)?;
             let options = crucible_codegen_rust::Options {
                 validation_error,
                 internal_error,
@@ -885,7 +1002,7 @@ fn generate(target: Target) -> Result<(), String> {
             middleware,
             package_json,
         } => {
-            let service = lower(&source)?;
+            let service = lower_with_capabilities(&source, &crucible_codegen_ts::capabilities())?;
             let package_json = package_json
                 .map(|path| {
                     let text = std::fs::read_to_string(&path)
@@ -940,6 +1057,7 @@ fn summary(service: &Service) -> String {
             Shape::Unit => "unit",
             Shape::Simple(_) => "simple",
             Shape::Enum(_) => "enum",
+            Shape::IntEnum(_) => "intEnum",
             Shape::List(_) => "list",
             Shape::Map(_) => "map",
             Shape::Structure(_) => "structure",

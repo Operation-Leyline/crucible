@@ -1,0 +1,259 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.stream#Streaming": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.stream#Upload"
+        },
+        {
+          "target": "example.stream#Download"
+        },
+        {
+          "target": "example.stream#Sized"
+        },
+        {
+          "target": "example.stream#Fetch"
+        },
+        {
+          "target": "example.stream#Store"
+        },
+        {
+          "target": "example.stream#BoundedDownload"
+        }
+      ]
+    },
+    "example.stream#Stream": {
+      "type": "blob",
+      "traits": {
+        "smithy.api#streaming": {}
+      }
+    },
+    "example.stream#SizedStream": {
+      "type": "blob",
+      "traits": {
+        "smithy.api#streaming": {},
+        "smithy.api#requiresLength": {},
+        "smithy.api#length": {
+          "min": 3,
+          "max": 3
+        }
+      }
+    },
+    "example.stream#Upload": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/upload"
+        },
+        "smithy.api#idempotent": {}
+      },
+      "input": {
+        "target": "example.stream#UploadInput"
+      }
+    },
+    "example.stream#UploadInput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#Stream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.stream#Download": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/download"
+        },
+        "smithy.api#idempotent": {}
+      },
+      "output": {
+        "target": "example.stream#DownloadOutput"
+      }
+    },
+    "example.stream#DownloadOutput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#Stream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        },
+        "count": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpHeader": "x-count"
+          }
+        }
+      }
+    },
+    "example.stream#Sized": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/sized"
+        },
+        "smithy.api#idempotent": {}
+      },
+      "input": {
+        "target": "example.stream#SizedInput"
+      }
+    },
+    "example.stream#SizedInput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#SizedStream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.stream#Fetch": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/fetch"
+        },
+        "smithy.api#readonly": {},
+        "aws.protocols#httpChecksum": {
+          "requestValidationModeMember": "validation",
+          "responseAlgorithms": [
+            "CRC32",
+            "SHA256"
+          ]
+        }
+      },
+      "input": {
+        "target": "example.stream#FetchInput"
+      },
+      "output": {
+        "target": "example.stream#DownloadOutput"
+      }
+    },
+    "example.stream#FetchInput": {
+      "type": "structure",
+      "members": {
+        "validation": {
+          "target": "example.stream#Validation",
+          "traits": {
+            "smithy.api#httpHeader": "x-validation"
+          }
+        }
+      }
+    },
+    "example.stream#Validation": {
+      "type": "enum",
+      "members": {
+        "ENABLED": {
+          "target": "smithy.api#Unit"
+        }
+      }
+    },
+    "example.stream#Store": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/store"
+        },
+        "smithy.api#idempotent": {},
+        "aws.protocols#httpChecksum": {
+          "requestAlgorithmMember": "algorithm"
+        }
+      },
+      "input": {
+        "target": "example.stream#StoreInput"
+      }
+    },
+    "example.stream#StoreInput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#Stream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        },
+        "algorithm": {
+          "target": "example.stream#Algorithm",
+          "traits": {
+            "smithy.api#httpHeader": "x-algorithm"
+          }
+        },
+        "checksum": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "x-amz-checksum-crc32"
+          }
+        }
+      }
+    },
+    "example.stream#Algorithm": {
+      "type": "enum",
+      "members": {
+        "CRC32": {
+          "target": "smithy.api#Unit"
+        }
+      }
+    },
+    "example.stream#BoundedStream": {
+      "type": "blob",
+      "traits": {
+        "smithy.api#streaming": {},
+        "smithy.api#length": {
+          "min": 2,
+          "max": 5
+        }
+      }
+    },
+    "example.stream#BoundedDownload": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/bounded-download"
+        },
+        "smithy.api#readonly": {}
+      },
+      "output": {
+        "target": "example.stream#BoundedDownloadOutput"
+      }
+    },
+    "example.stream#BoundedDownloadOutput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#BoundedStream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {},
+            "smithy.api#length": {
+              "min": 3,
+              "max": 3
+            }
+          }
+        }
+      }
+    }
+  }
+}

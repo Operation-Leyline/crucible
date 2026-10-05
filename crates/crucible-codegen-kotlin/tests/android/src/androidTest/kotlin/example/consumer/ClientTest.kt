@@ -13,7 +13,7 @@ import example.weather.WeatherClient
 import example.weather.ClientConfig
 import java.net.InetAddress
 import java.net.ServerSocket
-import java.time.Instant
+import kotlin.time.Instant
 import kotlin.concurrent.thread
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
@@ -75,7 +75,7 @@ class ClientTest {
                 WeatherClient(ClientConfig(endpoint = "http://127.0.0.1:${server.localPort}")).use { client ->
                     val city = client.getCity(GetCityInput { this.cityId = "c" }).city
                     check(city.population == Long.MAX_VALUE)
-                    check(city.createdAt == Instant.ofEpochSecond(-1, 999999999))
+                    check(city.createdAt == Instant.fromEpochSeconds(-1, 999999999))
                 }
                 served.await()
             }

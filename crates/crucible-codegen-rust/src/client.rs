@@ -23,17 +23,69 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         }
     }
     let mut out = String::new();
+    if service
+        .operations
+        .iter()
+        .any(|op| metadata_needed(service, op))
+    {
+        let mut schema = crucible_codegen_common::schema(service, str::to_owned);
+        schema["operations"]
+            .as_object_mut()
+            .expect("schema operation object")
+            .retain(|name, _| {
+                service
+                    .operations
+                    .iter()
+                    .any(|op| op.name() == name && metadata_needed(service, op))
+            });
+        out.push_str(&format!("\nstatic __CRUCIBLE_CLIENT_METADATA: ::std::sync::LazyLock<::crucible::ServiceMetadata> = ::std::sync::LazyLock::new(|| ::crucible::ServiceMetadata::from_json({}).expect(\"compiler validated client metadata\"));\n", literal(&schema.to_string())));
+    }
+    out.push_str(&crate::events::statics(service, diagnostics));
     let mut methods = String::new();
+    let mut names: std::collections::BTreeSet<String> = service
+        .operations
+        .iter()
+        .flat_map(|op| {
+            [
+                function(op.name()),
+                format!("{}_pages", function(op.name()).trim_start_matches("r#")),
+            ]
+        })
+        .collect();
     for op in &service.operations {
         let output = if op.output.is_some() {
             output_type(service, op)
         } else {
             UNIT.to_owned()
         };
-        out.push_str(&marker(service, op, &output));
+        out.push_str(&marker(service, op, &output, true));
         out.push_str(&error_enum(service, op));
-        methods.push_str(&method(service, op));
+        if metadata_needed(service, op) {
+            out.push_str(&format!("\n#[allow(non_upper_case_globals)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
+        }
+        methods.push_str(&method(service, op, None));
+        let base = format!(
+            "{}_with_options",
+            function(op.name()).trim_start_matches("r#")
+        );
+        let mut options_name = base.clone();
+        let mut suffix = 2;
+        while !names.insert(options_name.clone()) {
+            options_name = format!("{base}_{suffix}");
+            suffix += 1;
+        }
+        methods.push_str(&method(service, op, Some(&options_name)));
         methods.push_str(&pages(service, op, diagnostics));
+        for waiter in op.waiters.keys() {
+            let base = format!("wait_until_{}", function(waiter).trim_start_matches("r#"));
+            let mut name = base.clone();
+            let mut suffix = 2;
+            while !names.insert(name.clone()) {
+                name = format!("{base}_{suffix}");
+                suffix += 1;
+            }
+            methods.push_str(&waiter_method(service, op, waiter, &name));
+        }
         if function(op.name()) == "new" {
             diagnostics.push(
                 &op.id,
@@ -48,14 +100,63 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         }
     }
     out.push_str(&format!(
-        "\n/// A client for {}. Cheap to clone: clones share connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible::Transport,\n}}\n\nimpl {client} {{\n    pub fn new(config: ::crucible::Config) -> Self {{\n        Self {{\n            transport: ::crucible::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
+        "\n/// A client for {}. Cheap to clone: clones share connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible::Transport,\n}}\n\n#[allow(dead_code)]\nimpl {client} {{\n    pub fn new(config: ::crucible::Config) -> Self {{\n        Self {{\n            transport: ::crucible::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
         service.id.name()
     ));
     out
 }
 
+fn metadata_needed(service: &Service, op: &Operation) -> bool {
+    service.endpoint_rules.is_some() || op.endpoint.is_some() || !op.waiters.is_empty()
+}
+
+fn waiter_method(service: &Service, op: &Operation, waiter: &str, method: &str) -> String {
+    let name = op.name();
+    let errors = error_type(op);
+    let output = if op.output.is_some() {
+        output_type(service, op)
+    } else {
+        UNIT.to_owned()
+    };
+    let (parameter, input, token) = if op.input.is_some() {
+        let token = token_member(service,op).map(|member|format!("        if input.{}.value().is_none() {{ input.{} = ::crucible::Field::Value(::crucible::idempotency_token()); }}\n",field(&member.name),field(&member.name))).unwrap_or_default();
+        (
+            format!(
+                "{}input: {}, ",
+                if token.is_empty() { "" } else { "mut " },
+                input_type(service, op)
+            ),
+            "input".to_owned(),
+            token,
+        )
+    } else {
+        (String::new(), format!("{UNIT} {{}}"), String::new())
+    };
+    format!(
+        "\n    pub async fn {method}(&self, {parameter}options: ::crucible::WaiterOptions) -> ::std::result::Result<::crucible::WaiterResult<{output}, {errors}>, ::crucible::WaiterError<{output}, {errors}>> {{\n{token}        self.transport.wait::<{name}, {errors}>(&{input}, &__crucible_metadata_{name}, {}, &options).await\n    }}\n",
+        literal(waiter)
+    )
+}
+
 fn error_type(op: &Operation) -> String {
     format!("{}Error", op.name())
+}
+
+fn wire_error<'a>(service: &'a Service, op: &Operation, name: &str) -> &'a str {
+    let id = op
+        .errors
+        .iter()
+        .find(|id| service.name_of(id) == name)
+        .expect("declared operation error");
+    let crucible_smithy::ir::Shape::Structure(shape) = service.shape(id).expect("error shape")
+    else {
+        unreachable!("error structure")
+    };
+    &shape
+        .error
+        .as_ref()
+        .expect("modeled error metadata")
+        .wire_code
 }
 
 /// `enum GetCityError`: one variant per declared error, decoded by the
@@ -79,8 +180,8 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         .iter()
         .map(|error| {
             format!(
-                "            {} => ::crucible::decode_modelled(&errors::{}, headers, body).map(Self::{error}),\n",
-                literal(error),
+                "            {} => ::crucible::decode_modelled_at(status, &errors::{}, headers, body).map(Self::{error}),\n",
+                literal(wire_error(service,op,error)),
                 info_static(error)
             )
         })
@@ -126,7 +227,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             .map(|error| {
                 format!(
                     "{} => Some(&errors::{}),",
-                    literal(error),
+                    literal(wire_error(service, op, error)),
                     info_static(error)
                 )
             })
@@ -146,7 +247,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
     out
 }
 
-fn method(service: &Service, op: &Operation) -> String {
+fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> String {
     let name = op.name();
     let errors = error_type(op);
     let mut out = String::from("\n");
@@ -157,7 +258,36 @@ fn method(service: &Service, op: &Operation) -> String {
         "()".to_owned()
     };
     let result = format!("::std::result::Result<{output}, ::crucible::Error<{errors}>>");
-    let send = format!("self.transport.send::<{name}, {errors}>");
+    let method_name = options_name
+        .map(str::to_owned)
+        .unwrap_or_else(|| function(name));
+    let transport_method = if metadata_needed(service, op) {
+        "send_with_metadata"
+    } else if options_name.is_some() {
+        "send_with_options"
+    } else {
+        "send"
+    };
+    let options_parameter = if options_name.is_some() {
+        ", options: ::crucible::CallOptions"
+    } else {
+        ""
+    };
+    let options_argument = if metadata_needed(service, op) {
+        format!(
+            ", {}, &__crucible_metadata_{name}",
+            if options_name.is_some() {
+                "&options"
+            } else {
+                "&::crucible::CallOptions::default()"
+            }
+        )
+    } else if options_name.is_some() {
+        ", &options".to_owned()
+    } else {
+        String::new()
+    };
+    let send = format!("self.transport.{transport_method}::<{name}, {errors}>");
     let finish = if op.output.is_some() {
         ".await"
     } else {
@@ -165,8 +295,8 @@ fn method(service: &Service, op: &Operation) -> String {
     };
     if op.input.is_none() {
         out.push_str(&format!(
-            "    pub async fn {}(&self) -> {result} {{\n        {send}(&{UNIT} {{}}){finish}\n    }}\n",
-            function(name)
+            "    pub async fn {}(&self{options_parameter}) -> {result} {{\n        {send}(&{UNIT} {{}}{options_argument}){finish}\n    }}\n",
+            method_name
         ));
         return out;
     }
@@ -182,8 +312,8 @@ fn method(service: &Service, op: &Operation) -> String {
         "input"
     };
     out.push_str(&format!(
-        "    pub async fn {}(&self, {binding}: {}) -> {result} {{\n{}        {send}(&input){finish}\n    }}\n",
-        function(name),
+        "    pub async fn {}(&self, {binding}: {}{options_parameter}) -> {result} {{\n{}        {send}(&input{options_argument}){finish}\n    }}\n",
+        method_name,
         input_type(service, op),
         token.unwrap_or_default(),
     ));
@@ -200,17 +330,17 @@ fn token_member<'s>(service: &'s Service, op: &Operation) -> Option<&'s Member> 
 }
 
 /// `*_pages(input)`: a `Paginator` that resends the input with each
-/// response's token. Tokens must be top-level string members.
+/// response's token, including a nested output token path.
 fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> String {
     let Some(paginated) = &op.paginated else {
         return String::new();
     };
     let input = string_member(service, op.input.as_ref(), &paginated.input_token);
-    let output = string_member(service, op.output.as_ref(), &paginated.output_token);
+    let output = output_token(service, op.output.as_ref(), &paginated.output_token);
     let (Some(input), Some(output)) = (input, output) else {
         diagnostics.push(
             &op.id,
-            "@paginated tokens must be top-level string members of the input and output",
+            "@paginated requires a string input token and a string output token path",
         );
         return String::new();
     };
@@ -250,7 +380,7 @@ fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> St
         "\n    /// Every page of {name}, one request each.\n    pub fn {}_pages(&self, input: {}) -> ::crucible::Paginator<{name}, {errors}> {{\n        {start}::crucible::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){finish}\n    }}\n",
         function(name).trim_start_matches("r#"),
         input_type(service, op),
-        get(output, "output"),
+        output,
         get(input, "input"),
     )
 }
@@ -258,4 +388,27 @@ fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> St
 fn string_member<'s>(service: &'s Service, id: Option<&ShapeId>, name: &str) -> Option<&'s Member> {
     let member = structure(service, id)?.member(name)?;
     (simple_kind(service, &member.target) == Some(SimpleKind::String)).then_some(member)
+}
+
+fn output_token(service: &Service, id: Option<&ShapeId>, path: &str) -> Option<String> {
+    let mut id = id?;
+    let mut statements = String::from("|output| { let value = output; ");
+    let mut parts = path.split('.').peekable();
+    while let Some(name) = parts.next() {
+        let member = structure(service, Some(id))?.member(name)?;
+        let rust = field(&member.name);
+        if member.optional_on_client() {
+            statements.push_str(&format!("let value = value.{rust}.value()?; "));
+        } else {
+            statements.push_str(&format!("let value = &value.{rust}; "));
+        }
+        if parts.peek().is_none() {
+            if simple_kind(service, &member.target) != Some(SimpleKind::String) {
+                return None;
+            }
+            statements.push_str("Some(value.as_str()) }");
+        }
+        id = &member.target;
+    }
+    Some(statements)
 }

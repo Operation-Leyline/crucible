@@ -129,6 +129,16 @@ pub fn constant(value: &str) -> String {
         value.into()
     }
 }
+/// `waitUntilReady` for a waiter named `Ready`, as AWS SDKs name waiter methods.
+pub fn waiter(value: &str) -> String {
+    let mut chars = value.chars();
+    let first = chars.next().map(|c| c.to_ascii_uppercase());
+    format!(
+        "waitUntil{}{}",
+        first.map(String::from).unwrap_or_default(),
+        chars.as_str()
+    )
+}
 pub fn method(value: &str) -> String {
     let mut chars = value.chars();
     let result = format!(
@@ -155,6 +165,10 @@ pub fn ty(service: &Service, id: &ShapeId, namespace: &str, docs: bool) -> Strin
     match service.shape(id).expect("shape") {
         Shape::Unit => runtime("Unit"),
         Shape::Simple(s) => match s.kind {
+            SimpleKind::BigInteger => runtime("BigInteger"),
+            SimpleKind::BigDecimal => runtime("BigDecimal"),
+            // A streaming blob is the whole HTTP body, never held as a string.
+            SimpleKind::Blob if s.streaming => runtime("ByteStream"),
             SimpleKind::String | SimpleKind::Blob => "string".into(),
             SimpleKind::Boolean => "bool".into(),
             SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long => {
@@ -165,12 +179,14 @@ pub fn ty(service: &Service, id: &ShapeId, namespace: &str, docs: bool) -> Strin
             SimpleKind::Document => runtime("JsonValue"),
         },
         Shape::List(list) if docs => format!(
-            "list<{}>",
-            ty(service, &list.member.target, namespace, true)
+            "list<{}{}>",
+            ty(service, &list.member.target, namespace, true),
+            if list.sparse { "|null" } else { "" }
         ),
         Shape::Map(map) if docs => format!(
-            "array<string|int, {}>",
-            ty(service, &map.value.target, namespace, true)
+            "array<string|int, {}{}>",
+            ty(service, &map.value.target, namespace, true),
+            if map.sparse { "|null" } else { "" }
         ),
         Shape::List(_) | Shape::Map(_) => "array".into(),
         _ => format!("\\{namespace}\\{}", service.name_of(id)),

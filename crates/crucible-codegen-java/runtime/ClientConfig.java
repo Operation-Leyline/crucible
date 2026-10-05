@@ -11,6 +11,19 @@ public final class ClientConfig {
   public String endpoint;
   public HttpClient httpClient;
   public Supplier<String> token;
+  /** Called once per operation with an omitted modeled idempotency token. */
+  public Supplier<String> idempotencyToken = () -> java.util.UUID.randomUUID().toString();
+  public Supplier<BasicCredentials> basicAuth;
+  public Supplier<String> apiKey;
+  public Supplier<AwsCredentials> credentials;
+  public String region;
+  public Map<String,Object> endpointParameters = new LinkedHashMap<>();
+  public Map<String,Object> endpointBuiltins = new LinkedHashMap<>();
+  public boolean disableHostPrefix;
+  public java.time.Clock clock = java.time.Clock.systemUTC();
+  public ChecksumPolicy requestChecksumCalculation = ChecksumPolicy.WHEN_SUPPORTED;
+  public ChecksumPolicy responseChecksumValidation = ChecksumPolicy.WHEN_SUPPORTED;
+  public java.util.function.BiConsumer<String,String> checksumValidated;
   public int maxAttempts = 3;
   public Duration timeout = Duration.ofSeconds(30);
   public Duration baseDelay = Duration.ofMillis(100);
@@ -23,18 +36,27 @@ public final class ClientConfig {
     void apply(Request request);
   }
 
-  /** Middleware may replace body bytes; the digest is computed afterwards. */
+  /**
+   * Middleware may replace body bytes; the digest is computed afterwards. A streaming
+   * payload is {@code stream}, with a null {@code body}; it is opened only after middleware.
+   */
   public static final class Request {
-    public final java.net.URI uri;
+    public java.net.URI uri;
     public final String method;
     public final Map<String, String> headers;
     public byte[] body;
+    public final ByteStream stream;
 
     Request(java.net.URI uri, String method, Map<String, String> headers, byte[] body) {
+      this(uri, method, headers, body, null);
+    }
+
+    Request(java.net.URI uri, String method, Map<String, String> headers, byte[] body, ByteStream stream) {
       this.uri = uri;
       this.method = method;
       this.headers = headers;
       this.body = body;
+      this.stream = stream;
     }
   }
 }

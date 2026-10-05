@@ -1,0 +1,169 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.policy#Records": {
+      "type": "service",
+      "version": "2026-10-01",
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#httpApiKeyAuth": { "name": "x-api-key", "in": "header" },
+        "smithy.api#auth": ["smithy.api#httpApiKeyAuth"],
+        "aws.api#clientEndpointDiscovery": {
+          "operation": "example.policy#DescribeEndpoints",
+          "error": "example.policy#InvalidEndpointException"
+        }
+      },
+      "operations": [
+        { "target": "example.policy#DescribeEndpoints" },
+        { "target": "example.policy#GetRecord" },
+        { "target": "example.policy#PutRecord" },
+        { "target": "example.policy#ListRecords" }
+      ]
+    },
+    "example.policy#DescribeEndpoints": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": { "method": "POST", "uri": "/endpoints", "code": 200 },
+        "smithy.api#readonly": {}
+      },
+      "input": { "target": "example.policy#DescribeEndpointsRequest" },
+      "output": { "target": "example.policy#DescribeEndpointsResponse" }
+    },
+    "example.policy#DescribeEndpointsRequest": {
+      "type": "structure",
+      "members": {
+        "Operation": { "target": "smithy.api#String" },
+        "Identifiers": { "target": "example.policy#IdentifierMap" }
+      }
+    },
+    "example.policy#IdentifierMap": {
+      "type": "map",
+      "key": { "target": "smithy.api#String" },
+      "value": { "target": "smithy.api#String" }
+    },
+    "example.policy#DescribeEndpointsResponse": {
+      "type": "structure",
+      "members": {
+        "Endpoints": { "target": "example.policy#EndpointList", "traits": { "smithy.api#required": {} } }
+      }
+    },
+    "example.policy#EndpointList": {
+      "type": "list",
+      "member": { "target": "example.policy#Endpoint" }
+    },
+    "example.policy#Endpoint": {
+      "type": "structure",
+      "members": {
+        "Address": { "target": "smithy.api#String", "traits": { "smithy.api#required": {} } },
+        "CachePeriodInMinutes": { "target": "smithy.api#Long", "traits": { "smithy.api#required": {} } }
+      }
+    },
+    "example.policy#GetRecord": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": { "method": "GET", "uri": "/records/{table}/{key}", "code": 200 },
+        "smithy.api#readonly": {},
+        "aws.api#clientDiscoveredEndpoint": { "required": true }
+      },
+      "input": { "target": "example.policy#GetRecordInput" },
+      "output": { "target": "example.policy#GetRecordOutput" },
+      "errors": [
+        { "target": "example.policy#InvalidEndpointException" },
+        { "target": "example.policy#Throttled" },
+        { "target": "example.policy#Unavailable" }
+      ]
+    },
+    "example.policy#GetRecordInput": {
+      "type": "structure",
+      "members": {
+        "table": {
+          "target": "smithy.api#String",
+          "traits": { "smithy.api#required": {}, "smithy.api#httpLabel": {}, "aws.api#clientEndpointDiscoveryId": {} }
+        },
+        "key": {
+          "target": "example.policy#Secret",
+          "traits": { "smithy.api#required": {}, "smithy.api#httpLabel": {} }
+        }
+      }
+    },
+    "example.policy#GetRecordOutput": {
+      "type": "structure",
+      "members": {
+        "value": { "target": "smithy.api#String" }
+      }
+    },
+    "example.policy#PutRecord": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": { "method": "POST", "uri": "/records/{table}", "code": 200 },
+        "aws.api#clientDiscoveredEndpoint": { "required": false }
+      },
+      "input": { "target": "example.policy#PutRecordInput" },
+      "output": { "target": "smithy.api#Unit" },
+      "errors": [
+        { "target": "example.policy#InvalidEndpointException" },
+        { "target": "example.policy#Throttled" },
+        { "target": "example.policy#Unavailable" }
+      ]
+    },
+    "example.policy#PutRecordInput": {
+      "type": "structure",
+      "members": {
+        "table": {
+          "target": "smithy.api#String",
+          "traits": { "smithy.api#required": {}, "smithy.api#httpLabel": {}, "aws.api#clientEndpointDiscoveryId": {} }
+        },
+        "secret": { "target": "example.policy#Secret", "traits": { "smithy.api#httpHeader": "X-Record-Secret" } },
+        "ticket": { "target": "example.policy#Secret", "traits": { "smithy.api#httpQuery": "ticket" } },
+        "label": { "target": "smithy.api#String", "traits": { "smithy.api#httpQuery": "label" } },
+        "value": { "target": "smithy.api#String" }
+      }
+    },
+    "example.policy#ListRecords": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": { "method": "GET", "uri": "/records", "code": 200 },
+        "smithy.api#readonly": {}
+      },
+      "input": { "target": "smithy.api#Unit" },
+      "output": { "target": "example.policy#ListRecordsOutput" },
+      "errors": [
+        { "target": "example.policy#Throttled" },
+        { "target": "example.policy#Unavailable" }
+      ]
+    },
+    "example.policy#ListRecordsOutput": {
+      "type": "structure",
+      "members": {
+        "count": { "target": "smithy.api#Integer" }
+      }
+    },
+    "example.policy#Secret": {
+      "type": "string",
+      "traits": { "smithy.api#sensitive": {} }
+    },
+    "example.policy#InvalidEndpointException": {
+      "type": "structure",
+      "traits": { "smithy.api#error": "client", "smithy.api#httpError": 421 },
+      "members": { "message": { "target": "smithy.api#String" } }
+    },
+    "example.policy#Throttled": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 429,
+        "smithy.api#retryable": { "throttling": true }
+      },
+      "members": { "message": { "target": "smithy.api#String" } }
+    },
+    "example.policy#Unavailable": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "server",
+        "smithy.api#httpError": 503,
+        "smithy.api#retryable": {}
+      },
+      "members": { "message": { "target": "smithy.api#String" } }
+    }
+  }
+}

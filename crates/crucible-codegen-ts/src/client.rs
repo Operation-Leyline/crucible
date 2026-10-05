@@ -26,17 +26,43 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
             Middleware::ContentSha256 => "contentSha256",
         })
         .collect();
+    let endpoint_rules = if service.endpoint_rules.is_some() {
+        ", endpointRules: spec.endpointRules"
+    } else {
+        ""
+    };
     let bearer = service.auth.contains(&smithy("httpBearerAuth"));
     out.push_str(&format!(
         "  constructor(config: ClientConfig = {{}}) {{\n    \
-         this.#transport = new Transport(config, {{ endpoint: {endpoint}, middleware: [{}], bearer: {bearer} }}, spec.errors);\n  }}\n",
+         this.#transport = new Transport(config, {{ endpoint: {endpoint}, middleware: [{}], bearer: {bearer}{endpoint_rules} }}, spec.errors);\n  }}\n",
         middleware.join(", ")
     ));
     let names = method_names(service);
+    let mut waiter_used: BTreeSet<String> = names
+        .values()
+        .flat_map(|(method, paginator)| std::iter::once(method.clone()).chain(paginator.clone()))
+        .collect();
+    let waiter_reserved: BTreeSet<String> = service
+        .operations
+        .iter()
+        .flat_map(|op| op.waiters.keys().map(|name| format!("waitUntil{name}")))
+        .chain(waiter_used.iter().cloned())
+        .collect();
     for operation in &service.operations {
         out.push('\n');
         let (name, paginator_name) = &names[&operation.id];
         method(&mut out, service, operation, name);
+        for (waiter_name, waiter) in &operation.waiters {
+            let helper = allocate(
+                format!("waitUntil{waiter_name}"),
+                &waiter_reserved,
+                &mut waiter_used,
+            );
+            doc(&mut out, "  ", waiter.documentation.as_deref());
+            let (params, input) = parameters(service, operation);
+            let params = params.replace("options?: RequestOptions", "options: WaiterOptions");
+            out.push_str(&format!("\n  {helper}({params}): Promise<WaiterResult<{}>> {{\n    return this.#transport.wait(spec.{}, {}, {input}, options);\n  }}\n", output_type(service, operation), operation.name(), literal(waiter_name)));
+        }
         if operation.paginated.is_some() {
             out.push('\n');
             paginator(
@@ -62,6 +88,9 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
         runtime.join(", ")
     ));
     header.push_str("import type { ClientConfig, RequestOptions } from \"./runtime.js\";\n");
+    if service.operations.iter().any(|op| !op.waiters.is_empty()) {
+        header.push_str("import type { WaiterOptions, WaiterResult } from \"./waiters.js\";\n");
+    }
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }

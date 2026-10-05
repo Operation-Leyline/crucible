@@ -1,0 +1,81 @@
+name: SDK release artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Explicit SDK semantic version
+        required: true
+      config:
+        description: Checked-in release recipe
+        default: tools/sdk-releases/weather.json
+        required: true
+      publish:
+        description: Publish verified artifacts using the sdk-publish environment
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-release-${{ inputs.config }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python -m pip install build setuptools wheel httpx twine
+      - run: python -m unittest discover -s tools -p test_sdk_release.py -v
+      - name: Generate, build and test native packages
+        env:
+          SDK_CONFIG: ${{ inputs.config }}
+          SDK_VERSION: ${{ inputs.version }}
+          CARGO_BUILD_JOBS: '2'
+        run: python tools/sdk_release.py build "$SDK_CONFIG" --version "$SDK_VERSION" --out target/sdk-release
+      - run: python tools/sdk_release.py verify target/sdk-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-release
+          path: target/sdk-release
+          if-no-files-found: error
+  publish:
+    if: ${{ inputs.publish }}
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: sdk-publish
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python -m pip install twine
+      - uses: actions/download-artifact@v4
+        with:
+          name: sdk-release
+          path: target/sdk-release
+      - name: Publish the verified package archives
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: python tools/sdk_release.py publish target/sdk-release --execute
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-publication-journal
+          path: target/sdk-release/publication.json
+          if-no-files-found: ignore

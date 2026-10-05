@@ -1,5 +1,9 @@
 #pragma once
+#include "auth.hpp"
+#include "checksums.hpp"
 #include "codec.hpp"
+#include "endpoints.hpp"
+#include "query.hpp"
 #include "transport.hpp"
 #include <atomic>
 #include <exception>
@@ -17,7 +21,41 @@ struct ClientConfig {
     double max_delay = 10.0;
     Headers headers;
     std::vector<std::function<HttpRequest(HttpRequest)>> middleware;
+    // Modeled authentication schemes are tried in the operation's order; caller-supplied
+    // Authorization (or API key) values for a scheme are used without invoking its provider.
+    std::function<std::optional<BasicCredentials>()> basic_credentials;
+    std::function<std::optional<std::string>()> api_key;
+    CredentialsProvider credentials;
+    std::optional<std::string> region;
+    // Endpoint rule inputs: string, boolean, or string-array values.
+    Json::Object endpoint_parameters;
+    Json::Object endpoint_builtins;
+    bool disable_host_prefix = false;
+    ChecksumPolicy request_checksum_calculation = ChecksumPolicy::when_supported;
+    ChecksumPolicy response_checksum_validation = ChecksumPolicy::when_supported;
+    std::function<void(const std::string& operation, const std::string& algorithm)> checksum_validated;
 };
+struct WaiterOptions {
+    std::optional<double> min_delay;
+    std::optional<double> max_delay;
+};
+class WaiterError : public std::runtime_error {
+    std::string name_;
+    unsigned attempts_;
+    Json response_;
+    Json reason_;
+    std::exception_ptr cause_;
+public:
+    WaiterError(std::string name, unsigned attempts, Json response, std::exception_ptr cause, Json reason, const std::string& message);
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
+    [[nodiscard]] unsigned attempts() const noexcept { return attempts_; }
+    // The last response in its JMESPath view (member names, epoch timestamps), or null.
+    [[nodiscard]] const Json& response() const noexcept { return response_; }
+    // The modeled acceptor message, or null.
+    [[nodiscard]] const Json& reason() const noexcept { return reason_; }
+    [[nodiscard]] std::exception_ptr cause() const noexcept { return cause_; }
+};
+class WaiterTimeoutError : public WaiterError { public: using WaiterError::WaiterError; };
 using ErrorFactory = std::function<std::exception_ptr(const std::string&, const Json&, ErrorMetadata)>;
 class ClientRuntime {
     ClientConfig config_;
@@ -27,7 +65,21 @@ class ClientRuntime {
     std::shared_ptr<Transport> transport_;
     bool digest_;
     std::atomic<bool> closed_ = false;
-    [[nodiscard]] HttpRequest prepare(const Json& operation, const Json& input) const;
+public:
+    // A decoded response, and its streaming body when the operation has one.
+    struct CallResult {
+        Json value;
+        std::optional<ByteStream> stream;
+    };
+private:
+    struct Prepared {
+        HttpRequest request;
+        ChecksumSettings checksum;
+        std::optional<ResolvedEndpoint> endpoint;
+    };
+    [[nodiscard]] Prepared prepare(const std::string& name, const Json& operation, const Json& input, bool streaming) const;
+    [[nodiscard]] std::optional<SigningOptions> authenticate(const Json& operation, HttpRequest& request, const std::optional<ResolvedEndpoint>& endpoint, const CallScope& scope, bool& credentials, std::optional<AwsCredentials>& identity) const;
+    [[nodiscard]] std::optional<CallResult> wait_json(const std::string& operation, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop, const std::function<Json(const Json&)>& view, const std::optional<ByteStream>& body) const;
     [[nodiscard]] Json success(const Json& operation, const HttpResponse& response) const;
     [[nodiscard]] Json apply_headers(const std::string& target, const Json& bindings, const HttpResponse& response, const Json& body) const;
     [[nodiscard]] std::pair<ErrorMetadata, std::exception_ptr> failure(const Json& operation, const HttpResponse& response) const;
@@ -38,7 +90,27 @@ public:
     [[nodiscard]] CallScope scope(std::stop_token stop = {}) const { return CallScope(config_.timeout, stop); }
     [[nodiscard]] const Schema& schema() const noexcept { return *schema_; }
     [[nodiscard]] const Json& operation(const std::string& name) const { return schema_->description().at("operations").at(name); }
-    [[nodiscard]] Json call(const std::string& name, const Json& input, const CallScope& scope) const;
+    // Sends one operation, with its streaming request body if it has one.
+    [[nodiscard]] CallResult exchange(const std::string& name, const Json& input, const CallScope& scope, std::optional<ByteStream> body = {}) const;
+    [[nodiscard]] Json call(const std::string& name, const Json& input, const CallScope& scope) const { return exchange(name, input, scope).value; }
+    // Polls an operation until a modeled waiter acceptor succeeds or fails, or the timeout elapses.
+    template<class T> [[nodiscard]] std::optional<T> wait(const std::string& operation, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop,
+            std::optional<ByteStream> body = {}, const std::function<void(T&, std::optional<ByteStream>)>& attach = {}) const {
+        const auto& output = this->operation(operation).at("output");
+        (void)output;
+        const auto view = [&](const Json& value) -> Json {
+            if constexpr (std::is_same_v<T, Unit>) return value;
+            else { const auto context = schema_->context(output.string()); return Codec<T>::encode(Codec<T>::decode(value, context), context); }
+        };
+        auto result = wait_json(operation, waiter, input, timeout, options, stop, view, body);
+        if (!result) return std::nullopt;
+        if constexpr (std::is_same_v<T, Unit>) return T{};
+        else {
+            auto decoded = Codec<T>::decode(result->value, schema_->context(output.string()));
+            if (attach) attach(decoded, std::move(result->stream));
+            return decoded;
+        }
+    }
 };
 template<class T> class Pages {
     std::shared_ptr<ClientRuntime> runtime_;

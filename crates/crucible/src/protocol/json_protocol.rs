@@ -23,22 +23,18 @@ pub struct JsonProtocol;
 
 impl Protocol for JsonProtocol {
     fn route(&self, request: &Parts, operations: &Operations) -> Option<Route> {
-        // A path names an operation only in its canonical form: one leading
-        // slash, no empty segment anywhere else (`a//b`, a trailing `/`).
-        // Dropping empty segments here would let `/orgs/o_1//keys` run the
-        // operation while anything else that reads the path (a service's
-        // own audit or routing rules) saw a different one.
         let rest = request.uri.path().strip_prefix('/')?;
         let path: Vec<&str> = if rest.is_empty() {
             Vec::new()
         } else {
             rest.split('/').collect()
         };
-        if path.iter().any(|segment| segment.is_empty()) {
-            return None;
-        }
         let mut best: Option<((usize, usize, usize), Route)> = None;
-        for &op in operations.routes(path.len()) {
+        for &op in operations
+            .routes(path.len())
+            .iter()
+            .chain(operations.greedy_routes())
+        {
             if op.method != request.method.as_str() {
                 continue;
             }
@@ -51,20 +47,39 @@ impl Protocol for JsonProtocol {
             }
             let mut labels = Vec::new();
             let mut literals = 0;
-            let matched = op
-                .path
-                .iter()
-                .zip(&path)
-                .all(|(segment, part)| match segment {
+            if path.len() < op.path.len() {
+                continue;
+            }
+            let mut cursor = 0;
+            let matched = op.path.iter().all(|segment| {
+                let Some(part) = path.get(cursor) else {
+                    return false;
+                };
+                cursor += 1;
+                match segment {
                     Segment::Literal(text) => {
                         literals += 1;
                         text == part
                     }
                     Segment::Label(name) => {
+                        if part.is_empty() {
+                            return false;
+                        }
                         labels.push((*name, percent_decode(part, false).into_owned()));
                         true
                     }
-                });
+                    Segment::GreedyLabel(name) => {
+                        let width = path.len() - op.path.len() + 1;
+                        let joined = path[cursor - 1..cursor - 1 + width].join("/");
+                        cursor += width - 1;
+                        if joined.is_empty() {
+                            return false;
+                        }
+                        labels.push((*name, percent_decode(&joined, false).into_owned()));
+                        true
+                    }
+                }
+            }) && cursor == path.len();
             // A literal beats a label in the same place: `cities/search`
             // over `cities/{cityId}`. With equal query constraint counts,
             // an exact value beats a constraint that only requires the key.
@@ -92,23 +107,63 @@ impl Protocol for JsonProtocol {
         match job.resolution() {
             Some(Resolution::Success(output)) => {
                 let op = operation.expect("an output implies an operation");
+                if let Some(stream) = output.stream() {
+                    let mut ignored = Vec::new();
+                    let bindings = match output.write_http(op.output, &mut ignored) {
+                        Ok(bindings) => bindings,
+                        Err(error) => return serialization_failure(error),
+                    };
+                    let Some((member, media_type)) = Location::payload(op.output) else {
+                        return framework_response(&FrameworkError::InternalFailure);
+                    };
+                    let stream = match member.location {
+                        Location::StreamingPayload {
+                            minimum, maximum, ..
+                        } => stream.with_bounds(minimum, maximum),
+                        _ => stream,
+                    };
+                    return match stream.open() {
+                        Ok(body) => {
+                            let mut response = respond(
+                                bindings.status.unwrap_or(op.status),
+                                bindings.headers,
+                                None,
+                            );
+                            response
+                                .headers_mut()
+                                .insert(header::CONTENT_TYPE, content_type_header(media_type));
+                            if let Some(length) = stream.length() {
+                                response.headers_mut().insert(
+                                    header::CONTENT_LENGTH,
+                                    HeaderValue::from_str(&length.to_string())
+                                        .expect("integer header"),
+                                );
+                            }
+                            *response.body_mut() = Body::from_stream(body);
+                            response
+                        }
+                        Err(_) => framework_response(&FrameworkError::InternalFailure),
+                    };
+                }
                 if let Some((_, media_type)) = Location::payload(op.output) {
                     // The payload's bytes are the body, under its own media type.
                     let mut body = Vec::new();
-                    return match output.write_json_split(op.output, &mut body) {
-                        Ok(headers) => respond(
-                            op.status,
-                            headers,
+                    return match output.write_http(op.output, &mut body) {
+                        Ok(bindings) => respond(
+                            bindings.status.unwrap_or(op.status),
+                            bindings.headers,
                             (!body.is_empty()).then_some((media_type, body)),
                         ),
                         Err(error) => serialization_failure(error),
                     };
                 }
                 let has_body = op.output.iter().any(|m| m.location == Location::Body);
-                let has_headers = op
-                    .output
-                    .iter()
-                    .any(|m| matches!(m.location, Location::Header(_)));
+                let has_headers = op.output.iter().any(|m| {
+                    matches!(
+                        m.location,
+                        Location::Header(_) | Location::PrefixHeaders(_) | Location::ResponseCode
+                    )
+                });
                 if !has_headers {
                     // Straight to bytes, with no JSON value in between.
                     if !has_body {
@@ -122,8 +177,12 @@ impl Protocol for JsonProtocol {
                 }
                 // Header members leave the body as it is written.
                 let mut body = Vec::with_capacity(256);
-                match output.write_json_split(op.output, &mut body) {
-                    Ok(headers) => respond(op.status, headers, has_body.then_some((JSON, body))),
+                match output.write_http(op.output, &mut body) {
+                    Ok(bindings) => respond(
+                        bindings.status.unwrap_or(op.status),
+                        bindings.headers,
+                        has_body.then_some((JSON, body)),
+                    ),
                     Err(error) => serialization_failure(error),
                 }
             }
@@ -198,10 +257,74 @@ fn bound_members<'a>(
     for member in op.input {
         let wire = wire_name(member);
         let value = match (member.location, member.scalar) {
-            (Location::Body, _) => continue,
+            // Servers do not serve event streams: generation refuses them.
+            (Location::Body | Location::ResponseCode | Location::EventStream, _) => continue,
+            (Location::QueryParams, scalar) => {
+                let mut values = serde_json::Map::new();
+                for pair in query.split('&').filter(|p| !p.is_empty()) {
+                    let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+                    let name = percent_decode(name, true).into_owned();
+                    if op.literal_query.iter().any(|(key, _)| *key == name)
+                        || op
+                            .input
+                            .iter()
+                            .any(|m| matches!(m.location, Location::Query(key) if key == name))
+                    {
+                        continue;
+                    }
+                    let value = Value::String(percent_decode(value, true).into_owned());
+                    if matches!(scalar, Scalar::List(_)) {
+                        values
+                            .entry(name)
+                            .or_insert_with(|| Value::Array(Vec::new()))
+                            .as_array_mut()
+                            .expect("list map")
+                            .push(value);
+                    } else {
+                        values.entry(name).or_insert(value);
+                    }
+                }
+                Ok(BoundValue::Json(Value::Object(values)))
+            }
+            (Location::PrefixHeaders(prefix), _) => {
+                let mut values = serde_json::Map::new();
+                for (name, value) in &job.request().headers {
+                    if let Some(key) = name.as_str().strip_prefix(prefix) {
+                        match value.to_str() {
+                            Ok(text) => {
+                                values.insert(key.to_owned(), Value::String(text.to_owned()));
+                            }
+                            Err(_) => {
+                                violations.push(malformed(name.as_str(), "is not visible ASCII"))
+                            }
+                        }
+                    }
+                }
+                Ok(BoundValue::Json(Value::Object(values)))
+            }
+            (
+                Location::StreamingPayload {
+                    requires_length, ..
+                },
+                _,
+            ) => {
+                if requires_length && job.request().headers.get("content-length").is_none() {
+                    violations.push(malformed(
+                        member.name,
+                        "streaming payload requires content-length",
+                    ));
+                    continue;
+                }
+                Ok(BoundValue::Json(Value::Null))
+            }
             // An empty body is no payload: a required one is missing.
             (Location::Payload(_), _) if job.body().is_empty() => continue,
             (Location::Payload(_), _) => Ok(BoundValue::Bytes(job.body().clone())),
+            (Location::TextPayload(_), _) => std::str::from_utf8(job.body())
+                .map(|text| BoundValue::Text(Cow::Borrowed(text)))
+                .map_err(|_| "must be UTF-8 text".to_owned()),
+            (Location::DocumentPayload(_), _) if job.body().trim_ascii().is_empty() => continue,
+            (Location::DocumentPayload(_), _) => Ok(BoundValue::RawJson(job.body())),
             (Location::Label, scalar) => {
                 match job.labels().iter().find(|(name, _)| *name == member.name) {
                     Some((_, text)) => BoundValue::parse(Cow::Borrowed(text.as_str()), scalar),
@@ -249,7 +372,16 @@ fn bound_members<'a>(
 fn wire_name(member: &MemberInfo) -> &'static str {
     match member.location {
         Location::Query(name) | Location::Header(name) => name,
-        Location::Label | Location::Body | Location::Payload(_) => member.name,
+        Location::Label
+        | Location::Body
+        | Location::Payload(_)
+        | Location::TextPayload(_)
+        | Location::DocumentPayload(_)
+        | Location::QueryParams
+        | Location::PrefixHeaders(_)
+        | Location::ResponseCode
+        | Location::StreamingPayload { .. }
+        | Location::EventStream => member.name,
     }
 }
 
@@ -265,8 +397,12 @@ const JSON: &str = "application/json";
 
 fn error_response(error: &dyn ModelledError) -> Response {
     let mut body = Vec::with_capacity(128);
-    match error.write_json(&mut body) {
-        Ok(headers) => respond(error.info().status, headers, Some((JSON, body))),
+    match error.write_http(&mut body) {
+        Ok(bindings) => respond(
+            bindings.status.unwrap_or(error.info().status),
+            bindings.headers,
+            Some((JSON, body)),
+        ),
         Err(error) => serialization_failure(error),
     }
 }
@@ -302,7 +438,7 @@ fn content_type_header(content_type: &'static str) -> HeaderValue {
 /// `body` is the content type and the bytes.
 fn respond(
     status: u16,
-    headers: Vec<(&'static str, String)>,
+    headers: Vec<(String, String)>,
     body: Option<(&'static str, Vec<u8>)>,
 ) -> Response {
     let status = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);

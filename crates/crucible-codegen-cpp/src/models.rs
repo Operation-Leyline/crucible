@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub fn model(shape: &Shape) -> bool {
     matches!(
         shape,
-        Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_)
+        Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_)
     )
 }
 pub fn variant(name: &str, member: &str) -> String {
@@ -113,6 +113,8 @@ impl<'a> Layout<'a> {
         match self.service.shape(target).expect("shape") {
             Shape::Unit => format!("{runtime}::Unit"),
             Shape::Simple(simple) => match simple.kind {
+                SimpleKind::BigInteger => format!("{runtime}::BigInteger"),
+                SimpleKind::BigDecimal => format!("{runtime}::BigDecimal"),
                 SimpleKind::String => "std::string".into(),
                 SimpleKind::Boolean => "bool".into(),
                 SimpleKind::Byte => "std::int8_t".into(),
@@ -121,15 +123,27 @@ impl<'a> Layout<'a> {
                 SimpleKind::Long => "std::int64_t".into(),
                 SimpleKind::Float => "float".into(),
                 SimpleKind::Double => "double".into(),
+                SimpleKind::Blob if simple.streaming => format!("{runtime}::ByteStream"),
                 SimpleKind::Blob => format!("{runtime}::Blob"),
                 SimpleKind::Timestamp => format!("{runtime}::Timestamp"),
                 SimpleKind::Document => format!("{runtime}::Json"),
             },
-            Shape::List(list) => format!("std::vector<{}>", self.ty(owner, &list.member.target)),
+            Shape::List(list) => format!(
+                "std::vector<{}>",
+                if list.sparse {
+                    format!("std::optional<{}>", self.ty(owner, &list.member.target))
+                } else {
+                    self.ty(owner, &list.member.target)
+                }
+            ),
             Shape::Map(map) => format!(
                 "std::map<{}, {}>",
                 self.ty(owner, &map.key.target),
-                self.ty(owner, &map.value.target)
+                if map.sparse {
+                    format!("std::optional<{}>", self.ty(owner, &map.value.target))
+                } else {
+                    self.ty(owner, &map.value.target)
+                }
             ),
             _ => {
                 let native = format!(
@@ -255,6 +269,18 @@ impl<'a> Layout<'a> {
                         ));
                     }
                     source.push_str("    return Json(std::move(object));\n}\n");
+                }
+                Shape::IntEnum(enumeration) => {
+                    header.push_str(&format!("\nstruct {name} {{\n    std::int32_t value;\n    explicit {name}(std::int32_t value = 0) : value(value) {{}}\n    auto operator<=>(const {name}&) const = default;\n"));
+                    for item in &enumeration.values {
+                        header.push_str(&format!(
+                            "    static {name} known_{}() {{ return {name}{{{}}}; }}\n",
+                            field(&item.name),
+                            item.value
+                        ));
+                    }
+                    header.push_str("};\n");
+                    codecs.push_str(&format!("template<> struct Codec<{qualified}> {{\n    static {qualified} decode(const Json& value, const Context& context) {{ return {qualified}{{Codec<std::int32_t>::decode(value, context)}}; }}\n    static Json encode(const {qualified}& value, const Context& context) {{ return Codec<std::int32_t>::encode(value.value, context); }}\n}};\n"));
                 }
                 Shape::Enum(enumeration) => {
                     header.push_str(&format!("\nstruct {name} {{\n    std::string value;\n    explicit {name}(std::string value = {{}}) : value(std::move(value)) {{}}\n    auto operator<=>(const {name}&) const = default;\n"));

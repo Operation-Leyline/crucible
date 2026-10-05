@@ -72,12 +72,17 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
         out.push_str(&format!(
             "pub(super) static {}: ErrorInfo = ErrorInfo {{\n    name: {},\n    status: {},\n    fault: Fault::{fault},\n    retryable: {retryable},\n    throttling: {throttling},\n    members: {},\n}};\n\n",
             info_static(name),
-            literal(name),
+            literal(&error.wire_code),
             error.status,
-            members(service, structure, &error_bindings(&error.headers))
+            members(service, structure, &error_bindings(error))
         ));
+        let status = error.response_code.as_ref().and_then(|name| structure.member(name)).map_or(String::new(), |member| {
+            let rust = crate::names::field(&member.name);
+            let get = if client && member.optional_on_client() { format!("self.{rust}.value().map(|value| ::crucible::operation::response_status(i64::from(*value))).unwrap_or({})", error.status) } else if !client && member.optional_on_server() { format!("self.{rust}.as_ref().map(|value| ::crucible::operation::response_status(i64::from(*value))).unwrap_or({})", error.status) } else { format!("::crucible::operation::response_status(i64::from(self.{rust}))") };
+            format!("    fn response_status(&self) -> u16 {{ {get} }}\n\n")
+        });
         out.push_str(&format!(
-            "impl ::crucible::ModelledError for {name} {{\n    fn info(&self) -> &'static ErrorInfo {{\n        &{}\n    }}\n\n    fn to_json(&self) -> ::crucible::__private::serde_json::Value {{\n        ::crucible::__private::serde_json::to_value(self).unwrap_or_default()\n    }}\n\n    fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {{\n        ::crucible::error::write_error(self, out)\n    }}\n}}\n\n",
+            "impl ::crucible::ModelledError for {name} {{\n{status}    fn info(&self) -> &'static ErrorInfo {{\n        &{}\n    }}\n\n    fn to_json(&self) -> ::crucible::__private::serde_json::Value {{\n        ::crucible::__private::serde_json::to_value(self).unwrap_or_default()\n    }}\n\n    fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {{\n        ::crucible::error::write_error(self, out)\n    }}\n\n    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {{\n        ::crucible::error::write_error_http(self, out)\n    }}\n}}\n\n",
             info_static(name)
         ));
         let message = structure
@@ -126,6 +131,9 @@ pub(crate) fn classify(service: &Service) -> String {
         ));
     }
     out.push_str("    None\n}\n");
+    if error_shapes(service).is_empty() {
+        out = out.replace("classify<'a>(error:", "classify<'a>(_error:");
+    }
     out
 }
 

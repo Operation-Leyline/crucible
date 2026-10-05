@@ -10,7 +10,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use crate::error::{Error, Result};
-use crate::operation::{Input, Operation, OperationInfo, Output, ServiceInfo};
+use crate::operation::{Input, Operation, OperationInfo, Output, Segment, ServiceInfo};
 use crate::protocol::BoundValue;
 use crate::validate::{Rejection, Validator};
 
@@ -26,6 +26,7 @@ type DecodeJson = fn(&[u8]) -> std::result::Result<Box<dyn Input>, Rejection>;
 pub(crate) type DecodeBound = for<'a> fn(
     &'a [u8],
     Vec<(&'static str, BoundValue<'a>)>,
+    Option<crucible_wire::stream::ByteStream>,
 ) -> std::result::Result<Box<dyn Input>, Rejection>;
 
 pub(crate) struct Entry {
@@ -42,6 +43,7 @@ pub struct Operations {
     /// Operations by path length, built once, so routing a request compares
     /// only the paths that could match.
     routes: HashMap<usize, Vec<&'static OperationInfo>>,
+    greedy_routes: Vec<&'static OperationInfo>,
 }
 
 impl Operations {
@@ -51,6 +53,7 @@ impl Operations {
                 service,
                 entries: BTreeMap::new(),
                 routes: HashMap::new(),
+                greedy_routes: Vec::new(),
             },
         }
     }
@@ -61,6 +64,10 @@ impl Operations {
 
     pub(crate) fn entry(&self, name: &str) -> Option<&Entry> {
         self.entries.get(name)
+    }
+
+    pub fn greedy_routes(&self) -> &[&'static OperationInfo] {
+        &self.greedy_routes
     }
 
     /// The operations whose path has `segments` segments.
@@ -97,7 +104,7 @@ impl OperationsBuilder {
                     Error::internal(format!("{}: input of the wrong type", O::INFO.name))
                 })?;
                 let output = call(implementation, *input).await?;
-                Ok(Box::new(output) as Box<dyn Output>)
+                Ok(Box::new(StreamingOutput::<O>(output)) as Box<dyn Output>)
             })
         });
         self.operations.entries.insert(
@@ -117,6 +124,14 @@ impl OperationsBuilder {
     pub fn build(mut self) -> std::result::Result<Operations, MissingOperations> {
         for entry in self.operations.entries.values() {
             let info = entry.info;
+            if info
+                .path
+                .iter()
+                .any(|s| matches!(s, Segment::GreedyLabel(_)))
+            {
+                self.operations.greedy_routes.push(info);
+                continue;
+            }
             self.operations
                 .routes
                 .entry(info.path.len())
@@ -182,8 +197,12 @@ fn decode_json<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>
 fn decode_bound<'a, O: Operation>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
+    stream: Option<crucible_wire::stream::ByteStream>,
 ) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let input: O::Input = crate::protocol::read_bound(body, bound).map_err(unreadable)?;
+    let mut input: O::Input = crate::protocol::read_bound(body, bound).map_err(unreadable)?;
+    if let Some(stream) = stream {
+        O::set_input_stream(&mut input, stream);
+    }
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -198,3 +217,36 @@ impl fmt::Display for MissingOperations {
 }
 
 impl std::error::Error for MissingOperations {}
+
+struct StreamingOutput<O: Operation>(O::Output);
+impl<O: Operation> Output for StreamingOutput<O> {
+    fn response_status(&self) -> Option<u16> {
+        O::output_status(&self.0)
+    }
+    fn to_json(&self) -> Value {
+        serde_json::to_value(&self.0).unwrap_or(Value::Null)
+    }
+    fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<()> {
+        serde_json::to_writer(out, &self.0)
+    }
+    fn write_json_split(
+        &self,
+        members: &[crate::operation::MemberInfo],
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<Vec<(&'static str, String)>> {
+        crucible_wire::split::write(&self.0, members, out)
+    }
+    fn write_http(
+        &self,
+        members: &[crate::operation::MemberInfo],
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<crate::operation::ResponseBindings> {
+        crucible_wire::split::write_http(&self.0, members, None, out)
+    }
+    fn stream(&self) -> Option<crucible_wire::stream::ByteStream> {
+        O::output_stream(&self.0)
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        &self.0
+    }
+}

@@ -26,8 +26,11 @@ static SEXP crucible_now(void) {
 #endif
 }
 
+SEXP crucible_crc(SEXP data, SEXP kind);
+
 static const R_CallMethodDef methods[] = {
     {"crucible_now", (DL_FUNC) &crucible_now, 0},
+    {"crucible_crc", (DL_FUNC) &crucible_crc, 2},
     {NULL, NULL, 0}
 };
 

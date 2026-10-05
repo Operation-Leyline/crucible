@@ -157,6 +157,60 @@ void validate_utf8(std::string_view text) {
 Number::Number(std::string text) : text_(std::move(text)) {
     if (number_end(text_, 0) != text_.size()) throw std::invalid_argument("Invalid JSON number");
 }
+std::pair<std::string, std::string> Number::canonical() const {
+    const bool negative = text_[0] == '-';
+    const auto exponent_at = text_.find_first_of("eE");
+    auto coefficient = text_.substr(negative ? 1 : 0, exponent_at == std::string::npos ? exponent_at : exponent_at - (negative ? 1 : 0));
+    const auto point = coefficient.find('.');
+    std::size_t fraction = point == std::string::npos ? 0 : coefficient.size() - point - 1;
+    if (point != std::string::npos) coefficient.erase(point, 1);
+    const auto first = coefficient.find_first_not_of('0');
+    if (first == std::string::npos) return {"0", "0"};
+    coefficient.erase(0, first);
+    std::size_t zeros = 0;
+    while (coefficient.back() == '0') { coefficient.pop_back(); ++zeros; }
+    auto exponent = exponent_at == std::string::npos ? "0" : text_.substr(exponent_at + 1);
+    bool exponent_negative = exponent.front() == '-';
+    if (exponent.front() == '-' || exponent.front() == '+') exponent.erase(0, 1);
+    const auto significant = exponent.find_first_not_of('0');
+    if (significant == std::string::npos) { exponent = "0"; exponent_negative = false; }
+    else exponent.erase(0, significant);
+    while (zeros != fraction) {
+        const bool decrease = zeros < fraction;
+        if (decrease != exponent_negative) {
+            if (exponent == "0") { exponent_negative = !exponent_negative; exponent = "1"; }
+            else {
+                auto index = exponent.size() - 1;
+                while (exponent[index] == '0') { exponent[index] = '9'; --index; }
+                --exponent[index];
+                const auto nonzero = exponent.find_first_not_of('0');
+                if (nonzero == std::string::npos) { exponent = "0"; exponent_negative = false; }
+                else exponent.erase(0, nonzero);
+            }
+        } else {
+            auto index = exponent.size();
+            while (index > 0 && exponent[index - 1] == '9') { exponent[index - 1] = '0'; --index; }
+            if (index == 0) exponent.insert(0, "1"); else ++exponent[index - 1];
+        }
+        if (decrease) --fraction; else --zeros;
+    }
+    return {(negative ? "-" : "") + coefficient, (exponent_negative ? "-" : "") + exponent};
+}
+bool equivalent(const Json& left, const Json& right) {
+    if (left.value().index() != right.value().index()) return false;
+    if (left.is_null()) return true;
+    if (std::holds_alternative<Number>(left.value())) return left.number().canonical() == right.number().canonical();
+    if (std::holds_alternative<std::string>(left.value())) return left.string() == right.string();
+    if (std::holds_alternative<bool>(left.value())) return left.boolean() == right.boolean();
+    if (std::holds_alternative<Json::Array>(left.value())) {
+        if (left.array().size() != right.array().size()) return false;
+        for (std::size_t i = 0; i < left.array().size(); ++i) if (!equivalent(left.array()[i], right.array()[i])) return false;
+        return true;
+    }
+    if (left.object().size() != right.object().size()) return false;
+    for (const auto& [name, item] : left.object()) { const auto* other = right.find(name); if (!other || !equivalent(item, *other)) return false; }
+    return true;
+}
 std::string Number::scaled(unsigned places) const {
     if (places > 10000) throw std::invalid_argument("Numeric scale limit");
     const bool negative = text_[0] == '-';

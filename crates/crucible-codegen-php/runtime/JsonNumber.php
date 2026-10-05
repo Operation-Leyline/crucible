@@ -59,4 +59,37 @@ final readonly class JsonNumber
         if (!is_finite($value)) throw new \UnexpectedValueException('Non-finite number');
         return $value;
     }
+
+    /** Canonical coefficient and exponent without expanding the magnitude. */
+    public function canonical(): array
+    {
+        preg_match('/^(-?)([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?$/D', $this->text, $m);
+        $fraction = $m[3] ?? '';
+        $digits = ltrim($m[2] . $fraction, '0');
+        if ($digits === '') return ['0', '0'];
+        $trimmed = rtrim($digits, '0');
+        $amount = strlen($digits) - strlen($trimmed) - strlen($fraction);
+        $exponent = $m[4] ?? '0';
+        $negative = str_starts_with($exponent, '-');
+        $exponent = ltrim(ltrim($exponent, '+-'), '0');
+        if ($exponent === '') { $exponent = '0'; $negative = false; }
+        while ($amount !== 0) {
+            $subtract = ($amount < 0) !== $negative;
+            if ($subtract && $exponent === '0') { $negative = !$negative; $exponent = '1'; }
+            elseif ($subtract) {
+                $i = strlen($exponent) - 1;
+                while ($exponent[$i] === '0') { $exponent[$i] = '9'; $i--; }
+                $exponent[$i] = (string)((int)$exponent[$i] - 1);
+                $exponent = ltrim($exponent, '0');
+                if ($exponent === '') { $exponent = '0'; $negative = false; }
+            } else {
+                $i = strlen($exponent) - 1;
+                while ($i >= 0 && $exponent[$i] === '9') { $exponent[$i] = '0'; $i--; }
+                if ($i < 0) $exponent = '1' . $exponent;
+                else $exponent[$i] = (string)((int)$exponent[$i] + 1);
+            }
+            $amount += $amount < 0 ? 1 : -1;
+        }
+        return [$m[1] . $trimmed, ($negative ? '-' : '') . $exponent];
+    }
 }

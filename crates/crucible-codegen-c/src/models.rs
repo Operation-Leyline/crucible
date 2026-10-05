@@ -15,8 +15,11 @@ pub fn native_name(service: &Service, id: &ShapeId, prefix: &str) -> String {
 }
 pub fn native_type(service: &Service, id: &ShapeId, prefix: &str) -> String {
     match service.shape(id).expect("shape") {
+        Shape::IntEnum(_) => native_name(service, id, prefix),
         Shape::Unit => format!("{prefix}_unit"),
         Shape::Simple(simple) => match simple.kind {
+            SimpleKind::BigInteger => format!("{prefix}_big_integer"),
+            SimpleKind::BigDecimal => format!("{prefix}_big_decimal"),
             SimpleKind::String => format!("{prefix}_string"),
             SimpleKind::Boolean => "bool".into(),
             SimpleKind::Byte => "int8_t".into(),
@@ -89,6 +92,7 @@ fn member(
 }
 fn kind(shape: &Shape) -> &'static str {
     match shape {
+        Shape::IntEnum(_) => "int_enum",
         Shape::Unit => "unit",
         Shape::Structure(_) => "structure",
         Shape::Union(_) => "union",
@@ -96,6 +100,8 @@ fn kind(shape: &Shape) -> &'static str {
         Shape::List(_) => "list",
         Shape::Map(_) => "map",
         Shape::Simple(simple) => match simple.kind {
+            SimpleKind::BigInteger => "big_integer",
+            SimpleKind::BigDecimal => "big_decimal",
             SimpleKind::String => "string",
             SimpleKind::Boolean => "boolean",
             SimpleKind::Byte => "byte",
@@ -124,6 +130,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
         let native = native_name(service, id, p);
         if complex(shape) {
             header.push_str(&format!("typedef struct {native} {native};\n"));
+        }
+        if matches!(shape, Shape::IntEnum(_)) {
+            header.push_str(&format!("typedef int32_t {native};\n"));
         }
         if matches!(shape, Shape::Enum(_)) {
             header.push_str(&format!("typedef {p}_string {native};\n"));
@@ -156,13 +165,30 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 }
             }
             Shape::List(list) => {
+                let slot = slot_type(service, &list.member.target, p);
+                let item = if list.sparse {
+                    header.push_str(&format!(
+                        "typedef struct {{ {p}_presence state; {slot} value; }} {native}_item;\n"
+                    ));
+                    format!("{native}_item")
+                } else {
+                    slot
+                };
                 header.push_str(&format!(
-                    "\nstruct {native} {{ size_t length; {} const *items; }};\n",
-                    slot_type(service, &list.member.target, p)
+                    "\nstruct {native} {{ size_t length; {item} const *items; }};\n"
                 ));
             }
             Shape::Map(map) => {
-                header.push_str(&format!("\ntypedef struct {{ {} key; {} value; }} {native}_entry;\nstruct {native} {{ size_t length; const {native}_entry *items; }};\n", slot_type(service, &map.key.target, p), slot_type(service, &map.value.target, p)));
+                header.push_str(&format!("\ntypedef struct {{ {} key; {}{} value; }} {native}_entry;\nstruct {native} {{ size_t length; const {native}_entry *items; }};\n", slot_type(service, &map.key.target, p), if map.sparse { format!("{p}_presence state; ") } else { String::new() }, slot_type(service, &map.value.target, p)));
+            }
+            Shape::IntEnum(enumeration) => {
+                for value in &enumeration.values {
+                    header.push_str(&format!(
+                        "static inline {native} {native}_known_{}(void) {{ return {}; }}\n",
+                        names::field(&value.name),
+                        value.value
+                    ));
+                }
             }
             Shape::Enum(enumeration) => {
                 for value in &enumeration.values {
@@ -193,7 +219,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             }
             _ => {}
         }
-        if complex(shape) || matches!(shape, Shape::Enum(_)) {
+        if complex(shape) || matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
             let desc = descriptor(service, id, p);
             header.push_str(&format!("{p}_status {native}_encode({p}_arena *arena, const {native} *value, const {p}_json **output, {p}_error *error);\n{p}_status {native}_decode({p}_arena *arena, const {p}_json *value, const {native} **output, {p}_error *error);\n"));
             source.push_str(&format!("{p}_status {native}_encode({p}_arena *arena, const {native} *value, const {p}_json **output, {p}_error *error) {{\n    return {p}_model_encode(arena, &{desc}, value, output, error);\n}}\n{p}_status {native}_decode({p}_arena *arena, const {p}_json *value, const {native} **output, {p}_error *error) {{\n    const void *native;\n    {p}_status status;\n    if (!output) return {p}_model_decode(arena, &{desc}, value, NULL, error);\n    status = {p}_model_decode(arena, &{desc}, value, &native, error);\n    if (status == {p}_ok) *output = (const {native} *)native;\n    return status;\n}}\n"));
@@ -232,7 +258,14 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 union.members.len()
             }
             Shape::List(list) => {
-                members.push_str(&member(service, &native, &list.member, p, "", ""));
+                members.push_str(&member(
+                    service,
+                    &format!("{native}_item"),
+                    &list.member,
+                    p,
+                    if list.sparse { "state" } else { "" },
+                    if list.sparse { "value" } else { "" },
+                ));
                 1
             }
             Shape::Map(map) => {
@@ -249,7 +282,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                     &format!("{native}_entry"),
                     &map.value,
                     p,
-                    "",
+                    if map.sparse { "state" } else { "" },
                     "value",
                 ));
                 2
@@ -272,9 +305,18 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             ));
         }
         match shape {
-            Shape::List(list) => source.push_str(&format!("    .length_offset = offsetof({native}, length), .items_offset = offsetof({native}, items), .item_size = sizeof({}),\n", slot_type(service, &list.member.target, p))),
+            Shape::List(list) => source.push_str(&format!("    .length_offset = offsetof({native}, length), .items_offset = offsetof({native}, items), .item_size = sizeof({}),\n", if list.sparse { format!("{native}_item") } else { slot_type(service, &list.member.target, p) })),
             Shape::Map(_) => source.push_str(&format!("    .length_offset = offsetof({native}, length), .items_offset = offsetof({native}, items), .item_size = sizeof({native}_entry),\n")),
             Shape::Union(_) => source.push_str(&format!("    .tag_offset = offsetof({native}, tag), .state_offset = offsetof({native}, state), .unknown_name_offset = offsetof({native}, unknown_name), .unknown_value_offset = offsetof({native}, unknown_value),\n")),
+            _ => {}
+        }
+        match shape {
+            Shape::List(list) => source.push_str(&format!(
+                "    .sparse = {}, .unique = {},\n",
+                list.sparse,
+                list.is_set || list.constraints.unique_items
+            )),
+            Shape::Map(map) => source.push_str(&format!("    .sparse = {},\n", map.sparse)),
             _ => {}
         }
         source.push_str("};\n");
@@ -289,6 +331,13 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
         ));
     }
     source.push_str("    return NULL;\n}\n");
+    let settings = &service.protocol_settings;
+    let flags = u8::from(settings.non_finite_float_strings)
+        | (u8::from(settings.omit_null_structure_members) << 1)
+        | (u8::from(settings.ignore_unknown_union_type) << 2);
+    source.push_str(&format!(
+        "/* JSON protocol behavior read by the runtime codec and bindings. */\nconst unsigned {p}_protocol_flags = {flags}u;\n"
+    ));
     header.push_str("\n#ifdef __cplusplus\n}\n#endif\n#endif\n");
     vec![
         File {

@@ -100,6 +100,17 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 }
                 out.push_str("        object\n      end\n    end\n");
             }
+            Shape::IntEnum(enumeration) => {
+                out.push_str(&format!("    class {name}\n      attr_reader :value\n      def initialize(value)\n        raise ::ArgumentError, 'Expected signed 32-bit integer' unless value.is_a?(::Integer) && (-(2**31)...2**31).cover?(value)\n        @value = value\n        freeze\n      end\n      def self.from_wire(value, context) = new(context.codec.number(value).integer(-(2**31), 2**31 - 1))\n      def to_wire(_context) = @value\n      def ==(other) = other.is_a?(self.class) && @value == other.value\n      alias eql? ==\n      def hash = @value.hash\n"));
+                for value in &enumeration.values {
+                    out.push_str(&format!(
+                        "      {} = new({})\n",
+                        enum_constant(&value.name),
+                        value.value
+                    ));
+                }
+                out.push_str("    end\n");
+            }
             Shape::Enum(enumeration) => {
                 out.push_str(&format!("    class {name}\n      attr_reader :value\n      def initialize(value)\n        @value = {runtime}::WireCodec.string(value).freeze\n        freeze\n      end\n      def self.from_wire(value, _context) = new(value)\n      def to_wire(_context) = @value\n      def ==(other) = other.is_a?(self.class) && @value == other.value\n      alias eql? ==\n      def hash = @value.hash\n"));
                 for value in &enumeration.values {

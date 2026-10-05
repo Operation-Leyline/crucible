@@ -37,9 +37,11 @@ crucible generates both ends, so it defines its own protocol,
 instead of AWS's restJson1. The two share HTTP bindings, JSON bodies and
 status codes. They differ where restJson1 is AWS-shaped:
 
-- Errors are named only by the body's `"__type"` (the shape name), not an
-  `X-Amzn-Errortype` header. A browser cannot read a custom response header
-  without CORS changes, but it can always read the body.
+- Errors are identified by `X-Crucible-Error` (the shape name), with the
+  legacy body `"__type"` as a fallback. Ordinary JSON errors retain `__type`.
+  An error with an explicit payload requires the header, because its body
+  belongs to the payload. Services exposing these errors to browsers must
+  include `X-Crucible-Error` in `Access-Control-Expose-Headers`.
 - Timestamps default to RFC 3339 `date-time` everywhere, not epoch seconds
   in bodies and HTTP dates in headers.
 - The request id travels in `x-request-id`.
@@ -77,14 +79,15 @@ reach, keyed by shape id. Lowering settles, once:
 - **Sensitivity**: member and target annotations resolve through the IR; generated
   static metadata supports recursive logging redaction.
 - **HTTP bindings**: label, query, header, body or payload for each input
-  member, header, body or payload for each output member, header or body
-  for each error member. A payload (`@httpPayload`) must target a blob and
-  is the whole body, so its structure has no body members; its media type
-  is settled here too. Labels are checked against the URI in both
+  member, header, body or payload for each output or error member. A payload
+  (`@httpPayload`) is the whole body, so its structure has no body members.
+  The IR records its kind, media type and streaming requirements. Labels
+  are checked against the URI in both
   directions. Literal query parameters are preserved
   in both clients and participate in server route matching.
-  Media-type strings in headers (including list elements) are rejected until
-  their base64 binding can be supported consistently across targets.
+  Media-type strings in headers (including list elements) carry an explicit
+  base64 encoding description. Each target must opt into these capabilities;
+  unsupported payload or header encodings remain generation diagnostics.
 - **Errors**: the operation's own, then the service's, each with fault,
   status and retryability.
 - **Pagination**: the operation's `@paginated` merged over the service's.
@@ -162,8 +165,9 @@ labels, `null` versus absent, document values, blobs (base64 in a JSON body,
 raw bytes as a payload), error type identification, and empty bodies for
 Unit output.
 
-A payload is supported only for a blob: a signature over a request (a
-payment processor's webhook) needs the exact bytes, which a JSON body cannot
-promise. A structure, union, string or document payload, and a payload on an
-error (whose body must be JSON naming it), are diagnosed. So is a blob in a
-label, query parameter or header.
+Blob payloads preserve raw bytes. String payloads use UTF-8 text; structures,
+unions and documents use the selected protocol's document encoding. Error
+payloads require a discriminator outside the body: `X-Crucible-Error` for
+Crucible or `X-Amzn-Errortype` for AWS restJson1. These are separate target
+capabilities, so lowering support does not imply client or server support.
+A blob in a label, query parameter or ordinary header remains a diagnostic.

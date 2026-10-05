@@ -6,16 +6,30 @@
 //! copy here would drift from it.
 
 mod ast;
+mod capabilities;
 mod diagnostics;
+mod discovery;
+mod extensions;
 pub mod ir;
+mod jmespath_ir;
 mod lower;
+mod lower_checksums;
+mod lower_endpoints;
+mod lower_extensions;
+mod lower_streams;
+mod protocol;
+mod protocol_tests;
+mod recursion;
 mod resources;
 mod shape_id;
 mod timestamp_default;
+mod xml;
 
 use std::collections::BTreeMap;
 
+pub use capabilities::{Capabilities, Feature, FeatureUse};
 pub use diagnostics::{Diagnostic, Diagnostics};
+pub use protocol::{Protocol, ProtocolSettings};
 pub use shape_id::{ShapeId, ShapeIdError};
 
 #[derive(Debug, thiserror::Error)]
@@ -72,18 +86,39 @@ impl Model {
     /// Lower the operation contract for SDKs and servers. Resource-only shapes
     /// and provisioning diagnostics are excluded. `None` selects the only service.
     pub fn lower(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
-        self.lower_service(service, false)
+        self.lower_with_capabilities(service, &Capabilities::default())
+    }
+
+    /// Lower only semantics that the intended emitter explicitly supports.
+    pub fn lower_with_capabilities(
+        &self,
+        service: Option<&ShapeId>,
+        capabilities: &Capabilities,
+    ) -> Result<ir::Service, Error> {
+        self.lower_selected(service, capabilities, None, false)
+    }
+
+    /// Explicit protocol selection for services that declare alternatives.
+    pub fn lower_with_protocol(
+        &self,
+        service: Option<&ShapeId>,
+        capabilities: &Capabilities,
+        protocol: Protocol,
+    ) -> Result<ir::Service, Error> {
+        self.lower_selected(service, capabilities, Some(protocol), false)
     }
 
     /// Lower the operation contract plus resource metadata and resource-only
     /// shapes for infrastructure generators. Includes provisioning diagnostics.
     pub fn lower_infrastructure(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
-        self.lower_service(service, true)
+        self.lower_selected(service, &Capabilities::default(), None, true)
     }
 
-    fn lower_service(
+    fn lower_selected(
         &self,
         service: Option<&ShapeId>,
+        capabilities: &Capabilities,
+        protocol: Option<Protocol>,
         infrastructure: bool,
     ) -> Result<ir::Service, Error> {
         let id = match service {
@@ -95,7 +130,8 @@ impl Model {
                 many => return Err(Error::AmbiguousService(many.to_vec())),
             },
         };
-        lower::lower(&self.shapes, &id, infrastructure).map_err(Error::Unsupported)
+        lower::lower(&self.shapes, &id, capabilities, protocol, infrastructure)
+            .map_err(Error::Unsupported)
     }
 }
 

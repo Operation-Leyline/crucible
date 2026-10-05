@@ -1,0 +1,36 @@
+import 'package:test/test.dart';
+import 'package:types_client/types_client.dart';
+import 'package:types_client/src/models.dart' show decodeModel;
+import 'package:types_client/src/runtime/codec.dart';
+import 'package:types_client/src/runtime/json.dart';
+import 'package:types_client/src/schema.dart';
+
+void main() {
+  final codec = WireCodec(wireObject(exactJsonDecode(schemaSource)), decodeModel);
+  test('exact defaults, sparse collections and future integer enum', () {
+    final node = exactJsonDecode('{"mode":123,"names":["a","b"],"sparseNames":[null,"x"],"sparseMap":{"absent":null,"future":123}}');
+    final output = codec.decode(node, codec.context('example.types#Output')) as Output;
+    expect(output.integer.toString(), '12345678901234567890123456789012345678901234567890');
+    expect(output.decimal.toString(), '12345678901234567890.12345678901234567890123456789');
+    expect(output.mode!.value, 123);
+    expect(output.sparseNames, [null, 'x']);
+    expect(output.sparseMap!.containsKey('absent'), isTrue);
+    expect(output.sparseMap!['absent'], isNull);
+    expect(output.sparseMap!['future']!.value, 123);
+    final encoded = wireObject(codec.encode(output, codec.context('example.types#Output')));
+    expect(jsonEquivalent(encoded['sparseNames'], wireObject(node)['sparseNames']), isTrue);
+    expect(jsonEquivalent(encoded['sparseMap'], wireObject(node)['sparseMap']), isTrue);
+  });
+  test('sets, dense nulls, integer bounds and exact decimal equality', () {
+    expect(() => codec.decode(['a','a'], codec.context('example.types#Names')), throwsFormatException);
+    expect(() => codec.encode(['a','a'], codec.context('example.types#Names')), throwsFormatException);
+    expect(() => codec.decode([null], codec.context('example.types#Names')), throwsFormatException);
+    expect(() => codec.decode(JsonNumber('2147483648'), codec.context('example.types#Mode')), throwsFormatException);
+    expect(BigDecimal('1e999999999999999999999999'), BigDecimal('10e999999999999999999999998'));
+    expect(BigDecimal('1.0000000000000000000001'), isNot(BigDecimal('1')));
+    for (final entry in {'Integers': '[18446744073709551616,18446744073709551617]', 'Decimals': '[1.00000000000000000001,1.00000000000000000002]'}.entries) {
+      codec.decode(exactJsonDecode(entry.value), codec.context('example.types#${entry.key}'));
+      expect(() => codec.decode(exactJsonDecode('[1,1.0]'), codec.context('example.types#${entry.key}')), throwsFormatException);
+    }
+  });
+}

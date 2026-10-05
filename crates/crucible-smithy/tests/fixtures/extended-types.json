@@ -1,0 +1,23 @@
+{
+ "smithy":"2.0",
+ "shapes":{
+  "example.types#Types":{"type":"service","version":"1","traits":{"crucible.protocols#json":{}},"operations":[{"target":"example.types#Read"}]},
+  "example.types#Read":{"type":"operation","traits":{"smithy.api#http":{"method":"GET","uri":"/types"}},"output":{"target":"example.types#Output"}},
+  "example.types#Mode":{"type":"intEnum","members":{"OFF":{"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":-1}},"ON":{"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":2147483647}}}},
+  "example.types#Names":{"type":"set","member":{"target":"smithy.api#String"}},
+  "example.types#Integers":{"type":"list","traits":{"smithy.api#uniqueItems":{}},"member":{"target":"smithy.api#BigInteger"}},
+  "example.types#Decimals":{"type":"set","member":{"target":"smithy.api#BigDecimal"}},
+  "example.types#SparseNames":{"type":"list","traits":{"smithy.api#sparse":{}},"member":{"target":"smithy.api#String"}},
+  "example.types#SparseMap":{"type":"map","traits":{"smithy.api#sparse":{}},"key":{"target":"smithy.api#String"},"value":{"target":"example.types#Mode"}},
+  "example.types#Output":{"type":"structure","members":{
+   "integer":{"target":"smithy.api#BigInteger","traits":{"smithy.api#default":12345678901234567890123456789012345678901234567890}},
+   "decimal":{"target":"smithy.api#BigDecimal","traits":{"smithy.api#default":12345678901234567890.12345678901234567890123456789}},
+   "mode":{"target":"example.types#Mode"},
+   "names":{"target":"example.types#Names"},
+   "integers":{"target":"example.types#Integers"},
+   "decimals":{"target":"example.types#Decimals"},
+   "sparseNames":{"target":"example.types#SparseNames"},
+   "sparseMap":{"target":"example.types#SparseMap"}
+  }}
+ }
+}

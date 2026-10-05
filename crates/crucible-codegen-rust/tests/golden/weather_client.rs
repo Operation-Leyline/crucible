@@ -21,7 +21,7 @@ pub mod model {
         pub population: i64,
         #[serde(rename = "updatedAt", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub updated_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
-        #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client::Field::is_absent", with = "::crucible_client::time::epoch_seconds::field")]
+        #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client::Field::is_absent", with = "::crucible_client::codec::Adapter::<::crucible_client::codec::Field<::crucible_client::codec::EpochSeconds>>")]
         pub created_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
     }
     impl CitySummary {
@@ -196,7 +196,7 @@ pub mod model {
     pub struct GetCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
-        #[serde(rename = "forecast", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        #[serde(rename = "forecast", default, skip_serializing_if = "::crucible_client::Field::is_absent", with = "::crucible_client::codec::Adapter::<::crucible_client::codec::Field<::crucible_client::codec::Map<::crucible_client::codec::Document>>>")]
         pub forecast: ::crucible_client::Field<Forecast>,
         #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub request_id: ::crucible_client::Field<::std::string::String>,
@@ -788,6 +788,10 @@ pub mod errors {
         fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
             ::crucible_client::error::write_error(self, out)
         }
+
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
+            ::crucible_client::error::write_error_http(self, out)
+        }
     }
 
     impl ::std::fmt::Display for ConflictError {
@@ -852,6 +856,10 @@ pub mod errors {
         fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
             ::crucible_client::error::write_error(self, out)
         }
+
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
+            ::crucible_client::error::write_error_http(self, out)
+        }
     }
 
     impl ::std::fmt::Display for NotFoundError {
@@ -915,6 +923,10 @@ pub mod errors {
 
         fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
             ::crucible_client::error::write_error(self, out)
+        }
+
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
+            ::crucible_client::error::write_error_http(self, out)
         }
     }
 
@@ -995,6 +1007,10 @@ pub mod errors {
         fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
             ::crucible_client::error::write_error(self, out)
         }
+
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
+            ::crucible_client::error::write_error_http(self, out)
+        }
     }
 
     impl ::std::fmt::Display for ValidationError {
@@ -1005,7 +1021,7 @@ pub mod errors {
 
     impl ::std::error::Error for ValidationError {}
 }
-#[allow(dead_code)]
+#[allow(dead_code, unused_imports)]
 mod __redaction {
     use ::crucible_client::operation::Redaction;
     pub(super) static R_0: Redaction = Redaction::Public;
@@ -1078,6 +1094,8 @@ static CREATE_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_clie
 
 impl ::crucible_client::Operation for CreateCity {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client::OperationInfo = &CREATE_CITY_OPERATION;
     type Input = model::CreateCityInput;
     type Output = model::CreateCityOutput;
@@ -1099,9 +1117,9 @@ impl ::crucible_client::OperationErrors for CreateCityError {
             None => ::crucible_client::by_status(status, &[&errors::CONFLICT_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ConflictError" => ::crucible_client::decode_modelled(&errors::CONFLICT_ERROR_INFO, headers, body).map(Self::ConflictError),
-            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ConflictError" => ::crucible_client::decode_modelled_at(status, &errors::CONFLICT_ERROR_INFO, headers, body).map(Self::ConflictError),
+            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1159,6 +1177,8 @@ static GET_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_client:
 
 impl ::crucible_client::Operation for GetCity {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client::OperationInfo = &GET_CITY_OPERATION;
     type Input = model::GetCityInput;
     type Output = model::GetCityOutput;
@@ -1180,9 +1200,9 @@ impl ::crucible_client::OperationErrors for GetCityError {
             None => ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client::decode_modelled(&errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1238,6 +1258,8 @@ static GET_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_c
 
 impl ::crucible_client::Operation for GetCityPhoto {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client::OperationInfo = &GET_CITY_PHOTO_OPERATION;
     type Input = model::GetCityPhotoInput;
     type Output = model::GetCityPhotoOutput;
@@ -1259,9 +1281,9 @@ impl ::crucible_client::OperationErrors for GetCityPhotoError {
             None => ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client::decode_modelled(&errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1319,6 +1341,8 @@ static LIST_CITIES_OPERATION: ::crucible_client::OperationInfo = ::crucible_clie
 
 impl ::crucible_client::Operation for ListCities {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client::OperationInfo = &LIST_CITIES_OPERATION;
     type Input = model::ListCitiesInput;
     type Output = model::ListCitiesOutput;
@@ -1339,8 +1363,8 @@ impl ::crucible_client::OperationErrors for ListCitiesError {
             None => ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1389,6 +1413,8 @@ static PING_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::Ope
 
 impl ::crucible_client::Operation for Ping {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client::OperationInfo = &PING_OPERATION;
     type Input = ::crucible_client::operation::Unit;
     type Output = ::crucible_client::operation::Unit;
@@ -1409,8 +1435,8 @@ impl ::crucible_client::OperationErrors for PingError {
             None => ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1466,6 +1492,8 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_c
 
 impl ::crucible_client::Operation for PutCityPhoto {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
     type Input = model::PutCityPhotoInput;
     type Output = model::PutCityPhotoOutput;
@@ -1487,9 +1515,9 @@ impl ::crucible_client::OperationErrors for PutCityPhotoError {
             None => ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client::decode_modelled(&errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1540,6 +1568,8 @@ static STATUS_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::O
 
 impl ::crucible_client::Operation for Status {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client::OperationInfo = &STATUS_OPERATION;
     type Input = model::StatusInput;
     type Output = model::StatusOutput;
@@ -1560,8 +1590,8 @@ impl ::crucible_client::OperationErrors for StatusError {
             None => ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1595,6 +1625,7 @@ pub struct WeatherClient {
     transport: ::crucible_client::Transport,
 }
 
+#[allow(dead_code)]
 impl WeatherClient {
     pub fn new(config: ::crucible_client::Config) -> Self {
         Self {
@@ -1609,16 +1640,35 @@ impl WeatherClient {
         self.transport.send::<CreateCity, CreateCityError>(&input).await
     }
 
+    pub async fn create_city_with_options(&self, mut input: model::CreateCityInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::CreateCityOutput, ::crucible_client::Error<CreateCityError>> {
+        if input.client_token.value().is_none() {
+            input.client_token = ::crucible_client::Field::Value(::crucible_client::idempotency_token());
+        }
+        self.transport.send_with_options::<CreateCity, CreateCityError>(&input, &options).await
+    }
+
     pub async fn get_city(&self, input: model::GetCityInput) -> ::std::result::Result<model::GetCityOutput, ::crucible_client::Error<GetCityError>> {
         self.transport.send::<GetCity, GetCityError>(&input).await
+    }
+
+    pub async fn get_city_with_options(&self, input: model::GetCityInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::GetCityOutput, ::crucible_client::Error<GetCityError>> {
+        self.transport.send_with_options::<GetCity, GetCityError>(&input, &options).await
     }
 
     pub async fn get_city_photo(&self, input: model::GetCityPhotoInput) -> ::std::result::Result<model::GetCityPhotoOutput, ::crucible_client::Error<GetCityPhotoError>> {
         self.transport.send::<GetCityPhoto, GetCityPhotoError>(&input).await
     }
 
+    pub async fn get_city_photo_with_options(&self, input: model::GetCityPhotoInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::GetCityPhotoOutput, ::crucible_client::Error<GetCityPhotoError>> {
+        self.transport.send_with_options::<GetCityPhoto, GetCityPhotoError>(&input, &options).await
+    }
+
     pub async fn list_cities(&self, input: model::ListCitiesInput) -> ::std::result::Result<model::ListCitiesOutput, ::crucible_client::Error<ListCitiesError>> {
         self.transport.send::<ListCities, ListCitiesError>(&input).await
+    }
+
+    pub async fn list_cities_with_options(&self, input: model::ListCitiesInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::ListCitiesOutput, ::crucible_client::Error<ListCitiesError>> {
+        self.transport.send_with_options::<ListCities, ListCitiesError>(&input, &options).await
     }
 
     /// Every page of ListCities, one request each.
@@ -1626,7 +1676,7 @@ impl WeatherClient {
         ::crucible_client::Paginator::<ListCities, ListCitiesError>::new(
             self.transport.clone(),
             input,
-            |output| output.next_token.as_deref(),
+            |output| { let value = output; let value = value.next_token.value()?; Some(value.as_str()) },
             |input| input.next_token.as_deref(),
             |input, token| input.next_token = ::crucible_client::Field::Value(token),
         )
@@ -1636,12 +1686,25 @@ impl WeatherClient {
         self.transport.send::<Ping, PingError>(&::crucible_client::operation::Unit {}).await.map(|_| ())
     }
 
+    pub async fn ping_with_options(&self, options: ::crucible_client::CallOptions) -> ::std::result::Result<(), ::crucible_client::Error<PingError>> {
+        self.transport.send_with_options::<Ping, PingError>(&::crucible_client::operation::Unit {}, &options).await.map(|_| ())
+    }
+
     /// Stores a city's photo exactly as sent.
     pub async fn put_city_photo(&self, input: model::PutCityPhotoInput) -> ::std::result::Result<model::PutCityPhotoOutput, ::crucible_client::Error<PutCityPhotoError>> {
         self.transport.send::<PutCityPhoto, PutCityPhotoError>(&input).await
     }
 
+    /// Stores a city's photo exactly as sent.
+    pub async fn put_city_photo_with_options(&self, input: model::PutCityPhotoInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::PutCityPhotoOutput, ::crucible_client::Error<PutCityPhotoError>> {
+        self.transport.send_with_options::<PutCityPhoto, PutCityPhotoError>(&input, &options).await
+    }
+
     pub async fn status(&self, input: model::StatusInput) -> ::std::result::Result<model::StatusOutput, ::crucible_client::Error<StatusError>> {
         self.transport.send::<Status, StatusError>(&input).await
+    }
+
+    pub async fn status_with_options(&self, input: model::StatusInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::StatusOutput, ::crucible_client::Error<StatusError>> {
+        self.transport.send_with_options::<Status, StatusError>(&input, &options).await
     }
 }

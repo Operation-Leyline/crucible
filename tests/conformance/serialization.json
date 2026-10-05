@@ -91,25 +91,26 @@
     "wire": "{\"future\":{\"n\":9007199254740993}}",
     "expect": {
       "json": "{\"future\":{\"n\":9007199254740993}}"
-    },
-    "expectByProfile": {
-      "javascript-bigint-date": {
-        "json": "{\"future\":{\"n\":9007199254740992}}"
-      }
     }
   },
   {
     "id": "map-document-container-identity",
     "target": "example.weather#Forecast",
-    "wire": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":null}",
+    "wire": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":{\"nil\":null}}",
     "expect": {
-      "json": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":null}"
+      "json": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":{\"nil\":null}}"
     },
     "expectByProfile": {
       "javascript-bigint-date": {
-        "json": "{\"future\":{\"n\":9007199254740992,\"object\":{},\"array\":[]},\"clear\":null}"
+        "json": "{\"future\":{\"n\":9007199254740992,\"object\":{},\"array\":[]},\"clear\":{\"nil\":null}}"
       }
     }
+  },
+  {
+    "id": "dense-document-map-null",
+    "target": "example.weather#Forecast",
+    "wire": "{\"clear\":null}",
+    "reject": true
   },
   {
     "id": "timestamp-offset",
@@ -156,14 +157,6 @@
         }
       },
       "python-datetime": {
-        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":0}",
-        "instant": {
-          "member": "createdAt",
-          "seconds": "0",
-          "nanoseconds": 0
-        }
-      },
-      "rust-chrono-epoch-ms": {
         "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":0}",
         "instant": {
           "member": "createdAt",

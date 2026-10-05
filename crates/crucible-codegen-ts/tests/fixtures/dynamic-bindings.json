@@ -1,0 +1,257 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.dynamic#Dynamic": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.dynamic#Get"
+        },
+        {
+          "target": "example.dynamic#Headers"
+        },
+        {
+          "target": "example.dynamic#Pages"
+        }
+      ]
+    },
+    "example.dynamic#Get": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/files/{key+}?fixed=literal",
+          "code": 200
+        }
+      },
+      "input": {
+        "target": "example.dynamic#Input"
+      },
+      "output": {
+        "target": "example.dynamic#Output"
+      },
+      "errors": [
+        {
+          "target": "example.dynamic#Problem"
+        }
+      ]
+    },
+    "example.dynamic#Input": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "key": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#httpLabel": {}
+          }
+        },
+        "query": {
+          "target": "example.dynamic#StringLists",
+          "traits": {
+            "smithy.api#httpQueryParams": {}
+          }
+        },
+        "metadata": {
+          "target": "example.dynamic#Strings",
+          "traits": {
+            "smithy.api#httpPrefixHeaders": "x-meta-"
+          }
+        },
+        "value": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#jsonName": "wire-value"
+          }
+        },
+        "explicit": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpQuery": "q"
+          }
+        }
+      }
+    },
+    "example.dynamic#Output": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#output": {}
+      },
+      "members": {
+        "status": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpResponseCode": {}
+          }
+        },
+        "metadata": {
+          "target": "example.dynamic#Strings",
+          "traits": {
+            "smithy.api#httpPrefixHeaders": "x-meta-"
+          }
+        },
+        "value": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#jsonName": "wire-value"
+          }
+        }
+      }
+    },
+    "example.dynamic#Problem": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client"
+      },
+      "members": {
+        "status": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpResponseCode": {}
+          }
+        },
+        "details": {
+          "target": "example.dynamic#Strings",
+          "traits": {
+            "smithy.api#httpPrefixHeaders": "x-meta-"
+          }
+        }
+      }
+    },
+    "example.dynamic#StringList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      }
+    },
+    "example.dynamic#Strings": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "smithy.api#String"
+      }
+    },
+    "example.dynamic#StringLists": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "example.dynamic#StringList"
+      }
+    },
+    "example.dynamic#Headers": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/headers"
+        }
+      },
+      "input": {
+        "target": "example.dynamic#HeaderInput"
+      },
+      "output": {
+        "target": "example.dynamic#HeaderOutput"
+      }
+    },
+    "example.dynamic#HeaderInput": {
+      "type": "structure",
+      "members": {
+        "values": {
+          "target": "example.dynamic#Strings",
+          "traits": {
+            "smithy.api#httpPrefixHeaders": ""
+          }
+        },
+        "explicit": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "x-explicit"
+          }
+        }
+      }
+    },
+    "example.dynamic#HeaderOutput": {
+      "type": "structure",
+      "members": {
+        "explicit": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "x-explicit",
+            "smithy.api#jsonName": "wire-explicit"
+          }
+        },
+        "status": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpResponseCode": {},
+            "smithy.api#jsonName": "wire-status"
+          }
+        }
+      }
+    },
+    "example.dynamic#Pages": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#readonly": {},
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/pages"
+        },
+        "smithy.api#paginated": {
+          "inputToken": "token",
+          "outputToken": "next.token"
+        }
+      },
+      "input": {
+        "target": "example.dynamic#PageInput"
+      },
+      "output": {
+        "target": "example.dynamic#PageOutput"
+      }
+    },
+    "example.dynamic#PageInput": {
+      "type": "structure",
+      "members": {
+        "token": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpQuery": "token"
+          }
+        }
+      }
+    },
+    "example.dynamic#PageOutput": {
+      "type": "structure",
+      "members": {
+        "next": {
+          "target": "example.dynamic#PageToken",
+          "traits": {
+            "smithy.api#jsonName": "wire-next"
+          }
+        }
+      }
+    },
+    "example.dynamic#PageToken": {
+      "type": "structure",
+      "members": {
+        "token": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#jsonName": "wire-token"
+          }
+        }
+      }
+    }
+  }
+}

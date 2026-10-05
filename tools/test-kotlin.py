@@ -52,12 +52,15 @@ def qualify(output):
         "type": "operation", "output": {"target": "example.weather#BuilderDefaults"},
         "traits": {"smithy.api#http": {"method": "GET", "uri": "/builder-defaults"}, "smithy.api#readonly": {}}}
     model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.weather#ReadBuilderDefaults"})
+    streaming = json.loads((ROOT / "crates/crucible-codegen-kotlin/tests/fixtures/streaming.json").read_text())
+    model["shapes"]["example.weather#Weather"]["operations"].extend(streaming["shapes"].pop("example.stream#Streaming")["operations"])
+    model["shapes"].update(streaming["shapes"])
     model_path.write_text(json.dumps(model), encoding="utf-8")
     generate(model_path, package)
     run(MAVEN, "-q", REPO, "install", "dependency:copy-dependencies", cwd=package)
     consumer = output / "consumer"
     source = consumer / "src/main/kotlin/example/weather"
-    source.mkdir(parents=True)
+    source.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / "crates/crucible-codegen-kotlin/tests/Main.kt", source / "Main.kt")
     ns = "{http://maven.apache.org/POM/4.0.0}"
     ET.register_namespace("", ns[1:-1])
@@ -66,7 +69,8 @@ def qualify(output):
     # The test HTTP server uses JDK APIs; the distributable itself targets Java 8 APIs.
     configuration = pom.getroot().find(".//" + ns + "configuration")
     configuration.find(ns + "jvmTarget").text = "17"
-    configuration.remove(configuration.find(ns + "args"))
+    configuration.find(ns + "args").remove(configuration.find(ns + "args").find(ns + "arg"))
+    pom.getroot().find(ns + "build").find(ns + "sourceDirectory").text = "src/main/kotlin"
     dependency = ET.SubElement(pom.getroot().find(ns + "dependencies"), ns + "dependency")
     for name, value in [("groupId", "example"), ("artifactId", "weather-kotlin"), ("version", "0.0.0-test")]:
         ET.SubElement(dependency, ns + name).text = value
@@ -74,6 +78,21 @@ def qualify(output):
     run(MAVEN, "-q", REPO, "package", "dependency:copy-dependencies", cwd=consumer)
     jar = next((consumer / "target").glob("kotlin-consumer-*.jar"))
     classpath = os.pathsep.join([str(jar), str(consumer / "target/dependency/*")])
+    java_source = consumer / "JavaEnumConsumer.java"
+    java_source.write_text("""import example.weather.model.Sky;
+import example.weather.model.ValidationReason;
+public final class JavaEnumConsumer {
+    public static void main(String[] args) {
+        if (Sky.CLEAR.getValue().isEmpty() || ValidationReason.OTHER.getValue().isEmpty())
+            throw new AssertionError("Generated enum static fields");
+    }
+}
+""", encoding="utf-8")
+    java_classes = consumer / "java-classes"
+    java_classes.mkdir()
+    run("javac", "--release", "17", "-Xlint:all", "-Werror", "-cp", classpath,
+        "-d", str(java_classes), str(java_source))
+    run("java", "-cp", os.pathsep.join([str(java_classes), classpath]), "JavaEnumConsumer")
     with weather() as endpoint:
         run("java", "-Xmx256m", "-cp", classpath, "example.weather.MainKt",
             str(ROOT / "tests/conformance/retry.json"), str(ROOT / "tests/conformance/header-lists.json"),

@@ -81,7 +81,7 @@ pub(crate) fn structure<'s>(
 
 fn operation_items(service: &Service, op: &Operation) -> String {
     let name = op.name();
-    let mut out = marker(service, op, &output_type(service, op));
+    let mut out = marker(service, op, &output_type(service, op), false);
     doc(&mut out, "", op.docs.as_deref());
     let parameter = if op.input.is_some() {
         format!(", input: {}", input_type(service, op))
@@ -98,7 +98,7 @@ fn operation_items(service: &Service, op: &Operation) -> String {
 
 /// The marker type, its `OperationInfo` and its `Operation` impl, with
 /// `output_ty` as the output type: a client reads a missing output as `Unit`.
-pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str) -> String {
+pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client: bool) -> String {
     let name = op.name();
     let mut out = String::from("\n");
     doc(&mut out, "", op.docs.as_deref());
@@ -113,7 +113,15 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str) -> Stri
                 format!("::crucible::operation::Segment::Literal({})", literal(text))
             }
             Segment::Label(label) => {
-                format!("::crucible::operation::Segment::Label({})", literal(label))
+                let kind = if op.uri.greedy_labels.contains(label) {
+                    "GreedyLabel"
+                } else {
+                    "Label"
+                };
+                let wire = structure(service, op.input.as_ref())
+                    .and_then(|s| s.members.iter().find(|m| &m.name == label))
+                    .map_or(label.as_str(), |m| m.wire_name.as_str());
+                format!("::crucible::operation::Segment::{kind}({})", literal(wire))
             }
         })
         .collect();
@@ -160,12 +168,186 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str) -> Stri
         op.idempotent,
         custom_traits(&op.traits),
     ));
+    let mut streaming = String::new();
+    if let Some(member) = op
+        .response
+        .response_code
+        .as_ref()
+        .and_then(|name| structure(service, op.output.as_ref()).and_then(|s| s.member(name)))
+    {
+        let rust = crate::names::field(&member.name);
+        let get = if client && member.optional_on_client() {
+            format!(
+                "value.{rust}.value().map(|value| ::crucible::operation::response_status(i64::from(*value)))"
+            )
+        } else if !client && member.optional_on_server() {
+            format!(
+                "value.{rust}.as_ref().map(|value| ::crucible::operation::response_status(i64::from(*value)))"
+            )
+        } else {
+            format!("Some(::crucible::operation::response_status(i64::from(value.{rust})))")
+        };
+        streaming.push_str(&format!(
+            "    fn output_status(value: &Self::Output) -> Option<u16> {{ {get} }}\n"
+        ));
+    }
+    for (direction, id, bindings) in [
+        ("input", op.input.as_ref(), &op.request),
+        ("output", op.output.as_ref(), &op.response),
+    ] {
+        if let Some(payload) = bindings
+            .payload
+            .as_ref()
+            .filter(|p| p.streaming && p.kind != crucible_smithy::ir::PayloadKind::EventStream)
+        {
+            let member = structure(service, id)
+                .and_then(|s| s.member(&payload.member))
+                .expect("lowered payload");
+            let rust = crate::names::field(&member.name);
+            let ty = if direction == "input" {
+                "Input"
+            } else {
+                "Output"
+            };
+            let (get, set) = if client && member.optional_on_client() {
+                (
+                    format!("value.{rust}.value().cloned()"),
+                    "::crucible::Field::Value(stream)",
+                )
+            } else if !client && member.optional_on_server() {
+                (format!("value.{rust}.clone()"), "Some(stream)")
+            } else {
+                (format!("Some(value.{rust}.clone())"), "stream")
+            };
+            streaming.push_str(&format!("    fn {direction}_stream(value: &Self::{ty}) -> Option<::crucible::ByteStream> {{ {get} }}\n    fn set_{direction}_stream(value: &mut Self::{ty}, stream: ::crucible::ByteStream) {{ value.{rust} = {set}; }}\n"));
+        }
+    }
+    let auth = op
+        .auth
+        .iter()
+        .filter_map(|id| service.auth_schemes.get(id))
+        .map(|scheme| {
+            use crucible_smithy::ir::{ApiKeyLocation, AuthScheme};
+            let value = match scheme {
+                AuthScheme::Bearer => "Bearer".to_owned(),
+                AuthScheme::Basic => "Basic".to_owned(),
+                AuthScheme::ApiKey {
+                    name,
+                    location,
+                    scheme,
+                } => format!(
+                    "ApiKey {{ name: {}, query: {}, scheme: {} }}",
+                    literal(name),
+                    *location == ApiKeyLocation::Query,
+                    scheme
+                        .as_deref()
+                        .map_or("None".to_owned(), |scheme| format!(
+                            "Some({})",
+                            literal(scheme)
+                        ))
+                ),
+                AuthScheme::SigV4 { signing_name } => {
+                    format!("SigV4 {{ signing_name: {} }}", literal(signing_name))
+                }
+                // Rust does not declare these capabilities, so emit rejects them first.
+                AuthScheme::Digest | AuthScheme::SigV4a { .. } => {
+                    unreachable!("undeclared Rust auth capability")
+                }
+            };
+            format!("::crucible::operation::AuthScheme::{value}")
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let mut auth = format!(
+        "    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
+        op.optional_auth
+    );
+    if client {
+        auth.push_str(&client_wire(service, op));
+        auth.push_str(&crate::events::marker_items(service, op));
+    }
+    if op.unsigned_payload {
+        auth.push_str("    const UNSIGNED_PAYLOAD: bool = true;\n");
+    }
     out.push_str(&format!(
-        "impl ::crucible::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n    const INFO: &'static ::crucible::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n}}\n\n",
+        "impl ::crucible::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
         op.auth.iter().any(|id| id.to_string() == "smithy.api#httpBearerAuth"),
         operation_static(op),
         input_type(service, op),
         output_ty,
+    ));
+    out
+}
+
+/// A client marker's protocol and checksum description, when they differ
+/// from the defaults: `crucible.protocols#json` and no checksum.
+fn client_wire(service: &Service, op: &Operation) -> String {
+    use crucible_smithy::Protocol;
+    use crucible_smithy::ir::{Checksum, ChecksumAlgorithm};
+    let mut out = String::new();
+    let protocol = match service.protocol {
+        Protocol::AwsRestJson1 => Some("AwsRestJson1".to_owned()),
+        Protocol::AwsJson10 => Some(format!(
+            "AwsJson10 {{ service: {} }}",
+            literal(service.id.name())
+        )),
+        Protocol::AwsJson11 => Some(format!(
+            "AwsJson11 {{ service: {} }}",
+            literal(service.id.name())
+        )),
+        _ => None,
+    };
+    if let Some(protocol) = protocol {
+        out.push_str(&format!(
+            "    const PROTOCOL: ::crucible::operation::Protocol = ::crucible::operation::Protocol::{protocol};\n"
+        ));
+    }
+    let wire = |name: &Option<String>| {
+        name.as_ref().map_or("None".to_owned(), |name| {
+            let wire = structure(service, op.input.as_ref())
+                .and_then(|s| s.member(name))
+                .map_or(name.as_str(), |m| m.wire_name.as_str());
+            format!("Some({})", literal(wire))
+        })
+    };
+    let checksum = match &op.checksum {
+        None => return out,
+        Some(Checksum::Md5) => "Md5".to_owned(),
+        Some(Checksum::AwsFlexible {
+            request_required,
+            request_algorithm_member,
+            validation_mode_member,
+            response_algorithms,
+            ..
+        }) => {
+            let algorithms = response_algorithms
+                .iter()
+                .map(|algorithm| {
+                    let name = match algorithm {
+                        ChecksumAlgorithm::Crc32 => "Crc32",
+                        ChecksumAlgorithm::Crc32c => "Crc32c",
+                        ChecksumAlgorithm::Crc64nvme => "Crc64Nvme",
+                        ChecksumAlgorithm::Md5 => "Md5",
+                        ChecksumAlgorithm::Sha1 => "Sha1",
+                        ChecksumAlgorithm::Sha256 => "Sha256",
+                        ChecksumAlgorithm::Sha512 => "Sha512",
+                        ChecksumAlgorithm::Xxhash64 => "Xxhash64",
+                        ChecksumAlgorithm::Xxhash3 => "Xxhash3",
+                        ChecksumAlgorithm::Xxhash128 => "Xxhash128",
+                    };
+                    format!("::crucible::operation::ChecksumAlgorithm::{name}")
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "Flexible {{ request_required: {request_required}, request_algorithm_member: {}, validation_mode_member: {}, response_algorithms: &[{algorithms}] }}",
+                wire(request_algorithm_member),
+                wire(validation_mode_member)
+            )
+        }
+    };
+    out.push_str(&format!(
+        "    const CHECKSUM: Option<::crucible::operation::Checksum> = Some(::crucible::operation::Checksum::{checksum});\n"
     ));
     out
 }

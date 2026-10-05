@@ -25,7 +25,19 @@ fn weather_package_is_deterministic() {
     let snapshot = files
         .iter()
         .filter(|f| {
-            !["R/json.R", "R/types.R", "R/codec.R", "R/runtime.R"].contains(&f.path.as_str())
+            ![
+                "R/json.R",
+                "R/types.R",
+                "R/codec.R",
+                "R/query.R",
+                "R/endpoints.R",
+                "R/auth.R",
+                "R/checksums.R",
+                "R/waiters.R",
+                "R/runtime.R",
+                "src/checksums.c",
+            ]
+            .contains(&f.path.as_str())
         })
         .map(|f| format!("=== {} ===\n{}\n", f.path, f.contents))
         .collect::<String>();
@@ -162,4 +174,68 @@ fn head_request_bodies_are_diagnosed() {
             .to_string()
             .contains("HEAD")
     );
+}
+
+#[test]
+fn declared_client_features_generate_waiters_and_protocol_packages() {
+    use crucible_smithy::Protocol;
+    let lower = |source: &str, protocol: Option<Protocol>| {
+        let model = Model::from_json(source).unwrap();
+        let capabilities = crucible_codegen_r::capabilities();
+        match protocol {
+            Some(protocol) => model.lower_with_protocol(None, &capabilities, protocol),
+            None => model.lower_with_capabilities(None, &capabilities),
+        }
+        .unwrap()
+    };
+    let behavior = lower(
+        include_str!("../../crucible-smithy/tests/fixtures/client-behaviors.json"),
+        None,
+    );
+    let files = emit(&behavior, &options()).unwrap();
+    let client = &files
+        .iter()
+        .find(|f| f.path == "R/client.R")
+        .unwrap()
+        .contents;
+    assert!(client.contains("client$`wait_until_ready` <- function(input, timeout,"));
+    let checksums = lower(
+        include_str!("../../crucible-smithy/tests/fixtures/checksums.json"),
+        None,
+    );
+    assert!(emit(&checksums, &options()).is_ok());
+    for protocol in [
+        Protocol::AwsRestJson1,
+        Protocol::AwsJson10,
+        Protocol::AwsJson11,
+    ] {
+        let service = lower(
+            include_str!("../../crucible-smithy/tests/fixtures/protocol-json.json"),
+            Some(protocol),
+        );
+        let files = emit(&service, &options()).unwrap();
+        assert!(files.iter().any(|f| f.path == "src/checksums.c"));
+    }
+}
+
+#[test]
+fn waiter_method_collisions_are_diagnosed() {
+    let mut model: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-behaviors.json"
+    ))
+    .unwrap();
+    model["shapes"]["example.behavior#WaitUntilReady"] = serde_json::json!({
+        "type": "operation",
+        "traits": {"smithy.api#http": {"method": "POST", "uri": "/wait"}, "smithy.api#auth": []}
+    });
+    model["shapes"]["example.behavior#Service"]["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({"target": "example.behavior#WaitUntilReady"}));
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_r::capabilities())
+        .unwrap();
+    let diagnostic = emit(&service, &options()).err().unwrap().to_string();
+    assert!(diagnostic.contains("waiter method collision"));
 }

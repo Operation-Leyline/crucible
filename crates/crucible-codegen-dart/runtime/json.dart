@@ -56,6 +56,37 @@ final class JsonNumber {
 
   @override
   String toString() => text;
+
+  (String, BigInt) get canonical {
+    final parts = text.toLowerCase().split('e');
+    final decimal = parts[0].replaceFirst('-', '').split('.');
+    var digits = decimal.join().replaceFirst(RegExp(r'^0+'), '');
+    if (digits.isEmpty) return ('0', BigInt.zero);
+    var exponent = (parts.length == 2 ? BigInt.parse(parts[1]) : BigInt.zero) - BigInt.from(decimal.length == 2 ? decimal[1].length : 0);
+    final original = digits.length;
+    digits = digits.replaceFirst(RegExp(r'0+$'), '');
+    exponent += BigInt.from(original - digits.length);
+    return ((text.startsWith('-') ? '-' : '') + digits, exponent);
+  }
+}
+
+/// Exact decimal value; no binary floating-point conversion is performed.
+final class BigDecimal {
+  final JsonNumber number;
+  BigDecimal(String value) : number = JsonNumber(value);
+  @override
+  String toString() => number.text;
+  @override
+  bool operator ==(Object other) => other is BigDecimal && number.canonical == other.number.canonical;
+  @override
+  int get hashCode => number.canonical.hashCode;
+}
+
+bool jsonEquivalent(Object? left, Object? right) {
+  if (left is JsonNumber && right is JsonNumber) return left.canonical == right.canonical;
+  if (left is List && right is List) return left.length == right.length && Iterable.generate(left.length).every((i) => jsonEquivalent(left[i], right[i]));
+  if (left is Map && right is Map) return left.length == right.length && left.keys.every((key) => right.containsKey(key) && jsonEquivalent(left[key], right[key]));
+  return left == right;
 }
 
 /// Immutable JSON document. Use [JsonNumber] or [BigInt] for exact numeric input.

@@ -14,9 +14,79 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestSendOwnsChecksumDefaultsAndIdempotencyTokens(t *testing.T) {
+	for _, scenario := range []struct {
+		name string
+		calls int
+		retry bool
+		supplied string
+		nilInput bool
+	}{
+		{name: "separate calls generate separate tokens", calls: 2},
+		{name: "retry reuses generated token", calls: 1, retry: true},
+		{name: "supplied token survives calls and retry", calls: 2, retry: true, supplied: "caller-token"},
+		{name: "nil input accepts private defaults", calls: 1, nilInput: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			type requestValues struct { token, algorithm, validation, checksum string }
+			observed := make(chan requestValues, 4)
+			var attempts atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil { t.Error(err); w.WriteHeader(http.StatusBadRequest); return }
+				token, _ := body["wire-token"].(string)
+				observed <- requestValues{token, r.Header.Get("x-algorithm"), r.Header.Get("x-validation"), r.Header.Get("x-amz-checksum-crc32")}
+				if attempts.Add(1) == 1 && scenario.retry { w.WriteHeader(http.StatusInternalServerError); return }
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer server.Close()
+			schema := &schemaDescription{
+				Shapes: map[string]shapeDescription{
+					"text": {Kind: "string"},
+					"input": {Kind: "structure", Members: map[string]memberDescription{
+						"token": {Target: "text", JSONName: "wire-token"},
+						"algorithm": {Target: "text", JSONName: "wire-algorithm"},
+						"validation": {Target: "text", JSONName: "wire-validation"},
+						"payload": {Target: "text"},
+					}},
+				},
+				Operations: map[string]operationDescription{"Write": {
+					Method: "POST", URI: "/write", Input: "input", Safe: true, Token: "token",
+					Request: bindings{Body: []string{"token", "payload"}, Headers: [][2]string{{"algorithm", "x-algorithm"}, {"validation", "x-validation"}}},
+					Checksum: &checksumDescription{RequestAlgorithmMember: "algorithm", ValidationModeMember: "validation"},
+				}},
+			}
+			client, err := newClient(Config{Endpoint: server.URL, MaxAttempts: 2, BaseDelay: time.Nanosecond, MaxDelay: time.Nanosecond}, schema, false)
+			if err != nil { t.Fatal(err) }
+			values := map[string]any{"payload": "unchanged"}
+			if scenario.supplied != "" { values["wire-token"] = scenario.supplied }
+			if scenario.nilInput { values = nil }
+			var original map[string]any
+			if values != nil { original = map[string]any{}; for key, value := range values { original[key] = value } }
+			for call := 0; call < scenario.calls; call++ {
+				if _, err := client.callValues(context.Background(), "Write", values); err != nil { t.Fatal(err) }
+				if !reflect.DeepEqual(values, original) { t.Fatalf("caller values changed: got %#v, want %#v", values, original) }
+			}
+			count := scenario.calls
+			if scenario.retry { count++ }
+			if int(attempts.Load()) != count { t.Fatalf("attempts: got %d, want %d", attempts.Load(), count) }
+			requests := make([]requestValues, count)
+			for index := range requests {
+				requests[index] = <-observed
+				request := requests[index]
+				if request.token == "" || request.algorithm != "CRC32" || request.validation != "ENABLED" || request.checksum == "" { t.Fatalf("request preparation missing: %#v", request) }
+				if scenario.supplied != "" && request.token != scenario.supplied { t.Fatalf("supplied token changed: %q", request.token) }
+			}
+			if scenario.retry && requests[0].token != requests[1].token { t.Fatal("retry generated another token") }
+			if scenario.calls == 2 && scenario.supplied == "" && requests[0].token == requests[1].token { t.Fatal("separate calls reused a generated token") }
+		})
+	}
+}
 
 func clientFor(t *testing.T, handler http.HandlerFunc) (*WeatherClient, *httptest.Server) {
 	t.Helper()
@@ -646,8 +716,11 @@ func TestHardeningAuthEmptyDigestDotLabelsAndDenseCollections(t *testing.T) {
 		t.Fatal("dense map null encoded")
 	}
 	var documents []any
-	if err := decodeValue(schema, "docs", []any{nil}, reflect.ValueOf(&documents).Elem(), ""); err != nil || len(documents) != 1 || documents[0] != nil {
-		t.Fatalf("document null: %v", err)
+	if err := decodeValue(schema, "docs", []any{nil}, reflect.ValueOf(&documents).Elem(), ""); err == nil {
+		t.Fatal("dense document null accepted")
+	}
+	if err := decodeValue(schema, "docs", []any{map[string]any{"nested":nil}}, reflect.ValueOf(&documents).Elem(), ""); err != nil {
+		t.Fatalf("nested document null: %v", err)
 	}
 	if _, err := encodeValue(schema, "docs", reflect.ValueOf(documents), ""); err != nil {
 		t.Fatal(err)

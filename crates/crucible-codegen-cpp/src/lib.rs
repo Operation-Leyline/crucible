@@ -102,13 +102,18 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                     }
                 }
             }
-            Shape::Enum(enumeration) => {
+            Shape::Enum(_) | Shape::IntEnum(_) => {
                 if name == "value" {
                     result.push(id, "C++ enum name collides with its value member");
                 }
                 let mut constants = BTreeSet::new();
-                for value in &enumeration.values {
-                    let factory = format!("known_{}", names::field(&value.name));
+                let values = match shape {
+                    Shape::Enum(e) => e.values.iter().map(|value| &value.name).collect::<Vec<_>>(),
+                    Shape::IntEnum(e) => e.values.iter().map(|value| &value.name).collect(),
+                    _ => unreachable!(),
+                };
+                for value in values {
+                    let factory = format!("known_{}", names::field(value));
                     if !names::identifier(&factory) || factory == name || !constants.insert(factory)
                     {
                         result.push(id, "C++ enum value name collision");
@@ -156,11 +161,49 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 result.push(&operation.id, "C++ operation name collision");
             }
         }
+        for waiter in operation.waiters.keys() {
+            let method = format!("wait_until_{}", names::field(waiter));
+            if !names::identifier(&method) || !methods.insert(method) {
+                result.push(&operation.id, "C++ waiter method name collision");
+            }
+        }
     }
     result
 }
 
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::SigV4,
+        Feature::OptionalAuth,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
+        Feature::Streaming,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -180,6 +223,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("call_scope.hpp", include_str!("../runtime/call_scope.hpp")),
         ("transport.hpp", include_str!("../runtime/transport.hpp")),
         ("transport.cpp", include_str!("../runtime/transport.cpp")),
+        ("stream.hpp", include_str!("../runtime/stream.hpp")),
+        ("stream.cpp", include_str!("../runtime/stream.cpp")),
+        ("checksums.hpp", include_str!("../runtime/checksums.hpp")),
+        ("checksums.cpp", include_str!("../runtime/checksums.cpp")),
+        ("auth.hpp", include_str!("../runtime/auth.hpp")),
+        ("auth.cpp", include_str!("../runtime/auth.cpp")),
+        ("query.hpp", include_str!("../runtime/query.hpp")),
+        ("query.cpp", include_str!("../runtime/query.cpp")),
+        ("endpoints.hpp", include_str!("../runtime/endpoints.hpp")),
+        ("endpoints.cpp", include_str!("../runtime/endpoints.cpp")),
         (
             "client_runtime.hpp",
             include_str!("../runtime/client_runtime.hpp"),
@@ -196,8 +249,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             for header in [
                 "json.hpp",
                 "timestamp.hpp",
+                "types.hpp",
+                "stream.hpp",
                 "codec.hpp",
                 "transport.hpp",
+                "checksums.hpp",
+                "auth.hpp",
+                "query.hpp",
+                "endpoints.hpp",
                 "client_runtime.hpp",
             ] {
                 contents = contents.replace(
@@ -228,7 +287,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         })
         .collect::<String>();
     files.push(File {path:"src/schema.cpp".into(),contents:format!("#include \"{package}/schema.hpp\"\nnamespace {} {{\nconst runtime::Schema& schema() {{\n    static const runtime::Schema value([] {{\n        const char* chunks[] = {{\n{chunks}        }};\n        std::string text;\n        for (const auto* chunk : chunks) text += chunk;\n        return runtime::Json::parse(text);\n    }}());\n    return value;\n}}\n}}\n",options.namespace)});
-    files.push(File {path:"CMakeLists.txt".into(),contents:format!("cmake_minimum_required(VERSION 3.20)\nproject({package} VERSION {} LANGUAGES CXX)\nfind_package(CURL 7.68 REQUIRED)\nfind_package(OpenSSL 1.1.1 REQUIRED)\nfind_package(Threads REQUIRED)\ninclude(GNUInstallDirs)\ninclude(CMakePackageConfigHelpers)\nadd_library({package} STATIC src/json.cpp src/timestamp.cpp src/codec.cpp src/models.cpp src/schema.cpp src/transport.cpp src/client_runtime.cpp src/client.cpp)\ntarget_link_libraries({package} PRIVATE CURL::libcurl OpenSSL::Crypto PUBLIC Threads::Threads)\nadd_library({package}::{package} ALIAS {package})\ntarget_compile_features({package} PUBLIC cxx_std_20)\nset_target_properties({package} PROPERTIES CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON DEBUG_POSTFIX d)\ntarget_include_directories({package} PUBLIC $<BUILD_INTERFACE:${{CMAKE_CURRENT_SOURCE_DIR}}/include> $<INSTALL_INTERFACE:${{CMAKE_INSTALL_INCLUDEDIR}}>)\nif(MSVC)\n  target_compile_options({package} PUBLIC /utf-8 PRIVATE /W4 /WX)\nelse()\n  target_compile_options({package} PRIVATE -Wall -Wextra -Werror)\nendif()\ninstall(TARGETS {package} EXPORT {package}Targets ARCHIVE DESTINATION ${{CMAKE_INSTALL_LIBDIR}})\ninstall(DIRECTORY include/ DESTINATION ${{CMAKE_INSTALL_INCLUDEDIR}})\ninstall(EXPORT {package}Targets NAMESPACE {package}:: DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\nconfigure_package_config_file(cmake/Config.cmake.in ${{CMAKE_CURRENT_BINARY_DIR}}/{package}Config.cmake INSTALL_DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\nwrite_basic_package_version_file(${{CMAKE_CURRENT_BINARY_DIR}}/{package}ConfigVersion.cmake VERSION ${{PROJECT_VERSION}} COMPATIBILITY SameMajorVersion)\ninstall(FILES ${{CMAKE_CURRENT_BINARY_DIR}}/{package}Config.cmake ${{CMAKE_CURRENT_BINARY_DIR}}/{package}ConfigVersion.cmake DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\ninstall(FILES crucible.json DESTINATION ${{CMAKE_INSTALL_DATADIR}}/{package})\n",options.package_version)});
+    files.push(File {path:"CMakeLists.txt".into(),contents:format!("cmake_minimum_required(VERSION 3.20)\nproject({package} VERSION {} LANGUAGES CXX)\nfind_package(CURL 7.68 REQUIRED)\nfind_package(OpenSSL 1.1.1 REQUIRED)\nfind_package(Threads REQUIRED)\ninclude(GNUInstallDirs)\ninclude(CMakePackageConfigHelpers)\nadd_library({package} STATIC src/json.cpp src/timestamp.cpp src/codec.cpp src/models.cpp src/schema.cpp src/stream.cpp src/transport.cpp src/checksums.cpp src/auth.cpp src/query.cpp src/endpoints.cpp src/client_runtime.cpp src/client.cpp)\ntarget_link_libraries({package} PRIVATE CURL::libcurl OpenSSL::Crypto PUBLIC Threads::Threads)\nadd_library({package}::{package} ALIAS {package})\ntarget_compile_features({package} PUBLIC cxx_std_20)\nset_target_properties({package} PROPERTIES CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON DEBUG_POSTFIX d)\ntarget_include_directories({package} PUBLIC $<BUILD_INTERFACE:${{CMAKE_CURRENT_SOURCE_DIR}}/include> $<INSTALL_INTERFACE:${{CMAKE_INSTALL_INCLUDEDIR}}>)\nif(MSVC)\n  target_compile_options({package} PUBLIC /utf-8 PRIVATE /W4 /WX)\nelse()\n  target_compile_options({package} PRIVATE -Wall -Wextra -Werror)\nendif()\ninstall(TARGETS {package} EXPORT {package}Targets ARCHIVE DESTINATION ${{CMAKE_INSTALL_LIBDIR}})\ninstall(DIRECTORY include/ DESTINATION ${{CMAKE_INSTALL_INCLUDEDIR}})\ninstall(EXPORT {package}Targets NAMESPACE {package}:: DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\nconfigure_package_config_file(cmake/Config.cmake.in ${{CMAKE_CURRENT_BINARY_DIR}}/{package}Config.cmake INSTALL_DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\nwrite_basic_package_version_file(${{CMAKE_CURRENT_BINARY_DIR}}/{package}ConfigVersion.cmake VERSION ${{PROJECT_VERSION}} COMPATIBILITY SameMajorVersion)\ninstall(FILES ${{CMAKE_CURRENT_BINARY_DIR}}/{package}Config.cmake ${{CMAKE_CURRENT_BINARY_DIR}}/{package}ConfigVersion.cmake DESTINATION ${{CMAKE_INSTALL_LIBDIR}}/cmake/{package})\ninstall(FILES crucible.json DESTINATION ${{CMAKE_INSTALL_DATADIR}}/{package})\n",options.package_version)});
     files.push(File {path:"cmake/Config.cmake.in".into(),contents:format!("@PACKAGE_INIT@\ninclude(CMakeFindDependencyMacro)\nfind_dependency(CURL 7.68)\nfind_dependency(OpenSSL 1.1.1)\nfind_dependency(Threads)\ninclude(\"${{CMAKE_CURRENT_LIST_DIR}}/{package}Targets.cmake\")\ncheck_required_components({package})\n")});
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)

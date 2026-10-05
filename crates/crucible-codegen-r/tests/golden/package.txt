@@ -39,14 +39,26 @@ export("ValidationError")
 export("ValidationField")
 export("ValidationReason")
 export("WeatherClient")
+export("aws_credentials")
+export("basic_credentials")
+export("big_decimal")
+export("big_integer")
+export("cached_credentials")
 export("cancellation_token")
 export("client_config")
+export("credential_chain")
+export("environment_credentials")
 export("json_encode")
 export("json_number")
 export("json_object")
 export("json_parse")
 export("long")
+export("profile_credentials")
 export("timestamp")
+S3method(format, crucible_aws_credentials)
+S3method(format, crucible_basic_credentials)
+S3method(print, crucible_aws_credentials)
+S3method(print, crucible_basic_credentials)
 
 === R/client.R ===
 # Generated native operation methods.
@@ -201,13 +213,21 @@ export("timestamp")
 \alias{ValidationField}
 \alias{ValidationReason}
 \alias{WeatherClient}
+\alias{aws_credentials}
+\alias{basic_credentials}
+\alias{big_decimal}
+\alias{big_integer}
+\alias{cached_credentials}
 \alias{cancellation_token}
 \alias{client_config}
+\alias{credential_chain}
+\alias{environment_credentials}
 \alias{json_encode}
 \alias{json_number}
 \alias{json_object}
 \alias{json_parse}
 \alias{long}
+\alias{profile_credentials}
 \alias{timestamp}
 \title{Generated Smithy Client}
 \description{Native model constructors and an HTTP client for the generated service.}
@@ -242,8 +262,11 @@ static SEXP crucible_now(void) {
 #endif
 }
 
+SEXP crucible_crc(SEXP data, SEXP kind);
+
 static const R_CallMethodDef methods[] = {
     {"crucible_now", (DL_FUNC) &crucible_now, 0},
+    {"crucible_crc", (DL_FUNC) &crucible_crc, 2},
     {NULL, NULL, 0}
 };
 

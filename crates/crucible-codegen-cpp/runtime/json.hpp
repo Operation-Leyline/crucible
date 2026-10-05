@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <utility>
 #include <vector>
 
 namespace crucible_generated::runtime {
@@ -16,6 +17,24 @@ public:
     [[nodiscard]] std::string scaled(unsigned places) const;
     [[nodiscard]] std::int64_t integer(std::int64_t minimum = INT64_MIN, std::int64_t maximum = INT64_MAX) const;
     [[nodiscard]] double floating() const;
+    [[nodiscard]] std::pair<std::string, std::string> canonical() const;
+};
+
+class BigInteger {
+    Number number_;
+public:
+    explicit BigInteger(std::string text) : number_(std::move(text)) { if (number_.canonical().second.starts_with('-')) throw std::invalid_argument("Expected integral number"); }
+    [[nodiscard]] const Number& number() const noexcept { return number_; }
+    [[nodiscard]] const std::string& text() const noexcept { return number_.text(); }
+    bool operator==(const BigInteger& other) const { return number_.canonical() == other.number_.canonical(); }
+};
+class BigDecimal {
+    Number number_;
+public:
+    explicit BigDecimal(std::string text) : number_(std::move(text)) {}
+    [[nodiscard]] const Number& number() const noexcept { return number_; }
+    [[nodiscard]] const std::string& text() const noexcept { return number_.text(); }
+    bool operator==(const BigDecimal& other) const { return number_.canonical() == other.number_.canonical(); }
 };
 
 class Json {
@@ -50,4 +69,5 @@ public:
 };
 
 void validate_utf8(std::string_view text);
+[[nodiscard]] bool equivalent(const Json& left, const Json& right);
 }

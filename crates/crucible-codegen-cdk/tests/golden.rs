@@ -85,6 +85,8 @@ fn timestamps_use_explicit_provider_representation() {
     service.shapes.insert(
         id,
         crucible_smithy::ir::Shape::Simple(crucible_smithy::ir::Simple {
+            streaming: false,
+            requires_length: false,
             kind: crucible_smithy::ir::SimpleKind::Timestamp,
             constraints: Default::default(),
             timestamp_format: None,

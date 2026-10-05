@@ -380,7 +380,7 @@ fn imported_type_module_names_are_diagnosed() {
     }
 }
 
-fn recursive_service(shapes: Value) -> Service {
+fn recursive_model(shapes: Value) -> Value {
     let mut model = json!({
         "smithy": "2.0",
         "shapes": {
@@ -402,13 +402,26 @@ fn recursive_service(shapes: Value) -> Service {
         .as_object_mut()
         .unwrap()
         .extend(shapes.as_object().unwrap().clone());
-    lower(&model)
+    model
+}
+
+fn recursive_service(shapes: Value) -> Service {
+    lower(&recursive_model(shapes))
 }
 
 fn assert_recursive_diagnostics(shapes: Value, expected: &[&str], message: &str) {
-    let service = recursive_service(shapes);
-    let diagnostics = emit(&service, &options()).err().unwrap();
-    assert_eq!(diagnostics, emit(&service, &options()).err().unwrap());
+    let lowered = Model::from_json(&recursive_model(shapes).to_string())
+        .unwrap()
+        .lower(None);
+    let diagnostics = match lowered {
+        Ok(service) => {
+            let diagnostics = emit(&service, &options()).err().unwrap();
+            assert_eq!(diagnostics, emit(&service, &options()).err().unwrap());
+            diagnostics
+        }
+        Err(crucible_smithy::Error::Unsupported(diagnostics)) => diagnostics,
+        Err(other) => panic!("unexpected lowering error: {other}"),
+    };
     assert_eq!(
         diagnostics
             .iter()
@@ -448,7 +461,7 @@ fn required_structure_cycles_are_diagnosed_once_per_involved_shape() {
 
 #[test]
 fn recursive_collection_aliases_are_diagnosed_once_per_involved_shape() {
-    let message = "Swift cannot represent a cycle of list/map type aliases";
+    let message = "recursive collections must pass through a structure or union; a collection-only cycle is invalid Smithy";
     assert_recursive_diagnostics(
         json!({
             "example.recursive#A": {"type": "list", "member": {"target": "example.recursive#A"}}
@@ -511,4 +524,50 @@ fn service_client_name_is_reserved() {
     model["shapes"]["example.weather#Weather"]["rename"] =
         serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
     assert!(emit(&lower(&model), &options()).is_err());
+}
+
+fn lower_swift(model: &Value) -> Service {
+    Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_swift::capabilities())
+        .unwrap()
+}
+
+#[test]
+fn modeled_waiters_emit_async_methods_and_diagnose_collisions() {
+    let mut model: Value = serde_json::from_str(include_str!(
+        "../../crucible-codegen-java/tests/waiters.json"
+    ))
+    .unwrap();
+    let files = emit(&lower_swift(&model), &options()).unwrap();
+    let client = &files
+        .iter()
+        .find(|file| file.path.ends_with("JobsClient.swift"))
+        .unwrap()
+        .contents;
+    assert!(client.contains(
+        "public func `waitUntilReady`(_ input: `Input`, timeout: Foundation.TimeInterval, options: WaiterOptions = WaiterOptions()) async throws -> `Output`?"
+    ));
+    assert!(client.contains("runtime.wait(\"Read\", waiter: \"Ready\""));
+    for runtime in ["Auth", "Checksums", "Query", "Endpoints", "Waiters"] {
+        assert!(
+            files
+                .iter()
+                .any(|file| file.path.ends_with(&format!("/{runtime}.swift"))),
+            "{runtime}"
+        );
+    }
+    model["shapes"]["example.wait#WaitUntilReady"] = json!({
+        "type": "operation",
+        "traits": {"smithy.api#http": {"method": "POST", "uri": "/other"}}
+    });
+    model["shapes"]["example.wait#Jobs"]["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"target": "example.wait#WaitUntilReady"}));
+    let diagnostics = emit(&lower_swift(&model), &options()).err().unwrap();
+    assert!(diagnostics.iter().any(|d| {
+        d.message == "invalid or colliding Swift waiter name"
+            || d.message == "Swift operation name collision"
+    }));
 }

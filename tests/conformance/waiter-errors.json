@@ -1,0 +1,259 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.waiter#QueryIdentity": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "aws.protocols#awsQuery": {},
+        "smithy.api#xmlNamespace": {
+          "uri": "urn:waiter"
+        }
+      },
+      "operations": [
+        {
+          "target": "example.waiter#QueryRead"
+        }
+      ]
+    },
+    "example.waiter#JsonIdentity": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.waiter#JsonRead"
+        }
+      ],
+      "rename": {
+        "example.waiter#OriginalError": "RenamedError"
+      }
+    },
+    "example.waiter#QueryRead": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/"
+        },
+        "smithy.api#readonly": {},
+        "smithy.waiters#waitable": {
+          "ByAbsolute": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "example.waiter#CustomCodeError"
+                }
+              },
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          },
+          "ByRelative": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "CustomCodeError"
+                }
+              },
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          },
+          "ByUnknown": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "UnmodeledWire"
+                }
+              },
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          },
+          "ByWire": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "Customized"
+                }
+              },
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "errors": [
+        {
+          "target": "example.waiter#CustomCodeError"
+        },
+        {
+          "target": "example.waiter#OtherError"
+        }
+      ]
+    },
+    "example.waiter#JsonRead": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/"
+        },
+        "smithy.api#readonly": {},
+        "smithy.waiters#waitable": {
+          "ByAbsolute": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "example.waiter#OriginalError"
+                }
+              },
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          },
+          "ByRelative": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "OriginalError"
+                }
+              },
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          },
+          "ByUnknown": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "UnmodeledWire"
+                }
+              },
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          },
+          "ByWire": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "Customized"
+                }
+              },
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "errors": [
+        {
+          "target": "example.waiter#OriginalError"
+        },
+        {
+          "target": "example.waiter#OtherError"
+        }
+      ]
+    },
+    "example.waiter#CustomCodeError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400,
+        "aws.protocols#awsQueryError": {
+          "code": "Customized",
+          "httpResponseCode": 400
+        }
+      },
+      "members": {
+        "value": {
+          "target": "smithy.api#Integer"
+        }
+      }
+    },
+    "example.waiter#OriginalError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "value": {
+          "target": "smithy.api#Integer"
+        }
+      }
+    },
+    "example.waiter#OtherError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "value": {
+          "target": "smithy.api#Integer"
+        }
+      }
+    }
+  }
+}

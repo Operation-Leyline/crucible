@@ -103,6 +103,100 @@ Generation diagnoses naming collisions, recursive collection aliases, and
 GET/HEAD bodies unsupported by browser Fetch. Nominal recursive structures are
 supported.
 
+## Authentication
+
+Operations use the modeled schemes in priority order: the first scheme with
+credentials wins. Configure one provider per scheme; each is called on every
+attempt and may return `null` when unavailable.
+
+```dart
+final client = AuthClient(ClientConfig(
+  endpoint: 'https://api.example',
+  token: () => bearerToken,                              // httpBearerAuth
+  basicAuth: () => BasicCredentials('user', password),   // httpBasicAuth
+  apiKey: () => apiKey,                                  // httpApiKeyAuth
+  credentials: CachedCredentials(credentialChain([
+      () => environmentCredentials(), () => profileCredentials()])),
+  region: 'us-east-1'));                                 // aws.auth#sigv4
+```
+
+A matching credential already present on the request (for example an
+`Authorization: Basic ...` default header, or the modeled API-key header or
+query parameter) is sent as is, and no provider is called. Operations with
+`@auth([])` send no credentials; `@optionalAuth` operations call anonymously
+when no provider has an identity. Otherwise a missing identity is a
+`StateError` before anything is sent. Credentials require HTTPS except on
+loopback.
+
+SigV4 signs the final bytes after middleware, checksums, and the body digest,
+so each retry is signed again with a fresh identity. `@unsignedPayload`
+operations sign `UNSIGNED-PAYLOAD`. S3 keeps its path as sent; other services
+normalize the path and encode it twice. `signV4` is also exported for signing
+requests directly. `CachedCredentials` shares one provider call across
+concurrent requests and refreshes before expiry (60 seconds, or half of a short
+lifetime). `environmentCredentials` and `profileCredentials` read the standard
+AWS environment variables and shared credentials file on native platforms. They
+never run `credential_process`. In browsers they throw `UnsupportedError`.
+`BasicCredentials`, `AwsCredentials` and `CachedCredentials` redact secrets in
+`toString`.
+
+## Endpoints
+
+When the model has `@smithy.rules#endpointRuleSet`, every call resolves its
+endpoint from the rules, so `endpoint` may be omitted. Parameters come from
+operation context, input members and paths, `ClientConfig.endpointParameters`,
+built-ins (`AWS::Region` from `region`, `SDK::Endpoint` from `endpoint`,
+overridable in `endpointBuiltIns`), then defaults. Resolved endpoint headers
+are sent, and `authSchemes` properties select and configure the signer, for
+example the signing region. Rule errors, missing required parameters, and
+invalid URLs raise `EndpointException` before anything is sent.
+
+`@endpoint(hostPrefix: ...)` prepends the expanded prefix to the host. Each
+`@hostLabel` value must be one DNS label, and the expanded host must remain a
+valid host name, or the call raises `EndpointException`. Set
+`disableHostPrefix: true` to keep the configured host.
+
+## Waiters
+
+Each modeled waiter generates `waitUntil<Name>(input, timeout: ...)`, which
+returns the successful output, or `null` when an error acceptor succeeds.
+The generated return type is `Future<Output?>`. Acceptors are evaluated in
+order over the input and output by member name, with timestamps as epoch seconds and exact
+numbers. Delays grow exponentially from the modeled `minDelay` to `maxDelay`
+with jitter, and are clipped to the deadline; `minDelay` and `maxDelay` may be
+overridden. One `timeout` covers every attempt and delay, and each attempt
+keeps the client's request timeout. A failure state raises `WaiterException`
+with the attempt count, last response or error, and the acceptor's message.
+The deadline raises `WaiterTimeoutException` and cancels the attempt in
+flight; a `CancellationToken` cancels the waiter and its attempt.
+
+## Checksums
+
+`@httpChecksumRequired` and `@aws.protocols#httpChecksum` operations send
+`Content-MD5` or `x-amz-checksum-<algorithm>` over the final request bytes.
+CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512 are supported, in the
+browser as well. By default (`ChecksumPolicy.whenSupported`) the client sends
+CRC32 when the caller chooses no algorithm and enables response validation;
+`whenRequired` limits both to operations that require them. A checksum header
+supplied by the caller or middleware is kept. Responses are validated against
+the first modeled algorithm the server returned; a mismatch raises
+`ChecksumException`, and `checksumValidated` reports each verified algorithm.
+An unsupported requested algorithm is an `ArgumentError` before sending.
+
+## AWS JSON protocols
+
+Models using `aws.protocols#restJson1`, `awsJson1_0`, or `awsJson1_1` (select
+one with `--protocol` when a service lists several) use the same client API.
+restJson1 keeps the HTTP bindings, with HTTP-date headers and ISO 8601 query
+and label timestamps. The AWS JSON 1.0 and 1.1 protocols POST every member as
+JSON to `/` with `X-Amz-Target: <Service>.<Operation>` and their content type,
+sending `{}` for empty input. All three use epoch-second body timestamps,
+send `NaN` and infinities as strings, treat null structure members as absent,
+and ignore a union's `__type`. Errors are identified by `X-Amzn-ErrorType`,
+`code`, or `__type` (namespace and URI suffix removed); request IDs come from
+`X-Amzn-RequestId` or `X-Amz-Request-Id`, and messages from `message` or
+`Message`.
+
 ## Migrating existing callers
 
 Pass ordinary typed values instead of `Field.value(...)` and read response
@@ -114,7 +208,12 @@ remain available. Regenerate and rebuild the package and its consumers together.
 
 `python tools/test-dart.py` checks shared retry and header cases,
 real HTTP, minimum-version analysis, native and JavaScript consumer compilation,
-and empty and renamed packages. Set `DART` to select the SDK executable and
+and empty and renamed packages. It also generates the authentication, waiter,
+endpoint-rules, checksum, and three AWS JSON protocol models and runs their
+tests on the VM and in Chrome: the published S3 SigV4 vector, credential
+selection and refresh, the shared checksum vectors, rules functions and host
+labels, waiter matchers, deadlines and cancellation, and protocol dispatch and
+error decoding. Set `DART` to select the SDK executable and
 `CHROME_EXECUTABLE` if Chrome is not on its usual path. These checks do not
 establish Flutter device, published-package, or authenticated deployed-Leyline
 compatibility.

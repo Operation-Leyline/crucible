@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
@@ -79,7 +80,74 @@ $client = new $class(new Example\\Weather\\Runtime\\ClientConfig(endpoint:'http:
 $client->close();
 """.replace("PLACEHOLDER_CLIENT", {"empty":"EmptyClient", "void":"ServiceClient", "renamed":"WeatherClient"}[name]), encoding="utf-8")
         run(PHP, str(generated / "check.php"))
-    print("PHP generated models, shared retry, native HTTP, Composer archive, empty and renamed packages passed")
+    for name, fixture_name, namespace in [("dynamic", "dynamic-bindings", "Dynamic"), ("extended", "extended-types", "Types")]:
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
+            "--package-name", "example/" + name, "--namespace", namespace)
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/extensions.php"), env=dict(os.environ,
+        PHP_DYNAMIC_PACKAGE=str(output / "dynamic"), PHP_EXTENDED_PACKAGE=str(output / "extended")))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
+        "--package-name", "example/wire", "--namespace", "WireSdk")
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/wire.php"), env=dict(os.environ, PHP_WIRE_PACKAGE=str(output / "wire")))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
+        "--package-name", "example/auth", "--namespace", "AuthSdk")
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/auth.php"), env=dict(os.environ, PHP_AUTH_PACKAGE=str(output / "auth")))
+    for name, model, namespace, test, variable, extra in [
+        ("jobs", "crates/crucible-codegen-java/tests/waiters.json", "JobsSdk", "waiters.php", "PHP_JOBS_PACKAGE", {}),
+        ("behavior", "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "BehaviorSdk", "endpoints.php", "PHP_BEHAVIOR_PACKAGE", {}),
+        ("checksum", "crates/crucible-smithy/tests/fixtures/checksums.json", "ChecksumSdk", "checksums.php", "PHP_CHECKSUM_PACKAGE",
+         {"CHECKSUM_VECTORS": str(ROOT / "tests/conformance/checksums.json")}),
+    ]:
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php", str(ROOT / model),
+            "--out", str(output / name), "--package-name", "example/" + name, "--namespace", namespace)
+        run(PHP, str(ROOT / "crates/crucible-codegen-php/tests" / test), env=dict(os.environ, **{variable: str(output / name)}, **extra))
+    protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
+    protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
+    protocol_path = output / "protocol.json"
+    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
+    for protocol in ("restJson1", "awsJson1_0", "awsJson1_1"):
+        package = output / protocol
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php", str(protocol_path),
+            "--protocol", "aws.protocols#" + protocol, "--out", str(package), "--package-name", "example/protocol",
+            "--namespace", "ProtocolSdk")
+        for path in sorted(package.rglob("*.php")):
+            run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+        run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/protocols.php"),
+            env=dict(os.environ, PHP_PROTOCOL_PACKAGE=str(package), PROTOCOL=protocol))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-codegen-java/tests/streaming.json"), "--out", str(output / "stream"),
+        "--package-name", "example/stream", "--namespace", "StreamSdk")
+    for path in sorted((output / "stream").rglob("*.php")):
+        run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+    streams = dict(os.environ, PHP_STREAM_PACKAGE=str(output / "stream"), PHP_JOBS_PACKAGE=str(output / "jobs"),
+                   PHP_CHECKSUM_PACKAGE=str(output / "checksum"), CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json"))
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/streaming.php"), env=streams)
+    # Real cURL against a loopback server: 256 MiB each way under a 64 MiB PHP memory limit.
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/loopback.php"), env=streams)
+    # Smithy RPC v2: the official protocol tests (lowered into each package's schema), then
+    # published CBOR/Digest/SigV4a vectors and the cURL transport against a verifying server.
+    for protocol, vectors in (("rpcv2Cbor", "rpcv2-cbor"), ("rpcv2Json", "rpcv2-json")):
+        package = output / protocol
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{vectors}.json"), "--out", str(package),
+            "--package-name", "example/rpc", "--namespace", "RpcSdk")
+        for path in sorted(package.rglob("*.php")):
+            run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+        run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/rpcv2.php"),
+            env=dict(os.environ, PHP_RPC_PACKAGE=str(package), PROTOCOL=protocol))
+    vault = output / "vault"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/rpc-auth.json"), "--out", str(vault),
+        "--package-name", "example/vault", "--namespace", "VaultSdk")
+    for path in sorted(vault.rglob("*.php")):
+        run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+    composer("validate", "--no-check-publish", cwd=vault)
+    vault_env = dict(os.environ, PHP_VAULT_PACKAGE=str(vault))
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/rpcauth.php"), env=vault_env)
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/rpc_loopback.php"), env=vault_env)
+    print("PHP generated models, shared retry, native HTTP, waiters, endpoint rules, checksums, AWS JSON and Smithy RPC v2 protocols, Digest and SigV4a authentication, streaming blobs, Composer archive, empty and renamed packages passed")
 
 if __name__ == "__main__":
     explicit = os.environ.get("PHP_TEST_OUTPUT")

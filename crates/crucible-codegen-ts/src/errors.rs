@@ -72,13 +72,13 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         }
         let assignments = structure.members.iter().filter(|member| member.name != "message").map(|member| {
             let name = crate::names::literal(&member.name);
-            format!("    if (Object.hasOwn(fields, {name})) Object.defineProperty(this, {name}, {{ value: fields[{name}], enumerable: true }});\n")
+            format!("    if (globalThis.Object.hasOwn(fields, {name})) globalThis.Object.defineProperty(this, {name}, {{ value: fields[{name}], enumerable: true }});\n")
         }).collect::<Vec<_>>().join("");
         out.push_str(&format!(
-            "  constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {{\n    \
+            "  constructor(fields: globalThis.Record<string, unknown>, metadata: ResponseMetadata) {{\n    \
              super({}, typeof fields.message === \"string\" ? fields.message : \"\", metadata, \"{fault}\", {retryable});\n\
              {assignments}  }}\n}}\n",
-            crate::names::literal(name)
+            crate::names::literal(&error.wire_code)
         ));
     }
     let mut header = String::from(crate::HEADER);

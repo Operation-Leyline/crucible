@@ -1,0 +1,145 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:jobs_client/jobs_client.dart';
+import 'package:jobs_client/src/runtime/query.dart';
+import 'package:jobs_client/src/runtime/waiters.dart';
+
+final class Fake implements HttpTransport {
+  final FutureOr<HttpResponse> Function(int, HttpRequest, CancellationToken) handler;
+  final requests = <HttpRequest>[];
+  Fake(this.handler);
+  @override
+  Future<HttpResponse> send(HttpRequest request, {required bool readBody, required CancellationToken cancellation}) async {
+    requests.add(request);
+    return handler(requests.length, request, cancellation);
+  }
+
+  @override
+  void close() {}
+}
+
+HttpResponse json(int status, Object body) => HttpResponse(status: status, body: Uint8List.fromList(utf8.encode(jsonEncode(body))));
+JobsClient client(Fake fake) => JobsClient(ClientConfig(endpoint: 'https://example.test', transport: fake, baseDelay: Duration.zero));
+
+final class Upper implements Random {
+  @override
+  double nextDouble() => 1;
+  @override
+  bool nextBool() => true;
+  @override
+  int nextInt(int max) => max - 1;
+}
+
+void main() {
+  test('generated waiter uses member names and retries modeled error types', () async {
+    final fake = Fake((attempt, request, _) => attempt == 1 ? json(404, {'__type': 'Missing'}) : json(200, {'wire-status': attempt >= 3 ? 'READY' : 'PENDING'}));
+    final output = await client(fake).waitUntilReady(const Input(), timeout: const Duration(seconds: 5), minDelay: Duration.zero, maxDelay: Duration.zero);
+    expect(output!.status, 'READY');
+    expect(fake.requests, hasLength(3));
+  });
+
+  test('final poll retains a call budget', () async {
+    final fake = Fake((attempt, request, _) async {
+      if (attempt == 2) await Future<void>.delayed(const Duration(milliseconds: 100));
+      return json(200, {'wire-status': attempt == 1 ? 'PENDING' : 'READY'});
+    });
+    final output = await client(fake).waitUntilReady(const Input(), timeout: const Duration(milliseconds: 1500),
+        minDelay: const Duration(seconds: 1), maxDelay: const Duration(seconds: 1));
+    expect(output!.status, 'READY');
+    expect(fake.requests, hasLength(2));
+  });
+
+  test('successful error acceptors return no output', () async {
+    final missing = Fake((_, __, ___) => json(404, {'__type': 'Missing'}));
+    final Output? deleted = await client(missing).waitUntilDeleted(const Input(), timeout: const Duration(seconds: 1));
+    expect(deleted, isNull);
+    expect(missing.requests, hasLength(1));
+    final denied = Fake((_, __, ___) => json(403, {'__type': 'Denied'}));
+    final Output? failed = await client(denied).waitUntilFailedRequest(const Input(), timeout: const Duration(seconds: 1));
+    expect(failed, isNull);
+    expect(denied.requests, hasLength(1));
+  });
+
+  test('projections, filters, input-output, timestamps and failure messages', () async {
+    var payload = <String, Object?>{'items': [{'wire-status': 'READY'}, {'wire-status': 'READY'}], 'updatedAt': '2026-01-01T00:00:00Z'};
+    final fake = Fake((_, __, ___) => json(200, payload));
+    final sdk = client(fake);
+    const timeout = Duration(seconds: 1);
+    await sdk.waitUntilAllReady(const Input(), timeout: timeout);
+    await sdk.waitUntilAnyReady(const Input(), timeout: timeout);
+    await sdk.waitUntilFilteredReady(const Input(), timeout: timeout);
+    await sdk.waitUntilUpdated(const Input(), timeout: timeout);
+    final names = ['a', 'b'];
+    await sdk.waitUntilCountsMatch(Input(names: names), timeout: timeout);
+    expect(names, ['a', 'b']);
+    payload = {'wire-status': 'FAILED', 'reasons': ['job rejected']};
+    final failure = await sdk.waitUntilReady(const Input(), timeout: timeout).then<Object>((_) => fail('Expected failure'), onError: (Object error) => error);
+    expect(failure, isA<WaiterException>().having((e) => e.message, 'message', ['job rejected']).having((e) => e.attempts, 'attempts', 1));
+    expect(failure, isNot(isA<WaiterTimeoutException>()));
+  });
+
+  test('unmatched errors are terminal; invalid delays are rejected', () async {
+    final fake = Fake((_, __, ___) => json(403, {'__type': 'Denied'}));
+    final failure = await client(fake).waitUntilReady(const Input(), timeout: const Duration(seconds: 1)).then<Object>((_) => fail('Expected failure'), onError: (Object error) => error);
+    expect(failure, isA<WaiterException>().having((e) => (e.error as ServiceError).metadata.name, 'error', 'Denied'));
+    await expectLater(client(fake).waitUntilReady(const Input(), timeout: Duration.zero), throwsArgumentError);
+    await expectLater(client(fake).waitUntilReady(const Input(), timeout: const Duration(seconds: 1), minDelay: const Duration(seconds: 2), maxDelay: const Duration(seconds: 1)), throwsArgumentError);
+  });
+
+  test('the deadline bounds delays and in-flight attempts', () async {
+    final pending = Fake((_, __, ___) => json(200, {'wire-status': 'PENDING'}));
+    final watch = Stopwatch()..start();
+    await expectLater(client(pending).waitUntilReady(const Input(), timeout: const Duration(milliseconds: 60)),
+        throwsA(isA<WaiterTimeoutException>().having((e) => e.attempts, 'attempts', 1)));
+    // The modeled one-second delay is clipped to the remaining deadline.
+    expect(watch.elapsed, lessThan(const Duration(milliseconds: 900)));
+    final cancelled = <CancellationToken>[];
+    final stalled = Fake((_, __, token) {
+      cancelled.add(token);
+      return Completer<HttpResponse>().future;
+    });
+    await expectLater(client(stalled).waitUntilReady(const Input(), timeout: const Duration(milliseconds: 30)), throwsA(isA<WaiterTimeoutException>()));
+    final caller = CancellationToken();
+    final waiting = client(stalled).waitUntilReady(const Input(), timeout: const Duration(seconds: 10), cancellation: caller);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    caller.cancel();
+    await expectLater(waiting, throwsA(isA<CancelledException>()));
+    expect(cancelled, hasLength(2));
+    expect(cancelled.every((token) => token.isCancelled), isTrue);
+  });
+
+  test('exponential jittered delays stay within the remaining time', () {
+    const second = Duration(seconds: 1);
+    expect([for (var n = 1; n <= 5; n++) waiterDelay(n, second * 100, second * 2, second * 8, Upper())], [second * 2, second * 4, second * 8, second * 8, second * 8]);
+    expect(waiterDelay(2, second * 5, second * 2, second * 8, Upper()), second * 3);
+    expect(waiterDelay(2, second, second * 2, second * 8, Upper()), second);
+    for (var n = 1; n < 40; n++) {
+      final delay = waiterDelay(n, second * 1000, second * 2, second * 8);
+      expect(delay >= second * 2 && delay <= second * 8, isTrue);
+    }
+  });
+
+  test('compiled JMESPath keeps exact numbers and distinguishes booleans', () {
+    Map<String, Object?> literal(Object? value) => {'kind': 'literal', 'value': value};
+    Object? call(String name, List<Map<String, Object?>> arguments) => queryEvaluate({'kind': 'function', 'function': name, 'arguments': arguments}, null);
+    expect(call('to_number', [literal('12345678901234567890.0000000001')]).toString(), '12345678901234567890.0000000001');
+    expect(call('contains', [literal([true]), literal(JsonNumber('1'))]), isFalse);
+    expect(call('sort', [literal([JsonNumber('2.2'), JsonNumber('1.1')])]).toString(), '[1.1, 2.2]');
+    expect(call('type', [literal(JsonNumber('1.1'))]), 'number');
+    expect(call('to_string', [literal({'number': JsonNumber('1.000000000000000000001')})]), '{"number":1.000000000000000000001}');
+    expect(call('sum', [literal([JsonNumber('0.1'), JsonNumber('0.2')])]).toString(), '0.3');
+    expect(call('avg', [literal([JsonNumber('1'), JsonNumber('2')])]).toString(), '1.5');
+    expect(call('floor', [literal(JsonNumber('-1.5'))]).toString(), '-2');
+    expect(call('ceil', [literal(JsonNumber('1.000000000000000000001'))]).toString(), '2');
+    expect(call('length', [literal('é😀')]).toString(), '2');
+    final greater = queryEvaluate({'kind': 'compare', 'comparator': 'greaterThan', 'left': literal(JsonNumber('1e400')), 'right': literal(JsonNumber('99999999999999999999'))}, null);
+    expect(greater, isTrue);
+    final slice = queryEvaluate({'kind': 'slice', 'start': null, 'stop': null, 'step': JsonNumber('-1')}, [1, 2, 3]);
+    expect(slice, [3, 2, 1]);
+    final state = waiterState({'acceptors': [{'state': 'success', 'matcher': {'kind': 'output', 'path': {'expression': {'kind': 'field', 'name': 'flag'}}, 'comparator': 'booleanEquals', 'expected': 'true'}}]}, null, {'flag': 'true'}, null);
+    expect(state.$1, 'retry');
+  });
+}

@@ -59,7 +59,38 @@ fn contains_nul(value: &serde_json::Value) -> bool {
     }
 }
 
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let mut diagnostics = Diagnostics::default();
     let client_name = format!("{}Client", service.id.name());
     if service.version.contains('\0')
@@ -99,12 +130,20 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "client_config",
         "cancellation_token",
         "long",
+        "big_integer",
+        "big_decimal",
         "timestamp",
         "json_number",
         "json_parse",
         "json_encode",
         "json_object",
         "UNSET",
+        "basic_credentials",
+        "aws_credentials",
+        "credential_chain",
+        "environment_credentials",
+        "profile_credentials",
+        "cached_credentials",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -132,7 +171,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         let name = service.name_of(id);
         if !matches!(
             shape,
-            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_)
+            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_)
         ) {
             continue;
         }
@@ -222,6 +261,26 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "ceiling",
                 "strtoi",
                 "utf8ToInt",
+                "intToUtf8",
+                "head",
+                "intersect",
+                "unlist",
+                "setdiff",
+                "setequal",
+                "nzchar",
+                "order",
+                "sort",
+                "gregexpr",
+                "lengths",
+                "readLines",
+                "format",
+                "print",
+                "cat",
+                "difftime",
+                "missing",
+                "all",
+                "isFALSE",
+                "C_crucible_crc",
             ]
             .contains(&name)
         {
@@ -243,6 +302,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 out.push_str(&format!("{} <- function({}) .crucible_model({}, list({}))\n", function(name),args.join(", "),literal(&id.to_string()),values.join(", ")));
             }
             Shape::Enum(_) => out.push_str(&format!("{} <- function(value) structure(.crucible_string(value), class = c({}, 'crucible_enum', 'character'))\n",function(name),literal(name))),
+            Shape::IntEnum(_) => out.push_str(&format!("{} <- function(value) .crucible_int_enum(value, {})\n", function(name), literal(name))),
             Shape::Union(_) => out.push_str(&format!("{} <- function(member, value = NULL) .crucible_union({}, member, value)\n",function(name),literal(&id.to_string()))),
             _ => unreachable!(),
         }
@@ -251,7 +311,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: out,
         });
     }
-    let mut methods = BTreeSet::from(["close".to_owned(), "call".to_owned(), "pages".to_owned()]);
+    let mut methods = BTreeSet::from([
+        "close".to_owned(),
+        "call".to_owned(),
+        "pages".to_owned(),
+        "wait".to_owned(),
+    ]);
     let mut client = format!(
         "# Generated native operation methods.\n{} <- function(config = client_config()) {{\n  client <- .crucible_client(config, {}, {})\n",
         function(&client_name),
@@ -284,6 +349,21 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             client.push_str(&format!("  client${} <- function(input{}, cancellation = NULL) client${}({}, input, cancellation)\n",function(&method),if op.input.is_none(){" = NULL"}else{""},if suffix.is_empty(){"call"}else{"pages"},literal(op.name())));
         }
     }
+    for op in &service.operations {
+        for waiter in op.waiters.keys() {
+            let method = format!("wait_until_{}", field(waiter));
+            if !methods.insert(method.clone()) {
+                diagnostics.push(&op.id, "R waiter method collision");
+            }
+            client.push_str(&format!(
+                "  client${} <- function(input{}, timeout, min_delay = NULL, max_delay = NULL, cancellation = NULL) client$wait({}, {}, input, timeout, min_delay, max_delay, cancellation)\n",
+                function(&method),
+                if op.input.is_none() { " = NULL" } else { "" },
+                literal(op.name()),
+                literal(waiter)
+            ));
+        }
+    }
     client.push_str("  client\n}\n");
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -296,6 +376,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("json", include_str!("../runtime/json.R")),
         ("types", include_str!("../runtime/types.R")),
         ("codec", include_str!("../runtime/codec.R")),
+        ("query", include_str!("../runtime/query.R")),
+        ("endpoints", include_str!("../runtime/endpoints.R")),
+        ("auth", include_str!("../runtime/auth.R")),
+        ("checksums", include_str!("../runtime/checksums.R")),
+        ("waiters", include_str!("../runtime/waiters.R")),
         ("runtime", include_str!("../runtime/runtime.R")),
     ] {
         files.push(File {
@@ -307,6 +392,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         path: "src/clock.c".into(),
         contents: include_str!("../runtime/clock.c")
             .replace("CRUCIBLE_PACKAGE", &package.replace('.', "_")),
+    });
+    files.push(File {
+        path: "src/checksums.c".into(),
+        contents: include_str!("../runtime/checksums.c").into(),
     });
     let schema_text = serde_json::to_string(&schema).expect("schema");
     let chars: Vec<_> = schema_text.chars().collect();
@@ -327,7 +416,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ) + &exported
             .iter()
             .map(|s| format!("export({})\n", literal(s)))
-            .collect::<String>(),
+            .collect::<String>()
+            + &["format", "print"]
+                .iter()
+                .flat_map(|generic| {
+                    ["crucible_aws_credentials", "crucible_basic_credentials"]
+                        .map(|class| format!("S3method({generic}, {class})\n"))
+                })
+                .collect::<String>(),
     });
     files.push(File {path:"DESCRIPTION".into(),contents:format!("Package: {package}\nVersion: {}\nTitle: Generated Client for {}\nDescription: Native client generated from the Crucible Smithy semantic model.\nAuthors@R: person('SDK', 'Maintainer', role = c('aut', 'cre'), email = 'sdk@example.invalid')\nLicense: file LICENSE\nEncoding: UTF-8\nDepends: R (>= 4.1.0)\nImports: curl (>= 4.3.2), jsonlite (>= 1.7.3), openssl (>= 1.4.6), stats\n",options.package_version,service.name_of(&service.id))});
     files.push(File{path:"LICENSE".into(),contents:"Package owner must supply distribution terms before publishing. Generated model code inherits the model owner's licensing requirements.\n".into()});

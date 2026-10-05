@@ -64,7 +64,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     let mut symbols = BTreeSet::new();
     let mut tags = BTreeSet::new();
     for (id, shape) in &service.shapes {
-        if !models::complex(shape) && !matches!(shape, Shape::Enum(_)) {
+        if !models::complex(shape) && !matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
             continue;
         }
         let native = models::native_name(service, id, &options.prefix);
@@ -100,6 +100,12 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 }
             }
             Shape::Map(_) => emitted.push(format!("{native}_entry")),
+            Shape::List(list) if list.sparse => emitted.push(format!("{native}_item")),
+            Shape::IntEnum(e) => {
+                for value in &e.values {
+                    emitted.push(format!("{native}_known_{}", names::field(&value.name)));
+                }
+            }
             Shape::Enum(e) => {
                 for value in &e.values {
                     emitted.push(format!("{native}_known_{}", names::field(&value.name)));
@@ -126,7 +132,37 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     errors
 }
 
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    crucible_smithy::Capabilities::new([
+        crucible_smithy::Feature::NonBlobPayload,
+        crucible_smithy::Feature::MediaTypeHeaders,
+        crucible_smithy::Feature::ErrorPayload,
+        crucible_smithy::Feature::JsonName,
+        crucible_smithy::Feature::GreedyLabels,
+        crucible_smithy::Feature::QueryParams,
+        crucible_smithy::Feature::PrefixHeaders,
+        crucible_smithy::Feature::ResponseCode,
+        crucible_smithy::Feature::IntEnum,
+        crucible_smithy::Feature::BigInteger,
+        crucible_smithy::Feature::BigDecimal,
+        crucible_smithy::Feature::Sparse,
+        crucible_smithy::Feature::Sets,
+        crucible_smithy::Feature::BasicAuth,
+        crucible_smithy::Feature::ApiKeyAuth,
+        crucible_smithy::Feature::SigV4,
+        crucible_smithy::Feature::OptionalAuth,
+        crucible_smithy::Feature::Waiters,
+        crucible_smithy::Feature::EndpointRules,
+        crucible_smithy::Feature::EndpointHostPrefix,
+        crucible_smithy::Feature::AwsRestJson1,
+        crucible_smithy::Feature::AwsJson10,
+        crucible_smithy::Feature::AwsJson11,
+        crucible_smithy::Feature::HttpChecksum,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -145,6 +181,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("timestamp.c", include_str!("../runtime/timestamp.c")),
         ("codec.c", include_str!("../runtime/codec.c")),
         ("http.h", include_str!("../runtime/http.h")),
+        ("auth.h", include_str!("../runtime/auth.h")),
+        ("endpoints.h", include_str!("../runtime/endpoints.h")),
         ("scope.c", include_str!("../runtime/scope.c")),
         ("headers.c", include_str!("../runtime/headers.c")),
         ("transport.c", include_str!("../runtime/transport.c")),
@@ -158,11 +196,19 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ),
         ("bindings.h", include_str!("../runtime/bindings.h")),
         ("bindings.c", include_str!("../runtime/bindings.c")),
+        ("features.h", include_str!("../runtime/features.h")),
+        ("encoding.c", include_str!("../runtime/encoding.c")),
+        ("auth.c", include_str!("../runtime/auth.c")),
+        ("checksums.c", include_str!("../runtime/checksums.c")),
+        ("query.c", include_str!("../runtime/query.c")),
+        ("endpoints.c", include_str!("../runtime/endpoints.c")),
+        ("waiters.c", include_str!("../runtime/waiters.c")),
     ] {
         let contents = source
             .replace("crucible_generated", &options.prefix)
             .replace("CRUCIBLE_GENERATED", &options.prefix.to_ascii_uppercase());
-        let public = name.ends_with(".h") && !["internal.h", "bindings.h"].contains(&name);
+        let public =
+            name.ends_with(".h") && !["internal.h", "bindings.h", "features.h"].contains(&name);
         let path = if public {
             format!("include/{}/runtime/{name}", options.package_name)
         } else {
@@ -170,7 +216,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         };
         let mut contents = contents;
         if !public {
-            for header in ["types.h", "schema.h", "http.h", "client_runtime.h"] {
+            for header in [
+                "types.h",
+                "schema.h",
+                "http.h",
+                "auth.h",
+                "endpoints.h",
+                "client_runtime.h",
+            ] {
                 contents = contents.replace(
                     &format!("\"{header}\""),
                     &format!("\"{}/runtime/{header}\"", options.package_name),

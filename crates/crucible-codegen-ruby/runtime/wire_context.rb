@@ -12,8 +12,9 @@ module CrucibleGenerated
       def member(name) = child(shape.fetch('members').fetch(name))
       def read(name, object, optional: false)
         description = shape.fetch('members').fetch(name)
-        value = object.fetch(name, description['default'])
-        unless object.key?(name) || !value.nil?
+        present = object.key?(name) && !(object[name].nil? && @codec.omit_null?(description))
+        value = present ? object[name] : description['default']
+        unless present || !value.nil?
           return UNSET if optional
           raise ::ArgumentError, 'Missing required member: ' + name
         end
@@ -24,7 +25,7 @@ module CrucibleGenerated
         if optional
           return if value.equal?(UNSET)
           if value.nil?
-            object[name] = nil
+            object[name] = nil unless @codec.omit_null?(shape.fetch('members').fetch(name))
             return
           end
         end

@@ -320,6 +320,8 @@ public final class ClientTest {
             })) {
       var config = server.config();
       config.token = () -> Integer.toString(credentials.incrementAndGet());
+      var tokenCalls = new java.util.concurrent.atomic.AtomicInteger();
+      config.idempotencyToken = () -> { tokenCalls.incrementAndGet(); return "deterministic-idempotency-token"; };
       var client = new WeatherClient(config);
       var input = new CreateCityInput();
       input.name = OptionalValue.of("é");
@@ -329,6 +331,8 @@ public final class ClientTest {
       check(
           !input.clientToken.present() && java.util.Arrays.equals(sent.get(0), sent.get(1)),
           "token mutated or retry body changed");
+      check(tokenCalls.get() == 1 && new String(sent.get(0), java.nio.charset.StandardCharsets.UTF_8).contains("deterministic-idempotency-token"),
+          "configured idempotency token is generated once and reused on retry");
     }
     try (var server =
         new Server(
@@ -758,8 +762,13 @@ public final class ClientTest {
       catch (IllegalArgumentException expected) { }
       try { runtime.encode("example.weather#Tags", java.util.Arrays.asList((String) null), null); throw new AssertionError("Dense null encoded"); }
       catch (IllegalArgumentException expected) { }
-      var document = JsonParser.parseString("{\"key\":null}");
+      var document = JsonParser.parseString("{\"key\":{\"nil\":null}}");
       check(runtime.encode("example.weather#Forecast", runtime.decode("example.weather#Forecast", document, null), null).equals(document), "document null");
+      document = JsonParser.parseString("{\"key\":null}");
+      try { runtime.decode("example.weather#Forecast", document, null); throw new AssertionError("Dense document null accepted"); }
+      catch (IllegalArgumentException expected) { }
+      try { runtime.encode("example.weather#Forecast", java.util.Map.of("key",com.google.gson.JsonNull.INSTANCE), null); throw new AssertionError("Dense document null encoded"); }
+      catch (IllegalArgumentException expected) { }
       schema.getAsJsonObject("shapes").getAsJsonObject("example.weather#Forecast").getAsJsonObject("value").addProperty("target", "smithy.api#String");
       try { runtime.decode("example.weather#Forecast", document, null); throw new AssertionError("Dense map null accepted"); }
       catch (IllegalArgumentException expected) { }
@@ -768,7 +777,71 @@ public final class ClientTest {
       catch (IllegalArgumentException expected) { }
     }
   }
+  static final class PageSubscriber implements java.util.concurrent.Flow.Subscriber<example.weather.model.ListCitiesOutput> {
+    final java.util.concurrent.CompletableFuture<java.util.concurrent.Flow.Subscription> subscription = new java.util.concurrent.CompletableFuture<>();
+    final java.util.concurrent.BlockingQueue<example.weather.model.ListCitiesOutput> pages = new java.util.concurrent.LinkedBlockingQueue<>();
+    final java.util.concurrent.CompletableFuture<Void> complete = new java.util.concurrent.CompletableFuture<>();
+    public void onSubscribe(java.util.concurrent.Flow.Subscription value) { subscription.complete(value); }
+    public void onNext(example.weather.model.ListCitiesOutput page) { pages.add(page); }
+    public void onError(Throwable error) { complete.completeExceptionally(error); }
+    public void onComplete() { complete.complete(null); }
+  }
+
+  static void asynchronousPagination() throws Exception {
+    var calls = new AtomicInteger();
+    try (var server = new Server(exchange -> {
+      calls.incrementAndGet();
+      boolean last = exchange.getRequestURI().getRawQuery() != null && exchange.getRequestURI().getRawQuery().contains("nextToken=second");
+      response(exchange, 200, last ? "{\"cities\":[]}" : "{\"cities\":[],\"nextToken\":\"second\"}");
+    })) {
+      var client = new WeatherClient(server.config());
+      var input = ListCitiesInput.builder().maxResults(3).build();
+      var publisher = client.listCitiesPagesAsync(input);
+      input.nextToken = OptionalValue.of("changed-after-publisher-creation");
+      var first = new PageSubscriber(); publisher.subscribe(first);
+      var subscription = first.subscription.get(5, TimeUnit.SECONDS);
+      check(calls.get() == 0, "publisher fetched before demand");
+      subscription.request(1);
+      check(first.pages.poll(5, TimeUnit.SECONDS) != null && calls.get() == 1 && !first.complete.isDone(), "one demand must yield one page");
+      subscription.request(1);
+      first.complete.get(5, TimeUnit.SECONDS);
+      check(first.pages.size() == 1 && calls.get() == 2, "final page and completion");
+      var second = new PageSubscriber(); publisher.subscribe(second);
+      second.subscription.get(5, TimeUnit.SECONDS).request(Long.MAX_VALUE);
+      second.complete.get(5, TimeUnit.SECONDS);
+      check(second.pages.size() == 2 && calls.get() == 4, "subscribers shared pagination state");
+      var invalid = new PageSubscriber(); client.listCitiesPagesAsync().subscribe(invalid);
+      invalid.subscription.get(5, TimeUnit.SECONDS).request(0);
+      try { invalid.complete.get(5, TimeUnit.SECONDS); throw new AssertionError("zero demand accepted"); }
+      catch (java.util.concurrent.ExecutionException error) { check(error.getCause() instanceof IllegalArgumentException, "wrong demand failure"); }
+      check(calls.get() == 4, "invalid demand dispatched");
+    }
+    try (var server = new Server(exchange -> response(exchange, 200, "{\"cities\":[],\"nextToken\":\"same\"}"))) {
+      var repeated = new PageSubscriber(); new WeatherClient(server.config()).listCitiesPagesAsync(b -> b.maxResults(1)).subscribe(repeated);
+      repeated.subscription.get(5, TimeUnit.SECONDS).request(3);
+      try { repeated.complete.get(5, TimeUnit.SECONDS); throw new AssertionError("repeated cursor accepted"); }
+      catch (java.util.concurrent.ExecutionException error) { check(error.getCause() instanceof IllegalStateException, "wrong cursor failure"); }
+      check(repeated.pages.size() == 1, "repeated cursor page emitted");
+    }
+    var entered = new CountDownLatch(1); var release = new CountDownLatch(1); var hookFinished = new CountDownLatch(1);
+    var requests = new AtomicInteger();
+    try (var server = new Server(exchange -> { requests.incrementAndGet(); response(exchange, 200, "{\"cities\":[]}"); })) {
+      var config = server.config();
+      config.token = () -> { entered.countDown(); try { release.await(); } catch (InterruptedException error) { Thread.currentThread().interrupt(); } return "token"; };
+      config.middleware = List.of(request -> hookFinished.countDown());
+      var cancelled = new PageSubscriber(); new WeatherClient(config).listCitiesPagesAsync().subscribe(cancelled);
+      var subscription = cancelled.subscription.get(5, TimeUnit.SECONDS); subscription.request(1);
+      check(entered.await(5, TimeUnit.SECONDS), "active call did not start");
+      subscription.cancel(); release.countDown();
+      check(hookFinished.await(5, TimeUnit.SECONDS), "credential hook did not release");
+      // Allow the released credential worker to reach the dispatch guard.
+      Thread.sleep(200);
+      check(requests.get() == 0 && cancelled.pages.isEmpty() && !cancelled.complete.isDone(), "cancelled publisher dispatched or signaled");
+    }
+  }
+
   public static void main(String[] args) throws Exception {
+    asynchronousPagination();
     hardening();
     retries(Path.of(args[0]));
     malformedErrorMetadataAndRetry(Path.of(args[0]).resolveSibling("malformed-errors.json"));

@@ -46,6 +46,21 @@ CLASSES = {name: ServiceError for name in ("Ordinary", "Transient", "Throttled")
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_renamed_pagination_tokens_remain_native_fields(self):
+        import copy
+        seen = []
+        def respond(request):
+            seen.append(request.url.params.get("nextToken"))
+            return httpx.Response(200, json={"cities": [], **({"continuation": "page2"} if len(seen) == 1 else {})})
+        with httpx.Client(transport=httpx.MockTransport(respond)) as http:
+            client = WeatherClient(http=http)
+            client._codec.schema = copy.deepcopy(client._codec.schema)
+            client._codec.shapes = client._codec.schema["shapes"]
+            client._codec.shapes["example.weather#ListCitiesInput"]["members"]["nextToken"]["jsonName"] = "cursor"
+            client._codec.shapes["example.weather#ListCitiesOutput"]["members"]["nextToken"]["jsonName"] = "continuation"
+            self.assertEqual(len(list(client.list_cities_pages())), 2)
+        self.assertEqual(seen, [None, "page2"])
+
     def test_hardening_auth_empty_digest_dot_labels_and_dense_collections(self):
         sent = []
         def credential():
@@ -77,7 +92,9 @@ class RuntimeTests(unittest.TestCase):
                 codec.convert("StringMap", {"key": None}, decode=decode)
             with self.assertRaisesRegex(ValueError, "non-sparse"):
                 codec.convert("example.weather#Tags", [None], decode=decode)
-            self.assertEqual(codec.convert("example.weather#Forecast", {"key": None}, decode=decode), {"key": None})
+            with self.assertRaisesRegex(ValueError, "non-sparse"):
+                codec.convert("example.weather#Forecast", {"key": None}, decode=decode)
+            self.assertEqual(codec.convert("example.weather#Forecast", {"key": {"nested": None}}, decode=decode), {"key": {"nested": None}})
 
     def test_native_model_construction_and_reading(self):
         value = CreateCityInput(name="Oslo", location=None, expected_revision=7)

@@ -18,11 +18,19 @@ pub(crate) fn rust_type(service: &Service, target: &ShapeId, prefix: &str) -> St
             _ => {}
         }
     }
+    if crate::events::is_event_stream(service, target) {
+        return format!(
+            "::crucible::EventStream<{prefix}{}>",
+            service.name_of(target)
+        );
+    }
     format!("{prefix}{}", service.name_of(target))
 }
 
 pub(crate) fn builtin(kind: SimpleKind) -> &'static str {
     match kind {
+        SimpleKind::BigInteger => "::crucible::BigInteger",
+        SimpleKind::BigDecimal => "::crucible::BigDecimal",
         SimpleKind::Boolean => "bool",
         SimpleKind::String => STRING,
         SimpleKind::Byte => "i8",
@@ -65,19 +73,6 @@ pub(crate) fn simple_kind(service: &Service, target: &ShapeId) -> Option<SimpleK
     }
 }
 
-/// The `serde(with = ...)` module a timestamp member needs, if it is not the
-/// default `date-time` (which chrono's own serde writes).
-pub(crate) fn timestamp_module(service: &Service, member: &Member) -> Option<&'static str> {
-    if simple_kind(service, &member.target) != Some(SimpleKind::Timestamp) {
-        return None;
-    }
-    match service.timestamp_format(member) {
-        TimestampFormat::DateTime => None,
-        TimestampFormat::EpochSeconds => Some("::crucible::time::epoch_seconds"),
-        TimestampFormat::HttpDate => Some("::crucible::time::http_date"),
-    }
-}
-
 /// Members whose type must be boxed: a structure or union that can reach
 /// back to its own shape without passing through a list or map.
 pub(crate) fn boxed_members(service: &Service) -> BTreeSet<ShapeId> {
@@ -108,5 +103,57 @@ fn reaches(service: &Service, from: &ShapeId, to: &ShapeId, seen: &mut BTreeSet<
             .iter()
             .any(|member| reaches(service, &member.target, to, seen)),
         _ => false,
+    }
+}
+
+/// Recursive adapters keep collection aliases native while enforcing their wire semantics.
+pub(crate) fn codec(service: &Service, member: &Member) -> Option<String> {
+    let base = "::crucible::codec::";
+    match service.shape(&member.target)? {
+        Shape::List(list) => {
+            let inner = if !list.sparse
+                && simple_kind(service, &list.member.target) == Some(SimpleKind::Document)
+            {
+                Some(format!("{base}Document"))
+            } else {
+                codec(service, &list.member)
+            };
+            let unique = list.is_set || member.constraints.unique_items;
+            if !unique && inner.is_none() {
+                return None;
+            }
+            let mut inner = inner.unwrap_or_else(|| format!("{base}Identity"));
+            if list.sparse {
+                inner = format!("{base}Optional<{inner}>");
+            }
+            Some(format!("{base}List<{inner}, {unique}>"))
+        }
+        Shape::Map(map) => {
+            let mut inner = if !map.sparse
+                && simple_kind(service, &map.value.target) == Some(SimpleKind::Document)
+            {
+                format!("{base}Document")
+            } else {
+                codec(service, &map.value)?
+            };
+            if map.sparse {
+                inner = format!("{base}Optional<{inner}>");
+            }
+            Some(format!("{base}Map<{inner}>"))
+        }
+        Shape::Simple(simple)
+            if matches!(simple.kind, SimpleKind::Float | SimpleKind::Double)
+                && service.protocol_settings.non_finite_float_strings =>
+        {
+            Some(format!("{base}NonFinite"))
+        }
+        Shape::Simple(simple) if simple.kind == SimpleKind::Timestamp => {
+            match service.document_timestamp_format(member) {
+                TimestampFormat::EpochSeconds => Some(format!("{base}EpochSeconds")),
+                TimestampFormat::HttpDate => Some(format!("{base}HttpDate")),
+                TimestampFormat::DateTime => None,
+            }
+        }
+        _ => None,
     }
 }

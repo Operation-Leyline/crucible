@@ -1,0 +1,96 @@
+{
+  "description": "Retry quota vectors. 'quota' steps drive the token bucket directly; 'calls' drive a fresh client generated from crates/crucible-smithy/tests/fixtures/runtime-policy.json (endpoint https://records.example, api key 'key', backoff disabled) through the readonly ListRecords operation. Response tokens: 'ok' is 200 {}, 'unavailable' is 503 {\"__type\":\"Unavailable\"} (modeled retryable), 'throttled' is 429 {\"__type\":\"Throttled\"} (modeled throttling), 'timeout' is a transport timeout, 'denied' is 400 {\"__type\":\"Denied\"} (not retryable). 'repeat' runs the step that many times. 'available' is the quota after the step; null means the mode has no quota.",
+  "constants": {
+    "initialRetryTokens": 500,
+    "retryCost": 5,
+    "retryTimeoutCost": 10,
+    "noRetryIncrement": 1
+  },
+  "quota": [
+    {
+      "name": "costs-and-refunds",
+      "steps": [
+        { "acquire": "error", "granted": true, "available": 495 },
+        { "acquire": "timeout", "granted": true, "available": 485 },
+        { "release": 10, "available": 495 },
+        { "release": null, "available": 496 },
+        { "release": 5, "available": 500 },
+        { "release": null, "available": 500 }
+      ]
+    },
+    {
+      "name": "exhaustion-denies-without-spending",
+      "initial": 12,
+      "steps": [
+        { "acquire": "timeout", "granted": true, "available": 2 },
+        { "acquire": "error", "granted": false, "available": 2 },
+        { "acquire": "timeout", "granted": false, "available": 2 },
+        { "release": null, "available": 3 },
+        { "release": null, "available": 4 },
+        { "release": null, "available": 5 },
+        { "acquire": "error", "granted": true, "available": 0 }
+      ]
+    }
+  ],
+  "calls": [
+    {
+      "name": "success-without-retry-is-capped",
+      "mode": "standard",
+      "steps": [{ "responses": ["ok"], "attempts": 1, "success": true, "available": 500 }]
+    },
+    {
+      "name": "one-retry-is-refunded",
+      "mode": "standard",
+      "steps": [{ "responses": ["unavailable", "ok"], "attempts": 2, "success": true, "available": 500 }]
+    },
+    {
+      "name": "only-the-last-retry-is-refunded",
+      "mode": "standard",
+      "steps": [{ "responses": ["unavailable", "throttled", "ok"], "attempts": 3, "success": true, "available": 495 }]
+    },
+    {
+      "name": "timeouts-cost-more",
+      "mode": "standard",
+      "steps": [
+        { "responses": ["timeout", "ok"], "attempts": 2, "success": true, "available": 500 },
+        { "responses": ["timeout", "unavailable", "ok"], "attempts": 3, "success": true, "available": 490 }
+      ]
+    },
+    {
+      "name": "failed-calls-keep-their-cost",
+      "mode": "standard",
+      "steps": [
+        { "responses": ["unavailable", "unavailable", "unavailable"], "attempts": 3, "success": false, "available": 490 },
+        { "responses": ["denied"], "attempts": 1, "success": false, "available": 490 }
+      ]
+    },
+    {
+      "name": "exhausted-quota-stops-retries-until-refilled",
+      "mode": "standard",
+      "steps": [
+        { "repeat": 50, "responses": ["unavailable", "unavailable", "unavailable"], "attempts": 3, "success": false, "available": 0 },
+        { "responses": ["unavailable", "ok"], "attempts": 1, "success": false, "available": 0 },
+        { "repeat": 4, "responses": ["ok"], "attempts": 1, "success": true, "available": 4 },
+        { "responses": ["throttled", "ok"], "attempts": 1, "success": false, "available": 4 },
+        { "responses": ["ok"], "attempts": 1, "success": true, "available": 5 },
+        { "responses": ["throttled", "ok"], "attempts": 2, "success": true, "available": 5 }
+      ]
+    },
+    {
+      "name": "adaptive-shares-the-quota",
+      "mode": "adaptive",
+      "steps": [
+        { "responses": ["unavailable", "ok"], "attempts": 2, "success": true, "available": 500 },
+        { "responses": ["throttled", "throttled", "throttled"], "attempts": 3, "success": false, "available": 490 }
+      ]
+    },
+    {
+      "name": "legacy-has-no-quota",
+      "mode": "legacy",
+      "steps": [
+        { "repeat": 60, "responses": ["unavailable", "unavailable", "unavailable"], "attempts": 3, "success": false, "available": null },
+        { "responses": ["unavailable", "ok"], "attempts": 2, "success": true, "available": null }
+      ]
+    }
+  ]
+}

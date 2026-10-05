@@ -68,8 +68,12 @@ fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
         return format!("global::{ns}.Models.@{}", service.name_of(id));
     }
     match service.shape(id).expect("lowered target") {
+        Shape::IntEnum(_) => format!("global::{ns}.Models.@{}", service.name_of(id)),
         Shape::Unit => format!("global::{ns}.Unit"),
+        Shape::Simple(s) if s.streaming => format!("global::{ns}.ByteStream"),
         Shape::Simple(s) => match s.kind {
+            SimpleKind::BigInteger => "global::System.Numerics.BigInteger",
+            SimpleKind::BigDecimal => return format!("global::{ns}.BigDecimal"),
             SimpleKind::String => "string",
             SimpleKind::Boolean => "bool",
             SimpleKind::Byte => "sbyte",
@@ -84,13 +88,15 @@ fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
         }
         .into(),
         Shape::List(list) => format!(
-            "global::System.Collections.Generic.List<{}>",
-            ty(service, &list.member.target, ns)
+            "global::System.Collections.Generic.List<{}{}>",
+            ty(service, &list.member.target, ns),
+            if list.sparse { "?" } else { "" }
         ),
         Shape::Map(map) => format!(
-            "global::System.Collections.Generic.Dictionary<{}, {}>",
+            "global::System.Collections.Generic.Dictionary<{}, {}{}>",
             ty(service, &map.key.target, ns),
-            ty(service, &map.value.target, ns)
+            ty(service, &map.value.target, ns),
+            if map.sparse { "?" } else { "" }
         ),
         _ => format!("global::{ns}.Models.@{}", service.name_of(id)),
     }
@@ -108,7 +114,44 @@ fn collection_cycle(service: &Service, id: &ShapeId, stack: &mut BTreeSet<ShapeI
     stack.remove(id);
     cycle
 }
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
+        Feature::Streaming,
+        Feature::EndpointDiscovery,
+        Feature::SmithyRpcV2Cbor,
+        Feature::SmithyRpcV2Json,
+        Feature::DigestAuth,
+        Feature::SigV4a,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let client_name = format!("{}Client", pascal(service.id.name()));
     let mut diagnostics = Diagnostics::default();
     if !options.namespace.split('.').all(identifier)
@@ -177,6 +220,50 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
             }
         }
+        if let Shape::IntEnum(e) = shape {
+            let mut values = BTreeSet::from([
+                name.to_string(),
+                "Value".into(),
+                "ToString".into(),
+                "Equals".into(),
+                "GetHashCode".into(),
+                "Deconstruct".into(),
+                "Clone".into(),
+                "PrintMembers".into(),
+                "EqualityContract".into(),
+            ]);
+            for v in &e.values {
+                if !values.insert(pascal(&v.name)) {
+                    diagnostics.push(id, "C# integer enum constant name collision");
+                }
+            }
+        }
+    }
+    // The runtime carries a stream only as the whole HTTP body.
+    for op in &service.operations {
+        for (shape, bindings) in [(&op.input, &op.request), (&op.output, &op.response)] {
+            let Some(Shape::Structure(s)) = shape.as_ref().and_then(|id| service.shape(id)) else {
+                continue;
+            };
+            for m in &s.members {
+                let streaming =
+                    matches!(service.shape(&m.target), Some(Shape::Simple(t)) if t.streaming);
+                if streaming
+                    && !bindings
+                        .payload
+                        .as_ref()
+                        .is_some_and(|p| p.streaming && p.member == m.name)
+                {
+                    diagnostics.push(
+                        &op.id,
+                        format!(
+                            "C# streams only an HTTP payload; {} is not the streaming payload",
+                            m.name
+                        ),
+                    );
+                }
+            }
+        }
     }
     let mut methods = BTreeSet::from_iter(
         [
@@ -196,6 +283,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         {
             if !methods.insert(format!("{}{suffix}", pascal(op.name()))) {
                 diagnostics.push(&op.id, "C# client method name collision");
+            }
+        }
+        for waiter in op.waiters.keys() {
+            for suffix in ["", "Async"] {
+                if !methods.insert(format!("WaitUntil{}{suffix}", pascal(waiter))) {
+                    diagnostics.push(&op.id, "C# waiter method name collision");
+                }
             }
         }
     }
@@ -225,6 +319,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "// Generated by Crucible. DO NOT EDIT.\n#nullable enable\nnamespace {ns}.Models;\n\n"
         );
         match shape {
+            Shape::IntEnum(e) => {
+                model.push_str(&format!("public sealed record @{name}(int Value) {{\n    public override string ToString() => Value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);\n"));
+                for v in &e.values {
+                    model.push_str(&format!(
+                        "    public static readonly @{name} @{} = new({});\n",
+                        pascal(&v.name),
+                        v.value
+                    ));
+                }
+                model.push_str("}\n");
+            }
             Shape::List(list) => {
                 if !collection_cycle(service, id, &mut BTreeSet::new()) {
                     continue;
@@ -309,6 +414,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .as_ref()
             .map_or(String::new(), |t| format!("{t} input, "));
         let arg = if input.is_some() { "input" } else { "null" };
+        for waiter in op.waiters.keys() {
+            let waiter_name = pascal(waiter);
+            client.push_str(&format!("    public global::System.Threading.Tasks.Task<{output}?> WaitUntil{waiter_name}Async({parameter}global::System.TimeSpan timeout, WaiterOptions? options = null, global::System.Threading.CancellationToken cancellationToken = default) => runtime.WaitAsync<{output}>({}, {}, {arg}, timeout, options, cancellationToken);\n    public {output}? WaitUntil{waiter_name}({parameter}global::System.TimeSpan timeout, WaiterOptions? options = null, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => WaitUntil{waiter_name}Async({}timeout, options, cancellationToken), cancellationToken).GetAwaiter().GetResult();\n",literal(op.name()),literal(waiter),if input.is_some(){"input, "}else{""}));
+        }
         client.push_str(&format!("    public global::System.Threading.Tasks.Task<{output}> @{name}Async({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<{output}>({}, {arg}, cancellationToken);\n    public {output} @{name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @{name}Async({}cancellationToken), cancellationToken).GetAwaiter().GetResult();\n",literal(op.name()),if input.is_some(){"input, "}else{""}));
         if op.paginated.is_some() {
             client.push_str(&format!("    public global::System.Collections.Generic.IAsyncEnumerable<{output}> @{name}PagesAsync({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.PagesAsync<{output}>({}, {arg}, cancellationToken);\n",literal(op.name())));
@@ -337,6 +446,127 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("NetworkError", include_str!("../runtime/NetworkError.cs")),
         ("UnknownUnion", include_str!("../runtime/UnknownUnion.cs")),
         ("Unit", include_str!("../runtime/Unit.cs")),
+        ("ByteStream", include_str!("../runtime/ByteStream.cs")),
+        (
+            "ByteStreamContent",
+            include_str!("../runtime/ByteStreamContent.cs"),
+        ),
+        (
+            "ResponseBodyStream",
+            include_str!("../runtime/ResponseBodyStream.cs"),
+        ),
+        ("BigDecimal", include_str!("../runtime/BigDecimal.cs")),
+        (
+            "BasicCredentials",
+            include_str!("../runtime/BasicCredentials.cs"),
+        ),
+        (
+            "AwsCredentials",
+            include_str!("../runtime/AwsCredentials.cs"),
+        ),
+        (
+            "CredentialProviders",
+            include_str!("../runtime/CredentialProviders.cs"),
+        ),
+        (
+            "CachedCredentials",
+            include_str!("../runtime/CachedCredentials.cs"),
+        ),
+        (
+            "SigningOptions",
+            include_str!("../runtime/SigningOptions.cs"),
+        ),
+        ("SigV4Signer", include_str!("../runtime/SigV4Signer.cs")),
+        ("Query", include_str!("../runtime/Query.cs")),
+        ("Endpoints", include_str!("../runtime/Endpoints.cs")),
+        ("Checksums", include_str!("../runtime/Checksums.cs")),
+        (
+            "ChecksumPolicy",
+            include_str!("../runtime/ChecksumPolicy.cs"),
+        ),
+        (
+            "ChecksumException",
+            include_str!("../runtime/ChecksumException.cs"),
+        ),
+        ("WaiterOptions", include_str!("../runtime/WaiterOptions.cs")),
+        (
+            "WaiterException",
+            include_str!("../runtime/WaiterException.cs"),
+        ),
+        (
+            "WaiterTimeoutException",
+            include_str!("../runtime/WaiterTimeoutException.cs"),
+        ),
+        (
+            "ClientRuntime.Waiters",
+            include_str!("../runtime/ClientRuntime.Waiters.cs"),
+        ),
+        (
+            "ClientRuntime.Policy",
+            include_str!("../runtime/ClientRuntime.Policy.cs"),
+        ),
+        ("RetryMode", include_str!("../runtime/RetryMode.cs")),
+        ("RetryQuota", include_str!("../runtime/RetryQuota.cs")),
+        ("RetryStrategy", include_str!("../runtime/RetryStrategy.cs")),
+        (
+            "CubicCalculator",
+            include_str!("../runtime/CubicCalculator.cs"),
+        ),
+        (
+            "AdaptiveRateLimiter",
+            include_str!("../runtime/AdaptiveRateLimiter.cs"),
+        ),
+        ("EndpointCache", include_str!("../runtime/EndpointCache.cs")),
+        (
+            "DiscoveredAddress",
+            include_str!("../runtime/DiscoveredAddress.cs"),
+        ),
+        (
+            "EndpointDiscoveryException",
+            include_str!("../runtime/EndpointDiscoveryException.cs"),
+        ),
+        ("TelemetryHook", include_str!("../runtime/TelemetryHook.cs")),
+        (
+            "OperationStarted",
+            include_str!("../runtime/OperationStarted.cs"),
+        ),
+        (
+            "AttemptStarted",
+            include_str!("../runtime/AttemptStarted.cs"),
+        ),
+        (
+            "AttemptFinished",
+            include_str!("../runtime/AttemptFinished.cs"),
+        ),
+        (
+            "OperationFinished",
+            include_str!("../runtime/OperationFinished.cs"),
+        ),
+        (
+            "ActivityTelemetryHook",
+            include_str!("../runtime/ActivityTelemetryHook.cs"),
+        ),
+        (
+            "ClientRuntime.Rpc",
+            include_str!("../runtime/ClientRuntime.Rpc.cs"),
+        ),
+        ("Cbor", include_str!("../runtime/Cbor.cs")),
+        ("CborMap", include_str!("../runtime/CborMap.cs")),
+        ("CborTag", include_str!("../runtime/CborTag.cs")),
+        ("Sha512_256", include_str!("../runtime/Sha512_256.cs")),
+        (
+            "DigestAuthentication",
+            include_str!("../runtime/DigestAuthentication.cs"),
+        ),
+        ("SigV4aSigner", include_str!("../runtime/SigV4aSigner.cs")),
+        (
+            "SigV4aSigningOptions",
+            include_str!("../runtime/SigV4aSigningOptions.cs"),
+        ),
+        (
+            "SigV4aSigningResult",
+            include_str!("../runtime/SigV4aSigningResult.cs"),
+        ),
     ] {
         files.push(File {
             path: format!("{name}.cs"),

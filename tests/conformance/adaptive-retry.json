@@ -1,0 +1,331 @@
+{
+  "description": "Adaptive retry mode vectors. Times are seconds on an injected clock that starts at 0. Rates are requests per second; compare with an absolute tolerance of 1e-6.",
+  "constants": {
+    "minFillRate": 0.5,
+    "minCapacity": 1,
+    "smoothing": 0.8,
+    "timeBucketRange": 0.5,
+    "beta": 0.7,
+    "scaleConstant": 0.4,
+    "maxRateAdjustScale": 2.0
+  },
+  "cubicSuccess": {
+    "lastMaxRate": 10,
+    "lastThrottleTime": 5,
+    "expect": [
+      {
+        "time": 5,
+        "rate": 7.0
+      },
+      {
+        "time": 6,
+        "rate": 9.64893601
+      },
+      {
+        "time": 7,
+        "rate": 10.00003085
+      },
+      {
+        "time": 8,
+        "rate": 10.453284521
+      },
+      {
+        "time": 9,
+        "rate": 13.408697022
+      },
+      {
+        "time": 10,
+        "rate": 21.266268354
+      },
+      {
+        "time": 11,
+        "rate": 36.425998517
+      }
+    ]
+  },
+  "cubicThrottle": {
+    "lastMaxRate": 10,
+    "lastThrottleTime": 5,
+    "steps": [
+      {
+        "time": 5,
+        "throttled": false,
+        "rate": 7.0
+      },
+      {
+        "time": 6,
+        "throttled": false,
+        "rate": 9.64893601
+      },
+      {
+        "time": 7,
+        "throttled": false,
+        "rate": 10.00003085
+      },
+      {
+        "time": 8,
+        "throttled": true,
+        "rate": 7.000021595
+      },
+      {
+        "time": 9,
+        "throttled": false,
+        "rate": 9.648964645
+      },
+      {
+        "time": 10,
+        "throttled": false,
+        "rate": 10.000061696
+      },
+      {
+        "time": 11,
+        "throttled": false,
+        "rate": 10.453312745
+      },
+      {
+        "time": 12,
+        "throttled": true,
+        "rate": 7.317318921
+      },
+      {
+        "time": 13,
+        "throttled": false,
+        "rate": 10.069206884
+      }
+    ]
+  },
+  "rateUpdates": [
+    {
+      "time": 0.2,
+      "throttled": false,
+      "measuredRate": 0.0,
+      "fillRate": 0.5,
+      "enabled": false
+    },
+    {
+      "time": 0.4,
+      "throttled": false,
+      "measuredRate": 0.0,
+      "fillRate": 0.5,
+      "enabled": false
+    },
+    {
+      "time": 0.6,
+      "throttled": false,
+      "measuredRate": 4.8,
+      "fillRate": 0.5,
+      "enabled": false
+    },
+    {
+      "time": 0.8,
+      "throttled": false,
+      "measuredRate": 4.8,
+      "fillRate": 0.5,
+      "enabled": false
+    },
+    {
+      "time": 1.0,
+      "throttled": false,
+      "measuredRate": 4.16,
+      "fillRate": 0.5,
+      "enabled": false
+    },
+    {
+      "time": 1.2,
+      "throttled": false,
+      "measuredRate": 4.16,
+      "fillRate": 0.6912,
+      "enabled": false
+    },
+    {
+      "time": 1.4,
+      "throttled": false,
+      "measuredRate": 4.16,
+      "fillRate": 1.0976,
+      "enabled": false
+    },
+    {
+      "time": 1.6,
+      "throttled": false,
+      "measuredRate": 5.632,
+      "fillRate": 1.6384,
+      "enabled": false
+    },
+    {
+      "time": 1.8,
+      "throttled": false,
+      "measuredRate": 5.632,
+      "fillRate": 2.3328,
+      "enabled": false
+    },
+    {
+      "time": 2.0,
+      "throttled": true,
+      "measuredRate": 4.3264,
+      "fillRate": 3.02848,
+      "enabled": true
+    },
+    {
+      "time": 2.2,
+      "throttled": false,
+      "measuredRate": 4.3264,
+      "fillRate": 3.486639,
+      "enabled": true
+    },
+    {
+      "time": 2.4,
+      "throttled": false,
+      "measuredRate": 4.3264,
+      "fillRate": 3.821874,
+      "enabled": true
+    },
+    {
+      "time": 2.6,
+      "throttled": false,
+      "measuredRate": 5.66528,
+      "fillRate": 4.053386,
+      "enabled": true
+    },
+    {
+      "time": 2.8,
+      "throttled": false,
+      "measuredRate": 5.66528,
+      "fillRate": 4.200373,
+      "enabled": true
+    },
+    {
+      "time": 3.0,
+      "throttled": false,
+      "measuredRate": 4.333056,
+      "fillRate": 4.282037,
+      "enabled": true
+    },
+    {
+      "time": 3.2,
+      "throttled": true,
+      "measuredRate": 4.333056,
+      "fillRate": 2.997426,
+      "enabled": true
+    },
+    {
+      "time": 3.4,
+      "throttled": false,
+      "measuredRate": 4.333056,
+      "fillRate": 3.452226,
+      "enabled": true
+    },
+    {
+      "time": 3.6,
+      "throttled": false,
+      "measuredRate": 5.666611,
+      "fillRate": 3.784591,
+      "enabled": true
+    },
+    {
+      "time": 3.8,
+      "throttled": false,
+      "measuredRate": 5.666611,
+      "fillRate": 4.013719,
+      "enabled": true
+    },
+    {
+      "time": 4.0,
+      "throttled": false,
+      "measuredRate": 4.333322,
+      "fillRate": 4.15881,
+      "enabled": true
+    },
+    {
+      "time": 4.2,
+      "throttled": false,
+      "measuredRate": 4.333322,
+      "fillRate": 4.239065,
+      "enabled": true
+    },
+    {
+      "time": 4.4,
+      "throttled": false,
+      "measuredRate": 4.333322,
+      "fillRate": 4.273683,
+      "enabled": true
+    },
+    {
+      "time": 4.6,
+      "throttled": false,
+      "measuredRate": 5.666664,
+      "fillRate": 4.281865,
+      "enabled": true
+    },
+    {
+      "time": 4.8,
+      "throttled": false,
+      "measuredRate": 5.666664,
+      "fillRate": 4.282811,
+      "enabled": true
+    },
+    {
+      "time": 5.0,
+      "throttled": false,
+      "measuredRate": 4.333333,
+      "fillRate": 4.29572,
+      "enabled": true
+    }
+  ],
+  "sendDelays": [
+    {
+      "time": 0.1,
+      "send": true,
+      "delay": 0.0
+    },
+    {
+      "time": 0.2,
+      "throttled": false,
+      "fillRate": 0.5
+    },
+    {
+      "time": 0.3,
+      "send": true,
+      "delay": 0.0
+    },
+    {
+      "time": 0.5,
+      "throttled": true,
+      "fillRate": 2.24
+    },
+    {
+      "time": 0.5,
+      "send": true,
+      "delay": 0.379464
+    },
+    {
+      "time": 0.5,
+      "send": true,
+      "delay": 0.825893
+    },
+    {
+      "time": 2.3,
+      "throttled": false,
+      "fillRate": 2.346667
+    },
+    {
+      "time": 2.3,
+      "send": true,
+      "delay": 0.0
+    },
+    {
+      "time": 4.0,
+      "send": true,
+      "delay": 0.0
+    },
+    {
+      "time": 4.1,
+      "throttled": true,
+      "fillRate": 0.5
+    },
+    {
+      "time": 4.1,
+      "send": true,
+      "delay": 0.0
+    }
+  ]
+}

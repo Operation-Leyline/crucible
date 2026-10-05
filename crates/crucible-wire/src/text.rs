@@ -80,6 +80,16 @@ pub fn split_header(text: &str) -> Vec<String> {
     items
 }
 
+/// A header list of HTTP dates, written unquoted as REST protocols send
+/// them: every second comma separates two dates.
+pub fn split_http_dates(text: &str) -> Vec<String> {
+    if text.trim().is_empty() {
+        return Vec::new();
+    }
+    let parts: Vec<&str> = text.split(',').map(str::trim).collect();
+    parts.chunks(2).map(|pair| pair.join(", ")).collect()
+}
+
 pub fn join_header(items: impl IntoIterator<Item = String>) -> String {
     items
         .into_iter()
@@ -106,6 +116,18 @@ mod tests {
             query_values("a=1", "a").next(),
             Some(Cow::Borrowed("1"))
         ));
+    }
+
+    #[test]
+    fn http_date_lists_split_on_every_second_comma() {
+        assert_eq!(
+            split_http_dates("Mon, 16 Dec 2019 23:48:18 GMT, Tue, 17 Dec 2019 23:48:18 GMT"),
+            [
+                "Mon, 16 Dec 2019 23:48:18 GMT",
+                "Tue, 17 Dec 2019 23:48:18 GMT"
+            ]
+        );
+        assert!(split_http_dates(" ").is_empty());
     }
 
     #[test]
