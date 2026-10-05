@@ -22,6 +22,16 @@ test <- fake(function(attempt, request) {
   check(request$headers[['x-amz-content-sha256']] == as.character(openssl::sha256(raw())), 'Empty write digest')
   response()
 })
+for (method in c('POST', 'PUT', 'PATCH', 'GET', 'DELETE')) {
+  transport <- fake(function(attempt, request) {
+    check(is.null(request$body) && request$method == method, 'Bodiless request')
+    if (method %in% c('GET', 'DELETE')) check(!'x-amz-content-sha256' %in% names(request$headers), 'Bodiless read has no digest')
+    else check(request$headers[['x-amz-content-sha256']] == as.character(openssl::sha256(raw())), 'Empty write digest')
+    response()
+  })
+  sdk(transport, middleware=list(function(request) { request$method <- method; request }))$retry_safe()
+  check(length(transport$requests) == 1L, 'One bodiless request')
+}
 sdk(test)$retry_safe()
 for (label in c('.', '..')) {
   test <- fake(function(...) stop('Dot label reached transport'))
