@@ -81,7 +81,9 @@ export async function waitFor<I, O>(name: string, spec: WaiterSpec, input: I, ca
       await abortable(release(output), controller.signal);
       const remaining = deadline - performance.now(), ceiling = Math.min(maximum, minimum * 2 ** Math.min(attempts - 1, 62));
       const delay = minimum + Math.random() * (ceiling - minimum);
-      await sleep(remaining - delay <= minimum ? Math.max(0, remaining) : delay, controller.signal);
+      // Preserve a final call's budget when the next delay would consume it.
+      const sleepTime = remaining <= minimum ? remaining : remaining - delay <= minimum ? remaining - minimum : delay;
+      await sleep(Math.max(0, sleepTime), controller.signal);
     }
   } finally { if (timer !== undefined) clearTimeout(timer); options.signal?.removeEventListener("abort", abort); }
 }

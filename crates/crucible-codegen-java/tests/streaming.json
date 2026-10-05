@@ -22,6 +22,9 @@
         },
         {
           "target": "example.stream#Store"
+        },
+        {
+          "target": "example.stream#BoundedDownload"
         }
       ]
     },
@@ -210,6 +213,45 @@
       "members": {
         "CRC32": {
           "target": "smithy.api#Unit"
+        }
+      }
+    },
+    "example.stream#BoundedStream": {
+      "type": "blob",
+      "traits": {
+        "smithy.api#streaming": {},
+        "smithy.api#length": {
+          "min": 2,
+          "max": 5
+        }
+      }
+    },
+    "example.stream#BoundedDownload": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/bounded-download"
+        },
+        "smithy.api#readonly": {}
+      },
+      "output": {
+        "target": "example.stream#BoundedDownloadOutput"
+      }
+    },
+    "example.stream#BoundedDownloadOutput": {
+      "type": "structure",
+      "members": {
+        "body": {
+          "target": "example.stream#BoundedStream",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {},
+            "smithy.api#length": {
+              "min": 3,
+              "max": 3
+            }
+          }
         }
       }
     }

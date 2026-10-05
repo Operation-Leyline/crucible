@@ -78,6 +78,21 @@ def qualify(output):
     run(MAVEN, "-q", REPO, "package", "dependency:copy-dependencies", cwd=consumer)
     jar = next((consumer / "target").glob("kotlin-consumer-*.jar"))
     classpath = os.pathsep.join([str(jar), str(consumer / "target/dependency/*")])
+    java_source = consumer / "JavaEnumConsumer.java"
+    java_source.write_text("""import example.weather.model.Sky;
+import example.weather.model.ValidationReason;
+public final class JavaEnumConsumer {
+    public static void main(String[] args) {
+        if (Sky.CLEAR.getValue().isEmpty() || ValidationReason.OTHER.getValue().isEmpty())
+            throw new AssertionError("Generated enum static fields");
+    }
+}
+""", encoding="utf-8")
+    java_classes = consumer / "java-classes"
+    java_classes.mkdir()
+    run("javac", "--release", "17", "-Xlint:all", "-Werror", "-cp", classpath,
+        "-d", str(java_classes), str(java_source))
+    run("java", "-cp", os.pathsep.join([str(java_classes), classpath]), "JavaEnumConsumer")
     with weather() as endpoint:
         run("java", "-Xmx256m", "-cp", classpath, "example.weather.MainKt",
             str(ROOT / "tests/conformance/retry.json"), str(ROOT / "tests/conformance/header-lists.json"),

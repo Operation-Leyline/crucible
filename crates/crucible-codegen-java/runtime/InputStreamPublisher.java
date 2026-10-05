@@ -16,9 +16,14 @@ import java.util.function.Supplier;
 final class InputStreamPublisher implements Flow.Publisher<ByteBuffer> {
   private static final int CHUNK = 64 * 1024;
   private final Supplier<? extends InputStream> factory;
+  private final Runnable release;
   private final AtomicBoolean subscribed = new AtomicBoolean();
 
-  InputStreamPublisher(Supplier<? extends InputStream> factory) { this.factory = factory; }
+  InputStreamPublisher(Supplier<? extends InputStream> factory) { this(factory, null); }
+
+  InputStreamPublisher(Supplier<? extends InputStream> factory, Runnable release) {
+    this.factory = factory; this.release = release;
+  }
 
   @Override public void subscribe(Flow.Subscriber<? super ByteBuffer> subscriber) {
     Objects.requireNonNull(subscriber, "subscriber");
@@ -35,6 +40,7 @@ final class InputStreamPublisher implements Flow.Publisher<ByteBuffer> {
     private final Flow.Subscriber<? super ByteBuffer> subscriber;
     private final AtomicLong demand = new AtomicLong();
     private final AtomicInteger work = new AtomicInteger();
+    private final AtomicBoolean closed = new AtomicBoolean();
     private volatile boolean cancelled;
     private volatile InputStream input;
     private boolean done;
@@ -56,8 +62,12 @@ final class InputStreamPublisher implements Flow.Publisher<ByteBuffer> {
     }
 
     private void close() {
+      // An already-supplied one-shot source is owned even before first demand;
+      // factory sources remain unopened until demand arrives.
+      if (release != null) { release.run(); return; }
       InputStream current = input;
-      if (current != null) try { current.close(); } catch (IOException ignored) { }
+      if (current != null && closed.compareAndSet(false, true))
+        try { current.close(); } catch (IOException ignored) { }
     }
 
     @Override public void run() {

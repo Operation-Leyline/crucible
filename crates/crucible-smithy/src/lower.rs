@@ -177,6 +177,17 @@ impl<'m> Lowerer<'m> {
                 }
             }
         }
+        // Client error tables are service-wide and decode by the protocol's wire code.
+        // Renaming a shape changes its API name, not that discriminator.
+        let mut error_codes = BTreeMap::new();
+        for (error_id, error_shape) in &self.shapes {
+            if let Shape::Structure(structure) = error_shape
+                && let Some(error) = &structure.error
+                && let Some(previous) = error_codes.insert(&error.wire_code, error_id)
+            {
+                self.diagnostics.push(error_id, format!("error wire code {:?} collides with {previous}; client error decoding requires service-wide unique wire codes", error.wire_code));
+            }
+        }
         self.check_stream_references(&operations);
         let protocol_tests =
             crate::protocol_tests::lower(self.model, &operations, &mut self.diagnostics);

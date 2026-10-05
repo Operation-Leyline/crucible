@@ -7,9 +7,39 @@ import (
     "net/http"
     "net/http/httptest"
     "strings"
+    "sync/atomic"
     "testing"
     "time"
 )
+
+func TestWaiterLeavesTimeForFinalHTTPPoll(t *testing.T) {
+    var calls atomic.Int32
+    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        io.ReadAll(r.Body)
+        if calls.Add(1) == 1 {
+            io.WriteString(w, `{"wire-status":"PENDING"}`)
+            return
+        }
+        // The last attempt needs usable request time, not just an immediate response at the deadline.
+        timer := time.NewTimer(100 * time.Millisecond)
+        defer timer.Stop()
+        select {
+        case <-timer.C:
+            io.WriteString(w, `{"wire-status":"READY"}`)
+        case <-r.Context().Done():
+        }
+    }))
+    defer server.Close()
+    client, err := NewJobsClient(Config{Endpoint: server.URL, MaxAttempts: 1})
+    if err != nil { t.Fatal(err) }
+    minimum := time.Second
+    output, err := client.WaitUntilReady(context.Background(), &Input{}, 1500 * time.Millisecond,
+        WaiterOptions{MinDelay: &minimum, MaxDelay: &minimum})
+    if err != nil { t.Fatalf("final poll failed after %d HTTP attempts: %v", calls.Load(), err) }
+    if output == nil || output.GetStatus() != "READY" || calls.Load() != 2 {
+        t.Fatal(output, calls.Load())
+    }
+}
 
 func TestGeneratedWaiters(t *testing.T) {
     calls := 0; mode := "ready"

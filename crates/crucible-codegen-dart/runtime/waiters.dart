@@ -65,7 +65,8 @@ Duration waiterDelay(int attempt, Duration remaining, Duration minimum, Duration
   final ceiling = min(maximum.inMicroseconds, cap).toInt();
   final delay = Duration(
       microseconds: minimum.inMicroseconds + ((random ?? Random()).nextDouble() * (ceiling - minimum.inMicroseconds)).round());
-  return remaining - delay <= minimum ? remaining : delay;
+  if (remaining <= minimum) return remaining;
+  return remaining - delay <= minimum ? remaining - minimum : delay;
 }
 
 Duration waiterSeconds(Object? value) {

@@ -161,6 +161,11 @@ void uploads(Server& server) {
     check(number(observed, "contentLength") <= 0 && number(observed, "size") == 0, "empty upload");
     (void)client.upload(UploadInput(rt::ByteStream::from_string("")));
     check(number(server.last(), "size") == 0, "zero-length upload");
+    server.mode("ok");
+    (void)raises<rt::StreamLengthError>([&] {
+        (void)client.upload(UploadInput(rt::ByteStream::from_reader(text_reader("abc"), 0)));
+    }, "nonempty source declared as zero bytes");
+    check(server.attempts() == 0, "invalid zero-length source was not sent");
 
     // requiresLength and @length are checked before sending, and while bytes flow.
     server.mode("ok");
@@ -261,6 +266,24 @@ void downloads(Server& server) {
     output = client.download(cancel.get_token());
     std::jthread stopper([&] { std::this_thread::sleep_for(100ms); cancel.request_stop(); });
     (void)raises<rt::CancelledError>([&] { (void)output.body.read_text(); }, "cancelled read");
+
+    // A completed network read can leave bytes queued; call limits still apply to those bytes.
+    server.mode("ok");
+    std::stop_source buffered_cancel;
+    output = client.download(buffered_cancel.get_token());
+    server.release();
+    char first[1];
+    check(output.body.read(first, 1) == 1 && first[0] == 'a', "buffered cancellation prefix");
+    buffered_cancel.request_stop();
+    (void)raises<rt::CancelledError>([&] { (void)output.body.read(first, 1); }, "cancelled buffered read");
+
+    server.mode("ok");
+    const sdk::StreamingClient buffered_deadline(settings(server, 1));
+    output = buffered_deadline.download();
+    server.release();
+    check(output.body.read(first, 1) == 1 && first[0] == 'a', "buffered deadline prefix");
+    std::this_thread::sleep_for(1100ms);
+    (void)raises<rt::DeadlineError>([&] { (void)output.body.read(first, 1); }, "expired buffered read");
 
     // Invalid response headers release the unread body.
     server.mode("invalid");

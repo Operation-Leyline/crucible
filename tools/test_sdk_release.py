@@ -46,6 +46,16 @@ class SdkReleaseTests(unittest.TestCase):
         release.publish(self.output, None, True, self.runner)
         self.assertEqual(len(self.calls), 4)
 
+    def test_publication_accepts_unresolved_output_paths(self):
+        self.build()
+        # A path with '..' reproduces the resolved-artifact mismatch portably.
+        unresolved = self.output / "python" / ".."
+        release.publish(unresolved, None, True, self.runner)
+        journal = json.loads((self.output / "publication.json").read_text())
+        self.assertEqual(journal["steps"], ["python:0:python/dist/example.whl"])
+        release.publish(unresolved, None, True, self.runner)
+        self.assertEqual([c[0] for c in self.calls].count("upload"), 1)
+
     def test_every_language_has_a_versioned_generation_plan(self):
         template = self.value["targets"]["python"]
         self.value["targets"] = {name: template for name in release.LANGUAGES}

@@ -108,6 +108,7 @@ def qualify(output):
     run("javac", "--release", "17", "-d", str(classes), "-cp", waiter_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/WaiterTest.java"))
     run("java", "-cp", os.pathsep.join([str(classes), waiter_classpath]), "example.wait.WaiterTest")
+    waiter_identity(output, classes)
     endpoints = output / "endpoints"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         str(ROOT / "crates/crucible-codegen-java/tests/endpoints.json"), "--out", str(endpoints),
@@ -147,6 +148,25 @@ def qualify(output):
     run("javac", "-J-Xmx256m", "--release", "17", "-d", str(classes), "-cp", defaults_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/DefaultsTest.java"))
     run("java", "-Xmx256m", "-cp", os.pathsep.join([str(classes), defaults_classpath]), "example.defaults.DefaultsTest")
+
+
+def waiter_identity(output, classes):
+    model = ROOT / "tests/conformance/waiter-errors.json"
+    packages = []
+    for label, service in [("query", "QueryIdentity"), ("json", "JsonIdentity")]:
+        package = output / ("waiter-identity-" + label)
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
+            str(model), "--service", "example.waiter#" + service, "--out", str(package),
+            "--group-id", "example", "--artifact-id", "waiter-identity-" + label,
+            "--package-name", "example.waiter" + label)
+        run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
+            "package", "dependency:copy-dependencies", cwd=package)
+        packages.append(package)
+    classpath = os.pathsep.join([str(package / "target/classes") for package in packages]
+                               + [str(packages[0] / "target/dependency/*")])
+    run("javac", "--release", "17", "-d", str(classes), "-cp", classpath,
+        str(ROOT / "crates/crucible-codegen-java/tests/WaiterIdentityTest.java"))
+    run("java", "-cp", os.pathsep.join([str(classes), classpath]), "example.waiterquery.WaiterIdentityTest")
 
 
 def xml_protocols(output, classes):

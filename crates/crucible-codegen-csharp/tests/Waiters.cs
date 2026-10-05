@@ -14,8 +14,10 @@ static class Program
         {
             Calls++;
             if (Mode == "blocked") { Entered.TrySetResult(); await Task.Delay(Timeout.Infinite,token); }
+            if (Mode == "final" && Calls == 2) await Task.Delay(100,token);
             var body = Mode switch {
                 "ready" => Calls == 1 ? "{\"__type\":\"Missing\"}" : Calls == 2 ? "{\"wire-status\":\"PENDING\"}" : "{\"wire-status\":\"READY\"}",
+                "final" => Calls == 1 ? "{\"wire-status\":\"PENDING\"}" : "{\"wire-status\":\"READY\"}",
                 "gone" => "{\"__type\":\"Missing\"}",
                 "query" => "{\"items\":[{\"wire-status\":\"READY\"},{\"wire-status\":\"READY\"}],\"updatedAt\":\"2026-01-01T00:00:00Z\"}",
                 "failed" => "{\"wire-status\":\"FAILED\",\"reasons\":[\"job rejected\"]}",
@@ -31,6 +33,9 @@ static class Program
         var options = new WaiterOptions { MinDelay = TimeSpan.Zero, MaxDelay = TimeSpan.Zero };
         var input = new Input { Names = ["a", "b"] }; var timeout = TimeSpan.FromSeconds(3);
         Check((await client.WaitUntilReadyAsync(input,timeout,options))?.Status == "READY" && handler.Calls == 3,"ordered acceptors and error retry");
+        handler.Mode = "final"; handler.Calls = 0;
+        var finalOptions = new WaiterOptions { MinDelay = TimeSpan.FromSeconds(1), MaxDelay = TimeSpan.FromSeconds(1) };
+        Check((await client.WaitUntilReadyAsync(input,TimeSpan.FromSeconds(1.5),finalOptions))?.Status == "READY" && handler.Calls == 2,"final poll retains a call budget");
         handler.Mode = "gone";
         Check(await client.WaitUntilDeletedAsync(input,timeout,options) is null,"error success returns no response");
         handler.Mode = "query";

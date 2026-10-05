@@ -176,6 +176,7 @@ def verify(output):
 
 
 def publish(output, targets, execute_publish=False, runner=execute):
+    output = output.resolve()
     manifest = verify(output)
     release = read_json(output / "plan.json")
     selected = sorted(targets or release["targets"])
@@ -203,7 +204,7 @@ def publish(output, targets, execute_publish=False, runner=execute):
             for artifact in batches:
                 current = {**variables, "artifact": str(artifact) if artifact else ""}
                 expanded = expand(step, current)
-                step_id = f"{language}:{index}:{artifact.relative_to(output) if artifact else ''}"
+                step_id = f"{language}:{index}:{artifact.relative_to(output).as_posix() if artifact else ''}"
                 if step_id in journal["steps"]:
                     continue
                 commands.append({"target": language, "command": expanded})

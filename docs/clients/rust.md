@@ -141,7 +141,8 @@ is `Error::Service(ServiceError { error, metadata })`; `error` is the generated
 operation error enum. `Error::metadata()` provides the same `ResponseMetadata`
 for modeled and unknown service errors: HTTP status, request ID, and headers.
 Unknown errors also retain their type name, message, and retry classification.
-Other variants are `Transport`, `Invalid`, `Decode`, `Timeout`, and `Cancelled`.
+Other variants are `Unknown`, `Transport`, `Invalid`, `Decode`, `Timeout`,
+`Cancelled`, and `ChecksumMismatch`.
 
 When upgrading, regenerate clients and change patterns such as
 `Error::Service(CreateCityError::ConflictError(error))` to

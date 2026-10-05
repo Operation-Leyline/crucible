@@ -504,8 +504,13 @@ ClientRuntime::CallResult ClientRuntime::exchange(const std::string& name, const
         auto request = prepared.request;
         std::shared_ptr<AttemptBody> upload;
         if (source) {
-            if (source->length && *source->length == 0) { request.body = std::string{}; if (!source->replayable) source->used->store(true); }
-            else request.stream = upload = std::make_shared<AttemptBody>(source, length_bound(member, "min"), length_bound(member, "max"), scope);
+            upload = std::make_shared<AttemptBody>(source, length_bound(member, "min"), length_bound(member, "max"), scope);
+            if (source->length && *source->length == 0) {
+                // The transport never pulls a zero-length body, so validate its EOF here.
+                char extra = 0;
+                (void)upload->read(&extra, 1);
+                request.body = std::string{};
+            } else request.stream = upload;
             if (!body->sha256().empty()) request.headers.insert_or_assign("x-amz-content-sha256", body->sha256());
         }
         bool credentials = false;
@@ -658,7 +663,8 @@ std::optional<ClientRuntime::CallResult> ClientRuntime::wait_json(const std::str
         double delay = minimum + std::uniform_real_distribution<double>(0.0, 1.0)(engine) * (ceiling - minimum);
         double remaining = 0;
         try { remaining = overall.remaining(); } catch (const DeadlineError&) { throw timed_out(); }
-        if (remaining - delay <= minimum) delay = remaining;
+        if (remaining <= minimum) delay = remaining;
+        else if (remaining - delay <= minimum) delay = remaining - minimum;
         try { overall.wait(delay); } catch (const DeadlineError&) { throw timed_out(); }
     }
 }

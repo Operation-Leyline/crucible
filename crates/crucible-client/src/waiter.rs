@@ -378,8 +378,11 @@ impl Transport {
             )) / f64::from(u32::MAX);
             let delay = minimum.saturating_add((ceiling - minimum).mul_f64(fraction));
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-            let delay = if remaining.saturating_sub(delay) <= minimum {
+            let delay = if remaining <= minimum {
                 remaining
+            } else if remaining.saturating_sub(delay) <= minimum {
+                // Reserve a final call's budget instead of sleeping through the deadline.
+                remaining - minimum
             } else {
                 delay
             };

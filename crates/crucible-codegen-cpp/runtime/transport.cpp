@@ -246,6 +246,7 @@ public:
         std::lock_guard lock(mutex_);
         for (;;) {
             if (closed_) { release(); throw StreamClosedError(); }
+            try { scope_.check(); } catch (...) { release(); throw; }
             auto& data = transfer.response.body;
             if (transfer.offset < data.size()) {
                 const auto count = (std::min)(size, data.size() - transfer.offset);

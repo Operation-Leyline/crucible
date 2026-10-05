@@ -16,6 +16,14 @@ static checksum_status replace_body(void *user, const checksum_scope *scope, che
     request->has_body = true; request->body = (checksum_blob){(const unsigned char *)body, strlen(body)};
     return checksum_ok;
 }
+static checksum_status empty_checksum(void *user, const checksum_request *request, bool read_body,
+    const checksum_scope *scope, checksum_arena *arena, checksum_response *response, checksum_error *error) {
+    (void)scope;
+    check(read_body, "checksum response body is read");
+    response->status = 200; response->body = request->body;
+    const char *name = user;
+    return name ? checksum_header_set(arena, &response->headers, VIEW(name), VIEW(""), error) : checksum_ok;
+}
 static const checksum_json *vectors(checksum_arena *arena) {
     FILE *stream = fopen(environment("CHECKSUM_CASES"), "rb");
     check(stream != NULL, "open checksum vectors");
@@ -128,6 +136,22 @@ int main(void) {
     good(checksum_operations_flexible(client, &input, NULL, NULL, &flexible, &error), &error, "opt-out");
     check(!echo_header(flexible.base.arena, &flexible.base.response, "x-algorithm").data && !echo_header(flexible.base.arena, &flexible.base.response, "x-validation").data, "opt-out sends no defaults");
     checksum_operations_flexible_result_free(&flexible); checksum_client_free(client);
+
+    // Present empty modeled digests fail; absent and unmodeled headers remain optional.
+    const char *empty_names[] = {"x-amz-checksum-crc32", NULL, "x-amz-checksum-xxhash64"};
+    for (size_t i = 0; i < sizeof(empty_names) / sizeof(empty_names[0]); ++i) {
+        config = checksum_client_defaults(); config.endpoint = VIEW("http://127.0.0.1");
+        config.send = empty_checksum; config.transport_user = (void *)empty_names[i];
+        config.checksum_validated = validated; config.checksum_user = &seen;
+        client = client_new(config);
+        int before = seen.count;
+        checksum_status status = checksum_operations_flexible(client, &input, NULL, NULL, &flexible, &error);
+        check(status == (i == 0 ? checksum_checksum_mismatch : checksum_ok), "empty modeled checksum mismatch; absent and unmodeled skipped");
+        check(flexible.base.response.status == 200 && seen.count == before, "empty or skipped checksum never reports validation");
+        if (i == 0) check(message_contains(&error, "CRC32"), "empty checksum identifies its algorithm");
+        else check(flexible.value->data.value.length == payload.length, "skipped checksum preserves decoded body");
+        checksum_operations_flexible_result_free(&flexible); checksum_client_free(client);
+    }
 
     checksum_middleware hook = {replace_body, (void *)"123456789"};
     config = with_mode(&headers, storage, "normal"); config.middleware = &hook; config.middleware_count = 1;

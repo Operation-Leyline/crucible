@@ -36,6 +36,11 @@ int main() {
         const auto attempts = server.requests();
         check(attempts.size() == 3 && rt::Json::parse(body(attempts[0])).at("names").array().size() == 2, "retry acceptor and pending retries");
 
+        server.script({pending, reply(200, R"({"wire-status":"READY"})", {}, 0.1)});
+        const auto final_poll = client.wait_until_ready(input, 1.5, rt::WaiterOptions{1.0, 1.0});
+        check(final_poll && final_poll->status && *final_poll->status == "READY", "final poll has time to decode a delayed response");
+        check(server.requests().size() == 2, "nonzero delays reserve a final poll before the deadline");
+
         server.script({missing});
         check(!client.wait_until_deleted(input, 5, immediate), "errorType success returns no output");
 

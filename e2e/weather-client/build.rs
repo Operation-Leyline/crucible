@@ -88,6 +88,15 @@ fn main() {
             .expect("auth fixture");
         std::fs::write(out.join(format!("auth_{name}_client.rs")), code).unwrap();
     }
+    let fixture = "../../crates/crucible-codegen-rust/tests/fixtures/keyword-waiters.json";
+    println!("cargo::rerun-if-changed={fixture}");
+    std::fs::write(
+        out.join("keyword_client.rs"),
+        crucible_build::Codegen::client_from_model(fixture)
+            .render()
+            .expect("keyword waiter fixture"),
+    )
+    .unwrap();
     wire_extensions(&out);
     event_streams(&out);
 }

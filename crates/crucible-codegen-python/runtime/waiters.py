@@ -63,4 +63,6 @@ class Waiter:
     def delay(self, attempt: int, remaining: float) -> float:
         ceiling = min(self.maximum, self.minimum * 2 ** min(attempt - 1, 62))
         delay = random.uniform(self.minimum, ceiling)
-        return remaining if remaining - delay <= self.minimum else delay
+        if remaining <= self.minimum:
+            return remaining
+        return remaining - self.minimum if remaining - delay <= self.minimum else delay

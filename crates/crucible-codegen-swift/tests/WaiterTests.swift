@@ -50,6 +50,14 @@ final class WaiterTests: XCTestCase, @unchecked Sendable {
             XCTAssertTrue(error.description.contains("job rejected"))
         }
 
+        try await fixture.reset()
+        try await fixture.script(Scripted(body: "{\"wire-status\":\"PENDING\"}"),
+                                 Scripted(body: "{\"wire-status\":\"READY\"}"))
+        let finalReady = try await client.waitUntilReady(input, timeout: 1.5, options: WaiterOptions(minDelay: 1, maxDelay: 1))
+        XCTAssertEqual(finalReady?.status, "READY")
+        requests = try await fixture.requests()
+        XCTAssertEqual(requests.count, 2, "final poll retains a call budget")
+
         // The default one-second delay never fits, so the deadline ends the wait.
         try await fixture.reset()
         let started = Date()

@@ -41,6 +41,17 @@ void main() {
     expect(fake.requests, hasLength(3));
   });
 
+  test('final poll retains a call budget', () async {
+    final fake = Fake((attempt, request, _) async {
+      if (attempt == 2) await Future<void>.delayed(const Duration(milliseconds: 100));
+      return json(200, {'wire-status': attempt == 1 ? 'PENDING' : 'READY'});
+    });
+    final output = await client(fake).waitUntilReady(const Input(), timeout: const Duration(milliseconds: 1500),
+        minDelay: const Duration(seconds: 1), maxDelay: const Duration(seconds: 1));
+    expect(output.status, 'READY');
+    expect(fake.requests, hasLength(2));
+  });
+
   test('projections, filters, input-output, timestamps and failure messages', () async {
     var payload = <String, Object?>{'items': [{'wire-status': 'READY'}, {'wire-status': 'READY'}], 'updatedAt': '2026-01-01T00:00:00Z'};
     final fake = Fake((_, __, ___) => json(200, payload));
@@ -92,7 +103,8 @@ void main() {
   test('exponential jittered delays stay within the remaining time', () {
     const second = Duration(seconds: 1);
     expect([for (var n = 1; n <= 5; n++) waiterDelay(n, second * 100, second * 2, second * 8, Upper())], [second * 2, second * 4, second * 8, second * 8, second * 8]);
-    expect(waiterDelay(2, second * 5, second * 2, second * 8, Upper()), second * 5);
+    expect(waiterDelay(2, second * 5, second * 2, second * 8, Upper()), second * 3);
+    expect(waiterDelay(2, second, second * 2, second * 8, Upper()), second);
     for (var n = 1; n < 40; n++) {
       final delay = waiterDelay(n, second * 1000, second * 2, second * 8);
       expect(delay >= second * 2 && delay <= second * 8, isTrue);

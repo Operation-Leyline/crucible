@@ -59,7 +59,11 @@ module CrucibleGenerated
         end
         values
       end
-      def error(target, value, metadata) = @models.fetch(target).from_wire(value, context(target), metadata)
+      def error(target, value, metadata)
+        error = @models.fetch(target).from_wire(value, context(target), metadata)
+        error.modeled_error_name = target.split('#').last
+        error
+      end
       def self.object(value)
         raise ::ArgumentError, 'Expected object' unless value.is_a?(::Hash) && value.keys.all? { |key| key.is_a?(::String) }
         value

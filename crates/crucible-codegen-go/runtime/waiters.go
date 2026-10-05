@@ -100,7 +100,7 @@ func (c *clientRuntime) wait(ctx context.Context, operation, name string, input 
         if state == "failure" { return nil,&WaiterError{Name:name,Attempts:attempts,Response:response,Cause:failure,Message:message} }
         ceiling := math.Min(float64(maximum),float64(minimum)*math.Pow(2,float64(min(attempts-1,62))))
         delay := time.Duration(float64(minimum)+mathrand.Float64()*(ceiling-float64(minimum)))
-        remaining := time.Until(end); if remaining-delay <= minimum { delay = remaining }
+        remaining := time.Until(end); if remaining <= minimum { delay = remaining } else if remaining-delay <= minimum { delay = remaining-minimum }
         timer := time.NewTimer(max(0,delay))
         select { case <-deadline.Done(): timer.Stop(); return nil,timeoutError(); case <-timer.C: }
     }

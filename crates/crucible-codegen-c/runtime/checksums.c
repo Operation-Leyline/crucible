@@ -140,7 +140,7 @@ status crucible_generated_checksum_response(const crucible_generated_checksum_se
     *validated = NULL;
     for (size_t i = 0; i < settings->response_count; ++i) {
         string expected;
-        if (!crucible_generated_header_get(response->headers, VIEW(algorithm_header(settings->response[i])), &expected) || !expected.length) continue;
+        if (!crucible_generated_header_get(response->headers, VIEW(algorithm_header(settings->response[i])), &expected)) continue;
         char actual[89];
         TRY(crucible_generated_checksum(VIEW(settings->response[i]), response->body, actual, issue));
         if (!constant_equal(expected, VIEW(actual))) {

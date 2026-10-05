@@ -82,7 +82,8 @@ internal sealed partial class ClientRuntime
                 if (remaining <= TimeSpan.Zero) throw new WaiterTimeoutException(name,attempts,response,error);
                 var ceiling = Math.Min(maximum.TotalMilliseconds,minimum.TotalMilliseconds * Math.Pow(2,Math.Min(attempts - 1,62)));
                 var delay = TimeSpan.FromMilliseconds(minimum.TotalMilliseconds + Random.Shared.NextDouble() * (ceiling - minimum.TotalMilliseconds));
-                if (remaining - delay <= minimum) delay = remaining;
+                if (remaining <= minimum) delay = remaining;
+                else if (remaining - delay <= minimum) delay = remaining - minimum;
                 await Task.Delay(delay,deadline.Token).ConfigureAwait(false);
             }
         }

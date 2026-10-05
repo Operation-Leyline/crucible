@@ -153,7 +153,8 @@ status crucible_generated_client_wait(crucible_generated_client *client, string 
         double ceiling = fmin(maximum, minimum * pow(2, fmin((double)report->attempts - 1, 62)));
         double delay = minimum + fraction() * (ceiling - minimum);
         double remaining = crucible_generated_scope_remaining(&deadline);
-        if (remaining - delay <= minimum) delay = remaining > 0 ? remaining : 0;
+        if (remaining <= minimum) delay = remaining > 0 ? remaining : 0;
+        else if (remaining - delay <= minimum) delay = remaining - minimum;
         code = crucible_generated_scope_wait(&deadline, delay, issue);
         if (code) { if (code == crucible_generated_deadline) code = crucible_generated_fail(issue, code, "Waiter deadline exceeded"); break; }
     }

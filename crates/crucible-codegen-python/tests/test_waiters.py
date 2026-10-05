@@ -63,7 +63,20 @@ class WaiterTests(unittest.TestCase):
         waiter = Waiter("Test", {"minDelay": 2, "maxDelay": 8, "acceptors": []}, 100, None, None)
         with patch("jobs_client.waiters.random.uniform", side_effect=lambda a, b: b):
             self.assertEqual([waiter.delay(n, 100) for n in range(1, 6)], [2, 4, 8, 8, 8])
-            self.assertEqual(waiter.delay(2, 5), 5)
+            self.assertEqual(waiter.delay(2, 5), 3)
+            self.assertEqual(waiter.delay(2, 1), 1)
+
+    def test_final_poll_has_a_remaining_call_budget(self):
+        calls = []
+        def respond(request):
+            calls.append(request)
+            if len(calls) == 2:
+                time.sleep(0.1)
+            return httpx.Response(200, json={"wire-status": "PENDING" if len(calls) == 1 else "READY"})
+        with httpx.Client(transport=httpx.MockTransport(respond)) as http:
+            client = JobsClient("https://example.test", http=http)
+            self.assertEqual(client.wait_until_ready(timeout=1.5, min_delay=1, max_delay=1).status, "READY")
+            self.assertEqual(len(calls), 2)
 
     def test_compiled_query_exact_numbers_and_boolean_distinction(self):
         def literal(value): return {"kind": "literal", "value": value}
@@ -94,6 +107,18 @@ class AsyncWaiterTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await task
             self.assertEqual(len(cancelled), 2)
+
+    async def test_final_async_poll_has_a_remaining_call_budget(self):
+        calls = []
+        async def respond(request):
+            calls.append(request)
+            if len(calls) == 2:
+                await asyncio.sleep(0.1)
+            return httpx.Response(200, json={"wire-status": "PENDING" if len(calls) == 1 else "READY"})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+            client = AsyncJobsClient("https://example.test", http=http)
+            self.assertEqual((await client.wait_until_ready(timeout=1.5, min_delay=1, max_delay=1)).status, "READY")
+            self.assertEqual(len(calls), 2)
 
     async def test_successful_async_polling(self):
         calls = []

@@ -30,6 +30,16 @@ int main(void) {
     check(result.value && equal(jobs_models_output_get_status(result.value), "READY") && report.attempts == 3, "retry through a modeled error to success");
     jobs_operations_read_result_free(&result); jobs_client_free(client);
 
+    client = client_for("ready", "final-poll");
+    /* Consume the fixture's initial Missing response, leaving PENDING then READY. */
+    check(jobs_operations_read(client, &input, NULL, NULL, &result, &error) == jobs_service_error, "prime final poll fixture");
+    check(equal(result.base.name, "Missing"), "final poll fixture starts with Missing");
+    jobs_operations_read_result_free(&result);
+    jobs_waiter_options delayed = {true, true, 1, 1};
+    good(jobs_operations_read_wait_until_ready(client, &input, 1.5, &delayed, NULL, NULL, &result, &report, &error), &error, "final poll");
+    check(result.value && equal(jobs_models_output_get_status(result.value), "READY") && report.attempts == 2, "nonzero delays reserve a final poll before the deadline");
+    jobs_operations_read_result_free(&result); jobs_client_free(client);
+
     client = client_for("gone", "gone");
     good(jobs_operations_read_wait_until_deleted(client, &input, 2, &fast, NULL, NULL, &result, &report, &error), &error, "deleted");
     check(!result.value && equal(result.base.name, "Missing") && result.base.response.status == 404, "error acceptor succeeds with the failure response");

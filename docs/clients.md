@@ -201,20 +201,20 @@ include [retry decisions](../tests/conformance/retry.json),
 [header lists](../tests/conformance/header-lists.json),
 [malformed errors](../tests/conformance/malformed-errors.json), and
 [serialization](../tests/conformance/serialization.json). Serialization cases
-record native precision profiles. Every target runs all 15 cases; the language
+record native precision profiles. Every target runs all 16 cases; the language
 guides explain the remaining representation limits. Language-specific cases additionally
 cover bindings, payloads, digests, authentication refresh, body interruptions,
 cancellation, and pagination. The weather service supplies real loopback HTTP.
 
-The serialization adapters cover the current 15-case fixture as follows. Counts
+The serialization adapters cover the current 16-case fixture as follows. Counts
 include each target's explicit precision profile; they do not imply identical
 timestamp or numeric representations.
 
 | Targets | Cases exercised | Representation notes |
 |---|---|---|
-| Python, Go, Java, C#, Kotlin, Swift, Dart, PHP, Ruby, C++, C, R | 15 / 15 | See each guide for native precision limits |
-| Rust | 15 / 15 | Epoch-seconds timestamps preserve nanosecond precision |
-| TypeScript / JavaScript | 15 / 15 | Signed 64-bit fields use `bigint`; document numbers use JavaScript `number`, and dates have millisecond precision |
+| Python, Go, Java, C#, Kotlin, Swift, Dart, PHP, Ruby, C++, C, R | 16 / 16 | See each guide for native precision limits |
+| Rust | 16 / 16 | Epoch-seconds timestamps preserve nanosecond precision |
+| TypeScript / JavaScript | 16 / 16 | Signed 64-bit fields use `bigint`; document numbers use JavaScript `number`, and dates have millisecond precision |
 
 The [Rust model migration](clients/rust.md#migrating-client-models) and
 [TypeScript guide](clients/typescript.md) describe the updated presence and numeric

@@ -36,9 +36,9 @@
   }
   list(state = if (is.null(error)) 'retry' else 'failure', message = NULL)
 }
-# Jittered exponential backoff; the final wait ends exactly at the deadline.
+# Jittered backoff reserves a minimum call budget for the final poll.
 .crucible_waiter_delay <- function(minimum, maximum, attempt, remaining, uniform = function(low, high) stats::runif(1L, low, high)) {
   ceiling <- min(maximum, minimum * 2^min(attempt - 1, 62))
   delay <- if (ceiling > minimum) uniform(minimum, ceiling) else minimum
-  if (remaining - delay <= minimum) remaining else delay
+  if (remaining <= minimum) remaining else if (remaining - delay <= minimum) remaining - minimum else delay
 }

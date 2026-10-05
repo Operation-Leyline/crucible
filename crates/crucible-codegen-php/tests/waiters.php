@@ -92,7 +92,7 @@ foreach ([[0.0, null, null], [INF, null, null], [1.0, 2.0, 1.0], [1.0, -1.0, nul
 $schema = JobsSdk\Schema::codec()->schema->get('operations')->get('Read')->get('waiters')->get('Ready');
 $waiter = new Waiter('Ready', new JsonObject([...$schema->members, 'minDelay' => new JsonNumber('2'), 'maxDelay' => new JsonNumber('8')]), 100.0, random: static fn(float $min, float $max) => $max);
 check(array_map(static fn(int $attempt) => $waiter->delay($attempt, 100.0), [1, 2, 3, 4, 5]) === [2.0, 4.0, 8.0, 8.0, 8.0], 'backoff ceiling');
-check($waiter->delay(2, 5.0) === 5.0, 'last delay ends at the deadline');
+check($waiter->delay(2, 5.0) === 3.0, 'last delay reserves a call budget');
 $low = new Waiter('Ready', $schema, 100.0, random: static fn(float $min, float $max) => $min);
 check($low->minDelay === 1.0 && $low->maxDelay === 4.0 && $low->delay(3, 100.0) === 1.0, 'modeled delays and jitter floor');
 for ($i = 0; $i < 50; $i++) { $delay = (new Waiter('Ready', $schema, 100.0))->delay(3, 100.0); check($delay >= 1.0 && $delay <= 4.0, 'jitter range'); }
@@ -116,3 +116,10 @@ $slice = static fn(string $json, ?int $start, ?int $stop, ?int $step) => array_m
     'start' => $start === null ? null : new JsonNumber((string)$start), 'stop' => $stop === null ? null : new JsonNumber((string)$stop), 'step' => $step === null ? null : new JsonNumber((string)$step)]), ExactJson::decode($json)));
 check($slice('[0,1,2,3,4]', 1, null, null) === ['1', '2', '3', '4'] && $slice('[0,1,2,3,4]', null, null, -2) === ['4', '2', '0'] && $slice('[0,1,2,3,4]', -2, null, 1) === ['3', '4'], 'slices');
 echo "PHP waiters, compiled JMESPath, and waiter timing passed\n";
+
+check($waiter->delay(2, 1.0) === 1.0, 'short budget is exhausted without another poll');
+$transport = new Script(static function(int $call): HttpResponse {
+    if ($call === 2) usleep(100000);
+    return new HttpResponse(200, [], $call === 1 ? '{"wire-status":"PENDING"}' : '{"wire-status":"READY"}');
+});
+check(jobs($transport)->waitUntilReady($input, 1.5, 1.0, 1.0)?->status === 'READY' && $transport->calls === 2, 'final poll retains a call budget');

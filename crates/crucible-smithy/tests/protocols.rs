@@ -59,10 +59,17 @@ fn rpc_protocols_ignore_rest_bindings_and_json_names() {
     // are ignored, so none of their target capabilities should be required.
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower_with_capabilities(None, &Capabilities::new([Feature::AwsJson10]))
+        .lower_with_capabilities(
+            None,
+            &Capabilities::new([Feature::AwsJson10, Feature::HttpChecksum]),
+        )
         .unwrap();
     assert_eq!(service.protocol, Protocol::AwsJson10);
-    assert_eq!(service.requirements.len(), 1);
+    assert_eq!(service.requirements.len(), 2);
+    assert_eq!(
+        service.operations[0].checksum,
+        Some(crucible_smithy::ir::Checksum::Md5)
+    );
     let op = &service.operations[0];
     assert_eq!(op.method, "POST");
     assert_eq!(op.uri.to_string(), "/");

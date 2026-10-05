@@ -81,7 +81,8 @@ extension ClientRuntime {
                     let remaining = timeout - (ProcessInfo.processInfo.systemUptime - start)
                     let ceiling = min(maximum, minimum * pow(2, Double(min(attempt - 1, 62))))
                     var delay = Double.random(in: minimum...max(minimum, ceiling))
-                    if remaining - delay <= minimum { delay = remaining }
+                    if remaining <= minimum { delay = remaining }
+                    else if remaining - delay <= minimum { delay = remaining - minimum }
                     try await sleep(seconds: max(0, delay))
                 }
             }

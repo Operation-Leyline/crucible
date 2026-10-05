@@ -113,7 +113,12 @@ module CrucibleGenerated
       end
       def exchange(name, op, values, scope, response_target: nil, block: nil)
         request, checksum, endpoint = prepare(name, op, values)
-        sink = op.fetch('response')['streaming'] ? StreamSink.new(target: response_target, block: block, algorithms: checksum.response) : nil
+        sink = if op.fetch('response')['streaming']
+          member = op.fetch('response').fetch('payload')[0]
+          limits = @codec.shape(op.fetch('output')).fetch('members').fetch(member).fetch('length', {})
+          StreamSink.new(target: response_target, block: block, algorithms: checksum.response,
+            minimum: limits['min'], maximum: limits['max'])
+        end
         raise ::ArgumentError, 'Only streamed responses take a target or block' if sink.nil? && (response_target || block)
         send_request(name, op, request, checksum, endpoint, scope, sink)
       end
@@ -250,6 +255,7 @@ module CrucibleGenerated
       def stream_limits(op) = @codec.shape(op.fetch('input')).fetch('members').fetch(op.fetch('request').fetch('payload')[0]).fetch('length', {})
       def content_sha256(body)
         return ::Digest::SHA256.hexdigest(body || '') unless body.is_a?(ByteStream)
+        return 'UNSIGNED-PAYLOAD' unless body.replayable?
         digest = ::Digest::SHA256.new
         body.each_chunk { |chunk| digest.update(chunk) }
         digest.hexdigest
@@ -305,6 +311,7 @@ module CrucibleGenerated
           end
           scope.check
           if (200...300).cover?(response.status)
+            sink&.finish
             algorithm = Checksums.response(checksum, response.headers, response.body, hashers: sink&.hashers)
             @config.checksum_validated&.call(name, algorithm) if algorithm
             return success(name, op, response, sink)

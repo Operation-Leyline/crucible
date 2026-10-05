@@ -61,7 +61,7 @@ rejects(sdk(test)$wait_until_ready(Input(), timeout = 1, min_delay = 3, max_dela
 delay <- get('.crucible_waiter_delay', ns)
 upper <- function(low, high) high
 check(identical(vapply(1:5, function(n) delay(2, 8, n, 100, upper), 0), c(2, 4, 8, 8, 8)), 'Waiter backoff ceiling')
-check(delay(2, 8, 2, 5, upper) == 5, 'Waiter final delay reaches the deadline')
+check(delay(2, 8, 2, 5, upper) == 3, 'Waiter final delay reserves a call budget')
 values <- vapply(1:50, function(n) delay(2, 8, 3, 100), 0)
 check(all(values >= 2 & values <= 8) && length(unique(values)) > 1L, 'Waiter jitter range')
 
@@ -101,3 +101,11 @@ if (nzchar(Sys.getenv('ECHO_URL'))) {
   client$close()
 }
 cat('R waiters and compiled queries passed\n')
+
+check(delay(2, 8, 1, 1, upper) == 1, 'Short waiter budget is exhausted without another poll')
+
+test <- fake(function(attempt, request) {
+  if (attempt == 2L) Sys.sleep(.1)
+  response(body = if (attempt == 1L) '{"wire-status":"PENDING"}' else '{"wire-status":"READY"}')
+})
+check(sdk(test)$wait_until_ready(Input(), timeout = 1.5, min_delay = 1, max_delay = 1)$status == 'READY' && length(test$requests) == 2L, 'Final poll retains a call budget')

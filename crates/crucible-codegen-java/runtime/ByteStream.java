@@ -77,9 +77,14 @@ public final class ByteStream implements AutoCloseable {
 
   private static ByteStream oneShot(InputStream input, Long length) {
     Objects.requireNonNull(input, "input");
-    return new ByteStream(() -> new InputStreamPublisher(() -> input), () -> {
-      try { input.close(); } catch (IOException ignored) { }
-    }, false, length, null, new AtomicBoolean());
+    var closed = new AtomicBoolean();
+    Runnable release = () -> {
+      if (closed.compareAndSet(false, true)) {
+        try { input.close(); } catch (IOException ignored) { }
+      }
+    };
+    return new ByteStream(() -> new InputStreamPublisher(() -> input, release), release,
+        false, length, null, new AtomicBoolean());
   }
 
   /** Replayable: the factory runs once per attempt and must return the same bytes each time. */
