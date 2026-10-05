@@ -208,14 +208,22 @@ final class StreamBody implements Flow.Publisher<ByteBuffer> {
       synchronized (StreamBody.this) {
         requested = false;
         if (terminated || cancelled) return;
-        complete = true;
         if ((length != null && size != length) || (minimum != null && size < minimum))
           invalid = new IllegalArgumentException("stream ended before its declared length");
       }
       if (invalid == null && checksum != null) {
         try { checksum.verify(); } catch (RuntimeException mismatch) { invalid = mismatch; }
       }
-      if (invalid != null) fail(invalid);
+      synchronized (StreamBody.this) {
+        if (terminated || cancelled) return;
+        // Publish the terminal result together: concurrent demand must never observe
+        // successful EOF while the checksum is still being verified.
+        if (invalid != null) {
+          failure = invalid;
+          if (error == null) error = invalid;
+        }
+        complete = true;
+      }
       drain();
     }
   }

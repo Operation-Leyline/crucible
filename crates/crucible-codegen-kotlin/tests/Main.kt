@@ -27,6 +27,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import java.util.concurrent.Executors
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
@@ -280,12 +281,21 @@ private suspend fun failures() = coroutineScope {
         exchange.sendResponseHeaders(200, body.size.toLong() + if (count.incrementAndGet() == 1) 10 else 0)
         exchange.responseBody.write(body)
     }.use { server -> WeatherClient(server.config()).use { it.getCity(GetCityInput { this.cityId = "x" }); check(count.get() == 2) } }
+    val headersSent = CompletableDeferred<Unit>()
+    val releaseBody = CountDownLatch(1)
     Server { exchange ->
         exchange.sendResponseHeaders(200, 100)
         exchange.responseBody.write('{'.code); exchange.responseBody.flush()
-        Thread.sleep(5000)
+        headersSent.complete(Unit)
+        releaseBody.await()
     }.use { server ->
-        WeatherClient(server.config()).use { withTimeout(1500) { it.ping() } }
+        WeatherClient(server.config()).use { client ->
+            try {
+                val call = async { client.ping() }
+                withTimeout(10000) { headersSent.await(); call.await() }
+                check(releaseBody.count == 1L) { "header-only call waited for the body" }
+            } finally { releaseBody.countDown() }
+        }
     }
     count.set(0)
     Server { exchange -> count.incrementAndGet(); response(exchange, 200, "{}") }.use { server ->

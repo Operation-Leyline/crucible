@@ -440,6 +440,12 @@ delay overrides and `options.call` configure polling and cancellation. One budge
 covers calls, their retries, and jittered delays. Discarded streaming responses
 are closed before polling again.
 
+Retained `WaiterError.response` and `.cause` values are boxed, keeping the error
+size independent of generated output/error model sizes. Use `.as_deref()` when
+matching the underlying cause, or dereference an owned box to recover its value.
+Regenerate and upgrade the runtime and consumers together; rollback keeps both
+at the earlier generator revision.
+
 Endpoint paths and waiter expressions use model member names even with
 `@jsonName`; timestamps are normalized to exact epoch seconds. Compiled JMESPath
 metadata is adapted once, and comparisons and numeric functions preserve exact

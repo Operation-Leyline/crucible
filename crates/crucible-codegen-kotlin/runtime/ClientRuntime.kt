@@ -488,7 +488,10 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
                 finally {stream?.close();source.close()}
             }
             val body = if (response.status.value in 200..299 && !hasBody) {
-                response.bodyAsChannel().cancel(null); byteArrayOf()
+                response.bodyAsChannel().cancel(null)
+                // CIO can discard a cancelled channel while retaining the response job until EOF.
+                response.coroutineContext.cancel()
+                byteArrayOf()
             } else response.body<ByteArray>()
             state.bytes=body.size.toLong()
             WireResponse(response.status.value, responseHeaders, body)

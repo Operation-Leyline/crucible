@@ -52,14 +52,22 @@ void generated_endpoint_rules() {
 }
 
 void parameter_precedence() {
-    const auto ref = [](const char* name) { return rt::Json(rt::Json::Object{{"kind", rt::Json("reference")}, {"name", rt::Json(name)}}); };
-    const auto literal = [](const char* value) { return rt::Json(rt::Json::Object{{"kind", rt::Json("string")}, {"parts", rt::Json(rt::Json::Array{rt::Json(rt::Json::Object{{"kind", rt::Json("literal")}, {"value", rt::Json(value)}})})}}); };
-    const auto rules = rt::Json(rt::Json::Object{
-        {"parameters", rt::Json::parse(R"({"Name":{"kind":"string","required":true},"Flag":{"kind":"boolean","required":true}})")},
-        {"rules", rt::Json(rt::Json::Array{rt::Json(rt::Json::Object{
-            {"conditions", rt::Json(rt::Json::Array{rt::Json(rt::Json::Object{{"function", rt::Json("isSet")}, {"arguments", rt::Json(rt::Json::Array{ref("Flag")})}, {"assign", rt::Json()}})})},
-            {"result", rt::Json(rt::Json::Object{{"kind", rt::Json("endpoint")}, {"url", literal("https://example.test/base")},
-                {"headers", rt::Json(rt::Json::Object{{"name", rt::Json(rt::Json::Array{ref("Name")})}})}, {"properties", rt::Json(rt::Json::Object{{"flag", ref("Flag")}})}})}})})}});
+    // Parsing avoids MSVC's excessive instantiation of nested initializer lists.
+    const auto rules = rt::Json::parse(R"({
+        "parameters": {
+            "Name": {"kind": "string", "required": true},
+            "Flag": {"kind": "boolean", "required": true}
+        },
+        "rules": [{
+            "conditions": [{"function": "isSet", "arguments": [{"kind": "reference", "name": "Flag"}], "assign": null}],
+            "result": {
+                "kind": "endpoint",
+                "url": {"kind": "string", "parts": [{"kind": "literal", "value": "https://example.test/base"}]},
+                "headers": {"name": [{"kind": "reference", "name": "Name"}]},
+                "properties": {"flag": {"kind": "reference", "name": "Flag"}}
+            }
+        }]
+    })");
     const auto sources = rt::Json::parse(R"({"Name":[{"kind":"inputMember","member":"name"},{"kind":"client","name":"name"},{"kind":"default","value":"default"}],"Flag":[{"kind":"builtIn","name":"Flag"}]})");
     const rt::Json::Object flag{{"Flag", rt::Json(false)}};
     auto result = rt::resolve_endpoint(rules, &sources, rt::Json::parse(R"({"name":"input"})"), {{"name", rt::Json("client")}}, flag);

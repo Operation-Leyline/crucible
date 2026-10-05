@@ -123,8 +123,10 @@ rejects { sdk(Fake.new { R::HttpResponse.new(200) }).upload(StreamSdk::UploadInp
 
 # Real HTTP on loopback: chunked and sized uploads, streamed downloads, cancellation, and bounded memory.
 SIZE = Integer(ENV.fetch('STREAM_BYTES', (256 * 1024 * 1024).to_s))
+WARM_SIZE = [SIZE / 4, 32 * 1024 * 1024].min
 server = TCPServer.new('127.0.0.1', 0)
 uploads = Queue.new
+download_sizes = Queue.new
 Thread.new do
   loop do
     socket = server.accept
@@ -149,9 +151,10 @@ Thread.new do
         uploads << [method, path, received, headers['transfer-encoding']] if method == 'PUT'
         case path
         when '/download'
-          client.write("HTTP/1.1 200 OK\r\nContent-Length: #{SIZE}\r\nx-count: 1\r\n\r\n")
+          size = download_sizes.pop
+          client.write("HTTP/1.1 200 OK\r\nContent-Length: #{size}\r\nx-count: 1\r\n\r\n")
           block = 'y' * 65_536
-          left = SIZE
+          left = size
           while left.positive?
             client.write(left >= block.bytesize ? block : block[0, left])
             left -= [left, block.bytesize].min
@@ -182,6 +185,16 @@ end
 client = StreamSdk::StreamingClient.new(R::ClientConfig.new(endpoint: "http://127.0.0.1:#{server.addr[1]}", timeout: 120))
 client.upload(StreamSdk::UploadInput.new(body: 'warm'))
 uploads.pop
+# Ruby retains heap arenas and native allocator pages after collections. Warm
+# each transfer path before measuring its high-water growth with a larger body.
+client.upload(StreamSdk::UploadInput.new(body: Generated.new(WARM_SIZE)))
+check(uploads.pop == ['PUT', '/upload', WARM_SIZE, 'chunked'], 'Warm chunked upload')
+client.upload(StreamSdk::UploadInput.new(body: R::ByteStream.new(length: WARM_SIZE) { Generated.new(WARM_SIZE) }))
+check(uploads.pop == ['PUT', '/upload', WARM_SIZE, nil], 'Warm sized upload')
+download_sizes << WARM_SIZE
+warm_total = 0
+warm_output = client.download { |chunk| warm_total += chunk.bytesize }
+check(warm_total == WARM_SIZE && warm_output.count == 1, 'Warm streamed download')
 GC.start
 before = peak_rss
 client.upload(StreamSdk::UploadInput.new(body: Generated.new(SIZE)))
@@ -190,6 +203,7 @@ client.upload(StreamSdk::UploadInput.new(body: R::ByteStream.new(length: SIZE) {
 check(uploads.pop == ['PUT', '/upload', SIZE, nil], 'Sized upload')
 total = 0
 largest = 0
+download_sizes << SIZE
 output = client.download do |chunk|
   total += chunk.bytesize
   largest = [largest, chunk.bytesize].max

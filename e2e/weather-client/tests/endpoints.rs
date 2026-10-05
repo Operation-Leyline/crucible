@@ -132,7 +132,11 @@ async fn generated_waiter_success_can_return_error_and_unmatched_transport_prese
         .await
         .unwrap_err();
     assert_eq!(failure.kind, WaiterFailure::Failure);
-    assert!(matches!(failure.cause, Some(Error::Transport(_))));
+    assert!(matches!(
+        failure.cause.as_deref(),
+        Some(Error::Transport(_))
+    ));
+    assert!(std::error::Error::source(&failure).is_some());
 }
 
 #[tokio::test]
@@ -146,6 +150,7 @@ async fn waiter_deadline_cancellation_and_invalid_endpoint_stop_before_extra_pol
         .unwrap_err();
     assert_eq!(failure.kind, WaiterFailure::Timeout);
     assert_eq!(failure.attempts, 1);
+    assert!(failure.response.is_some());
     requests.await.unwrap();
     let token = CancellationToken::new();
     token.cancel();

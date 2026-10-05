@@ -72,8 +72,19 @@ independent consumer regressions check reuse across retries.
 
 ## Remaining qualification
 
+The recovery CI exposed a Java checksum completion race, Kotlin response-job
+cleanup waiting for an unmodeled body, oversized Rust waiter errors, and MSVC
+compiler memory exhaustion in a nested test initializer. Targeted regressions
+cover the runtime failures; the C++ fixture retains its endpoint-rule assertions.
+Android CI installs current SDK packages and uses a smaller emulator data disk.
+Fresh Rust tests and Clippy, Kotlin's full JVM consumer gate, and Java's
+256 MiB streaming gate pass locally after these fixes.
+Ruby's memory test now warms each transfer path with at most 32 MiB before
+measuring 256 MiB transfers against the unchanged 96 MiB growth limit. Linux
+Ruby 4 passes repeated runs; a deliberately buffered response fails the gate.
+
 The complete native CI matrix, published packages, authenticated AWS/Leyline
-traffic, and consumer migrations remain separate proof requirements. Some
-native CI jobs on the earlier recovery commit failed; the updated draft must
-pass its own gates before release qualification. Preserve the generator
-revision, bundled runtime, and generated packages together when rolling back.
+traffic, and consumer migrations remain separate proof requirements. The PR's
+current commit must pass its own gates before release qualification. Preserve
+the generator revision, bundled runtime, and generated packages together when
+rolling back.

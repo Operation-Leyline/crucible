@@ -291,6 +291,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.13' }
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Consume published JVM, JavaScript, and host-native artifacts
         run: python tools/test-kotlin-multiplatform.py ${{ matrix.flags }}
   kotlin-android:
@@ -313,6 +315,7 @@ jobs:
         with:
           api-level: 26
           arch: x86_64
+          disk-size: 2G
           disable-animations: true
           script: python tools/test-kotlin-android.py
   csharp:

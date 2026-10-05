@@ -69,6 +69,50 @@ public final class StreamingTest {
     };
   }
 
+  static void checksumCompletionRace() throws Exception {
+    var verifying = new CountDownLatch(1);
+    var finish = new CountDownLatch(1);
+    var terminal = new CountDownLatch(1);
+    var upstream = new AtomicReference<Flow.Subscriber<? super List<ByteBuffer>>>();
+    var demand = new AtomicReference<Flow.Subscription>();
+    var error = new AtomicReference<Throwable>();
+    Checksums.Hasher hasher = new Checksums.Hasher() {
+      public void update(ByteBuffer bytes) {}
+      public byte[] finish() {
+        verifying.countDown();
+        try { check(finish.await(5, TimeUnit.SECONDS), "checksum verifier released"); }
+        catch (InterruptedException interrupted) { throw new RuntimeException(interrupted); }
+        return new byte[]{1};
+      }
+    };
+    var checksum = new Checksums.Running("Fetch", "CRC32", new byte[]{0}, hasher, null);
+    var body = StreamBody.response(subscriber -> {
+      upstream.set(subscriber);
+      subscriber.onSubscribe(new Flow.Subscription() {
+        public void request(long n) {}
+        public void cancel() {}
+      });
+    }, null, null, checksum, () -> {});
+    body.subscribe(new Flow.Subscriber<ByteBuffer>() {
+      public void onSubscribe(Flow.Subscription subscription) { demand.set(subscription); }
+      public void onNext(ByteBuffer bytes) {}
+      public void onError(Throwable failure) { error.set(failure); terminal.countDown(); }
+      public void onComplete() { terminal.countDown(); }
+    });
+    var ending = new Thread(() -> upstream.get().onComplete());
+    ending.start();
+    try {
+      check(verifying.await(5, TimeUnit.SECONDS), "checksum verification started");
+      demand.get().request(1);
+      check(terminal.getCount() == 1, "EOF waits for checksum verification despite concurrent demand");
+    } finally {
+      finish.countDown();
+      ending.join(5000);
+    }
+    check(!ending.isAlive() && terminal.getCount() == 0 && error.get() instanceof ChecksumMismatch,
+        "concurrent demand receives checksum mismatch");
+  }
+
   static void handle(HttpExchange exchange) throws IOException, InterruptedException {
     String path = exchange.getRequestURI().getPath();
     var headers = new LinkedHashMap<String, String>();
@@ -112,6 +156,7 @@ public final class StreamingTest {
   }
 
   public static void main(String[] args) throws Exception {
+    checksumCompletionRace();
     var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.setExecutor(Executors.newCachedThreadPool());
     server.createContext("/", exchange -> {

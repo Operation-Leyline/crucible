@@ -45,8 +45,9 @@ pub struct WaiterError<O, E> {
     pub waiter: String,
     pub kind: WaiterFailure,
     pub attempts: u32,
-    pub response: Option<O>,
-    pub cause: Option<Error<E>>,
+    /// Retained out of line so large generated models do not enlarge every Result.
+    pub response: Option<Box<O>>,
+    pub cause: Option<Box<Error<E>>>,
     pub detail: Option<Value>,
 }
 impl<O: fmt::Debug, E: fmt::Debug> fmt::Display for WaiterError<O, E> {
@@ -60,7 +61,7 @@ impl<O: fmt::Debug, E: fmt::Debug> fmt::Display for WaiterError<O, E> {
 }
 impl<O: fmt::Debug, E: fmt::Debug + 'static> std::error::Error for WaiterError<O, E> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.cause.as_ref().map(|cause| cause as _)
+        self.cause.as_deref().map(|cause| cause as _)
     }
 }
 
@@ -228,7 +229,7 @@ impl Transport {
             kind: WaiterFailure::Invalid,
             attempts: 0,
             response: None,
-            cause: Some(Error::Invalid(detail)),
+            cause: Some(Box::new(Error::Invalid(detail))),
             detail: None,
         };
         let waiter = metadata
@@ -267,8 +268,8 @@ impl Transport {
                     waiter: name.into(),
                     kind,
                     attempts,
-                    response: output,
-                    cause: error,
+                    response: output.map(Box::new),
+                    cause: error.map(Box::new),
                     detail: None,
                 });
             }
@@ -300,8 +301,8 @@ impl Transport {
                     waiter: name.into(),
                     kind,
                     attempts,
-                    response,
-                    cause,
+                    response: response.map(Box::new),
+                    cause: cause.map(Box::new),
                     detail: None,
                 });
             }
@@ -314,7 +315,7 @@ impl Transport {
                             kind: WaiterFailure::Invalid,
                             attempts,
                             response: None,
-                            cause: Some(Error::Decode(detail)),
+                            cause: Some(Box::new(Error::Decode(detail))),
                             detail: None,
                         })?;
                     output = Some(response);
@@ -334,8 +335,8 @@ impl Transport {
                             waiter: name.into(),
                             kind: WaiterFailure::Invalid,
                             attempts,
-                            response: output,
-                            cause: error,
+                            response: output.map(Box::new),
+                            cause: error.map(Box::new),
                             detail: Some(json!(detail)),
                         });
                     }
@@ -362,8 +363,8 @@ impl Transport {
                     waiter: name.into(),
                     kind,
                     attempts,
-                    response: output,
-                    cause: error,
+                    response: output.map(Box::new),
+                    cause: error.map(Box::new),
                     detail,
                 });
             }
