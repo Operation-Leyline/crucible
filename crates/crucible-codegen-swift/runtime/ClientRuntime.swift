@@ -2,7 +2,7 @@ import Foundation
 import Crypto
 
 internal final class ClientRuntime: Sendable {
-    private let config: ClientConfig
+    let config: ClientConfig
     private let endpoint: String
     private let digest: Bool
     private let transport: any HTTPTransport
@@ -10,19 +10,29 @@ internal final class ClientRuntime: Sendable {
     let codec: WireCodec
     init(_ config: ClientConfig, endpoint: String, digest: Bool) throws {
         self.config = config; self.digest = digest
+        guard let resource = Bundle.module.url(forResource: "schema", withExtension: "json") else { throw WireError("SDK schema missing") }
+        codec = WireCodec(schema: try JSONValue(data: Data(contentsOf: resource)))
         var endpoint = config.endpoint ?? endpoint
         while endpoint.hasSuffix("/") { endpoint.removeLast() }
-        guard let url = URLComponents(string: endpoint), ["http", "https"].contains(url.scheme ?? ""),
-              let host = url.host, !host.isEmpty, url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
-              url.url != nil else { throw WireError("Absolute HTTP(S) endpoint without credentials, query or fragment required") }
+        // Modeled endpoint rules resolve the URL per request when none is configured.
+        if !(endpoint.isEmpty && codec.schema["endpointRules"] != nil) {
+            guard let url = URLComponents(string: endpoint), ["http", "https"].contains(url.scheme ?? ""),
+                  let host = url.host, !host.isEmpty, url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
+                  url.url != nil else { throw WireError("Absolute HTTP(S) endpoint without credentials, query or fragment required") }
+        }
         guard config.maxAttempts > 0, config.timeout.isFinite, config.timeout > 0,
               config.timeout <= Double(Int64.max) / 1_000_000_000,
               config.baseDelay.isFinite, config.baseDelay >= 0, config.maxDelay.isFinite, config.maxDelay >= 0 else {
             throw WireError("Invalid timeout, retry delays or attempt limit")
         }
+        for value in Array(config.endpointParameters.values) + Array(config.endpointBuiltIns.values) {
+            switch value {
+            case .string, .bool: continue
+            case .array(let items) where items.allSatisfy({ $0.text != nil }): continue
+            default: throw WireError("Endpoint parameters must be strings, booleans, or string arrays")
+            }
+        }
         self.endpoint = endpoint
-        guard let resource = Bundle.module.url(forResource: "schema", withExtension: "json") else { throw WireError("SDK schema missing") }
-        codec = WireCodec(schema: try JSONValue(data: Data(contentsOf: resource)))
         if let injected = config.transport { transport = injected; owned = nil }
         else {
             // FoundationNetworking rounds short I/O timeouts on some platforms.
@@ -32,19 +42,54 @@ internal final class ClientRuntime: Sendable {
         }
     }
     func close() { owned?.close() }
-    private func operation(_ name: String) throws -> JSONValue {
+    func operation(_ name: String) throws -> JSONValue {
         guard let operation = codec.schema["operations"]?[name] else { throw WireError("Unknown operation: \(name)") }
         return operation
     }
-    private struct Prepared: Sendable { let operation: JSONValue; let request: HTTPRequest }
-    private func prepare(_ op: JSONValue, input: JSONValue) throws -> Prepared {
+    struct Prepared: Sendable {
+        let name: String
+        let operation: JSONValue
+        let request: HTTPRequest
+        let checksum: ChecksumSettings
+        let endpoint: ResolvedEndpoint?
+    }
+    private var awsProtocol: Bool { ["awsRestJson1", "awsJson1_0", "awsJson1_1"].contains(codec.schema["protocol"]?.text ?? "") }
+    func prepare(_ name: String, _ op: JSONValue, input: JSONValue) throws -> Prepared {
         var values = try input.object
         if let token = op["token"]?.text, values[token] == nil || values[token] == .null { values[token] = .string(UUID().uuidString.lowercased()) }
+        let checksum = try Checksums.prepare(op["checksum"], values: &values,
+            request: config.requestChecksumCalculation, response: config.responseChecksumValidation)
+        var base = endpoint
+        var resolved: ResolvedEndpoint?
+        if codec.schema["endpointRules"] != nil || op["endpoint"] != nil {
+            let view = try codec.queryView(op["input"]?.text, .object(values))
+            if let rules = codec.schema["endpointRules"] {
+                var builtins = config.endpointBuiltIns
+                if builtins["AWS::Region"] == nil, let region = config.region { builtins["AWS::Region"] = .string(region) }
+                if builtins["SDK::Endpoint"] == nil, !endpoint.isEmpty { builtins["SDK::Endpoint"] = .string(endpoint) }
+                let result = try Endpoints.resolve(rules, sources: op["endpointParameters"], input: view,
+                                                   client: config.endpointParameters, builtins: builtins)
+                resolved = result; base = result.url
+            }
+            if let prefix = op["endpoint"], prefix != .null, !config.disableHostPrefix {
+                base = try Endpoints.hostPrefix(base, prefix, input: view)
+            }
+            while base.hasSuffix("/") { base.removeLast() }
+        }
         let bindings = op["request"]!
+        // HTTP bindings may use a different timestamp format than the body.
+        var bound = values
+        if let input = op["input"]?.text, let formats = bindings["timestampFormats"] {
+            for (name, format) in try formats.object {
+                if let value = values[name], value != .null {
+                    bound[name] = try codec.rebind(codec.member(input, name), value, format: format.string)
+                }
+            }
+        }
         var path = try op["uri"]!.string
         for label in try bindings["labels"]!.array {
             let name = try label.string
-            guard let value = values[name], value != .null else { throw WireError("Missing label: \(name)") }
+            guard let value = bound[name], value != .null else { throw WireError("Missing label: \(name)") }
             let text = try codec.bound(value)
             guard !text.isEmpty else { throw WireError("Empty label: \(name)") }
             let greedy = ((try? op["greedyLabels"]?.array) ?? []).contains(.string(name))
@@ -55,7 +100,7 @@ internal final class ClientRuntime: Sendable {
         var query: [String] = []
         for binding in try bindings["query"]!.array {
             let pair = try binding.array
-            guard let value = values[try pair[0].string], value != .null else { continue }
+            guard let value = bound[try pair[0].string], value != .null else { continue }
             let items = (try? value.array) ?? [value]
             for item in items { query.append(try Self.escape(pair[1].string) + "=" + Self.escape(codec.bound(item))) }
         }
@@ -78,9 +123,10 @@ internal final class ClientRuntime: Sendable {
         }
         if !query.isEmpty { path += (path.contains("?") ? "&" : "?") + query.joined(separator: "&") }
         var headers = Self.headers(config.headers)
+        for (name, items) in resolved?.headers ?? [:] { headers[name] = items.joined(separator: ",") }
         for binding in try bindings["headers"]!.array {
             let pair = try binding.array
-            if let value = values[try pair[0].string], value != .null { headers[try pair[1].string.lowercased()] = try codec.bound(Self.media(value, bindings: bindings, member: pair[0].string, encode: true)) }
+            if let value = bound[try pair[0].string], value != .null { headers[try pair[1].string.lowercased()] = try codec.bound(Self.media(value, bindings: bindings, member: pair[0].string, encode: true)) }
         }
         let explicitHeaders = Set(try bindings["headers"]!.array.map { try $0.array[1].string.lowercased() })
         for binding in (try? bindings["prefixHeaders"]?.array) ?? [] {
@@ -107,15 +153,23 @@ internal final class ClientRuntime: Sendable {
                 guard let raw = try Data(base64Encoded: value.string) else { throw WireError("Invalid payload blob") }
                 body = raw
             }
-            headers["content-type"] = payload.1
+            // An empty payload sends no body, so its media type does not apply.
+            if body?.isEmpty == true { body = nil } else { headers["content-type"] = payload.1 }
         }
-        guard let url = URL(string: endpoint + path) else { throw WireError("Invalid request URL") }
-        return Prepared(operation: op, request: HTTPRequest(url: url, method: try op["method"]!.string, headers: headers, body: body))
+        if let version = ["awsJson1_0": "1.0", "awsJson1_1": "1.1"][codec.schema["protocol"]?.text ?? ""] {
+            if body == nil { body = Data("{}".utf8) }
+            headers["content-type"] = "application/x-amz-json-" + version
+            let service = try codec.schema["service"]!.string
+            headers["x-amz-target"] = String(service.split(separator: "#").last ?? Substring(service)) + "." + name
+        }
+        guard let url = URL(string: base + path) else { throw WireError("Invalid request URL") }
+        return Prepared(name: name, operation: op, request: HTTPRequest(url: url, method: try op["method"]!.string, headers: headers, body: body),
+                        checksum: checksum, endpoint: resolved)
     }
     func call<Input: WireCodable, Output: WireCodable>(_ name: String, input: Input, as: Output.Type) async throws -> Output {
         let op = try operation(name)
         let values = try op["input"]?.text.map { try codec.encode($0, input) } ?? .object([:])
-        let result = try await send(prepare(op, input: values))
+        let result = try await send(prepare(name, op, input: values))
         let context = try op["output"]?.text.map { try codec.context($0) }
             ?? WireContext(codec: codec, target: "smithy.api#Unit", format: "date-time")
         return try Output.fromWire(result, context)
@@ -125,35 +179,41 @@ internal final class ClientRuntime: Sendable {
         let values = try op["input"]?.text.map { try codec.encode($0, input) } ?? .object([:])
         let pagination = op["pagination"]!
         return Pages(input: values, tokenMember: try pagination["input"]!.string) { [self] input in
-            let result = try await send(prepare(op, input: input))
+            let result = try await send(prepare(name, op, input: input))
             let output = try codec.decode(op["output"]!.string, result, as: Output.self)
             var token: JSONValue? = result
             for part in try pagination["output"]!.array { token = token?[try part.string] }
             return (output, token?.text)
         }
     }
-    private func send(_ prepared: Prepared) async throws -> JSONValue {
+    func send(_ prepared: Prepared) async throws -> JSONValue {
         try await withDeadline(config.timeout) { [self] in
             let op = prepared.operation
             let safe = op["safe"]?.flag == true
             for attempt in 1...config.maxAttempts {
                 try Task.checkCancellation()
                 var request = prepared.request
-                if op["bearer"]?.flag == true, let token = try await config.token?() { request.headers["authorization"] = "Bearer \(token)" }
+                let authentication = try await authenticate(&request, operation: op, endpoint: prepared.endpoint)
                 for middleware in config.middleware { try Task.checkCancellation(); request = try await middleware(request) }
                 request.headers = Self.headers(request.headers)
                 guard let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false),
                       ["http", "https"].contains(components.scheme ?? ""), components.host != nil,
                       components.user == nil, components.password == nil else { throw WireError("Invalid middleware URL") }
-                if request.headers["authorization"] != nil && !Self.secure(request.url) { throw WireError("Credentials require HTTPS or loopback HTTP") }
+                if (authentication.applied || request.headers["authorization"] != nil) && !Self.secure(request.url) {
+                    throw WireError("Credentials require HTTPS or loopback HTTP; refusing plaintext")
+                }
                 if digest, request.body != nil || ["POST", "PUT", "PATCH"].contains(request.method) {
                     request.headers["x-amz-content-sha256"] = SHA256.hash(data: request.body ?? Data()).map { String(format: "%02x", $0) }.joined()
                 }
+                // Checksums and signatures cover the final bytes after middleware.
+                try Checksums.apply(prepared.checksum, to: &request)
+                try authentication.sign?(&request)
                 try Task.checkCancellation()
                 let response: HTTPResponse
                 do {
                     let bindings = op["response"]!
-                    response = try await transport.send(request, readBody: !bindings["body"]!.array.isEmpty || Self.payload(bindings) != nil)
+                    response = try await transport.send(request, readBody: !bindings["body"]!.array.isEmpty || Self.payload(bindings) != nil
+                        || !prepared.checksum.response.isEmpty)
                 } catch {
                     if Task.isCancelled || error is CancellationError { throw CancellationError() }
                     if owned != nil, let error = error as? URLError, error.code == .timedOut { throw TimeoutError() }
@@ -161,7 +221,10 @@ internal final class ClientRuntime: Sendable {
                     try await sleep(seconds: retryDelay(attempt, header: nil)); continue
                 }
                 try Task.checkCancellation()
-                if (200..<300).contains(response.status) { return try success(op, response) }
+                if (200..<300).contains(response.status) {
+                    if let algorithm = try Checksums.validate(prepared.checksum, response) { config.checksumValidated?(prepared.name, algorithm) }
+                    return try success(op, response)
+                }
                 let error = failure(op, response)
                 let metadata = error.metadata
                 let retry = metadata.throttling || safe && (metadata.retryable || [500, 502, 503, 504].contains(response.status))
@@ -183,7 +246,10 @@ internal final class ClientRuntime: Sendable {
     private func applyHeaders(_ target: String, bindings: JSONValue, response: HTTPResponse, into body: inout [String: JSONValue]) throws {
         for binding in try bindings["headers"]!.array {
             let pair = try binding.array; let name = try pair[0].string
-            if let value = try response.header(pair[1].string) { body[name] = try Self.media(codec.header(codec.member(target, name), value), bindings: bindings, member: name, encode: false) }
+            if let value = try response.header(pair[1].string) {
+                let format = bindings["timestampFormats"]?[name]?.text
+                body[name] = try Self.media(codec.header(codec.member(target, name), value, format: format), bindings: bindings, member: name, encode: false)
+            }
         }
         let explicit = Set(try bindings["headers"]!.array.map { try $0.array[1].string.lowercased() })
         for binding in (try? bindings["prefixHeaders"]?.array) ?? [] {
@@ -203,7 +269,17 @@ internal final class ClientRuntime: Sendable {
     }
     private func failure(_ op: JSONValue, _ response: HTTPResponse) -> any ServiceError {
         var body = (try? JSONValue(data: response.body).object) ?? [:]
-        let name = response.header("x-crucible-error") ?? body["__type"]?.text
+        var name = response.header("x-crucible-error") ?? body["__type"]?.text
+        let aws = awsProtocol
+        if aws {
+            // AWS JSON error codes may carry a namespace and a ':'-separated suffix.
+            if let code = body["code"]?.text { name = code }
+            if let header = response.header("x-amzn-errortype") { name = header }
+            if let raw = name {
+                let code = raw.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? raw
+                name = code.split(separator: "#", omittingEmptySubsequences: false).last.map(String.init) ?? code
+            }
+        }
         let declared = ((try? op["errors"]?.array) ?? []).compactMap(\.text)
         let matches = declared.filter { id in
             guard let shape = try? codec.shape(id) else { return false }
@@ -214,8 +290,9 @@ internal final class ClientRuntime: Sendable {
         let shape = target.flatMap { try? codec.shape($0) }
         let traits = shape?["error"]
         let metadata = ErrorMetadata(name: name ?? shape?["name"]?.text ?? "UnknownError",
-            message: body["message"]?.text ?? "HTTP \(response.status)", status: response.status,
-            requestID: response.header("x-request-id") ?? body["requestId"]?.text, headers: response.headers,
+            message: body["message"]?.text ?? (aws ? body["Message"]?.text : nil) ?? "HTTP \(response.status)", status: response.status,
+            requestID: (aws ? response.header("x-amzn-requestid") ?? response.header("x-amz-request-id") : nil)
+                ?? response.header("x-request-id") ?? body["requestId"]?.text, headers: response.headers,
             retryable: traits?["retryable"]?.flag == true, throttling: traits?["throttling"]?.flag == true)
         if let target, let traits {
             do {

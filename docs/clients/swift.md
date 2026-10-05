@@ -4,7 +4,7 @@
 
 `crucible generate swift` emits a Swift 6 package with typed models, async
 operations, and `AsyncSequence` pagination. The package uses Foundation's
-`URLSession` and Swift Crypto for SHA-256. Its Apple deployment targets are
+`URLSession` and Swift Crypto for hashes and HMAC. Its Apple deployment targets are
 macOS 12 and iOS 15; the same package builds on Linux.
 
 ## Generating and installing
@@ -93,6 +93,92 @@ URLSession, recursive collection aliases, and cycles made entirely of required
 structure fields. Recursion through optional members, unions, or collections
 containing a nominal structure remains representable.
 
+## Authentication and credentials
+
+Operations follow their modeled, ordered scheme list on every attempt. Supply an
+identity provider for each scheme the client should use:
+
+```swift
+let config = ClientConfig(
+    basicAuth: { try BasicCredentials(username: "user", password: secret) },
+    apiKey: { key },
+    credentials: try CachedCredentials(CredentialChain(
+        EnvironmentCredentialsProvider(),
+        ProfileCredentialsProvider(profile: "development"))),
+    region: "us-east-1")
+```
+
+A provider returning `nil` (or an empty key or token) means "not available";
+the next modeled scheme is tried. An operation with `@auth([])` never calls a
+provider, and `@optionalAuth` permits an anonymous request; otherwise a missing
+identity fails before sending. A caller-supplied `Authorization` header with the
+scheme's prefix, or a configured API key header or query parameter, bypasses that
+scheme's provider. API keys use the modeled header (with its scheme prefix) or
+query parameter. Credentials of every scheme require HTTPS except on loopback.
+
+`SigV4Signer.sign(_:credentials:options:)` signs the final request after
+middleware, checksum headers and the optional content digest, so middleware
+headers are signed. The signing name and region come from the model, `region`,
+or endpoint-rule auth properties; S3 keeps its path unnormalized and singly
+encoded. `@unsignedPayload` operations send `UNSIGNED-PAYLOAD`.
+
+`CredentialsProvider` is a protocol with `StaticCredentialsProvider`,
+`ClosureCredentialsProvider`, `CredentialChain` (stops at the first identity or
+error), `EnvironmentCredentialsProvider` (`AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) and `ProfileCredentialsProvider`
+(static shared-file keys; it never executes `credential_process`).
+`CachedCredentials` is an actor: concurrent callers share one refresh in flight,
+expiring identities refresh `refreshBefore` seconds (default 60) before expiry or
+at half their remaining lifetime when that is shorter, and a cancelled waiter
+returns `CancellationError` promptly without cancelling the shared refresh.
+Expired identities from a provider are rejected. `AWSCredentials` and
+`BasicCredentials` redact secrets from `description`, `debugDescription` and
+reflection.
+
+## Waiters and endpoints
+
+Each modeled waiter generates
+`waitUntil<Name>(_ input:, timeout:, options:) async throws -> Output?`. The
+timeout bounds the whole wait, including attempts in flight; `WaiterOptions`
+overrides the modeled `minDelay`/`maxDelay` seconds. Delays grow exponentially
+with jitter and never sleep past the deadline. Acceptors match model member
+names (not JSON names) and epoch-second timestamps through a JMESPath
+interpreter with exact decimal arithmetic. An error-type success returns `nil`.
+A failure state throws `WaiterError` with the attempt count, last operation
+error and modeled message; the deadline throws `WaiterTimeoutError`; task
+cancellation throws `CancellationError`.
+
+When the model declares endpoint rules, `endpoint` is optional. Rules consume
+`region` (`AWS::Region`), an explicit `endpoint` (`SDK::Endpoint`),
+`endpointBuiltIns`, `endpointParameters` (strings, booleans or string arrays) and
+modeled input members or paths. Endpoint headers and SigV4 overrides apply to the
+request. Modeled host prefixes are validated as DNS labels before sending; set
+`disableHostPrefix` to opt out.
+
+## Protocols and checksums
+
+Select a declared protocol with `--protocol aws.protocols#restJson1`,
+`aws.protocols#awsJson1_0` or `aws.protocols#awsJson1_1`. The lowered model
+settles wire names, timestamp formats and bindings; the runtime adds the
+`X-Amz-Target` and `application/x-amz-json-1.x` headers for RPC protocols,
+omits ordinary structure nulls (explicit document nulls survive), ignores a
+union `__type` marker, sends non-finite floats as `"NaN"`/`"Infinity"`/
+`"-Infinity"`, and decodes AWS error codes from `X-Amzn-Errortype`, `code` or
+`__type` (namespace and `:` suffix removed) with `Message` and
+`X-Amzn-RequestId` metadata. Renamed error types keep their wire codes.
+
+Modeled checksums support CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256 and SHA512
+(pure-Swift CRCs; Swift Crypto for the digests) over buffered payloads.
+`@httpChecksumRequired` and required checksums without an algorithm member use
+`Content-MD5`. Flexible requests default to CRC32 and response validation to
+`ENABLED` on a private copy of the input. Set `requestChecksumCalculation` or
+`responseChecksumValidation` to `.whenRequired` to opt out of the implicit
+defaults. Checksums cover the final bytes after middleware and are signed by
+SigV4; caller-supplied checksum headers are preserved. Response validation uses
+the first modeled algorithm the response carries, runs before decoding, and
+throws `ChecksumMismatchError`; `checksumValidated(operation, algorithm)` reports
+a successful verification. Unsupported algorithms fail before sending.
+
 ## Migrating existing callers
 
 Remove the `Models.` qualifier. Use ordinary initializer values instead of
@@ -107,6 +193,11 @@ Regenerate and rebuild the Swift package and its consumers together.
 `python tools/test-swift.py` compiles the native package and a separate consumer,
 runs shared retry and header fixtures, exercises URLSession and the real weather
 service over loopback, and compiles empty and adversarially renamed packages.
+It also generates the authentication, checksum, endpoint-rule, waiter and three
+AWS JSON protocol fixtures and runs their XCTest suites over URLSession against
+a scripted loopback server: the published SigV4 vector plus an independent
+server-side signature check, the shared checksum vectors, concurrent credential
+refresh, waiter deadlines and cancellation, and AWS error decoding.
 `SWIFT` can name a specific compiler executable. CI checks Linux with Swift 6.0.3
 and Apple's toolchain on macOS. The complete Leyline projection is compiled
 separately. These checks do not establish published-package or authenticated
