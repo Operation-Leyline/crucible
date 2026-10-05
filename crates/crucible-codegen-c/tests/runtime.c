@@ -49,7 +49,7 @@ static void respond(weather_arena *arena, weather_response *response, int status
     response->status = status; response->body = (weather_blob){(const unsigned char *)copied.data, copied.length};
 }
 enum fake_mode { retry_case, header_case, malformed_case, invalid_success, pagination_cycle, pagination_end, pagination_failure,
-                 wait_retry, auth_override, binding_case, network_retry };
+                 wait_retry, auth_override, binding_case, network_retry, public_auth, empty_digest };
 typedef struct { enum fake_mode mode; const weather_json *row; unsigned attempts; bool first_only; } fake;
 
 static weather_status send_fake(void *user, const weather_request *request, bool read_body,
@@ -57,6 +57,16 @@ static weather_status send_fake(void *user, const weather_request *request, bool
     fake *state = user; ++state->attempts;
     good(weather_scope_check(scope, error), error);
     switch (state->mode) {
+    case public_auth: {
+        weather_string ignored;
+        check(!weather_header_get(request->headers, VIEW("authorization"), &ignored), "Public operation has no bearer header");
+        respond(arena, response, 204, VIEW(""), error);
+        break;
+    }
+    case empty_digest:
+        check(equal(header(request, "x-amz-content-sha256"), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"), "Empty write digest");
+        respond(arena, response, 200, VIEW("{}"), error);
+        break;
     case retry_case: {
         char body[256] = "{}"; const weather_json *name = get(state->row, "error");
         if (weather_json_type(name) != weather_json_null) {
@@ -204,6 +214,26 @@ static weather_status change_body(void *user, const weather_scope *scope, weathe
 static bool cancelled(void *user) { return user == NULL || weather_scope_remaining((const weather_scope *)user) <= 0; }
 static void runtime_cases(void) {
     weather_error error = {0}; weather_models_get_city_input input = {0}; weather_operations_get_city_result result = {0};
+    {
+        fake state = {public_auth, NULL, 0, false}; unsigned count = 0;
+        weather_client_config settings = config(&state); settings.token = token; settings.token_user = &count;
+        weather_client *public_client = client_new(settings); weather_operations_public_ping_result public_result = {0};
+        good(weather_operations_public_ping(public_client, NULL, NULL, &public_result, &error), &error);
+        check(count == 0 && state.attempts == 1, "Public operation bypasses token provider");
+        weather_operations_public_ping_result_free(&public_result); weather_client_free(public_client);
+        state = (fake){empty_digest, NULL, 0, false}; public_client = client_new(config(&state));
+        weather_operations_retry_safe_result empty_result = {0};
+        good(weather_operations_retry_safe(public_client, NULL, NULL, &empty_result, &error), &error);
+        weather_operations_retry_safe_result_free(&empty_result); weather_client_free(public_client);
+        const char *labels[] = {".", ".."};
+        for (size_t i = 0; i < 2; ++i) {
+            state = (fake){binding_case, NULL, 0, false}; public_client = client_new(config(&state));
+            input.city_id.state = weather_present; input.city_id.value = VIEW(labels[i]);
+            check(weather_operations_get_city(public_client, &input, NULL, NULL, &result, &error) == weather_invalid, "Dot label rejected");
+            check(state.attempts == 0, "Dot label rejected before dispatch");
+            weather_operations_get_city_result_free(&result); weather_client_free(public_client);
+        }
+    }
     fake state = {binding_case, NULL, 0, false}; weather_client *client = client_new(config(&state));
     input.city_id.state = weather_present; input.city_id.value = VIEW("a/b *?#\xC3\xA9");
     input.at.state = weather_present; good(weather_timestamp_parse(VIEW("2026-10-01T00:00:00Z"), &input.at.value, &error), &error);

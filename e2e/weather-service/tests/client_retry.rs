@@ -75,19 +75,67 @@ static THROTTLED: ErrorInfo = ErrorInfo {
 #[derive(Debug)]
 struct Modelled(&'static ErrorInfo);
 impl OperationErrors for Modelled {
-    fn decode(status: u16, name: Option<&str>, _: &HeaderMap, _: &[u8]) -> Option<Self> {
+    fn decode(status: u16, name: Option<&str>, _: &HeaderMap, body: &[u8]) -> Option<Self> {
+        if serde_json::from_slice::<Value>(body)
+            .ok()
+            .and_then(|v| v.get("malformed").cloned())
+            == Some(json!(true))
+        {
+            return None;
+        }
+        Self::classify(status, name).map(Self)
+    }
+    fn classify(status: u16, name: Option<&str>) -> Option<&'static ErrorInfo> {
         match name
             .or_else(|| crucible_client::by_status(status, &[&ORDINARY, &TRANSIENT, &THROTTLED]))?
         {
-            "Ordinary" => Some(Self(&ORDINARY)),
-            "Transient" => Some(Self(&TRANSIENT)),
-            "Throttled" => Some(Self(&THROTTLED)),
+            "Ordinary" => Some(&ORDINARY),
+            "Transient" => Some(&TRANSIENT),
+            "Throttled" => Some(&THROTTLED),
             _ => None,
         }
     }
     fn info(&self) -> &'static ErrorInfo {
         self.0
     }
+}
+
+#[tokio::test]
+async fn malformed_throttling_errors_still_retry_unsafe_operations() {
+    let attempts = Arc::new(AtomicU32::new(0));
+    let count = attempts.clone();
+    let app = Router::new().route(
+        "/",
+        post(move || {
+            let n = count.fetch_add(1, Ordering::SeqCst);
+            async move {
+                if n == 0 {
+                    (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        r#"{"__type":"Throttled","message":42,"malformed":true}"#,
+                    )
+                } else {
+                    (StatusCode::OK, "{}")
+                }
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let transport = Transport::new(Config::new(format!("http://{address}")).retry(Retry {
+        max_attempts: 2,
+        base_delay: Duration::ZERO,
+        max_delay: Duration::ZERO,
+    }));
+    let result = transport
+        .send::<Request<false>, Modelled>(&StatusInput {})
+        .await;
+    server.abort();
+    assert!(result.is_ok(), "{result:?}");
+    assert_eq!(attempts.load(Ordering::SeqCst), 2);
 }
 
 #[tokio::test]

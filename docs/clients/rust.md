@@ -147,7 +147,15 @@ HTTP metadata object to every modeled error.
 Retries follow the [shared contract](../clients.md#http-retry-contract).
 `Config::retry(Retry { ... })` controls attempts and backoff; `Retry::none()`
 disables retries. Defaults are three attempts, 100ms base delay, and 20s maximum
-backoff. A valid `Retry-After` takes precedence.
+backoff. A valid `Retry-After` takes precedence, accepting delta seconds or an
+HTTP date. Invalid and overflowing values fall back to the configured backoff.
+Modeled retry metadata remains available when an error's fields cannot decode.
+
+Generated operation markers declare `Operation::AUTH_BEARER`. Regenerate clients
+when updating this runtime so authenticated operations carry that declaration.
+Handwritten operation implementations default to no bearer authentication;
+set the constant to `true` when the operation requires it. Public operations
+bypass the token provider.
 
 Use `Config::http_client(reqwest::Client)` for connection pools, proxies,
 redirect policy, and per-attempt timeout settings. For an overall deadline,
@@ -168,8 +176,13 @@ use sha2::{Digest, Sha256};
 struct BodyDigest;
 impl crucible_client::Interceptor for BodyDigest {
     fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String> {
-        if let Some(body) = request.body() {
-            let bytes = body.as_bytes().ok_or("body must be buffered")?;
+        let write = matches!(*request.method(),
+            reqwest::Method::POST | reqwest::Method::PUT | reqwest::Method::PATCH);
+        if request.body().is_some() || write {
+            let bytes = match request.body() {
+                Some(body) => body.as_bytes().ok_or("body must be buffered")?,
+                None => &[],
+            };
             let digest = format!("{:x}", Sha256::digest(bytes));
             request.headers_mut().insert(
                 "x-amz-content-sha256",

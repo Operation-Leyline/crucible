@@ -161,7 +161,8 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str) -> Stri
         custom_traits(&op.traits),
     ));
     out.push_str(&format!(
-        "impl ::crucible::Operation for {name} {{\n    const INFO: &'static ::crucible::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n}}\n\n",
+        "impl ::crucible::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n    const INFO: &'static ::crucible::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n}}\n\n",
+        op.auth.iter().any(|id| id.to_string() == "smithy.api#httpBearerAuth"),
         operation_static(op),
         input_type(service, op),
         output_ty,

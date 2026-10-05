@@ -35,7 +35,7 @@ def retry_schema(safe):
         "status": 429 if name == "Throttled" else 400,
         "retryable": name != "Ordinary", "throttling": name == "Throttled", "headers": [],
     }} for name in ("Ordinary", "Transient", "Throttled")}, "operations": {"RetryCase": {
-        "method": "POST", "uri": "/", "input": None, "output": None,
+        "bearer": False, "method": "POST", "uri": "/", "input": None, "output": None,
         "request": {"labels": [], "query": [], "headers": [], "body": []},
         "response": {"headers": [], "body": []}, "token": None,
         "safe": safe, "errors": ["Ordinary", "Transient", "Throttled"],
@@ -46,6 +46,37 @@ CLASSES = {name: ServiceError for name in ("Ordinary", "Transient", "Throttled")
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_hardening_auth_empty_digest_dot_labels_and_dense_collections(self):
+        sent = []
+        def credential():
+            raise AssertionError("anonymous operation consulted credentials")
+        with httpx.Client(transport=httpx.MockTransport(lambda r: (sent.append(r), httpx.Response(200, json={}))[1])) as http:
+            client = WeatherClient(http=http, token=credential)
+            import copy
+            client._codec.schema = copy.deepcopy(client._codec.schema)
+            op = client._codec.schema["operations"]["Ping"]
+            op["bearer"] = False
+            for method in ("POST", "PUT", "PATCH"):
+                op["method"] = method
+                client.ping()
+                self.assertNotIn("authorization", sent[-1].headers)
+                self.assertEqual(sent[-1].headers["x-amz-content-sha256"], hashlib.sha256(b"").hexdigest())
+            for label in (".", ".."):
+                with self.assertRaisesRegex(ValueError, "dot segment"):
+                    client.get_city(m.GetCityInput(city_id=label))
+            self.assertEqual(len(sent), 3)
+        codec = _Codec(m._SCHEMA, m._CLASSES)
+        import copy
+        codec.shapes = copy.deepcopy(codec.shapes)
+        codec.shapes["StringMap"] = copy.deepcopy(codec.shapes["example.weather#Forecast"])
+        codec.shapes["StringMap"]["value"]["target"] = "smithy.api#String"
+        for decode in (False, True):
+            with self.assertRaisesRegex(ValueError, "non-sparse"):
+                codec.convert("StringMap", {"key": None}, decode=decode)
+            with self.assertRaisesRegex(ValueError, "non-sparse"):
+                codec.convert("example.weather#Tags", [None], decode=decode)
+            self.assertEqual(codec.convert("example.weather#Forecast", {"key": None}, decode=decode), {"key": None})
+
     def test_native_model_construction_and_reading(self):
         value = CreateCityInput(name="Oslo", location=None, expected_revision=7)
         self.assertEqual(value.name, "Oslo")
@@ -87,6 +118,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_ir_nullability_preserves_client_optional_and_document_null(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
+        self.assertIs(codec.convert("example.weather#ListCitiesInput", {}, decode=True).max_results, UNSET)
         self.assertEqual(codec.convert("example.weather#CreateCityInput", m.CreateCityInput(name=None)), {"name": None})
         for population in (None, UNSET):
             with self.assertRaises(ValueError):
@@ -293,6 +325,19 @@ class RuntimeTests(unittest.TestCase):
 
 
 class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_anonymous_empty_write_does_not_consult_credentials(self):
+        async def credential():
+            raise AssertionError("anonymous operation consulted credentials")
+        sent = []
+        async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: (sent.append(r), httpx.Response(200, json={}))[1])) as http:
+            client = AsyncWeatherClient(http=http, token=credential)
+            import copy
+            client._codec.schema = copy.deepcopy(client._codec.schema)
+            client._codec.schema["operations"]["Ping"].update(bearer=False, method="POST")
+            await client.ping()
+        self.assertNotIn("authorization", sent[0].headers)
+        self.assertEqual(sent[0].headers["x-amz-content-sha256"], hashlib.sha256(b"").hexdigest())
+
     async def test_malformed_error_metadata_and_retry(self):
         for case in MALFORMED_ERRORS:
             for attempts in (1, 2):

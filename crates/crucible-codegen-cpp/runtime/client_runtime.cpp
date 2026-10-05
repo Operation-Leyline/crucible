@@ -59,6 +59,7 @@ HttpRequest ClientRuntime::prepare(const Json& operation, const Json& input) con
         if (found == values.end() || found->second.is_null()) throw std::invalid_argument("Missing label: " + member.string());
         const auto text = bound(found->second);
         if (text.empty()) throw std::invalid_argument("Empty label: " + member.string());
+        if (text == "." || text == "..") throw std::invalid_argument("Dot-segment HTTP label: " + member.string());
         const auto placeholder = "{" + member.string() + "}";
         const auto encoded = escape(text);
         std::size_t start = 0;
@@ -156,14 +157,14 @@ Json ClientRuntime::call(const std::string& name, const Json& input, const CallS
     for (unsigned attempt = 1;; ++attempt) {
         scope.check();
         auto request = prepared;
-        if (schema_->description().at("bearer").boolean() && config_.token) { const auto token = config_.token(); scope.check(); if (token) request.headers.insert_or_assign("authorization", "Bearer " + *token); }
+        if (op.at("bearer").boolean() && config_.token) { const auto token = config_.token(); scope.check(); if (token) request.headers.insert_or_assign("authorization", "Bearer " + *token); }
         for (const auto& middleware : config_.middleware) { scope.check(); request = middleware(std::move(request)); }
         scope.check();
         Headers normalized;
         for (const auto& [key, value] : request.headers) normalized.insert_or_assign(lower(key), value);
         request.headers = std::move(normalized);
         validate_request(request);
-        if (digest_) { request.headers.erase("x-amz-content-sha256"); if (request.body && !request.body->empty()) request.headers.insert_or_assign("x-amz-content-sha256", sha256(*request.body)); }
+        if (digest_) { request.headers.erase("x-amz-content-sha256"); if (request.body || request.method == "POST" || request.method == "PUT" || request.method == "PATCH") request.headers.insert_or_assign("x-amz-content-sha256", sha256(request.body.value_or(""))); }
         const auto& bindings = op.at("response");
         HttpResponse response;
         try { response = transport_->send(request, !bindings.at("body").array().empty() || !bindings.at("payload").is_null(), scope); }

@@ -73,6 +73,7 @@ module CrucibleGenerated
         bindings.fetch('labels').each do |name|
           text = @codec.bound(values.fetch(name))
           raise ::ArgumentError, 'Empty label: ' + name if text.empty?
+          raise ::ArgumentError, 'Dot-segment HTTP label: ' + name if text == '.' || text == '..'
           path = path.gsub('{' + name + '}', escape(text))
         end
         query = []
@@ -101,7 +102,7 @@ module CrucibleGenerated
         (1..@config.max_attempts).each do |attempt|
           scope.check
           request = prepared
-          if @codec.schema.fetch('bearer') && @config.token
+          if op.fetch('bearer', false) && @config.token
             token = @config.token.call
             scope.check
             request = request.with(headers: request.headers.merge('authorization' => 'Bearer ' + WireCodec.string(token))) unless token.nil?
@@ -118,7 +119,7 @@ module CrucibleGenerated
           end
           if @digest
             headers = request.headers.reject { |name, _| name == 'x-amz-content-sha256' }
-            headers['x-amz-content-sha256'] = ::Digest::SHA256.hexdigest(request.body) if request.body && !request.body.empty?
+            headers['x-amz-content-sha256'] = ::Digest::SHA256.hexdigest(request.body || '') if request.body || %w[POST PUT PATCH].include?(request.method)
             request = request.with(headers: headers)
           end
           bindings = op.fetch('response')

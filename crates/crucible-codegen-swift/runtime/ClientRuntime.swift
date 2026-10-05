@@ -47,6 +47,7 @@ internal final class ClientRuntime: Sendable {
             guard let value = values[name], value != .null else { throw WireError("Missing label: \(name)") }
             let text = try codec.bound(value)
             guard !text.isEmpty else { throw WireError("Empty label: \(name)") }
+            guard text != "." && text != ".." else { throw WireError("Dot-segment HTTP label: \(name)") }
             path = path.replacingOccurrences(of: "{\(name)}", with: Self.escape(text))
         }
         var query: [String] = []
@@ -103,15 +104,15 @@ internal final class ClientRuntime: Sendable {
             for attempt in 1...config.maxAttempts {
                 try Task.checkCancellation()
                 var request = prepared.request
-                if codec.schema["bearer"]?.flag == true, let token = try await config.token?() { request.headers["authorization"] = "Bearer \(token)" }
+                if op["bearer"]?.flag == true, let token = try await config.token?() { request.headers["authorization"] = "Bearer \(token)" }
                 for middleware in config.middleware { try Task.checkCancellation(); request = try await middleware(request) }
                 request.headers = Self.headers(request.headers)
                 guard let components = URLComponents(url: request.url, resolvingAgainstBaseURL: false),
                       ["http", "https"].contains(components.scheme ?? ""), components.host != nil,
                       components.user == nil, components.password == nil else { throw WireError("Invalid middleware URL") }
                 if request.headers["authorization"] != nil && !Self.secure(request.url) { throw WireError("Credentials require HTTPS or loopback HTTP") }
-                if digest, let body = request.body, !body.isEmpty {
-                    request.headers["x-amz-content-sha256"] = SHA256.hash(data: body).map { String(format: "%02x", $0) }.joined()
+                if digest, request.body != nil || ["POST", "PUT", "PATCH"].contains(request.method) {
+                    request.headers["x-amz-content-sha256"] = SHA256.hash(data: request.body ?? Data()).map { String(format: "%02x", $0) }.joined()
                 }
                 try Task.checkCancellation()
                 let response: HTTPResponse

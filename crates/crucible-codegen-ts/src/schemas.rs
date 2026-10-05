@@ -7,7 +7,7 @@ use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Binding, Member, Operation, Service, Shape, SimpleKind, Structure};
 
 use crate::errors::error_shapes;
-use crate::names::{literal, property};
+use crate::names::{literal, property, smithy};
 
 pub(crate) fn emit(service: &Service) -> String {
     let converting = converting(service);
@@ -42,7 +42,7 @@ pub(crate) fn emit(service: &Service) -> String {
                     .members
                     .iter()
                     .filter_map(|member| {
-                        let value = member.default.as_ref()?;
+                        let value = member.client_wire_default()?;
                         Some(format!(
                             "{}: parseJson({})",
                             property(&member.name),
@@ -81,29 +81,44 @@ pub(crate) fn emit(service: &Service) -> String {
     }
     out.push_str(&error_table(service, &converting));
 
-    // Import only the helpers this model uses, so no import is ever unused.
-    let helpers: Vec<&str> = [
-        "blob",
-        "boolean",
-        "document",
-        "integer",
-        "list",
-        "map",
-        "number",
-        "parseJson",
-        "string",
-        "structure",
-        "timestamp",
-        "union",
-    ]
-    .into_iter()
-    .filter(|helper| {
-        out.contains(&format!("{helper}("))
-            || out.contains(&format!(": {helper}"))
-            || out.contains(&format!(", {helper}]"))
-            || out.contains(&format!("({helper})"))
-    })
-    .collect();
+    // Derive dependencies from reachable shapes, including scalars occurring
+    // only inside collection thunks; emitted text is not a dependency graph.
+    let mut helpers = BTreeSet::new();
+    for shape in service.shapes.values() {
+        let helper = match shape {
+            Shape::Simple(simple) => match simple.kind {
+                SimpleKind::Blob => "blob",
+                SimpleKind::Boolean => "boolean",
+                SimpleKind::Document => "document",
+                SimpleKind::String => "string",
+                SimpleKind::Timestamp => "timestamp",
+                SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long => {
+                    "integer"
+                }
+                SimpleKind::Float | SimpleKind::Double => "number",
+            },
+            Shape::Enum(_) => "string",
+            Shape::Unit => "document",
+            Shape::List(_) => "list",
+            Shape::Map(_) => "map",
+            Shape::Structure(structure) | Shape::Union(structure) => {
+                if structure
+                    .members
+                    .iter()
+                    .any(|member| member.client_default().is_some())
+                {
+                    helpers.insert("parseJson");
+                }
+                if matches!(shape, Shape::Union(_)) {
+                    "union"
+                } else {
+                    "structure"
+                }
+            }
+        };
+        helpers.insert(helper);
+    }
+    let helpers: Vec<_> = helpers.into_iter().collect();
     let mut header = String::from(crate::HEADER);
     if !helpers.is_empty() {
         header.push_str(&format!(
@@ -240,6 +255,7 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     let mut fields = vec![
         format!("name: {}", literal(op.name())),
         format!("method: {}", literal(&op.method)),
+        format!("bearer: {}", op.auth.contains(&smithy("httpBearerAuth"))),
     ];
     let input = structure(service, op.input.as_ref());
     let path: Vec<String> = op

@@ -249,8 +249,13 @@ pub(crate) fn member_field(
     } else {
         member.optional_on_server()
     };
+    let default = if client {
+        member.client_default()
+    } else {
+        member.default.as_ref()
+    };
     if optional {
-        if member.default.is_none() {
+        if default.is_none() {
             serde.push("default".to_owned());
         }
         serde.push(
@@ -262,7 +267,7 @@ pub(crate) fn member_field(
             .to_owned(),
         );
     }
-    if let Some(value) = &member.default {
+    if let Some(value) = default {
         let inner = format!("super::{prefix}");
         match default_expr(service, member, value, &inner) {
             Some(expr) => {

@@ -8,7 +8,7 @@ class `CreateCityOutput` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`CreateCityOutput` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`CreateCityOutput` = Builder().also { builder ->
-        builder.`city` = `city`
+        builder.`city` = this.`city`
     }.apply(block).build()
     class Builder {
         var `city`: example.weather.model.`CitySummary`? = null

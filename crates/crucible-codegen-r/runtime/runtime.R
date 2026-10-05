@@ -90,6 +90,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   for (name in bindings$labels) {
     value <- .crucible_bound(values[[name]])
     if (value == '') stop('Empty HTTP label: ', name, call. = FALSE)
+    if (value %in% c('.', '..')) stop('Dot-segment HTTP label: ', name, call. = FALSE)
     path <- gsub(paste0('{', name, '}'), curl::curl_escape(value), path, fixed = TRUE)
   }
   query <- character()
@@ -169,7 +170,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
     if (closed) stop('Client is closed', call. = FALSE)
     for (attempt in seq_len(config$max_attempts)) {
       scope$check(); request <- prepared
-      if (isTRUE(.crucible_schema$bearer) && !is.null(config$token)) {
+      if (isTRUE(op$bearer) && !is.null(config$token)) {
         token <- config$token(); scope$check()
         if (!is.null(token)) request$headers[['authorization']] <- paste0('Bearer ', .crucible_string(token))
       }
@@ -179,7 +180,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
       if (!is.null(request$headers[['authorization']]) && !startsWith(request$url,'https://') && !hostname %in% c('localhost','127.0.0.1','[::1]')) stop('Credentials require HTTPS or loopback HTTP', call. = FALSE)
       if (digest) {
         request$headers[['x-amz-content-sha256']] <- NULL
-        if (length(request$body)) request$headers[['x-amz-content-sha256']] <- as.character(openssl::sha256(request$body))
+        if (!is.null(request$body) || request$method %in% c('POST','PUT','PATCH')) request$headers[['x-amz-content-sha256']] <- as.character(openssl::sha256(if (is.null(request$body)) raw() else request$body))
       }
       request <- .crucible_request(request)
       response <- tryCatch(transport(request, length(op$response$body) > 0L || !is.null(op$response$payload), scope), crucible_network = function(e) e)

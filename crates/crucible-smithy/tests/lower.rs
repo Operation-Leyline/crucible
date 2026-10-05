@@ -5,6 +5,164 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("fixtures/weather.json");
 
 #[test]
+fn tiny_timestamp_defaults_lower_even_when_clients_ignore_them() {
+    for in_input in [false, true] {
+        let mut model: Value =
+            serde_json::from_str(include_str!("fixtures/timestamp-defaults.json")).unwrap();
+        let shape_id = if in_input {
+            model["shapes"]["example.timestamps#Read"]["input"] =
+                json!({"target": "example.timestamps#Input"});
+            model["shapes"]["example.timestamps#Input"] =
+                json!({"type": "structure", "traits": {"smithy.api#input": {}}, "members": {}});
+            "example.timestamps#Input"
+        } else {
+            "example.timestamps#Output"
+        };
+        model["shapes"][shape_id]["members"]["tiny"] = json!({
+            "target": "smithy.api#Timestamp",
+            "traits": {"smithy.api#default": -1e-100}
+        });
+        if !in_input {
+            model["shapes"][shape_id]["members"]["tiny"]["traits"]["smithy.api#clientOptional"] =
+                json!({});
+        }
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        let Shape::Structure(structure) = service.shape(&id(shape_id)).unwrap() else {
+            panic!("structure")
+        };
+        let member = structure.member("tiny").unwrap();
+        assert_eq!(member.wire_default, Some(json!("1970-01-01T00:00:00Z")));
+        assert_eq!(member.client_wire_default(), None);
+        assert_eq!(member.default, Some(json!(-1e-100)));
+    }
+}
+
+#[test]
+fn invalid_timestamp_defaults_are_diagnosed_at_the_member() {
+    let messages = refused(|model| {
+        shape(model, "StatusInput")["members"]["time"] =
+            json!({"target":"smithy.api#Timestamp","traits":{"smithy.api#default":1e300}});
+    });
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("StatusInput$time") && m.contains("timestamp default")),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn client_auth_and_defaults_resolve_before_generation() {
+    let mut model: Value =
+        serde_json::from_str(include_str!("fixtures/review-hardening.json")).unwrap();
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    assert!(
+        service
+            .operations
+            .iter()
+            .find(|o| o.name() == "PublicPing")
+            .unwrap()
+            .auth
+            .is_empty()
+    );
+    assert_eq!(
+        service
+            .operations
+            .iter()
+            .find(|o| o.name() == "ReadValues")
+            .unwrap()
+            .auth,
+        [id("smithy.api#httpBearerAuth")]
+    );
+    let Shape::Structure(values) = service.shape(&id("example.hardening#Values")).unwrap() else {
+        panic!("structure")
+    };
+    let member = values.member("optionalDefault").unwrap();
+    assert_eq!(member.default.as_ref(), Some(&json!(7)));
+    assert_eq!(member.client_default(), None);
+    model["shapes"]["example.hardening#Hardening"]["traits"]["smithy.api#auth"] = json!([]);
+    model["shapes"]["example.hardening#ReadValues"]["traits"]["smithy.api#auth"] =
+        json!(["smithy.api#httpBearerAuth"]);
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    assert!(
+        service
+            .operations
+            .iter()
+            .find(|o| o.name() == "EmptyWrite")
+            .unwrap()
+            .auth
+            .is_empty()
+    );
+    assert_eq!(
+        service
+            .operations
+            .iter()
+            .find(|o| o.name() == "ReadValues")
+            .unwrap()
+            .auth,
+        [id("smithy.api#httpBearerAuth")]
+    );
+}
+
+#[test]
+fn media_type_header_strings_are_diagnosed_including_list_items() {
+    for list in [false, true] {
+        let messages = refused(|model| {
+            model["shapes"]["example.weather#MediaString"] =
+                json!({"type":"string","traits":{"smithy.api#mediaType":"application/json"}});
+            model["shapes"]["example.weather#MediaList"] =
+                json!({"type":"list","member":{"target":"example.weather#MediaString"}});
+            shape(model, "StatusInput")["members"]["media"] = json!({"target":if list {"example.weather#MediaList"} else {"example.weather#MediaString"},"traits":{"smithy.api#httpHeader":"x-media"}});
+        });
+        assert!(
+            messages
+                .iter()
+                .any(|m| m.contains("StatusInput$media") && m.contains("base64 encoding")),
+            "{messages:?}"
+        );
+    }
+}
+
+#[test]
+fn media_type_strings_are_still_supported_in_json_bodies() {
+    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+    model["shapes"]["example.weather#MediaString"] =
+        json!({"type":"string","traits":{"smithy.api#mediaType":"application/json"}});
+    shape(&mut model, "StatusInput")["members"]["media"] =
+        json!({"target":"example.weather#MediaString"});
+    assert!(
+        Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .is_ok()
+    );
+}
+
+#[test]
+fn malformed_and_undeclared_auth_overrides_are_diagnosed() {
+    for value in [json!({}), json!(["smithy.api#httpBasicAuth"])] {
+        let messages = refused(|model| {
+            shape(model, "Ping")["traits"]["smithy.api#auth"] = value;
+        });
+        assert!(
+            messages
+                .iter()
+                .any(|m| m.contains("Ping") && m.contains("@auth")),
+            "{messages:?}"
+        );
+    }
+}
+
+#[test]
 fn sensitivity_and_literal_queries_survive_lowering() {
     let service = Model::from_json(include_str!("fixtures/observability.json"))
         .unwrap()

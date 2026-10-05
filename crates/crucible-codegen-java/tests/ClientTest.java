@@ -728,7 +728,46 @@ public final class ClientTest {
     }
   }
 
+  static void hardening() throws Exception {
+    var calls = new AtomicInteger();
+    try (var server = new Server(exchange -> {
+      calls.incrementAndGet();
+      check(exchange.getRequestHeaders().getFirst("authorization") == null, "anonymous credentials");
+      check(exchange.getRequestHeaders().getFirst("x-amz-content-sha256").equals(
+          HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0]))), "empty digest");
+      emptyResponse(exchange);
+    })) {
+      var config = server.config();
+      config.token = () -> { throw new AssertionError("Anonymous credential provider invoked"); };
+      var client = new WeatherClient(config);
+      var runtimeField = WeatherClient.class.getDeclaredField("runtime"); runtimeField.setAccessible(true);
+      var runtime = (ClientRuntime) runtimeField.get(client);
+      var schemaField = ClientRuntime.class.getDeclaredField("schema"); schemaField.setAccessible(true);
+      var schema = (JsonObject) schemaField.get(runtime);
+      var op = schema.getAsJsonObject("operations").getAsJsonObject("Ping");
+      op.addProperty("bearer", false);
+      for (var method : List.of("POST", "PUT", "PATCH")) { op.addProperty("method", method); client.ping(); }
+      for (var label : List.of(".", "..")) {
+        try { client.getCity(GetCityInput.builder().cityId(label).build()); throw new AssertionError("Dot label accepted"); }
+        catch (IllegalArgumentException error) { check(error.getMessage().contains("dot segment"), "wrong label error"); }
+      }
+      check(calls.get() == 3, "invalid request dispatched");
+      try { runtime.decode("example.weather#Tags", JsonParser.parseString("[null]"), null); throw new AssertionError("Dense null accepted"); }
+      catch (IllegalArgumentException expected) { }
+      try { runtime.encode("example.weather#Tags", java.util.Arrays.asList((String) null), null); throw new AssertionError("Dense null encoded"); }
+      catch (IllegalArgumentException expected) { }
+      var document = JsonParser.parseString("{\"key\":null}");
+      check(runtime.encode("example.weather#Forecast", runtime.decode("example.weather#Forecast", document, null), null).equals(document), "document null");
+      schema.getAsJsonObject("shapes").getAsJsonObject("example.weather#Forecast").getAsJsonObject("value").addProperty("target", "smithy.api#String");
+      try { runtime.decode("example.weather#Forecast", document, null); throw new AssertionError("Dense map null accepted"); }
+      catch (IllegalArgumentException expected) { }
+      var nullMap = new java.util.HashMap<String, String>(); nullMap.put("key", null);
+      try { runtime.encode("example.weather#Forecast", nullMap, null); throw new AssertionError("Dense map null encoded"); }
+      catch (IllegalArgumentException expected) { }
+    }
+  }
   public static void main(String[] args) throws Exception {
+    hardening();
     retries(Path.of(args[0]));
     malformedErrorMetadataAndRetry(Path.of(args[0]).resolveSibling("malformed-errors.json"));
     serialization(Path.of(args[1]));

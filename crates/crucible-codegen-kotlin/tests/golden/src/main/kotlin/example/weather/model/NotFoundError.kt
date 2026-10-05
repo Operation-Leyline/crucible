@@ -11,7 +11,7 @@ class `NotFoundError` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`NotFoundError` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`NotFoundError` = Builder().also { builder ->
-        builder.`messageValue` = `messageValue`
+        builder.`messageValue` = this.`messageValue`
         builder.__crucibleField1 = __crucibleField1
     }.apply(block).build().also { it.initialize(errorName, message, status, requestId, headers, retryable, throttling) }
     class Builder {

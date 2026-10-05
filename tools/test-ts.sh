@@ -10,6 +10,9 @@ dir=crates/crucible-codegen-ts/tests/ts
 cargo run -q -p crucible-cli -- generate ts crates/crucible-smithy/tests/fixtures/weather.json \
   --out "$dir/generated" --package-name @example/weather \
   --endpoint https://weather.example --middleware content-sha256 >/dev/null
+cargo run -q -p crucible-cli -- generate ts crates/crucible-codegen-ts/tests/fixtures/hardening.json \
+  --out "$dir/generated-hardening" --package-name @example/hardening \
+  --endpoint https://hardening.example >/dev/null
 rm -rf "$dir/dist"
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir"
 node --test "$dir"/dist/*.test.js

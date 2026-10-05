@@ -35,8 +35,8 @@ fn native_builders_preserve_omission_defaults_and_collision_names() {
     let decoded: Root = serde_json::from_value(serde_json::to_value(value).unwrap()).unwrap();
     assert_eq!(
         decoded.fallback(),
-        Some(&3),
-        "decoding applies the modeled default"
+        None,
+        "clientOptional suppresses the modeled default"
     );
     let city = weather_client::model::CitySummary::builder()
         .id("city")
@@ -56,10 +56,10 @@ fn required_document_null_is_present_and_missing_is_rejected() {
     let value: Root = serde_json::from_str(r#"{"requiredDocument":null}"#).unwrap();
     assert_eq!(value.required_document, Value::Null);
     assert_eq!(value.document, Field::Absent);
-    assert_eq!(value.fallback, Field::Value(3));
+    assert_eq!(value.fallback, Field::Absent);
     assert_eq!(
         serde_json::to_value(value).unwrap(),
-        json!({"requiredDocument":null,"fallback":3})
+        json!({"requiredDocument":null})
     );
 }
 

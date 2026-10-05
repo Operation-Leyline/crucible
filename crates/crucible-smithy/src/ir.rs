@@ -178,6 +178,8 @@ pub struct Member {
     pub target: ShapeId,
     pub required: bool,
     pub default: Option<Value>,
+    /// The default represented in the member's resolved wire format.
+    pub wire_default: Option<Value>,
     /// `@clientOptional`, or a member of an `@input` structure: a client may
     /// omit it even when the server requires it.
     pub client_optional: bool,
@@ -190,6 +192,23 @@ pub struct Member {
 }
 
 impl Member {
+    pub fn client_wire_default(&self) -> Option<&Value> {
+        if self.client_optional {
+            None
+        } else {
+            self.wire_default.as_ref()
+        }
+    }
+
+    /// Defaults do not apply to non-authoritative readers of client-optional members.
+    pub fn client_default(&self) -> Option<&Value> {
+        if self.client_optional {
+            None
+        } else {
+            self.default.as_ref()
+        }
+    }
+
     /// Smithy 2.0 nullability as the server sees it.
     pub fn optional_on_server(&self) -> bool {
         !self.required && self.default.is_none()
@@ -237,6 +256,8 @@ pub struct Retryable {
 #[derive(Debug, Clone)]
 pub struct Operation {
     pub id: ShapeId,
+    /// Effective authentication schemes, after service and operation overrides.
+    pub auth: Vec<ShapeId>,
     /// The resource that binds the operation; `None` when the service does.
     pub resource: Option<ShapeId>,
     pub docs: Option<String>,
