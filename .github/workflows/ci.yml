@@ -20,6 +20,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { workspaces: ". -> target/cdk-consumer-rust" }
       - uses: actions/setup-node@v4
         with: { node-version: '24' }
       - uses: actions/setup-python@v5
@@ -30,7 +31,7 @@ jobs:
         with: { dotnet-version: '8.0.x' }
       - uses: actions/setup-go@v5
         with: { go-version: '1.26.x', cache: false }
-      - run: python tools/test-cdk.py --language all
+      - run: python tools/test-cdk.py --language all --work-dir "$RUNNER_TEMP/cdk-consumer"
         env:
           CARGO_BUILD_JOBS: '2'
   terraform:
