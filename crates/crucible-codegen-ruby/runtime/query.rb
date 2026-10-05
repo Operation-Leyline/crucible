@@ -139,7 +139,8 @@ module CrucibleGenerated
 
       def slice(node, input)
         return nil unless input.is_a?(::Array)
-        step = integer(node.fetch('step'))
+        step = node['step']
+        step = step.nil? ? 1 : integer(step)
         raise QueryError, 'Zero slice step' if step.zero?
         size = input.size
         bound = lambda do |value, fallback|

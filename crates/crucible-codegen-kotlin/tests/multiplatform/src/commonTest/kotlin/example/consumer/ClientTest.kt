@@ -337,6 +337,36 @@ class ClientTest {
         }
         http.close()
     }
+    @Test fun arbitraryDecimalsKeepValidCompactJson() = realTest {
+        val values = listOf("-1", "-10", "-100", "-0.0", "-0.1", "-12.75",
+            "12345678901234567890.12345678901234567890123456789",
+            "1e400", "-1e400", "-1e-400", "1e1000000", "-1e1000000", "-1e-1000000")
+        var expected = com.ionspin.kotlin.bignum.decimal.BigDecimal.parseString("0")
+        var requests = 0
+        val http = HttpClient(MockEngine { request ->
+            requests++
+            val body = (request.body as OutgoingContent.ByteArrayContent).bytes().decodeToString()
+            val number = Json.parseToJsonElement(body).jsonObject.getValue("decimal").jsonPrimitive
+            assertFalse(number.isString)
+            assertTrue(number.content.length <= 64, "large exponents stay compact")
+            assertEquals(0, com.ionspin.kotlin.bignum.decimal.BigDecimal.parseString(number.content).compareTo(expected))
+            respond(body, HttpStatusCode.OK)
+        })
+        try {
+            WeatherClient(ClientConfig(endpoint="https://weather.example", httpClient=http)).use { client ->
+                for (text in values) {
+                    expected = com.ionspin.kotlin.bignum.decimal.BigDecimal.parseString(text)
+                    val input = example.weather.model.ExtendedValues { decimal = expected }
+                    val output = client.echo(input)
+                    assertEquals(0, output.decimal.compareTo(expected))
+                    assertEquals(input.integer, output.integer)
+                }
+            }
+            assertEquals(values.size, requests)
+        } finally {
+            http.close()
+        }
+    }
     @Test fun unitDoesNotParseUnexpectedBodyAndAnonymousStaysAnonymous() = realTest {
         val http = HttpClient(MockEngine { request ->
             assertEquals(null, request.headers["Authorization"])

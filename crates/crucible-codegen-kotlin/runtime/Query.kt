@@ -22,7 +22,7 @@ internal object Query {
     }
     private fun isNumber(value: JsonElement): Boolean = value is JsonPrimitive && value != JsonNull && !value.isString && value.booleanOrNull == null
     private fun number(value: JsonElement): BigDecimal { require(isNumber(value)) { "JMESPath expected number" }; return BigDecimal.parseString(value.jsonPrimitive.content) }
-    private fun numeric(value: BigDecimal): JsonElement = JsonUnquotedLiteral(value.toString())
+    private fun numeric(value: BigDecimal): JsonElement = JsonUnquotedLiteral(decimalText(value))
     private fun string(value: JsonElement): String { require(value is JsonPrimitive && value.isString) { "JMESPath expected string" }; return value.content }
     private fun array(value: JsonElement): JsonArray { require(value is JsonArray) { "JMESPath expected array" }; return value }
     private fun objectValue(value: JsonElement): JsonObject { require(value is JsonObject) { "JMESPath expected object" }; return value }

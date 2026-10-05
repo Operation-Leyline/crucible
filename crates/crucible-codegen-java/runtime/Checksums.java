@@ -9,6 +9,16 @@ import java.util.Map;
 
 final class Checksums {
   private static final List<String> SUPPORTED=List.of("CRC32","CRC32C","CRC64NVME","MD5","SHA1","SHA256","SHA512");
+  private static final long[] CRC64_NVME_TABLE=crc64Table();
+  private static long[] crc64Table() {
+    long[] table=new long[256];
+    for(int index=0;index<table.length;index++) {
+      long value=index;
+      for(int bit=0;bit<8;bit++)value=(value>>>1)^((value&1)!=0?0x9a6c9329ac4bc9b5L:0L);
+      table[index]=value;
+    }
+    return table;
+  }
   record Plan(String operation,String algorithm,boolean legacy,boolean validate,JsonObject descriptor) {}
   private static String text(JsonObject object,String key) { var value=object.get(key);return value==null||value.isJsonNull()?null:value.getAsString(); }
   // A stream is never buffered to compute a header, so only an explicit or required
@@ -83,7 +93,7 @@ final class Checksums {
     }
     if(algorithm.equals("CRC64NVME")) return new Hasher(){
       long value=-1L;
-      public void update(ByteBuffer bytes){while(bytes.hasRemaining()){value^=Byte.toUnsignedLong(bytes.get());for(int bit=0;bit<8;bit++)value=(value>>>1)^((value&1)!=0?0x9a6c9329ac4bc9b5L:0L);}}
+      public void update(ByteBuffer bytes){while(bytes.hasRemaining())value=(value>>>8)^CRC64_NVME_TABLE[(int)((value^Byte.toUnsignedLong(bytes.get()))&0xff)];}
       public byte[] finish(){long result=~value;byte[] output=new byte[8];for(int index=0;index<8;index++)output[index]=(byte)(result>>>(56-index*8));return output;}
     };
     MessageDigest digest;

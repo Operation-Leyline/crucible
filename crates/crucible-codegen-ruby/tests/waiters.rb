@@ -101,5 +101,20 @@ check(call.('sort', literal.([R::JsonNumber.new('2.2'), R::JsonNumber.new('1.1')
 check(call.('type', literal.(R::JsonNumber.new('1.1'))) == 'number', 'Decimal type')
 check(call.('to_string', literal.({'number' => R::JsonNumber.new('1.000000000000000000001')})) == '{"number":1.000000000000000000001}', 'Exact to_string')
 rejects(R::QueryError) { call.('abs', literal.('x')) }
+values = [1, 2, 3, 4, 5]
+[
+  [{'start' => 1, 'stop' => 4, 'step' => nil}, [2, 3, 4]],
+  [{'start' => 1, 'stop' => 4}, [2, 3, 4]],
+  [{'start' => nil, 'stop' => nil, 'step' => nil}, values],
+  [{'start' => -99, 'stop' => 99, 'step' => 2}, [1, 3, 5]],
+  [{'start' => 99, 'stop' => -99, 'step' => -2}, [5, 3, 1]],
+  [{'start' => nil, 'stop' => -1, 'step' => -1}, []]
+].each do |bounds, expected|
+  check(R::Query.search({'kind' => 'slice'}.merge(bounds), values) == expected.map { |n| Rational(n) }, "Slice bounds #{bounds}")
+end
+check(R::Query.search({'kind' => 'slice', 'step' => nil}, []) == [], 'Empty slice with default step')
+[0, Rational(3, 2), false, '2'].each do |step|
+  rejects(R::QueryError) { R::Query.search({'kind' => 'slice', 'step' => step}, values) }
+end
 check(R::Query.search({'kind' => 'slice', 'start' => nil, 'stop' => nil, 'step' => -2}, [1, 2, 3, 4, 5]) == [5, 3, 1].map { |n| Rational(n) }, 'Negative slice')
 puts 'Ruby waiters, compiled JMESPath, deadlines, jitter, and cancellation passed'

@@ -5,13 +5,48 @@ import example.checksums.model.Algorithm;
 import example.checksums.model.Input;
 import example.checksums.model.Validation;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ChecksumTest {
   static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
+  // The bitwise reference is independent of the runtime's lookup-table update.
+  static byte[] crc64Reference(byte[] bytes) {
+    long value=-1L;
+    for(byte item:bytes) {
+      value^=Byte.toUnsignedLong(item);
+      for(int bit=0;bit<8;bit++)value=(value>>>1)^((value&1)!=0?0x9a6c9329ac4bc9b5L:0L);
+    }
+    return ByteBuffer.allocate(8).putLong(~value).array();
+  }
+  static void crc64Incremental() {
+    var random=new Random(137);
+    for(int size:new int[]{0,1,2,7,8,9,255,256,257,4097}) {
+      byte[] bytes=new byte[size];random.nextBytes(bytes);
+      if(size==256)for(int index=0;index<size;index++)bytes[index]=(byte)index;
+      byte[] expected=crc64Reference(bytes);
+      check(Arrays.equals(Checksums.digest("CRC64NVME",bytes),expected),"CRC64 bitwise equivalence for "+size+" bytes");
+      for(int kind=0;kind<3;kind++) {
+        var buffer=kind==1?ByteBuffer.allocateDirect(size+16):ByteBuffer.allocate(size+16);
+        buffer.position(5);buffer.put(bytes);buffer.flip();buffer.position(5);
+        if(kind==2)buffer=buffer.asReadOnlyBuffer();
+        var hasher=Checksums.hasher("CRC64NVME");
+        hasher.update(buffer.slice().limit(0));
+        while(buffer.hasRemaining()) {
+          int count=Math.min(buffer.remaining(),1+random.nextInt(67));
+          var chunk=buffer.slice().limit(count);
+          hasher.update(chunk);
+          check(chunk.position()==count && chunk.limit()==count,"CRC64 consumes exactly the chunk bounds");
+          buffer.position(buffer.position()+count);
+        }
+        check(Arrays.equals(hasher.finish(),expected) && Arrays.equals(hasher.finish(),expected),"CRC64 chunked heap/direct/read-only equivalence");
+      }
+    }
+  }
   public static void main(String[] args)throws Exception {
+    crc64Incremental();
     var vectors=new LinkedHashMap<String,String>();
     vectors.put("CRC32","y/Q5Jg==");vectors.put("CRC32C","4waSgw==");vectors.put("CRC64NVME","rosUhgp5mIg=");
     vectors.put("MD5","JfnnlDI7RTiF9RgfG2JNCw==");vectors.put("SHA1","98O8HYCOBHMq32eZZczDTKeuNEE=");vectors.put("SHA256","FeKw08M4keuw8e9gnsQZQgwg4yDOlMZfvIwzEkSOsiU=");
