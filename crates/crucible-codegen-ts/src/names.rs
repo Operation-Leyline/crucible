@@ -16,9 +16,9 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
                 SimpleKind::Byte
                 | SimpleKind::Short
                 | SimpleKind::Integer
-                | SimpleKind::Long
                 | SimpleKind::Float
                 | SimpleKind::Double => "number",
+                SimpleKind::Long => "bigint",
                 SimpleKind::Timestamp => "globalThis.Date",
                 SimpleKind::Document => "Document",
                 SimpleKind::Blob => "Uint8Array",
@@ -84,6 +84,9 @@ pub(crate) fn method_name(operation: &str) -> String {
 
 /// A property key: bare when it is an identifier, quoted otherwise.
 pub(crate) fn property(name: &str) -> String {
+    if name == "__proto__" {
+        return "[\"__proto__\"]".to_owned();
+    }
     let identifier = name
         .chars()
         .next()

@@ -22,11 +22,11 @@ test("a created city reads back with every member intact", async () => {
   const name = unique("oslo");
   const created = await client.createCity({
     name,
-    expectedRevision: 7,
+    expectedRevision: 7n,
     location: { coordinates: { latitude: 59.9, longitude: 10.7 } },
   });
   assert.match(created.city.id, /^c-\d{8}$/);
-  assert.equal(created.city.population, 7, "a header member reached the server");
+  assert.equal(created.city.population, 7n, "a header member reached the server");
   assert.ok(created.city.updatedAt instanceof Date, "date-time body timestamp");
   assert.ok(created.city.createdAt instanceof Date, "epoch-seconds body timestamp");
   assert.equal(created.city.createdAt!.getTime(), created.city.updatedAt!.getTime());
@@ -75,10 +75,10 @@ test("labels and query parameters are validated too", async () => {
   assert.equal(badRange.fieldList?.[0]?.path, "maxResults");
 });
 
-test("a union with two members set is refused", async () => {
+test("a union with two members set is refused before dispatch", async () => {
   const location = { coordinates: { latitude: 1, longitude: 2 }, unknown: {} } as never;
   const error = await client.createCity({ name: unique("two"), location }).catch(e => e);
-  assert.ok(error instanceof ValidationError, String(error));
+  assert.ok(error instanceof TypeError, String(error));
 });
 
 test("pagination walks every page; list query parameters repeat", async () => {

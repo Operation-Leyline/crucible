@@ -411,11 +411,13 @@ For package setup, calls, and runtime limits, see the [Rust client guide](client
 The [client index](clients.md) links every other language.
 
 `crucible_build::client("<links>")` generates a client from the same model
-package, into `crucible_client::include_client!()`. The model and error code
-is the server's, generated against `crucible-client`, which re-exports the
-wire types (`crucible-wire`) under the same paths the framework does. A
-server and a client built from one model share their types, validation and
-member bindings; neither can drift from the other.
+package, into `crucible_client::include_client!()`. The client uses
+`crucible-client`, which re-exports the shared `crucible-wire` runtime. The IR
+settles member bindings and constraints for both sides. Client models use
+`Field<T>` for client-optional members and retain unknown enum and union values;
+server models keep server nullability and closed enums and unions. See the
+[Rust model migration](clients/rust.md#migrating-client-models) when updating
+existing consumers.
 
 The generated file holds `model`, `errors`, the operation markers, and per
 operation an error enum (`GetCityError`) of the errors it declares, plus

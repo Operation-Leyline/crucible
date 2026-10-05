@@ -68,7 +68,10 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         })
         .collect();
     let (info_body, display_body) = if errors.is_empty() {
-        ("match *self {}".to_owned(), "match *self {}".to_owned())
+        (
+            "match *self {}".to_owned(),
+            "let _ = f;\n        match *self {}".to_owned(),
+        )
     } else {
         let info: String = errors
             .iter()
@@ -89,9 +92,16 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             format!("match self {{\n{display}        }}"),
         )
     };
+    let decode_body = if errors.is_empty() {
+        "        let _ = (status, type_name, headers, body);\n        None\n".to_owned()
+    } else {
+        format!(
+            "        let name = match type_name {{\n            Some(name) => name,\n            None => ::crucible::by_status(status, &[{}])?,\n        }};\n        match name {{\n{arms}            _ => None,\n        }}\n",
+            infos.join(", ")
+        )
+    };
     out.push_str(&format!(
-        "impl ::crucible::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n        let name = match type_name {{\n            Some(name) => name,\n            None => ::crucible::by_status(status, &[{}])?,\n        }};\n        match name {{\n{arms}            _ => None,\n        }}\n    }}\n\n    fn info(&self) -> &'static ::crucible::operation::ErrorInfo {{\n        {info_body}\n    }}\n}}\n\n",
-        infos.join(", ")
+        "impl ::crucible::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible::operation::ErrorInfo {{\n        {info_body}\n    }}\n}}\n\n"
     ));
     out.push_str(&format!(
         "impl ::std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        {display_body}\n    }}\n}}\n\nimpl ::std::error::Error for {name} {{}}\n"
@@ -126,7 +136,7 @@ fn method(service: &Service, op: &Operation) -> String {
     let token = token_member(service, op).map(|member| {
         let rust = field(&member.name);
         format!(
-            "        if input.{rust}.is_none() {{\n            input.{rust} = Some(::crucible::idempotency_token());\n        }}\n"
+            "        if input.{rust}.value().is_none() {{\n            input.{rust} = ::crucible::Field::Value(::crucible::idempotency_token());\n        }}\n"
         )
     });
     let binding = if token.is_some() {
@@ -149,7 +159,7 @@ fn token_member<'s>(service: &'s Service, op: &Operation) -> Option<&'s Member> 
     let name = op.idempotency_token.as_ref()?;
     let member = structure(service, op.input.as_ref())?.member(name)?;
     let string = simple_kind(service, &member.target) == Some(SimpleKind::String);
-    (string && member.optional_on_server()).then_some(member)
+    (string && member.optional_on_client()).then_some(member)
 }
 
 /// `*_pages(input)`: a `Paginator` that resends the input with each
@@ -169,14 +179,17 @@ fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> St
     };
     let get = |member: &Member, value: &str| {
         let rust = field(&member.name);
-        if member.optional_on_server() {
+        if member.optional_on_client() {
             format!("|{value}| {value}.{rust}.as_deref()")
         } else {
             format!("|{value}| Some(&{value}.{rust})")
         }
     };
-    let set = if input.optional_on_server() {
-        format!("|input, token| input.{} = Some(token)", field(&input.name))
+    let set = if input.optional_on_client() {
+        format!(
+            "|input, token| input.{} = ::crucible::Field::Value(token)",
+            field(&input.name)
+        )
     } else {
         format!("|input, token| input.{} = token", field(&input.name))
     };
@@ -188,9 +201,9 @@ fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> St
         Some(member) if member.name != input.name => {
             let rust = field(&member.name);
             (
-                format!("let fresh = input.{rust}.is_none();\n        let pages = "),
+                format!("let fresh = input.{rust}.value().is_none();\n        let pages = "),
                 format!(
-                    ";\n        if fresh {{\n            pages.fresh_token(|input| input.{rust} = Some(::crucible::idempotency_token()))\n        }} else {{\n            pages\n        }}"
+                    ";\n        if fresh {{\n            pages.fresh_token(|input| input.{rust} = ::crucible::Field::Value(::crucible::idempotency_token()))\n        }} else {{\n            pages\n        }}"
                 ),
             )
         }

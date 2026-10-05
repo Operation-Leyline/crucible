@@ -135,9 +135,8 @@ include [retry decisions](../tests/conformance/retry.json),
 [header lists](../tests/conformance/header-lists.json),
 [malformed errors](../tests/conformance/malformed-errors.json), and
 [serialization](../tests/conformance/serialization.json). Serialization cases
-record native precision profiles; unsupported baseline cases must remain named
-coverage gaps, not be counted as passing. The Rust and TypeScript guides explain
-those representation and validation limits. Language-specific cases additionally
+record native precision profiles. Every target runs all 15 cases; the language
+guides explain the remaining representation limits. Language-specific cases additionally
 cover bindings, payloads, digests, authentication refresh, body interruptions,
 cancellation, and pagination. The weather service supplies real loopback HTTP.
 
@@ -145,17 +144,16 @@ The serialization adapters cover the current 15-case fixture as follows. Counts
 include each target's explicit precision profile; they do not imply identical
 timestamp or numeric representations.
 
-| Targets | Cases exercised | Explicit gaps |
+| Targets | Cases exercised | Representation notes |
 |---|---|---|
 | Python, Go, Java, C#, Kotlin, Swift, Dart, PHP, Ruby, C++, C, R | 15 / 15 | See each guide for native precision limits |
-| Rust | 11 / 15 | Explicit optional null; open enums; unknown union/document round trips; a map with an unknown enum key |
-| TypeScript / JavaScript | 10 / 15 | Missing/null required members; null-default validation; signed-64 overflow and fractional-integer rejection |
+| Rust | 15 / 15 | Epoch-seconds timestamps currently use millisecond precision |
+| TypeScript / JavaScript | 15 / 15 | Signed 64-bit fields use `bigint`; document numbers use JavaScript `number`, and dates have millisecond precision |
 
-Baseline exclusions remain visible in the test runners. See the
-[Rust](clients/rust.md#models-and-errors) and
-[TypeScript](clients/typescript.md#models-and-errors) guides before depending on
-these semantics. Shared fixtures are a bounded contract sample, not exhaustive
-coverage of every operation or transport behavior.
+The [Rust model migration](clients/rust.md#migrating-client-models) and
+[TypeScript guide](clients/typescript.md) describe the updated presence and numeric
+APIs. Shared fixtures are a bounded contract sample, not exhaustive coverage of
+every operation or transport behavior.
 
 Record these proof levels separately: generation; compilation and model loading;
 shared fixtures and native HTTP; package construction and independent consumption;

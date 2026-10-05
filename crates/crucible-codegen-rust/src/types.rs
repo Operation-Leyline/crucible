@@ -37,13 +37,21 @@ pub(crate) fn builtin(kind: SimpleKind) -> &'static str {
     }
 }
 
-/// A member's field type: optional members are `Option`, recursive ones boxed.
-pub(crate) fn field_type(service: &Service, member: &Member, boxed: bool, prefix: &str) -> String {
+/// Optional members use client `Field` or server `Option`; recursive values are boxed.
+pub(crate) fn field_type(
+    service: &Service,
+    member: &Member,
+    boxed: bool,
+    prefix: &str,
+    client: bool,
+) -> String {
     let mut ty = rust_type(service, &member.target, prefix);
     if boxed {
         ty = format!("::std::boxed::Box<{ty}>");
     }
-    if member.optional_on_server() {
+    if client && member.optional_on_client() {
+        ty = format!("::crucible::Field<{ty}>");
+    } else if !client && member.optional_on_server() {
         ty = format!("::std::option::Option<{ty}>");
     }
     ty

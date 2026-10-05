@@ -7,7 +7,6 @@ import type * as m from "./models.js";
 export class ConflictError extends ServiceError {
   constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
     super("ConflictError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
-    Object.assign(this, fields);
   }
 }
 
@@ -16,7 +15,7 @@ export class NotFoundError extends ServiceError {
 
   constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
     super("NotFoundError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
-    Object.assign(this, fields);
+    if (Object.hasOwn(fields, "resourceId")) Object.defineProperty(this, "resourceId", { value: fields["resourceId"], enumerable: true });
   }
 }
 
@@ -25,7 +24,7 @@ export class ThrottlingError extends ServiceError {
 
   constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
     super("ThrottlingError", typeof fields.message === "string" ? fields.message : "", metadata, "client", { throttling: true });
-    Object.assign(this, fields);
+    if (Object.hasOwn(fields, "retryAfter")) Object.defineProperty(this, "retryAfter", { value: fields["retryAfter"], enumerable: true });
   }
 }
 
@@ -36,6 +35,8 @@ export class ValidationError extends ServiceError {
 
   constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
     super("ValidationError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
-    Object.assign(this, fields);
+    if (Object.hasOwn(fields, "reason")) Object.defineProperty(this, "reason", { value: fields["reason"], enumerable: true });
+    if (Object.hasOwn(fields, "fieldList")) Object.defineProperty(this, "fieldList", { value: fields["fieldList"], enumerable: true });
+    if (Object.hasOwn(fields, "requestId")) Object.defineProperty(this, "requestId", { value: fields["requestId"], enumerable: true });
   }
 }

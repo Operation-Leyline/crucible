@@ -48,11 +48,6 @@
     "wire": "{\"id\":\"c\",\"name\":\"n\",\"population\":9223372036854775807}",
     "expect": {
       "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":9223372036854775807}"
-    },
-    "expectByProfile": {
-      "javascript-number-date": {
-        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":9223372036854776000}"
-      }
     }
   },
   {
@@ -98,7 +93,7 @@
       "json": "{\"future\":{\"n\":9007199254740993}}"
     },
     "expectByProfile": {
-      "javascript-number-date": {
+      "javascript-bigint-date": {
         "json": "{\"future\":{\"n\":9007199254740992}}"
       }
     }
@@ -111,7 +106,7 @@
       "json": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":null}"
     },
     "expectByProfile": {
-      "javascript-number-date": {
+      "javascript-bigint-date": {
         "json": "{\"future\":{\"n\":9007199254740992,\"object\":{},\"array\":[]},\"clear\":null}"
       }
     }
@@ -176,7 +171,7 @@
           "nanoseconds": 0
         }
       },
-      "javascript-number-date": {
+      "javascript-bigint-date": {
         "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":0}",
         "instant": {
           "member": "createdAt",

@@ -11,99 +11,232 @@ export type Unit = Record<string, never>;
 
 export type TimestampFormat = "date-time" | "http-date" | "epoch-seconds";
 
-/**
- * How a value differs between the model and the wire. Only what needs
- * converting has a schema. Everything else passes through as JSON.
- */
+/** Static wire conversion and validation metadata emitted from the Smithy IR. */
 export type Schema =
-  | { readonly kind: "string" | "number" | "boolean" }
-  /** Bytes (`Uint8Array`), base64 text in a JSON body. */
-  | { readonly kind: "blob" }
+  | { readonly kind: "string" | "number" | "boolean" | "document" | "blob" }
+  | { readonly kind: "integer"; readonly bits: 8 | 16 | 32 | 64 }
   | { readonly kind: "timestamp"; readonly format: TimestampFormat }
   | { readonly kind: "list"; readonly member: Schema }
   | { readonly kind: "map"; readonly value: Schema }
   | {
-      readonly kind: "structure";
+      readonly kind: "structure" | "union";
       readonly members: Readonly<Record<string, Schema>>;
-      /** Values for members the wire leaves out (Smithy `@default`). */
-      readonly defaults?: Readonly<Record<string, Document>>;
+      readonly defaults?: Readonly<Record<string, unknown>>;
+      /** Nonoptional client members, settled by the IR (not inferred here). */
+      readonly required?: readonly string[];
     };
 
 export const string: Schema = { kind: "string" };
 export const number: Schema = { kind: "number" };
 export const boolean: Schema = { kind: "boolean" };
+export const document: Schema = { kind: "document" };
 export const blob: Schema = { kind: "blob" };
+export const integer = (bits: 8 | 16 | 32 | 64): Schema => ({ kind: "integer", bits });
 export const timestamp = (format: TimestampFormat): Schema => ({ kind: "timestamp", format });
-export const list = (member: Schema): Schema => ({ kind: "list", member });
-export const map = (value: Schema): Schema => ({ kind: "map", value });
+export function list(member: Schema | (() => Schema)): Schema {
+  return { kind: "list", get member() { return typeof member === "function" ? member() : member; } };
+}
+export function map(value: Schema | (() => Schema)): Schema {
+  return { kind: "map", get value() { return typeof value === "function" ? value() : value; } };
+}
 
-/** Members are a thunk, so recursive and forward references resolve lazily. */
-export function structure(members: () => Record<string, Schema>, defaults?: Record<string, Document>): Schema {
+/** Thunks also support recursive list/map aliases without declaration-order work. */
+export function structure(members: () => Record<string, Schema>, defaults?: Record<string, unknown>, required?: readonly string[]): Schema {
   let resolved: Record<string, Schema> | undefined;
-  return {
-    kind: "structure",
-    get members() {
-      return (resolved ??= members());
-    },
-    defaults,
-  };
+  return { kind: "structure", get members() { return (resolved ??= members()); }, defaults, required };
+}
+export function union(members: () => Record<string, Schema>): Schema {
+  let resolved: Record<string, Schema> | undefined;
+  return { kind: "union", get members() { return (resolved ??= members()); } };
+}
+
+/** An internal numeric token. It never escapes decoding into a public model. */
+class JsonNumber {
+  constructor(readonly text: string) {}
+}
+
+function exactInteger(value: unknown, bits: 8 | 16 | 32 | 64, encoding: boolean): bigint {
+  if (encoding && (bits === 64 ? typeof value !== "bigint" : typeof value !== "number")) {
+    throw new TypeError(bits === 64 ? "a long is a bigint" : "an integer is a number");
+  }
+  if (typeof value === "number" && !Number.isSafeInteger(value)) {
+    throw new TypeError("integer requires an exact numeric token or a safe integer");
+  }
+  if (!(value instanceof JsonNumber) && typeof value !== "number" && typeof value !== "bigint") {
+    throw new TypeError("expected integer");
+  }
+  const text = value instanceof JsonNumber ? value.text : String(value);
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(text);
+  if (!match) throw new TypeError("invalid integer");
+  let digits = (match[2] + (match[3] ?? "")).replace(/^0+/, "");
+  if (digits.length === 0) return 0n;
+  const shift = Number(match[4] ?? "0") - (match[3]?.length ?? 0);
+  if (!Number.isSafeInteger(shift)) throw new TypeError("integer outside range");
+  if (shift < 0) {
+    if (-shift >= digits.length || !/^0*$/.test(digits.slice(shift))) throw new TypeError("fractional integer");
+    digits = digits.slice(0, shift);
+  } else {
+    if (digits.length + shift > 19) throw new TypeError("integer outside range");
+    digits += "0".repeat(shift);
+  }
+  if (digits.length > 19) throw new TypeError("integer outside range");
+  const result = BigInt(match[1] + digits);
+  const maximum = 1n << BigInt(bits - 1);
+  if (result < -maximum || result >= maximum) throw new TypeError(`integer outside signed ${bits}-bit range`);
+  return result;
+}
+
+/** Restore the documented JavaScript number representation of JSON documents. */
+function jsonValue(value: unknown): unknown {
+  if (value instanceof JsonNumber) return jsonValue(Number(value.text));
+  if (typeof value === "number" && !Number.isFinite(value)) throw new TypeError("non-finite JSON number");
+  if (value instanceof Uint8Array || value instanceof Date) return value;
+  if (Array.isArray(value)) return value.map(jsonValue);
+  if (value !== null && typeof value === "object") return mapValues(value as Record<string, unknown>, jsonValue);
+  return value;
+}
+function object(value: unknown): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value) || value instanceof JsonNumber) {
+    throw new TypeError("expected object");
+  }
+  return value as Record<string, unknown>;
 }
 
 export function toWire(schema: Schema | undefined, value: unknown): unknown {
   if (schema === undefined || value === undefined || value === null) return value;
   switch (schema.kind) {
-    case "timestamp":
-      return formatTimestamp(value as Date, schema.format);
-    case "blob":
-      return toBase64(value as Uint8Array);
-    case "list":
-      return (value as unknown[]).map(item => toWire(schema.member, item));
-    case "map":
-      return mapValues(value as Record<string, unknown>, item => toWire(schema.value, item));
-    case "structure":
-      return convertMembers(schema, value as Record<string, unknown>, toWire);
-    default:
+    case "integer": {
+      const result = exactInteger(value, schema.bits, true);
+      return schema.bits === 64 ? result : Number(result);
+    }
+    case "string": case "boolean": case "number":
+      if (typeof value !== schema.kind || (typeof value === "number" && !Number.isFinite(value))) throw new TypeError(`expected ${schema.kind}`);
       return value;
+    case "timestamp": return formatTimestamp(value as Date, schema.format);
+    case "blob": return toBase64(value as Uint8Array);
+    case "list":
+      if (!Array.isArray(value)) throw new TypeError("expected array");
+      return value.map(item => toWire(schema.member, item));
+    case "map": return mapValues(object(value), item => toWire(schema.value, item));
+    case "structure": case "union": return convertMembers(schema, object(value), toWire);
+    default: return value;
   }
 }
 
 export function fromWire(schema: Schema | undefined, value: unknown): unknown {
-  if (schema === undefined || value === undefined || value === null) return value;
+  if (schema === undefined || schema.kind === "document" || value === undefined || value === null) return jsonValue(value);
   switch (schema.kind) {
-    case "timestamp":
-      return parseTimestamp(value as string | number);
-    case "blob":
-      return fromBase64(value as string);
-    case "list":
-      return (value as unknown[]).map(item => fromWire(schema.member, item));
-    case "map":
-      return mapValues(value as Record<string, unknown>, item => fromWire(schema.value, item));
-    case "structure": {
-      const out = convertMembers(schema, value as Record<string, unknown>, fromWire);
-      for (const [name, fallback] of Object.entries(schema.defaults ?? {})) {
-        if (out[name] === undefined) out[name] = structuredClone(fallback);
-      }
-      return out;
+    case "integer": {
+      const result = exactInteger(value, schema.bits, false);
+      return schema.bits === 64 ? result : Number(result);
     }
-    default:
+    case "number": {
+      const result = value instanceof JsonNumber ? Number(value.text) : value;
+      if (typeof result !== "number" || !Number.isFinite(result)) throw new TypeError("expected finite number");
+      return result;
+    }
+    case "string": case "boolean":
+      if (typeof value !== schema.kind) throw new TypeError(`expected ${schema.kind}`);
       return value;
+    case "timestamp": return parseTimestamp((value instanceof JsonNumber ? Number(value.text) : value) as string | number);
+    case "blob": return fromBase64(value as string);
+    case "list":
+      if (!Array.isArray(value)) throw new TypeError("expected array");
+      return value.map(item => fromWire(schema.member, item));
+    case "map": return mapValues(object(value), item => fromWire(schema.value, item));
+    case "structure": case "union": return convertMembers(schema, object(value), fromWire);
   }
 }
 
 function convertMembers(
-  schema: Extract<Schema, { kind: "structure" }>,
+  schema: Extract<Schema, { kind: "structure" | "union" }>,
   value: Record<string, unknown>,
-  convert: (schema: Schema, value: unknown) => unknown,
+  convert: (schema: Schema | undefined, value: unknown) => unknown,
 ): Record<string, unknown> {
   const out = { ...value };
-  for (const [name, member] of Object.entries(schema.members)) {
-    if (name in out) out[name] = convert(member, out[name]);
+  if (schema.kind === "union" && Object.keys(out).filter(name => out[name] !== undefined).length !== 1) {
+    throw new TypeError("a union must have exactly one member");
+  }
+  if (convert === fromWire) {
+    for (const [name, fallback] of Object.entries(schema.defaults ?? {})) {
+      if (!Object.hasOwn(out, name) || out[name] === undefined) Object.defineProperty(out, name, { value: fallback, enumerable: true, writable: true, configurable: true });
+    }
+  }
+  for (const name of schema.required ?? []) {
+    if (!Object.hasOwn(out, name) || out[name] === undefined) throw new TypeError(`missing required member: ${name}`);
+    if (out[name] === null && schema.members[name]?.kind !== "document") throw new TypeError(`null required member: ${name}`);
+  }
+  for (const name of Object.keys(out)) {
+    const member = Object.hasOwn(schema.members, name) ? schema.members[name] : undefined;
+    out[name] = convert(member, out[name]);
   }
   return out;
 }
 
 function mapValues(value: Record<string, unknown>, convert: (value: unknown) => unknown): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, convert(item)]));
+}
+
+/** Parse JSON retaining numeric source tokens until a schema chooses their type. */
+export function parseJson(text: string): unknown {
+  // The platform parser owns JSON grammar and string escape validation. A second
+  // token pass preserves numbers without depending on ES2024 reviver contexts.
+  JSON.parse(text);
+  const tokens = text.match(/"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null|[{}\[\],:]/g)!;
+  let at = 0;
+  const read = (depth: number): unknown => {
+    if (depth > 255) throw new TypeError("JSON nesting exceeds 255 levels");
+    const token = tokens[at++];
+    if (token === "{") {
+      const entries: [string, unknown][] = [];
+      if (tokens[at] !== "}") do {
+        const key = JSON.parse(tokens[at++]) as string;
+        at++; // colon, already validated
+        entries.push([key, read(depth + 1)]);
+        if (tokens[at] !== ",") break;
+        at++;
+      } while (true);
+      at++;
+      return Object.fromEntries(entries);
+    }
+    if (token === "[") {
+      const result: unknown[] = [];
+      if (tokens[at] !== "]") do {
+        result.push(read(depth + 1));
+        if (tokens[at] !== ",") break;
+        at++;
+      } while (true);
+      at++;
+      return result;
+    }
+    return /^-?\d/.test(token) ? new JsonNumber(token) : JSON.parse(token);
+  };
+  return read(0);
+}
+
+/** Write converted model values, including exact unquoted bigint JSON numbers. */
+export function stringifyJson(value: unknown): string {
+  const active = new Set<object>();
+  const write = (item: unknown, depth: number): string => {
+    if (depth > 255) throw new TypeError("JSON nesting exceeds 255 levels");
+    if (typeof item === "bigint") return item.toString();
+    if (item === null || typeof item !== "object") {
+      if (typeof item === "number" && !Number.isFinite(item)) throw new TypeError("non-finite JSON number");
+      const encoded = JSON.stringify(item);
+      if (encoded === undefined) throw new TypeError("not a JSON value");
+      return encoded;
+    }
+    if (!Array.isArray(item) && Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) throw new TypeError("expected plain JSON object");
+    if (active.has(item)) throw new TypeError("circular JSON value");
+    active.add(item);
+    const result = Array.isArray(item)
+      ? "[" + Array.from(item, value => write(value === undefined ? null : value, depth + 1)).join(",") + "]"
+      : "{" + Object.entries(item).filter(([, value]) => value !== undefined)
+        .map(([key, value]) => JSON.stringify(key) + ":" + write(value, depth + 1)).join(",") + "}";
+    active.delete(item);
+    return result;
+  };
+  return write(value, 0);
 }
 
 export function formatTimestamp(value: Date, format: TimestampFormat): string | number {
@@ -206,6 +339,8 @@ export class NetworkError extends Error {
 
 export interface ErrorSpec {
   readonly status: number;
+  readonly fault?: "client" | "server";
+  readonly retryable?: { readonly throttling: boolean };
   readonly schema?: Schema;
   readonly headers?: readonly (readonly [member: string, header: string, schema?: Schema])[];
   readonly create: (fields: Record<string, unknown>, metadata: ResponseMetadata) => ServiceError;
@@ -307,6 +442,7 @@ export class Transport {
   }
 
   #request(operation: OperationSpec, values: Record<string, unknown>, options: RequestOptions): Request {
+    const encoded = toWire(operation.input, values) as Record<string, unknown>;
     const path = operation.path
       .map(segment => {
         if (typeof segment === "string") return segment;
@@ -333,9 +469,9 @@ export class Transport {
     }
     let body: BodyInit | undefined;
     if (operation.body !== undefined) {
-      const picked: Record<string, unknown> = {};
-      for (const member of operation.body) if (values[member] !== undefined) picked[member] = values[member];
-      body = JSON.stringify(toWire(operation.input, picked));
+      const picked: Record<string, unknown> = Object.create(null);
+      for (const member of operation.body) if (encoded[member] !== undefined) picked[member] = encoded[member];
+      body = stringifyJson(picked);
       headers.set("content-type", "application/json");
     }
     if (operation.payload !== undefined) {
@@ -358,9 +494,9 @@ export class Transport {
     const body = output.payload !== undefined
       ? { [output.payload]: bytes ?? new Uint8Array() }
       : output.body ? readJson(text) : {};
-    const decoded = fromWire(output.schema, body ?? {}) as Record<string, unknown>;
-    readHeaders(response.headers, output.headers, decoded);
-    return decoded;
+    const fields = object(body ?? {});
+    readHeaders(response.headers, output.headers, fields, true);
+    return fromWire(output.schema, fields);
   }
 
   #decodeError(operation: OperationSpec, response: Response, text: string): ServiceError {
@@ -379,8 +515,15 @@ export class Transport {
       const message = stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`;
       return new ServiceError(name ?? "UnknownError", message, metadata, response.status >= 500 ? "server" : "client");
     }
-    const fields = fromWire(spec.schema, body) as Record<string, unknown>;
-    readHeaders(response.headers, spec.headers, fields);
+    let fields: Record<string, unknown>;
+    try {
+      readHeaders(response.headers, spec.headers, body, true);
+      fields = fromWire(spec.schema, body) as Record<string, unknown>;
+    } catch (error) {
+      if (!(error instanceof TypeError || error instanceof RangeError || error instanceof DOMException)) throw error;
+      return new ServiceError(name!, stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`,
+        metadata, spec.fault ?? (response.status >= 500 ? "server" : "client"), spec.retryable);
+    }
     return spec.create(fields, metadata);
   }
 }
@@ -404,12 +547,12 @@ function errorName(
 function withIdempotencyToken(operation: OperationSpec, input: object): object {
   const member = operation.idempotencyToken;
   const record = input as Record<string, unknown>;
-  if (member === undefined || record[member] !== undefined) return input;
+  if (member === undefined || (Object.hasOwn(record, member) && record[member] !== undefined)) return input;
   // Written into the caller's own object when it can be, so resending that
   // object after a failure replays the request instead of repeating it.
   const token = globalThis.crypto.randomUUID();
   if (Object.isExtensible(input)) {
-    record[member] = token;
+    Object.defineProperty(record, member, { value: token, enumerable: true, writable: true, configurable: true });
     return input;
   }
   return { ...record, [member]: token };
@@ -420,7 +563,7 @@ function scalar(value: unknown, schema: Schema | undefined): string {
     const format = schema?.kind === "timestamp" ? schema.format : "date-time";
     return String(formatTimestamp(value, format));
   }
-  return String(value);
+  return String(toWire(schema, value));
 }
 
 function headerValue(value: unknown, schema: Schema | undefined): string {
@@ -439,23 +582,27 @@ function readHeaders(
   headers: Headers,
   bindings: readonly (readonly [string, string, Schema?])[] | undefined,
   into: Record<string, unknown>,
+  wire = false,
 ): void {
   for (const [member, header, schema] of bindings ?? []) {
     const text = headers.get(header);
-    if (text !== null) into[member] = parseHeader(text, schema);
+    if (text !== null) Object.defineProperty(into, member, { value: parseHeader(text, schema, wire), enumerable: true, writable: true, configurable: true });
   }
 }
 
-function parseHeader(text: string, schema: Schema | undefined): unknown {
+function parseHeader(text: string, schema: Schema | undefined, wire = false): unknown {
   switch (schema?.kind) {
+    case "integer":
+      return wire ? new JsonNumber(text.trim()) : fromWire(schema, new JsonNumber(text.trim()));
     case "number":
-      return Number(text);
+      return fromWire(schema, new JsonNumber(text.trim()));
     case "boolean":
       return text.trim() === "true";
     case "timestamp":
-      return parseTimestamp(schema.format === "epoch-seconds" ? Number(text) : text);
+      return wire ? (schema.format === "epoch-seconds" ? new JsonNumber(text.trim()) : text)
+        : parseTimestamp(schema.format === "epoch-seconds" ? Number(text) : text);
     case "list":
-      return splitHeader(text).map(item => parseHeader(item, schema.member));
+      return splitHeader(text).map(item => parseHeader(item, schema.member, wire));
     default:
       return text;
   }
@@ -473,7 +620,7 @@ function splitHeader(text: string): string[] {
 }
 
 function readJson(text: string): unknown {
-  return text.length === 0 ? undefined : JSON.parse(text);
+  return text.length === 0 ? undefined : parseJson(text);
 }
 
 function stringField(body: Record<string, unknown>, name: string): string | undefined {

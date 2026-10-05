@@ -147,11 +147,11 @@ fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one(
     });
     let code = generate_client(&service).unwrap();
     assert!(
-        code.contains("let fresh = input.client_token.is_none();"),
+        code.contains("let fresh = input.client_token.value().is_none();"),
         "{code}"
     );
     assert!(code.contains(
-        "pages.fresh_token(|input| input.client_token = Some(::crucible_client::idempotency_token()))"
+        "pages.fresh_token(|input| input.client_token = ::crucible_client::Field::Value(::crucible_client::idempotency_token()))"
     ));
 }
 

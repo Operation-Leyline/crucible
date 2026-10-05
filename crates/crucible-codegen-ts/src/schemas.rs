@@ -15,35 +15,63 @@ pub(crate) fn emit(service: &Service) -> String {
     let mut structures: Vec<&ShapeId> = converting.iter().collect();
     structures.sort_by_key(|id| service.name_of(id));
     for id in structures {
-        let Some(Shape::Structure(structure) | Shape::Union(structure)) = service.shape(id) else {
-            continue;
-        };
-        let members: Vec<String> = structure
-            .members
-            .iter()
-            .filter(|member| !is_payload(service, id, &member.name))
-            .filter_map(|member| {
-                body_schema(service, &converting, member)
-                    .map(|schema| format!("{}: {schema}", property(&member.name)))
-            })
-            .collect();
-        let defaults: Vec<String> = structure
-            .members
-            .iter()
-            .filter_map(|member| {
-                let value = member.default.as_ref()?;
-                Some(format!("{}: {value}", property(&member.name)))
-            })
-            .collect();
-        let defaults = if defaults.is_empty() {
-            String::new()
-        } else {
-            format!(", {{ {} }}", defaults.join(", "))
+        let shape = service.shape(id).expect("reachable shape");
+        let schema = match shape {
+            Shape::List(list) => format!(
+                "list(() => {})",
+                body_schema(service, &converting, &list.member).unwrap()
+            ),
+            Shape::Map(map) => format!(
+                "map(() => {})",
+                body_schema(service, &converting, &map.value).unwrap()
+            ),
+            Shape::Structure(structure) | Shape::Union(structure) => {
+                let members: Vec<String> = structure
+                    .members
+                    .iter()
+                    .filter(|member| !is_payload(service, id, &member.name))
+                    .map(|member| {
+                        format!(
+                            "{}: {}",
+                            property(&member.name),
+                            body_schema(service, &converting, member).unwrap()
+                        )
+                    })
+                    .collect();
+                let defaults: Vec<String> = structure
+                    .members
+                    .iter()
+                    .filter_map(|member| {
+                        let value = member.default.as_ref()?;
+                        Some(format!(
+                            "{}: parseJson({})",
+                            property(&member.name),
+                            literal(&value.to_string())
+                        ))
+                    })
+                    .collect();
+                let required: Vec<String> = structure
+                    .members
+                    .iter()
+                    .filter(|member| !member.optional_on_client())
+                    .map(|member| literal(&member.name))
+                    .collect();
+                if matches!(shape, Shape::Union(_)) {
+                    format!("union(() => ({{ {} }}))", members.join(", "))
+                } else {
+                    format!(
+                        "structure(() => ({{ {} }}), {{ {} }}, [{}])",
+                        members.join(", "),
+                        defaults.join(", "),
+                        required.join(", ")
+                    )
+                }
+            }
+            _ => continue,
         };
         out.push_str(&format!(
-            "\nexport const {}: Schema = structure(() => ({{ {} }}){defaults});\n",
-            schema_name(service, id),
-            members.join(", ")
+            "\nexport const {}: Schema = {schema};\n",
+            schema_name(service, id)
         ));
     }
 
@@ -57,12 +85,16 @@ pub(crate) fn emit(service: &Service) -> String {
     let helpers: Vec<&str> = [
         "blob",
         "boolean",
+        "document",
+        "integer",
         "list",
         "map",
         "number",
+        "parseJson",
         "string",
         "structure",
         "timestamp",
+        "union",
     ]
     .into_iter()
     .filter(|helper| {
@@ -105,40 +137,19 @@ fn is_payload(service: &Service, structure: &ShapeId, member: &str) -> bool {
     })
 }
 
-/// Structures and unions whose wire form differs from their model form at any
-/// depth: they hold a timestamp or a blob (not a payload), or a member whose
-/// default the client fills.
+/// Every container has static metadata for conversion and validation.
 pub(crate) fn converting(service: &Service) -> BTreeSet<ShapeId> {
-    let mut set = BTreeSet::new();
-    loop {
-        let before = set.len();
-        for (id, shape) in &service.shapes {
-            if let Shape::Structure(structure) | Shape::Union(structure) = shape {
-                let differs = |m: &Member| {
-                    m.default.is_some()
-                        || (needs(service, &set, &m.target) && !is_payload(service, id, &m.name))
-                };
-                if structure.members.iter().any(differs) {
-                    set.insert(id.clone());
-                }
-            }
-        }
-        if set.len() == before {
-            return set;
-        }
-    }
-}
-
-fn needs(service: &Service, set: &BTreeSet<ShapeId>, target: &ShapeId) -> bool {
-    match service.shape(target) {
-        Some(Shape::Simple(simple)) => {
-            matches!(simple.kind, SimpleKind::Timestamp | SimpleKind::Blob)
-        }
-        Some(Shape::List(list)) => needs(service, set, &list.member.target),
-        Some(Shape::Map(map)) => needs(service, set, &map.value.target),
-        Some(Shape::Structure(_) | Shape::Union(_)) => set.contains(target),
-        _ => false,
-    }
+    service
+        .shapes
+        .iter()
+        .filter(|(_, shape)| {
+            matches!(
+                shape,
+                Shape::Structure(_) | Shape::Union(_) | Shape::List(_) | Shape::Map(_)
+            )
+        })
+        .map(|(id, _)| id.clone())
+        .collect()
 }
 
 /// The schema of a member in a JSON body, or `None` when it passes through.
@@ -148,19 +159,21 @@ pub(crate) fn body_schema(
     member: &Member,
 ) -> Option<String> {
     match service.shape(&member.target)? {
-        Shape::Simple(simple) if simple.kind == SimpleKind::Timestamp => {
-            Some(timestamp(service, member))
-        }
-        Shape::Simple(simple) if simple.kind == SimpleKind::Blob => Some("blob".to_owned()),
-        Shape::List(list) => {
-            body_schema(service, converting, &list.member).map(|item| format!("list({item})"))
-        }
-        Shape::Map(map) => {
-            body_schema(service, converting, &map.value).map(|value| format!("map({value})"))
-        }
-        Shape::Structure(_) | Shape::Union(_) if converting.contains(&member.target) => {
-            Some(schema_name(service, &member.target))
-        }
+        Shape::Simple(simple) => Some(match simple.kind {
+            SimpleKind::Timestamp => timestamp(service, member),
+            SimpleKind::Blob => "blob".to_owned(),
+            SimpleKind::String => "string".to_owned(),
+            SimpleKind::Boolean => "boolean".to_owned(),
+            SimpleKind::Document => "document".to_owned(),
+            SimpleKind::Byte => "integer(8)".to_owned(),
+            SimpleKind::Short => "integer(16)".to_owned(),
+            SimpleKind::Integer => "integer(32)".to_owned(),
+            SimpleKind::Long => "integer(64)".to_owned(),
+            SimpleKind::Float | SimpleKind::Double => "number".to_owned(),
+        }),
+        Shape::Enum(_) => Some("string".to_owned()),
+        Shape::Unit => Some("document".to_owned()),
+        _ if converting.contains(&member.target) => Some(schema_name(service, &member.target)),
         _ => None,
     }
 }
@@ -173,6 +186,10 @@ fn binding_schema(service: &Service, member: &Member) -> Option<String> {
             SimpleKind::Timestamp => Some(timestamp(service, member)),
             SimpleKind::Boolean => Some("boolean".to_owned()),
             SimpleKind::String | SimpleKind::Document | SimpleKind::Blob => None,
+            SimpleKind::Byte => Some("integer(8)".to_owned()),
+            SimpleKind::Short => Some("integer(16)".to_owned()),
+            SimpleKind::Integer => Some("integer(32)".to_owned()),
+            SimpleKind::Long => Some("integer(64)".to_owned()),
             _ => Some("number".to_owned()),
         },
         Shape::List(list) => Some(format!(
@@ -255,6 +272,9 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         fields.push(format!("literalQuery: [{}]", pairs.join(", ")));
     }
     if let Some(input) = input {
+        if let Some(id) = op.input.as_ref().filter(|id| converting.contains(*id)) {
+            fields.push(format!("input: {}", schema_name(service, id)));
+        }
         if !op.request.query.is_empty() {
             fields.push(format!(
                 "query: {}",
@@ -270,9 +290,6 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         if !op.request.body.is_empty() {
             let body: Vec<String> = op.request.body.iter().map(|m| literal(m)).collect();
             fields.push(format!("body: [{}]", body.join(", ")));
-            if let Some(id) = op.input.as_ref().filter(|id| converting.contains(*id)) {
-                fields.push(format!("input: {}", schema_name(service, id)));
-            }
         }
         if let Some(payload) = &op.request.payload {
             fields.push(format!(
@@ -323,7 +340,17 @@ fn error_table(service: &Service, converting: &BTreeSet<ShapeId>) -> String {
     for (id, structure) in error_shapes(service) {
         let error = structure.error.as_ref().expect("filtered to errors");
         let name = service.name_of(id);
-        let mut fields = vec![format!("status: {}", error.status)];
+        let fault = match error.fault {
+            crucible_smithy::ir::Fault::Client => "client",
+            crucible_smithy::ir::Fault::Server => "server",
+        };
+        let mut fields = vec![
+            format!("status: {}", error.status),
+            format!("fault: \"{fault}\""),
+        ];
+        if let Some(retry) = error.retryable {
+            fields.push(format!("retryable: {{ throttling: {} }}", retry.throttling));
+        }
         if converting.contains(id) {
             fields.push(format!("schema: {}", schema_name(service, id)));
         }
@@ -336,7 +363,11 @@ fn error_table(service: &Service, converting: &BTreeSet<ShapeId>) -> String {
         fields.push(format!(
             "create: (fields, metadata) => new e.{name}(fields, metadata)"
         ));
-        out.push_str(&format!("  {name}: {{ {} }},\n", fields.join(", ")));
+        out.push_str(&format!(
+            "  {}: {{ {} }},\n",
+            property(name),
+            fields.join(", ")
+        ));
     }
     out.push_str("};\n");
     out

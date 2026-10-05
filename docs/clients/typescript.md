@@ -82,20 +82,47 @@ Strings, booleans, arrays, and objects use JavaScript values. Blobs are
 Optional fields use `undefined` for omission. The runtime preserves explicit
 JSON nulls where present, but generated optional properties are not a general
 three-state presence API. Missing modeled defaults are applied during decoding.
-The decoder does not reject every missing or null required member, and numeric
-conversion does not enforce integer width or reject fractional integers.
+The decoder rejects absent or null nonoptional members (except a required
+`document` may hold JSON null), fractional integers, and integers outside their
+modeled width. Client optionality comes from the lowered Smithy IR, including
+`@clientOptional` and `@input`; TypeScript input interfaces continue to require
+`@required` input properties at compile time.
 
-All Smithy numeric types, including `long`, use JavaScript `number`. Integers
-outside `Number.MIN_SAFE_INTEGER` through `Number.MAX_SAFE_INTEGER` can lose
-precision, including when JSON is parsed. There is no `bigint` wire codec.
-Document numbers have the same limitation. Do not use this representation when
-an application must preserve the entire signed 64-bit range.
+Smithy `long` uses native `bigint`, covering the complete signed 64-bit range.
+The client preserves numeric JSON tokens until typed decoding, so a valid
+`9223372036854775807` is accepted exactly while `9223372036854775808` is rejected.
+The wire still uses ordinary, unquoted JSON numbers. Byte, short, and integer
+use `number` with signed 8-, 16-, and 32-bit validation; float and double use
+finite `number` values.
+
+Document numbers and numbers inside unknown union arms still use JavaScript
+`number`; values beyond its safe integer range can round. Nonfinite numbers
+are rejected. This limitation does not apply to modeled `long` members.
+
+### Migrating long values to bigint
+
+Regenerate the package, rebuild it, and fix TypeScript errors at call sites.
+Replace long literals such as `expectedRevision: 7` with `expectedRevision: 7n`;
+use `BigInt("9223372036854775807")` when reading decimal strings. Do not convert
+an already rounded JavaScript number to bigint. Compare and calculate long
+results with bigint operands, for example `result.city.population === 0n`.
+Converting back with `Number(value)` can lose precision.
+
+Generated calls encode bigints automatically. `JSON.stringify` cannot serialize
+a bigint. For application-owned JSON containing long values, the package exports
+`stringifyJson`, which emits bigint values as unquoted numbers and rejects
+nonfinite numbers and non-JSON objects. Convert `Date` and `Uint8Array` values to
+the required wire representation first; this helper does not replace the
+client's schema conversion. Middleware reading `request.text()` sees the exact
+encoded body, suitable for computing a digest without reparsing it.
+
 
 Timestamps use `Date`, with millisecond precision; submillisecond fractions are
 lost. HTTP-date has second precision. Enums and unions describe the known model
 at compile time. The runtime retains unrecognized JSON properties and strings,
-but it does not expose a dedicated typed unknown-union alternative or validate
-every received member against its TypeScript interface.
+but it does not expose a dedicated typed unknown-union alternative. Unions must
+contain exactly one member; known members are decoded using their generated
+schemas. Unknown arms retain their JSON value.
 
 Each modeled exception is a `ServiceError` subclass with its modeled fields,
 `$metadata` (status, request ID, headers), `$fault`, and optional `$retryable`
@@ -137,7 +164,7 @@ Do not combine an earlier generated digest with a later body mutation.
 ## Qualification
 
 Run `bash tools/test-ts.sh` for generated type checks, fake-fetch runtime tests,
-and shared retry cases. Set `TSC` to use an existing TypeScript compiler.
+all 15 shared serialization cases, and shared retry cases. Set `TSC` to use an existing TypeScript compiler.
 `bash tools/test-e2e.sh` also runs the TypeScript client against the real weather
 service. Browser APIs are used by the runtime, but Node tests alone do not prove
 a particular browser application's CORS, authentication, or deployment setup.

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { blob, fromWire, toWire } from "./generated/src/runtime.js";
+import { blob, fromWire, toWire, parseJson, stringifyJson } from "./generated/src/runtime.js";
 import type { Schema } from "./generated/src/runtime.js";
-import { S_CitySummary } from "./generated/src/schemas.js";
+import { S_CitySummary, S_Location, S_Forecast } from "./generated/src/schemas.js";
 
 interface Expectation {
   json: string;
@@ -16,24 +16,14 @@ interface Case {
   expect?: Expectation; expectByProfile?: Record<string, Expectation>;
 }
 const cases: Case[] = JSON.parse(readFileSync(new URL("../../../../../tests/conformance/serialization.json", import.meta.url), "utf8"));
-const profile = "javascript-number-date";
-// Existing conversion-only schemas do not validate required members or integer
-// ranges. These remain explicit skipped contract tests, not profile overrides.
-const gaps: Record<string, string> = {
-  "missing-required-member": "Response conversion does not enforce required members",
-  "null-required-member": "Response conversion does not reject required null members",
-  "null-does-not-apply-default": "Response conversion accepts null for a nonoptional defaulted member",
-  "int64-overflow": "The number schema does not validate int64 range",
-  "fractional-integer": "The number schema does not enforce integer values",
-};
+const profile = "javascript-bigint-date";
 const schemas: Record<string, Schema | undefined> = {
   "example.weather#CitySummary": S_CitySummary,
   "example.weather#Photo": blob,
-  // String enums and unions/maps containing only JSON-native values need no
-  // conversion schema in generated packages.
+  // Open string enum values use the native string representation.
   "example.weather#Sky": undefined,
-  "example.weather#Location": undefined,
-  "example.weather#Forecast": undefined,
+  "example.weather#Location": S_Location,
+  "example.weather#Forecast": S_Forecast,
 };
 
 class ExactNumber {
@@ -83,16 +73,14 @@ function exactJson(text: string): unknown {
   const parsed = value(); assert.equal(index, tokens.length); return parsed;
 }
 
-test("shared serialization coverage: 10 supported cases and 5 named validation gaps", () => {
+test("shared serialization coverage: all 15 cases", () => {
   assert.equal(cases.length, 15);
-  assert.equal(cases.filter(row => row.id in gaps).length, 5);
-  for (const id of Object.keys(gaps)) assert.ok(cases.some(row => row.id === id));
 });
 
-for (const row of cases) test(`serialization conformance: ${row.id}`, { skip: gaps[row.id] ?? false }, () => {
+for (const row of cases) test(`serialization conformance: ${row.id}`, () => {
   assert.ok(row.target in schemas, `Unknown corpus target: ${row.target}`);
   const schema = schemas[row.target];
-  const decode = (): unknown => fromWire(schema, JSON.parse(row.wire));
+  const decode = (): unknown => fromWire(schema, parseJson(row.wire));
   if (row.reject) {
     let rejected = false;
     try { decode(); } catch { rejected = true; }
@@ -100,7 +88,7 @@ for (const row of cases) test(`serialization conformance: ${row.id}`, { skip: ga
   }
   const native = decode();
   const expect = row.expectByProfile?.[profile] ?? row.expect!;
-  assert.deepEqual(exactJson(JSON.stringify(toWire(schema, native))), exactJson(expect.json));
+  assert.deepEqual(exactJson(stringifyJson(toWire(schema, native))), exactJson(expect.json));
   for (const [member, wanted] of Object.entries(expect.states ?? {})) {
     const object = native as Record<string, unknown>;
     const state = !(member in object) ? "absent" : object[member] === null ? "null" : "value";

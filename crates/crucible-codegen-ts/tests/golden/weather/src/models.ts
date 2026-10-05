@@ -11,7 +11,7 @@ export type CitySummaries = CitySummary[];
 export interface CitySummary {
   id: CityId;
   name: CityName;
-  population: number;
+  population: bigint;
   updatedAt?: globalThis.Date;
   createdAt?: globalThis.Date;
 }
@@ -25,7 +25,7 @@ export interface CreateCityInput {
   name: CityName;
   location?: Location;
   clientToken?: string;
-  expectedRevision?: number;
+  expectedRevision?: bigint;
 }
 
 export interface CreateCityOutput {

@@ -85,3 +85,89 @@ fn a_shape_named_date_does_not_shadow_timestamps() {
         "{models}"
     );
 }
+
+#[test]
+fn schemas_preserve_ir_nullability_and_exact_long_defaults() {
+    let mut model: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap();
+    model["shapes"]["example.weather#CitySummary"]["members"]["population"]["traits"]["smithy.api#default"] =
+        serde_json::json!(i64::MAX);
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(
+        &service,
+        &Options {
+            package_name: "weather".into(),
+            package_version: "0.0.0".into(),
+            client_name: None,
+            endpoint: None,
+            middleware: vec![],
+            package_json: None,
+        },
+    )
+    .unwrap();
+    let schemas = &files
+        .iter()
+        .find(|f| f.path == "src/schemas.ts")
+        .unwrap()
+        .contents;
+    assert!(schemas.contains("population: parseJson(\"9223372036854775807\")"));
+    let city = schemas
+        .lines()
+        .find(|line| line.starts_with("export const S_CitySummary:"))
+        .unwrap();
+    assert!(city.ends_with("[\"id\", \"name\", \"population\"]);"));
+    let input = schemas
+        .lines()
+        .find(|line| line.starts_with("export const S_CreateCityInput:"))
+        .unwrap();
+    assert!(input.ends_with("[]);"));
+    let models = &files
+        .iter()
+        .find(|f| f.path == "src/models.ts")
+        .unwrap()
+        .contents;
+    assert!(models.contains("population: bigint;"));
+    assert!(models.contains("expectedRevision?: bigint;"));
+}
+
+#[test]
+fn prototype_named_members_defaults_and_errors_are_own_metadata() {
+    let mut model: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap();
+    model["shapes"]["example.weather#CitySummary"]["members"]["__proto__"] = serde_json::json!({
+        "target": "smithy.api#Long", "traits": { "smithy.api#default": 3 }
+    });
+    model["shapes"]["example.weather#Weather"]["rename"] =
+        serde_json::json!({ "example.weather#ConflictError": "__proto__" });
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(
+        &service,
+        &Options {
+            package_name: "weather".into(),
+            package_version: "0.0.0".into(),
+            client_name: None,
+            endpoint: None,
+            middleware: vec![],
+            package_json: None,
+        },
+    )
+    .unwrap();
+    let schemas = &files
+        .iter()
+        .find(|f| f.path == "src/schemas.ts")
+        .unwrap()
+        .contents;
+    assert!(schemas.contains("[\"__proto__\"]: integer(64)"));
+    assert!(schemas.contains("[\"__proto__\"]: parseJson(\"3\")"));
+    assert!(schemas.contains("[\"__proto__\"]: { status: 409"));
+}
