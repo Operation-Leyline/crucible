@@ -15,3 +15,8 @@ kotlin {
         }
     }
 }
+
+// Preserve the consumer assertion and stack location in CI's plain-text log.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    testLogging.exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+}

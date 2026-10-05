@@ -179,6 +179,98 @@ public final class StreamingTest {
     };
   }
 
+  static final class WaiterHttp extends java.net.http.HttpClient {
+    final java.util.concurrent.CompletableFuture<java.net.http.HttpResponse<Object>> sent = new java.util.concurrent.CompletableFuture<>();
+    final CountDownLatch entered = new CountDownLatch(1);
+    volatile HttpRequest request;
+    public java.util.Optional<java.net.CookieHandler> cookieHandler() { return java.util.Optional.empty(); }
+    public java.util.Optional<Duration> connectTimeout() { return java.util.Optional.empty(); }
+    public Redirect followRedirects() { return Redirect.NEVER; }
+    public java.util.Optional<java.net.ProxySelector> proxy() { return java.util.Optional.empty(); }
+    public javax.net.ssl.SSLContext sslContext() {
+      try { return javax.net.ssl.SSLContext.getDefault(); }
+      catch (java.security.NoSuchAlgorithmException failure) { throw new IllegalStateException(failure); }
+    }
+    public javax.net.ssl.SSLParameters sslParameters() { return new javax.net.ssl.SSLParameters(); }
+    public java.util.Optional<java.net.Authenticator> authenticator() { return java.util.Optional.empty(); }
+    public Version version() { return Version.HTTP_1_1; }
+    public java.util.Optional<java.util.concurrent.Executor> executor() { return java.util.Optional.empty(); }
+    public <T> java.net.http.HttpResponse<T> send(HttpRequest request, java.net.http.HttpResponse.BodyHandler<T> handler) { throw new UnsupportedOperationException(); }
+    @SuppressWarnings("unchecked")
+    public <T> java.util.concurrent.CompletableFuture<java.net.http.HttpResponse<T>> sendAsync(HttpRequest request, java.net.http.HttpResponse.BodyHandler<T> handler) {
+      this.request = request; entered.countDown();
+      return (java.util.concurrent.CompletableFuture<java.net.http.HttpResponse<T>>) (java.util.concurrent.CompletableFuture<?>) sent;
+    }
+    public <T> java.util.concurrent.CompletableFuture<java.net.http.HttpResponse<T>> sendAsync(HttpRequest request, java.net.http.HttpResponse.BodyHandler<T> handler, java.net.http.HttpResponse.PushPromiseHandler<T> push) { return sendAsync(request, handler); }
+    java.net.http.HttpResponse<Object> response(Flow.Publisher<List<ByteBuffer>> body) {
+      return new java.net.http.HttpResponse<>() {
+        public int statusCode() { return 200; }
+        public HttpRequest request() { return request; }
+        public java.util.Optional<java.net.http.HttpResponse<Object>> previousResponse() { return java.util.Optional.empty(); }
+        public java.net.http.HttpHeaders headers() { return java.net.http.HttpHeaders.of(Map.of(), (name, value) -> true); }
+        public Object body() { return body; }
+        public java.util.Optional<javax.net.ssl.SSLSession> sslSession() { return java.util.Optional.empty(); }
+        public URI uri() { return request.uri(); }
+        public Version version() { return Version.HTTP_1_1; }
+      };
+    }
+  }
+
+  static void cancelledWaiterResponseOwnership() throws Exception {
+    com.google.gson.JsonObject schema;
+    try (var resource = StreamingTest.class.getResourceAsStream("schema.json")) {
+      schema = new com.google.gson.Gson().fromJson(new String(resource.readAllBytes(), StandardCharsets.UTF_8), com.google.gson.JsonObject.class);
+    }
+    schema.getAsJsonObject("operations").getAsJsonObject("Download").add("waiters", com.google.gson.JsonParser.parseString(
+        "{\"Ready\":{\"minDelay\":0,\"maxDelay\":0,\"acceptors\":[{\"state\":\"success\",\"matcher\":{\"kind\":\"success\",\"expected\":true}}]}}"));
+    var http = new WaiterHttp(); var config = new ClientConfig();
+    config.endpoint = "http://localhost"; config.httpClient = http; config.timeout = Duration.ofSeconds(60);
+    var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes(), schema);
+    var waiter = runtime.waitUntil("Download", "Ready", null, DownloadOutput.class,
+        new WaiterOptions(Duration.ofSeconds(60), Duration.ZERO, Duration.ZERO));
+    check(http.entered.await(5, TimeUnit.SECONDS), "streaming waiter operation started");
+    var activeField = waiter.getClass().getDeclaredField("active"); activeField.setAccessible(true);
+    @SuppressWarnings("unchecked") var active = (AtomicReference<java.util.concurrent.Future<?>>) activeField.get(waiter);
+    java.util.concurrent.CompletableFuture<?> operation = null;
+    long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+    while (System.nanoTime() < until) {
+      var found = active.get();
+      if (found instanceof java.util.concurrent.CompletableFuture<?> future && future.getNumberOfDependents() >= 2) { operation = future; break; }
+      Thread.sleep(1);
+    }
+    check(operation != null, "waiter callback registered on operation");
+    var ready = new CountDownLatch(1); var releaseCompletion = new CountDownLatch(1); var cancelled = new CountDownLatch(1);
+    var owned = new AtomicReference<DownloadOutput>(); var cancellations = new AtomicInteger();
+    // The later synchronous dependent runs first, holding the completed operation
+    // before the waiter's asynchronous dependent can observe its response.
+    operation.whenComplete((value, error) -> {
+      check(error == null, "streaming waiter operation succeeded");
+      owned.set((DownloadOutput) value); ready.countDown();
+      try { check(releaseCompletion.await(5, TimeUnit.SECONDS), "operation completion released"); }
+      catch (InterruptedException interrupted) { throw new RuntimeException(interrupted); }
+    });
+    Flow.Publisher<List<ByteBuffer>> body = subscriber -> subscriber.onSubscribe(new Flow.Subscription() {
+      public void request(long count) {}
+      public void cancel() { cancellations.incrementAndGet(); cancelled.countDown(); }
+    });
+    var completion = new Thread(() -> http.sent.complete(http.response(body)));
+    completion.start();
+    try {
+      check(ready.await(5, TimeUnit.SECONDS), "completed streaming response held before waiter callback");
+      check(operation.isDone() && owned.get().body() != null, "completed operation owns unread response");
+      check(waiter.cancel(true) && !operation.cancel(true), "waiter cancelled after operation completed");
+      releaseCompletion.countDown();
+      check(cancelled.await(5, TimeUnit.SECONDS), "cancelled waiter callback releases its late response");
+      owned.get().body().close();
+      check(cancellations.get() == 1, "late waiter response released exactly once");
+    } finally {
+      releaseCompletion.countDown(); waiter.cancel(true);
+      completion.join(5000);
+      if (owned.get() != null) owned.get().body().close();
+    }
+    check(!completion.isAlive(), "controlled operation completion finished");
+  }
+
   public static final class MalformedInput {
     public ByteStream body;
   }
@@ -343,6 +435,7 @@ public final class StreamingTest {
 
   public static void main(String[] args) throws Exception {
     checksumCompletionRace();
+    cancelledWaiterResponseOwnership();
     unreadInputOwnership();
     var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.setExecutor(Executors.newCachedThreadPool());

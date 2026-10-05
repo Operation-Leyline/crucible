@@ -131,7 +131,8 @@ class ClientTest {
             val providerCancellation=kotlinx.coroutines.CancellationException("provider cancelled")
             WeatherClient(config.copy(token={ throw providerCancellation },middleware=emptyList())).use { client ->
                 val error=assertFailsWith<kotlinx.coroutines.CancellationException> { client.getCity { cityId="cancelled" } }
-                assertTrue(error === providerCancellation)
+                assertEquals(providerCancellation.message,error.message)
+                assertTrue(generateSequence<Throwable>(error) { it.cause }.any { it === providerCancellation })
             }
             assertEquals(0,requests)
         } finally { http.close() }
