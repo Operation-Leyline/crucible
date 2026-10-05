@@ -30,6 +30,7 @@ fn weather_client_matches_golden_files() {
             "src/endpoints.ts",
             "src/waiters.ts",
             "src/credentials.ts",
+            "src/checksums.ts",
         ]
         .contains(&file.path.as_str())
         {
@@ -326,4 +327,94 @@ fn packaged_provenance_tracks_the_shared_wire_schema() {
         files.iter().find(|f| f.path == "crucible.json"),
         updated.iter().find(|f| f.path == "crucible.json")
     );
+}
+
+fn options(name: &str) -> Options {
+    Options {
+        package_name: name.into(),
+        package_version: "0.0.0".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+    }
+}
+
+fn file<'a>(files: &'a [crucible_codegen_ts::File], path: &str) -> &'a str {
+    &files.iter().find(|f| f.path == path).unwrap().contents
+}
+
+/// A model may name its shapes after the globals generated code uses
+/// (`Record`, `Partial`, `Uint8Array`, `Object`): the code reaches every
+/// global through `globalThis` instead. `tools/test-ts.sh` compiles the result.
+#[test]
+fn shapes_named_after_globals_do_not_shadow_them() {
+    let service = Model::from_json(include_str!("fixtures/globals.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(&service, &options("globals")).unwrap();
+    let models = file(&files, "src/models.ts");
+    assert!(models.contains("export interface Record {"), "{models}");
+    assert!(models.contains("export type Map = globalThis.Record<string, Record>;"));
+    assert!(
+        models.contains(
+            "export type ColorMap = globalThis.Partial<globalThis.Record<Color, Partial>>;"
+        )
+    );
+    assert!(models.contains("bytes?: globalThis.Uint8Array;"));
+    assert!(models.contains("buffer?: Uint8Array;"));
+    let errors = file(&files, "src/errors.ts");
+    assert!(errors.contains("export class Object extends ServiceError"));
+    assert!(errors.contains("fields: globalThis.Record<string, unknown>"));
+    assert!(errors.contains(
+        "if (globalThis.Object.hasOwn(fields, \"data\")) globalThis.Object.defineProperty("
+    ));
+    assert!(!errors.contains(" Object.") && !errors.contains("(Object."));
+}
+
+/// `globalThis` itself, the generated namespaces and reserved words cannot
+/// be declared; each is a diagnostic rather than a client that fails to compile.
+#[test]
+fn reserved_names_are_diagnostics() {
+    for name in ["globalThis", "m", "class"] {
+        let mut model: serde_json::Value = serde_json::from_str(include_str!(
+            "../../crucible-smithy/tests/fixtures/weather.json"
+        ))
+        .unwrap();
+        model["shapes"]["example.weather#Weather"]["rename"] =
+            serde_json::json!({ "example.weather#CitySummary": name });
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        let diagnostics = emit(&service, &options("weather")).unwrap_err().to_string();
+        assert!(
+            diagnostics.contains(&format!("`{name}` is reserved")),
+            "{diagnostics}"
+        );
+    }
+}
+
+#[test]
+fn checksum_operations_carry_their_lowered_description() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/checksums.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
+    .unwrap();
+    let files = emit(&service, &options("checksums")).unwrap();
+    let schemas = file(&files, "src/schemas.ts");
+    assert!(
+        schemas.contains("  checksum: {\"kind\":\"md5\"},\n"),
+        "{schemas}"
+    );
+    assert!(schemas.contains("  checksum: {\"kind\":\"awsFlexible\",\"requestRequired\":true,\"requestAlgorithms\":[],\"responseAlgorithms\":[]},\n"));
+    assert!(schemas.contains("\"requestAlgorithmMember\":\"algorithm\""));
+    assert!(schemas.contains("\"validationModeMember\":\"validation\""));
+    assert!(files.iter().any(|f| f.path == "src/checksums.ts"));
+    let index = file(&files, "src/index.ts");
+    assert!(index.contains("export { ChecksumError } from \"./checksums.js\";"));
+    assert!(index.contains("export type { ChecksumPolicy } from \"./checksums.js\";"));
 }

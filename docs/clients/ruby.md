@@ -109,6 +109,89 @@ scope's deadline/cancellation and the body-read decision. Modeled errors
 inherit `ServiceError`; metadata retains wire status, error name, request ID,
 headers, and retry traits even when modeled members cannot be decoded.
 
+## Protocols
+
+Besides Crucible JSON, generated clients speak AWS `restJson1`, `awsJson1_0`
+and `awsJson1_1`, chosen at generation time with
+`--protocol aws.protocols#...`. The RPC variants POST an object (`{}` when the
+input is empty) to `/` with `X-Amz-Target: Service.Operation` and
+`application/x-amz-json-1.x`. `restJson1` applies the binding timestamp
+formats: HTTP dates in headers (lists of them are unquoted) and date-time in
+query strings and labels. Under the AWS protocols a structure member's `null`
+is treated as absent (documents keep `null`), non-finite floats travel as
+`"NaN"`/`"Infinity"`/`"-Infinity"`, a union's `__type` is ignored, and errors
+are named by `X-Amzn-ErrorType`, `code`, or `__type` with any namespace or `:`
+suffix removed. `X-Amzn-RequestId` becomes `metadata.request_id`.
+
+## Waiters
+
+Each modeled waiter becomes `wait_until_<name>(input, timeout:, min_delay:
+nil, max_delay: nil, cancellation: nil)`, returning the output that satisfied
+a success acceptor (`nil` when an error-type acceptor succeeds):
+
+```ruby
+job = client.wait_until_ready(Jobs::Input.new(names: ['a']), timeout: 300)
+```
+
+Acceptors run the compiled JMESPath from the IR over member names, with
+exact rational numbers and epoch-second timestamps. Delays follow Smithy's
+jittered exponential backoff between the modeled minimum and maximum; the last
+delay is clipped to the deadline, and each attempt gets the smaller of the
+client timeout and the time left. A failure acceptor or an unmatched error
+raises `Runtime::WaiterError` (`attempts`, `response`, `error`, and the
+acceptor message as `reason`); the deadline raises `WaiterTimeoutError`.
+`CancellationToken` interrupts both requests and delays.
+
+## Endpoints and checksums
+
+When the model has endpoint rules, the client resolves every call from them,
+so `endpoint` becomes optional. Parameters come from the IR's sources in
+order: input members and paths, `ClientConfig.new(endpoint_parameters: {})`,
+built-ins (`AWS::Region` from `region`, `SDK::Endpoint` from `endpoint`,
+overridable with `endpoint_builtins:`), and defaults. Resolved headers are
+sent, and an `authSchemes` property narrows the modeled schemes and supplies
+the SigV4 signing name and region. Error rules raise `Runtime::EndpointError`.
+`@endpoint` host prefixes validate each label before dispatch;
+`disable_host_prefix: true` turns them off.
+
+`@httpChecksumRequired` sends `Content-MD5`; `aws.protocols#httpChecksum`
+supports CRC32, CRC32C, CRC64NVME (pure Ruby), MD5, SHA1, SHA256 and SHA512.
+With the default `request_checksum_calculation: 'when_supported'` an unset
+algorithm member becomes CRC32 and an unset validation mode `ENABLED`, in a
+copy of the input. Checksums cover the bytes after middleware, and a
+caller-supplied checksum header is never replaced. Successful responses with
+a modeled checksum header are verified (`Runtime::ChecksumError` on
+mismatch) and reported to `checksum_validated: ->(operation, algorithm)`;
+`'when_required'` opts out of either default.
+
+## Streaming blobs
+
+A `@streaming` blob input accepts a binary `String`, any IO responding to
+`read`, or `Runtime::ByteStream.new(length: n) { fresh_io }`. Strings,
+seekable IOs (replayed from their starting position) and factories are
+retried like any other body; any other IO is one-shot and gets exactly one
+attempt. A known length is sent as `Content-Length`, otherwise the body is
+chunked; `@requiresLength` and `@length` bounds are checked before dispatch
+and while the bytes flow. Checksums and `--content-sha256` read a replayable
+stream once in chunks before sending it; for a one-shot stream, supply the
+header yourself or opt out. SigV4 signs streams as `UNSIGNED-PAYLOAD`.
+
+A streamed response is never buffered when the call has a block or a target:
+
+```ruby
+client.download { |chunk| file.write(chunk) }          # body is an empty IO
+client.download(response_target: File.open('out', 'wb')) # body is the target
+```
+
+Without either, the body is buffered into a `StringIO`. Chunks reach the
+caller on the calling thread through a bounded queue, so a slow consumer
+applies backpressure; the deadline and cancellation are checked between
+chunks. Response checksums are computed incrementally and checked at the end.
+A failure after bytes reached the caller is not retried. An injected
+transport that serves streamed responses accepts `sink:` and calls it with
+each chunk of a successful body, and reads a `Runtime::StreamBody` request
+body with `read`.
+
 ## Qualification
 
 Generation diagnoses invalid package/module names, core-class module
@@ -116,6 +199,11 @@ collisions, and model/member/operation name collisions. Recursive models and
 collections are supported through runtime descriptions.
 `python tools/test-ruby.py` checks shared fixtures, native weather-service
 HTTP, interruptions and proxy handling, gem installation into a separate
-consumer, and empty and renamed models. Set `RUBY` to select the executable.
+consumer, and empty and renamed models. It also runs native suites for
+waiters (every acceptor kind, the JMESPath functions, jitter, deadlines and
+cancellation), endpoint rules and host prefixes, the published checksum
+vectors and policies, the three AWS JSON protocols, and streaming blobs
+(replay rules, length rules, cancellation, and 256 MiB each way over loopback
+HTTP with bounded peak memory). Set `RUBY` to select the executable.
 These checks do not establish published-gem or authenticated deployed-Leyline
 compatibility.

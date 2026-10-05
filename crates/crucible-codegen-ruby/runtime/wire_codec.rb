@@ -5,9 +5,13 @@ module CrucibleGenerated
   module Runtime
     class WireCodec
       attr_reader :schema
+      NON_FINITE = {'NaN' => ::Float::NAN, 'Infinity' => ::Float::INFINITY, '-Infinity' => -::Float::INFINITY}.freeze
       def initialize(schema, models)
         @schema, @models = schema, models
+        @settings = schema.fetch('protocolSettings', {})
       end
+      # JSON protocols that treat a structure member's null as absent; documents keep their null.
+      def omit_null?(member) = @settings['omitNullStructureMembers'] == true && shape(member.fetch('target')).fetch('kind') != 'document'
       def shape(target) = @schema.fetch('shapes').fetch(target)
       def context(target) = WireContext.new(self, target)
       def document(target, value, encode:)
@@ -98,11 +102,14 @@ module CrucibleGenerated
           raise ::ArgumentError, 'Decimal outside representable range' unless decimal.finite?
           decimal
         when 'float', 'double'
+          return NON_FINITE.fetch(value) if @settings['nonFiniteFloatStrings'] && NON_FINITE.key?(value)
           result = number(value).floating
           result = [result].pack('f').unpack1('f') if kind == 'float'
           raise ::ArgumentError, 'Float out of range' unless result.finite?
           result
         when 'blob'
+          # A streamed response body is already the caller's IO.
+          return value if shape['streaming'] && !value.is_a?(::String)
           text = self.class.string(value)
           result = ::Base64.strict_decode64(text)
           raise ::ArgumentError, 'Expected padded standard base64' unless ::Base64.strict_encode64(result) == text
@@ -121,7 +128,12 @@ module CrucibleGenerated
           child, key = context.child(shape.fetch('value')), context.child(shape.fetch('key'))
           raise ::ArgumentError, 'Null in dense map' if !shape['sparse'] && self.class.object(value).values.any?(&:nil?)
           self.class.object(value).to_h { |name, item| [decode(name, key), item.nil? && shape['sparse'] ? nil : decode(item, child)] }
-        else @models.fetch(context.target).from_wire(value, context)
+        else
+          if kind == 'union' && @settings['ignoreUnknownUnionType'] && value.is_a?(::Hash) && !shape.fetch('members').key?('__type')
+            # AWS JSON may add a type discriminator beside the single union member.
+            value = value.reject { |key, _| key == '__type' }
+          end
+          @models.fetch(context.target).from_wire(value, context)
         end
       end
       def encode(value, context)
@@ -145,6 +157,7 @@ module CrucibleGenerated
           else value.date_time
           end
         when 'blob'
+          return ByteStream.from(value) if shape['streaming']
           raise ::ArgumentError, 'Expected binary String' unless value.is_a?(::String)
           ::Base64.strict_encode64(value)
         when 'list'
@@ -164,6 +177,11 @@ module CrucibleGenerated
           value
         when 'byte', 'short', 'integer', 'long'
           raise ::ArgumentError, 'Expected Integer' unless value.is_a?(::Integer)
+          decode(value, context)
+        when 'float', 'double'
+          if @settings['nonFiniteFloatStrings'] && value.is_a?(::Float) && !value.finite?
+            return value.nan? ? 'NaN' : (value.positive? ? 'Infinity' : '-Infinity')
+          end
           decode(value, context)
         else decode(value, context)
         end

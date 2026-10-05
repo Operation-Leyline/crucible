@@ -34,7 +34,7 @@ export interface CreateCityOutput {
 
 export type DateTime = globalThis.Date;
 
-export type Forecast = Partial<Record<Sky, Document>>;
+export type Forecast = globalThis.Partial<globalThis.Record<Sky, Document>>;
 
 export interface GetCityInput {
   cityId: CityId;
@@ -75,7 +75,7 @@ export type Location =
 /**
  * A photo, carried unparsed.
  */
-export type Photo = Uint8Array;
+export type Photo = globalThis.Uint8Array;
 
 export interface PhotoSummary {
   size: number;
@@ -110,7 +110,7 @@ export type Tags = string[];
 /**
  * The photo's first bytes: base64 in JSON.
  */
-export type Thumbnail = Uint8Array;
+export type Thumbnail = globalThis.Uint8Array;
 
 export interface ValidationField {
   path: string;

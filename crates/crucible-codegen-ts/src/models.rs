@@ -32,7 +32,7 @@ pub(crate) fn emit(service: &Service) -> String {
                     SimpleKind::Timestamp => "globalThis.Date",
                     SimpleKind::Document => "Document",
                     SimpleKind::Blob if simple.streaming => "ByteStream",
-                    SimpleKind::Blob => "Uint8Array",
+                    SimpleKind::Blob => "globalThis.Uint8Array",
                     _ => "number",
                 };
                 out.push_str(&format!("export type {name} = {ts};\n"));
@@ -74,10 +74,10 @@ pub(crate) fn emit(service: &Service) -> String {
                 };
                 let record = match service.shape(&map.key.target) {
                     Some(Shape::Enum(_)) => format!(
-                        "Partial<Record<{}, {value}>>",
+                        "globalThis.Partial<globalThis.Record<{}, {value}>>",
                         ts_type(service, &map.key.target, "")
                     ),
-                    _ => format!("Record<string, {value}>"),
+                    _ => format!("globalThis.Record<string, {value}>"),
                 };
                 out.push_str(&format!("export type {name} = {record};\n"));
             }

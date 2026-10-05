@@ -13,7 +13,8 @@ module CrucibleGenerated
         end
         @url, @method = url.dup.freeze, method.dup.freeze
         @headers = headers.to_h { |key, value| [key.downcase.freeze, value.dup.freeze] }.freeze
-        @body = body&.dup&.b&.freeze
+        # Streaming bodies stay by reference: the transport reads them as bytes flow.
+        @body = body.is_a?(ByteStream) || body.is_a?(StreamBody) ? body : body&.dup&.b&.freeze
         freeze
       end
       def with(headers: @headers, body: @body, url: @url, method: @method)

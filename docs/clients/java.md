@@ -36,7 +36,8 @@ REST JSON applies the lowered HTTP bindings and timestamp formats. AWS JSON
 omits null ordinary structure members, retains explicit document nulls, and
 supports the protocol's string representations of nonfinite floating-point values.
 
-Buffered payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`.
+Buffered payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`;
+streaming payloads follow the rules under Streaming blobs.
 The supported algorithms are CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and
 SHA512. Selecting an unsupported XXHASH algorithm raises an error before sending.
 Required legacy checksums use `Content-MD5`; flexible requests default to CRC32
@@ -131,6 +132,70 @@ while (pages.hasNext()) {
 }
 ```
 
+## Streaming blobs
+
+A `@streaming` blob is an `example.weather.ByteStream`, sent or received as the
+whole HTTP body without buffering it. Requests choose a source:
+
+| Source | Replay | Length |
+|---|---|---|
+| `ByteStream.fromBytes(bytes)`, `fromString(text)` | replayable | known |
+| `ByteStream.fromFile(path)` | replayable, reopened per attempt | file size |
+| `ByteStream.fromInputStreamSupplier(factory[, length])` | replayable, one factory call per attempt | optional |
+| `ByteStream.fromInputStream(input[, length])` | one-shot | optional |
+| `ByteStream.fromPublisher(publisher[, length])` (`Flow.Publisher<ByteBuffer>`) | one-shot | optional |
+
+A replay factory must return the same bytes every time. A one-shot body is
+opened once, so its operation is never retried, and passing it to a second call
+raises `IllegalStateException`. The client closes every `InputStream` it opens,
+including one-shot inputs, at the end of the body, on failure, or on cancellation.
+A known length is sent as `Content-Length` and the stream must produce exactly
+that many bytes; otherwise the body is chunked. `@requiresLength` rejects a
+stream without a length before sending, and modeled `@length` bounds are checked
+as bytes flow. A stream that fails or breaks its declared length raises its own
+error, never a retried `NetworkError`. For `PutObject` and `GetObject` operations
+with a streaming `body`:
+
+```java
+client.putObject(b -> b.key("photo.jpg").body(ByteStream.fromFile(path)));
+client.putObject(b -> b.key("log").body(ByteStream.fromInputStream(socketInput)));
+
+var object = client.getObject(b -> b.key("photo.jpg"));
+try (InputStream in = object.body().inputStream()) {
+    in.transferTo(Files.newOutputStream(target));
+}
+```
+
+A streaming response is returned as soon as its headers are decoded; the body is
+then read once through `inputStream()`, `publisher()`, `transferTo(output)`, or
+`readAllBytes()`. The runtime pulls one received chunk at a time, only when the
+reader needs it; `publisher()` requests chunks only as the subscriber signals demand, so
+asynchronous clients get backpressure too (`client.getObjectAsync(...)` completes
+at the headers in the same way). The configured `timeout` remains in force while
+the body is read: an expired deadline fails the read with `HttpTimeoutException`.
+Close the returned stream, or call `close()` on an unread `ByteStream`, to cancel
+the body and release its connection; closing from another thread, or interrupting
+a blocked reader, ends a pending read with an `IOException`. Cancelling the
+future of an asynchronous call stops an upload in progress; once the future has
+completed, cancel the body by closing it. A waiter closes the streams of every
+response it does not return.
+
+Streams are never buffered to compute a digest. With `--content-sha256` or
+SigV4 signing, declare the hex SHA-256 with `withSha256(hex)`; without it the call
+fails before the stream is opened. SigV4 signs an operation modeled with an
+unsigned payload as `UNSIGNED-PAYLOAD` instead. A streaming request receives no automatic checksum: a required
+or explicitly selected algorithm needs its header supplied by the caller (for
+example the modeled `x-amz-checksum-crc32` member). A streaming response checksum
+is verified incrementally; a mismatch fails the final read with `ChecksumMismatch`
+as its cause, and `checksumValidated` runs only after the last byte verified.
+Middleware sees a streaming body as `request.stream`, with a null `body`.
+
+The native suite exercises one-shot and replayed uploads, files, publishers,
+`requiresLength`, 256 MiB uploads and downloads under a 64 MiB heap, demand,
+deadlines after return, cancellation and connection release, checksums, and
+declared digests against a loopback HTTP server. Event streams are not
+supported.
+
 ## Asynchronous pagination
 
 Every paginator also exposes a cold `Flow.Publisher<Output>` through
@@ -199,7 +264,7 @@ model's wire names.
 HTTP-date has second precision. Modeled integer widths are checked on decode,
 including exact signed 64-bit values. Documents use Gson's `JsonElement` and
 preserve JSON numbers. Missing modeled defaults are applied; explicit null is
-kept distinct. Blobs are `byte[]`: standard, padded base64 in JSON, and the bytes
+kept distinct. Blobs are `byte[]` (streaming blobs are `ByteStream`; see above): standard, padded base64 in JSON, and the bytes
 themselves, under the blob's media type, as an `@httpPayload`; a payload
 response is the body as received, an empty body empty bytes.
 
@@ -236,8 +301,9 @@ remain available for applications managing pagination themselves.
 
 Run `python tools/test-java.py` with Maven, a JDK, and Rust available. Set
 `MAVEN` to an executable path if necessary. The harness builds the jar and
-tests it through a separate consumer, shared retry/header cases, and the
-weather service over HTTP. Generate and package the current full Leyline
+tests it through a separate consumer, shared retry/header cases, the
+weather service over HTTP, and generated feature packages (payloads, streaming,
+authentication, waiters, endpoints, checksums, and the AWS JSON protocols). Generate and package the current full Leyline
 projection separately, recording its model fingerprint and operation coverage.
 Published Maven artifacts and authenticated deployed Leyline traffic are
 separate qualification steps.

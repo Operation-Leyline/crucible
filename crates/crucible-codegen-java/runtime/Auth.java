@@ -70,6 +70,11 @@ final class Auth {
   }
   private static String escape(String text) { return java.net.URLEncoder.encode(text,StandardCharsets.UTF_8).replace("+","%20").replace("*","%2A").replace("%7E","~"); }
   private static String decode(String text) { return java.net.URLDecoder.decode(text.replace("+","%2B"),StandardCharsets.UTF_8); }
+  // A stream is signed with its declared digest; it is never buffered to compute one.
+  private static String streamDigest(ClientConfig.Request request) {
+    return request.headers.entrySet().stream().filter(entry -> entry.getKey().equalsIgnoreCase("x-amz-content-sha256")).map(java.util.Map.Entry::getValue).findFirst()
+        .orElseThrow(() -> new IllegalArgumentException("SigV4 streaming payload requires a precomputed ByteStream sha256"));
+  }
   private static String hash(byte[] bytes) throws GeneralSecurityException { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)); }
   private static byte[] hmac(byte[] key,String value) throws GeneralSecurityException {
     var mac=Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(key,"HmacSHA256")); return mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
@@ -86,7 +91,7 @@ final class Auth {
       set(request,"x-amz-date",timestamp);
       request.headers.keySet().removeIf(key -> key.equalsIgnoreCase("authorization") || key.equalsIgnoreCase("x-amz-security-token"));
       if (credentials.sessionToken()!=null) set(request,"x-amz-security-token",credentials.sessionToken());
-      String digest=unsigned ? "UNSIGNED-PAYLOAD" : hash(request.body==null ? new byte[0] : request.body);
+      String digest=unsigned ? "UNSIGNED-PAYLOAD" : request.stream!=null ? streamDigest(request) : hash(request.body==null ? new byte[0] : request.body);
       set(request,"x-amz-content-sha256",digest);
       String path=request.uri.getRawPath(); if (path==null || path.isEmpty()) path="/";
       if (!(disableNormalizePath==null ? service.equals("s3") : disableNormalizePath)) {

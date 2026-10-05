@@ -59,7 +59,7 @@ final class ClientRuntime {
           .create();
   private static final ScheduledThreadPoolExecutor TIMER = timer();
   // User hooks and completion callbacks may block, so keep them off the timer and common pool.
-  private static final ExecutorService WORKERS =
+  static final ExecutorService WORKERS =
       Executors.newCachedThreadPool(
           task -> {
             var thread = new Thread(task, "crucible-client-worker");
@@ -239,6 +239,11 @@ final class ClientRuntime {
       case "intEnum":
         return new JsonPrimitive(Integer.parseInt(value.toString()));
       case "blob":
+        // A stream travels beside the JSON values, as the payload itself.
+        if (flag(shape, "streaming")) {
+          if (!(value instanceof ByteStream)) throw new IllegalArgumentException("a streaming blob is a ByteStream");
+          return JsonNull.INSTANCE;
+        }
         // Standard, padded base64 in JSON; a payload decodes it back to the bytes.
         if (!(value instanceof byte[] bytes))
           throw new IllegalArgumentException("a blob is a byte[]");
@@ -410,6 +415,8 @@ final class ClientRuntime {
             }
             for (var entry : members.entrySet()) {
               var member = entry.getValue().getAsJsonObject();
+              // A response stream is attached after decoding, from the body itself.
+              if (flag(shape(text(member, "target")), "streaming")) continue;
               JsonElement item = object.get(wireName(target, entry.getKey()));
               if(item!=null && item.isJsonNull() && policy("omitNullStructureMembers") && "structure".equals(kind) && !"document".equals(text(shape(text(member,"target")),"kind"))) item=null;
               if (item == null && !member.get("default").isJsonNull()) item = member.get("default");
@@ -572,13 +579,37 @@ final class ClientRuntime {
   }
 
   private record Prepared(
-      JsonObject operation, URI uri, Map<String, String> headers, byte[] body, Checksums.Plan checksum) {}
+      JsonObject operation, URI uri, Map<String, String> headers, byte[] body, Checksums.Plan checksum,
+      ByteStream stream) {}
 
-  private Prepared prepare(String name, JsonObject originalValues) {
+  /** The streaming payload of {@code input}, which encoding leaves out of the JSON values. */
+  private ByteStream requestStream(JsonObject op, Object input) {
+    JsonObject request = op.getAsJsonObject("request");
+    String member = payloadMember(request);
+    if (input == null || member == null || !flag(request, "streaming")) return null;
+    Object value = memberValue(input, shape(text(op, "input")).getAsJsonObject("members").getAsJsonObject(member));
+    return (ByteStream) value;
+  }
+
+  private static Object memberValue(Object model, JsonObject member) {
+    try {
+      Object value = model.getClass().getField(text(member, "attribute")).get(model);
+      return value instanceof OptionalValue<?> optional ? (optional.present() ? optional.value() : null) : value;
+    } catch (ReflectiveOperationException error) {
+      throw new IllegalStateException(error);
+    }
+  }
+
+  private static Long lengthBound(JsonObject member, String key) {
+    JsonObject length = member.getAsJsonObject("length");
+    return length == null || !length.has(key) || length.get(key).isJsonNull() ? null : length.get(key).getAsLong();
+  }
+
+  private Prepared prepare(String name, JsonObject originalValues, ByteStream stream) {
     JsonObject values=originalValues.deepCopy();
     JsonObject op = schema.getAsJsonObject("operations").getAsJsonObject(name),
         request = op.getAsJsonObject("request");
-    var checksum=Checksums.prepare(name,op,values,config);
+    var checksum=Checksums.prepare(name,op,values,config,stream!=null);
     var wireInput=new JsonObject(); for(var entry:values.entrySet()) wireInput.add(wireName(text(op,"input"),entry.getKey()),entry.getValue());
     var queryInput=queryValue(text(op,"input"),wireInput,null);
     JsonObject resolved;
@@ -645,7 +676,8 @@ final class ClientRuntime {
       for (var item : request.getAsJsonArray("prefixHeaders")) {
         var pair = item.getAsJsonArray(); var value = values.get(pair.get(0).getAsString());
         if (value == null || value.isJsonNull()) continue;
-        for (var entry : headerEncoding(request, pair.get(0).getAsString(), value, true).getAsJsonObject().entrySet()) {
+        // Each value is media-encoded once, as it becomes a header.
+        for (var entry : value.getAsJsonObject().entrySet()) {
           String header = pair.get(1).getAsString() + entry.getKey();
           if (!reserved.contains(header.toLowerCase(java.util.Locale.ROOT))) headers.put(header, bound(headerEncoding(request, pair.get(0).getAsString(), entry.getValue(), true)));
         }
@@ -682,6 +714,12 @@ final class ClientRuntime {
         }
       }
     }
+    if (stream != null) {
+      if (flag(request, "requiresLength") && stream.length().isEmpty())
+        throw new IllegalArgumentException(name + ": streaming payload requires a known length");
+      headers.put("content-type", payload.getAsJsonArray().get(1).getAsString());
+      stream.sha256().ifPresent(digest -> headers.put("x-amz-content-sha256", digest));
+    }
     String protocol=text(schema,"protocol");
     if("awsJson1_0".equals(protocol) || "awsJson1_1".equals(protocol)) {
       if(body==null) body="{}".getBytes(StandardCharsets.UTF_8);
@@ -689,16 +727,13 @@ final class ClientRuntime {
       headers.put("content-type","awsJson1_0".equals(protocol) ? "application/x-amz-json-1.0" : "application/x-amz-json-1.1");
       String service=text(schema,"service"); headers.put("x-amz-target",service.substring(service.indexOf('#')+1)+"."+name);
     } else if("awsRestJson1".equals(protocol) && payloadMember(request)==null && headers.keySet().stream().noneMatch(key->key.equalsIgnoreCase("content-type"))) headers.put("content-type","application/json");
-    return new Prepared(resolvedOp, URI.create(endpoint + uri), headers, body,checksum);
+    return new Prepared(resolvedOp, URI.create(endpoint + uri), headers, body,checksum,stream);
   }
 
   <T> CompletableFuture<T> call(String name, Object input, Class<T> output) {
     try {
       JsonObject op = schema.getAsJsonObject("operations").getAsJsonObject(name);
-      return callValues(
-          name,
-          inputValues(op, input),
-          output);
+      return callValues(name, inputValues(op, input), requestStream(op, input), output);
     } catch (RuntimeException e) {
       return CompletableFuture.failedFuture(e);
     }
@@ -742,6 +777,7 @@ final class ClientRuntime {
       if (options.timeout()==null || options.timeout().isNegative() || options.timeout().isZero() || minimum.isNegative() || maximum.compareTo(minimum)<0) throw new IllegalArgumentException("Invalid waiter timeout or delay bounds");
       long timeout=options.timeout().toNanos(), low=minimum.toNanos(), high=maximum.toNanos();
       var values=inputValues(op,input);
+      var stream=requestStream(op,input);
       var queryInput=queryValue(text(op,"input"),encode(text(op,"input"),input,null),null);
       var result=new Call<T>();
       class Poll implements Runnable {
@@ -753,7 +789,7 @@ final class ClientRuntime {
           if (result.isDone()) return;
           attempts++;
           try {
-            var request=callValues(operation,values.deepCopy(),output); result.track(request);
+            var request=callValues(operation,values.deepCopy(),stream,output); result.track(request);
             request.whenCompleteAsync((value,failure)->{
               if (result.isDone()) return;
               response=value; error=failure instanceof CompletionException && failure.getCause()!=null ? failure.getCause() : failure;
@@ -789,7 +825,9 @@ final class ClientRuntime {
                     break;
                   }
                 }
-                if ("success".equals(state)) { result.complete(value); return; }
+                if ("success".equals(state)) { if (!result.complete(value)) closeStreams(text(op,"output"),value); return; }
+                // Only the final response belongs to the caller.
+                closeStreams(text(op,"output"),value);
                 if ("failure".equals(state)) { result.completeExceptionally(new WaiterError(name,attempts,value,error,message)); return; }
                 double ceiling=Math.min((double)high,Math.scalb((double)low,Math.min(attempts-1,62)));
                 long delay=low+(long)(ThreadLocalRandom.current().nextDouble()*(ceiling-low));
@@ -811,6 +849,9 @@ final class ClientRuntime {
   private static final class Call<T> extends CompletableFuture<T> {
     final AtomicReference<Future<?>> active = new AtomicReference<>();
     Future<?> retry;
+    // A response stream outlives the call's future and keeps its deadline until it ends.
+    volatile Future<?> deadline;
+    volatile StreamBody stream;
 
     void track(Future<?> task) {
       active.set(task);
@@ -838,31 +879,48 @@ final class ClientRuntime {
     }
   }
 
-  private <T> CompletableFuture<T> callValues(String name, JsonObject values, Class<T> output) {
-    Prepared prepared = prepare(name, values);
+  private void closeStreams(String target, Object value) {
+    if (target == null || value == null) return;
+    for (var member : shape(target).getAsJsonObject("members").entrySet())
+      if (flag(shape(text(member.getValue().getAsJsonObject(), "target")), "streaming")
+          && memberValue(value, member.getValue().getAsJsonObject()) instanceof ByteStream stream) stream.close();
+  }
+
+  private <T> CompletableFuture<T> callValues(String name, JsonObject values, ByteStream stream, Class<T> output) {
+    Prepared prepared = prepare(name, values, stream);
     var result = new Call<T>();
     long start = System.nanoTime();
-    Future<?> deadline =
+    result.deadline =
         TIMER.schedule(
             () ->
                 WORKERS.execute(
-                    () ->
-                        result.completeExceptionally(
-                            new HttpTimeoutException("request deadline exceeded"))),
+                    () -> {
+                      var timeout = new HttpTimeoutException("request deadline exceeded");
+                      if (result.completeExceptionally(timeout)) return;
+                      StreamBody body = result.stream;
+                      if (body != null) body.abort(timeout);
+                    }),
             config.timeout.toNanos(),
             TimeUnit.NANOSECONDS);
     result.whenComplete(
         (value, error) -> {
-          deadline.cancel(false);
+          if (result.stream == null) result.deadline.cancel(false);
           result.stop();
         });
     WORKERS.execute(() -> attempt(prepared, output, result, 1, start));
     return result;
   }
 
+  private int attempts(Prepared prepared) {
+    // A one-shot stream cannot be sent twice.
+    return prepared.stream() != null && !prepared.stream().replayable() ? 1 : config.maxAttempts;
+  }
+
   private <T> void attempt(
       Prepared prepared, Class<T> output, Call<T> result, int attempt, long start) {
     if (result.isDone()) return;
+    ByteStream stream = prepared.stream();
+    StreamBody upload = null;
     try {
       long remaining = config.timeout.toNanos() - (System.nanoTime() - start);
       if (remaining <= 0) throw new HttpTimeoutException("request deadline exceeded");
@@ -872,12 +930,17 @@ final class ClientRuntime {
               prepared.uri(),
               text(prepared.operation(), "method"),
               headers,
-              prepared.body() == null ? null : prepared.body().clone());
+              prepared.body() == null ? null : prepared.body().clone(),
+              stream);
       for (var middleware : config.middleware) middleware.apply(request);
-      if (digest && ((request.body != null && request.body.length > 0)
+      if (digest && stream != null) {
+        // A stream is never buffered to hash it; the caller declares its digest.
+        if (headers.keySet().stream().noneMatch(key -> key.equalsIgnoreCase("x-amz-content-sha256")))
+          throw new IllegalArgumentException("streaming contentSha256 requires a precomputed ByteStream sha256");
+      } else if (digest && ((request.body != null && request.body.length > 0)
           || Set.of("POST", "PUT", "PATCH").contains(request.method)))
         headers.put("x-amz-content-sha256", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(request.body == null ? new byte[0] : request.body)));
-      Checksums.request(prepared.checksum(),headers,request.body);
+      Checksums.request(prepared.checksum(),headers,request.body,stream != null);
       boolean credentials = Auth.apply(config, schema, prepared.operation(), request)
           || headers.keySet().stream().anyMatch(k -> k.equalsIgnoreCase("authorization"));
       String host = request.uri.getHost();
@@ -888,31 +951,62 @@ final class ClientRuntime {
             "refusing credentials over plaintext HTTP outside loopback");
       var builder = HttpRequest.newBuilder(request.uri).timeout(Duration.ofNanos(remaining));
       headers.forEach(builder::setHeader);
-      builder.method(
-          request.method,
-          request.body == null
+      HttpRequest.BodyPublisher body;
+      if (stream != null) {
+        JsonObject member = shape(text(prepared.operation(), "input")).getAsJsonObject("members")
+            .getAsJsonObject(payloadMember(prepared.operation().getAsJsonObject("request")));
+        long length = stream.length().orElse(-1);
+        Long minimum = lengthBound(member, "min");
+        if (length == 0 && minimum != null && minimum > 0)
+          throw new IllegalArgumentException("stream ended before its declared length");
+        if (result.isDone()) return;
+        // Opened per attempt, after every check that could fail, so a one-shot body is not lost.
+        upload = StreamBody.request(stream.open(), length < 0 ? null : length, minimum, lengthBound(member, "max"));
+        if (length == 0) {
+          upload.abort(new CancellationException("empty stream"));
+          body = HttpRequest.BodyPublishers.noBody();
+        } else body = length > 0 ? HttpRequest.BodyPublishers.fromPublisher(upload, length) : HttpRequest.BodyPublishers.fromPublisher(upload);
+      } else body = request.body == null
               ? HttpRequest.BodyPublishers.noBody()
-              : HttpRequest.BodyPublishers.ofByteArray(request.body));
+              : HttpRequest.BodyPublishers.ofByteArray(request.body);
+      builder.method(request.method, body);
       JsonObject bindings = prepared.operation().getAsJsonObject("response");
       boolean hasBody =
           !bindings.getAsJsonArray("body").isEmpty() || payloadMember(bindings) != null || prepared.checksum().validate();
-      if (result.isDone()) return;
-      CompletableFuture<HttpResponse<byte[]>> sent =
+      boolean streamingOutput = flag(bindings, "streaming") && payloadMember(bindings) != null;
+      if (result.isDone()) {
+        if (upload != null) upload.abort(new CancellationException("call cancelled"));
+        return;
+      }
+      StreamBody sending = upload;
+      CompletableFuture<HttpResponse<Object>> sent =
           http.sendAsync(
               builder.build(),
-              info ->
-                  info.statusCode() >= 200 && info.statusCode() < 300 && !hasBody
-                      ? emptyBody()
-                      : HttpResponse.BodySubscribers.ofByteArray());
+              info -> {
+                boolean ok = info.statusCode() >= 200 && info.statusCode() < 300;
+                // A successful streaming response is handed over unread; errors are read whole.
+                if (ok && streamingOutput)
+                  return HttpResponse.BodySubscribers.mapping(HttpResponse.BodySubscribers.ofPublisher(), value -> (Object) value);
+                return HttpResponse.BodySubscribers.mapping(
+                    ok && !hasBody ? emptyBody() : HttpResponse.BodySubscribers.ofByteArray(), value -> (Object) value);
+              });
       result.track(sent);
       sent.whenComplete(
           (response, error) -> {
-            if (result.isDone()) return;
+            if (result.isDone()) {
+              if (response != null && response.body() instanceof Flow.Publisher<?> unread) discard(unread);
+              return;
+            }
             Throwable failure = unwrap(error);
             if (failure == null) {
               try {
-                if(response.statusCode()>=200 && response.statusCode()<300) Checksums.validate(prepared.checksum(),response.headers(),response.body(),config);
-                JsonObject decoded = response(prepared.operation(), response);
+                if (response.body() instanceof Flow.Publisher<?> received) {
+                  streamed(prepared, output, result, response, received);
+                  return;
+                }
+                byte[] bytes = (byte[]) response.body();
+                if(response.statusCode()>=200 && response.statusCode()<300) Checksums.validate(prepared.checksum(),response.headers(),bytes,config);
+                JsonObject decoded = response(prepared.operation(), response, bytes);
                 result.complete(
                     output.cast(decode(text(prepared.operation(), "output"), decoded, null)));
                 return;
@@ -922,12 +1016,17 @@ final class ClientRuntime {
             }
             boolean safe = flag(prepared.operation(), "safe");
             boolean retry;
-            if (failure instanceof ServiceError modeled) retry = canRetry(safe, modeled);
+            if (sending != null && sending.failure() != null) {
+              // The caller's stream failed or broke its declared length: not a transport fault.
+              Throwable source = sending.failure();
+              failure = source instanceof IOException io ? new java.io.UncheckedIOException("streaming request body failed", io) : source;
+              retry = false;
+            } else if (failure instanceof ServiceError modeled) retry = canRetry(safe, modeled);
             else if (failure instanceof IOException) {
               retry = safe;
               failure = new NetworkError(failure);
             } else retry = false;
-            if (!retry || attempt >= config.maxAttempts) {
+            if (!retry || attempt >= attempts(prepared)) {
               result.completeExceptionally(failure);
               return;
             }
@@ -935,7 +1034,46 @@ final class ClientRuntime {
             result.schedule(() -> attempt(prepared, output, result, attempt + 1, start), delay);
           });
     } catch (Exception e) {
+      if (upload != null) upload.abort(e);
       result.completeExceptionally(e);
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static void discard(Flow.Publisher<?> body) {
+    StreamBody.response((Flow.Publisher<List<java.nio.ByteBuffer>>) body, null, null, null, () -> {})
+        .abort(new CancellationException("call cancelled"));
+  }
+
+  /** Completes a call whose successful response body is a stream the caller reads. */
+  @SuppressWarnings("unchecked")
+  private <T> void streamed(Prepared prepared, Class<T> output, Call<T> result, HttpResponse<?> response, Flow.Publisher<?> received) {
+    JsonObject op = prepared.operation(), bindings = op.getAsJsonObject("response");
+    String target = text(op, "output");
+    JsonObject member = shape(target).getAsJsonObject("members").getAsJsonObject(payloadMember(bindings));
+    StreamBody body;
+    try {
+      body = StreamBody.response((Flow.Publisher<List<java.nio.ByteBuffer>>) received,
+          lengthBound(member, "min"), lengthBound(member, "max"),
+          Checksums.running(prepared.checksum(), response.headers(), config),
+          () -> result.deadline.cancel(false));
+    } catch (RuntimeException invalid) {
+      discard(received);
+      throw invalid;
+    }
+    try {
+      JsonObject values = new JsonObject();
+      applyHeaders(values, target, bindings, response);
+      Object decoded = decode(target, values, null);
+      Field field = decoded.getClass().getField(text(member, "attribute"));
+      var stream = ByteStream.response(body);
+      field.set(decoded, field.getType() == OptionalValue.class ? OptionalValue.of(stream) : stream);
+      result.stream = body;
+      if (!result.complete(output.cast(decoded))) body.abort(new CancellationException("call cancelled"));
+    } catch (RuntimeException | ReflectiveOperationException invalid) {
+      body.abort(invalid);
+      if (invalid instanceof RuntimeException runtime) throw runtime;
+      throw new IllegalStateException(invalid);
     }
   }
 
@@ -996,15 +1134,15 @@ final class ClientRuntime {
     return (long) (ThreadLocalRandom.current().nextDouble() * ceiling);
   }
 
-  private JsonObject response(JsonObject op, HttpResponse<byte[]> response) {
+  private JsonObject response(JsonObject op, HttpResponse<?> response, byte[] bytes) {
     int status = response.statusCode();
     JsonObject values = new JsonObject();
-    String body = new String(response.body(), StandardCharsets.UTF_8);
+    String body = new String(bytes, StandardCharsets.UTF_8);
     if (status >= 200 && status < 300) {
       String payload = payloadMember(op.getAsJsonObject("response"));
       // A payload is the body as received, whatever it holds.
       if (payload != null)
-        values.add(wireName(text(op, "output"), payload), payloadValue(op.getAsJsonObject("response"), response.body()));
+        values.add(wireName(text(op, "output"), payload), payloadValue(op.getAsJsonObject("response"), bytes));
       else if (!body.isEmpty()) values = JSON.fromJson(body, JsonObject.class);
       if (values == null) throw new IllegalArgumentException("response requires object");
       applyHeaders(
@@ -1048,7 +1186,7 @@ final class ClientRuntime {
       try {
         JsonObject typedValues = values.deepCopy();
         String payload = payloadMember(traits);
-        if (payload != null) typedValues.add(wireName(target, payload), payloadValue(traits, response.body()));
+        if (payload != null) typedValues.add(wireName(target, payload), payloadValue(traits, bytes));
         applyHeaders(typedValues, target, traits, response);
         error = (ServiceError) decode(target, typedValues, null);
       } catch (RuntimeException ignored) {
@@ -1071,7 +1209,7 @@ final class ClientRuntime {
         status,
         requestId,
         response.headers(),
-        response.body(),
+        bytes,
         flag(traits, "retryable"),
         flag(traits, "throttling"));
     throw error;
@@ -1155,9 +1293,10 @@ final class ClientRuntime {
   <T> Flow.Publisher<T> pagesAsync(String name, Object input, Class<T> output) {
     JsonObject op = schema.getAsJsonObject("operations").getAsJsonObject(name);
     JsonObject snapshot = inputValues(op, input);
+    ByteStream stream = requestStream(op, input);
     return subscriber -> {
       java.util.Objects.requireNonNull(subscriber, "subscriber");
-      new PageSubscription<T>(subscriber, name, output, op, snapshot.deepCopy()).start();
+      new PageSubscription<T>(subscriber, name, output, op, snapshot.deepCopy(), stream).start();
     };
   }
 
@@ -1167,6 +1306,7 @@ final class ClientRuntime {
     private final String name;
     private final Class<T> output;
     private final JsonObject op, pagination, values;
+    private final ByteStream stream;
     private final Set<String> seen = new HashSet<>();
     private final ConcurrentLinkedQueue<Runnable> events = new ConcurrentLinkedQueue<>();
     private final AtomicInteger scheduled = new AtomicInteger();
@@ -1176,8 +1316,8 @@ final class ClientRuntime {
     private boolean pending, terminal;
 
     PageSubscription(Flow.Subscriber<? super T> subscriber, String name, Class<T> output,
-        JsonObject op, JsonObject values) {
-      this.subscriber = subscriber; this.name = name; this.output = output;
+        JsonObject op, JsonObject values, ByteStream stream) {
+      this.subscriber = subscriber; this.name = name; this.output = output; this.stream = stream;
       this.op = op; this.pagination = op.getAsJsonObject("pagination"); this.values = values;
     }
 
@@ -1230,7 +1370,7 @@ final class ClientRuntime {
       if (pending || terminal || cancelled.get() || demand == 0) return;
       pending = true;
       CompletableFuture<T> call;
-      try { call = callValues(name, values, output); }
+      try { call = callValues(name, values, stream, output); }
       catch (Throwable error) { pending = false; fail(error); return; }
       active.set(call);
       if (cancelled.get()) call.cancel(true);
@@ -1265,6 +1405,7 @@ final class ClientRuntime {
         pagination = op.getAsJsonObject("pagination");
     JsonObject values =
         inputValues(op, input);
+    ByteStream stream = requestStream(op, input);
     String key = text(pagination, "input");
     Set<String> seen = new HashSet<>();
     if (values.has(key) && !values.get(key).isJsonNull()) seen.add(values.get(key).getAsString());
@@ -1277,7 +1418,7 @@ final class ClientRuntime {
 
       public T next() {
         if (done) throw new NoSuchElementException();
-        T page = await(callValues(name, values, output));
+        T page = await(callValues(name, values, stream, output));
         JsonElement token = paginationToken(op, page);
         if (token == null || token.isJsonNull() || token.getAsString().isEmpty()) done = true;
         else {

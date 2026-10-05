@@ -13,26 +13,40 @@ module CrucibleGenerated
           disconnect
         end
       end
-      def send_request(request, read_body:, scope:)
+      # A sink receives a successful body in chunks on the calling thread; a bounded
+      # queue between the network worker and the sink keeps memory flat and applies backpressure.
+      def send_request(request, read_body:, scope:, sink: nil)
         scope.check
         scope.wait(0.01) until @mutex.try_lock
         worker = nil
         begin
           raise ::IOError, 'Transport is closed' if @closed
+          chunks = sink && ::SizedQueue.new(4)
           # Only owned network work runs here. Killing it never interrupts caller hooks.
           worker = ::Thread.new do
             ::Thread.current.report_on_exception = false
             completed = false
             begin
-              response = perform(request, read_body, scope.remaining)
+              response = perform(request, read_body, scope.remaining, chunks)
               completed = true
               response
             ensure
               disconnect unless completed
             end
           end
-          until worker.join([0.025, scope.remaining].min)
-            scope.check
+          loop do
+            finished = worker.join(chunks ? 0 : [0.025, scope.remaining].min)
+            if chunks
+              chunk = chunks.pop(timeout: finished ? 0 : [0.025, scope.remaining].min)
+              scope.check
+              if chunk
+                sink.call(chunk)
+                next
+              end
+            else
+              scope.check
+            end
+            break if finished
           end
           scope.check
           worker.value
@@ -52,7 +66,7 @@ module CrucibleGenerated
       ensure
         @http = @origin = nil
       end
-      def perform(request, read_body, timeout)
+      def perform(request, read_body, timeout, chunks = nil)
         uri = ::URI.parse(request.url)
         origin = [uri.scheme, uri.host, uri.port]
         if @origin != origin
@@ -66,7 +80,11 @@ module CrucibleGenerated
         @http.start unless @http.started?
         headers = request.headers.merge('accept-encoding' => 'identity')
         message = ::Net::HTTPGenericRequest.new(request.method, !request.body.nil?, request.method != 'HEAD', uri.request_uri, headers)
-        message.body = request.body unless request.body.nil?
+        if request.body.is_a?(StreamBody)
+          message.body_stream = request.body
+        elsif !request.body.nil?
+          message.body = request.body
+        end
         discarded = false
         result = catch(:irrelevant_body) do
           decoded = nil
@@ -80,9 +98,13 @@ module CrucibleGenerated
             length = response['content-length']
             raise ::EOFError, 'Invalid Content-Length' if length && !/\A[0-9]+\z/.match?(length)
             expected = length && ::Kernel.Integer(length, 10)
-            body = +''.b
-            response.read_body { |chunk| body << chunk }
-            if request.method != 'HEAD' && status >= 200 && ![204, 304].include?(status) && expected && !response['transfer-encoding'] && body.bytesize != expected
+            body, received = +''.b, 0
+            stream = chunks && (200...300).cover?(status)
+            response.read_body do |chunk|
+              received += chunk.bytesize
+              stream ? chunks.push(chunk.b) : body << chunk
+            end
+            if request.method != 'HEAD' && status >= 200 && ![204, 304].include?(status) && expected && !response['transfer-encoding'] && received != expected
               raise ::EOFError, 'Truncated response body'
             end
             decoded = HttpResponse.new(status, headers: headers, body: body)

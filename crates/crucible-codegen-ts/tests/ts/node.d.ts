@@ -22,3 +22,7 @@ declare module "node:assert/strict" {
   const assert: Assert;
   export default assert;
 }
+
+declare module "node:crypto" {
+  export function createHash(algorithm: string): { update(data: Uint8Array): { digest(): Uint8Array } };
+}

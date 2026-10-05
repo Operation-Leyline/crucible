@@ -143,6 +143,14 @@ status when the name is absent. Unknown names stay generic `ServiceError`s.
 Transport failures use `NetworkError`. Invalid input construction and malformed
 successful JSON fail without retrying.
 
+Shapes may share a name with a JavaScript global such as `Record`, `Partial`,
+`Promise`, `Map`, `Date`, `Uint8Array`, `Error`, or `Object`: generated code
+reaches every global through `globalThis`, so the model's type never shadows it.
+Your own modules that import such a model type should do the same
+(`globalThis.Uint8Array`) or import the model under another name. `globalThis`,
+the generated namespaces `m`, `e`, and `spec`, `errors`, JavaScript reserved
+words, and TypeScript's predefined type names are diagnostics instead.
+
 ## Transport, middleware, and retries
 
 `ClientConfig.fetch` accepts a custom function from `Request` to
@@ -183,7 +191,9 @@ Do not combine an earlier generated digest with a later body mutation.
 ## Qualification
 
 Run `bash tools/test-ts.sh` for generated type checks, fake-fetch runtime tests,
-all 15 shared serialization cases, and shared retry cases. Set `TSC` to use an existing TypeScript compiler.
+all 15 shared serialization cases, shared retry cases, and the shared checksum
+vectors. Set `TSC` to use an existing TypeScript compiler and `CRUCIBLE_BIN` to
+generate with a prebuilt CLI instead of `cargo run`.
 `bash tools/test-e2e.sh` also runs the TypeScript client against the real weather
 service. Browser APIs are used by the runtime, but Node tests alone do not prove
 a particular browser application's CORS, authentication, or deployment setup.
@@ -296,3 +306,51 @@ require a precomputed SHA-256 digest unless the model permits unsigned payloads.
 in browsers without Node filesystem imports. Use `chainCredentials` for ordered
 fallbacks and `cacheCredentials` to coalesce refreshes and refresh before
 expiration. File loading remains an application-supplied async provider.
+
+### HTTP checksums
+
+Operations with `@httpChecksumRequired` send `Content-MD5`. With
+`@aws.protocols#httpChecksum`, the request carries `x-amz-checksum-<algorithm>`
+for the algorithm in the modeled member: CRC32, CRC32C, CRC64NVME, MD5, SHA1,
+SHA256, or SHA512. Choosing another algorithm, such as an `XXHASH*` value, fails
+before dispatch. If the caller chose none, the client selects CRC32, and it sets
+the validation-mode member to `ENABLED`, but only in its private copy of the
+input, never in the caller's object. A required checksum without an algorithm
+member uses MD5.
+
+The checksum covers the final request bytes, after all middleware and before
+SigV4 signing; retries compute it again. A checksum header the caller already
+supplied (via its modeled member, `RequestOptions.headers`, `ClientConfig.headers`,
+or middleware) is sent unchanged. An empty body is still checksummed.
+
+When validation is enabled, the first modeled response algorithm present in the
+response headers is verified against the received bytes. A mismatch throws
+`ChecksumError` (with `algorithm`) and is not retried, because the request may
+already have taken effect. Unmodeled or unsupported response checksums are
+ignored, as are error responses.
+
+```ts
+const client = new ChecksumsClient({
+  endpoint: "https://checksums.example",
+  requestChecksumCalculation: "WHEN_REQUIRED",   // default "WHEN_SUPPORTED"
+  responseChecksumValidation: "WHEN_SUPPORTED",
+  checksumValidated: (operation, algorithm) => metrics.count(operation, algorithm),
+});
+```
+
+Under `WHEN_REQUIRED`, the client sends a checksum only when the model requires
+one or the caller chose an algorithm, and verifies responses only when the
+caller enabled validation. `checksumValidated` runs once for each verified
+response.
+
+Streaming bodies are never buffered for checksums. A streamed upload gets no
+default CRC32. If the model requires a checksum, or the caller chose an
+algorithm, the caller must supply that header's value. Otherwise the call fails
+before dispatch, and the stream is cancelled. A streamed response is hashed as
+it is read. At its end, a mismatch errors the stream with `ChecksumError`
+instead of ending it cleanly, and `checksumValidated` runs only once the body
+has been read in full. All seven algorithms are bundled in TypeScript, because
+Web Crypto offers no CRCs, no MD5, and no incremental digest. One-shot SHA
+digests use `crypto.subtle` when it is available. Browsers additionally need
+the service's CORS policy to allow the `x-amz-checksum-*` and `Content-MD5`
+request headers and to expose the response checksum headers.

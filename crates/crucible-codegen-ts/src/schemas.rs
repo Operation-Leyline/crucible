@@ -380,6 +380,13 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     if op.unsigned_payload {
         fields.push("unsignedPayload: true".to_owned());
     }
+    if let Some(checksum) = &op.checksum {
+        let mut value = serde_json::to_value(checksum).expect("checksum descriptor");
+        if let Some(object) = value.as_object_mut() {
+            object.retain(|_, value| !value.is_null());
+        }
+        fields.push(format!("checksum: {value}"));
+    }
     if let Some(endpoint) = &op.endpoint {
         fields.push(format!(
             "endpoint: parseBehavior({}) as NonNullable<OperationSpec[\"endpoint\"]>",

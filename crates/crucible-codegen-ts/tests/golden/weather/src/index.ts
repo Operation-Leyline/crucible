@@ -3,6 +3,8 @@
 export { credentialsFromEnvironment, credentialsFromProfile, chainCredentials, cacheCredentials } from "./credentials.js";
 export type { AwsCredentials } from "./credentials.js";
 export { WaiterError, WaiterTimeout } from "./waiters.js";
+export { ChecksumError } from "./checksums.js";
+export type { ChecksumPolicy } from "./checksums.js";
 export type { WaiterOptions, WaiterResult } from "./waiters.js";
 export * from "./models.js";
 export * from "./errors.js";

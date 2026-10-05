@@ -10,16 +10,3 @@ dist/
 __pycache__/
 .mypy_cache/
 *.egg-info/
-
-/crates/crucible-codegen-ts/tests/ts/generated-protocol/
-
-/crates/crucible-codegen-ts/tests/ts/generated-protocol-vectors/
-
-/crates/crucible-codegen-ts/tests/ts/generated-streaming/
-
-/crates/crucible-codegen-ts/tests/ts/generated-types/
-
-/crates/crucible-codegen-ts/tests/ts/generated-auth-header/
-/crates/crucible-codegen-ts/tests/ts/generated-auth-query/
-
-/crates/crucible-codegen-ts/tests/ts/generated-endpoints/

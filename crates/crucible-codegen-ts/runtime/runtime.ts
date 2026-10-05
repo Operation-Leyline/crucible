@@ -6,6 +6,7 @@
 import { hostPrefix, parseEndpoint, resolveEndpoint, type EndpointPrefix, type EndpointRules, type ParameterSource } from "./endpoints.js";
 import { waitFor, type WaiterSpec, type WaiterOptions, type WaiterResult } from "./waiters.js";
 import { signSigV4, type AwsCredentials, type SigningScope } from "./credentials.js";
+import { ChecksumError, computeChecksum, planChecksum, responseChecksum, sameChecksum, verifyingStream, type ChecksumPlan, type ChecksumPolicy, type ChecksumSpec } from "./checksums.js";
 type Signing = {credentials: AwsCredentials; scope: SigningScope; streaming: boolean};
 const signingRequests = new WeakMap<Request, Signing>();
 export type { WaiterSpec } from "./waiters.js";
@@ -433,6 +434,8 @@ export interface OperationSpec {
   readonly target?: string;
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
   readonly unsignedPayload?: boolean;
+  /** Request and response checksums (`@httpChecksumRequired`, `@aws.protocols#httpChecksum`). */
+  readonly checksum?: ChecksumSpec;
   readonly name: string;
   /** Effective operation authentication; omitted only by older hand-written specs. */
   readonly bearer?: boolean;
@@ -568,6 +571,12 @@ export interface ClientConfig {
   readonly retry?: RetryConfig | false;
   /** Total call budget, including credentials, middleware, attempts and response bodies. */
   readonly timeoutMs?: number;
+  /** When modeled request checksums are computed. `WHEN_SUPPORTED` (the default) also sends CRC32 when the caller chose no algorithm. */
+  readonly requestChecksumCalculation?: ChecksumPolicy;
+  /** When modeled response checksums are verified. `WHEN_SUPPORTED` (the default) also asks the service for one. */
+  readonly responseChecksumValidation?: ChecksumPolicy;
+  /** Told the operation and algorithm of each verified response checksum; a streamed body is verified when it ends. */
+  readonly checksumValidated?: (operation: string, algorithm: string) => void;
 }
 
 export interface RequestOptions {
@@ -595,6 +604,9 @@ export class Transport {
     const endpoint = config.endpoint ?? defaults.endpoint;
     if (!endpoint && !defaults.endpointRules) throw new TypeError("no endpoint: pass `endpoint` in the client config");
     if (endpoint && !parseEndpoint(endpoint)) throw new TypeError("endpoint must be an absolute HTTP(S) URL without credentials, query, or fragment");
+    for (const policy of [config.requestChecksumCalculation, config.responseChecksumValidation]) {
+      if (policy !== undefined && policy !== "WHEN_SUPPORTED" && policy !== "WHEN_REQUIRED") throw new TypeError("checksum policies must be WHEN_SUPPORTED or WHEN_REQUIRED");
+    }
     this.#config = config;
     this.#endpoint = endpoint?.replace(/\/+$/, "") ?? "";
     this.#endpointRules = defaults.endpointRules;
@@ -657,17 +669,27 @@ export class Transport {
     if (streamMember && stream !== undefined) values[streamMember] = stream;
     const retry = this.#config.retry === false ? { maxAttempts: 1 } : (this.#config.retry ?? {});
     const maxAttempts = stream instanceof ByteStream && !stream.replayable ? 1 : Math.max(1, retry.maxAttempts ?? 3);
+    const streaming = stream instanceof ByteStream;
+    // Fills defaulted checksum members into the private snapshot only.
+    const checksum = planChecksum(operation.checksum, values, this.#config.requestChecksumCalculation ?? "WHEN_SUPPORTED",
+      this.#config.responseChecksumValidation ?? "WHEN_SUPPORTED", streaming);
     for (let attempt = 1; ; attempt++) {
       // Invalid inputs are caller errors, not transport failures.
       options.signal?.throwIfAborted();
       const prepared = this.#request(operation, values, options); let request = prepared.request;
+      if (streaming && checksum.header !== undefined && !request.headers.has(checksum.header)) {
+        // Hashing a stream first would buffer it; the caller supplies the value instead.
+        const error = new TypeError(`${operation.name}: a streamed body cannot be checksummed before it is sent; supply the ${checksum.header} header`);
+        await request.body?.cancel(error).catch(() => {});
+        throw error;
+      }
       try { request = await authenticate(request, operation.auth ?? ((operation.bearer ?? this.#bearer) ? [{ kind: "bearer" }] : []), operation.optionalAuth ?? false, this.#config, prepared.properties, stream instanceof ByteStream, operation.unsignedPayload); }
       catch (error) { await request.body?.cancel(error).catch(() => {}); throw error; }
       let response: Response | undefined;
       let text = "";
       let bytes: Uint8Array | ByteStream | undefined;
       try {
-        response = await this.#dispatch(request, signingRequests.get(request));
+        response = await this.#dispatch(request, signingRequests.get(request), streaming ? undefined : checksum);
         if (options.signal?.aborted) {
           void response.body?.cancel().catch(() => {});
           options.signal.throwIfAborted();
@@ -675,11 +697,14 @@ export class Transport {
         // Fetch resolves at the headers; required bodies can still fail.
         // A successful operation without a modeled body needs only headers;
         // a payload is read as the bytes sent, never as text.
-        if (response.ok && operation.output?.payload !== undefined) {
-          bytes = operation.output.streaming
-            ? new ByteStream(lifetimeStream(response.body ?? new ReadableStream({ start(controller) { controller.close(); } }), options.signal, () => {}, undefined, operation.output.minimum, operation.output.maximum))
-            : await readResponse(response, options.signal);
-        } else if (!response.ok || operation.output?.body) {
+        if (response.ok && operation.output?.payload !== undefined && operation.output.streaming) {
+          let source = response.body ?? new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } });
+          const expected = responseChecksum(checksum, response.headers);
+          if (expected !== undefined) source = verifyingStream(source, expected.algorithm, expected.expected, () => this.#config.checksumValidated?.(operation.name, expected.algorithm));
+          bytes = new ByteStream(lifetimeStream(source, options.signal, () => {}, undefined, operation.output.minimum, operation.output.maximum));
+        } else if (response.ok && operation.output?.payload !== undefined) {
+          bytes = await readResponse(response, options.signal);
+        } else if (!response.ok || operation.output?.body || checksum.response.length > 0) {
           bytes = await readResponse(response, options.signal);text = new TextDecoder().decode(bytes);
         }
       } catch (error) {
@@ -691,6 +716,13 @@ export class Transport {
         continue;
       }
       if (response.ok) {
+        // A streamed body is verified as it is read. A corrupted response is
+        // not retried: the request may have taken effect.
+        const expected = responseChecksum(checksum, response.headers);
+        if (expected !== undefined && !(bytes instanceof ByteStream)) {
+          if (!sameChecksum(expected.expected, await computeChecksum(expected.algorithm, bytes ?? new Uint8Array()))) throw new ChecksumError(expected.algorithm);
+          this.#config.checksumValidated?.(operation.name, expected.algorithm);
+        }
         try { return this.#decodeOutput(operation, response, text, bytes) as O; }
         catch (error) { if (bytes instanceof ByteStream) await bytes.cancel(error); throw error; }
       }
@@ -702,12 +734,20 @@ export class Transport {
     }
   }
 
-  #dispatch(request: Request, signing?: Signing): Promise<Response> {
+  #dispatch(request: Request, signing?: Signing, checksum?: ChecksumPlan): Promise<Response> {
     const send = this.#config.fetch ?? ((request: Request) => fetch(request));
     const signal = request.signal;
     const checked: Next = async pending => {
       signal.throwIfAborted(); pending.signal.throwIfAborted();
-      const final = new Request(pending, { signal: AbortSignal.any([signal, pending.signal]) });
+      // Over the final bytes, after every middleware and before signing; a
+      // checksum the caller already supplied is kept as it is.
+      let headers: Headers | undefined;
+      if (checksum?.header !== undefined && checksum.algorithm !== undefined && !pending.headers.has(checksum.header)) {
+        const bytes = pending.body === null ? new Uint8Array() : new Uint8Array(await pending.clone().arrayBuffer());
+        headers = new Headers(pending.headers);
+        headers.set(checksum.header, await computeChecksum(checksum.algorithm, bytes));
+      }
+      const final = new Request(pending, { signal: AbortSignal.any([signal, pending.signal]), ...(headers ? { headers } : {}) });
       return send(signing ? await signSigV4(final, signing.credentials, signing.scope, signing.streaming) : final);
     };
     const chain = this.#middleware.reduceRight<Next>((next, middleware) => request => {

@@ -2,8 +2,12 @@
 module CrucibleGenerated
   module Runtime
     class ClientConfig
-      attr_reader :endpoint, :token, :transport, :timeout, :max_attempts, :base_delay, :max_delay, :headers, :middleware, :basic_auth, :api_key, :credentials, :region
-      def initialize(endpoint: nil, token: nil, transport: nil, timeout: 30.0, max_attempts: 3, base_delay: 0.1, max_delay: 10.0, headers: {}, middleware: [], basic_auth: nil, api_key: nil, credentials: nil, region: nil)
+      attr_reader :endpoint, :token, :transport, :timeout, :max_attempts, :base_delay, :max_delay, :headers, :middleware, :basic_auth, :api_key, :credentials, :region,
+        :endpoint_parameters, :endpoint_builtins, :disable_host_prefix, :request_checksum_calculation,
+        :response_checksum_validation, :checksum_validated
+      def initialize(endpoint: nil, token: nil, transport: nil, timeout: 30.0, max_attempts: 3, base_delay: 0.1, max_delay: 10.0, headers: {}, middleware: [], basic_auth: nil, api_key: nil, credentials: nil, region: nil,
+                     endpoint_parameters: {}, endpoint_builtins: {}, disable_host_prefix: false,
+                     request_checksum_calculation: 'when_supported', response_checksum_validation: 'when_supported', checksum_validated: nil)
         [timeout, base_delay, max_delay].each do |value|
           raise ::ArgumentError, 'Invalid duration' unless value.is_a?(::Numeric) && value.finite? && value >= 0
         end
@@ -13,6 +17,12 @@ module CrucibleGenerated
         @timeout, @max_attempts, @base_delay, @max_delay = timeout, max_attempts, base_delay, max_delay
         @headers = headers.to_h { |key, value| [key.dup.freeze, value.dup.freeze] }.freeze
         @middleware = middleware.dup.freeze
+        @endpoint_parameters = endpoint_parameters.to_h { |key, value| [key.to_s.freeze, value.dup.freeze] }.freeze
+        @endpoint_builtins = endpoint_builtins.to_h { |key, value| [key.to_s.freeze, value.dup.freeze] }.freeze
+        @disable_host_prefix = disable_host_prefix == true
+        @request_checksum_calculation = Checksums.policy(request_checksum_calculation)
+        @response_checksum_validation = Checksums.policy(response_checksum_validation)
+        @checksum_validated = checksum_validated
         freeze
       end
     end

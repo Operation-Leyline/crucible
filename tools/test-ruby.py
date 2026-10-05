@@ -81,7 +81,41 @@ def qualify(output):
         str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
         "--package-name", "auth_client", "--module-name", "AuthSdk")
     run(RUBY, "-I", str(output / "auth/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/auth.rb"))
+    behaviors(output)
     print("Ruby empty, void, renamed, dynamic-binding and extended-type packages passed")
+
+
+def generate(model, out, package, module, *extra):
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby", str(model), *extra,
+        "--out", str(out), "--package-name", package, "--module-name", module)
+    for source in sorted(out.rglob("*.rb")):
+        run(RUBY, "-c", str(source), stdout=subprocess.DEVNULL)
+
+
+def behaviors(output):
+    """Waiters, endpoint rules, host prefixes, checksums, and the AWS JSON protocols."""
+    tests = ROOT / "crates/crucible-codegen-ruby/tests"
+    generate(ROOT / "crates/crucible-codegen-java/tests/waiters.json", output / "jobs", "jobs_client", "Jobs")
+    run(RUBY, "-I", str(output / "jobs/lib"), str(tests / "waiters.rb"))
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json", output / "behavior", "behavior_client", "Behavior")
+    run(RUBY, "-I", str(output / "behavior/lib"), str(tests / "endpoints.rb"))
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", output / "checksum", "checksum_client", "ChecksumSdk")
+    run(RUBY, "-I", str(output / "checksum/lib"), str(tests / "checksums.rb"),
+        env=dict(os.environ, CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json")))
+    protocol = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
+    protocol["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
+    protocol_path = output / "protocol.json"
+    protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
+    includes = []
+    for name, package, module in [("restJson1", "restjson_client", "RestJson"),
+                                  ("awsJson1_0", "json10_client", "Json10"),
+                                  ("awsJson1_1", "json11_client", "Json11")]:
+        generate(protocol_path, output / package, package, module, "--protocol", "aws.protocols#" + name)
+        includes += ["-I", str(output / package / "lib")]
+    run(RUBY, *includes, str(tests / "protocols.rb"))
+    generate(ROOT / "crates/crucible-codegen-java/tests/streaming.json", output / "stream", "stream_client", "StreamSdk")
+    run(RUBY, "-I", str(output / "stream/lib"), str(tests / "streaming.rb"),
+        env=dict(os.environ, CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json")))
 
 
 if __name__ == "__main__":

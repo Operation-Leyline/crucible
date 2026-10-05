@@ -78,6 +78,16 @@ def qualify(output):
     run("javac", "--release", "17", "-d", str(classes), "-cp", payload_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/PayloadTest.java"))
     run("java", "-cp", os.pathsep.join([str(classes), payload_classpath]), "example.wire.PayloadTest")
+    streaming = output / "streaming"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
+        str(ROOT / "crates/crucible-codegen-java/tests/streaming.json"), "--out", str(streaming),
+        "--group-id", "example", "--artifact-id", "streaming", "--package-name", "example.stream")
+    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=streaming)
+    streaming_classpath = os.pathsep.join([str(streaming / "target/classes"), str(streaming / "target/dependency/*")])
+    run("javac", "--release", "17", "-d", str(classes), "-cp", streaming_classpath,
+        str(ROOT / "crates/crucible-codegen-java/tests/StreamingTest.java"))
+    # 256 MiB each way under a 64 MiB heap: any buffered transfer fails.
+    run("java", "-Xmx64m", "-cp", os.pathsep.join([str(classes), streaming_classpath]), "example.stream.StreamingTest")
     auth = output / "auth"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(auth),

@@ -10,11 +10,18 @@ module CrucibleGenerated
         raise ::ArgumentError, 'Credentials require HTTPS or loopback HTTP' unless uri.scheme == 'https' || %w[localhost 127.0.0.1 ::1].include?(uri.hostname.downcase)
         request
       end
-      def self.apply(request, op, schema, config, scope)
+      def self.apply(request, op, schema, config, scope, properties: {})
         schemes = schema.fetch('authSchemes', {})
         ids = op.fetch('auth') { op.fetch('bearer', false) ? ['smithy.api#httpBearerAuth'] : [] }
+        resolved = properties['authSchemes']
         ids.each do |id|
           scheme = schemes.fetch(id, {'kind' => 'bearer'}); kind = scheme.fetch('kind')
+          if resolved.is_a?(::Array)
+            # A resolved endpoint narrows the modeled schemes and may override signing properties.
+            match = resolved.find { |item| item.is_a?(::Hash) && item['name'].to_s.downcase == kind.downcase }
+            next unless match
+            scheme = scheme.merge(match.reject { |key, _| key == 'name' })
+          end
           auth = request.headers['authorization']
           return secure(request) if %w[bearer basic].include?(kind) && auth&.downcase&.start_with?(kind + ' ')
           return secure(request) if kind == 'sigV4' && auth&.start_with?('AWS4-HMAC-SHA256 ')
@@ -41,7 +48,7 @@ module CrucibleGenerated
             end
           when 'sigV4'
             raise ::ArgumentError, 'Expected AwsCredentials' unless identity.is_a?(AwsCredentials)
-            request = sign(request, identity, service: scheme.fetch('signingName'), region: config.region, unsigned_payload: op.fetch('unsignedPayload', false))
+            request = sign(request, identity, service: scheme.fetch('signingName'), region: scheme['signingRegion'] || config.region, unsigned_payload: op.fetch('unsignedPayload', false))
           end
           return secure(request)
         end
@@ -55,7 +62,8 @@ module CrucibleGenerated
         now = now.utc; headers = request.headers.reject { |name,_| %w[authorization x-amz-security-token].include?(name) }
         headers['x-amz-date'] = now.strftime('%Y%m%dT%H%M%SZ')
         headers['x-amz-security-token'] = credentials.session_token if credentials.session_token
-        headers['x-amz-content-sha256'] = unsigned_payload ? 'UNSIGNED-PAYLOAD' : ::Digest::SHA256.hexdigest(request.body || '')
+        # A streamed body is signed as UNSIGNED-PAYLOAD; hashing it would consume it.
+        headers['x-amz-content-sha256'] = unsigned_payload || !(request.body.nil? || request.body.is_a?(::String)) ? 'UNSIGNED-PAYLOAD' : ::Digest::SHA256.hexdigest(request.body || '')
         uri = ::URI.parse(request.url); headers['host'] = uri.host.downcase + (uri.port == uri.default_port ? '' : ':' + uri.port.to_s)
         path = uri.path.empty? ? '/' : uri.path
         unless service == 's3'

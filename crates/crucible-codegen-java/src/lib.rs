@@ -124,6 +124,7 @@ fn method(text: &str) -> String {
 fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     match service.shape(id).expect("lowered target") {
         Shape::Unit => format!("{package}.model.Unit"),
+        Shape::Simple(s) if s.streaming => format!("{package}.ByteStream"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::String => "java.lang.String",
             SimpleKind::Boolean => "java.lang.Boolean",
@@ -208,6 +209,10 @@ fn default_expression(
                 "com.google.gson.JsonParser.parseString({})",
                 literal(&value.to_string())
             ),
+            SimpleKind::Blob if simple.streaming => format!(
+                "{package}.ByteStream.fromBytes(java.util.Base64.getDecoder().decode({}))",
+                literal(value.as_str()?)
+            ),
             SimpleKind::Blob => format!(
                 "java.util.Base64.getDecoder().decode({})",
                 literal(value.as_str()?)
@@ -263,6 +268,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::Sparse,
         Feature::Sets,
         Feature::NonBlobPayload,
+        Feature::Streaming,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
         Feature::BasicAuth,
@@ -385,6 +391,32 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             for name in enum_names {
                 if !values.insert(field(name).to_uppercase()) {
                     diagnostics.push(id, "Java enum constant name collision");
+                }
+            }
+        }
+    }
+    // The runtime carries a stream only as the whole HTTP body.
+    for op in &service.operations {
+        for (shape, bindings) in [(&op.input, &op.request), (&op.output, &op.response)] {
+            let Some(Shape::Structure(s)) = shape.as_ref().and_then(|id| service.shape(id)) else {
+                continue;
+            };
+            for m in &s.members {
+                let streaming =
+                    matches!(service.shape(&m.target), Some(Shape::Simple(t)) if t.streaming);
+                if streaming
+                    && !bindings
+                        .payload
+                        .as_ref()
+                        .is_some_and(|p| p.streaming && p.member == m.name)
+                {
+                    diagnostics.push(
+                        &op.id,
+                        format!(
+                            "Java streams only an HTTP payload; {} is not the streaming payload",
+                            m.name
+                        ),
+                    );
                 }
             }
         }
@@ -669,6 +701,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("ServiceError", include_str!("../runtime/ServiceError.java")),
         ("NetworkError", include_str!("../runtime/NetworkError.java")),
         ("UnknownUnion", include_str!("../runtime/UnknownUnion.java")),
+        ("ByteStream", include_str!("../runtime/ByteStream.java")),
+        ("StreamBody", include_str!("../runtime/StreamBody.java")),
+        ("StreamInput", include_str!("../runtime/StreamInput.java")),
+        (
+            "InputStreamPublisher",
+            include_str!("../runtime/InputStreamPublisher.java"),
+        ),
     ] {
         files.push(file(
             format!("{source}/{name}.java"),

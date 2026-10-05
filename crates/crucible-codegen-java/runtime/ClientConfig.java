@@ -34,18 +34,27 @@ public final class ClientConfig {
     void apply(Request request);
   }
 
-  /** Middleware may replace body bytes; the digest is computed afterwards. */
+  /**
+   * Middleware may replace body bytes; the digest is computed afterwards. A streaming
+   * payload is {@code stream}, with a null {@code body}; it is opened only after middleware.
+   */
   public static final class Request {
     public java.net.URI uri;
     public final String method;
     public final Map<String, String> headers;
     public byte[] body;
+    public final ByteStream stream;
 
     Request(java.net.URI uri, String method, Map<String, String> headers, byte[] body) {
+      this(uri, method, headers, body, null);
+    }
+
+    Request(java.net.URI uri, String method, Map<String, String> headers, byte[] body, ByteStream stream) {
       this.uri = uri;
       this.method = method;
       this.headers = headers;
       this.body = body;
+      this.stream = stream;
     }
   }
 }

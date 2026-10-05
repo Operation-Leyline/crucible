@@ -1,6 +1,0 @@
-{
-  "generatorVersion": "0.1.0",
-  "service": "example.auth#AuthHeader",
-  "serviceVersion": "1",
-  "schemaSha256": "fd20cf6319d1ceb4dd10397f23397e45aabda84c12e7146c40c2f18f6fabcf21"
-}

@@ -6,6 +6,8 @@ use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, Structure};
 /// The TypeScript type of a member's target. `prefix` qualifies named shapes
 /// (`m.` in files that import the models as a namespace). `Unit` and
 /// `Document` come from the runtime, which every file imports unqualified.
+/// Globals go through `globalThis`: a model may declare its own `Date` or
+/// `Uint8Array`, which would otherwise shadow them.
 pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> String {
     if target.is_prelude() {
         let builtin = match service.shape(target) {
@@ -23,7 +25,7 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
                 SimpleKind::Long => "bigint",
                 SimpleKind::Timestamp => "globalThis.Date",
                 SimpleKind::Document => "Document",
-                SimpleKind::Blob => "Uint8Array",
+                SimpleKind::Blob => "globalThis.Uint8Array",
             }),
             _ => None,
         };

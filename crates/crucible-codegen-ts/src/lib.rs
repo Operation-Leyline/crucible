@@ -2,7 +2,9 @@
 //! service, with no dependencies beyond the runtime it carries.
 //!
 //! Output, under `src/`:
-//! - `runtime.ts`: the vendored runtime (wire conversion, transport, retries)
+//! - `runtime.ts`: the vendored runtime (wire conversion, transport, retries),
+//!   with its companions `query.ts`, `endpoints.ts`, `waiters.ts`,
+//!   `credentials.ts` and `checksums.ts`
 //! - `models.ts`: a type per shape
 //! - `errors.ts`: a `ServiceError` subclass per modelled error
 //! - `schemas.ts`: what the runtime needs per operation (internal)
@@ -46,6 +48,8 @@ const RUNTIME_EXPORTS: &[&str] = &[
     "IdentityProvider",
     "UnknownUnion",
     "ByteStream",
+    "ChecksumError",
+    "ChecksumPolicy",
     "Decimal",
     "contentSha256",
     "stringifyJson",
@@ -59,6 +63,77 @@ const RUNTIME_EXPORTS: &[&str] = &[
     "ResponseMetadata",
     "Document",
     "Unit",
+];
+
+/// Names a shape or operation cannot take. Generated files reach every
+/// JavaScript global through `globalThis` (`globalThis.Record`,
+/// `globalThis.Uint8Array`), so a shape may be called `Record`, `Promise` or
+/// `Error`; `globalThis` itself cannot be shadowed. `m`, `e` and `spec` are
+/// the namespaces generated files import each other as, and `errors` is the
+/// error table in `schemas.ts`. The rest are JavaScript reserved words and
+/// TypeScript's predefined type names, which no declaration may use.
+const RESERVED: &[&str] = &[
+    "globalThis",
+    "m",
+    "e",
+    "spec",
+    "errors",
+    "any",
+    "unknown",
+    "never",
+    "void",
+    "undefined",
+    "null",
+    "string",
+    "number",
+    "boolean",
+    "bigint",
+    "symbol",
+    "object",
+    "await",
+    "break",
+    "case",
+    "catch",
+    "class",
+    "const",
+    "continue",
+    "debugger",
+    "default",
+    "delete",
+    "do",
+    "else",
+    "enum",
+    "export",
+    "extends",
+    "false",
+    "finally",
+    "for",
+    "function",
+    "if",
+    "implements",
+    "import",
+    "in",
+    "instanceof",
+    "interface",
+    "let",
+    "new",
+    "package",
+    "private",
+    "protected",
+    "public",
+    "return",
+    "static",
+    "super",
+    "switch",
+    "this",
+    "throw",
+    "true",
+    "try",
+    "typeof",
+    "var",
+    "while",
+    "with",
+    "yield",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +190,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsRestJson1,
         Feature::AwsJson10,
         Feature::AwsJson11,
+        Feature::HttpChecksum,
     ])
 }
 
@@ -131,6 +207,22 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             diagnostics.push(
                 id,
                 format!("`{name}` collides with a name the TypeScript client exports"),
+            );
+        } else if RESERVED.contains(&name) {
+            diagnostics.push(
+                id,
+                format!("`{name}` is reserved in the generated TypeScript client"),
+            );
+        }
+    }
+    for operation in &service.operations {
+        if RESERVED.contains(&operation.name()) {
+            diagnostics.push(
+                &operation.id,
+                format!(
+                    "`{}` is reserved in the generated TypeScript client",
+                    operation.name()
+                ),
             );
         }
     }
@@ -160,6 +252,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "src/credentials.ts",
             include_str!("../runtime/credentials.ts").replace("\r\n", "\n"),
         ),
+        file(
+            "src/checksums.ts",
+            include_str!("../runtime/checksums.ts").replace("\r\n", "\n"),
+        ),
         file("src/models.ts", models::emit(service)),
         file("src/errors.ts", errors),
         file("src/schemas.ts", schemas::emit(service)),
@@ -173,7 +269,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
 
 fn index(client: &str) -> String {
     format!(
-        "{HEADER}export {{ credentialsFromEnvironment, credentialsFromProfile, chainCredentials, cacheCredentials }} from \"./credentials.js\";\nexport type {{ AwsCredentials }} from \"./credentials.js\";\nexport {{ WaiterError, WaiterTimeout }} from \"./waiters.js\";\nexport type {{ WaiterOptions, WaiterResult }} from \"./waiters.js\";\nexport * from \"./models.js\";\n\
+        "{HEADER}export {{ credentialsFromEnvironment, credentialsFromProfile, chainCredentials, cacheCredentials }} from \"./credentials.js\";\nexport type {{ AwsCredentials }} from \"./credentials.js\";\nexport {{ WaiterError, WaiterTimeout }} from \"./waiters.js\";\nexport {{ ChecksumError }} from \"./checksums.js\";\nexport type {{ ChecksumPolicy }} from \"./checksums.js\";\nexport type {{ WaiterOptions, WaiterResult }} from \"./waiters.js\";\nexport * from \"./models.js\";\n\
          export * from \"./errors.js\";\n\
          export {{ {client} }} from \"./client.js\";\n\
          export {{ AuthenticationError, ByteStream, Decimal, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\

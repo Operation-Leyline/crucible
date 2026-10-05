@@ -104,3 +104,42 @@ fn native_defaults_follow_lowered_client_nullability() {
     assert!(model.contains("new java.util.LinkedHashMap<>()"));
     assert!(model.contains("new example.weather.model.Mode(\"known\")"));
 }
+
+#[test]
+fn streaming_blobs_are_byte_streams() {
+    let service = Model::from_json(include_str!("streaming.json"))
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_java::capabilities())
+        .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let model = |name: &str| {
+        &files
+            .iter()
+            .find(|file| file.path.ends_with(&format!("/model/{name}.java")))
+            .unwrap()
+            .contents
+    };
+    assert!(model("UploadInput").contains("public example.weather.ByteStream body;"));
+    assert!(model("DownloadOutput").contains("public example.weather.ByteStream body() {"));
+    assert!(
+        files
+            .iter()
+            .any(|file| file.path.ends_with("/example/weather/ByteStream.java"))
+    );
+}
+
+#[test]
+fn streams_outside_the_http_payload_are_diagnosed() {
+    let model = serde_json::json!({"smithy":"2.0","shapes":{
+        "test#Service":{"type":"service","version":"1","traits":{"aws.protocols#awsJson1_0":{}},"operations":[{"target":"test#Put"}]},
+        "test#Put":{"type":"operation","input":{"target":"test#Input"}},
+        "test#Stream":{"type":"blob","traits":{"smithy.api#streaming":{}}},
+        "test#Input":{"type":"structure","members":{"body":{"target":"test#Stream","traits":{"smithy.api#required":{}}}}}
+    }});
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_java::capabilities())
+        .unwrap();
+    let error = emit(&service, &options()).err().unwrap();
+    assert!(format!("{error:?}").contains("not the streaming payload"));
+}
