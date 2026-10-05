@@ -131,6 +131,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsJson11,
         Feature::HttpChecksum,
         Feature::Streaming,
+        Feature::EndpointDiscovery,
     ])
 }
 
@@ -226,6 +227,22 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "ErrStreamLength",
         "ErrStreamConsumed",
         "ErrStreamDigest",
+        "RetryMode",
+        "RetryModeLegacy",
+        "RetryModeStandard",
+        "RetryModeAdaptive",
+        "Clock",
+        "EndpointDiscoveryMode",
+        "EndpointDiscoveryAuto",
+        "EndpointDiscoveryEnabled",
+        "EndpointDiscoveryDisabled",
+        "ErrEndpointDiscovery",
+        "TelemetryHook",
+        "NopTelemetryHook",
+        "OperationStartedEvent",
+        "AttemptStartedEvent",
+        "AttemptFinishedEvent",
+        "OperationFinishedEvent",
     ]
     .into_iter()
     .map(str::to_string)
@@ -591,6 +608,33 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: format!(
                 "{header}{}",
                 include_str!("../runtime/waiters.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
+            path: "policy.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/policy.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
+            path: "discovery.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/discovery.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
+            path: "telemetry.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/telemetry.go")
                     .replace("\r\n", "\n")
                     .replacen("package sdk\n", "", 1)
             ),

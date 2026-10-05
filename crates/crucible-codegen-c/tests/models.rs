@@ -109,7 +109,7 @@ fn empty_model_golden() {
         .contents;
     assert_eq!(
         source,
-        "#include \"weather_client/models.h\"\n#include <stddef.h>\n\nconst weather_shape *weather_shape_lookup(weather_string id) {\n    (void)id;\n    return NULL;\n}\n"
+        "#include \"weather_client/models.h\"\n#include <stddef.h>\n\nconst weather_shape *weather_shape_lookup(weather_string id) {\n    (void)id;\n    return NULL;\n}\n/* JSON protocol behavior read by the runtime codec and bindings. */\nconst unsigned weather_protocol_flags = 0u;\n"
     );
 }
 
@@ -198,4 +198,61 @@ fn client_symbols_head_bodies_and_package_options_are_diagnosed() {
         .unwrap()
         .push(json!({"target":"test#GetResult"}));
     assert!(emit(&lower(&model), &options()).is_err());
+}
+
+fn lower_declared(text: &str, protocol: Option<crucible_smithy::Protocol>) -> Service {
+    let model = Model::from_json(text).unwrap();
+    let capabilities = crucible_codegen_c::capabilities();
+    match protocol {
+        Some(protocol) => model.lower_with_protocol(None, &capabilities, protocol),
+        None => model.lower_with_capabilities(None, &capabilities),
+    }
+    .unwrap()
+}
+fn source<'a>(files: &'a [File], path: &str) -> &'a str {
+    &files.iter().find(|f| f.path == path).unwrap().contents
+}
+
+#[test]
+fn declared_capabilities_cover_auth_endpoints_waiters_checksums_and_aws_json() {
+    for fixture in [
+        include_str!("../../crucible-smithy/tests/fixtures/client-behaviors.json"),
+        include_str!("../../crucible-smithy/tests/fixtures/checksums.json"),
+        include_str!("../../crucible-codegen-python/tests/auth.json"),
+        include_str!("../../crucible-codegen-java/tests/waiters.json"),
+    ] {
+        emit(&lower_declared(fixture, None), &options()).unwrap();
+    }
+    let behavior = emit(
+        &lower_declared(
+            include_str!("../../crucible-smithy/tests/fixtures/client-behaviors.json"),
+            None,
+        ),
+        &options(),
+    )
+    .unwrap();
+    assert!(source(&behavior, "include/weather_client/client.h").contains(
+        "weather_status weather_operations_read_wait_until_ready(weather_client *client, const weather_models_input *input, double timeout"
+    ));
+    let schema: Value = serde_json::from_str(source(&behavior, "schema.json")).unwrap();
+    assert_eq!(
+        schema["endpointRules"]["rules"][1]["result"]["kind"],
+        "error"
+    );
+    for (protocol, flags) in [
+        (crucible_smithy::Protocol::AwsJson10, 7),
+        (crucible_smithy::Protocol::AwsRestJson1, 7),
+    ] {
+        let files = emit(
+            &lower_declared(
+                include_str!("../../crucible-smithy/tests/fixtures/protocol-json.json"),
+                Some(protocol),
+            ),
+            &options(),
+        )
+        .unwrap();
+        assert!(source(&files, "src/models.c").contains(&format!(
+            "const unsigned weather_protocol_flags = {flags}u;"
+        )));
+    }
 }

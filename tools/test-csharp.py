@@ -61,7 +61,35 @@ def policy(output):
     run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"), str(ROOT / "tests/conformance"), cwd=consumer)
 
 
+def consume(output, model, name, namespace, program, args=(), protocol=None):
+    """Generate a package, pack it, install it in a fresh consumer, and run one test program against it."""
+    package = output / name
+    generate(model, package, namespace, namespace, protocol=protocol, digest=False)
+    feed = output / (name + "-feed")
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(feed), cwd=package)
+    consumer = output / (name + "-consumer")
+    consumer.mkdir()
+    (consumer / "Consumer.csproj").write_text(f'''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="{namespace}" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests" / program, consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(feed), "--packages", str(output / (name + "-installed")), cwd=consumer)
+    run("dotnet", "build", "--no-restore", "--nologo", "-v", "quiet", "-warnaserror", cwd=consumer)
+    run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"), *args, cwd=consumer)
+
+
+def rpc(output):
+    """Smithy RPC v2: the official protocol tests (lowered into each package's schema), then published CBOR,
+    Digest and SigV4a vectors, client behavior, and a loopback server that verifies Digest and SigV4a itself."""
+    fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
+    for name in () if os.environ.get("CSHARP_RPC") == "vault" else ("rpcv2-cbor", "rpcv2-json"):
+        consume(output, fixtures / f"{name}.json", name, "Example.Rpc", "RpcProtocol.cs")
+    consume(output, fixtures / "rpc-auth.json", "vault", "Example.Vault", "RpcAuth.cs")
+
+
 def qualify(output):
+    rpc(output)
     policy(output)
     streaming(output)
     checksum = output / "checksum"
@@ -227,5 +255,7 @@ if __name__ == "__main__":
             streaming(Path(directory))
         elif os.environ.get("CSHARP_ONLY") == "policy":
             policy(Path(directory))
+        elif os.environ.get("CSHARP_ONLY") == "rpc":
+            rpc(Path(directory))
         else:
             qualify(Path(directory))

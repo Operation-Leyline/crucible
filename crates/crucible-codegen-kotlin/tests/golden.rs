@@ -194,3 +194,45 @@ fn streaming_blobs_generate_scoped_consumers_and_reject_event_streams() {
         "event streams are not declared"
     );
 }
+
+#[test]
+fn runtime_policy_model_generates_and_reserves_the_quota_accessor() {
+    let fixture = include_str!("../../crucible-smithy/tests/fixtures/runtime-policy.json");
+    let service = Model::from_json(fixture)
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_kotlin::capabilities())
+        .expect("endpoint discovery is declared");
+    let mut config = options();
+    config.package_name = "example.policy".into();
+    let files = emit(&service, &config).unwrap();
+    let client = files
+        .iter()
+        .find(|file| file.path.ends_with("/RecordsClient.kt"))
+        .unwrap();
+    assert!(
+        client
+            .contents
+            .contains("val retryQuota: RetryQuota? get() = runtime.retryQuota")
+    );
+    let schema = files
+        .iter()
+        .find(|file| file.path.ends_with("/schema.json"))
+        .unwrap();
+    assert!(schema.contents.contains("\"endpointDiscovery\""));
+
+    // The quota accessor and its JVM getter are client member names an operation cannot take.
+    for name in ["RetryQuota", "GetRetryQuota"] {
+        let mut model: serde_json::Value = serde_json::from_str(fixture).unwrap();
+        model["shapes"][format!("example.policy#{name}")] = serde_json::json!({"type": "operation",
+            "traits": {"smithy.api#http": {"method": "GET", "uri": format!("/{name}")}, "smithy.api#readonly": {}}});
+        model["shapes"]["example.policy#Records"]["operations"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({"target": format!("example.policy#{name}")}));
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower_with_capabilities(None, &crucible_codegen_kotlin::capabilities())
+            .unwrap();
+        assert_eq!(emit(&service, &config).err().unwrap().len(), 1, "{name}");
+    }
+}

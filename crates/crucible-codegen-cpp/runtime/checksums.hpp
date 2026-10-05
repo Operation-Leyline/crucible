@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -19,6 +21,19 @@ public:
 // The base64 header value AWS uses for a checksum.
 [[nodiscard]] std::string checksum(std::string_view algorithm, std::string_view data);
 [[nodiscard]] std::string hex(std::string_view bytes);
+// A checksum computed as bytes arrive, for streaming bodies.
+class IncrementalChecksum {
+    struct Digest;
+    std::string algorithm_;
+    std::uint64_t crc_ = 0;
+    std::shared_ptr<Digest> digest_;
+public:
+    explicit IncrementalChecksum(std::string algorithm);
+    [[nodiscard]] const std::string& algorithm() const noexcept { return algorithm_; }
+    void update(std::string_view data);
+    // Raw big-endian digest bytes of everything passed to update.
+    [[nodiscard]] std::string finish();
+};
 struct ChecksumSettings {
     std::string algorithm;
     std::string header;

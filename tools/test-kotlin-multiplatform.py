@@ -138,8 +138,26 @@ def qualify(output, native=False):
         "--package-version", "0.0.0-test")
     run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
         *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=stream_sdk, timeout=3600)
+    # Runtime policy (retry modes, endpoint discovery, telemetry) runs the shared vectors against its own client.
+    policy_sdk = output / "policy"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/runtime-policy.json"), "--out", str(policy_sdk),
+        "--group-id", "example", "--artifact-id", "policy-kotlin-mpp", "--package-name", "example.policy",
+        "--package-version", "0.0.0-test")
+    run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
+        *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=policy_sdk, timeout=3600)
     consumer = output / "consumer"
     shutil.copytree(ROOT / "crates/crucible-codegen-kotlin/tests/multiplatform", consumer, dirs_exist_ok=True)
+    # Common tests cannot read files on every target, so the vectors are compiled in.
+    vectors = []
+    for name, file in [("RETRY_QUOTA_VECTORS", "retry-quota.json"), ("ADAPTIVE_RETRY_VECTORS", "adaptive-retry.json"),
+                       ("ENDPOINT_DISCOVERY_VECTORS", "endpoint-discovery.json"), ("TELEMETRY_VECTORS", "telemetry.json")]:
+        text = (ROOT / "tests/conformance" / file).read_text(encoding="utf-8")
+        if '"""' in text:
+            raise RuntimeError(f"{file} cannot be embedded in a Kotlin raw string")
+        vectors.append(f"internal val {name} = \"\"\"" + text.replace("$", "${'$'}") + "\"\"\"\n")
+    (consumer / "src/commonTest/kotlin/example/consumer/PolicyVectors.kt").write_text(
+        "package example.consumer\n\n" + "\n".join(vectors), encoding="utf-8")
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path != "/cities/platform%2Fengine" or self.headers.get("Authorization") != "Bearer local-token":

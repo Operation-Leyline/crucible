@@ -95,6 +95,8 @@ final class WireCodec {
   final Map<String, Object?> schema;
   final ModelDecoder models;
   WireCodec(this.schema, this.models);
+  late final Map<String, Object?> _settings = schema['protocolSettings'] as Map<String, Object?>? ?? const {};
+  bool get _nonFiniteStrings => _settings['nonFiniteFloatStrings'] == true;
   Map<String, Object?> mapping(Object? value, Map<String, Object?> shape) {
     final map = wireObject(value);
     if (shape['sparse'] != true && map.values.contains(null)) throw const FormatException('Null in dense map');
@@ -129,12 +131,17 @@ final class WireCodec {
           final member = wireObject(entry.value);
           final wireName = member['jsonName'] as String? ?? entry.key;
           final source = encode ? entry.key : wireName;
+          final target = wireString(member['target']);
           known.add(source);
           wireNames.add(wireName);
-          if (object.containsKey(source)) result[encode ? wireName : entry.key] = document(wireString(member['target']), object[source], encode: encode);
+          if (!object.containsKey(source)) continue;
+          // AWS JSON protocols treat a null structure member as absent.
+          if (object[source] == null && info['kind'] == 'structure' && _settings['omitNullStructureMembers'] == true && shape(target)['kind'] != 'document') continue;
+          result[encode ? wireName : entry.key] = document(target, object[source], encode: encode);
         }
         if (info['kind'] == 'union') {
           for (final entry in object.entries) {
+            if (!encode && entry.key == '__type' && !known.contains(entry.key) && _settings['ignoreUnknownUnionType'] == true) continue;
             if (!known.contains(entry.key)) {
               if (encode && wireNames.contains(entry.key)) throw const FormatException('Unknown variant name is declared');
               result[entry.key] = entry.value;
@@ -194,6 +201,14 @@ final class WireCodec {
         return value;
       case 'float':
       case 'double':
+        if (value is String && _nonFiniteStrings) {
+          return switch (value) {
+            'NaN' => double.nan,
+            'Infinity' => double.infinity,
+            '-Infinity' => double.negativeInfinity,
+            _ => throw const FormatException('Invalid non-finite number'),
+          };
+        }
         if (value is! JsonNumber)
           throw const FormatException('Expected JSON number');
         final number = double.parse(value.text);
@@ -255,6 +270,7 @@ final class WireCodec {
       case 'float':
       case 'double':
         if (value is! double) throw const FormatException('Expected double');
+        if (_nonFiniteStrings && !value.isFinite) return value.isNaN ? 'NaN' : value > 0 ? 'Infinity' : '-Infinity';
         final result =
             kind == 'float' ? (Float32List(1)..[0] = value)[0] : value;
         if (!result.isFinite)

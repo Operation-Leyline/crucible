@@ -269,7 +269,70 @@ GET and HEAD request bodies remain diagnosed for portable transport compatibilit
 Retry eligibility follows [the shared contract](../clients.md). A valid
 `Retry-After` overrides jitter, including zero. Idempotency tokens are generated
 once per call. Transport failures retry only safe operations; malformed
-successful JSON and cancellation do not retry.
+successful JSON and cancellation do not retry. `retryMode` (below) limits
+retries further; it never makes an ineligible failure eligible.
+
+## Retry modes, endpoint discovery, and telemetry
+
+These follow the cross-language [runtime policy contract](../sdk-runtime-policy.md)
+and pass its shared vectors.
+
+```kotlin
+val client = RecordsClient(ClientConfig(
+    endpoint = "https://records.example",
+    retryMode = RetryMode.ADAPTIVE,
+    endpointDiscovery = true,
+    telemetry = object : TelemetryHook {
+        override fun attemptFinished(event: AttemptFinished) = metrics.record(event.operation, event.status, event.latency)
+    },
+))
+```
+
+`retryMode` defaults to `RetryMode.LEGACY`, the behavior before retry modes
+existed: every eligible failure retries up to `maxAttempts`. `STANDARD` adds a
+retry quota shared by all calls of one client: 500 tokens, a retry costs 5 (10
+after a transport timeout), a successful call refunds its last retry's cost or
+adds 1, and a retry the quota cannot pay for is not made. `client.retryQuota`
+exposes it (null in legacy mode); `retryQuota` and `getRetryQuota` are therefore
+reserved client member names. `ADAPTIVE` adds the AWS SDKs' client-side rate
+limiter: after a modeled throttling error, every attempt first takes a send token
+refilled at a CUBIC-adjusted rate, sleeping under the call's timeout when none is
+available (a cancelled sleep returns the token). Backoff is full jitter in every mode.
+
+For a service with `@aws.api#clientEndpointDiscovery`, `endpointDiscovery = null`
+(the default) discovers endpoints for operations whose discovered endpoint is
+required, `true` also for optional ones, and `false` never: a required operation
+then fails with `EndpointDiscoveryError` before sending. The discovery call is an
+ordinary authenticated, retried and observed call, bounded by the remaining
+timeout of the call that started it. Its first usable address is cached per
+client, keyed by operation and identifiers, for `CachePeriodInMinutes`; a response
+without one fails a required operation with `EndpointDiscoveryError`. Concurrent
+calls needing the same key share one discovery, which runs in the client's own
+coroutine scope: cancelling the call that started it does not cancel it for the
+others, and closing the client cancels it. An optional operation whose discovery
+fails uses the configured endpoint for that key for 60 seconds. HTTP 421 or the
+modeled invalid-endpoint error evicts the entry and is retried, even for a write,
+within the attempt limit and the retry quota. Host prefixes are not applied to a
+discovered address.
+
+`telemetry` receives `OperationStarted`, then an `AttemptStarted`/`AttemptFinished`
+pair per attempt that reached the transport, then `OperationFinished`; a discovery
+call's own events appear inside the call that needed it. Events carry an invocation
+ID, operation, endpoint and its source (`configured`, `rules`, `discovered`), the
+target and headers as sent, statuses, error names (never messages), request IDs,
+byte counts, latencies, and the retry reason and delay. They never carry bodies,
+inputs or outputs, and replace with `***` the values of `Authorization`,
+`Proxy-Authorization`, cookies, `X-Amz-Security-Token`, AWS signature query
+parameters, API keys, and every header, query parameter and path label bound to a
+`@sensitive` member. Hooks are synchronous and run on the calling coroutine; one
+that throws is logged through Ktor's `crucible.telemetry` logger and ignored.
+There is no OpenTelemetry dependency or bundled adapter; map events onto a
+tracer inside the hook.
+
+`runtimeClock` (default `RuntimeClock.System`) supplies the monotonic time and
+sleeps used for backoff, rate limiting, discovery expiry and telemetry; tests
+inject a fake. It is distinct from `clock`, the wall clock used for signing, and a
+call's `timeout` always uses the platform clock.
 
 ## Qualification
 
@@ -292,7 +355,12 @@ endpoint rules, and streaming blobs on JVM and Node. The streaming tests cover
 one-shot and replayable retry rules, `@requiresLength` and modeled bounds, 32 MiB
 transfers whose in-flight bytes stay below 8 MiB, cancellation and deadlines
 releasing request and response sources, unread bodies, and streamed checksums for
-all seven algorithms. `--native` also publishes and runs Windows x64 tests on Windows or
+all seven algorithms. A client generated from `runtime-policy.json` runs every
+shared runtime-policy vector (retry quota steps and calls, CUBIC, rate measurement
+and send tokens, endpoint discovery scenarios, telemetry events and redaction),
+plus one discovery shared by eight concurrent calls whose leader is cancelled, a
+shared discovery failure, a throwing hook, and cancellation telemetry.
+`--native` also publishes and runs Windows x64 tests on Windows or
 macOS arm64 tests on macOS, and compiles iOS device/simulator tests on macOS.
 Apple binaries require an Apple host and Xcode; a local Windows run does not
 prove Apple execution. Browser compilation does not establish browser live HTTP

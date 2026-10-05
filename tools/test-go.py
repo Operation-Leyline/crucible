@@ -89,6 +89,19 @@ def qualify(output):
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/dynamic_test.go", dynamic / "dynamic_test.go")
     run(GO, "fmt", "./...", cwd=dynamic)
     run(GO, "test", "-count=1", "-v", "./...", cwd=dynamic)
+    policy = output / "policy"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
+        "crates/crucible-smithy/tests/fixtures/runtime-policy.json", "--out", str(policy),
+        "--module-path", "example.com/policy", "--package-name", "policy")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/policy_test.go", policy / "policy_test.go")
+    for vector in ("retry-quota", "adaptive-retry", "endpoint-discovery", "telemetry"):
+        shutil.copyfile(ROOT / "tests/conformance" / f"{vector}.json", policy / f"{vector}.json")
+    run(GO, "fmt", "./...", cwd=policy)
+    run(GO, "vet", "./...", cwd=policy)
+    run(GO, "test", "-count=1", "-v", "./...", cwd=policy)
+    # The race detector needs cgo and a C compiler, so it is opt-in.
+    if os.environ.get("GO_RACE"):
+        run(GO, "test", "-race", "-count=3", "./...", cwd=policy)
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
         "crates/crucible-smithy/tests/fixtures/weather.json", "--out", str(package),

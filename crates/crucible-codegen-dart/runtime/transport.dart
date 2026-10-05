@@ -70,6 +70,8 @@ final class DefaultHttpTransport implements HttpTransport {
         ..followRedirects = false;
       if (request.body != null) native.bodyBytes = request.body!;
       native.headers.addAll(request.headers);
+      // The platform derives Host from the URL; browsers refuse to set it.
+      native.headers.remove('host');
       // BrowserClient uses Fetch's default cache mode. Request directives both
       // bypass existing entries and prevent credential-dependent responses from
       // being stored. Browser servers must allow Cache-Control in CORS headers.

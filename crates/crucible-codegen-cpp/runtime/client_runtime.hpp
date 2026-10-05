@@ -65,14 +65,21 @@ class ClientRuntime {
     std::shared_ptr<Transport> transport_;
     bool digest_;
     std::atomic<bool> closed_ = false;
+public:
+    // A decoded response, and its streaming body when the operation has one.
+    struct CallResult {
+        Json value;
+        std::optional<ByteStream> stream;
+    };
+private:
     struct Prepared {
         HttpRequest request;
         ChecksumSettings checksum;
         std::optional<ResolvedEndpoint> endpoint;
     };
-    [[nodiscard]] Prepared prepare(const std::string& name, const Json& operation, const Json& input) const;
+    [[nodiscard]] Prepared prepare(const std::string& name, const Json& operation, const Json& input, bool streaming) const;
     [[nodiscard]] std::optional<SigningOptions> authenticate(const Json& operation, HttpRequest& request, const std::optional<ResolvedEndpoint>& endpoint, const CallScope& scope, bool& credentials, std::optional<AwsCredentials>& identity) const;
-    [[nodiscard]] std::optional<Json> wait_json(const std::string& operation, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop, const std::function<Json(const Json&)>& view) const;
+    [[nodiscard]] std::optional<CallResult> wait_json(const std::string& operation, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop, const std::function<Json(const Json&)>& view, const std::optional<ByteStream>& body) const;
     [[nodiscard]] Json success(const Json& operation, const HttpResponse& response) const;
     [[nodiscard]] Json apply_headers(const std::string& target, const Json& bindings, const HttpResponse& response, const Json& body) const;
     [[nodiscard]] std::pair<ErrorMetadata, std::exception_ptr> failure(const Json& operation, const HttpResponse& response) const;
@@ -83,19 +90,26 @@ public:
     [[nodiscard]] CallScope scope(std::stop_token stop = {}) const { return CallScope(config_.timeout, stop); }
     [[nodiscard]] const Schema& schema() const noexcept { return *schema_; }
     [[nodiscard]] const Json& operation(const std::string& name) const { return schema_->description().at("operations").at(name); }
-    [[nodiscard]] Json call(const std::string& name, const Json& input, const CallScope& scope) const;
+    // Sends one operation, with its streaming request body if it has one.
+    [[nodiscard]] CallResult exchange(const std::string& name, const Json& input, const CallScope& scope, std::optional<ByteStream> body = {}) const;
+    [[nodiscard]] Json call(const std::string& name, const Json& input, const CallScope& scope) const { return exchange(name, input, scope).value; }
     // Polls an operation until a modeled waiter acceptor succeeds or fails, or the timeout elapses.
-    template<class T> [[nodiscard]] std::optional<T> wait(const std::string& operation, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop) const {
+    template<class T> [[nodiscard]] std::optional<T> wait(const std::string& operation, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop,
+            std::optional<ByteStream> body = {}, const std::function<void(T&, std::optional<ByteStream>)>& attach = {}) const {
         const auto& output = this->operation(operation).at("output");
         (void)output;
         const auto view = [&](const Json& value) -> Json {
             if constexpr (std::is_same_v<T, Unit>) return value;
             else { const auto context = schema_->context(output.string()); return Codec<T>::encode(Codec<T>::decode(value, context), context); }
         };
-        const auto result = wait_json(operation, waiter, input, timeout, options, stop, view);
+        auto result = wait_json(operation, waiter, input, timeout, options, stop, view, body);
         if (!result) return std::nullopt;
         if constexpr (std::is_same_v<T, Unit>) return T{};
-        else return Codec<T>::decode(*result, schema_->context(output.string()));
+        else {
+            auto decoded = Codec<T>::decode(result->value, schema_->context(output.string()));
+            if (attach) attach(decoded, std::move(result->stream));
+            return decoded;
+        }
     }
 };
 template<class T> class Pages {

@@ -12,13 +12,22 @@ import kotlin.io.encoding.Base64
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
+import io.ktor.client.network.sockets.ConnectTimeoutException
+import io.ktor.client.network.sockets.SocketTimeoutException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.copyTo
 import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -35,6 +44,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.longOrNull
 
 internal class ClientRuntime(input: ClientConfig, endpoint: String, private val digest: Boolean,
     private val schema: JsonObject = loadSchema()) : AutoCloseable {
@@ -47,15 +57,38 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         install(HttpTimeout) { requestTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS; connectTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS; socketTimeoutMillis = HttpTimeoutConfig.INFINITE_TIMEOUT_MS }
     }
     private val codec = JsonCodec(schema)
+    private val clock = config.runtimeClock
+    // One quota and rate limiter for every call this client makes.
+    private val retry = RetryStrategy(config.retryMode, clock, config.baseDelay, config.maxDelay)
+    val retryQuota: RetryQuota? get() = retry.quota
+    private val discoveryConfig = schema["endpointDiscovery"] as? JsonObject
+    // Shared discoveries run here, so a cancelled caller does not cancel them for the others.
+    private val discoveryScope = discoveryConfig?.let { CoroutineScope(SupervisorJob()) }
+    private val discovery = discoveryScope?.let { EndpointCache(clock, it) }
+    private val service = schema.text("service") ?: ""
+    private val credentialHeaders: Set<String>
+    private val credentialQuery: Set<String>
     init {
         require(config.endpoint!!.isNotEmpty() || schema["endpointRules"] != null) { "Absolute HTTP(S) endpoint required" }
         if (config.endpoint!!.isNotEmpty()) require(Endpoints.parseUrl(config.endpoint!!)!=null) { "Absolute HTTP(S) endpoint without credentials, query, or fragment required" }
         require(config.maxAttempts >= 1 && config.timeout.isPositive() && config.timeout.isFinite() &&
             config.timeout.inWholeMilliseconds > 0 && !config.baseDelay.isNegative() && !config.maxDelay.isNegative() &&
             config.baseDelay.isFinite() && config.maxDelay.isFinite()) { "Invalid attempts, timeout, or retry delays" }
+        val headers = mutableSetOf<String>(); val query = mutableSetOf<String>()
+        (schema["authSchemes"] as? JsonObject)?.values?.forEach { scheme ->
+            val description = scheme as? JsonObject ?: return@forEach
+            if (description.text("kind") == "apiKey") (if (description.text("location") == "query") query else headers).add(description.text("name")!!.lowercase())
+        }
+        credentialHeaders = headers; credentialQuery = query
     }
-    override fun close() { if (ownsHttp) http.close() }
-    private data class Prepared(val operation: JsonObject, val uri: Url, val headers: Map<String, String>, val body: ByteArray?, val checksum: Checksums.Plan, val stream: ByteStream?)
+    override fun close() { discoveryScope?.cancel(); if (ownsHttp) http.close() }
+    /** What a call sends to the discovery operation; [key] is exactly that, encoded. */
+    private class DiscoveryRequest(val key: String, val values: Map<String, JsonElement>, val required: Boolean, val operation: String)
+    private class Prepared(val operation: JsonObject, val uri: Url, val headers: Map<String, String>, val body: ByteArray?, val checksum: Checksums.Plan, val stream: ByteStream?,
+        val target: String, val endpoint: String, val endpointSource: String, val displayPath: String,
+        val sensitiveHeaders: Set<String>, val sensitiveQuery: Set<String>, val discovery: DiscoveryRequest?)
+    private class AttemptState { var status: Int? = null; var headers: Map<String, List<String>> = emptyMap(); var bytes: Long? = null }
+    private class RetryDecision(val reason: String, val delay: Duration, val cost: Int?)
     private data class WireResponse(val status: Int, val headers: Map<String, List<String>>, val body: ByteArray, val result: Any? = null) {
         fun header(name: String): String? = headers[name.lowercase()]?.joinToString(", ")
     }
@@ -73,11 +106,16 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         if(op["endpoint"]!=null && !config.disableHostPrefix) endpoint=Endpoints.hostPrefix(endpoint,op.obj("endpoint"),queryInput.jsonObject)
         endpoint=endpoint.trimEnd('/')
         op=JsonObject(op+mapOf("resolvedEndpoint" to resolved))
+        // Telemetry shows where sensitive members went without their values.
+        val inputMembers=op.text("input")?.let { codec.shape(it)["members"] as? JsonObject }
+        fun sensitive(member: String)=(inputMembers?.get(member) as? JsonObject)?.flag("sensitive")==true
+        val sensitiveHeaders=credentialHeaders.toMutableSet(); val sensitiveQuery=credentialQuery.toMutableSet()
         val formats=(binding["timestampFormats"] as? JsonObject) ?: JsonObject(emptyMap())
         for((member,format) in formats) values[member]?.let { values[member]=codec.boundaryTime(codec.shape(op.text("input")!!).obj("members").obj(member),it,format.jsonPrimitive.content,true) }
 
         op.text("token")?.let { if (values[it] == null || values[it] == JsonNull) values[it] = JsonPrimitive(Uuid.random().toString()) }
         var uri = op.text("uri")!!
+        var display = uri
         binding.array("labels").forEach {
             val key = it.jsonPrimitive.content; val value = values[key]
             require(value != null && value != JsonNull && codec.bound(value).isNotEmpty()) { "$key is required" }
@@ -85,11 +123,15 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             val greedy = (op["greedyLabels"] as? JsonArray)?.any { it.jsonPrimitive.content == key } == true
             val segments = if (greedy) label.split('/') else listOf(label)
             require(segments.none { it == "." || it == ".." }) { "$key cannot contain a dot segment" }
-            uri = uri.replace("{" + key + (if (greedy) "+" else "") + "}", segments.joinToString("/") { escape(it) })
+            val placeholder = "{" + key + (if (greedy) "+" else "") + "}"
+            val encoded = segments.joinToString("/") { escape(it) }
+            uri = uri.replace(placeholder, encoded)
+            display = display.replace(placeholder, if (sensitive(key)) CallTrace.REDACTED else encoded)
         }
         val query = mutableListOf<String>()
         binding.array("query").forEach {
             val pair = it.jsonArray; val value = values[pair[0].jsonPrimitive.content]
+            if (sensitive(pair[0].jsonPrimitive.content)) sensitiveQuery.add(pair[1].jsonPrimitive.content.lowercase())
             if (value != null && value != JsonNull) {
                 val items = if (value is JsonArray) value.toList() else listOf(value)
                 items.forEach { item -> query.add(escape(pair[1].jsonPrimitive.content) + "=" + escape(item.jsonPrimitive.content)) }
@@ -99,6 +141,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             val reserved = binding.array("query").map { it.jsonArray[1].jsonPrimitive.content }.toSet() + Url(endpoint + uri).parameters.names()
             (values[member] as? JsonObject)?.forEach { (key, value) ->
                 if (key !in reserved) {
+                    if (sensitive(member)) sensitiveQuery.add(key.lowercase())
                     val items = if (value is JsonArray) value.toList() else listOf(value)
                     items.forEach { query.add(escape(key) + "=" + escape(codec.bound(it))) }
                 }
@@ -112,11 +155,13 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             val pair = it.jsonArray
             (values[pair[0].jsonPrimitive.content] as? JsonObject)?.forEach { (suffix, value) ->
                 val name = (pair[1].jsonPrimitive.content + suffix).lowercase()
+                if (sensitive(pair[0].jsonPrimitive.content)) sensitiveHeaders.add(name)
                 if (name !in reservedHeaders) headers[name] = codec.bound(headerEncoding(binding, pair[0].jsonPrimitive.content, value, true))
             }
         }
         binding.array("headers").forEach {
             val pair = it.jsonArray; val value = values[pair[0].jsonPrimitive.content]
+            if (sensitive(pair[0].jsonPrimitive.content)) sensitiveHeaders.add(pair[1].jsonPrimitive.content.lowercase())
             if (value != null && value != JsonNull) headers[pair[1].jsonPrimitive.content.lowercase()] = codec.headerText(codec.shape(op.text("input")!!).obj("members").obj(pair[0].jsonPrimitive.content),headerEncoding(binding, pair[0].jsonPrimitive.content, value, true),formats.text(pair[0].jsonPrimitive.content))
         }
         var bytes: ByteArray? = null
@@ -142,12 +187,111 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             headers["content-type"]=if(protocol=="awsJson1_0") "application/x-amz-json-1.0" else "application/x-amz-json-1.1"
             headers["x-amz-target"]=schema.text("service")!!.substringAfter('#')+"."+name
         } else if(protocol=="awsRestJson1" && payloadMember(binding)==null) if(!headers.containsKey("content-type")) headers["content-type"]="application/json"
-        return Prepared(op, Url(endpoint + uri), headers, if(stream==null)bytes else null,checksum,stream?.let {checkedStream(op,"input","request",it)})
+        return Prepared(op, Url(endpoint + uri), headers, if(stream==null)bytes else null,checksum,stream?.let {checkedStream(op,"input","request",it)},
+            uri, endpoint, if (schema["endpointRules"] != null) "rules" else "configured", display.substringBefore('?'),
+            sensitiveHeaders, sensitiveQuery, discoveryRequest(name, op, originalValues))
+    }
+    private fun discoveryRequest(name: String, op: JsonObject, values: Map<String, JsonElement>): DiscoveryRequest? {
+        val discovered = op["discoveredEndpoint"] as? JsonObject ?: return null
+        val settings = discoveryConfig ?: return null
+        val required = discovered.flag("required")
+        if (config.endpointDiscovery == false) {
+            if (required) throw EndpointDiscoveryError("$name requires endpoint discovery, which is disabled")
+            return null
+        }
+        if (!required && config.endpointDiscovery != true) return null
+        val operationMember = settings.text("operationMember"); val identifiersMember = settings.text("identifiersMember")
+        val operation = if (operationMember != null) name else null
+        val identifiers = if (identifiersMember == null) emptyList() else discovered.array("identifiers").mapNotNull { item ->
+            val key = item.jsonPrimitive.content
+            values[key]?.takeUnless { it == JsonNull }?.let { key to codec.bound(it) }
+        }.sortedBy { it.first }
+        val input = mutableMapOf<String, JsonElement>()
+        if (operationMember != null) input[operationMember] = JsonPrimitive(name)
+        if (identifiersMember != null && identifiers.isNotEmpty()) input[identifiersMember] = JsonObject(identifiers.associate { it.first to JsonPrimitive(it.second) })
+        // What is sent to the discovery operation is exactly what keys the cache.
+        val key = JsonArray(listOf(operation?.let(::JsonPrimitive) ?: JsonNull,
+            JsonArray(identifiers.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.second))) }))).toString()
+        return DiscoveryRequest(key, input, required, settings.text("operation")!!.substringAfterLast('#'))
+    }
+    /** The first usable endpoint of a discovery response, cached for its period. */
+    private fun discoveredAddress(output: Any): DiscoveredAddress {
+        val settings = discoveryConfig!!
+        val target = operation(settings.text("operation")!!.substringAfterLast('#')).text("output")
+        val values = codec.queryValue(target, codec.encode(target, output)) as? JsonObject ?: JsonObject(emptyMap())
+        val scheme = config.endpoint!!.substringBefore("://", "").ifEmpty { "https" }
+        for (item in (values[settings.text("endpointsMember")!!] as? JsonArray).orEmpty()) {
+            val entry = item as? JsonObject ?: continue
+            val address = (entry[settings.text("addressMember")!!] as? JsonPrimitive)?.takeIf { it.isString && it.content.isNotEmpty() }?.content ?: continue
+            val minutes = (entry[settings.text("cachePeriodMember")!!] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull ?: continue
+            // Discovered addresses are usually bare hosts; they keep the configured scheme.
+            val url = if ("://" in address) address else "$scheme://$address"
+            if (Endpoints.parseUrl(url) == null) continue
+            return DiscoveredAddress(url.trimEnd('/'), clock.now() + maxOf(minutes, 0L).minutes)
+        }
+        throw EndpointDiscoveryError("endpoint discovery returned no usable endpoint")
+    }
+    /** This attempt's discovered endpoint; null means the configured or rules-resolved endpoint. */
+    private suspend fun discover(prepared: Prepared, deadline: TimeMark): DiscoveredAddress? {
+        val request = prepared.discovery ?: return null
+        val cache = discovery ?: return null
+        if (!request.required && cache.failedRecently(request.key)) return null
+        return try {
+            cache.resolve(request.key) {
+                // The discovery is bounded by the remaining deadline of the call that started it.
+                val remaining = -deadline.elapsedNow()
+                if (!remaining.isPositive()) throw EndpointDiscoveryError("request deadline exceeded before endpoint discovery")
+                discoveredAddress(execute(request.operation, minOf(remaining, config.timeout)) { prepare(request.operation, request.values.toMutableMap()) })
+            }
+        } catch (error: CancellationException) {
+            // Our own cancellation is never swallowed; the discovery call's own timeout is a discovery failure.
+            currentCoroutineContext().ensureActive()
+            if (request.required) throw error
+            cache.recordFailure(request.key); null
+        } catch (error: Exception) {
+            if (request.required) throw error
+            cache.recordFailure(request.key); null
+        }
+    }
+    private fun invalidates(error: Exception): Boolean {
+        if (error !is ServiceError) return false
+        val code = discoveryConfig?.text("error")?.let { codec.shape(it).obj("error").text("wireCode") ?: codec.shape(it).text("name") }
+        return error.status == 421 || code != null && error.errorName == code
+    }
+    /** The retry reason for a failed attempt, or null when it is not retryable. */
+    private fun classify(op: JsonObject, error: Exception, misdirected: Boolean): String? {
+        if (error !is ServiceError) {
+            if (!op.flag("safe")) return null
+            return if (error is HttpRequestTimeoutException || error is ConnectTimeoutException || error is SocketTimeoutException) "timeout" else "network"
+        }
+        // A misdirected request was not processed, so even a write may be resent.
+        if (misdirected) return "endpoint"
+        if (error.throttling) return "throttling"
+        if (op.flag("safe") && (error.retryable || error.status in setOf(500, 502, 503, 504))) return "transient"
+        return null
+    }
+    /** Records a failed attempt with the retry policy and decides whether, and when, to retry. */
+    private suspend fun afterFailure(prepared: Prepared, error: Exception, response: WireResponse?, attempt: Int, replayable: Boolean, discovered: DiscoveredAddress?): RetryDecision? {
+        retry.afterAttempt(error is ServiceError && error.throttling)
+        val misdirected = discovered != null && invalidates(error)
+        if (misdirected) discovery!!.invalidate(prepared.discovery!!.key, discovered!!)
+        val reason = classify(prepared.operation, error, misdirected) ?: return null
+        if (attempt >= config.maxAttempts || !replayable) return null
+        val (granted, cost) = retry.acquireRetry(reason == "timeout")
+        if (!granted) return null
+        return RetryDecision(reason, delayFor(attempt, response?.header("retry-after")), cost)
+    }
+    /** One call: its telemetry spans preparation, discovery, every attempt and the retry sleeps. */
+    private suspend fun execute(name: String, timeout: Duration = config.timeout, consume: suspend (Any) -> Any = { it }, prepare: () -> Prepared): Any {
+        val trace = CallTrace(config.telemetry, clock, service, name)
+        val result = try { send(prepare(), timeout, trace, consume) } catch (error: Throwable) { trace.finished(error); throw error }
+        trace.finished(null)
+        return result
     }
     suspend fun call(name: String, input: Any?): Any {
         currentCoroutineContext().ensureActive()
-        val values = codec.inputValues(operation(name).text("input"), input)
-        return send(prepare(name, values, ModelCodecs.stream(operation(name).text("input"),input)))
+        val target = operation(name).text("input")
+        return execute(name) { prepare(name, codec.inputValues(target, input), ModelCodecs.stream(target, input)) }
     }
     private data class WaiterOutcome(val value: Any?)
     suspend fun waitUntil(operation: String, name: String, input: Any?, options: WaiterOptions): Any? {
@@ -163,7 +307,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             while (true) {
                 currentCoroutineContext().ensureActive(); attempts++
                 var operationError:Exception?=null
-                val operationResponse=try { send(prepare(operation,values.toMutableMap())) }
+                val operationResponse=try { execute(operation) { prepare(operation,values.toMutableMap()) } }
                     catch (error:TimeoutCancellationException) { currentCoroutineContext().ensureActive(); operationError=error; null }
                     catch (error:CancellationException) { throw error }
                     catch (error:Exception) { operationError=error; null }
@@ -211,8 +355,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
     @Suppress("UNCHECKED_CAST")
     suspend fun <T> callScoped(name: String,input: Any?,consume: suspend (Any) -> T): T {
         val op=operation(name)
-        val prepared=prepare(name,codec.inputValues(op.text("input"),input),ModelCodecs.stream(op.text("input"),input))
-        return (send(prepared) { ScopedResult(consume(it)) } as ScopedResult).value as T
+        return (execute(name, consume = { ScopedResult(consume(it)) }) { prepare(name,codec.inputValues(op.text("input"),input),ModelCodecs.stream(op.text("input"),input)) } as ScopedResult).value as T
     }
     private fun checkedStream(op: JsonObject,targetKey: String,bindingKey: String,stream: ByteStream,verifier: Checksums.Verifier? = null): ByteStream {
         val bindings=op.obj(bindingKey);val member=codec.shape(op.text(targetKey)!!).obj("members").obj(payloadMember(bindings)!!)
@@ -221,14 +364,24 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         // requiresLength constrains what the client sends; a response length is checked against its header.
         return stream.checked(bound("min"),bound("max"),bindingKey=="request" && bindings.flag("requiresLength"),verifier)
     }
-    private suspend fun send(prepared: Prepared, consume: suspend (Any) -> Any = {it}): Any = withTimeout(config.timeout) {
+    private suspend fun send(prepared: Prepared, timeout: Duration, trace: CallTrace, consume: suspend (Any) -> Any): Any {
+        // Discovery started by this call gets the remaining deadline, on the platform clock like the timeout itself.
+        val deadline = TimeSource.Monotonic.markNow() + timeout
+        return withTimeout(timeout) { attempts(prepared, deadline, trace, consume) }
+    }
+    private suspend fun attempts(prepared: Prepared, deadline: TimeMark, trace: CallTrace, consume: suspend (Any) -> Any): Any {
         val op = prepared.operation
-        var attempt = 0
         var streamChecksum: Pair<ByteStream, Map<String, String>>? = null
-        while (true) {
-            currentCoroutineContext().ensureActive(); attempt++
+        var lastCost: Int? = null
+        for (attempt in 1..config.maxAttempts) {
+            currentCoroutineContext().ensureActive()
+            val discovered = discover(prepared, deadline)
+            // A discovered address replaces the endpoint; host prefixes are not applied to it.
+            val uri = if (discovered != null) Url(discovered.url + prepared.target) else prepared.uri
+            val wait = retry.sendDelay()
+            if (wait.isPositive()) try { clock.sleep(wait) } catch (error: CancellationException) { retry.cancelSend(); throw error }
             val headers = prepared.headers.toMutableMap()
-            val request = Request(prepared.uri, op.text("method")!!, headers, prepared.body?.copyOf(),prepared.stream)
+            val request = Request(uri, op.text("method")!!, headers, prepared.body?.copyOf(),prepared.stream)
             config.middleware.forEach { it(request) }
             require(valid(request.uri)) { "Invalid middleware URI" }
             val body = request.body?.copyOf()
@@ -246,31 +399,58 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             val finalHeaders = request.headers.mapKeys { it.key.lowercase() }.toMutableMap()
             require(!(authenticated || finalHeaders.containsKey("authorization")) || secure(request.uri)) { "Credentials require HTTPS or loopback HTTP" }
             currentCoroutineContext().ensureActive()
-            val response = try {
-                val bindings = op.obj("response")
-                exchange(request, finalHeaders, body, bindings.array("body").isNotEmpty() || payloadMember(bindings) != null || prepared.checksum.validate,prepared,consume)
-            } catch (error: ScopedFailure) { throw error.failure
-            } catch (error: CancellationException) { throw error
-            } catch (error: IllegalArgumentException) { throw error
-            } catch (error: Exception) {
-                // A body that violated its declared or modeled length is a caller error, never retried.
-                stream?.failure?.let { throw it }
-                if (!op.flag("safe") || attempt >= config.maxAttempts || stream?.replayable==false) throw NetworkError(error)
-                delay(retryDelay(attempt, null)); continue
+            val query = request.uri.encodedQuery
+            val requestBytes = if (stream != null) stream.contentLength else (body ?: if (request.method in setOf("POST", "PUT", "PATCH")) byteArrayOf() else null)?.size?.toLong()
+            trace.attemptStarted(request.method, CallTrace.displayEndpoint(discovered?.url ?: prepared.endpoint),
+                if (discovered != null) "discovered" else prepared.endpointSource,
+                prepared.displayPath + if (query.isEmpty()) "" else "?" + CallTrace.redactQuery(query, prepared.sensitiveQuery),
+                CallTrace.redactHeaders(finalHeaders, prepared.sensitiveHeaders), requestBytes)
+            val state = AttemptState()
+            var response: WireResponse? = null
+            var failure: Exception? = null
+            try {
+                try {
+                    val bindings = op.obj("response")
+                    response = exchange(request, finalHeaders, body, bindings.array("body").isNotEmpty() || payloadMember(bindings) != null || prepared.checksum.validate,prepared,consume,state)
+                } catch (error: ScopedFailure) { throw error.failure
+                } catch (error: CancellationException) { throw error
+                } catch (error: IllegalArgumentException) { throw error
+                } catch (error: Exception) {
+                    // A body that violated its declared or modeled length is a caller error, never retried.
+                    stream?.failure?.let { throw it }
+                    failure = error
+                }
+                val wire = response
+                if (wire != null) {
+                    if (wire.status in 200..299) {
+                        val output = wire.result ?: run {
+                            Checksums.validate(prepared.checksum,wire.headers,wire.body,config)
+                            consume(decodeSuccess(op, wire))
+                        }
+                        retry.afterAttempt(false)
+                        retry.succeeded(lastCost)
+                        trace.attemptFinished(wire.status, null, requestId(wire.headers), state.bytes)
+                        return output
+                    }
+                    failure = decodeError(op, wire)
+                }
+            } catch (error: Throwable) {
+                // An attempt ended by an error that is never retried still measured any response it received.
+                if (state.status != null) retry.afterAttempt(false)
+                trace.attemptFinished(state.status, error, requestId(state.headers), state.bytes)
+                throw error
             }
-            if (response.status in 200..299) {
-                if(response.result!=null)return@withTimeout response.result
-                Checksums.validate(prepared.checksum,response.headers,response.body,config)
-                return@withTimeout consume(decodeSuccess(op, response))
-            }
-            val error = decodeError(op, response)
-            val retry = error.throttling || op.flag("safe") && (error.retryable || response.status in setOf(500, 502, 503, 504))
-            if (!retry || attempt >= config.maxAttempts || stream?.replayable==false) throw error
-            delay(retryDelay(attempt, response.header("retry-after")))
+            val error = failure!!
+            val decision = afterFailure(prepared, error, response, attempt, stream?.replayable != false, discovered)
+            trace.attemptFinished(response?.status, error, (error as? ServiceError)?.requestId ?: response?.let { requestId(it.headers) },
+                state.bytes, decision?.reason, decision?.delay)
+            if (decision == null) throw if (error is ServiceError) error else NetworkError(error)
+            lastCost = decision.cost
+            clock.sleep(decision.delay)
         }
-        @Suppress("UNREACHABLE_CODE") error("unreachable")
+        error("unreachable")
     }
-    private suspend fun exchange(request: Request, headers: Map<String, String>, bytes: ByteArray?, hasBody: Boolean, prepared: Prepared, consume: suspend (Any) -> Any): WireResponse =
+    private suspend fun exchange(request: Request, headers: Map<String, String>, bytes: ByteArray?, hasBody: Boolean, prepared: Prepared, consume: suspend (Any) -> Any, state: AttemptState): WireResponse =
         http.prepareRequest(request.uri) {
             method = HttpMethod.parse(request.method)
             headers.forEach { (name, value) -> this.headers.append(name, value) }
@@ -288,9 +468,11 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             })
         }.execute { response ->
             val responseHeaders=response.headers.entries().associate {it.key.lowercase() to it.value.toList()}
+            state.status=response.status.value; state.headers=responseHeaders
             if(response.status.value in 200..299 && prepared.operation.obj("response").flag("streaming")) {
                 // The body stays on the wire until the consumer reads it; the exchange ends with the consumer.
                 val length=response.headers["content-length"]?.toLongOrNull()
+                state.bytes=length
                 val source=ByteStream.once(response.bodyAsChannel(),length)
                 var stream: ByteStream?=null
                 try {
@@ -308,7 +490,8 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             val body = if (response.status.value in 200..299 && !hasBody) {
                 response.bodyAsChannel().cancel(null); byteArrayOf()
             } else response.body<ByteArray>()
-            WireResponse(response.status.value, response.headers.entries().associate { it.key.lowercase() to it.value.toList() }, body)
+            state.bytes=body.size.toLong()
+            WireResponse(response.status.value, responseHeaders, body)
         }
     private fun decodeSuccess(op: JsonObject, response: WireResponse): Any {
         val payload = payloadMember(op.obj("response"))
@@ -371,15 +554,17 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         }
         return convert(value)
     }
-    internal fun retryDelay(attempt: Int, retryAfter: String?): Long {
+    private fun requestId(headers: Map<String, List<String>>): String? =
+        (headers["x-request-id"] ?: headers["x-amzn-requestid"])?.joinToString(", ")
+    private fun delayFor(attempt: Int, retryAfter: String?): Duration {
         if (retryAfter != null) {
-            retryAfter.toDoubleOrNull()?.takeIf { it >= 0 && it.isFinite() }?.let { return (it * 1000).toLong() }
+            retryAfter.toDoubleOrNull()?.takeIf { it >= 0 && it.isFinite() }?.let { return it.seconds }
             try {
-                val remaining = (parseHttpDate(retryAfter) - Clock.System.now()).inWholeMilliseconds
-                if (remaining >= 0) return remaining
+                val remaining = parseHttpDate(retryAfter) - Clock.System.now()
+                if (!remaining.isNegative()) return remaining
             } catch (_: Exception) { }
         }
-        return (Random.nextDouble() * minOf(config.maxDelay.inWholeMilliseconds.toDouble(), config.baseDelay.inWholeMilliseconds * 2.0.pow(minOf(attempt - 1, 30)))).toLong()
+        return retry.backoff(attempt)
     }
     fun pages(name: String, input: Any?): Flow<Any> = flow {
         val op = operation(name); val pagination = op.obj("pagination")
@@ -387,7 +572,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         val key = pagination.text("input")!!; val seen = mutableSetOf<String>()
         values[key]?.takeUnless { it == JsonNull }?.let { seen.add(it.jsonPrimitive.content) }
         while (true) {
-            val page = send(prepare(name, values)); emit(page)
+            val page = execute(name) { prepare(name, values) }; emit(page)
             var token: JsonElement? = codec.encode(op.text("output"), page)
             var target = op.text("output")!!
             pagination.array("output").forEach { part ->

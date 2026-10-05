@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"math/big"
 	mathrand "math/rand/v2"
@@ -160,11 +161,27 @@ type Config struct {
 	BaseDelay   time.Duration
 	MaxDelay    time.Duration
 	Middleware  []func(context.Context, *http.Request) error
+	// RetryMode is RetryModeLegacy (the zero value), RetryModeStandard or RetryModeAdaptive.
+	RetryMode RetryMode
+	// EndpointDiscovery is EndpointDiscoveryAuto (the zero value),
+	// EndpointDiscoveryEnabled or EndpointDiscoveryDisabled.
+	EndpointDiscovery EndpointDiscoveryMode
+	// Telemetry observes every call; nil disables telemetry.
+	Telemetry TelemetryHook
+	// Clock replaces the system clock for backoff, rate limiting, discovery
+	// expiry and telemetry; it is a test seam.
+	Clock Clock
 }
 type clientRuntime struct {
 	config Config
 	schema *schemaDescription
 	digest bool
+	// One retry quota, rate limiter and discovery cache for every call of the client.
+	retry     *retryStrategy
+	discovery *endpointCache
+	// Header and query names that carry an API key, lowercased, for telemetry redaction.
+	credentialHeaders map[string]bool
+	credentialQuery   map[string]bool
 }
 type memberDescription struct {
 	JSONName  string
@@ -173,6 +190,8 @@ type memberDescription struct {
 	Format    string
 	Required  bool
 	Default   any
+	// Sensitive members are redacted from telemetry wherever they are bound.
+	Sensitive bool
 	// Length holds a streaming member's modeled byte bounds.
 	Length    *struct{ Min, Max *int64 }
 }
@@ -242,6 +261,7 @@ type operationDescription struct {
 	Errors   []string
 	Safe     bool
 	Token    string
+	DiscoveredEndpoint *discoveredEndpointDescription
 }
 
 func (s shapeDescription) wireName(name string) string {
@@ -262,6 +282,7 @@ type schemaDescription struct {
 		NonFiniteFloatStrings bool
 	}
 	EndpointRules map[string]any
+	EndpointDiscovery *endpointDiscoveryDescription
 	AuthSchemes map[string]authScheme
 	Shapes     map[string]shapeDescription
 	Operations map[string]operationDescription
@@ -308,7 +329,25 @@ func newClient(config Config, schema *schemaDescription, digest bool) (*clientRu
 	config.Middleware = append([]func(context.Context, *http.Request) error(nil), config.Middleware...)
 	config.EndpointParameters, err = copyEndpointParameters(config.EndpointParameters); if err != nil { return nil,err }
 	config.EndpointBuiltIns, err = copyEndpointParameters(config.EndpointBuiltIns); if err != nil { return nil,err }
-	return &clientRuntime{config: config, schema: schema, digest: digest}, nil
+	switch config.RetryMode {
+	case "": config.RetryMode = RetryModeLegacy
+	case RetryModeLegacy, RetryModeStandard, RetryModeAdaptive:
+	default: return nil, errors.New("RetryMode must be legacy, standard or adaptive")
+	}
+	switch config.EndpointDiscovery {
+	case "": config.EndpointDiscovery = EndpointDiscoveryAuto
+	case EndpointDiscoveryAuto, EndpointDiscoveryEnabled, EndpointDiscoveryDisabled:
+	default: return nil, errors.New("EndpointDiscovery must be auto, enabled or disabled")
+	}
+	if config.Clock == nil { config.Clock = systemClock{} }
+	runtime := &clientRuntime{config: config, schema: schema, digest: digest, credentialHeaders: map[string]bool{}, credentialQuery: map[string]bool{}}
+	runtime.retry = newRetryStrategy(config.RetryMode, config.Clock)
+	if schema.EndpointDiscovery != nil { runtime.discovery = newEndpointCache(runtime.retry.now) }
+	for _, scheme := range schema.AuthSchemes {
+		if scheme.Kind != "apiKey" { continue }
+		if scheme.Location == "query" { runtime.credentialQuery[strings.ToLower(scheme.Name)] = true } else { runtime.credentialHeaders[strings.ToLower(scheme.Name)] = true }
+	}
+	return runtime, nil
 }
 
 func parseJSON(data []byte) (any, error) {
@@ -844,14 +883,45 @@ func headerValue(schema *schemaDescription, member memberDescription, text strin
 	}
 }
 func (c *clientRuntime) call(ctx context.Context, name string, input any) (map[string]any, error) {
-	op := c.schema.Operations[name]
-	values, err := encodeModel(c.schema, op.Input, input)
-	if err != nil {
-		return nil, err
+	trace := c.startTrace(name)
+	values, err := encodeModel(c.schema, c.schema.Operations[name].Input, input)
+	var result map[string]any
+	if err == nil {
+		result, err = c.send(ctx, name, values, trace)
 	}
-	return c.callValues(ctx, name, values)
+	trace.finished(err)
+	return result, err
 }
 func (c *clientRuntime) callValues(ctx context.Context, name string, values map[string]any) (map[string]any, error) {
+	trace := c.startTrace(name)
+	result, err := c.send(ctx, name, values, trace)
+	trace.finished(err)
+	return result, err
+}
+
+// classify returns a failed attempt's retry reason, or "" when it is not retryable.
+func (c *clientRuntime) classify(op operationDescription, transportErr, err error, discovered *discoveredAddress) string {
+	if transportErr != nil {
+		if !op.Safe { return "" }
+		var timeout net.Error
+		if errors.As(transportErr, &timeout) && timeout.Timeout() { return "timeout" }
+		return "network"
+	}
+	var service *ServiceError
+	if !errors.As(err, &service) { return "" }
+	// A misdirected request was not processed, so even a write may be resent.
+	if discovered != nil && c.invalidates(err) { return "endpoint" }
+	if service.Throttling { return "throttling" }
+	if canRetry(op.Safe, service) { return "transient" }
+	return ""
+}
+
+func throttled(err error) bool {
+	var service *ServiceError
+	return errors.As(err, &service) && service.Throttling
+}
+
+func (c *clientRuntime) send(ctx context.Context, name string, values map[string]any, trace *callTrace) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
 	// A streamed response keeps the deadline, released when its body ends or closes.
 	streamed := false
@@ -904,6 +974,13 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		if err != nil { return nil, err }
 	}
 	uri := op.URI
+	// Telemetry shows where sensitive members went without their values.
+	display := op.URI
+	traced := c.config.Telemetry != nil
+	sensitiveHeaders, sensitiveQuery := c.credentialHeaders, c.credentialQuery
+	if traced {
+		sensitiveHeaders, sensitiveQuery = maps.Clone(c.credentialHeaders), maps.Clone(c.credentialQuery)
+	}
 	for _, key := range op.Request.Labels {
 		text, err := boundValue(boundValues[inputShape.wireName(key)])
 		if err != nil || text == "" {
@@ -918,14 +995,21 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		}
 		placeholder := key
 		if greedy { placeholder += "+" }
-		uri = strings.ReplaceAll(uri, "{"+placeholder+"}", strings.Join(parts, "/"))
+		label := strings.Join(parts, "/")
+		uri = strings.ReplaceAll(uri, "{"+placeholder+"}", label)
+		if traced {
+			if inputShape.Members[key].Sensitive { label = redacted }
+			display = strings.ReplaceAll(display, "{"+placeholder+"}", label)
+		}
 	}
+	display, _, _ = strings.Cut(display, "?")
 	query := []string{}
 	for _, binding := range op.Request.Query {
 		value := boundValues[inputShape.wireName(binding[0])]
 		if value == nil {
 			continue
 		}
+		if traced && inputShape.Members[binding[0]].Sensitive { sensitiveQuery[strings.ToLower(binding[1])] = true }
 		items, ok := value.([]any)
 		if !ok {
 			items = []any{value}
@@ -949,6 +1033,7 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 			sort.Strings(keys)
 			for _, name := range keys {
 				if reserved[name] { continue }
+				if traced && inputShape.Members[key].Sensitive { sensitiveQuery[strings.ToLower(name)] = true }
 				items, ok := entries[name].([]any)
 				if !ok { items = []any{entries[name]} }
 				for _, item := range items {
@@ -978,6 +1063,7 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		if entries, ok := values[inputShape.wireName(binding[0])].(map[string]any); ok {
 			for suffix, item := range entries {
 				name := binding[1] + suffix
+				if traced && inputShape.Members[binding[0]].Sensitive { sensitiveHeaders[strings.ToLower(name)] = true }
 				if reservedHeaders[strings.ToLower(name)] { continue }
 				if op.Request.HeaderEncodings[binding[0]] == "base64" { var err error; item,err = mediaValue(item,false); if err != nil { return nil,err } }
 				text, err := boundValue(item)
@@ -987,6 +1073,7 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		}
 	}
 	for _, binding := range op.Request.Headers {
+		if traced && inputShape.Members[binding[0]].Sensitive { sensitiveHeaders[strings.ToLower(binding[1])] = true }
 		value := boundValues[inputShape.wireName(binding[0])]
 		if value == nil {
 			continue
@@ -1036,14 +1123,34 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		service := strings.Split(c.schema.Service, "#")
 		headers.Set("X-Amz-Target", service[len(service)-1] + "." + name)
 	}
+	discovery, err := c.discoveryRequest(name, op, inputShape, values)
+	if err != nil { return nil, err }
+	endpointSource := "configured"
+	if c.schema.EndpointRules != nil { endpointSource = "rules" }
 	maxAttempts := c.config.MaxAttempts
 	// A one-shot stream is opened once, so its operation is never retried.
 	if source != nil && !source.replayable { maxAttempts = 1 }
+	lastCost := 0
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		request, err := http.NewRequestWithContext(ctx, op.Method, strings.TrimRight(endpoint,"/")+uri, bytes.NewReader(body))
+		discovered, err := c.discover(ctx, discovery)
+		if err != nil { return nil, err }
+		attemptEndpoint, attemptSource := strings.TrimRight(endpoint, "/"), endpointSource
+		// A discovered address replaces the endpoint, host prefix included.
+		if discovered != nil { attemptEndpoint, attemptSource = discovered.url, "discovered" }
+		if wait := c.retry.sendDelay(); wait > 0 {
+			if deadline, ok := ctx.Deadline(); ok && wait >= time.Until(deadline) {
+				c.retry.cancelSend()
+				return nil, fmt.Errorf("client-side rate limit delay exceeds the request deadline: %w", context.DeadlineExceeded)
+			}
+			if err := c.config.Clock.Sleep(ctx, wait); err != nil {
+				c.retry.cancelSend()
+				return nil, err
+			}
+		}
+		request, err := http.NewRequestWithContext(ctx, op.Method, attemptEndpoint+uri, bytes.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
@@ -1097,67 +1204,89 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		if err := checksum.request(request); err != nil { return nil,err }
 		if sign != nil { if err := sign(); err != nil { return nil, err } }
 		if err := ctx.Err(); err != nil { return nil, err }
+		trace.attemptStarted(request, attemptEndpoint, attemptSource, display, sensitiveHeaders, sensitiveQuery)
 		response, transportErr := c.config.HTTPClient.Do(request)
+		// interrupted ends an attempt with a failure that is never retried; a
+		// response that arrived still counts toward the measured rate.
+		interrupted := func(size int64, err error) (map[string]any, error) {
+			if response != nil { c.retry.afterAttempt(false) }
+			trace.attemptFinished(response, err, size, "", 0)
+			return nil, err
+		}
 		if stream != nil {
 			if err := ctx.Err(); err != nil {
 				if response != nil { response.Body.Close() }
-				return nil, err
+				return interrupted(-1, err)
 			}
 			if err := stream.err(); err != nil {
 				// The caller's stream failed or broke its length: never a retried NetworkError.
 				if response != nil { response.Body.Close() }
-				return nil, err
+				return interrupted(-1, err)
 			}
 		}
 		if transportErr == nil && op.Response.Streaming && response.StatusCode >= 200 && response.StatusCode < 300 {
 			result, err := c.streamResponse(ctx, cancel, name, op, response, checksum)
-			if err != nil { response.Body.Close(); return nil, err }
+			if err != nil { response.Body.Close(); return interrupted(-1, err) }
 			streamed = true
+			c.retry.afterAttempt(false)
+			c.retry.succeeded(lastCost)
+			trace.attemptFinished(response, nil, response.ContentLength, "", 0)
 			return result, nil
 		}
 		var data []byte
+		size := int64(-1)
 		if response != nil {
 			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0 || len(op.Response.Payload) > 0 || len(checksum.Response)>0) {
 				data, transportErr = io.ReadAll(response.Body)
 			}
 			response.Body.Close()
+			size = int64(len(data))
 		}
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return interrupted(size, err)
 		}
 		var lastErr error
 		if transportErr != nil {
 			lastErr = &NetworkError{Cause: transportErr}
-			if !op.Safe || attempt == maxAttempts {
-				return nil, &NetworkError{Cause: transportErr}
-			}
 		} else {
 			if response.StatusCode >= 200 && response.StatusCode < 300 {
-				algorithm,err := checksum.response(response.Header,data); if err != nil { return nil,err }
+				algorithm,err := checksum.response(response.Header,data); if err != nil { return interrupted(size, err) }
 				if algorithm != "" && c.config.ChecksumValidated != nil { c.config.ChecksumValidated(name,algorithm) }
 			}
 			result, err := c.decode(op, response, data)
 			if err == nil {
+				c.retry.afterAttempt(false)
+				c.retry.succeeded(lastCost)
+				trace.attemptFinished(response, nil, size, "", 0)
 				return result, nil
 			}
-			lastErr = err
 			var serviceErr *ServiceError
-			if !errors.As(err, &serviceErr) || !canRetry(op.Safe, serviceErr) || attempt == maxAttempts {
-				return nil, err
-			}
+			if !errors.As(err, &serviceErr) { return interrupted(size, err) }
+			lastErr = err
 		}
+		// Record the failed attempt, then decide whether, and when, to retry.
+		c.retry.afterAttempt(throttled(lastErr))
+		if discovered != nil && c.invalidates(lastErr) { c.discovery.invalidate(discovery.key, discovered) }
+		reason := c.classify(op, transportErr, lastErr, discovered)
+		if reason == "" || attempt == maxAttempts {
+			trace.attemptFinished(response, lastErr, size, "", 0)
+			return nil, lastErr
+		}
+		granted, cost := c.retry.acquireRetry(reason == "timeout")
+		if !granted {
+			trace.attemptFinished(response, lastErr, size, "", 0)
+			return nil, lastErr
+		}
+		delay := retryDelayWith(attempt, response, c.config.BaseDelay, c.config.MaxDelay, c.retry.jitter)
+		trace.attemptFinished(response, lastErr, size, reason, delay)
+		lastCost = cost
 		// Fence the attempt's body before a retry reopens or rewinds its source.
 		if stream != nil { stream.Close() }
-		delay := retryDelay(attempt, response, c.config.BaseDelay, c.config.MaxDelay)
 		if deadline, ok := ctx.Deadline(); ok && delay >= time.Until(deadline) {
 			return nil, lastErr
 		}
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		case <-timer.C:
+		if err := c.config.Clock.Sleep(ctx, delay); err != nil {
+			return nil, err
 		}
 	}
 	panic("unreachable")
@@ -1167,6 +1296,12 @@ func canRetry(safe bool, e *ServiceError) bool {
 	return e.Throttling || safe && (e.Retryable || e.Metadata.Status == 500 || e.Metadata.Status == 502 || e.Metadata.Status == 503 || e.Metadata.Status == 504)
 }
 func retryDelay(attempt int, response *http.Response, base, max time.Duration) time.Duration {
+	return retryDelayWith(attempt, response, base, max, mathrand.Float64)
+}
+
+// retryDelayWith is Retry-After when valid, otherwise full-jitter exponential
+// backoff after the given (1-based) failed attempt.
+func retryDelayWith(attempt int, response *http.Response, base, max time.Duration, jitter func() float64) time.Duration {
 	if response != nil {
 		text := response.Header.Get("Retry-After")
 		if seconds, err := strconv.ParseFloat(text, 64); err == nil && !math.IsNaN(seconds) && !math.IsInf(seconds, 0) && seconds >= 0 {
@@ -1183,7 +1318,7 @@ func retryDelay(attempt int, response *http.Response, base, max time.Duration) t
 	}
 	ceiling := float64(base) * math.Pow(2, float64(min(attempt-1, 30)))
 	ceiling = math.Min(ceiling, float64(max))
-	return time.Duration(mathrand.Float64() * ceiling)
+	return time.Duration(jitter() * ceiling)
 }
 func (c *clientRuntime) responseBindings(target string, binding bindings, response *http.Response, values map[string]any) error {
 	shape := c.schema.Shapes[target]

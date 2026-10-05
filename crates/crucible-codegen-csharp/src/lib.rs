@@ -143,6 +143,10 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::HttpChecksum,
         Feature::Streaming,
         Feature::EndpointDiscovery,
+        Feature::SmithyRpcV2Cbor,
+        Feature::SmithyRpcV2Json,
+        Feature::DigestAuth,
+        Feature::SigV4a,
     ])
 }
 
@@ -541,6 +545,27 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         (
             "ActivityTelemetryHook",
             include_str!("../runtime/ActivityTelemetryHook.cs"),
+        ),
+        (
+            "ClientRuntime.Rpc",
+            include_str!("../runtime/ClientRuntime.Rpc.cs"),
+        ),
+        ("Cbor", include_str!("../runtime/Cbor.cs")),
+        ("CborMap", include_str!("../runtime/CborMap.cs")),
+        ("CborTag", include_str!("../runtime/CborTag.cs")),
+        ("Sha512_256", include_str!("../runtime/Sha512_256.cs")),
+        (
+            "DigestAuthentication",
+            include_str!("../runtime/DigestAuthentication.cs"),
+        ),
+        ("SigV4aSigner", include_str!("../runtime/SigV4aSigner.cs")),
+        (
+            "SigV4aSigningOptions",
+            include_str!("../runtime/SigV4aSigningOptions.cs"),
+        ),
+        (
+            "SigV4aSigningResult",
+            include_str!("../runtime/SigV4aSigningResult.cs"),
         ),
     ] {
         files.push(File {

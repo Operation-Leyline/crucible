@@ -104,10 +104,118 @@ and 20 seconds; nonzero values override them. Retry-After takes precedence.
 If the next retry delay cannot fit the remaining deadline, the client returns
 the last failure immediately, preserving the modeled error for `errors.As`.
 
+The retry mode, endpoint discovery and telemetry below follow the shared
+[runtime policy contract](../sdk-runtime-policy.md).
+
 `ListCitiesPages(input)` creates a paginator without changing the caller's
 input. Call `NextPage(ctx)` while `HasMorePages()` is true. Repeated continuation
 tokens stop pagination with an error. Paginators are stateful and should be
 used by one goroutine at a time.
+
+## Retry modes
+
+`Config.RetryMode` limits retries without changing which failures are
+eligible for one:
+
+| Mode | Behavior |
+|---|---|
+| `RetryModeLegacy` (the zero value) | eligible failures retry with backoff until `MaxAttempts`; no quota |
+| `RetryModeStandard` | adds a retry quota shared by every call and goroutine of the client |
+| `RetryModeAdaptive` | standard, plus a client-side send-rate limiter after throttling |
+
+The quota starts at 500 tokens. A retry costs 5 tokens, or 10 after a
+transport timeout; when the quota cannot pay, the call returns the failure it
+has. A successful call refunds the cost of its last retry, or adds 1 when it
+did not retry; a failed call refunds nothing. Adaptive mode measures the
+response rate and, after the first modeled throttling error, limits the send
+rate with CUBIC, as the AWS SDKs' adaptive mode does. A wait for a send token
+counts against the call: when it would pass the context deadline the call fails
+with `context.DeadlineExceeded` before sending, and a cancelled context returns
+the token. Legacy stays the default because a client in standard mode stops
+retrying once an outage has spent its quota.
+
+```go
+client, err := records.NewRecordsClient(records.Config{
+    Endpoint:  "https://records.example",
+    RetryMode: records.RetryModeAdaptive,
+})
+```
+
+## Endpoint discovery
+
+For a service with `@aws.api#clientEndpointDiscovery`, `Config.EndpointDiscovery`
+decides which operations discover their endpoint:
+
+| Setting | Discovery required | Discovery optional |
+|---|---|---|
+| `EndpointDiscoveryAuto` (the zero value) | discovers | configured endpoint |
+| `EndpointDiscoveryEnabled` | discovers | discovers |
+| `EndpointDiscoveryDisabled` | fails with `ErrEndpointDiscovery` before sending | configured endpoint |
+
+The discovery call is an ordinary call of the discovery operation: it is
+authenticated, retried under its own operation's policy and reported to
+telemetry. Its first usable address is cached per client, keyed by operation
+and discovery identifiers, for `CachePeriodInMinutes`; an address without a
+scheme keeps the configured endpoint's scheme, and host prefixes are not
+applied to it. Concurrent calls that need the same entry share one discovery,
+which runs on its own goroutine bounded by the deadline of the call that
+started it: a caller whose context ends stops waiting with its context error
+without cancelling the discovery for the others.
+
+A required operation fails with the discovery call's error, or with an error
+matching `ErrEndpointDiscovery` through `errors.Is` when the response has no
+usable endpoint. An optional operation uses the configured endpoint instead, and
+keeps doing so for 60 seconds. HTTP 421 or the modeled discovery error evicts
+the entry the attempt used and is retried, even for a write, within
+`MaxAttempts` and the retry quota; the next attempt rediscovers.
+
+## Telemetry
+
+`Config.Telemetry` accepts a `TelemetryHook`. Every call reports
+`OperationStarted`, an `AttemptStarted` and `AttemptFinished` pair per attempt
+that reached the transport, and `OperationFinished`; a discovery call's own
+events appear before the attempt that needed it. Embed `NopTelemetryHook` to
+implement only some methods:
+
+```go
+type latencyLog struct{ records.NopTelemetryHook }
+
+func (latencyLog) AttemptFinished(e records.AttemptFinishedEvent) {
+    log.Printf("%s attempt %d: status %d %s in %s, retry %q", e.Operation, e.Attempt, e.Status, e.Error, e.Latency, e.RetryReason)
+}
+
+client, err := records.NewRecordsClient(records.Config{Endpoint: endpoint, Telemetry: latencyLog{}})
+```
+
+Events carry an invocation ID shared by one call, the service shape ID, the
+operation, the attempt's method, endpoint (scheme, host, port and base path,
+never user information), endpoint source (`configured`, `rules` or
+`discovered`), target path and query, request headers as sent, sizes, status,
+request ID, latency, retry reason (`throttling`, `transient`, `timeout`,
+`network` or `endpoint`, set only when another attempt follows) and delay.
+`Status` is 0 when no response arrived, `Error` is empty on success, and
+`RequestBytes` and `ResponseBytes` are -1 when unknown. `Error` is a modeled or
+wire error's name, `Canceled`, `DeadlineExceeded`, `EndpointDiscoveryError`, or
+the error's exported Go type name (such as `NetworkError`), otherwise `error`;
+never an error message.
+
+Events never contain bodies, inputs, outputs or messages. Header and query
+values (never names) are replaced with `***` for `Authorization`,
+`Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Amz-Security-Token`, the
+`X-Amz-Signature`, `X-Amz-Credential` and `X-Amz-Security-Token` query
+parameters, every modeled `@httpApiKeyAuth` header or query parameter, and every
+header, prefix header, query parameter, query-map entry and path label bound to
+a `@sensitive` member. Hooks run synchronously on the calling goroutine (a
+shared discovery's on its own) and must be safe for concurrent use. A hook that
+panics is recovered and logged with the standard `log` package; it never
+changes a call's result, retries or timing. The module ships no OpenTelemetry
+adapter, so it keeps no dependencies; a hook maps events onto a tracer as the
+contract describes.
+
+`Config.Clock` replaces the system clock for backoff and rate-limit waits, the
+discovery cache and telemetry times. It is a test seam: `Now` must be
+monotonic, and `Sleep(ctx, d)` must return early with the context's error. A
+call's `Timeout` and context deadline always use real time.
 
 ## Updating generated code
 
@@ -249,7 +357,13 @@ shared cases and real weather-service HTTP tests, and consumes the SDK from a
 separate Go module. Its streaming package exercises one-shot, seekable and
 factory uploads, length rules, cancellation, deadlines after return, connection
 release, checksums and declared digests, and moves 256 MiB each way over
-loopback HTTP while sampling `runtime.MemStats` to prove the heap stays bounded. Set `GO` to a compiler path when it is not on PATH.
+loopback HTTP while sampling `runtime.MemStats` to prove the heap stays bounded.
+Its policy package, generated from the shared `runtime-policy.json` fixture,
+runs every retry-quota, adaptive-retry, endpoint-discovery and telemetry vector
+in `tests/conformance/` on an injected clock, plus single-flight discovery
+under concurrent goroutines (a failed shared discovery, a cancelled first
+caller, a waiter's own deadline). Set `GO_RACE=1` to also run it under the race
+detector, which needs cgo and a C compiler. Set `GO` to a compiler path when it is not on PATH.
 Generate and compile the current full Leyline projection separately, recording
 its model fingerprint and operation coverage. Local tests do not cover a
 published module or authenticated deployed Leyline traffic.

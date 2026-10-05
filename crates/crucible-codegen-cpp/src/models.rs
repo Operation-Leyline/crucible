@@ -123,6 +123,7 @@ impl<'a> Layout<'a> {
                 SimpleKind::Long => "std::int64_t".into(),
                 SimpleKind::Float => "float".into(),
                 SimpleKind::Double => "double".into(),
+                SimpleKind::Blob if simple.streaming => format!("{runtime}::ByteStream"),
                 SimpleKind::Blob => format!("{runtime}::Blob"),
                 SimpleKind::Timestamp => format!("{runtime}::Timestamp"),
                 SimpleKind::Document => format!("{runtime}::Json"),

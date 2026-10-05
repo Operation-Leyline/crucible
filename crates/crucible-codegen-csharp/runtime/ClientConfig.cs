@@ -10,6 +10,10 @@ public sealed class ClientConfig
     public Func<CancellationToken, ValueTask<BasicCredentials?>>? BasicCredentials { get; init; }
     public Func<CancellationToken, ValueTask<string?>>? ApiKey { get; init; }
     public Func<CancellationToken, ValueTask<AwsCredentials?>>? Credentials { get; init; }
+    /// <summary>Credentials for HTTP Digest (RFC 7616) challenges; the first request carries none.</summary>
+    public Func<CancellationToken, ValueTask<BasicCredentials?>>? DigestCredentials { get; init; }
+    /// <summary>The regions a SigV4a signature covers, such as <c>["*"]</c>; an endpoint rule's set wins, and <see cref="Region"/> is the fallback.</summary>
+    public IReadOnlyList<string>? SigV4aSigningRegionSet { get; init; }
     public string? Region { get; init; }
     public Dictionary<string, System.Text.Json.Nodes.JsonNode?> EndpointParameters { get; init; } = new();
     public Dictionary<string, System.Text.Json.Nodes.JsonNode?> EndpointBuiltIns { get; init; } = new();

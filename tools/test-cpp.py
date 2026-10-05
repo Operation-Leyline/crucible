@@ -1,6 +1,8 @@
 """Qualify generated C++20 packages with native consumers and loopback HTTP."""
 import base64
 from contextlib import contextmanager
+import select
+import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -120,12 +122,171 @@ def scripted():
         server.server_close()
 
 
+LARGE = 256 << 20
+BLOCK = b"x" * (64 << 10)
+
+
+@contextmanager
+def streaming():
+    """Loopback server for streaming blobs: records uploads without holding them, and streams downloads."""
+    lock = threading.Lock()
+    state = {"mode": "ok", "release": threading.Event(), "aborted": threading.Event(), "attempts": 0,
+             "last": {"attempts": 0, "headers": {}, "contentLength": -1, "chunked": False, "received": "", "size": 0}}
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *_args):
+            pass
+
+        def handle(self):
+            try:
+                super().handle()
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                state["aborted"].set()
+
+        def reply(self, status, body=b"", headers=None):
+            self.send_response(status)
+            for key, value in (headers or {}).items():
+                self.send_header(key, value)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def control(self, value):
+            self.reply(200, json.dumps(value).encode(), {"Content-Type": "application/json"})
+
+        def consume(self):
+            """Reads a request body in bounded pieces, decoding chunked framing."""
+            prefix, size = bytearray(), 0
+            def keep(data):
+                nonlocal size
+                if len(prefix) < 1024:
+                    prefix.extend(data[:1024 - len(prefix)])
+                size += len(data)
+            if "chunked" in self.headers.get("Transfer-Encoding", "").lower():
+                while True:
+                    line = self.rfile.readline()
+                    if not line:
+                        raise ConnectionAbortedError("truncated chunked body")
+                    length = int(line.split(b";")[0].strip(), 16)
+                    if length == 0:
+                        while self.rfile.readline() not in (b"\r\n", b"\n", b""):
+                            pass
+                        break
+                    left = length
+                    while left:
+                        data = self.rfile.read(min(left, 1 << 16))
+                        if not data:
+                            raise ConnectionAbortedError("truncated chunk")
+                        keep(data)
+                        left -= len(data)
+                    self.rfile.readline()
+            else:
+                left = int(self.headers.get("Content-Length", "0"))
+                while left:
+                    data = self.rfile.read(min(left, 1 << 16))
+                    if not data:
+                        raise ConnectionAbortedError("truncated body")
+                    keep(data)
+                    left -= len(data)
+            return bytes(prefix), size
+
+        def held(self, release):
+            """Waits for release; reports False when the client closed the connection first."""
+            while not release.wait(0.05):
+                readable, _, _ = select.select([self.connection], [], [], 0)
+                if readable and not self.connection.recv(1, socket.MSG_PEEK):
+                    state["aborted"].set()
+                    return False
+            return True
+
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length) or b"{}")
+            if self.path == "/__mode":
+                with lock:
+                    state["release"].set()
+                    state.update(mode=body["mode"], release=threading.Event(), aborted=threading.Event(), attempts=0)
+                    state["last"] = {"attempts": 0, "headers": {}, "contentLength": -1, "chunked": False, "received": "", "size": 0}
+                return self.control({})
+            if self.path == "/__release":
+                state["release"].set()
+                return self.control({})
+            if self.path == "/__last":
+                with lock:
+                    return self.control(dict(state["last"]))
+            if self.path == "/__aborted":
+                return self.control({"aborted": state["aborted"].wait(10)})
+            self.reply(404)
+
+        def do_PUT(self):
+            with lock:
+                state["attempts"] += 1
+                attempt, mode = state["attempts"], state["mode"]
+            try:
+                prefix, size = self.consume()
+            except (ConnectionAbortedError, ConnectionResetError, ValueError):
+                state["aborted"].set()
+                self.close_connection = True
+                return
+            with lock:
+                state["last"] = {"attempts": attempt, "headers": {key.lower(): value for key, value in self.headers.items()},
+                                 "contentLength": int(self.headers.get("Content-Length", "-1")),
+                                 "chunked": "chunked" in self.headers.get("Transfer-Encoding", "").lower(),
+                                 "received": prefix.decode("latin-1"), "size": size}
+            self.reply(503 if mode == "503" or (mode == "503-once" and attempt == 1) else 204)
+
+        def do_GET(self):
+            mode, release, aborted = state["mode"], state["release"], state["aborted"]
+            try:
+                if self.path == "/fetch":
+                    checksum = "AAAAAA==" if mode == "bad" else "y/Q5Jg=="
+                    return self.reply(200, b"123456789", {"x-amz-checksum-crc32": checksum})
+                if self.path != "/download":
+                    return self.reply(404)
+                self.send_response(200)
+                self.send_header("x-count", "invalid" if mode == "invalid" else "3")
+                length = {"ok": 3, "hang": 1, "large": LARGE}.get(mode, 1 << 30)
+                self.send_header("Content-Length", str(length))
+                self.end_headers()
+                self.wfile.flush()
+                if mode == "ok":
+                    if self.held(release):
+                        self.wfile.write(b"abc")
+                elif mode == "hang":
+                    self.held(release)
+                    self.close_connection = True
+                elif mode == "large":
+                    for _ in range(LARGE // len(BLOCK)):
+                        self.wfile.write(BLOCK)
+                else:
+                    for _ in range(length // len(BLOCK)):
+                        self.wfile.write(BLOCK)
+                        self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+                aborted.set()
+                self.close_connection = True
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        state["release"].set()
+        server.shutdown()
+        server.server_close()
+
+
 FEATURES = [
     # (directory, model, package, namespace, extra generator arguments)
     ("auth", "crates/crucible-codegen-python/tests/auth.json", "auth_client", "auth_sdk", []),
     ("behavior", "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "behavior_client", "behavior_sdk", []),
     ("jobs", "crates/crucible-codegen-java/tests/waiters.json", "jobs_client", "jobs_sdk", []),
     ("checksum", "crates/crucible-smithy/tests/fixtures/checksums.json", "checksum_client", "checksum_sdk", []),
+    ("streaming", "crates/crucible-codegen-java/tests/streaming.json", "streaming_client", "streaming_sdk", []),
     ("restjson", "crates/crucible-smithy/tests/fixtures/protocol-json.json", "restjson_client", "restjson_sdk", ["--protocol", "aws.protocols#restJson1"]),
     ("json10", "crates/crucible-smithy/tests/fixtures/protocol-json.json", "json10_client", "json10_sdk", ["--protocol", "aws.protocols#awsJson1_0"]),
     ("json11", "crates/crucible-smithy/tests/fixtures/protocol-json.json", "json11_client", "json11_sdk", ["--protocol", "aws.protocols#awsJson1_1"]),
@@ -136,7 +297,7 @@ def feature_cmake(output, tests):
     lines = []
     for directory, _model, package, namespace, _extra in FEATURES:
         lines.append(f'add_subdirectory("{(output / directory).as_posix()}" {directory}-sdk)')
-    for name, package in [("auth_test", "auth_client"), ("behavior_test", "behavior_client"), ("waiters_test", "jobs_client"), ("checksums_test", "checksum_client")]:
+    for name, package in [("auth_test", "auth_client"), ("behavior_test", "behavior_client"), ("waiters_test", "jobs_client"), ("checksums_test", "checksum_client"), ("streaming_test", "streaming_client")]:
         source = name.removesuffix("_test")
         lines.append(f'add_executable({name} "{tests.as_posix()}/{source}.cpp")')
         lines.append(f'target_link_libraries({name} PRIVATE {package})')
@@ -208,6 +369,9 @@ endforeach()
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))
     run(str(executable(consumer_build, "behavior_test")), env=runtime_env)
+    with streaming() as stream_url:
+        run(str(executable(consumer_build, "streaming_test")), env=dict(runtime_env, STREAM_URL=stream_url,
+            CHECKSUM_CASES=str(ROOT / "tests/conformance/checksums.json")))
     with scripted() as scripted_url:
         feature_env = dict(runtime_env, SCRIPTED_URL=scripted_url, CHECKSUM_CASES=str(ROOT / "tests/conformance/checksums.json"),
                            CREDENTIALS_FILE=str(output / "aws-credentials"))

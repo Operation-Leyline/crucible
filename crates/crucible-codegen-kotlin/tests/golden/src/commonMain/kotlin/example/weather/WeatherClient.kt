@@ -4,6 +4,8 @@ package example.weather
 class WeatherClient(config: ClientConfig) : AutoCloseable {
     private val runtime = ClientRuntime(config, "https://weather.example", true)
     override fun close() = runtime.close()
+    /** This client's retry quota, shared by all of its calls: null in `RetryMode.LEGACY`. */
+    val retryQuota: RetryQuota? get() = runtime.retryQuota
     suspend fun `createCity`(input: example.weather.model.`CreateCityInput`): example.weather.model.`CreateCityOutput` = runtime.call("CreateCity", input) as example.weather.model.`CreateCityOutput`
     suspend fun `createCity`(block: example.weather.model.`CreateCityInput`.Builder.() -> kotlin.Unit = {}): example.weather.model.`CreateCityOutput` = `createCity`(example.weather.model.`CreateCityInput`(block))
     suspend fun `getCity`(input: example.weather.model.`GetCityInput`): example.weather.model.`GetCityOutput` = runtime.call("GetCity", input) as example.weather.model.`GetCityOutput`

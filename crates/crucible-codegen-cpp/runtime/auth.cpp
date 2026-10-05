@@ -177,7 +177,14 @@ void sign_v4(HttpRequest& request, const AwsCredentials& credentials, const Sign
     headers.insert_or_assign("x-amz-date", stamp);
     if (!credentials.session_token.empty()) headers.insert_or_assign("x-amz-security-token", credentials.session_token);
     else headers.erase("x-amz-security-token");
-    const auto digest = options.unsigned_payload ? std::string("UNSIGNED-PAYLOAD") : hex(digest_bytes("SHA256", request.body.value_or("")));
+    std::string digest;
+    if (options.unsigned_payload) digest = "UNSIGNED-PAYLOAD";
+    else if (request.stream) {
+        // A stream is never read to sign it: its SHA-256 must be declared.
+        const auto declared = headers.find("x-amz-content-sha256");
+        if (declared == headers.end() || declared->second.empty()) throw StreamDigestError("SigV4 needs a declared SHA-256 (ByteStream::with_sha256) or an unsigned-payload operation for a streaming body");
+        digest = declared->second;
+    } else digest = hex(digest_bytes("SHA256", request.body.value_or("")));
     headers.insert_or_assign("x-amz-content-sha256", digest);
     const auto url = split_url(request.url);
     auto uri = url.path.empty() ? std::string("/") : url.path;

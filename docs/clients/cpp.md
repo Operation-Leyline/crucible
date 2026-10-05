@@ -81,7 +81,8 @@ model edges use `Box<T>` with deep-copy semantics. Enums retain unknown strings;
 unions use `std::variant` with a distinct unknown alternative. Documents use
 `runtime::Json`, preserving object/list identity and exact numeric text.
 `Blob` is `std::vector<std::byte>`; JSON encodes it as base64 and payload bindings
-transmit the bytes directly. `Timestamp` stores signed 64-bit epoch seconds
+transmit the bytes directly. A `@streaming` blob is a `runtime::ByteStream`
+instead (see [Streaming blobs](#streaming-blobs)). `Timestamp` stores signed 64-bit epoch seconds
 and nanoseconds. Date text supports years 1 through 9999.
 
 Generated `runtime::Codec<T>` converts a model to or from `Json` using its
@@ -180,7 +181,72 @@ to CRC32; `when_required` only sends required checksums. When response
 validation is enabled (the default, or `ENABLED` in the validation member),
 the first modeled algorithm the response carries is verified;
 a mismatch throws `runtime::ChecksumError` and a match calls
-`checksum_validated(operation, algorithm)`.
+`checksum_validated(operation, algorithm)`. Streaming bodies follow the
+rules in [Streaming blobs](#streaming-blobs).
+
+## Streaming blobs
+
+A `@streaming` blob is a `runtime::ByteStream`, sent or received as the whole
+HTTP body without buffering it. Requests choose a source:
+
+| Source | Replay | Length |
+|---|---|---|
+| `ByteStream::from_bytes(blob)`, `from_string(text)` | replayable | known |
+| `ByteStream::from_file(path)` | replayable, reopened per attempt | file size |
+| `ByteStream::from_factory(open[, length])` | replayable, one `open()` call per attempt | optional |
+| `ByteStream::from_reader(read[, length])` | one-shot | optional |
+| `ByteStream::from_istream(stream[, length])` | one-shot; the caller owns the stream | optional |
+| `ByteStream()` | none | an empty body |
+
+A `runtime::StreamReader` is `std::size_t(char* buffer, std::size_t size)`: it
+fills up to `size` bytes and returns 0 at the end; an exception it throws ends
+the call. A replay factory must return the same bytes every time. A one-shot
+body is read at most once, so its operation is never retried, and passing it
+to a second call throws `StreamConsumedError`. Copies of a `ByteStream` share
+the same stream. A known length is sent as `Content-Length` through a libcurl
+read callback, and the stream must produce exactly that many bytes; otherwise
+the body is sent chunked. `@requiresLength` rejects a stream of unknown length
+before sending, and modeled `@length` bounds are checked before sending when
+the length is known and again as bytes flow. A stream that fails or breaks
+its length throws its own error (`StreamLengthError` or the reader's
+exception), never a retried `NetworkError`. The call's deadline and
+`std::stop_token` are checked before every read; a reader blocked inside its
+own I/O cannot be interrupted.
+
+```cpp
+(void)client.put_object(models::PutObjectInput("photo.jpg",
+    runtime::ByteStream::from_file("photo.jpg")));
+
+auto object = client.get_object(models::GetObjectInput("photo.jpg"));
+std::ofstream target("copy.jpg", std::ios::binary);
+object.body.transfer_to(target);  // or read(buffer, size), read_all(), read_text()
+```
+
+A streaming response is returned as soon as its headers are decoded; the body
+stays on the connection and is pulled only as the caller reads it, with at
+most 1 MiB received ahead before the transfer pauses. The call's deadline and
+`std::stop_token` keep applying while the body is read: an expired deadline
+fails `read` with `DeadlineError`, and a stop request with `CancelledError`.
+`close()` releases the connection, and may be called from another thread to
+end a blocked `read` with `StreamClosedError`; destroying the last copy of an
+unread stream releases it too. Streaming exchanges use their own connection,
+so the client can send other requests while a body is open. A custom
+transport that does not override `Transport::open` receives and returns
+buffered bodies.
+
+Streams are never buffered to compute a digest. With `--content-sha256` or
+SigV4 signing, declare the hex SHA-256 with `with_sha256(hex)` or an
+`x-amz-content-sha256` header from middleware; without it the call throws
+`StreamDigestError` before the stream is opened. SigV4 signs an operation
+modeled with an unsigned payload as `UNSIGNED-PAYLOAD` instead. A streaming
+request receives no automatic checksum: a required or explicitly selected
+algorithm needs its header supplied by the caller (for example a modeled
+`x-amz-checksum-crc32` member), or the call throws `StreamDigestError`. A
+streaming response checksum is verified incrementally; a mismatch fails the
+final `read` with `ChecksumError` (and every later read), and
+`checksum_validated` runs on the reading thread only after the last byte
+verified. Middleware sees the unopened stream as `request.stream`, with no
+`body`. Event streams are not supported.
 
 ## Errors, retries, and cancellation
 
@@ -226,7 +292,13 @@ authentication, endpoint-rule, waiter, checksum, and three AWS JSON protocol
 fixtures and runs their native tests: the published SigV4 vector and a
 server-side signature check, credential chains and concurrent cached refresh,
 the shared checksum vectors, rule-engine functions and host-prefix validation,
-and waiter, checksum, and protocol behavior against a scripted loopback server. Set `CPP_SANITIZE=1` for
+and waiter, checksum, and protocol behavior against a scripted loopback server.
+Its streaming package exercises one-shot, factory, byte, file, and stream
+uploads, length rules, upload cancellation, responses returned at their
+headers, deadlines and cancellation after return, connection release on close
+and destruction, incremental checksums, and declared digests, and moves
+256 MiB each way over loopback HTTP while checking that the process's peak
+working set stays within 64 MiB of its starting size. Set `CPP_SANITIZE=1` for
 Linux address and undefined-behavior sanitizers. Windows dependency configuration
 uses `CMAKE_TOOLCHAIN_FILE` and `VCPKG_INSTALLED_DIR`.
 

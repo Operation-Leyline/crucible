@@ -26,6 +26,14 @@ data class ClientConfig(
     val maxDelay: Duration = 20.seconds,
     val headers: Map<String, String> = emptyMap(),
     val middleware: List<suspend (Request) -> Unit> = emptyList(),
+    /** Retry limits on top of retry eligibility; see [RetryMode]. */
+    val retryMode: RetryMode = RetryMode.LEGACY,
+    /** Endpoint discovery: null discovers for required operations only, true also for optional ones, false never (required operations fail). */
+    val endpointDiscovery: Boolean? = null,
+    /** Receives redacted call and attempt events. */
+    val telemetry: TelemetryHook? = null,
+    /** Monotonic time and sleeps for backoff, rate limiting, discovery expiry and telemetry; a test seam. */
+    val runtimeClock: RuntimeClock = RuntimeClock.System,
 )
 
 /** Middleware can replace the body; the optional digest hashes bytes after every hook. */

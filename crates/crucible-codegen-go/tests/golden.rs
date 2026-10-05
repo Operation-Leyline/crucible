@@ -174,6 +174,9 @@ fn weather_matches_goldens() {
                 | "endpoints.go"
                 | "checksums.go"
                 | "stream.go"
+                | "policy.go"
+                | "discovery.go"
+                | "telemetry.go"
         ) {
             continue;
         }
@@ -237,4 +240,61 @@ fn go_streams_outside_the_http_payload_are_diagnosed() {
         .unwrap();
     let error = emit(&service, &stream_options()).err().unwrap();
     assert!(format!("{error:?}").contains("not the streaming payload"));
+}
+
+#[test]
+fn endpoint_discovery_models_generate_with_the_policy_runtime() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/runtime-policy.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_go::capabilities())
+    .unwrap();
+    let files = emit(
+        &service,
+        &Options {
+            module_path: "example.com/policy".into(),
+            package_name: "policy".into(),
+            endpoint: None,
+            content_sha256: false,
+        },
+    )
+    .unwrap();
+    for runtime in ["policy.go", "discovery.go", "telemetry.go"] {
+        assert!(files.iter().any(|f| f.path == runtime), "{runtime}");
+    }
+    let client = &files
+        .iter()
+        .find(|f| f.path == "client.go")
+        .unwrap()
+        .contents;
+    assert!(client.contains(r#"\"discoveredEndpoint\":{\"required\":true"#));
+}
+
+#[test]
+fn runtime_policy_names_cannot_collide_with_models() {
+    for name in [
+        "RetryMode",
+        "TelemetryHook",
+        "AttemptFinishedEvent",
+        "Clock",
+    ] {
+        let mut model: serde_json::Value = serde_json::from_str(include_str!(
+            "../../crucible-smithy/tests/fixtures/weather.json"
+        ))
+        .unwrap();
+        model["shapes"]["example.weather#Weather"]["rename"] =
+            serde_json::json!({"example.weather#CitySummary":name});
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        let diagnostics = emit(&service, &stream_options()).err().unwrap();
+        assert!(
+            diagnostics
+                .to_string()
+                .contains("collides with another declaration"),
+            "{name}"
+        );
+    }
 }

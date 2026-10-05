@@ -148,6 +148,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::Waiters,
         Feature::EndpointRules,
         Feature::EndpointHostPrefix,
+        Feature::EndpointDiscovery,
         Feature::HttpChecksum,
         Feature::Streaming,
         Feature::AwsRestJson1,
@@ -339,6 +340,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "hashCode",
             "toString",
             "close",
+            "retryQuota",
+            "getRetryQuota",
         ]
         .map(str::to_string),
     );
@@ -377,7 +380,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .expect("schema serializes");
     let (models, codecs) = models::emit(service, package);
     let mut client = format!(
-        "class {client_name}(config: ClientConfig) : AutoCloseable {{\n    private val runtime = ClientRuntime(config, {}, {})\n    override fun close() = runtime.close()\n",
+        "class {client_name}(config: ClientConfig) : AutoCloseable {{\n    private val runtime = ClientRuntime(config, {}, {})\n    override fun close() = runtime.close()\n    /** This client's retry quota, shared by all of its calls: null in `RetryMode.LEGACY`. */\n    val retryQuota: RetryQuota? get() = runtime.retryQuota\n",
         literal(options.endpoint.as_deref().unwrap_or("")),
         options.content_sha256
     );
@@ -492,6 +495,25 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("WireNumbers", include_str!("../runtime/WireNumbers.kt")),
         ("Sha256", include_str!("../runtime/Sha256.kt")),
         ("ServiceError", include_str!("../runtime/ServiceError.kt")),
+        ("RetryMode", include_str!("../runtime/RetryMode.kt")),
+        ("RuntimeClock", include_str!("../runtime/RuntimeClock.kt")),
+        ("RetryQuota", include_str!("../runtime/RetryQuota.kt")),
+        (
+            "CubicCalculator",
+            include_str!("../runtime/CubicCalculator.kt"),
+        ),
+        (
+            "AdaptiveRateLimiter",
+            include_str!("../runtime/AdaptiveRateLimiter.kt"),
+        ),
+        ("RetryStrategy", include_str!("../runtime/RetryStrategy.kt")),
+        (
+            "EndpointDiscoveryError",
+            include_str!("../runtime/EndpointDiscoveryError.kt"),
+        ),
+        ("EndpointCache", include_str!("../runtime/EndpointCache.kt")),
+        ("TelemetryHook", include_str!("../runtime/TelemetryHook.kt")),
+        ("CallTrace", include_str!("../runtime/CallTrace.kt")),
     ] {
         files.push(File {
             path: format!("{source}/{name}.kt"),

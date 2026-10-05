@@ -1,0 +1,130 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:test/test.dart';
+import 'package:auth_client/auth_client.dart';
+
+final class Fake implements HttpTransport {
+  final FutureOr<HttpResponse> Function(int, HttpRequest) handler;
+  final requests = <HttpRequest>[];
+  Fake([FutureOr<HttpResponse> Function(int, HttpRequest)? handler]) : handler = handler ?? ((_, __) => HttpResponse(status: 204));
+  @override
+  Future<HttpResponse> send(HttpRequest request, {required bool readBody, required CancellationToken cancellation}) async {
+    requests.add(request);
+    return handler(requests.length, request);
+  }
+
+  @override
+  void close() {}
+}
+
+Never forbidden() => throw StateError('An unrelated credential provider was invoked');
+
+void main() {
+  test('caller-supplied credentials bypass providers', () async {
+    final fake = Fake();
+    await AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, headers: {'Authorization': 'Basic supplied'}, basicAuth: forbidden)).read();
+    expect(fake.requests.last.headers['authorization'], 'Basic supplied');
+    await AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, headers: {'x-api-key': 'ApiKey supplied'}, apiKey: forbidden)).read();
+    expect(fake.requests.last.headers['x-api-key'], 'ApiKey supplied');
+    // An unrelated scheme's header is not a modeled credential.
+    await expectLater(AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, headers: {'authorization': 'Digest unrelated'})).read(), throwsStateError);
+    expect(fake.requests, hasLength(2));
+  });
+
+  test('scheme selection, anonymous and optional operations', () async {
+    final fake = Fake();
+    var client = AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, basicAuth: () => BasicCredentials('user', 'secret'), apiKey: forbidden));
+    await client.read();
+    expect(fake.requests.last.headers['authorization'], 'Basic dXNlcjpzZWNyZXQ=');
+    await client.public();
+    expect(fake.requests.last.headers.containsKey('authorization'), isFalse);
+    client = AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake));
+    await client.optional();
+    expect(fake.requests.last.headers.containsKey('authorization'), isFalse);
+    await expectLater(client.read(), throwsA(isA<StateError>().having((e) => e.message, 'message', contains('No credentials'))));
+    client = AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, apiKey: () async => 'secret'));
+    await client.read();
+    expect(fake.requests.last.headers['x-api-key'], 'ApiKey secret');
+    await expectLater(AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, apiKey: () => '')).read(), throwsArgumentError);
+    // Credentials never travel over plaintext HTTP except to loopback.
+    final count = fake.requests.length;
+    await expectLater(AuthClient(ClientConfig(endpoint: 'http://example.test', transport: fake, apiKey: () => 'secret')).read(), throwsArgumentError);
+    expect(fake.requests, hasLength(count));
+    await AuthClient(ClientConfig(endpoint: 'http://127.0.0.1', transport: fake, apiKey: () => 'secret')).read();
+    expect(fake.requests, hasLength(count + 1));
+    expect(() => BasicCredentials('a:b', 'c'), throwsArgumentError);
+    expect('${BasicCredentials('user', 'secret')}', isNot(contains('secret')));
+  });
+
+  test('published AWS SigV4 vector (S3 single-chunk GET)', () {
+    final identity = AwsCredentials('AKIAIOSFODNN7EXAMPLE', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY');
+    final signed = signV4(HttpRequest(url: Uri.parse('https://examplebucket.s3.amazonaws.com/test.txt'), method: 'GET', headers: {'Range': 'bytes=0-9'}),
+        identity, service: 's3', region: 'us-east-1', now: DateTime.utc(2013, 5, 24));
+    expect(signed.headers['authorization'],
+        'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, '
+        'SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, '
+        'Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41');
+    expect(signed.headers['x-amz-content-sha256'], 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    expect('$identity', isNot(contains('wJalr')));
+    expect(() => signV4(HttpRequest(url: Uri.parse('https://example.test/'), method: 'GET'), AwsCredentials('a', 'b', expiresAt: DateTime.utc(2000)),
+        service: 'svc', region: 'r'), throwsArgumentError);
+    expect(() => signV4(HttpRequest(url: Uri.parse('https://example.test/'), method: 'GET'), identity, service: 'svc', region: 'a/b'), throwsArgumentError);
+  });
+
+  test('non-S3 SigV4 normalizes and double-encodes the path and sorts the query', () {
+    final identity = AwsCredentials('AKIDEXAMPLE', 'secret');
+    HttpRequest sign(String url) => signV4(HttpRequest(url: Uri.parse(url), method: 'GET'), identity, service: 'svc', region: 'r', now: DateTime.utc(2020));
+    String signature(HttpRequest request) => request.headers['authorization']!.split('Signature=').last;
+    expect(signature(sign('https://example.test/a/b?b=2&a=1')), signature(sign('https://example.test/a/./c/../b?a=1&b=2')));
+    expect(signature(sign('https://example.test/a%20b')), isNot(signature(sign('https://example.test/a%2520b'))));
+  });
+
+  test('SigV4 signs after middleware, digest and per-attempt credential refresh', () async {
+    final identities = [AwsCredentials('first', 'secret', sessionToken: 'session-one'), AwsCredentials('second', 'secret', sessionToken: 'session-two')];
+    final fake = Fake((attempt, request) => attempt == 1 ? HttpResponse(status: 503, body: utf8.encode('{"__type":"Unavailable"}')) : HttpResponse(status: 204));
+    await AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, credentials: () => identities.removeAt(0), region: 'us-east-1',
+        baseDelay: Duration.zero, middleware: [(request) => request.copyWith(headers: {...request.headers, 'x-custom': 'value'})])).read();
+    expect(fake.requests, hasLength(2));
+    final authorization = fake.requests[1].headers['authorization']!;
+    expect(authorization, startsWith('AWS4-HMAC-SHA256 Credential=second/'));
+    expect(authorization, contains('/us-east-1/example/aws4_request'));
+    expect(authorization, contains('x-custom'));
+    expect(fake.requests[1].headers['x-amz-security-token'], 'session-two');
+    await expectLater(AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, credentials: () => AwsCredentials('a', 'b'))).read(), throwsArgumentError);
+  });
+
+  test('credential chains and single-flight cached refresh', () async {
+    // Signing uses the real clock, so cached expiry stays in the future.
+    var now = DateTime.now().toUtc();
+    var calls = 0;
+    final cached = CachedCredentials(() async {
+      calls++;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      return AwsCredentials('key', 'secret', expiresAt: now.add(const Duration(minutes: 5)));
+    }, clock: () => now);
+    final values = await Future.wait([for (var i = 0; i < 30; i++) cached()]);
+    expect(calls, 1);
+    expect(values.every((value) => identical(value, values.first)), isTrue);
+    now = now.add(const Duration(minutes: 4, seconds: 30));
+    expect(identical(await cached(), values.first), isFalse);
+    expect(calls, 2);
+    var shortCalls = 0;
+    final short = CachedCredentials(() { shortCalls++; return AwsCredentials('key', 'secret', expiresAt: now.add(const Duration(seconds: 20))); }, clock: () => now);
+    await Future.wait([for (var i = 0; i < 30; i++) short()]);
+    await short();
+    expect(shortCalls, 1);
+    expect(identical(await credentialChain([() => null, cached])(), await cached()), isTrue);
+    await expectLater(CachedCredentials(() => AwsCredentials('key', 'secret', expiresAt: now), clock: () => now)(), throwsStateError);
+    final fake = Fake();
+    final client = AuthClient(ClientConfig(endpoint: 'https://example.test', transport: fake, credentials: cached, region: 'us-east-1'));
+    await client.read();
+    expect(fake.requests.last.headers['authorization'], startsWith('AWS4-HMAC-SHA256 '));
+    await client.public();
+    expect(fake.requests.last.headers.containsKey('authorization'), isFalse);
+  });
+
+  test('native credential sources are unavailable in browsers', () {
+    expect(environmentCredentials, throwsUnsupportedError);
+    expect(() => profileCredentials(path: '/credentials'), throwsUnsupportedError);
+  }, testOn: 'browser');
+}

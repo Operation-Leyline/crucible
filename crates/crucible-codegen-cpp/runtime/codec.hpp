@@ -1,4 +1,5 @@
 #pragma once
+#include "stream.hpp"
 #include "types.hpp"
 #include <cmath>
 #include <concepts>
@@ -92,6 +93,11 @@ template<> struct Codec<Json> {
 template<> struct Codec<Unit> {
     static Unit decode(const Json& value, const Context&) { if (!value.object().empty()) throw std::invalid_argument("Expected unit"); return {}; }
     static Json encode(Unit, const Context&) { return Json(Json::Object{}); }
+};
+// A stream never travels in a document: calls carry it beside the encoded model.
+template<> struct Codec<ByteStream> {
+    static ByteStream decode(const Json&, const Context&) { return {}; }
+    static Json encode(const ByteStream&, const Context&) { return Json(); }
 };
 template<> struct Codec<Blob> {
     static Blob decode(const Json& value, const Context&) { return unbase64(value.string()); }

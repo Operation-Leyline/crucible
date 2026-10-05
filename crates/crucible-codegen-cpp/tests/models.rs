@@ -42,6 +42,7 @@ fn weather_models_generate_deterministically() {
                     "src/auth.cpp",
                     "src/query.cpp",
                     "src/endpoints.cpp",
+                    "src/stream.cpp",
                 ]
                 .contains(&file.path.as_str())
         })
@@ -183,6 +184,7 @@ fn declared_client_features_generate() {
         "../crucible-smithy/tests/fixtures/client-behaviors.json",
         "../crucible-codegen-java/tests/waiters.json",
         "../crucible-smithy/tests/fixtures/checksums.json",
+        "../crucible-codegen-java/tests/streaming.json",
     ] {
         let service = Model::from_json(&feature_model(path).to_string())
             .unwrap()
@@ -235,4 +237,25 @@ fn waiter_method_collisions_are_diagnosed() {
         .expect("diagnostic")
         .to_string();
     assert!(diagnostics.contains("name collision"), "{diagnostics}");
+}
+
+#[test]
+fn streaming_payloads_carry_streams_beside_the_model() {
+    let service = lower_features(&feature_model(
+        "../crucible-codegen-java/tests/streaming.json",
+    ));
+    let files = emit(&service, &options()).unwrap();
+    let file = |name: &str| {
+        files
+            .iter()
+            .find(|file| file.path.ends_with(name))
+            .unwrap()
+            .contents
+            .clone()
+    };
+    let models = file("models.hpp");
+    assert!(models.contains("::example::weather::runtime::ByteStream body;"));
+    let client = file("src/client.cpp");
+    assert!(client.contains("runtime::request_stream(input.body)"));
+    assert!(client.contains("runtime::assign_stream(output.body, std::move(result.stream));"));
 }

@@ -331,6 +331,13 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
         ));
     }
     source.push_str("    return NULL;\n}\n");
+    let settings = &service.protocol_settings;
+    let flags = u8::from(settings.non_finite_float_strings)
+        | (u8::from(settings.omit_null_structure_members) << 1)
+        | (u8::from(settings.ignore_unknown_union_type) << 2);
+    source.push_str(&format!(
+        "/* JSON protocol behavior read by the runtime codec and bindings. */\nconst unsigned {p}_protocol_flags = {flags}u;\n"
+    ));
     header.push_str("\n#ifdef __cplusplus\n}\n#endif\n#endif\n");
     vec![
         File {

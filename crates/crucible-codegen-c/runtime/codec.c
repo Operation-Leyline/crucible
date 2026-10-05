@@ -143,11 +143,20 @@ static status decode_into(arena *storage, const shape *type, format timestamp_fo
     case crucible_generated_kind_integer:
         TRY(crucible_generated_json_integer(value, INT32_MIN, INT32_MAX, &integer, issue)); *(int32_t *)output = (int32_t)integer; break;
     case crucible_generated_kind_long: return crucible_generated_json_integer(value, INT64_MIN, INT64_MAX, output, issue);
-    case crucible_generated_kind_float:
+    case crucible_generated_kind_float: case crucible_generated_kind_double:
+        if (yyjson_is_str(value) && (crucible_generated_protocol_flags & CRUCIBLE_GENERATED_NONFINITE_STRINGS)) {
+            string special = { yyjson_get_str(value), yyjson_get_len(value) };
+            if (crucible_generated_string_equal(special, crucible_generated_string_view("NaN"))) number = NAN;
+            else if (crucible_generated_string_equal(special, crucible_generated_string_view("Infinity"))) number = INFINITY;
+            else if (crucible_generated_string_equal(special, crucible_generated_string_view("-Infinity"))) number = -INFINITY;
+            else return FAIL("Invalid floating point string");
+            if (type->kind == crucible_generated_kind_float) *(float *)output = (float)number; else *(double *)output = number;
+            break;
+        }
+        if (type->kind == crucible_generated_kind_double) return crucible_generated_json_double(value, output, issue);
         TRY(crucible_generated_json_double(value, &number, issue));
         if (number > FLT_MAX || number < -FLT_MAX) return FAIL("Float out of range");
         *(float *)output = (float)number; break;
-    case crucible_generated_kind_double: return crucible_generated_json_double(value, output, issue);
     case crucible_generated_kind_blob: return decode_blob(storage, value, output, issue);
     case crucible_generated_kind_timestamp:
         if (timestamp_format == crucible_generated_epoch_seconds) return crucible_generated_timestamp_epoch(value, output, issue);
@@ -266,7 +275,10 @@ static status encode_value(yyjson_mut_doc *document, const shape *type, format t
     case crucible_generated_kind_long: result = yyjson_mut_sint(document, *(const int64_t *)native); break;
     case crucible_generated_kind_float: case crucible_generated_kind_double: {
         double value = type->kind == crucible_generated_kind_float ? *(const float *)native : *(const double *)native;
-        if (!isfinite(value)) return FAIL("Nonfinite float");
+        if (!isfinite(value)) {
+            if (!(crucible_generated_protocol_flags & CRUCIBLE_GENERATED_NONFINITE_STRINGS)) return FAIL("Nonfinite float");
+            result = yyjson_mut_strcpy(document, isnan(value) ? "NaN" : value > 0 ? "Infinity" : "-Infinity"); break;
+        }
         result = yyjson_mut_real(document, value); break;
     }
     case crucible_generated_kind_blob: {

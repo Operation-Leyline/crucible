@@ -30,6 +30,8 @@ internal sealed partial class ClientRuntime : IDisposable
             (uri.Scheme != "http" && uri.Scheme != "https") || uri.Host.Length == 0 ||
             uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0))
             throw new ArgumentException("Absolute HTTP(S) endpoint without credentials, query, or fragment required");
+        if (input.SigV4aSigningRegionSet is { } regions && (regions.Count == 0 || regions.Any(region => string.IsNullOrEmpty(region) || region.IndexOfAny([',', '/', '\r', '\n']) >= 0)))
+            throw new ArgumentException("The SigV4a signing region set must be a nonempty list of regions");
         if (input.MaxAttempts < 1 || input.Timeout <= TimeSpan.Zero || input.Timeout.TotalMilliseconds > uint.MaxValue - 1 ||
             input.BaseDelay < TimeSpan.Zero || input.MaxDelay < TimeSpan.Zero || input.MaxDelay.TotalMilliseconds > int.MaxValue)
             throw new ArgumentException("Invalid attempt limit, timeout, or retry delay");
@@ -37,6 +39,7 @@ internal sealed partial class ClientRuntime : IDisposable
             RequestChecksumCalculation = input.RequestChecksumCalculation, ResponseChecksumValidation = input.ResponseChecksumValidation, ChecksumValidated = input.ChecksumValidated,
             Endpoint = endpoint.TrimEnd('/'), Token = input.Token, MaxAttempts = input.MaxAttempts,
             BasicCredentials = input.BasicCredentials, ApiKey = input.ApiKey, Credentials = input.Credentials, Region = input.Region,
+            DigestCredentials = input.DigestCredentials, SigV4aSigningRegionSet = input.SigV4aSigningRegionSet?.ToArray(),
             EndpointParameters = input.EndpointParameters.ToDictionary(entry => entry.Key,entry => entry.Value?.DeepClone()),
             EndpointBuiltIns = input.EndpointBuiltIns.ToDictionary(entry => entry.Key,entry => entry.Value?.DeepClone()), DisableHostPrefix = input.DisableHostPrefix,
             Timeout = input.Timeout, BaseDelay = input.BaseDelay, MaxDelay = input.MaxDelay,
@@ -60,7 +63,8 @@ internal sealed partial class ClientRuntime : IDisposable
     private static bool Flag(JsonNode? value) => value?.GetValue<bool>() == true;
     private JsonObject Shape(string id) => schema["shapes"]![id]!.AsObject();
     private string ErrorCode(string id) => Text(Shape(id)["error"]?["wireCode"]) ?? Text(Shape(id)["name"])!;
-    private bool ProtocolFlag(string name) => Flag(schema["protocolSettings"]?[name]);
+    // RPC v2 CBOR carries non-finite floats natively; the wire values bridge them as these strings.
+    private bool ProtocolFlag(string name) => Flag(schema["protocolSettings"]?[name]) || name == "nonFiniteFloatStrings" && Text(schema["protocol"]) == "rpcv2Cbor";
     private bool AwsJson => Text(schema["protocol"]) is "awsRestJson1" or "awsJson1_0" or "awsJson1_1";
     private static double SpecialFloat(string value) => value switch
     {
@@ -99,8 +103,9 @@ internal sealed partial class ClientRuntime : IDisposable
             case "timestamp": return WriteTime((DateTimeOffset)value, format ?? Text(shape["format"]));
             case "enum": return JsonValue.Create(value.ToString());
             case "intEnum": return JsonValue.Create((int)value.GetType().GetProperty("Value")!.GetValue(value)!);
-            case "bigInteger": return JsonNode.Parse(((BigInteger)value).ToString(CultureInfo.InvariantCulture));
-            case "bigDecimal": return JsonNode.Parse(((BigDecimal)value).ToString());
+            // RPC v2 JSON carries arbitrary-precision numbers as strings.
+            case "bigInteger": return ProtocolFlag("arbitraryPrecisionStrings") ? JsonValue.Create(((BigInteger)value).ToString(CultureInfo.InvariantCulture)) : JsonNode.Parse(((BigInteger)value).ToString(CultureInfo.InvariantCulture));
+            case "bigDecimal": return ProtocolFlag("arbitraryPrecisionStrings") ? JsonValue.Create(((BigDecimal)value).ToString()) : JsonNode.Parse(((BigDecimal)value).ToString());
             case "document": return ((JsonNode)value).DeepClone();
             case "list":
                 var array = new JsonArray(); var item = shape["member"]!;
@@ -169,9 +174,17 @@ internal sealed partial class ClientRuntime : IDisposable
             case "enum": return Activator.CreateInstance(types[target], value.GetValue<string>());
             case "intEnum": return Activator.CreateInstance(types[target], checked((int)Integer(value)));
             case "bigInteger":
+                if (ProtocolFlag("arbitraryPrecisionStrings"))
+                {
+                    var digits = value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : throw new JsonException("Expected arbitrary precision integer string");
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(digits, @"\A-?(?:0|[1-9][0-9]*)\z")) throw new JsonException("Invalid arbitrary precision integer");
+                    return BigInteger.Parse(digits, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
+                }
                 if (value.GetValueKind() != JsonValueKind.Number) throw new JsonException("Expected arbitrary precision integer");
                 return BigInteger.Parse(value.ToJsonString(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
             case "bigDecimal":
+                if (ProtocolFlag("arbitraryPrecisionStrings"))
+                    return new BigDecimal(value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : throw new JsonException("Expected arbitrary precision decimal string"));
                 if (value.GetValueKind() != JsonValueKind.Number) throw new JsonException("Expected arbitrary precision decimal");
                 return new BigDecimal(value.ToJsonString());
             case "list":
@@ -458,6 +471,17 @@ internal sealed partial class ClientRuntime : IDisposable
             headers["Content-Type"] = "application/x-amz-json-" + (Text(schema["protocol"]) == "awsJson1_0" ? "1.0" : "1.1");
             headers["X-Amz-Target"] = Text(schema["service"])!.Split('#')[^1] + "." + name;
         }
+        if (Rpc is { } rpc)
+        {
+            // RPC v2: the lowered URI is /service/{Service}/operation/{Operation}; an operation without input sends no body.
+            headers["Smithy-Protocol"] = rpc.Marker; headers["Accept"] = rpc.Media; headers.Remove("Content-Type"); body = null;
+            if (Text(op["input"]) is string inputTarget)
+            {
+                var document = new JsonObject();
+                foreach (var m in request["body"]!.AsArray()) { var key = Wire(Text(m)!); if (values.ContainsKey(key)) document[key] = values[key]?.DeepClone(); }
+                body = RpcRequestBody(rpc, inputTarget, document); headers["Content-Type"] = rpc.Media;
+            }
+        }
         return new(op, new Uri(endpoint.TrimEnd('/') + path), headers, body, name, checksums, stream, minimum, maximum)
         {
             EndpointUrl = endpoint.TrimEnd('/'), EndpointSource = schema["endpointRules"] is null ? "configured" : "rules", Target = path,
@@ -544,7 +568,7 @@ internal sealed partial class ClientRuntime : IDisposable
                 foreach (var (key,value) in selected.AsObject()) if (key != "name") effective[key] = value?.DeepClone();
                 scheme = effective;
             }
-            var authPrefix = kind switch { "basic" => "Basic", "bearer" => "Bearer", "sigV4" => "AWS4-HMAC-SHA256", "apiKey" => Text(scheme?["scheme"]) ?? "", _ => "" };
+            var authPrefix = kind switch { "basic" => "Basic", "bearer" => "Bearer", "digest" => "Digest", "sigV4" => "AWS4-HMAC-SHA256", "sigV4a" => "AWS4-ECDSA-P256-SHA256", "apiKey" => Text(scheme?["scheme"]) ?? "", _ => "" };
             var header = kind == "apiKey" ? Text(scheme!["name"])! : "Authorization";
             if (kind == "apiKey" && Text(scheme!["location"]) == "query")
             {
@@ -594,6 +618,27 @@ internal sealed partial class ClientRuntime : IDisposable
                         return (true, () => SigV4Signer.SignAsync(request, aws, options, token));
                     }
                     break;
+                case "sigV4a":
+                    if (config.Credentials is not null && await config.Credentials(token).AsTask().WaitAsync(token).ConfigureAwait(false) is AwsCredentials signer)
+                    {
+                        // An endpoint rule's region set wins, then the configured set, then the client region.
+                        var regions = scheme?["signingRegionSet"] is JsonArray set ? set.Select(item => Text(item)!).ToList()
+                            : config.SigV4aSigningRegionSet?.ToList() ?? (config.Region is null ? null : [config.Region]);
+                        if (regions is null || regions.Count == 0) throw new InvalidOperationException("SigV4a requires a signing region set or region");
+                        var options = new SigV4aSigningOptions(string.Join(",", regions), Text(scheme!["signingName"])!) {
+                            UnsignedPayload = Flag(op["unsignedPayload"]), DisableDoubleEncoding = scheme["disableDoubleEncoding"]?.GetValue<bool>(), DisableNormalizePath = scheme["disableNormalizePath"]?.GetValue<bool>() };
+                        return (true, async () => await SigV4aSigner.SignAsync(request, signer, options, token).ConfigureAwait(false));
+                    }
+                    break;
+                case "digest":
+                    if (config.DigestCredentials is not null && await config.DigestCredentials(token).AsTask().WaitAsync(token).ConfigureAwait(false) is BasicCredentials digestUser)
+                    {
+                        // Until a server challenge arrives the request carries no credentials; SendAsync answers the 401.
+                        if (!digestSession.Ready) return (true, null);
+                        return (true, async () => SetHeader(request, "Authorization", digestSession.Authorization(digestUser, request.Method.Method, request.RequestUri!,
+                            request.Content is null ? [] : request.Content is ByteStreamContent ? null : await request.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false))));
+                    }
+                    break;
             }
         }
         if (ids.Count != 0 && !(ids.Count == 1 && Flag(op["bearer"])) && !Flag(op["optionalAuth"]))
@@ -614,9 +659,10 @@ internal sealed partial class ClientRuntime : IDisposable
             var stream = prepared.Stream;
             // A one-shot stream cannot be sent twice.
             int maxAttempts = stream is { Replayable: false } ? 1 : config.MaxAttempts;
-            int? lastCost = null;
+            int? lastCost = null; bool challenged = false;
             for (int attempt = 1; ; attempt++)
             {
+                var answering = challenged; challenged = false;
                 ct.ThrowIfCancellationRequested();
                 var discovered = await DiscoverAsync(prepared, limit - System.Diagnostics.Stopwatch.GetElapsedTime(started), ct).ConfigureAwait(false);
                 // Host prefixes are not applied to a discovered address; endpoint-rule headers and auth properties still are.
@@ -663,6 +709,15 @@ internal sealed partial class ClientRuntime : IDisposable
                     status = (int)response.StatusCode;
                     headers = response.Headers.Concat(response.Content.Headers).GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
                         .ToDictionary(g => g.Key, g => string.Join(", ", g.SelectMany(h => h.Value)), StringComparer.OrdinalIgnoreCase);
+                    // A Digest 401 is answered once per attempt: when no credentials went out, or the nonce was stale.
+                    if (status == 401 && !answering && DigestChallenge(prepared, request, headers) is { } challenge)
+                    {
+                        digestSession.Accept(challenge);
+                        retry.AfterAttempt(false);
+                        trace.AttemptFinished(status, null, null, RequestIdOf(null, headers));
+                        challenged = true; attempt--;
+                        continue;
+                    }
                     var payload = op["response"]!["payload"] as JsonArray;
                     if (response.IsSuccessStatusCode && payload is not null && Flag(op["response"]!["streaming"]))
                     {
@@ -673,7 +728,8 @@ internal sealed partial class ClientRuntime : IDisposable
                         trace.AttemptFinished(status, null, length, RequestIdOf(null, headers));
                         return output;
                     }
-                    bool hasBody = op["response"]!["body"]!.AsArray().Count != 0 || payload is not null || prepared.Checksums.Response.Count != 0;
+                    bool hasBody = op["response"]!["body"]!.AsArray().Count != 0 || payload is not null || prepared.Checksums.Response.Count != 0
+                        || Rpc is not null && op["output"] is not null;
                     var bytes = response.IsSuccessStatusCode && !hasBody ? [] : await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
                     size = bytes.Length;
                     if (response.IsSuccessStatusCode)
@@ -720,6 +776,7 @@ internal sealed partial class ClientRuntime : IDisposable
     /// <summary>Decodes a buffered successful response; payloads occupy the whole body and are decoded by their modeled kind.</summary>
     private T Output<T>(JsonObject op, JsonArray? payload, byte[] bytes, int status, Dictionary<string, string> headers)
     {
+        if (Rpc is { } rpc) return RpcOutput<T>(rpc, op, bytes, headers);
         var body = payload is not null || bytes.Length == 0 ? new JsonObject() : JsonNode.Parse(bytes)!.AsObject();
         var target = Text(op["output"]);
         if (target is null) return (T)(object)new Unit();
@@ -746,6 +803,7 @@ internal sealed partial class ClientRuntime : IDisposable
     }
     private ServiceError Error(JsonObject op, int status, Dictionary<string, string> headers, byte[] bytes)
     {
+        if (Rpc is { } rpc) return RpcError(rpc, op, status, headers, bytes);
         JsonObject body;
         try { body = JsonNode.Parse(bytes) as JsonObject ?? new JsonObject(); } catch (JsonException) { body = new(); }
         static string? StringValue(JsonNode? v) => v is JsonValue j && j.TryGetValue<string>(out var s) ? s : null;

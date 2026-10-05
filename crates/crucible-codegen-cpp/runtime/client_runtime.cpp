@@ -68,7 +68,7 @@ std::string protocol(const Schema& schema) { const auto* value = schema.descript
 bool aws_json(const std::string& protocol) { return protocol == "awsRestJson1" || protocol == "awsJson1_0" || protocol == "awsJson1_1"; }
 bool iequals(std::string_view left, std::string_view right) { return left.size() == right.size() && lower(std::string(left)) == lower(std::string(right)); }
 bool flag(const Json& object, std::string_view name) { const auto* value = object.find(name); return value && value->boolean(); }
-ChecksumSettings checksum_settings(const Json& description, Json::Object& values, const ClientConfig& config) {
+ChecksumSettings checksum_settings(const Json& description, Json::Object& values, const ClientConfig& config, bool streaming) {
     ChecksumSettings settings;
     if (description.at("kind").string() == "md5") { settings.algorithm = "MD5"; settings.header = "content-md5"; return settings; }
     const auto* algorithm_member = description.find("requestAlgorithmMember");
@@ -76,7 +76,8 @@ ChecksumSettings checksum_settings(const Json& description, Json::Object& values
         const auto& member = algorithm_member->string();
         const auto found = values.find(member);
         std::string algorithm = found != values.end() && string(found->second) ? found->second.string() : std::string{};
-        if (algorithm.empty() && (flag(description, "requestRequired") || config.request_checksum_calculation != ChecksumPolicy::when_required)) {
+        // A stream gets no implicit checksum: it is never buffered to hash it.
+        if (algorithm.empty() && (flag(description, "requestRequired") || (config.request_checksum_calculation != ChecksumPolicy::when_required && !streaming))) {
             algorithm = "CRC32";
             values.insert_or_assign(member, Json(algorithm));
         }
@@ -138,10 +139,10 @@ ClientRuntime::ClientRuntime(ClientConfig config, const Schema& schema, ErrorFac
     while (endpoint_.ends_with('/')) endpoint_.pop_back();
 }
 void ClientRuntime::close() { if (!closed_.exchange(true) && !config_.transport) transport_->close(); }
-ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Json& operation, const Json& input) const {
+ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Json& operation, const Json& input, bool streaming) const {
     Prepared prepared;
     auto values = input.object();
-    if (const auto* checksum = operation.find("checksum")) prepared.checksum = checksum_settings(*checksum, values, config_);
+    if (const auto* checksum = operation.find("checksum")) prepared.checksum = checksum_settings(*checksum, values, config_, streaming);
     std::string endpoint = endpoint_;
     const auto* rules = schema_->description().find("endpointRules");
     const auto* host_prefix = operation.find("endpoint");
@@ -417,15 +418,96 @@ double ClientRuntime::retry_delay(unsigned attempt, const std::optional<std::str
     thread_local std::mt19937 engine(std::random_device{}());
     return (std::min)(config_.max_delay, std::ldexp(config_.base_delay, static_cast<int>((std::min)(attempt - 1, 30U)))) * std::uniform_real_distribution<double>(0.0, 1.0)(engine);
 }
-Json ClientRuntime::call(const std::string& name, const Json& input, const CallScope& scope) const {
+namespace {
+// A streaming response body that verifies a response checksum as bytes arrive.
+// A mismatch fails the final read and every read after it.
+class VerifiedBody final : public ResponseBody {
+    std::shared_ptr<ResponseBody> inner_;
+    std::optional<IncrementalChecksum> checksum_;
+    std::string expected_;
+    std::function<void()> validated_;
+    std::exception_ptr failure_;
+    bool done_ = false;
+public:
+    VerifiedBody(std::shared_ptr<ResponseBody> inner, std::optional<IncrementalChecksum> checksum, std::string expected, std::function<void()> validated)
+        : inner_(std::move(inner)), checksum_(std::move(checksum)), expected_(std::move(expected)), validated_(std::move(validated)) {}
+    std::size_t read(char* buffer, std::size_t size) override {
+        if (failure_) std::rethrow_exception(failure_);
+        if (done_ || size == 0) return 0;
+        std::size_t count = 0;
+        try { count = inner_->read(buffer, size); }
+        catch (...) { failure_ = std::current_exception(); throw; }
+        if (checksum_ && count) checksum_->update(std::string_view(buffer, count));
+        if (count == 0) {
+            done_ = true;
+            if (checksum_) {
+                Blob raw;
+                for (const unsigned char byte : checksum_->finish()) raw.push_back(static_cast<std::byte>(byte));
+                const auto actual = base64(raw);
+                if (actual.size() != expected_.size() || CRYPTO_memcmp(actual.data(), expected_.data(), actual.size()) != 0) {
+                    failure_ = std::make_exception_ptr(ChecksumError(checksum_->algorithm()));
+                    std::rethrow_exception(failure_);
+                }
+                if (validated_) validated_();
+            }
+        }
+        return count;
+    }
+    void close() noexcept override { inner_->close(); }
+};
+std::optional<std::uint64_t> length_bound(const Json& member, const char* name) {
+    const auto* length = member.find("length");
+    const auto* value = length ? length->find(name) : nullptr;
+    if (!value || value->is_null()) return std::nullopt;
+    const auto number = value->number().integer();
+    return number < 0 ? std::optional<std::uint64_t>(0) : std::optional<std::uint64_t>(static_cast<std::uint64_t>(number));
+}
+std::shared_ptr<detail::StreamSource> resolve_source(const std::optional<ByteStream>& body) {
+    if (!body || body->empty()) return nullptr;
+    if (body->source()) {
+        if (!body->source()->replayable && body->source()->used->load()) throw StreamConsumedError();
+        return body->source();
+    }
+    // A response stream passed as a request body is read through once.
+    auto source = std::make_shared<detail::StreamSource>();
+    source->open = [response = body->response()] { return StreamReader([response](char* buffer, std::size_t size) { return response->read(buffer, size); }); };
+    return source;
+}
+}
+ClientRuntime::CallResult ClientRuntime::exchange(const std::string& name, const Json& input, const CallScope& scope, std::optional<ByteStream> body) const {
     scope.check();
     if (closed_) throw std::logic_error("Client is closed");
     const auto& op = operation(name);
-    const auto prepared = prepare(name, op, input);
+    const auto& request_bindings = op.at("request");
+    const auto& response_bindings = op.at("response");
+    const bool streaming_request = flag(request_bindings, "streaming");
+    const bool streaming_response = flag(response_bindings, "streaming");
+    std::shared_ptr<detail::StreamSource> source;
+    Json member(Json::Object{});
+    if (streaming_request) {
+        member = schema_->shape(op.at("input").string()).at("members").at(request_bindings.at("payload").array()[0].string());
+        source = resolve_source(body);
+        const auto minimum = length_bound(member, "min"), maximum = length_bound(member, "max");
+        if (source) {
+            // Lengths are checked before anything is sent, and again as bytes flow.
+            if (flag(request_bindings, "requiresLength") && !source->length) throw StreamLengthError("The operation requires a stream of known length");
+            if (source->length && minimum && *source->length < *minimum) throw StreamLengthError(std::to_string(*source->length) + " bytes is below the modeled minimum of " + std::to_string(*minimum));
+            if (source->length && maximum && *source->length > *maximum) throw StreamLengthError(std::to_string(*source->length) + " bytes is above the modeled maximum of " + std::to_string(*maximum));
+        } else if (minimum && *minimum > 0) throw StreamLengthError("An absent stream is below the modeled minimum");
+    }
+    const auto prepared = prepare(name, op, input, source != nullptr);
     const bool safe = op.at("safe").boolean();
+    // A one-shot stream is read once, so its operation is never retried.
+    const unsigned attempts = source && !source->replayable ? 1U : config_.max_attempts;
     for (unsigned attempt = 1;; ++attempt) {
         scope.check();
         auto request = prepared.request;
+        std::shared_ptr<AttemptBody> upload;
+        if (source) {
+            if (source->length && *source->length == 0) { request.body = std::string{}; if (!source->replayable) source->used->store(true); }
+            else request.stream = upload = std::make_shared<AttemptBody>(source, length_bound(member, "min"), length_bound(member, "max"), scope);
+            if (!body->sha256().empty()) request.headers.insert_or_assign("x-amz-content-sha256", body->sha256());
+        }
         bool credentials = false;
         std::optional<AwsCredentials> identity;
         const auto signing = authenticate(op, request, prepared.endpoint, scope, credentials, identity);
@@ -436,19 +518,52 @@ Json ClientRuntime::call(const std::string& name, const Json& input, const CallS
         request.headers = std::move(normalized);
         validate_request(request);
         if (credentials) validate_url(request.url, false, true);
-        if (digest_) { request.headers.erase("x-amz-content-sha256"); if (request.body || request.method == "POST" || request.method == "PUT" || request.method == "PATCH") request.headers.insert_or_assign("x-amz-content-sha256", sha256(request.body.value_or(""))); }
-        const auto& checksum_header = prepared.checksum.header;
-        if (!checksum_header.empty() && !request.headers.contains(checksum_header)) request.headers.insert_or_assign(checksum_header, checksum(prepared.checksum.algorithm, request.body.value_or("")));
+        if (request.stream) {
+            // Streams are never buffered to hash them: digests and checksums are declared.
+            if (digest_ && !request.headers.contains("x-amz-content-sha256")) throw StreamDigestError("Declare the stream's SHA-256 with ByteStream::with_sha256 or an x-amz-content-sha256 header");
+            if (!prepared.checksum.header.empty() && !request.headers.contains(prepared.checksum.header)) throw StreamDigestError("Supply the " + prepared.checksum.header + " header for a streaming request");
+        } else {
+            if (digest_) { request.headers.erase("x-amz-content-sha256"); if (request.body || request.method == "POST" || request.method == "PUT" || request.method == "PATCH") request.headers.insert_or_assign("x-amz-content-sha256", sha256(request.body.value_or(""))); }
+            const auto& checksum_header = prepared.checksum.header;
+            if (!checksum_header.empty() && !request.headers.contains(checksum_header)) request.headers.insert_or_assign(checksum_header, checksum(prepared.checksum.algorithm, request.body.value_or("")));
+        }
         if (signing) { sign_v4(request, *identity, *signing); validate_request(request); }
-        const auto& bindings = op.at("response");
         HttpResponse response;
-        try { response = transport_->send(request, !bindings.at("body").array().empty() || !bindings.at("payload").is_null() || !prepared.checksum.response.empty(), scope); }
-        catch (const NetworkError&) { scope.check(); if (!safe || attempt >= config_.max_attempts) throw; scope.wait(retry_delay(attempt, std::nullopt)); continue; }
+        try {
+            if (streaming_request || streaming_response) {
+                response = transport_->open(request, scope);
+                if (!response.stream) throw NetworkError("Transport returned no response stream");
+            } else response = transport_->send(request, !response_bindings.at("body").array().empty() || !response_bindings.at("payload").is_null() || !prepared.checksum.response.empty(), scope);
+        }
+        catch (const NetworkError&) { scope.check(); if (!safe || attempt >= attempts) throw; scope.wait(retry_delay(attempt, std::nullopt)); continue; }
         scope.check();
         Headers headers;
         for (const auto& [key, value] : response.headers) headers.insert_or_assign(lower(key), value);
         response.headers = std::move(headers);
-        if (response.status >= 200 && response.status < 300) {
+        const bool ok = response.status >= 200 && response.status < 300;
+        if (ok && streaming_response) {
+            std::optional<IncrementalChecksum> verifier;
+            std::string expected;
+            std::function<void()> validated;
+            for (const auto& algorithm : prepared.checksum.response) {
+                const auto value = get(response.headers, "x-amz-checksum-" + lower(algorithm));
+                if (!value) continue;
+                verifier.emplace(algorithm);
+                expected = *value;
+                if (config_.checksum_validated) validated = [callback = config_.checksum_validated, name, algorithm] { callback(name, algorithm); };
+                break;
+            }
+            auto stream = response.stream;
+            // Header decoding failures release the unread body with the stream's last owner.
+            auto value = apply_headers(op.at("output").string(), response_bindings, response, Json(Json::Object{{response_bindings.at("payload").array()[0].string(), Json(Json::Object{})}}));
+            return {std::move(value), ByteStream(std::make_shared<VerifiedBody>(std::move(stream), std::move(verifier), std::move(expected), std::move(validated)))};
+        }
+        if (response.stream) {
+            try { response.body = drain(*response.stream); }
+            catch (const NetworkError&) { scope.check(); if (!safe || attempt >= attempts) throw; scope.wait(retry_delay(attempt, std::nullopt)); continue; }
+            response.stream.reset();
+        }
+        if (ok) {
             for (const auto& algorithm : prepared.checksum.response) {
                 const auto expected = get(response.headers, "x-amz-checksum-" + lower(algorithm));
                 if (!expected) continue;
@@ -457,11 +572,11 @@ Json ClientRuntime::call(const std::string& name, const Json& input, const CallS
                 if (config_.checksum_validated) config_.checksum_validated(name, algorithm);
                 break;
             }
-            return success(op, response);
+            return {success(op, response), std::nullopt};
         }
         const auto [metadata, error] = failure(op, response);
         const bool transient = response.status == 500 || response.status == 502 || response.status == 503 || response.status == 504;
-        if (!(metadata.throttling || (safe && (metadata.retryable || transient))) || attempt >= config_.max_attempts) std::rethrow_exception(error);
+        if (!(metadata.throttling || (safe && (metadata.retryable || transient))) || attempt >= attempts) std::rethrow_exception(error);
         scope.wait(retry_delay(attempt, get(response.headers, "retry-after")));
     }
 }
@@ -502,7 +617,7 @@ std::string describe(const Json& reason, const std::exception_ptr& cause) {
     return "failure acceptor matched";
 }
 }
-std::optional<Json> ClientRuntime::wait_json(const std::string& name, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop, const std::function<Json(const Json&)>& view) const {
+std::optional<ClientRuntime::CallResult> ClientRuntime::wait_json(const std::string& name, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop, const std::function<Json(const Json&)>& view, const std::optional<ByteStream>& body) const {
     const auto& op = operation(name);
     const auto& description = op.at("waiters").at(waiter);
     const double minimum = options.min_delay.value_or(description.at("minDelay").number().floating());
@@ -524,11 +639,12 @@ std::optional<Json> ClientRuntime::wait_json(const std::string& name, const std:
         failure = nullptr;
         response = Json();
         Json output;
-        std::optional<Json> result;
+        std::optional<CallResult> result;
         try {
             const CallScope attempt((std::min)(config_.timeout, overall.remaining()), stop);
-            result = call(name, input, attempt);
-            output = query_model(*schema_, output_target.is_null() ? std::string_view{} : std::string_view(output_target.string()), view(*result));
+            // Response streams of attempts that are not returned are released with their result.
+            result = exchange(name, input, attempt, body);
+            output = query_model(*schema_, output_target.is_null() ? std::string_view{} : std::string_view(output_target.string()), view(result->value));
             response = output;
         } catch (const CancelledError&) { throw; }
         catch (const std::exception&) { failure = std::current_exception(); result.reset(); }
