@@ -12,8 +12,8 @@ targets.
 
 ```sh
 cargo run -p crucible-cli -- generate kotlin model.json \
-  --out generated/client --group-id dev.leyline --artifact-id leyline-client \
-  --package-name dev.leyline --package-version 0.1.0 \
+  --out generated/client --group-id example --artifact-id weather-client \
+  --package-name example.weather --package-version 0.1.0 \
   --endpoint https://api.example --content-sha256
 mvn -f generated/client/pom.xml package
 ```
