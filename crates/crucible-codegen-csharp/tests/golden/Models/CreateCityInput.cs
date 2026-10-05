@@ -3,8 +3,12 @@
 namespace Example.Weather.Models;
 
 public sealed class @CreateCityInput {
-    public global::Example.Weather.Optional<string> @Name { get; set; }
-    public global::Example.Weather.Optional<global::Example.Weather.Models.@Location> @Location { get; set; }
-    public global::Example.Weather.Optional<string> @ClientToken { get; set; }
-    public global::Example.Weather.Optional<long> @ExpectedRevision { get; set; }
+    public global::Example.Weather.Optional<string> @NamePresence { get; set; }
+    public string? @Name { get => @NamePresence.IsSet && !@NamePresence.IsNull ? @NamePresence.Value : (string?)null; set => @NamePresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    public global::Example.Weather.Optional<global::Example.Weather.Models.@Location> @LocationPresence { get; set; }
+    public global::Example.Weather.Models.@Location? @Location { get => @LocationPresence.IsSet && !@LocationPresence.IsNull ? @LocationPresence.Value : (global::Example.Weather.Models.@Location?)null; set => @LocationPresence = value is null ? global::Example.Weather.Optional<global::Example.Weather.Models.@Location>.Null : global::Example.Weather.Optional<global::Example.Weather.Models.@Location>.Of(value); }
+    public global::Example.Weather.Optional<string> @ClientTokenPresence { get; set; }
+    public string? @ClientToken { get => @ClientTokenPresence.IsSet && !@ClientTokenPresence.IsNull ? @ClientTokenPresence.Value : (string?)null; set => @ClientTokenPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    public global::Example.Weather.Optional<long> @ExpectedRevisionPresence { get; set; }
+    public long? @ExpectedRevision { get => @ExpectedRevisionPresence.IsSet && !@ExpectedRevisionPresence.IsNull ? @ExpectedRevisionPresence.Value : (long?)null; set => @ExpectedRevisionPresence = value is null ? global::Example.Weather.Optional<long>.Null : global::Example.Weather.Optional<long>.Of(value.Value); }
 }

@@ -3,5 +3,6 @@
 namespace Example.Weather.Models;
 
 public sealed class @GetCityPhotoInput {
-    public global::Example.Weather.Optional<string> @CityId { get; set; }
+    public global::Example.Weather.Optional<string> @CityIdPresence { get; set; }
+    public string? @CityId { get => @CityIdPresence.IsSet && !@CityIdPresence.IsNull ? @CityIdPresence.Value : (string?)null; set => @CityIdPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
 }

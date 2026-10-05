@@ -48,11 +48,11 @@ internal class JsonCodec(val schema: JsonObject) {
         }
     }
     fun decode(target: String?, value: JsonElement, format: String? = null): Any? {
-        if (target == null) return Models.Unit
+        if (target == null) return kotlin.Unit
         val shape = shape(target)
         if (value.isJsonNull) return if (shape.text("kind") == "document") JsonNull.INSTANCE else null
         return when (shape.text("kind")) {
-            "unit" -> { require(value.isJsonObject && value.asJsonObject.size() == 0) { "Unit requires empty object" }; Models.Unit }
+            "unit" -> { require(value.isJsonObject && value.asJsonObject.size() == 0) { "Unit requires empty object" }; kotlin.Unit }
             "string" -> string(value)
             "boolean" -> { require(value.isJsonPrimitive && value.asJsonPrimitive.isBoolean); value.asBoolean }
             "byte" -> number(value).byteValueExact()

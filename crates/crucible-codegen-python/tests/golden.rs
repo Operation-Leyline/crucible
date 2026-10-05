@@ -126,4 +126,22 @@ fn unit_only_service_has_valid_empty_exports() {
         .find(|f| f.path.ends_with("__init__.py"))
         .unwrap();
     assert!(!init.contents.contains("from .models import"));
+    assert!(
+        init.contents
+            .contains("from .client import ApiClient, AsyncApiClient")
+    );
+}
+
+#[test]
+fn service_client_export_collisions_are_diagnosed() {
+    for name in ["WeatherClient", "AsyncWeatherClient"] {
+        let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+        model["shapes"]["example.weather#Weather"]["rename"] =
+            json!({"example.weather#CitySummary":name});
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        assert!(emit(&service, &options()).is_err(), "{name}");
+    }
 }

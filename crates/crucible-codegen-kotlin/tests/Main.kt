@@ -1,5 +1,17 @@
 package example.weather
 
+import example.weather.model.BuilderDefaults
+import example.weather.model.ValidationError
+import example.weather.model.Sky
+import example.weather.model.PutCityPhotoInput
+import example.weather.model.Location
+import example.weather.model.ListCitiesInput
+import example.weather.model.GetCityPhotoInput
+import example.weather.model.GetCityInput
+import example.weather.model.Forecast
+import example.weather.model.CreateCityInput
+import example.weather.model.ConflictError
+import example.weather.model.CitySummary
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -65,7 +77,7 @@ private suspend fun retries(path: String) {
             exchange.responseHeaders.add("x-amzn-errortype", "Throttled")
             response(exchange, if (attempts.incrementAndGet() <= test.get("failures").asInt) test.get("status").asInt else 200, body.toString())
         }.use { server ->
-            Client(server.config().copy(maxAttempts = test.get("maxAttempts").asInt)).use { client ->
+            WeatherClient(server.config().copy(maxAttempts = test.get("maxAttempts").asInt)).use { client ->
                 val success = try {
                     if (test.get("safe").asBoolean) client.retrySafe() else client.retryUnsafe()
                     true
@@ -77,7 +89,7 @@ private suspend fun retries(path: String) {
 }
 private class Codec {
     private val type = Class.forName("example.weather.JsonCodec")
-    private val schema = Client::class.java.getResourceAsStream("schema.json")!!.bufferedReader().use { json(it.readText()).asJsonObject }
+    private val schema = WeatherClient::class.java.getResourceAsStream("schema.json")!!.bufferedReader().use { json(it.readText()).asJsonObject }
     private val instance = type.getConstructor(JsonObject::class.java).newInstance(schema)
     private fun invoke(name: String, vararg args: Any?): Any? {
         val method = type.methods.first { it.name == name && it.parameterCount == args.size }
@@ -103,32 +115,58 @@ private fun serialization(path: String) {
         check(exactJsonEquals(encoded, json(expect.get("json").asString))) { "$id: $encoded" }
         expect.getAsJsonObject("states")?.entrySet()?.forEach { (member, state) ->
             val field = value!!::class.java.getMethod("get" + member.replaceFirstChar { it.uppercase() }).invoke(value)
-            val actual = if (field !is OptionalValue<*>) "value" else if (!field.present) "absent" else if (field.value == null) "null" else "value"
+            val has = value::class.java.methods.find { it.name == "has" + member.replaceFirstChar { it.uppercase() } }
+            val actual = if (has?.invoke(value) == false) "absent" else if (field == null) "null" else "value"
             check(actual == state.asString) { "$id native presence" }
         }
         expect.get("blobHex")?.let { check(java.util.HexFormat.of().formatHex(value as ByteArray) == it.asString) { "$id bytes" } }
         expect.getAsJsonObject("instant")?.let { instant ->
             val member = instant.get("member").asString
-            val optional = value!!::class.java.getMethod("get" + member.replaceFirstChar { it.uppercase() }).invoke(value) as OptionalValue<*>
-            val actual = optional.value as Instant
+            val actual = value!!::class.java.getMethod("get" + member.replaceFirstChar { it.uppercase() }).invoke(value) as Instant
             check(actual.epochSecond.toString() == instant.get("seconds").asString && actual.nano == instant.get("nanoseconds").asInt) { "$id instant" }
         }
     }
-    check(codec.decode("example.weather#Sky", "\"future\"") == Models.Sky("future"))
+    check(codec.decode("example.weather#Sky", "\"future\"") == Sky("future"))
     val future = """{"future":{"n":9223372036854775807}}"""
     val union = codec.decode("example.weather#Location", future)
-    check(union is Models.Location.UnknownVariant && codec.encode("example.weather#Location", union) == json(future))
-    check(codec.encode("example.weather#Location", Models.Location.Unknown(Models.Unit)) == json("""{"unknown":{}}"""))
-    val city = codec.decode("example.weather#CitySummary", """{"id":"c","name":"x","createdAt":-0.000000001,"population":9223372036854775807}""") as Models.CitySummary
-    check(city.population == Long.MAX_VALUE && city.createdAt.value == Instant.ofEpochSecond(-1, 999999999))
-    check((codec.decode("example.weather#CitySummary", """{"id":"c","name":"x"}""") as Models.CitySummary).population == 0L)
-    val present = Models.CreateCityInput(name = OptionalValue.of("x"), location = OptionalValue.of(null))
+    check(union is Location.UnknownVariant && codec.encode("example.weather#Location", union) == json(future))
+    check(codec.encode("example.weather#Location", Location.Unknown(kotlin.Unit)) == json("""{"unknown":{}}"""))
+    val city = codec.decode("example.weather#CitySummary", """{"id":"c","name":"x","createdAt":-0.000000001,"population":9223372036854775807}""") as CitySummary
+    check(city.population == Long.MAX_VALUE && city.createdAt == Instant.ofEpochSecond(-1, 999999999))
+    check((codec.decode("example.weather#CitySummary", """{"id":"c","name":"x"}""") as CitySummary).population == 0L)
+    check(CitySummary { id = "c"; name = "x" }.population == 0L)
+    val defaults = BuilderDefaults { requiredValue = "required" }
+    check(defaults.flag && defaults.small == (-7).toByte() && defaults.medium == 300.toShort())
+    check(defaults.count == 42 && defaults.large == Long.MIN_VALUE && defaults.ratio == 1.5f && defaults.score == 2.5)
+    check(defaults.decimalCount == 17 && defaults.blob.contentEquals(byteArrayOf(1, 2)))
+    check(defaults.date == Instant.parse("2024-01-01T00:00:00Z") && defaults.epoch == Instant.ofEpochSecond(-2, 500_000_000))
+    check(defaults.label == "default \$value\\path" && defaults.sky == Sky("sunny"))
+    check(defaults.tags.isEmpty() && defaults.forecast.isEmpty() && defaults.document.asJsonObject.get("count").asLong == Long.MAX_VALUE)
+    check(!defaults.hasOptionalDefault())
+    check(BuilderDefaults { requiredValue = "required"; count = 0 }.count == 0)
+    defaults.document.asJsonObject.addProperty("changed", true)
+    check(!BuilderDefaults { requiredValue = "required" }.document.asJsonObject.has("changed"))
+    val reusedDefaults = BuilderDefaults.Builder().apply { requiredValue = "required" }
+    val firstDefaults = reusedDefaults.build()
+    firstDefaults.document.asJsonObject.addProperty("changed", true)
+    firstDefaults.blob[0] = 99
+    val secondDefaults = reusedDefaults.build()
+    check(!secondDefaults.document.asJsonObject.has("changed") && secondDefaults.blob.contentEquals(byteArrayOf(1, 2)))
+    check(reusedDefaults.apply { count = 0 }.build().count == 0)
+    try { BuilderDefaults {}; error("Missing required member accepted") } catch (_: IllegalArgumentException) { }
+    try { BuilderDefaults { requiredValue = "required"; count = null }; error("Explicit null replaced by default") } catch (_: IllegalArgumentException) { }
+    val present = CreateCityInput { this.name = "x"; this.location = null }
+    check(present.name == "x" && present.hasLocation() && present.location == null)
+    val omitted = present.copy { unsetLocation() }
+    val listInput = ListCitiesInput { tags = listOf("ordinary", "list") }
+    check(!omitted.hasLocation() && present.hasLocation() && listInput.tags == listOf("ordinary", "list"))
+    check(!codec.encode("example.weather#CreateCityInput", omitted).asJsonObject.has("location"))
     val encoded = codec.encode("example.weather#CreateCityInput", present).asJsonObject
     check(encoded.get("location").isJsonNull && !encoded.has("clientToken"))
-    val map = codec.decode("example.weather#Forecast", """{"future":{"n":9223372036854775807}}""") as Models.Forecast
-    check(map[Models.Sky("future")]!!.asJsonObject.get("n").asLong == Long.MAX_VALUE)
-    val nullDocument = codec.decode("example.weather#Forecast", """{"future":null}""") as Models.Forecast
-    check(nullDocument[Models.Sky("future")]!!.isJsonNull)
+    val map = codec.decode("example.weather#Forecast", """{"future":{"n":9223372036854775807}}""") as Forecast
+    check(map[Sky("future")]!!.asJsonObject.get("n").asLong == Long.MAX_VALUE)
+    val nullDocument = codec.decode("example.weather#Forecast", """{"future":null}""") as Forecast
+    check(nullDocument[Sky("future")]!!.isJsonNull)
     val binary = byteArrayOf(0, 1, -1, -128)
     check(codec.encode("example.weather#Photo", binary).asString == "AAH/gA==")
     check((codec.decode("example.weather#Photo", "\"AAH/gA==\"") as ByteArray).contentEquals(binary))
@@ -159,11 +197,11 @@ private suspend fun httpBehavior() {
         response(exchange, if (sent.size == 1) 503 else 200,
             if (sent.size == 1) """{"__type":"FutureError"}""" else """{"city":{"id":"c","name":"x"}}""")
     }.use { server ->
-        Client(server.config().copy(token = { delay(1); credentials.incrementAndGet().toString() },
+        WeatherClient(server.config().copy(token = { delay(1); credentials.incrementAndGet().toString() },
             middleware = listOf({ request -> delay(1); request.body = request.body!! + byteArrayOf(32) }))).use { client ->
-            val input = Models.CreateCityInput(name = OptionalValue.of("x"), expectedRevision = OptionalValue.of(7L))
+            val input = CreateCityInput { this.name = "x"; this.expectedRevision = 7L }
             client.createCity(input)
-            check(!input.clientToken.present && sent.size == 2 && sent[0].contentEquals(sent[1]))
+            check(!input.hasClientToken() && sent.size == 2 && sent[0].contentEquals(sent[1]))
         }
     }
     Server { exchange ->
@@ -171,28 +209,33 @@ private suspend fun httpBehavior() {
         exchange.responseHeaders.add("x-request-id", "header")
         response(exchange, 200, """{"city":{"id":"c","name":"x"}}""")
     }.use { server ->
-        Client(server.config()).use { check(it.getCity(Models.GetCityInput( cityId = OptionalValue.of("a/b *?#é"))).requestIdValue.value == "header") }
+        WeatherClient(server.config()).use { check(it.getCity(GetCityInput { this.cityId = "a/b *?#é" }).requestIdValue == "header") }
     }
     Server { exchange ->
         exchange.responseHeaders.add("x-request-id", "wire")
         response(exchange, 400, """{"__type":"ValidationError","message":"bad","reason":"Invalid","requestId":"body"}""")
     }.use { server ->
-        Client(server.config()).use { client ->
-            try { client.getCity(Models.GetCityInput(cityId = OptionalValue.of("x"))); error("missing typed error") }
-            catch (error: Models.ValidationError) { check(error.requestId == "wire" && error.requestIdValue.value == "body" && error.status == 400 && error.message == "bad") }
+        WeatherClient(server.config()).use { client ->
+            try { client.getCity(GetCityInput { this.cityId = "x" }); error("missing typed error") }
+            catch (error: ValidationError) {
+                check(error.requestId == "wire" && error.requestIdValue == "body" && error.status == 400 && error.message == "bad")
+                val copied = error.copy()
+                check(copied.requestId == error.requestId && copied.status == error.status && copied.message == error.message)
+                check(copied.headers == error.headers && copied.retryable == error.retryable && copied.throttling == error.throttling)
+            }
         }
     }
     val malformed = AtomicInteger()
     Server { exchange ->
         exchange.responseHeaders.add("x-request-id", "malformed")
         response(exchange, if (malformed.incrementAndGet() == 1) 429 else 200, """{"__type":"Throttled","message":{}}""")
-    }.use { server -> Client(server.config()).use { it.retryUnsafe(); check(malformed.get() == 2) } }
+    }.use { server -> WeatherClient(server.config()).use { it.retryUnsafe(); check(malformed.get() == 2) } }
 }
 private suspend fun failures() = coroutineScope {
     val count = AtomicInteger()
     Server { exchange -> count.incrementAndGet(); response(exchange, 200, "invalid") }.use { server ->
-        Client(server.config()).use { client ->
-            try { client.getCity(Models.GetCityInput(cityId = OptionalValue.of("x"))); error("invalid JSON accepted") }
+        WeatherClient(server.config()).use { client ->
+            try { client.getCity(GetCityInput { this.cityId = "x" }); error("invalid JSON accepted") }
             catch (_: com.google.gson.JsonParseException) { check(count.get() == 1) }
         }
     }
@@ -201,31 +244,31 @@ private suspend fun failures() = coroutineScope {
         val body = """{"city":{"id":"c","name":"x"}}""".toByteArray()
         exchange.sendResponseHeaders(200, body.size.toLong() + if (count.incrementAndGet() == 1) 10 else 0)
         exchange.responseBody.write(body)
-    }.use { server -> Client(server.config()).use { it.getCity(Models.GetCityInput(cityId = OptionalValue.of("x"))); check(count.get() == 2) } }
+    }.use { server -> WeatherClient(server.config()).use { it.getCity(GetCityInput { this.cityId = "x" }); check(count.get() == 2) } }
     Server { exchange ->
         exchange.sendResponseHeaders(200, 100)
         exchange.responseBody.write('{'.code); exchange.responseBody.flush()
         Thread.sleep(5000)
     }.use { server ->
-        Client(server.config()).use { withTimeout(1500) { it.ping() } }
+        WeatherClient(server.config()).use { withTimeout(1500) { it.ping() } }
     }
     count.set(0)
     Server { exchange -> count.incrementAndGet(); response(exchange, 200, "{}") }.use { server ->
         val entered = CompletableDeferred<Unit>(); val release = CompletableDeferred<String>()
-        Client(server.config().copy(token = { entered.complete(Unit); release.await() })).use { client ->
+        WeatherClient(server.config().copy(token = { entered.complete(Unit); release.await() })).use { client ->
             val call = launch { client.ping() }; entered.await(); call.cancelAndJoin(); release.complete("token")
             delay(50); check(count.get() == 0)
         }
     }
-    Client(ClientConfig(endpoint = "http://example.invalid", token = { "secret" })).use { client ->
+    WeatherClient(ClientConfig(endpoint = "http://example.invalid", token = { "secret" })).use { client ->
         try { client.ping(); error("plaintext credentials accepted") } catch (_: IllegalArgumentException) { }
     }
     count.set(0)
     Server { exchange -> count.incrementAndGet(); response(exchange, 200, """{"cities":[],"nextToken":"same"}""") }.use { server ->
-        Client(server.config()).use { client ->
-            val input = Models.ListCitiesInput()
+        WeatherClient(server.config()).use { client ->
+            val input = ListCitiesInput {  }
             try { client.listCitiesPages(input).toList(); error("cycle accepted") } catch (_: IllegalStateException) { }
-            check(count.get() == 2 && !input.nextToken.present)
+            check(count.get() == 2 && !input.hasNextToken())
         }
     }
 }
@@ -234,7 +277,7 @@ private suspend fun deadlines() = coroutineScope {
         Thread.sleep(11000)
         response(exchange, 200, "{}")
     }.use { server ->
-        Client(server.config().copy(timeout = Duration.ofSeconds(15), maxAttempts = 1)).use { client ->
+        WeatherClient(server.config().copy(timeout = Duration.ofSeconds(15), maxAttempts = 1)).use { client ->
             withTimeout(18000) { client.ping() }
         }
     }
@@ -245,9 +288,9 @@ private suspend fun deadlines() = coroutineScope {
         exchange.responseBody.write('{'.code); exchange.responseBody.flush()
         Thread.sleep(5000)
     }.use { server ->
-        Client(server.config().copy(timeout = Duration.ofMillis(250))).use { client ->
+        WeatherClient(server.config().copy(timeout = Duration.ofMillis(250))).use { client ->
             withTimeout(2000) {
-                try { client.getCity(Models.GetCityInput(cityId = OptionalValue.of("x"))); error("deadline ignored") }
+                try { client.getCity(GetCityInput { this.cityId = "x" }); error("deadline ignored") }
                 catch (_: TimeoutCancellationException) { }
             }
             check(attempts.get() == 1) { "deadline retried the interrupted exchange" }
@@ -260,8 +303,8 @@ private suspend fun deadlines() = coroutineScope {
         entered.complete(Unit)
         Thread.sleep(5000)
     }.use { server ->
-        Client(server.config()).use { client ->
-            val call = launch { client.getCity(Models.GetCityInput(cityId = OptionalValue.of("x"))) }
+        WeatherClient(server.config()).use { client ->
+            val call = launch { client.getCity(GetCityInput { this.cityId = "x" }) }
             withTimeout(2000) { entered.await(); call.cancelAndJoin() }
         }
     }
@@ -272,8 +315,8 @@ private suspend fun deadlines() = coroutineScope {
             exchange.responseBody.write('{'.code); exchange.responseBody.flush()
             Thread.sleep(5000)
         }.use { server ->
-            Client(server.config().copy(httpClient = injected, maxAttempts = 1)).use { client ->
-                try { withTimeout(2000) { client.getCity(Models.GetCityInput(cityId = OptionalValue.of("x"))) }; error("injected timeout ignored") }
+            WeatherClient(server.config().copy(httpClient = injected, maxAttempts = 1)).use { client ->
+                try { withTimeout(2000) { client.getCity(GetCityInput { this.cityId = "x" }) }; error("injected timeout ignored") }
                 catch (error: NetworkError) { check(error.cause is java.net.SocketTimeoutException) }
             }
             check(!injected.dispatcher.executorService.isShutdown) { "caller-owned transport was closed" }
@@ -295,37 +338,34 @@ private suspend fun payloads() {
         check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash)
         response(exchange, if (calls.incrementAndGet() == 1) 503 else 200,
             if (calls.get() == 1) """{"__type":"FutureError"}""" else """{"photo":{"size":6,"thumbnail":"AAH/gA0K"}}""")
-    }.use { server -> Client(server.config()).use { client ->
-        val result = client.putCityPhoto(Models.PutCityPhotoInput(cityId = OptionalValue.of("x"),
-            caption = OptionalValue.of("caption"), photo = OptionalValue.of(binary)))
+    }.use { server -> WeatherClient(server.config()).use { client ->
+        val result = client.putCityPhoto(PutCityPhotoInput { this.cityId = "x"; this.caption = "caption"; this.photo = binary })
         check(result.photo.thumbnail.contentEquals(binary) && calls.get() == 2)
     } }
     for (bytes in listOf(binary, byteArrayOf())) {
         Server { exchange -> exchange.responseHeaders.add("X-Photo-Caption", "raw"); response(exchange, 200, bytes) }
-            .use { server -> Client(server.config()).use { client ->
-                val result = client.getCityPhoto(Models.GetCityPhotoInput(cityId = OptionalValue.of("x")))
-                check(result.photo.present && result.photo.value!!.contentEquals(bytes) && result.caption.value == "raw")
+            .use { server -> WeatherClient(server.config()).use { client ->
+                val result = client.getCityPhoto(GetCityPhotoInput { this.cityId = "x" })
+                check(result.hasPhoto() && result.photo!!.contentEquals(bytes) && result.caption == "raw")
             } }
     }
     Server { exchange ->
         check(exchange.requestBody.readBytes().isEmpty() && exchange.requestHeaders.getFirst("Content-Type") == null)
         response(exchange, 200, """{"photo":{"size":0,"thumbnail":""}}""")
-    }.use { server -> Client(server.config()).use { it.putCityPhoto(Models.PutCityPhotoInput(
-        cityId = OptionalValue.of("x"), photo = OptionalValue.of(byteArrayOf()))) } }
+    }.use { server -> WeatherClient(server.config()).use { it.putCityPhoto(PutCityPhotoInput { this.cityId = "x"; this.photo = byteArrayOf() }) } }
 }
 private suspend fun weather() {
-    Client(ClientConfig(endpoint = System.getenv("WEATHER_URL"), token = { "test-token" })).use { client ->
-        val input = Models.CreateCityInput(name = OptionalValue.of("kotlin-http"), location = OptionalValue.of(Models.Location.Unknown(Models.Unit)))
+    WeatherClient(ClientConfig(endpoint = System.getenv("WEATHER_URL"), token = { "test-token" })).use { client ->
+        val input = CreateCityInput { this.name = "kotlin-http"; this.location = Location.Unknown(kotlin.Unit) }
         val city = client.createCity(input)
-        check(client.getCity(Models.GetCityInput(cityId = OptionalValue.of(city.city.id))).city.name == "kotlin-http")
+        check(client.getCity { cityId = city.city.id }.city.name == "kotlin-http")
         val photo = byteArrayOf(0, 1, -1, -128, 13, 10, 65, 66, 67)
-        val stored = client.putCityPhoto(Models.PutCityPhotoInput(cityId = OptionalValue.of(city.city.id),
-            caption = OptionalValue.of("binary"), photo = OptionalValue.of(photo)))
+        val stored = client.putCityPhoto(PutCityPhotoInput { this.cityId = city.city.id; this.caption = "binary"; this.photo = photo })
         check(stored.photo.size == photo.size && stored.photo.thumbnail.contentEquals(photo.take(8).toByteArray()))
-        val fetched = client.getCityPhoto(Models.GetCityPhotoInput(cityId = OptionalValue.of(city.city.id)))
-        check(fetched.photo.value!!.contentEquals(photo) && fetched.caption.value == "binary")
-        try { client.createCity(input); error("missing conflict") } catch (_: Models.ConflictError) { }
-        val pages = client.listCitiesPages(Models.ListCitiesInput(maxResults = OptionalValue.of(1))).toList()
+        val fetched = client.getCityPhoto(GetCityPhotoInput { this.cityId = city.city.id })
+        check(fetched.photo!!.contentEquals(photo) && fetched.caption == "binary")
+        try { client.createCity(input); error("missing conflict") } catch (_: ConflictError) { }
+        val pages = client.listCitiesPages { maxResults = 1 }.toList()
         check(pages.any { page -> page.cities.any { it.name == "kotlin-http" } })
     }
 }

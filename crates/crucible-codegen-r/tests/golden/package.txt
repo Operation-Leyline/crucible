@@ -15,7 +15,6 @@ Package owner must supply distribution terms before publishing. Generated model 
 === NAMESPACE ===
 useDynLib("weather.client", .registration = TRUE, .fixes = "C_")
 export("CitySummary")
-export("Client")
 export("ConflictError")
 export("Coordinates")
 export("CreateCityInput")
@@ -39,6 +38,7 @@ export("UNSET")
 export("ValidationError")
 export("ValidationField")
 export("ValidationReason")
+export("WeatherClient")
 export("cancellation_token")
 export("client_config")
 export("json_encode")
@@ -50,7 +50,7 @@ export("timestamp")
 
 === R/client.R ===
 # Generated native operation methods.
-Client <- function(config = client_config()) {
+`WeatherClient` <- function(config = client_config()) {
   client <- .crucible_client(config, NULL, TRUE)
   client$`create_city` <- function(input, cancellation = NULL) client$call("CreateCity", input, cancellation)
   client$`get_city` <- function(input, cancellation = NULL) client$call("GetCity", input, cancellation)
@@ -177,7 +177,6 @@ Client <- function(config = client_config()) {
 === man/client.Rd ===
 \name{weather.client-client}
 \alias{CitySummary}
-\alias{Client}
 \alias{ConflictError}
 \alias{Coordinates}
 \alias{CreateCityInput}
@@ -201,6 +200,7 @@ Client <- function(config = client_config()) {
 \alias{ValidationError}
 \alias{ValidationField}
 \alias{ValidationReason}
+\alias{WeatherClient}
 \alias{cancellation_token}
 \alias{client_config}
 \alias{json_encode}
@@ -211,7 +211,7 @@ Client <- function(config = client_config()) {
 \alias{timestamp}
 \title{Generated Smithy Client}
 \description{Native model constructors and an HTTP client for the generated service.}
-\details{Use Client(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}
+\details{Use WeatherClient(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}
 
 === src/clock.c ===
 #ifndef _WIN32

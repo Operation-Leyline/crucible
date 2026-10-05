@@ -102,9 +102,9 @@ fn method(text: &str) -> String {
         chars.as_str()
     )
 }
-fn ty(service: &Service, id: &ShapeId) -> String {
+fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     match service.shape(id).expect("lowered target") {
-        Shape::Unit => "Models.Unit".into(),
+        Shape::Unit => "kotlin.Unit".into(),
         Shape::Simple(s) => match s.kind {
             SimpleKind::String => "kotlin.String",
             SimpleKind::Boolean => "kotlin.Boolean",
@@ -119,11 +119,12 @@ fn ty(service: &Service, id: &ShapeId) -> String {
             SimpleKind::Blob => "kotlin.ByteArray",
         }
         .into(),
-        _ => format!("Models.`{}`", service.name_of(id)),
+        _ => format!("{package}.model.`{}`", service.name_of(id)),
     }
 }
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
+    let client_name = format!("{}Client", service.id.name());
     if !options
         .package_name
         .split('.')
@@ -150,7 +151,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let mut names = BTreeSet::from_iter(
         [
             "Unit",
-            "Models",
+            "Builder",
             "kotlin",
             "java",
             "com",
@@ -194,7 +195,24 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 diagnostics.push(id, "Kotlin union name collides with its unknown variant");
             }
             for m in &s.members {
+                if !m.optional_on_client()
+                    && m.default.as_ref().is_some_and(|value| {
+                        models::default_expr(service, &m.target, value, &options.package_name)
+                            .is_none()
+                    })
+                {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "unsupported Kotlin builder default",
+                    );
+                }
                 let member = field(&m.name);
+                if member.starts_with("__crucibleField") {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "Kotlin member collides with internal presence storage",
+                    );
+                }
                 if !members.insert(member.clone()) {
                     diagnostics.push(&id.with_member(&m.name), "Kotlin member name collision");
                 }
@@ -281,23 +299,29 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .expect("schema serializes");
     let (models, codecs) = models::emit(service, package);
     let mut client = format!(
-        "class Client(config: ClientConfig) : java.io.Closeable {{\n    private val runtime = ClientRuntime(config, {}, {})\n    override fun close() = runtime.close()\n",
+        "class {client_name}(config: ClientConfig) : java.io.Closeable {{\n    private val runtime = ClientRuntime(config, {}, {})\n    override fun close() = runtime.close()\n",
         literal(options.endpoint.as_deref().unwrap_or("")),
         options.content_sha256
     );
     for op in &service.operations {
         let name = method(op.name());
-        let input = op.input.as_ref().map(|id| ty(service, id));
+        let input = op.input.as_ref().map(|id| ty(service, id, package));
         let output = op
             .output
             .as_ref()
-            .map_or("Models.Unit".into(), |id| ty(service, id));
+            .map_or("kotlin.Unit".into(), |id| ty(service, id, package));
         let parameter = input
             .as_ref()
             .map_or(String::new(), |t| format!("input: {t}"));
         let argument = if input.is_some() { "input" } else { "null" };
         client.push_str(&format!("    suspend fun `{name}`({parameter}): {output} = runtime.call({}, {argument}) as {output}\n",literal(op.name())));
+        if let Some(input) = &input {
+            client.push_str(&format!("    suspend fun `{name}`(block: {input}.Builder.() -> kotlin.Unit = {{}}): {output} = `{name}`({input}(block))\n"));
+        }
         if op.paginated.is_some() {
+            if let Some(input) = &input {
+                client.push_str(&format!("    fun `{name}Pages`(block: {input}.Builder.() -> kotlin.Unit = {{}}): kotlinx.coroutines.flow.Flow<{output}> = `{name}Pages`({input}(block))\n"));
+            }
             client.push_str(&format!("    fun `{name}Pages`({parameter}): kotlinx.coroutines.flow.Flow<{output}> = kotlinx.coroutines.flow.flow {{\n        runtime.pages({}, {argument}).collect {{ emit(it as {output}) }}\n    }}\n",literal(op.name())));
         }
     }
@@ -305,15 +329,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let provenance=serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
     let mut files = vec![
         File {
-            path: format!("{source}/Models.kt"),
-            contents: format!("{header}{models}"),
-        },
-        File {
             path: format!("{source}/ModelCodecs.kt"),
             contents: format!("{header}{codecs}"),
         },
         File {
-            path: format!("{source}/Client.kt"),
+            path: format!("{source}/{client_name}.kt"),
             contents: format!("{header}{client}"),
         },
         File {
@@ -325,6 +345,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: provenance,
         },
     ];
+    for (name, body) in models {
+        files.push(File {
+            path: format!("{source}/model/{name}.kt"),
+            contents: format!(
+                "// Generated by Crucible. DO NOT EDIT.\npackage {package}.model\n\n{body}"
+            ),
+        });
+    }
     for (name, body) in [
         ("ClientConfig", include_str!("../runtime/ClientConfig.kt")),
         ("OptionalValue", include_str!("../runtime/OptionalValue.kt")),

@@ -24,22 +24,19 @@ final readonly class WireContext
         if (!$object->has($name) && $value === null) throw new \UnexpectedValueException('Missing required member: ' . $name);
         return $this->codec->decode($value, $this->child($member));
     }
-    public function optional(string $name, JsonObject $object): Field
+    public function optional(string $name, JsonObject $object): mixed
     {
         $member = WireCodec::object(WireCodec::object($this->shape()->get('members'))->get($name));
-        if (!$object->has($name) && $member->get('default') === null) return new Field();
+        if (!$object->has($name) && $member->get('default') === null) return Absent::Value;
         $value = $object->has($name) ? $object->get($name) : $member->get('default');
-        if ($value === null) return Field::nullValue();
-        return Field::value($this->codec->decode($value, $this->child($member)));
+        if ($value === null) return null;
+        return $this->codec->decode($value, $this->child($member));
     }
     /** @param array<string, mixed> $object */
-    public function put(array &$object, string $name, mixed $value): void
+    public function put(array &$object, string $name, mixed $value, bool $optional = false): void
     {
-        if ($value instanceof Field) {
-            if (!$value->isSet) return;
-            if ($value->value === null) { $object[$name] = null; return; }
-            $value = $value->value;
-        }
+        if ($value === Absent::Value) return;
+        if ($value === null && $optional) { $object[$name] = null; return; }
         $object[$name] = $this->codec->encode($value, $this->member($name));
     }
 }

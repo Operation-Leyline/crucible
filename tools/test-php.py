@@ -44,8 +44,10 @@ def qualify(output):
     composer("install", cwd=consumer)
     (consumer / "main.php").write_text("""<?php
 require __DIR__ . '/vendor/autoload.php';
-$input = new Example\\Weather\\Models\\CreateCityInput(name:Example\\Weather\\Runtime\\Field::value('consumer'));
-if ($input->name->value !== 'consumer') throw new RuntimeException('Consumer failed');
+$input = new Example\\Weather\\CreateCityInput(name:'consumer');
+if ($input->name !== 'consumer') throw new RuntimeException('Consumer failed');
+$client = new Example\\Weather\\WeatherClient(new Example\\Weather\\Runtime\\ClientConfig(endpoint:'https://example.invalid'));
+$client->close();
 echo "PHP archive consumer passed\\n";
 """, encoding="utf-8")
     run(PHP, str(consumer / "main.php"))
@@ -56,7 +58,7 @@ echo "PHP archive consumer passed\\n";
     }}))
     renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
     renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "DateTime", "example.weather#Location": "Field", "example.weather#Sky": "Schema",
+        "example.weather#CitySummary": "DateTime", "example.weather#Location": "Field", "example.weather#Sky": "NativeSky",
     }
     for member in ["this", "context", "object", "metadata", "code", "message"]:
         renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}
@@ -72,9 +74,10 @@ require __DIR__ . '/vendor/autoload.php';
 foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(__DIR__ . '/src')) as $file) {
     if ($file->isFile() && $file->getExtension() === 'php') require_once $file->getPathname();
 }
-$client = new Example\\Weather\\Client(new Example\\Weather\\Runtime\\ClientConfig(endpoint:'http://127.0.0.1'));
+$class = Example\\Weather\\PLACEHOLDER_CLIENT::class;
+$client = new $class(new Example\\Weather\\Runtime\\ClientConfig(endpoint:'http://127.0.0.1'));
 $client->close();
-""", encoding="utf-8")
+""".replace("PLACEHOLDER_CLIENT", {"empty":"EmptyClient", "void":"ServiceClient", "renamed":"WeatherClient"}[name]), encoding="utf-8")
         run(PHP, str(generated / "check.php"))
     print("PHP generated models, shared retry, native HTTP, Composer archive, empty and renamed packages passed")
 

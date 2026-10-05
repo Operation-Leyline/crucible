@@ -8,9 +8,9 @@ import 'runtime/json.dart';
 import 'runtime/cancellation.dart';
 import 'runtime/client_runtime.dart';
 
-final class Client {
+final class WeatherClient {
   final ClientRuntime _runtime;
-  Client([ClientConfig? config]) : _runtime = ClientRuntime(config ?? ClientConfig(),
+  WeatherClient([ClientConfig? config]) : _runtime = ClientRuntime(config ?? ClientConfig(),
     WireCodec(wireObject(exactJsonDecode(schemaSource)), models.decodeModel), models.decodeError, () => const models.Unit(),
     endpoint: "https://weather.example", digest: true);
   void close() => _runtime.close();

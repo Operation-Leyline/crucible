@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-/** Copied by Client construction. The caller owns an injected HttpClient. */
+/** Copied by client construction. The caller owns an injected HttpClient. */
 public final class ClientConfig {
   public String endpoint;
   public HttpClient httpClient;

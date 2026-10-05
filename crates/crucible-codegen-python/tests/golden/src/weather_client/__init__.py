@@ -1,4 +1,4 @@
-from .client import Client, AsyncClient
+from .client import WeatherClient, AsyncWeatherClient
 from .models import (
     CityId,
     CityName,

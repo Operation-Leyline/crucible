@@ -117,6 +117,28 @@ consumer's tests, then replaces it.
    own traits reach handlers through `OperationInfo::traits` and
    `HandlerExt::when_trait`, replacing Leyline's side generators.
 
+## Client API design
+
+Name the public client after the Smithy service (`LeylineClient`, for example).
+Use the target language's spelling conventions for function-based APIs, such as
+C prefixes and R constructors. Shared runtime types can keep generic names.
+
+The shared IR defines wire behavior, not one public API for every language.
+Generate top-level model types in normal packages or modules. Ordinary request
+construction, response access, and pagination should use the language's native
+values, collections, and conventions: Kotlin builder lambdas, Java and Rust
+builders, Go/C setters, or named arguments and object literals where appropriate.
+Do not require callers to wrap every assigned value in a serialization type.
+
+Omitted, explicit null, and present values still differ on the wire. Keep that
+state internally where practical, and expose an advanced presence API when the
+language cannot express the distinction through ordinary assignment. A nullable
+convenience getter may collapse omitted and null; serialization and explicit
+presence inspection must retain them. Document each language's construction
+rules and verify normal calls from an independently compiled consumer, alongside
+the shared wire fixtures. Purely recursive collection types may need nominal
+types when the language cannot express recursive aliases.
+
 ## Wire rules to get right
 
 Protocol details owned here, with round-trip tests from the first emitter:

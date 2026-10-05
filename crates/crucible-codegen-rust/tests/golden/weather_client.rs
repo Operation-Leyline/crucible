@@ -24,6 +24,40 @@ pub mod model {
         #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client::Field::is_absent", with = "::crucible_client::time::epoch_seconds::field")]
         pub created_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
     }
+    impl CitySummary {
+        pub fn builder() -> CitySummaryBuilder { CitySummaryBuilder::default() }
+        pub fn id(&self) -> &CityId { &self.id }
+        pub fn name(&self) -> &CityName { &self.name }
+        pub fn population(&self) -> &i64 { &self.population }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn updated_at(&self) -> ::std::option::Option<&::crucible_client::time::Timestamp> { self.updated_at.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn created_at(&self) -> ::std::option::Option<&::crucible_client::time::Timestamp> { self.created_at.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct CitySummaryBuilder {
+        id: ::std::option::Option<CityId>,
+        name: ::std::option::Option<CityName>,
+        population: ::std::option::Option<i64>,
+        updated_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
+        created_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
+    }
+    impl CitySummaryBuilder {
+        pub fn id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.id = Some(value.into()); self }
+        pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = Some(value.into()); self }
+        pub fn population(mut self, value: impl ::std::convert::Into<i64>) -> Self { self.population = Some(value.into()); self }
+        pub fn updated_at(mut self, value: impl ::std::convert::Into<::crucible_client::time::Timestamp>) -> Self { self.updated_at = ::crucible_client::Field::Value(value.into()); self }
+        pub fn created_at(mut self, value: impl ::std::convert::Into<::crucible_client::time::Timestamp>) -> Self { self.created_at = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<CitySummary, ::crucible_client::BuildError> {
+            Ok(CitySummary {
+                id: self.id.ok_or(::crucible_client::BuildError { shape: "CitySummary", member: "id" })?,
+                name: self.name.ok_or(::crucible_client::BuildError { shape: "CitySummary", member: "name" })?,
+                population: self.population.unwrap_or_else(defaults::city_summary__population),
+                updated_at: self.updated_at,
+                created_at: self.created_at,
+            })
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
@@ -32,6 +66,26 @@ pub mod model {
         pub latitude: f64,
         #[serde(rename = "longitude")]
         pub longitude: f64,
+    }
+    impl Coordinates {
+        pub fn builder() -> CoordinatesBuilder { CoordinatesBuilder::default() }
+        pub fn latitude(&self) -> &f64 { &self.latitude }
+        pub fn longitude(&self) -> &f64 { &self.longitude }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct CoordinatesBuilder {
+        latitude: ::std::option::Option<f64>,
+        longitude: ::std::option::Option<f64>,
+    }
+    impl CoordinatesBuilder {
+        pub fn latitude(mut self, value: impl ::std::convert::Into<f64>) -> Self { self.latitude = Some(value.into()); self }
+        pub fn longitude(mut self, value: impl ::std::convert::Into<f64>) -> Self { self.longitude = Some(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<Coordinates, ::crucible_client::BuildError> {
+            Ok(Coordinates {
+                latitude: self.latitude.ok_or(::crucible_client::BuildError { shape: "Coordinates", member: "latitude" })?,
+                longitude: self.longitude.ok_or(::crucible_client::BuildError { shape: "Coordinates", member: "longitude" })?,
+            })
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -46,12 +100,60 @@ pub mod model {
         #[serde(rename = "expectedRevision", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub expected_revision: ::crucible_client::Field<i64>,
     }
+    impl CreateCityInput {
+        pub fn builder() -> CreateCityInputBuilder { CreateCityInputBuilder::default() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn name(&self) -> ::std::option::Option<&CityName> { self.name.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn location(&self) -> ::std::option::Option<&Location> { self.location.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn client_token(&self) -> ::std::option::Option<&::std::string::String> { self.client_token.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn expected_revision(&self) -> ::std::option::Option<&i64> { self.expected_revision.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct CreateCityInputBuilder {
+        name: ::crucible_client::Field<CityName>,
+        location: ::crucible_client::Field<Location>,
+        client_token: ::crucible_client::Field<::std::string::String>,
+        expected_revision: ::crucible_client::Field<i64>,
+    }
+    impl CreateCityInputBuilder {
+        pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = ::crucible_client::Field::Value(value.into()); self }
+        pub fn location(mut self, value: impl ::std::convert::Into<Location>) -> Self { self.location = ::crucible_client::Field::Value(value.into()); self }
+        pub fn client_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.client_token = ::crucible_client::Field::Value(value.into()); self }
+        pub fn expected_revision(mut self, value: impl ::std::convert::Into<i64>) -> Self { self.expected_revision = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> CreateCityInput {
+            CreateCityInput {
+                name: self.name,
+                location: self.location,
+                client_token: self.client_token,
+                expected_revision: self.expected_revision,
+            }
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct CreateCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
+    }
+    impl CreateCityOutput {
+        pub fn builder() -> CreateCityOutputBuilder { CreateCityOutputBuilder::default() }
+        pub fn city(&self) -> &CitySummary { &self.city }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct CreateCityOutputBuilder {
+        city: ::std::option::Option<CitySummary>,
+    }
+    impl CreateCityOutputBuilder {
+        pub fn city(mut self, value: impl ::std::convert::Into<CitySummary>) -> Self { self.city = Some(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<CreateCityOutput, ::crucible_client::BuildError> {
+            Ok(CreateCityOutput {
+                city: self.city.ok_or(::crucible_client::BuildError { shape: "CreateCityOutput", member: "city" })?,
+            })
+        }
     }
 
     pub type DateTime = ::crucible_client::time::Timestamp;
@@ -66,6 +168,28 @@ pub mod model {
         #[serde(rename = "at", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub at: ::crucible_client::Field<DateTime>,
     }
+    impl GetCityInput {
+        pub fn builder() -> GetCityInputBuilder { GetCityInputBuilder::default() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn at(&self) -> ::std::option::Option<&DateTime> { self.at.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct GetCityInputBuilder {
+        city_id: ::crucible_client::Field<CityId>,
+        at: ::crucible_client::Field<DateTime>,
+    }
+    impl GetCityInputBuilder {
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client::Field::Value(value.into()); self }
+        pub fn at(mut self, value: impl ::std::convert::Into<DateTime>) -> Self { self.at = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> GetCityInput {
+            GetCityInput {
+                city_id: self.city_id,
+                at: self.at,
+            }
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
@@ -77,12 +201,55 @@ pub mod model {
         #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub request_id: ::crucible_client::Field<::std::string::String>,
     }
+    impl GetCityOutput {
+        pub fn builder() -> GetCityOutputBuilder { GetCityOutputBuilder::default() }
+        pub fn city(&self) -> &CitySummary { &self.city }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn forecast(&self) -> ::std::option::Option<&Forecast> { self.forecast.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn request_id(&self) -> ::std::option::Option<&::std::string::String> { self.request_id.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct GetCityOutputBuilder {
+        city: ::std::option::Option<CitySummary>,
+        forecast: ::crucible_client::Field<Forecast>,
+        request_id: ::crucible_client::Field<::std::string::String>,
+    }
+    impl GetCityOutputBuilder {
+        pub fn city(mut self, value: impl ::std::convert::Into<CitySummary>) -> Self { self.city = Some(value.into()); self }
+        pub fn forecast(mut self, value: impl ::std::convert::Into<Forecast>) -> Self { self.forecast = ::crucible_client::Field::Value(value.into()); self }
+        pub fn request_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.request_id = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<GetCityOutput, ::crucible_client::BuildError> {
+            Ok(GetCityOutput {
+                city: self.city.ok_or(::crucible_client::BuildError { shape: "GetCityOutput", member: "city" })?,
+                forecast: self.forecast,
+                request_id: self.request_id,
+            })
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct GetCityPhotoInput {
         #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub city_id: ::crucible_client::Field<CityId>,
+    }
+    impl GetCityPhotoInput {
+        pub fn builder() -> GetCityPhotoInputBuilder { GetCityPhotoInputBuilder::default() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct GetCityPhotoInputBuilder {
+        city_id: ::crucible_client::Field<CityId>,
+    }
+    impl GetCityPhotoInputBuilder {
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> GetCityPhotoInput {
+            GetCityPhotoInput {
+                city_id: self.city_id,
+            }
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -92,6 +259,28 @@ pub mod model {
         pub caption: ::crucible_client::Field<::std::string::String>,
         #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub photo: ::crucible_client::Field<Photo>,
+    }
+    impl GetCityPhotoOutput {
+        pub fn builder() -> GetCityPhotoOutputBuilder { GetCityPhotoOutputBuilder::default() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn caption(&self) -> ::std::option::Option<&::std::string::String> { self.caption.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn photo(&self) -> ::std::option::Option<&Photo> { self.photo.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct GetCityPhotoOutputBuilder {
+        caption: ::crucible_client::Field<::std::string::String>,
+        photo: ::crucible_client::Field<Photo>,
+    }
+    impl GetCityPhotoOutputBuilder {
+        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client::Field::Value(value.into()); self }
+        pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> GetCityPhotoOutput {
+            GetCityPhotoOutput {
+                caption: self.caption,
+                photo: self.photo,
+            }
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -104,6 +293,33 @@ pub mod model {
         #[serde(rename = "tags", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub tags: ::crucible_client::Field<Tags>,
     }
+    impl ListCitiesInput {
+        pub fn builder() -> ListCitiesInputBuilder { ListCitiesInputBuilder::default() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn next_token(&self) -> ::std::option::Option<&::std::string::String> { self.next_token.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn max_results(&self) -> ::std::option::Option<&i32> { self.max_results.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn tags(&self) -> ::std::option::Option<&Tags> { self.tags.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct ListCitiesInputBuilder {
+        next_token: ::crucible_client::Field<::std::string::String>,
+        max_results: ::crucible_client::Field<i32>,
+        tags: ::crucible_client::Field<Tags>,
+    }
+    impl ListCitiesInputBuilder {
+        pub fn next_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.next_token = ::crucible_client::Field::Value(value.into()); self }
+        pub fn max_results(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.max_results = ::crucible_client::Field::Value(value.into()); self }
+        pub fn tags(mut self, value: impl ::std::convert::Into<Tags>) -> Self { self.tags = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> ListCitiesInput {
+            ListCitiesInput {
+                next_token: self.next_token,
+                max_results: self.max_results,
+                tags: self.tags,
+            }
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
@@ -112,6 +328,27 @@ pub mod model {
         pub cities: CitySummaries,
         #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub next_token: ::crucible_client::Field<::std::string::String>,
+    }
+    impl ListCitiesOutput {
+        pub fn builder() -> ListCitiesOutputBuilder { ListCitiesOutputBuilder::default() }
+        pub fn cities(&self) -> &CitySummaries { &self.cities }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn next_token(&self) -> ::std::option::Option<&::std::string::String> { self.next_token.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct ListCitiesOutputBuilder {
+        cities: ::std::option::Option<CitySummaries>,
+        next_token: ::crucible_client::Field<::std::string::String>,
+    }
+    impl ListCitiesOutputBuilder {
+        pub fn cities(mut self, value: impl ::std::convert::Into<CitySummaries>) -> Self { self.cities = Some(value.into()); self }
+        pub fn next_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.next_token = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<ListCitiesOutput, ::crucible_client::BuildError> {
+            Ok(ListCitiesOutput {
+                cities: self.cities.ok_or(::crucible_client::BuildError { shape: "ListCitiesOutput", member: "cities" })?,
+                next_token: self.next_token,
+            })
+        }
     }
 
     #[derive(Debug, Clone, PartialEq)]
@@ -161,6 +398,31 @@ pub mod model {
         #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub caption: ::crucible_client::Field<::std::string::String>,
     }
+    impl PhotoSummary {
+        pub fn builder() -> PhotoSummaryBuilder { PhotoSummaryBuilder::default() }
+        pub fn size(&self) -> &i32 { &self.size }
+        pub fn thumbnail(&self) -> &Thumbnail { &self.thumbnail }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn caption(&self) -> ::std::option::Option<&::std::string::String> { self.caption.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct PhotoSummaryBuilder {
+        size: ::std::option::Option<i32>,
+        thumbnail: ::std::option::Option<Thumbnail>,
+        caption: ::crucible_client::Field<::std::string::String>,
+    }
+    impl PhotoSummaryBuilder {
+        pub fn size(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.size = Some(value.into()); self }
+        pub fn thumbnail(mut self, value: impl ::std::convert::Into<Thumbnail>) -> Self { self.thumbnail = Some(value.into()); self }
+        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<PhotoSummary, ::crucible_client::BuildError> {
+            Ok(PhotoSummary {
+                size: self.size.ok_or(::crucible_client::BuildError { shape: "PhotoSummary", member: "size" })?,
+                thumbnail: self.thumbnail.ok_or(::crucible_client::BuildError { shape: "PhotoSummary", member: "thumbnail" })?,
+                caption: self.caption,
+            })
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
@@ -172,12 +434,55 @@ pub mod model {
         #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
         pub photo: ::crucible_client::Field<Photo>,
     }
+    impl PutCityPhotoInput {
+        pub fn builder() -> PutCityPhotoInputBuilder { PutCityPhotoInputBuilder::default() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn caption(&self) -> ::std::option::Option<&::std::string::String> { self.caption.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn photo(&self) -> ::std::option::Option<&Photo> { self.photo.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct PutCityPhotoInputBuilder {
+        city_id: ::crucible_client::Field<CityId>,
+        caption: ::crucible_client::Field<::std::string::String>,
+        photo: ::crucible_client::Field<Photo>,
+    }
+    impl PutCityPhotoInputBuilder {
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client::Field::Value(value.into()); self }
+        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client::Field::Value(value.into()); self }
+        pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> PutCityPhotoInput {
+            PutCityPhotoInput {
+                city_id: self.city_id,
+                caption: self.caption,
+                photo: self.photo,
+            }
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct PutCityPhotoOutput {
         #[serde(rename = "photo")]
         pub photo: PhotoSummary,
+    }
+    impl PutCityPhotoOutput {
+        pub fn builder() -> PutCityPhotoOutputBuilder { PutCityPhotoOutputBuilder::default() }
+        pub fn photo(&self) -> &PhotoSummary { &self.photo }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct PutCityPhotoOutputBuilder {
+        photo: ::std::option::Option<PhotoSummary>,
+    }
+    impl PutCityPhotoOutputBuilder {
+        pub fn photo(mut self, value: impl ::std::convert::Into<PhotoSummary>) -> Self { self.photo = Some(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<PutCityPhotoOutput, ::crucible_client::BuildError> {
+            Ok(PutCityPhotoOutput {
+                photo: self.photo.ok_or(::crucible_client::BuildError { shape: "PutCityPhotoOutput", member: "photo" })?,
+            })
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -221,10 +526,34 @@ pub mod model {
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct StatusInput {
     }
+    impl StatusInput {
+        pub fn builder() -> StatusInputBuilder { StatusInputBuilder::default() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct StatusInputBuilder {
+    }
+    impl StatusInputBuilder {
+        pub fn build(self) -> StatusInput {
+            StatusInput {
+            }
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct StatusOutput {
+    }
+    impl StatusOutput {
+        pub fn builder() -> StatusOutputBuilder { StatusOutputBuilder::default() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct StatusOutputBuilder {
+    }
+    impl StatusOutputBuilder {
+        pub fn build(self) -> StatusOutput {
+            StatusOutput {
+            }
+        }
     }
 
     pub type Tags = ::std::vec::Vec<::std::string::String>;
@@ -239,6 +568,26 @@ pub mod model {
         pub path: ::std::string::String,
         #[serde(rename = "message")]
         pub message: ::std::string::String,
+    }
+    impl ValidationField {
+        pub fn builder() -> ValidationFieldBuilder { ValidationFieldBuilder::default() }
+        pub fn path(&self) -> &::std::string::String { &self.path }
+        pub fn message(&self) -> &::std::string::String { &self.message }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct ValidationFieldBuilder {
+        path: ::std::option::Option<::std::string::String>,
+        message: ::std::option::Option<::std::string::String>,
+    }
+    impl ValidationFieldBuilder {
+        pub fn path(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.path = Some(value.into()); self }
+        pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<ValidationField, ::crucible_client::BuildError> {
+            Ok(ValidationField {
+                path: self.path.ok_or(::crucible_client::BuildError { shape: "ValidationField", member: "path" })?,
+                message: self.message.ok_or(::crucible_client::BuildError { shape: "ValidationField", member: "message" })?,
+            })
+        }
     }
 
     pub type ValidationFieldList = ::std::vec::Vec<ValidationField>;
@@ -400,6 +749,22 @@ pub mod errors {
         pub message: ::std::string::String,
     }
 
+    impl ConflictError {
+        pub fn builder() -> ConflictErrorBuilder { ConflictErrorBuilder::default() }
+        pub fn message(&self) -> &::std::string::String { &self.message }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct ConflictErrorBuilder {
+        message: ::std::option::Option<::std::string::String>,
+    }
+    impl ConflictErrorBuilder {
+        pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<ConflictError, ::crucible_client::BuildError> {
+            Ok(ConflictError {
+                message: self.message.ok_or(::crucible_client::BuildError { shape: "ConflictError", member: "message" })?,
+            })
+        }
+    }
     pub(super) static CONFLICT_ERROR_INFO: ErrorInfo = ErrorInfo {
         name: "ConflictError",
         status: 409,
@@ -442,6 +807,27 @@ pub mod errors {
         pub resource_id: ::crucible_client::Field<::std::string::String>,
     }
 
+    impl NotFoundError {
+        pub fn builder() -> NotFoundErrorBuilder { NotFoundErrorBuilder::default() }
+        pub fn message(&self) -> &::std::string::String { &self.message }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn resource_id(&self) -> ::std::option::Option<&::std::string::String> { self.resource_id.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct NotFoundErrorBuilder {
+        message: ::std::option::Option<::std::string::String>,
+        resource_id: ::crucible_client::Field<::std::string::String>,
+    }
+    impl NotFoundErrorBuilder {
+        pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        pub fn resource_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.resource_id = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<NotFoundError, ::crucible_client::BuildError> {
+            Ok(NotFoundError {
+                message: self.message.ok_or(::crucible_client::BuildError { shape: "NotFoundError", member: "message" })?,
+                resource_id: self.resource_id,
+            })
+        }
+    }
     pub(super) static NOT_FOUND_ERROR_INFO: ErrorInfo = ErrorInfo {
         name: "NotFoundError",
         status: 404,
@@ -485,6 +871,27 @@ pub mod errors {
         pub retry_after: ::crucible_client::Field<i32>,
     }
 
+    impl ThrottlingError {
+        pub fn builder() -> ThrottlingErrorBuilder { ThrottlingErrorBuilder::default() }
+        pub fn message(&self) -> &::std::string::String { &self.message }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn retry_after(&self) -> ::std::option::Option<&i32> { self.retry_after.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct ThrottlingErrorBuilder {
+        message: ::std::option::Option<::std::string::String>,
+        retry_after: ::crucible_client::Field<i32>,
+    }
+    impl ThrottlingErrorBuilder {
+        pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        pub fn retry_after(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.retry_after = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<ThrottlingError, ::crucible_client::BuildError> {
+            Ok(ThrottlingError {
+                message: self.message.ok_or(::crucible_client::BuildError { shape: "ThrottlingError", member: "message" })?,
+                retry_after: self.retry_after,
+            })
+        }
+    }
     pub(super) static THROTTLING_ERROR_INFO: ErrorInfo = ErrorInfo {
         name: "ThrottlingError",
         status: 429,
@@ -532,6 +939,36 @@ pub mod errors {
         pub request_id: ::crucible_client::Field<::std::string::String>,
     }
 
+    impl ValidationError {
+        pub fn builder() -> ValidationErrorBuilder { ValidationErrorBuilder::default() }
+        pub fn message(&self) -> &::std::string::String { &self.message }
+        pub fn reason(&self) -> &super::model::ValidationReason { &self.reason }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn field_list(&self) -> ::std::option::Option<&super::model::ValidationFieldList> { self.field_list.value() }
+        /// The value when present; inspect the public field to distinguish absent and null.
+        pub fn request_id(&self) -> ::std::option::Option<&::std::string::String> { self.request_id.value() }
+    }
+    #[derive(Debug, Clone, Default)]
+    pub struct ValidationErrorBuilder {
+        message: ::std::option::Option<::std::string::String>,
+        reason: ::std::option::Option<super::model::ValidationReason>,
+        field_list: ::crucible_client::Field<super::model::ValidationFieldList>,
+        request_id: ::crucible_client::Field<::std::string::String>,
+    }
+    impl ValidationErrorBuilder {
+        pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        pub fn reason(mut self, value: impl ::std::convert::Into<super::model::ValidationReason>) -> Self { self.reason = Some(value.into()); self }
+        pub fn field_list(mut self, value: impl ::std::convert::Into<super::model::ValidationFieldList>) -> Self { self.field_list = ::crucible_client::Field::Value(value.into()); self }
+        pub fn request_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.request_id = ::crucible_client::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<ValidationError, ::crucible_client::BuildError> {
+            Ok(ValidationError {
+                message: self.message.ok_or(::crucible_client::BuildError { shape: "ValidationError", member: "message" })?,
+                reason: self.reason.ok_or(::crucible_client::BuildError { shape: "ValidationError", member: "reason" })?,
+                field_list: self.field_list,
+                request_id: self.request_id,
+            })
+        }
+    }
     pub(super) static VALIDATION_ERROR_INFO: ErrorInfo = ErrorInfo {
         name: "ValidationError",
         status: 400,
@@ -1119,11 +1556,11 @@ impl ::std::error::Error for StatusError {}
 
 /// A client for Weather. Cheap to clone: clones share connections.
 #[derive(Clone)]
-pub struct Client {
+pub struct WeatherClient {
     transport: ::crucible_client::Transport,
 }
 
-impl Client {
+impl WeatherClient {
     pub fn new(config: ::crucible_client::Config) -> Self {
         Self {
             transport: ::crucible_client::Transport::new(config),

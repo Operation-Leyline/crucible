@@ -14,6 +14,28 @@ fn options() -> Options {
 }
 
 #[test]
+fn client_name_follows_service_identity() {
+    let mut service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    service.id = crucible_smithy::ShapeId::new("dev.leyline", "Leyline");
+    let files = emit(&service, &options()).unwrap();
+    let client = files
+        .iter()
+        .find(|file| file.path.ends_with("/LeylineClient.kt"))
+        .unwrap();
+    assert!(
+        client
+            .contents
+            .contains("class LeylineClient(config: ClientConfig)")
+    );
+    assert!(!files.iter().any(|file| file.path.ends_with("/Client.kt")));
+}
+
+#[test]
 fn weather_matches_goldens() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"
@@ -23,7 +45,8 @@ fn weather_matches_goldens() {
     .unwrap();
     for file in emit(&service, &options()).unwrap() {
         if file.path.ends_with(".kt")
-            && !["Models.kt", "ModelCodecs.kt", "Client.kt"]
+            && !file.path.contains("/model/")
+            && !["ModelCodecs.kt", "WeatherClient.kt"]
                 .iter()
                 .any(|name| file.path.ends_with(name))
         {
@@ -106,7 +129,7 @@ fn escapes_kotlin_literals_without_rewriting_literal_backslashes() {
     let files = emit(&service, &config).unwrap();
     let client = files
         .iter()
-        .find(|file| file.path.ends_with("/Client.kt"))
+        .find(|file| file.path.ends_with("/WeatherClient.kt"))
         .unwrap();
     assert!(
         client

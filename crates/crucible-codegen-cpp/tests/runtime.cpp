@@ -24,18 +24,28 @@ struct Fake : Transport {
 ClientConfig config(const std::shared_ptr<Transport>& transport = {}) { ClientConfig result; result.endpoint = "https://example.invalid"; result.transport = transport; result.base_delay = 0; return result; }
 std::string bytes(const Blob& value) { std::string result; for (const auto byte : value) result += static_cast<char>(byte); return result; }
 int main() {
+    for (auto original : {Field<bool>{}, Field<bool>::null(), Field<bool>(false), Field<bool>(true)}) {
+        Field<bool> copied(original), assigned; assigned = original;
+        check(copied.is_set() == original.is_set() && copied.is_null() == original.is_null(), "Bool copy preserves presence");
+        check(assigned.is_set() == original.is_set() && assigned.is_null() == original.is_null(), "Bool assignment preserves presence");
+        if (original) check(*copied == *original && *assigned == *original, "Bool copy preserves false and true");
+    }
     (void)rejects([] { validate_request({"https://example.invalid", "GET\r\nX: y", {}, {}}); });
     (void)rejects([] { validate_request({"https://example.invalid", "GET", {{"x", "a\r\nb"}}, {}}); });
     (void)rejects([] { validate_url("http://example.invalid", false, true); });
     (void)rejects([] { validate_url("https://user:password@example.invalid", false); });
     (void)rejects([] { validate_url("https://example.invalid?x", true); });
     (void)rejects([] { validate_request({"https://example.invalid", "HEAD", {}, "abc"}); });
-    CreateCityInput input(Field<std::string>::of("C++"), Field<Location>::of(Location{LocationUnknown{"future", Json::parse(R"({"long":9223372036854775807})")}}));
+    CreateCityInput input("C++", Field<Location>::of(Location{LocationUnknown{"future", Json::parse(R"({"long":9223372036854775807})")}}));
     const auto context = schema().context("example.weather#CreateCityInput");
     const auto wire = Codec<CreateCityInput>::encode(input, context);
     check(!wire.find("clientToken"), "Absent input");
     const auto copy = Codec<CreateCityInput>::decode(wire, context);
     check(std::get<LocationUnknown>(copy.location.value().value).value.at("long").number().integer() == INT64_MAX, "Unknown union exact document");
+    input.name = "direct assignment";
+    check(input.name && *input.name == "direct assignment" && input.name->size() == 17, "Native optional-style field access");
+    input.name.reset();
+    check(!input.name && !input.name.is_set() && input.name.value_or("fallback") == "fallback", "Field reset and fallback");
     input.name = Field<std::string>::null();
     check(Codec<CreateCityInput>::encode(input, context).at("name").is_null(), "Explicit null input");
     const Schema simple(Json::parse(R"({"shapes":{"doc":{"kind":"document"},"long":{"kind":"long"},"str":{"kind":"string"},"list":{"kind":"list","member":{"target":"str"}},"parent":{"kind":"structure","members":{"doc":{"target":"doc","default":null},"count":{"target":"long","default":9223372036854775807},"optional":{"target":"long","default":2}}}}})"));
@@ -61,7 +71,7 @@ int main() {
         });
         auto settings = config(fake);
         settings.max_attempts = static_cast<unsigned>(row.at("maxAttempts").number().integer());
-        Client client(settings);
+        WeatherClient client(settings);
         bool success = false;
         try { if (row.at("safe").boolean()) (void)client.retry_safe(); else (void)client.retry_unsafe(); success = true; } catch (const ServiceError&) {}
         check(success == row.at("success").boolean() && fake->requests.size() == static_cast<std::size_t>(row.at("attempts").number().integer()), "Retry fixture " + row.at("name").string());
@@ -73,27 +83,27 @@ int main() {
         check(request.url.find("at=2026-10-01T00%3A00%3A00Z") != std::string::npos, "Query timestamp");
         return HttpResponse{200, {{"X-Request-Id", "bound"}}, R"({"city":{"id":"x","name":"n"}})"};
     });
-    check(Client(config(fake)).get_city(GetCityInput(Field<std::string>::of("a/b *?#é"), Field<Timestamp>::of(Timestamp::parse("2026-10-01T00:00:00Z")))).request_id.value() == "bound", "Bound response header");
+    check(WeatherClient(config(fake)).get_city(GetCityInput("a/b *?#é", Field<Timestamp>::of(Timestamp::parse("2026-10-01T00:00:00Z")))).request_id.value() == "bound", "Bound response header");
     fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{429, {{"x-request-id", "header"}}, R"({"__type":"ThrottlingError","message":42})"}; });
     auto settings = config(fake); settings.max_attempts = 2;
-    const auto malformed = rejects<ServiceError>([&] { (void)Client(settings).ping(); });
+    const auto malformed = rejects<ServiceError>([&] { (void)WeatherClient(settings).ping(); });
     check(malformed.metadata().throttling && malformed.metadata().request_id == "header" && fake->requests.size() == 2, "Malformed modeled error retains metadata");
     fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{200, {}, "{bad"}; });
-    (void)rejects([&] { (void)Client(config(fake)).get_city(GetCityInput(Field<std::string>::of("x"))); });
+    (void)rejects([&] { (void)WeatherClient(config(fake)).get_city(GetCityInput("x")); });
     check(fake->requests.size() == 1, "Malformed success never retries");
     fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{200, {}, R"({"cities":[],"nextToken":"same"})"}; });
-    auto pages = Client(config(fake)).list_cities_pages(ListCitiesInput());
+    auto pages = WeatherClient(config(fake)).list_cities_pages(ListCitiesInput());
     check(fake->requests.empty(), "Lazy pagination");
     (void)pages.next(); (void)pages.next();
     (void)rejects([&] { (void)pages.next(); });
     check(fake->requests.size() == 2, "Pagination cycle");
     fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{503, {{"retry-after", "2147484"}}, "{}"}; });
     settings = config(fake); settings.timeout = 0.05;
-    (void)rejects<DeadlineError>([&] { (void)Client(settings).retry_safe(); });
+    (void)rejects<DeadlineError>([&] { (void)WeatherClient(settings).retry_safe(); });
     check(fake->requests.size() == 1, "Retry deadline");
     std::stop_source stopped; stopped.request_stop();
     fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{200, {}, "{}"}; });
-    (void)rejects<CancelledError>([&] { (void)Client(config(fake)).ping(stopped.get_token()); });
+    (void)rejects<CancelledError>([&] { (void)WeatherClient(config(fake)).ping(stopped.get_token()); });
     check(fake->requests.empty(), "Precancelled call");
     fake = std::make_shared<Fake>([](unsigned, const HttpRequest& request) {
         check(request.headers.at("authorization") == "Bearer middleware", "Case-insensitive middleware assignment");
@@ -103,50 +113,50 @@ int main() {
     settings = config(fake);
     settings.token = [] { return "provider"; };
     settings.middleware.push_back([](HttpRequest request) { request.headers["Authorization"] = "Bearer middleware"; request.headers["Content-Type"] = "custom/type"; return request; });
-    (void)Client(settings).create_city(CreateCityInput(Field<std::string>::of("middleware")));
+    (void)WeatherClient(settings).create_city(CreateCityInput("middleware"));
     settings = config(); settings.endpoint = env("WEATHER_URL"); settings.token = [] { return "weather-token"; };
-    Client client(settings);
-    const auto city = client.create_city(CreateCityInput(Field<std::string>::of("C++ city"))).city;
-    check(client.get_city(GetCityInput(Field<std::string>::of(city.id))).city.name == "C++ city", "Real create/read");
+    WeatherClient client(settings);
+    const auto city = client.create_city(CreateCityInput("C++ city")).city;
+    check(client.get_city(GetCityInput(city.id)).city.name == "C++ city", "Real create/read");
     const Blob photo{std::byte{0}, std::byte{128}, std::byte{255}};
-    (void)client.put_city_photo(PutCityPhotoInput(Field<std::string>::of(city.id), {}, Field<Blob>::of(photo)));
-    check(client.get_city_photo(GetCityPhotoInput(Field<std::string>::of(city.id))).photo.value() == photo, "Real raw payload");
-    check(client.list_cities_pages(ListCitiesInput({}, Field<std::int32_t>::of(1))).next().has_value(), "Real pagination");
-    (void)rejects<ConflictError>([&] { (void)client.create_city(CreateCityInput(Field<std::string>::of("C++ city"))); });
+    (void)client.put_city_photo(PutCityPhotoInput(city.id, {}, photo));
+    check(client.get_city_photo(GetCityPhotoInput(city.id)).photo.value() == photo, "Real raw payload");
+    check(client.list_cities_pages(ListCitiesInput({}, 1)).next().has_value(), "Real pagination");
+    (void)rejects<ConflictError>([&] { (void)client.create_city(CreateCityInput("C++ city")); });
     (void)client.ping(); client.close();
     const auto endpoint = env("FIXTURE_URL") + "/native/";
     for (const auto* path : {"partial", "bad-length"}) {
         settings = config(); settings.endpoint = endpoint + path;
-        Client native(settings);
-        check(bytes(native.get_city_photo(GetCityPhotoInput(Field<std::string>::of("x"))).photo.value()) == "complete", "Network body retry");
+        WeatherClient native(settings);
+        check(bytes(native.get_city_photo(GetCityPhotoInput("x")).photo.value()) == "complete", "Network body retry");
         native.close();
     }
     settings = config(); settings.endpoint = endpoint + "not-modified"; settings.max_attempts = 1;
-    check(rejects<ServiceError>([&] { (void)Client(settings).get_city(GetCityInput(Field<std::string>::of("x"))); }).metadata().status == 304, "Bodyless 304");
+    check(rejects<ServiceError>([&] { (void)WeatherClient(settings).get_city(GetCityInput("x")); }).metadata().status == 304, "Bodyless 304");
     settings = config(); settings.endpoint = endpoint + "empty-header"; settings.headers = {{"x-empty", ""}};
-    (void)Client(settings).ping();
+    (void)WeatherClient(settings).ping();
     settings = config(); settings.endpoint = endpoint + "stall"; settings.timeout = 0.15;
     auto start = std::chrono::steady_clock::now();
-    (void)rejects<DeadlineError>([&] { (void)Client(settings).get_city(GetCityInput(Field<std::string>::of("x"))); });
+    (void)rejects<DeadlineError>([&] { (void)WeatherClient(settings).get_city(GetCityInput("x")); });
     check(std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < 1.5, "Stalled body deadline");
     settings.timeout = 5;
     std::stop_source cancellation;
     std::jthread cancel([&] { std::this_thread::sleep_for(std::chrono::milliseconds(100)); cancellation.request_stop(); });
     start = std::chrono::steady_clock::now();
-    (void)rejects<CancelledError>([&] { (void)Client(settings).get_city(GetCityInput(Field<std::string>::of("x")), cancellation.get_token()); });
+    (void)rejects<CancelledError>([&] { (void)WeatherClient(settings).get_city(GetCityInput("x"), cancellation.get_token()); });
     check(std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() < 1.5, "Stalled body cancellation");
     settings = config(); settings.endpoint = endpoint + "discard"; settings.timeout = 0.5;
-    (void)Client(settings).ping();
+    (void)WeatherClient(settings).ping();
     settings = config(); settings.endpoint = endpoint + "redirect"; settings.max_attempts = 1;
-    check(rejects<ServiceError>([&] { (void)Client(settings).ping(); }).metadata().status == 302, "Redirect refusal");
+    check(rejects<ServiceError>([&] { (void)WeatherClient(settings).ping(); }).metadata().status == 302, "Redirect refusal");
     unsigned token = 0;
     settings = config(); settings.endpoint = endpoint + "echo"; settings.token = [&] { return std::to_string(++token); };
-    (void)Client(settings).create_city(CreateCityInput(Field<std::string>::of("x")));
+    (void)WeatherClient(settings).create_city(CreateCityInput("x"));
     check(token == 2, "Real refreshed retry credential");
     token = 0; settings.endpoint = endpoint + "cache";
-    Client cache(settings);
-    check(cache.get_city(GetCityInput(Field<std::string>::of("c"))).city.name == "Bearer 1", "First credential");
-    check(cache.get_city(GetCityInput(Field<std::string>::of("c"))).city.name == "Bearer 2", "No cached credential response");
+    WeatherClient cache(settings);
+    check(cache.get_city(GetCityInput("c")).city.name == "Bearer 1", "First credential");
+    check(cache.get_city(GetCityInput("c")).city.name == "Bearer 2", "No cached credential response");
     cache.close();
     std::cout << "C++ native models, shared fixtures, and real HTTP passed\n";
 }

@@ -43,7 +43,17 @@ def qualify(output):
         renamed["shapes"]["example.weather#ConflictError"]["members"][name] = {"target": "smithy.api#String"}
     renamed_path = output / "renamed.json"
     renamed_path.write_text(json.dumps(renamed), encoding="utf-8")
-    for label, model in [("Empty", ROOT / "tests/conformance/empty-service.json"), ("Renamed", renamed_path)]:
+    recursive = json.loads(json.dumps(renamed))
+    recursive["shapes"].update({
+        "example.weather#RecursiveList": {"type": "list", "member": {"target": "example.weather#RecursiveList"}},
+        "example.weather#RecursiveMap": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.weather#RecursiveListMap"}},
+        "example.weather#RecursiveListMap": {"type": "list", "member": {"target": "example.weather#RecursiveMap"}},
+    })
+    for name in ["RecursiveList", "RecursiveMap"]:
+        recursive["shapes"]["example.weather#CreateCityInput"]["members"][name] = {"target": "example.weather#" + name}
+    recursive_path = output / "recursive.json"
+    recursive_path.write_text(json.dumps(recursive), encoding="utf-8")
+    for label, model in [("Empty", ROOT / "tests/conformance/empty-service.json"), ("Renamed", renamed_path), ("Recursive", recursive_path)]:
         generated = output / label
         generate(model, generated, "Example." + label, "Example." + label)
         run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", cwd=generated)

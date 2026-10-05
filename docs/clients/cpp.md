@@ -33,6 +33,9 @@ target_link_libraries(app PRIVATE weather_client::weather_client)
 Set `CMAKE_PREFIX_PATH` to the installed package prefix. `--endpoint` supplies
 a default endpoint; otherwise each client must supply one.
 
+The public client type follows the service name: `WeatherClient` for Weather
+and `LeylineClient` for Leyline. Package and module names remain configurable.
+
 ## Calling operations
 
 ```cpp
@@ -45,12 +48,12 @@ namespace models = weather::models;
 runtime::ClientConfig config;
 config.endpoint = "http://127.0.0.1:8080";
 config.token = [] { return std::optional<std::string>("weather-token"); };
-weather::Client client(config);
+weather::WeatherClient client(config);
 
 const auto created = client.create_city(
-    models::CreateCityInput(runtime::Field<std::string>::of("Oslo")));
+    models::CreateCityInput("Oslo"));
 const auto city = client.get_city(
-    models::GetCityInput(runtime::Field<std::string>::of(created.city.id)));
+    models::GetCityInput(created.city.id));
 
 auto pages = client.list_cities_pages(models::ListCitiesInput{});
 while (auto page = pages.next()) {
@@ -62,8 +65,13 @@ client.close();
 ```
 
 Nonoptional members are constructor arguments. Optional client members use
-`Field<T>`: default construction means absent, `Field<T>::null()` means explicit
-null, and `Field<T>::of(value)` supplies a value. Smithy input and
+`Field<T>` with implicit construction and assignment from ordinary values:
+`CreateCityInput("Oslo")` or `input.name = "Oslo"`. Read optional responses with
+`if (output.forecast)`, `*output.forecast`, or `output.forecast->size()`;
+`value_or(fallback)` provides a default. Default construction means absent,
+`reset()` restores absence, and `Field<T>::null()` explicitly supplies null.
+Advanced callers can distinguish those states with `is_set()` and `is_null()`;
+`Field<T>::of(value)` remains available. Smithy input and
 `@clientOptional` members can be omitted even when the service requires them.
 Missing HTTP labels fail locally; body, header, and query validation remains
 the service's responsibility.

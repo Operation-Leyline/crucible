@@ -12,7 +12,13 @@ fake <- function(handler) {
   state$send <- function(request, read_body, scope) { state$requests[[length(state$requests)+1L]] <- request; handler(length(state$requests), request) }
   state
 }
-sdk <- function(fake, ...) Client(client_config(endpoint = 'https://example.invalid', transport = fake$send, base_delay = 0, ...))
+sdk <- function(fake, ...) WeatherClient(client_config(endpoint = 'https://example.invalid', transport = fake$send, base_delay = 0, ...))
+
+native_input <- CreateCityInput(name='Oslo', location=NULL, expected_revision=long('7'))
+check(native_input$name == 'Oslo' && is.null(native_input$location) && identical(native_input$client_token, UNSET), 'Native arguments and three-state properties')
+native_page <- ListCitiesOutput(cities=list(CitySummary(id='c',name='Oslo',population=long('7'))))
+check(is.list(native_page$cities) && native_page$cities[[1L]]$name == 'Oslo', 'Native response collection and member access')
+check(identical(ListCitiesInput(tags=list('coastal'))$tags,list('coastal')), 'Native list constructor argument')
 
 check(json_encode(json_parse('{"a":9223372036854775807,"b":1.000000000000000000001,"c":{},"d":[]}')) == '{"a":9223372036854775807,"b":1.000000000000000000001,"c":{},"d":[]}', 'Exact JSON and empty container identity')
 for (text in c('NaN', '[1,]', '01', 'true false', '"\\udc00"', '"\\ud800"', '"\\ud800x"', '"\\ud800\\ud800"', '"\\u0000"')) rejects(json_parse(text))
@@ -93,7 +99,7 @@ rejects(cancel$check(),'crucible_cancelled'); rejects(cancel$check(),'crucible_c
 
 if (Sys.getenv('R_OFFLINE_TESTS') == '1') { cat('R exact codecs, shared fixtures, and fake transport qualification passed\n'); quit(status=0) }
 
-client <- Client(client_config(endpoint=Sys.getenv('WEATHER_URL'),token=function()'weather-token'))
+client <- WeatherClient(client_config(endpoint=Sys.getenv('WEATHER_URL'),token=function()'weather-token'))
 city <- client$create_city(CreateCityInput(name='R city'))$city
 check(client$get_city(GetCityInput(city_id=city$id))$city$name=='R city','Native create/read')
 photo <- as.raw(c(0,128,255)); client$put_city_photo(PutCityPhotoInput(city_id=city$id,photo=photo))
@@ -101,14 +107,14 @@ check(identical(client$get_city_photo(GetCityPhotoInput(city_id=city$id))$photo,
 pages <- client$list_cities_pages(ListCitiesInput(max_results=1)); check(!is.null(pages()),'Native pagination')
 rejects(client$create_city(CreateCityInput(name='R city')),'ConflictError'); client$ping(); client$close()
 fixture <- paste0(Sys.getenv('FIXTURE_URL'),'/native/')
-client <- Client(client_config(endpoint=paste0(fixture,'partial'),base_delay=0)); check(rawToChar(client$get_city_photo(GetCityPhotoInput(city_id='x'))$photo)=='complete','Partial response retry'); client$close()
-client <- Client(client_config(endpoint=paste0(fixture,'bad-length'),base_delay=0)); check(rawToChar(client$get_city_photo(GetCityPhotoInput(city_id='x'))$photo)=='complete','Malformed content length retry'); client$close()
-client <- Client(client_config(endpoint=paste0(fixture,'empty-header'),headers=list('x-empty'=''))); client$ping(); client$close()
-client <- Client(client_config(endpoint=paste0(fixture,'not-modified'),max_attempts=1)); check(rejects(client$get_city(GetCityInput(city_id='x')),'crucible_service_error')$metadata$status==304,'304 keeps status'); client$close()
-client <- Client(client_config(endpoint=paste0(fixture,'stall'),timeout=.15)); started<-proc.time()[['elapsed']]; rejects(client$get_city(GetCityInput(city_id='x')),'crucible_deadline'); check(proc.time()[['elapsed']]-started<1.5,'Stalled deadline'); client$close()
-client <- Client(client_config(endpoint=paste0(fixture,'stall'),timeout=5)); started<-proc.time()[['elapsed']]; cancel<-cancellation_token(function()proc.time()[['elapsed']]-started>=.1); rejects(client$get_city(GetCityInput(city_id='x'),cancellation=cancel),'crucible_cancelled'); check(proc.time()[['elapsed']]-started<1.5,'Stalled cancellation'); client$close()
-client <- Client(client_config(endpoint=paste0(fixture,'discard'),timeout=.5)); client$ping(); client$close()
-client <- Client(client_config(endpoint=paste0(fixture,'redirect'),max_attempts=1)); check(rejects(client$ping(),'crucible_service_error')$metadata$status==302,'Redirect refusal'); client$close()
-count <- 0L; client <- Client(client_config(endpoint=paste0(fixture,'echo'),base_delay=0,token=function(){count<<-count+1L;as.character(count)})); client$create_city(CreateCityInput(name='x')); check(count==2,'Native refreshed retry token'); client$close()
-count <- 0L; client <- Client(client_config(endpoint=paste0(fixture,'cache'),token=function(){count<<-count+1L;as.character(count)})); check(client$get_city(GetCityInput(city_id='c'))$city$name=='Bearer 1','First token'); check(client$get_city(GetCityInput(city_id='c'))$city$name=='Bearer 2','No cached credential response'); client$close()
+client <- WeatherClient(client_config(endpoint=paste0(fixture,'partial'),base_delay=0)); check(rawToChar(client$get_city_photo(GetCityPhotoInput(city_id='x'))$photo)=='complete','Partial response retry'); client$close()
+client <- WeatherClient(client_config(endpoint=paste0(fixture,'bad-length'),base_delay=0)); check(rawToChar(client$get_city_photo(GetCityPhotoInput(city_id='x'))$photo)=='complete','Malformed content length retry'); client$close()
+client <- WeatherClient(client_config(endpoint=paste0(fixture,'empty-header'),headers=list('x-empty'=''))); client$ping(); client$close()
+client <- WeatherClient(client_config(endpoint=paste0(fixture,'not-modified'),max_attempts=1)); check(rejects(client$get_city(GetCityInput(city_id='x')),'crucible_service_error')$metadata$status==304,'304 keeps status'); client$close()
+client <- WeatherClient(client_config(endpoint=paste0(fixture,'stall'),timeout=.15)); started<-proc.time()[['elapsed']]; rejects(client$get_city(GetCityInput(city_id='x')),'crucible_deadline'); check(proc.time()[['elapsed']]-started<1.5,'Stalled deadline'); client$close()
+client <- WeatherClient(client_config(endpoint=paste0(fixture,'stall'),timeout=5)); started<-proc.time()[['elapsed']]; cancel<-cancellation_token(function()proc.time()[['elapsed']]-started>=.1); rejects(client$get_city(GetCityInput(city_id='x'),cancellation=cancel),'crucible_cancelled'); check(proc.time()[['elapsed']]-started<1.5,'Stalled cancellation'); client$close()
+client <- WeatherClient(client_config(endpoint=paste0(fixture,'discard'),timeout=.5)); client$ping(); client$close()
+client <- WeatherClient(client_config(endpoint=paste0(fixture,'redirect'),max_attempts=1)); check(rejects(client$ping(),'crucible_service_error')$metadata$status==302,'Redirect refusal'); client$close()
+count <- 0L; client <- WeatherClient(client_config(endpoint=paste0(fixture,'echo'),base_delay=0,token=function(){count<<-count+1L;as.character(count)})); client$create_city(CreateCityInput(name='x')); check(count==2,'Native refreshed retry token'); client$close()
+count <- 0L; client <- WeatherClient(client_config(endpoint=paste0(fixture,'cache'),token=function(){count<<-count+1L;as.character(count)})); check(client$get_city(GetCityInput(city_id='c'))$city$name=='Bearer 1','First token'); check(client$get_city(GetCityInput(city_id='c'))$city$name=='Bearer 2','No cached credential response'); client$close()
 cat('R exact codecs, shared fixtures, native models, and HTTP qualification passed\n')

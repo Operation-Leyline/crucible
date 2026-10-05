@@ -3,7 +3,8 @@
 [All clients](../clients.md) · [Repository overview](../../README.md)
 
 Crucible generates native Rust models, one error enum per operation, an async
-`Client`, and lazy paginators. The generated package uses `crucible-client` and
+service-named client (`WeatherClient`, `LeylineClient`), and lazy paginators.
+The generated package uses `crucible-client` and
 the shared `crucible-wire` runtime. Use the current stable Rust toolchain
 and an async runtime such as Tokio.
 
@@ -65,24 +66,19 @@ The example below uses the generated weather client and needs Tokio's `macros`
 and `rt-multi-thread` features in the application:
 
 ```rust
-use crucible_client::{Config, Field, Token};
-use weather_client::{Client, model::{GetCityInput, ListCitiesInput}};
+use crucible_client::{Config, Token};
+use weather_client::{WeatherClient, model::{GetCityInput, ListCitiesInput}};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::new(
+    let client = WeatherClient::new(
         Config::new("http://127.0.0.1:3000")
             .token(Token::fixed(std::env::var("WEATHER_TOKEN")?)),
     );
-    let result = client.get_city(GetCityInput {
-        city_id: Field::Value("oslo".into()),
-        at: Field::Absent,
-    }).await?;
+    let result = client.get_city(GetCityInput::builder().city_id("oslo").build()).await?;
     println!("{}", result.city.name);
 
-    let mut pages = client.list_cities_pages(ListCitiesInput {
-        max_results: Field::Value(50), next_token: Field::Absent, tags: Field::Absent,
-    });
+    let mut pages = client.list_cities_pages(ListCitiesInput::builder().max_results(50).build());
     while let Some(page) = pages.next_page().await {
         println!("{} cities", page?.cities.len());
     }
@@ -90,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`Client` is cheap to clone and shares its transport. Operation methods take
+`WeatherClient` is cheap to clone and shares its transport. Operation methods take
 owned inputs. Missing idempotency tokens are filled in that input for one call
 and reused across attempts; supply a stable token yourself for separate replays.
 `Token::provider` accepts an async function returning `Option<String>` and runs
@@ -101,6 +97,20 @@ on every attempt, so refreshed credentials are picked up.
 Structures use public snake_case fields. Smithy `long` is `i64`, `integer` is
 `i32`, document values use `serde_json::Value`, and blobs use
 `crucible_client::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
+Use `Model::builder()` for ordinary construction. Fluent member methods accept
+native values and collections; string methods also accept `&str`. Unspecified
+optional members stay absent. `build()` returns the model directly when all
+nonoptional members have modeled defaults; otherwise it returns
+`Result<Model, BuildError>` and reports a missing required member. It never
+invents values for required members. Nested models have the same builders.
+
+Generated member getters borrow native values: `result.request_id()` returns
+`Option<&String>`, and `result.city()` returns `&CitySummary`. Optional getters
+return `None` for absent and null. Public fields remain available to inspect or
+set those states explicitly. Builder setters use the modeled snake_case name;
+reserved method names receive a `member_` prefix and a numeric suffix if needed.
+Builder type names also receive a suffix when a model uses the same name.
+
 Members that Smithy permits clients to omit use `crucible_client::Field<T>`.
 This includes every member of an `@input` structure and members marked
 `@clientOptional`, even when the server requires them. `Field::Absent` omits the
@@ -191,6 +201,20 @@ authenticated Leyline compatibility. See [qualification levels](../clients.md#qu
 ## Updating the runtime
 
 ### Migrating client models
+
+The public client type now derives from the Smithy service name: `Weather`
+generates `WeatherClient`, and `Leyline` generates `LeylineClient`. Replace old
+`Client` imports and constructors with that service-specific type. No generic
+`Client` alias is generated. Runtime types such as `reqwest::Client` are unchanged.
+
+Builders and getters are additive. Existing struct literals, public fields, and
+presence-aware code continue to work. New ordinary calls can replace
+`GetCityInput { city_id: Field::Value(id), at: Field::Absent }` with
+`GetCityInput::builder().city_id(id).build()`. Regenerate the package with its
+matching runtime to expose these helpers; reverting that package and runtime
+together restores the previous API.
+
+#### Raw presence migration
 
 Regenerate the entire client package and update `crucible-client`,
 `crucible-build`, and the generator to the same pinned revision. This changes

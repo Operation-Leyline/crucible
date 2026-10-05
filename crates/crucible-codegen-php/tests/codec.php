@@ -18,8 +18,8 @@ check($null instanceof JsonValue && $null->toJson() === 'null', 'Required docume
 rejects(fn() => $context->read('doc', new JsonObject()));
 check($context->read('count',new JsonObject()) === PHP_INT_MAX,'Exact numeric default');
 rejects(fn() => $context->read('count',new JsonObject(['count' => null])));
-check($context->optional('optional',new JsonObject())->value === 2,'Optional default');
-check($context->optional('optional',new JsonObject(['optional' => null]))->value === null,'Explicit null suppresses default');
+check($context->optional('optional',new JsonObject()) === 2,'Optional default');
+check($context->optional('optional',new JsonObject(['optional' => null])) === null,'Explicit null suppresses default');
 $cases = json_decode(file_get_contents(__DIR__ . '/../../../tests/conformance/header-lists.json'), true, flags:JSON_THROW_ON_ERROR);
 foreach ($cases as $case) {
     $member = new JsonObject(['target' => 'list']);

@@ -56,10 +56,48 @@ def qualify(output):
     (consumer / "go.mod").write_text(
         'module example.com/consumer\n\ngo 1.24.0\nrequire example.com/weather v0.0.0\n'
         'replace example.com/weather => ../sdk\n', encoding="utf-8")
-    (consumer / "main.go").write_text(
-        'package main\nimport "example.com/weather"\n'
-        'func main(){ _,err:=weather.NewClient(weather.Config{}); if err!=nil {panic(err)}; '
-        '_ = weather.CreateCityInput{Name:weather.Some[weather.CityName]("consumer")} }\n', encoding="utf-8")
+    (consumer / "main.go").write_text('''package main
+import (
+    "context"
+    "io"
+    "net/http"
+    "net/http/httptest"
+    "example.com/weather"
+)
+func main() {
+    requests := 0
+    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        requests++
+        if r.Method == "POST" {
+            io.WriteString(w, `{"city":{"id":"c","name":"consumer","population":0}}`)
+        } else {
+            if r.URL.Query().Get("maxResults") != "50" { panic("native limit was not bound") }
+            io.WriteString(w, `{"cities":[{"id":"c","name":"consumer","population":0}]}`)
+        }
+    }))
+    defer server.Close()
+    client, err := weather.NewWeatherClient(weather.Config{Endpoint:server.URL})
+    if err != nil { panic(err) }
+    input := &weather.CreateCityInput{}
+    input.SetName("consumer")
+    if input.GetName() != "consumer" { panic("native getter") }
+    created, err := client.CreateCity(context.Background(), input)
+    if err != nil { panic(err) }
+    if created.City.Name != "consumer" { panic("native response") }
+    list := &weather.ListCitiesInput{}
+    list.SetMaxResults(50)
+    list.SetTags([]string{"capital"})
+    pages, err := client.ListCitiesPages(list)
+    if err != nil { panic(err) }
+    if requests != 1 { panic("pagination must be lazy") }
+    for pages.HasMorePages() {
+        page, err := pages.NextPage(context.Background())
+        if err != nil { panic(err) }
+        if len(page.Cities) != 1 || page.Cities[0].Name != "consumer" || page.GetNextToken() != "" { panic("native page access") }
+    }
+    if requests != 2 { panic("unexpected page count") }
+}
+''', encoding="utf-8")
     run(GO, "run", ".", cwd=consumer)
     empty = output / "empty"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",

@@ -14,11 +14,14 @@ cargo run -p crucible-cli -- generate csharp model.json \
 dotnet pack generated/client/Client.csproj
 ```
 
-The namespace contains `Client`, `ClientConfig`, error metadata, and presence
+The namespace contains `WeatherClient`, `ClientConfig`, error metadata, and presence
 types. Modeled types live under its `Models` namespace, one file per type.
 Member names use PascalCase; members that collide with exception metadata or
 inherited methods receive a `Value` suffix. Unresolvable collisions produce
 diagnostics. Package output includes embedded wire schema and provenance.
+
+The public client type follows the service name: `WeatherClient` for Weather
+and `LeylineClient` for Leyline. Package and module names remain configurable.
 
 ## Calling operations
 
@@ -26,7 +29,7 @@ diagnostics. Package output includes embedded wire schema and provenance.
 using Example.Weather;
 using Example.Weather.Models;
 
-using var client = new Client(new ClientConfig {
+using var client = new WeatherClient(new ClientConfig {
     Endpoint = "https://weather.example",
     Token = cancellationToken => ValueTask.FromResult<string?>("access-token")
 });
@@ -59,10 +62,14 @@ without modeled body members are not read.
 
 ## Models and errors
 
-`Optional<T>` distinguishes three states: default is absent, `Optional<T>.Null`
-is explicit null, and `Optional<T>.Of(value)` supplies a value. Implicit
-conversion from `T` is supported. Check `IsSet` and `IsNull` before reading
-`Value`. Missing response members receive modeled defaults; explicit null does
+Optional members expose ordinary nullable properties: assign `input.Name = "London"`
+and read `output.Caption` directly. A property left untouched is absent; assigning
+`null` makes it explicitly null. For advanced control, its companion
+`NamePresence` property uses `Optional<T>`: default is absent, `Optional<T>.Null`
+is explicit null, and `Optional<T>.Of(value)` supplies a value. Inspect `IsSet`
+and `IsNull` there, or assign `default` to restore absence. Lists and maps use
+`List<T>` and `Dictionary<TKey, TValue>` directly. Recursive collection cycles
+retain named subclasses because C# cannot express recursive type aliases. Missing response members receive modeled defaults; explicit null does
 not become a default and is rejected for nonnullable value properties.
 
 String enums are records accepting unknown strings. Unions expose one present
@@ -81,6 +88,14 @@ failures. Invalid successful JSON and caller cancellation are not retried.
 Retry decisions follow [the shared contract](../clients.md); valid `Retry-After`
 values override jitter. Paginators preserve caller input and reject token
 cycles.
+
+## Migrating existing callers
+
+Read `member` directly instead of `member.Value`; move state checks and explicit
+presence assignments to `memberPresence` (PascalCase in C#). Replace generated
+collection subclasses with the corresponding native generic collection. Keep
+model namespace imports; `Models` is an ordinary namespace, not a container class.
+Regenerate and rebuild the package and its consumers together.
 
 ## Qualification
 

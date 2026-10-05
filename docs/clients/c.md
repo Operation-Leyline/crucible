@@ -28,9 +28,13 @@ dependencies before configuring CMake. A separate consumer uses
 ## Calls and ownership
 
 Inputs use ordinary structs and borrowed string/blob views. Initialize structs
-to zero, then set each supplied field's `state` and `value`. An absent field
-has state `weather_absent`; explicit null is `weather_null`, and a supplied
-value is `weather_present`. Complex nested values are const pointers. The
+to zero, then use generated typed setters such as
+`weather_models_get_city_input_set_city_id(&input, weather_string_view("city-1"))`.
+Generated `get_...` functions return ordinary values and `has_...` tests for a
+supplied value. A getter returns a zero value for absent/null members.
+For advanced presence control, `clear_...` restores absence and `null_...` sets
+explicit null. The underlying states remain `weather_absent`, `weather_null`,
+and `weather_present`. Complex nested values are const pointers. The
 caller keeps input storage alive until the call returns.
 
 ```c
@@ -43,8 +47,7 @@ weather_error error = {0};
 weather_status status = weather_client_new(&config, &client, &error);
 if (status == weather_ok) {
     weather_models_get_city_input input = {0};
-    input.city_id.state = weather_present;
-    input.city_id.value = weather_string_view("city-1");
+    weather_models_get_city_input_set_city_id(&input, weather_string_view("city-1"));
     weather_operations_get_city_result result = {0};
     status = weather_operations_get_city(client, &input, NULL, NULL, &result, &error);
     if (status == weather_ok) {

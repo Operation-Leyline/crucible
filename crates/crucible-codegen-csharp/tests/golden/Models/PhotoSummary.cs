@@ -5,5 +5,6 @@ namespace Example.Weather.Models;
 public sealed class @PhotoSummary {
     public int @Size { get; set; } = default!;
     public byte[] @Thumbnail { get; set; } = default!;
-    public global::Example.Weather.Optional<string> @Caption { get; set; }
+    public global::Example.Weather.Optional<string> @CaptionPresence { get; set; }
+    public string? @Caption { get => @CaptionPresence.IsSet && !@CaptionPresence.IsNull ? @CaptionPresence.Value : (string?)null; set => @CaptionPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
 }

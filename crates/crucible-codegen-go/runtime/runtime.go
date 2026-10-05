@@ -76,7 +76,7 @@ type Config struct {
 	MaxDelay    time.Duration
 	Middleware  []func(context.Context, *http.Request) error
 }
-type Client struct {
+type clientRuntime struct {
 	config Config
 	schema *schemaDescription
 	digest bool
@@ -138,7 +138,7 @@ func mustSchema(text string) *schemaDescription {
 	}
 	return &schema
 }
-func newClient(config Config, schema *schemaDescription, digest bool) (*Client, error) {
+func newClient(config Config, schema *schemaDescription, digest bool) (*clientRuntime, error) {
 	endpoint, err := url.Parse(config.Endpoint)
 	if err != nil || endpoint.Host == "" || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.User != nil {
 		return nil, errors.New("an absolute HTTP(S) endpoint without credentials, query, or fragment is required")
@@ -164,7 +164,7 @@ func newClient(config Config, schema *schemaDescription, digest bool) (*Client, 
 	}
 	config.Headers = config.Headers.Clone()
 	config.Middleware = append([]func(context.Context, *http.Request) error(nil), config.Middleware...)
-	return &Client{config: config, schema: schema, digest: digest}, nil
+	return &clientRuntime{config: config, schema: schema, digest: digest}, nil
 }
 
 func parseJSON(data []byte) (any, error) {
@@ -580,7 +580,7 @@ func headerValue(schema *schemaDescription, member memberDescription, text strin
 		return text, nil
 	}
 }
-func (c *Client) call(ctx context.Context, name string, input any) (map[string]any, error) {
+func (c *clientRuntime) call(ctx context.Context, name string, input any) (map[string]any, error) {
 	op := c.schema.Operations[name]
 	values, err := encodeModel(c.schema, op.Input, input)
 	if err != nil {
@@ -588,7 +588,7 @@ func (c *Client) call(ctx context.Context, name string, input any) (map[string]a
 	}
 	return c.callValues(ctx, name, values)
 }
-func (c *Client) callValues(ctx context.Context, name string, values map[string]any) (map[string]any, error) {
+func (c *clientRuntime) callValues(ctx context.Context, name string, values map[string]any) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
 	defer cancel()
 	op := c.schema.Operations[name]
@@ -785,7 +785,7 @@ func retryDelay(attempt int, response *http.Response, base, max time.Duration) t
 	ceiling = math.Min(ceiling, float64(max))
 	return time.Duration(mathrand.Float64() * ceiling)
 }
-func (c *Client) decode(op operationDescription, response *http.Response, data []byte) (map[string]any, error) {
+func (c *clientRuntime) decode(op operationDescription, response *http.Response, data []byte) (map[string]any, error) {
 	values := map[string]any{}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		if len(op.Response.Payload) == 2 {

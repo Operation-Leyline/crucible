@@ -3,7 +3,10 @@
 namespace Example.Weather.Models;
 
 public sealed class @ListCitiesInput {
-    public global::Example.Weather.Optional<string> @NextToken { get; set; }
-    public global::Example.Weather.Optional<int> @MaxResults { get; set; }
-    public global::Example.Weather.Optional<global::Example.Weather.Models.@Tags> @Tags { get; set; }
+    public global::Example.Weather.Optional<string> @NextTokenPresence { get; set; }
+    public string? @NextToken { get => @NextTokenPresence.IsSet && !@NextTokenPresence.IsNull ? @NextTokenPresence.Value : (string?)null; set => @NextTokenPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    public global::Example.Weather.Optional<int> @MaxResultsPresence { get; set; }
+    public int? @MaxResults { get => @MaxResultsPresence.IsSet && !@MaxResultsPresence.IsNull ? @MaxResultsPresence.Value : (int?)null; set => @MaxResultsPresence = value is null ? global::Example.Weather.Optional<int>.Null : global::Example.Weather.Optional<int>.Of(value.Value); }
+    public global::Example.Weather.Optional<global::System.Collections.Generic.List<string>> @TagsPresence { get; set; }
+    public global::System.Collections.Generic.List<string>? @Tags { get => @TagsPresence.IsSet && !@TagsPresence.IsNull ? @TagsPresence.Value : (global::System.Collections.Generic.List<string>?)null; set => @TagsPresence = value is null ? global::Example.Weather.Optional<global::System.Collections.Generic.List<string>>.Null : global::Example.Weather.Optional<global::System.Collections.Generic.List<string>>.Of(value); }
 }

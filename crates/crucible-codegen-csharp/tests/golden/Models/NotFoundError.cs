@@ -4,5 +4,6 @@ namespace Example.Weather.Models;
 
 public sealed class @NotFoundError : global::Example.Weather.ServiceError {
     public string @MessageValue { get; set; } = default!;
-    public global::Example.Weather.Optional<string> @ResourceId { get; set; }
+    public global::Example.Weather.Optional<string> @ResourceIdPresence { get; set; }
+    public string? @ResourceId { get => @ResourceIdPresence.IsSet && !@ResourceIdPresence.IsNull ? @ResourceIdPresence.Value : (string?)null; set => @ResourceIdPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
 }

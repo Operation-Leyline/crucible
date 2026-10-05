@@ -37,8 +37,8 @@ void main() {
         final city = native as CitySummary;
         final Object field = switch (entry.key) {
           'population' => city.population,
-          'updatedAt' => city.updatedAt,
-          'createdAt' => city.createdAt,
+          'updatedAt' => city.updatedAtPresence,
+          'createdAt' => city.createdAtPresence,
           _ => throw StateError('Unmapped native member ${entry.key}'),
         };
         final state = field is Field ? (!field.isSet ? 'absent' : field.value == null ? 'null' : 'value') : 'value';
@@ -50,7 +50,7 @@ void main() {
       if (expected['instant'] != null) {
         final instant = expected['instant'] as Map<String, dynamic>;
         final city = native as CitySummary;
-        final stamp = (instant['member'] == 'updatedAt' ? city.updatedAt : city.createdAt).value!;
+        final stamp = (instant['member'] == 'updatedAt' ? city.updatedAt : city.createdAt)!;
         expect(stamp.seconds.toString(), instant['seconds']);
         expect(stamp.nanoseconds, instant['nanoseconds']);
       }

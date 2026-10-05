@@ -49,6 +49,10 @@ internal sealed class ClientRuntime : IDisposable
     private static string? Text(JsonNode? value) => value is null ? null : value.GetValue<string>();
     private static bool Flag(JsonNode? value) => value?.GetValue<bool>() == true;
     private JsonObject Shape(string id) => schema["shapes"]![id]!.AsObject();
+    private static PropertyInfo ModelProperty(Type type, string name) {
+        var presence = type.GetProperty(name + "Presence");
+        return presence?.PropertyType.IsGenericType == true && presence.PropertyType.GetGenericTypeDefinition() == typeof(Optional<>) ? presence : type.GetProperty(name)!;
+    }
     private static object New(Type type) => Activator.CreateInstance(type)!;
 
     internal JsonNode? Encode(string? target, object? value, string? format = null)
@@ -77,7 +81,7 @@ internal sealed class ClientRuntime : IDisposable
                 var result = new JsonObject();
                 foreach (var (name, description) in shape["members"]!.AsObject())
                 {
-                    var v = value.GetType().GetProperty(Text(description!["attribute"])!)!.GetValue(value);
+                    var v = ModelProperty(value.GetType(), Text(description!["attribute"])!).GetValue(value);
                     if (v is IOptional optional) { if (!optional.IsSet) continue; v = optional.Untyped; }
                     result.Add(name, Encode(Text(description["target"]), v, Text(description["format"])));
                 }
@@ -140,7 +144,7 @@ internal sealed class ClientRuntime : IDisposable
                 }
                 foreach (var (name, description) in members)
                 {
-                    var property = result.GetType().GetProperty(Text(description!["attribute"])!)!;
+                    var property = ModelProperty(result.GetType(), Text(description!["attribute"])!);
                     bool optional = property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(Optional<>);
                     bool present = obj.TryGetPropertyValue(name, out var item);
                     if (!present && description!["default"] is JsonNode defaultValue) { item = defaultValue; present = true; }

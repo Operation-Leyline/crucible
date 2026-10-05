@@ -22,7 +22,7 @@ int main() {
     if (rt::Codec<CreateCityInput>::encode(model, context).dump() != value.dump()) throw std::runtime_error("Recursive codec");
     empty::runtime::ClientConfig config;
     config.endpoint = "http://127.0.0.1";
-    empty::Client client(config);
+    empty::EmptyClient client(config);
     client.close();
     std::cout << "C++ recursive, renamed, empty, and escaped models passed\n";
 }

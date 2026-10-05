@@ -75,7 +75,7 @@ final class Fake implements HttpTransport {
   void close() { throw StateError('Caller-owned transport was closed'); }
 }
 Future<void> main() async {
-  final client = Client(ClientConfig(endpoint:'http://127.0.0.1', transport:Fake()));
+  final client = WeatherClient(ClientConfig(endpoint:'http://127.0.0.1', transport:Fake()));
   await client.ping();
   client.close();
 }
@@ -121,16 +121,16 @@ import 'package:renamed_client/src/runtime/json.dart';
 import 'package:renamed_client/src/schema.dart';
 void main() {
   final codec = WireCodec(wireObject(exactJsonDecode(schemaSource)), decodeModel);
-  const input = sdk.CreateCityInput(object:Field.value('object'), context:Field.value('context'),
-    coreValue:Field.value('core'), wireValue:Field.value('wire'), jsonValue:Field.value('json'),
-    typedValue:Field.value('typed'), stampValue:Field.value('stamp'), errorsValue:Field.value('errors'));
+  const input = sdk.CreateCityInput(object:'object', context:'context',
+    coreValue:'core', wireValue:'wire', jsonValue:'json',
+    typedValue:'typed', stampValue:'stamp', errorsValue:'errors');
   final context = codec.context('example.weather#CreateCityInput');
   final encoded = wireObject(codec.encode(input, context));
   for (final field in ['object', 'context', 'core', 'wire', 'json', 'typed', 'stamp', 'errors']) {
     if (encoded[field] != field) throw StateError('Shadowed member: $field');
   }
   final copy = codec.decode(encoded, context) as sdk.CreateCityInput;
-  if (copy.object.value != 'object' || copy.context.value != 'context') throw StateError('Decode failed');
+  if (copy.object != 'object' || copy.context != 'context') throw StateError('Decode failed');
 }
 """, encoding="utf-8")
             dart("run", "main.dart", cwd=generated)

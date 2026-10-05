@@ -4,7 +4,7 @@ module CrucibleGenerated
     class WireContext
       attr_reader :codec, :target, :format
       def initialize(codec, target, format = nil, depth = 0)
-        raise ArgumentError, 'Model nesting limit' if depth > 255
+        raise ::ArgumentError, 'Model nesting limit' if depth > 255
         @codec, @target, @format, @depth = codec, target, format, depth
       end
       def shape = @codec.shape(@target)
@@ -15,7 +15,7 @@ module CrucibleGenerated
         value = object.fetch(name, description['default'])
         unless object.key?(name) || !value.nil?
           return UNSET if optional
-          raise ArgumentError, 'Missing required member: ' + name
+          raise ::ArgumentError, 'Missing required member: ' + name
         end
         return nil if optional && value.nil?
         @codec.decode(value, child(description))

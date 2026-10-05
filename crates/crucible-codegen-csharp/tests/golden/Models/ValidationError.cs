@@ -5,6 +5,8 @@ namespace Example.Weather.Models;
 public sealed class @ValidationError : global::Example.Weather.ServiceError {
     public string @MessageValue { get; set; } = default!;
     public global::Example.Weather.Models.@ValidationReason @Reason { get; set; } = default!;
-    public global::Example.Weather.Optional<global::Example.Weather.Models.@ValidationFieldList> @FieldList { get; set; }
-    public global::Example.Weather.Optional<string> @RequestIdValue { get; set; }
+    public global::Example.Weather.Optional<global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>> @FieldListPresence { get; set; }
+    public global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>? @FieldList { get => @FieldListPresence.IsSet && !@FieldListPresence.IsNull ? @FieldListPresence.Value : (global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>?)null; set => @FieldListPresence = value is null ? global::Example.Weather.Optional<global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>>.Null : global::Example.Weather.Optional<global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>>.Of(value); }
+    public global::Example.Weather.Optional<string> @RequestIdValuePresence { get; set; }
+    public string? @RequestIdValue { get => @RequestIdValuePresence.IsSet && !@RequestIdValuePresence.IsNull ? @RequestIdValuePresence.Value : (string?)null; set => @RequestIdValuePresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
 }

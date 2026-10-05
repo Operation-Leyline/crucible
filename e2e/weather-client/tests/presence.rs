@@ -8,6 +8,49 @@ mod fixture {
 use fixture::model::{Choice, Root, State};
 
 #[test]
+fn native_builders_preserve_omission_defaults_and_collision_names() {
+    let error = Root::builder().build().unwrap_err();
+    assert_eq!((error.shape, error.member), ("Root", "requiredDocument"));
+    let mut value = Root::builder()
+        .required_document(Value::Null)
+        .builder("ordinary")
+        .member_build2("collision")
+        .items(vec![json!({"a": 1})])
+        .build()
+        .unwrap();
+    assert_eq!(
+        value.member_builder2().map(String::as_str),
+        Some("ordinary")
+    );
+    assert_eq!(value.build().map(String::as_str), Some("collision"));
+    assert_eq!(value.items().unwrap().len(), 1);
+    assert!(
+        value.fallback.is_absent(),
+        "optional defaults remain omitted in requests"
+    );
+    assert_eq!(value.document(), None);
+    value.document = Field::Null;
+    assert_eq!(value.document(), None);
+    assert!(value.document.is_null(), "advanced presence is retained");
+    let decoded: Root = serde_json::from_value(serde_json::to_value(value).unwrap()).unwrap();
+    assert_eq!(
+        decoded.fallback(),
+        Some(&3),
+        "decoding applies the modeled default"
+    );
+    let city = weather_client::model::CitySummary::builder()
+        .id("city")
+        .name("Oslo")
+        .build()
+        .unwrap();
+    assert_eq!(
+        *city.population(),
+        0,
+        "required default has its modeled value"
+    );
+}
+
+#[test]
 fn required_document_null_is_present_and_missing_is_rejected() {
     assert!(serde_json::from_str::<Root>("{}").is_err());
     let value: Root = serde_json::from_str(r#"{"requiredDocument":null}"#).unwrap();

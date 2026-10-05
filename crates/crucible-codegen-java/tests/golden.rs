@@ -11,6 +11,29 @@ fn options() -> Options {
         content_sha256: true,
     }
 }
+
+#[test]
+fn client_name_follows_service_identity() {
+    let mut service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    service.id = crucible_smithy::ShapeId::new("dev.leyline", "Leyline");
+    let files = emit(&service, &options()).unwrap();
+    let client = files
+        .iter()
+        .find(|file| file.path.ends_with("/LeylineClient.java"))
+        .unwrap();
+    assert!(client.contents.contains("public final class LeylineClient"));
+    assert!(
+        client
+            .contents
+            .contains("public LeylineClient(ClientConfig config)")
+    );
+    assert!(!files.iter().any(|file| file.path.ends_with("/Client.java")));
+}
 #[test]
 fn weather_matches_goldens() {
     let service = Model::from_json(include_str!(
@@ -21,7 +44,8 @@ fn weather_matches_goldens() {
     .unwrap();
     for file in emit(&service, &options()).unwrap() {
         if file.path.ends_with(".java")
-            && !file.path.ends_with("Models.java")
+            && !file.path.contains("/model/")
+            && !file.path.ends_with("ModelRegistry.java")
             && !file.path.ends_with("Client.java")
         {
             continue;
@@ -55,4 +79,28 @@ fn configuration_diagnostics_are_collected() {
     options.package_name = "../escape".into();
     options.artifact_id = "bad<id".into();
     assert_eq!(emit(&service, &options).err().unwrap().len(), 2);
+}
+
+#[test]
+fn native_defaults_follow_lowered_client_nullability() {
+    let service = Model::from_json(include_str!("defaults.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let model = &files
+        .iter()
+        .find(|file| file.path.ends_with("/DefaultsOutput.java"))
+        .unwrap()
+        .contents;
+    assert!(model.contains(
+        "public java.lang.Long large = java.lang.Long.valueOf(\"9223372036854775807\");"
+    ));
+    assert!(model.contains("public java.lang.Integer count = java.lang.Integer.valueOf(\"17\");"));
+    assert!(model.contains(
+        "OptionalValue<java.lang.Integer> optionalCount = example.weather.OptionalValue.unset();"
+    ));
+    assert!(model.contains("new java.util.ArrayList<>()"));
+    assert!(model.contains("new java.util.LinkedHashMap<>()"));
+    assert!(model.contains("new example.weather.model.Mode(\"known\")"));
 }

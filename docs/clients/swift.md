@@ -21,16 +21,19 @@ on its library product. Package versions are recorded in provenance; publish
 the package in a Git repository with a matching version tag for remote SwiftPM
 consumers. Generation does not publish a package.
 
+The public client type follows the service name: `WeatherClient` for Weather
+and `LeylineClient` for Leyline. Package and module names remain configurable.
+
 ## Calling operations
 
 ```swift
 import Weather
 
 func readCities(accessToken: @escaping @Sendable () async throws -> String?) async throws {
-    let client = try Client(ClientConfig(endpoint: "https://weather.example", token: accessToken))
+    let client = try WeatherClient(ClientConfig(endpoint: "https://weather.example", token: accessToken))
     defer { client.close() }
-    _ = try await client.createCity(.init(name: .value("London")))
-    for try await page in try client.listCitiesPages(.init(maxResults: .value(20))) {
+    _ = try await client.createCity(.init(name: "London"))
+    for try await page in try client.listCitiesPages(.init(maxResults: 20)) {
         for city in page.cities { print(city.name) }
     }
 }
@@ -38,13 +41,18 @@ func readCities(accessToken: @escaping @Sendable () async throws -> String?) asy
 
 ## Models and precision
 
-Models live under `Models`. Structures are mutable value types, unions are
+Models are top-level types in the generated module. Structures are mutable value types, unions are
 indirect enums, and string enums retain unknown values through `rawValue`.
 Unknown union variants retain their name and `JSONValue`. Lists and maps use
 named aliases for Swift arrays and dictionaries.
 
-`OptionalValue<T>` distinguishes `.unset`, `.null`, and `.value(value)`.
-Required members are initializer arguments. Missing response members receive
+Optional members use native `T?` properties and typed initializer arguments:
+`CreateCityInput(name: "London")`, `output.caption`, and `output.forecast?[key]`.
+An omitted or `nil` initializer argument means absent. Assigning `nil` to a
+mutable property makes it explicitly null. The companion `namePresence`
+property/initializer argument preserves `.unset`, `.null`, and `.value(value)`;
+a supplied presence value takes precedence over the ordinary argument. Set it
+to `.unset` to restore absence. Required members are initializer arguments. Missing response members receive
 modeled defaults; explicit null does not receive a default. `Int64` and raw
 numeric tokens in `JSONValue` preserve integers without a floating-point
 conversion. `Timestamp` stores whole seconds and nanoseconds. Its `Date`
@@ -84,6 +92,15 @@ Generation diagnoses naming collisions, GET/HEAD bodies unsupported by
 URLSession, recursive collection aliases, and cycles made entirely of required
 structure fields. Recursion through optional members, unions, or collections
 containing a nominal structure remains representable.
+
+## Migrating existing callers
+
+Remove the `Models.` qualifier. Use ordinary initializer values instead of
+`.value(...)`, and read optional properties directly instead of extracting
+`.value`. Move explicit null and presence checks to the companion `...Presence`
+API. Names that would shadow the runtime or imported types receive a `Model`
+suffix, such as `StringModel`; collisions after mapping are diagnosed.
+Regenerate and rebuild the Swift package and its consumers together.
 
 ## Qualification
 

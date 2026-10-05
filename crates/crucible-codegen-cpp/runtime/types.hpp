@@ -2,6 +2,8 @@
 #include "json.hpp"
 #include "timestamp.hpp"
 #include <cstddef>
+#include <concepts>
+#include <type_traits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -22,11 +24,29 @@ struct HeaderNameLess {
 };
 using Headers = std::map<std::string, std::string, HeaderNameLess>;
 
+template<class T> class Field;
+namespace detail {
+template<class T> inline constexpr bool is_field = false;
+template<class T> inline constexpr bool is_field<Field<T>> = true;
+}
+
 template<class T> class Field {
     bool set_ = false;
     std::optional<T> value_;
 public:
     Field() = default;
+    // A Field's explicit bool conversion describes presence, not its contained value.
+    template<class U> requires (!detail::is_field<std::remove_cvref_t<U>> && std::constructible_from<T, U&&>)
+    Field(U&& value) : set_(true), value_(std::in_place, std::forward<U>(value)) {}
+    template<class U> requires (!detail::is_field<std::remove_cvref_t<U>> && std::constructible_from<T, U&&>)
+    Field& operator=(U&& value) { value_ = T(std::forward<U>(value)); set_ = true; return *this; }
+    [[nodiscard]] explicit operator bool() const noexcept { return value_.has_value(); }
+    [[nodiscard]] const T& operator*() const { return value(); }
+    [[nodiscard]] T& operator*() { return value(); }
+    [[nodiscard]] const T* operator->() const { return &value(); }
+    [[nodiscard]] T* operator->() { return &value(); }
+    void reset() noexcept { value_.reset(); set_ = false; }
+    template<class U> [[nodiscard]] T value_or(U&& fallback) const { return value_.value_or(std::forward<U>(fallback)); }
     [[nodiscard]] static Field null() { Field result; result.set_ = true; return result; }
     [[nodiscard]] static Field of(T value) { Field result; result.set_ = true; result.value_ = std::move(value); return result; }
     [[nodiscard]] bool is_set() const noexcept { return set_; }
@@ -40,7 +60,11 @@ template<class T> class Box {
     std::unique_ptr<T> value_;
 public:
     Box() = default;
-    explicit Box(T value) : value_(std::make_unique<T>(std::move(value))) {}
+    [[nodiscard]] const T& operator*() const { return value(); }
+    [[nodiscard]] T& operator*() { return value(); }
+    [[nodiscard]] const T* operator->() const { return &value(); }
+    [[nodiscard]] T* operator->() { return &value(); }
+    Box(T value) : value_(std::make_unique<T>(std::move(value))) {}
     Box(const Box& other) : value_(other.value_ ? std::make_unique<T>(*other.value_) : nullptr) {}
     Box(Box&&) noexcept = default;
     Box& operator=(const Box& other) { if (this != &other) value_ = other.value_ ? std::make_unique<T>(*other.value_) : nullptr; return *this; }

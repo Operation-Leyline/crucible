@@ -24,58 +24,10 @@
   "packageVersion": "0.0.0",
   "schemaSha256": "3bc6c41e37913e49c3569c1ebd6693ffa969667db5794e19655bc1cb349828f9"
 }
-=== src/Client.php ===
+=== src/CitySummary.php ===
 <?php
 declare(strict_types=1);
 namespace Example\Weather;
-
-final class Client
-{
-    private readonly Runtime\ClientRuntime $runtime;
-    public function __construct(Runtime\ClientConfig $config = new Runtime\ClientConfig())
-    {
-        $this->runtime = new Runtime\ClientRuntime($config, Schema::codec(), Models\Decoder::error(...), '', true);
-    }
-    public function close(): void { $this->runtime->close(); }
-    public function createCity(\Example\Weather\Models\CreateCityInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\CreateCityOutput
-    {
-        return $this->runtime->call('CreateCity', $input, $cancellation);
-    }
-    public function getCity(\Example\Weather\Models\GetCityInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\GetCityOutput
-    {
-        return $this->runtime->call('GetCity', $input, $cancellation);
-    }
-    public function getCityPhoto(\Example\Weather\Models\GetCityPhotoInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\GetCityPhotoOutput
-    {
-        return $this->runtime->call('GetCityPhoto', $input, $cancellation);
-    }
-    public function listCities(\Example\Weather\Models\ListCitiesInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\ListCitiesOutput
-    {
-        return $this->runtime->call('ListCities', $input, $cancellation);
-    }
-    /** @return \Generator<int, \Example\Weather\Models\ListCitiesOutput> */
-    public function listCitiesPages(\Example\Weather\Models\ListCitiesInput $input, ?Runtime\CancellationToken $cancellation = null): \Generator
-    {
-        return $this->runtime->pages('ListCities', $input, $cancellation);
-    }
-    public function ping(?Runtime\CancellationToken $cancellation = null): Runtime\Unit
-    {
-        return $this->runtime->call('Ping', new Runtime\Unit(), $cancellation);
-    }
-    public function putCityPhoto(\Example\Weather\Models\PutCityPhotoInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\PutCityPhotoOutput
-    {
-        return $this->runtime->call('PutCityPhoto', $input, $cancellation);
-    }
-    public function status(\Example\Weather\Models\StatusInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\Models\StatusOutput
-    {
-        return $this->runtime->call('Status', $input, $cancellation);
-    }
-}
-
-=== src/Models/CitySummary.php ===
-<?php
-declare(strict_types=1);
-namespace Example\Weather\Models;
 
 final class CitySummary implements \Example\Weather\Runtime\WireModel
 {
@@ -83,15 +35,15 @@ final class CitySummary implements \Example\Weather\Runtime\WireModel
      * @param string $id
      * @param string $name
      * @param int $population
-     * @param \Example\Weather\Runtime\Field<\Example\Weather\Runtime\Timestamp> $updatedAt
-     * @param \Example\Weather\Runtime\Field<\Example\Weather\Runtime\Timestamp> $createdAt
+     * @param \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $updatedAt
+     * @param \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $createdAt
      */
     public function __construct(
         public readonly string $id,
         public readonly string $name,
         public readonly int $population,
-        public readonly \Example\Weather\Runtime\Field $updatedAt = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $createdAt = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $updatedAt = \Example\Weather\Runtime\Absent::Value,
+        public readonly \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $createdAt = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -107,19 +59,19 @@ final class CitySummary implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'id', $this->id);
-        $context->put($object, 'name', $this->name);
-        $context->put($object, 'population', $this->population);
-        $context->put($object, 'updatedAt', $this->updatedAt);
-        $context->put($object, 'createdAt', $this->createdAt);
+        $context->put($object, 'id', $this->id, false);
+        $context->put($object, 'name', $this->name, false);
+        $context->put($object, 'population', $this->population, false);
+        $context->put($object, 'updatedAt', $this->updatedAt, true);
+        $context->put($object, 'createdAt', $this->createdAt, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/ConflictError.php ===
+=== src/ConflictError.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class ConflictError extends \Example\Weather\Runtime\ServiceError implements \Example\Weather\Runtime\WireModel
 {
@@ -141,15 +93,15 @@ final class ConflictError extends \Example\Weather\Runtime\ServiceError implemen
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'message', $this->messageValue);
+        $context->put($object, 'message', $this->messageValue, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/Coordinates.php ===
+=== src/Coordinates.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class Coordinates implements \Example\Weather\Runtime\WireModel
 {
@@ -172,30 +124,30 @@ final class Coordinates implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'latitude', $this->latitude);
-        $context->put($object, 'longitude', $this->longitude);
+        $context->put($object, 'latitude', $this->latitude, false);
+        $context->put($object, 'longitude', $this->longitude, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/CreateCityInput.php ===
+=== src/CreateCityInput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class CreateCityInput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Runtime\Field<string> $name
-     * @param \Example\Weather\Runtime\Field<\Example\Weather\Models\Location> $location
-     * @param \Example\Weather\Runtime\Field<string> $clientToken
-     * @param \Example\Weather\Runtime\Field<int> $expectedRevision
+     * @param string|null|\Example\Weather\Runtime\Absent $name
+     * @param \Example\Weather\Location|null|\Example\Weather\Runtime\Absent $location
+     * @param string|null|\Example\Weather\Runtime\Absent $clientToken
+     * @param int|null|\Example\Weather\Runtime\Absent $expectedRevision
      */
     public function __construct(
-        public readonly \Example\Weather\Runtime\Field $name = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $location = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $clientToken = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $expectedRevision = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $name = \Example\Weather\Runtime\Absent::Value,
+        public readonly \Example\Weather\Location|null|\Example\Weather\Runtime\Absent $location = \Example\Weather\Runtime\Absent::Value,
+        public readonly string|null|\Example\Weather\Runtime\Absent $clientToken = \Example\Weather\Runtime\Absent::Value,
+        public readonly int|null|\Example\Weather\Runtime\Absent $expectedRevision = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -210,26 +162,26 @@ final class CreateCityInput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'name', $this->name);
-        $context->put($object, 'location', $this->location);
-        $context->put($object, 'clientToken', $this->clientToken);
-        $context->put($object, 'expectedRevision', $this->expectedRevision);
+        $context->put($object, 'name', $this->name, true);
+        $context->put($object, 'location', $this->location, true);
+        $context->put($object, 'clientToken', $this->clientToken, true);
+        $context->put($object, 'expectedRevision', $this->expectedRevision, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/CreateCityOutput.php ===
+=== src/CreateCityOutput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class CreateCityOutput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Models\CitySummary $city
+     * @param \Example\Weather\CitySummary $city
      */
     public function __construct(
-        public readonly \Example\Weather\Models\CitySummary $city,
+        public readonly \Example\Weather\CitySummary $city,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -241,15 +193,15 @@ final class CreateCityOutput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'city', $this->city);
+        $context->put($object, 'city', $this->city, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/Decoder.php ===
+=== src/Decoder.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class Decoder
 {
@@ -294,20 +246,20 @@ final class Decoder
     }
 }
 
-=== src/Models/GetCityInput.php ===
+=== src/GetCityInput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class GetCityInput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Runtime\Field<string> $cityId
-     * @param \Example\Weather\Runtime\Field<\Example\Weather\Runtime\Timestamp> $at
+     * @param string|null|\Example\Weather\Runtime\Absent $cityId
+     * @param \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $at
      */
     public function __construct(
-        public readonly \Example\Weather\Runtime\Field $cityId = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $at = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $cityId = \Example\Weather\Runtime\Absent::Value,
+        public readonly \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $at = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -320,28 +272,28 @@ final class GetCityInput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'cityId', $this->cityId);
-        $context->put($object, 'at', $this->at);
+        $context->put($object, 'cityId', $this->cityId, true);
+        $context->put($object, 'at', $this->at, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/GetCityOutput.php ===
+=== src/GetCityOutput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class GetCityOutput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Models\CitySummary $city
-     * @param \Example\Weather\Runtime\Field<array<string|int, \Example\Weather\Runtime\JsonValue>> $forecast
-     * @param \Example\Weather\Runtime\Field<string> $requestId
+     * @param \Example\Weather\CitySummary $city
+     * @param array<string|int, \Example\Weather\Runtime\JsonValue>|null|\Example\Weather\Runtime\Absent $forecast
+     * @param string|null|\Example\Weather\Runtime\Absent $requestId
      */
     public function __construct(
-        public readonly \Example\Weather\Models\CitySummary $city,
-        public readonly \Example\Weather\Runtime\Field $forecast = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $requestId = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\CitySummary $city,
+        public readonly array|null|\Example\Weather\Runtime\Absent $forecast = \Example\Weather\Runtime\Absent::Value,
+        public readonly string|null|\Example\Weather\Runtime\Absent $requestId = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -355,25 +307,25 @@ final class GetCityOutput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'city', $this->city);
-        $context->put($object, 'forecast', $this->forecast);
-        $context->put($object, 'requestId', $this->requestId);
+        $context->put($object, 'city', $this->city, false);
+        $context->put($object, 'forecast', $this->forecast, true);
+        $context->put($object, 'requestId', $this->requestId, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/GetCityPhotoInput.php ===
+=== src/GetCityPhotoInput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class GetCityPhotoInput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Runtime\Field<string> $cityId
+     * @param string|null|\Example\Weather\Runtime\Absent $cityId
      */
     public function __construct(
-        public readonly \Example\Weather\Runtime\Field $cityId = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $cityId = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -385,25 +337,25 @@ final class GetCityPhotoInput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'cityId', $this->cityId);
+        $context->put($object, 'cityId', $this->cityId, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/GetCityPhotoOutput.php ===
+=== src/GetCityPhotoOutput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class GetCityPhotoOutput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Runtime\Field<string> $caption
-     * @param \Example\Weather\Runtime\Field<string> $photo
+     * @param string|null|\Example\Weather\Runtime\Absent $caption
+     * @param string|null|\Example\Weather\Runtime\Absent $photo
      */
     public function __construct(
-        public readonly \Example\Weather\Runtime\Field $caption = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $photo = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $caption = \Example\Weather\Runtime\Absent::Value,
+        public readonly string|null|\Example\Weather\Runtime\Absent $photo = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -416,28 +368,28 @@ final class GetCityPhotoOutput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'caption', $this->caption);
-        $context->put($object, 'photo', $this->photo);
+        $context->put($object, 'caption', $this->caption, true);
+        $context->put($object, 'photo', $this->photo, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/ListCitiesInput.php ===
+=== src/ListCitiesInput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class ListCitiesInput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Runtime\Field<string> $nextToken
-     * @param \Example\Weather\Runtime\Field<int> $maxResults
-     * @param \Example\Weather\Runtime\Field<list<string>> $tags
+     * @param string|null|\Example\Weather\Runtime\Absent $nextToken
+     * @param int|null|\Example\Weather\Runtime\Absent $maxResults
+     * @param list<string>|null|\Example\Weather\Runtime\Absent $tags
      */
     public function __construct(
-        public readonly \Example\Weather\Runtime\Field $nextToken = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $maxResults = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $tags = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $nextToken = \Example\Weather\Runtime\Absent::Value,
+        public readonly int|null|\Example\Weather\Runtime\Absent $maxResults = \Example\Weather\Runtime\Absent::Value,
+        public readonly array|null|\Example\Weather\Runtime\Absent $tags = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -451,27 +403,27 @@ final class ListCitiesInput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'nextToken', $this->nextToken);
-        $context->put($object, 'maxResults', $this->maxResults);
-        $context->put($object, 'tags', $this->tags);
+        $context->put($object, 'nextToken', $this->nextToken, true);
+        $context->put($object, 'maxResults', $this->maxResults, true);
+        $context->put($object, 'tags', $this->tags, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/ListCitiesOutput.php ===
+=== src/ListCitiesOutput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class ListCitiesOutput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param list<\Example\Weather\Models\CitySummary> $cities
-     * @param \Example\Weather\Runtime\Field<string> $nextToken
+     * @param list<\Example\Weather\CitySummary> $cities
+     * @param string|null|\Example\Weather\Runtime\Absent $nextToken
      */
     public function __construct(
         public readonly array $cities,
-        public readonly \Example\Weather\Runtime\Field $nextToken = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $nextToken = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -484,16 +436,16 @@ final class ListCitiesOutput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'cities', $this->cities);
-        $context->put($object, 'nextToken', $this->nextToken);
+        $context->put($object, 'cities', $this->cities, false);
+        $context->put($object, 'nextToken', $this->nextToken, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/Location.php ===
+=== src/Location.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 abstract class Location implements \Example\Weather\Runtime\WireModel
 {
@@ -511,25 +463,25 @@ abstract class Location implements \Example\Weather\Runtime\WireModel
     }
 }
 
-=== src/Models/LocationCoordinates.php ===
+=== src/LocationCoordinates.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class LocationCoordinates extends Location
 {
-    /** @param \Example\Weather\Models\Coordinates|null $value */
-    public function __construct(public readonly ?\Example\Weather\Models\Coordinates $value) {}
+    /** @param \Example\Weather\Coordinates|null $value */
+    public function __construct(public readonly ?\Example\Weather\Coordinates $value) {}
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         return new \Example\Weather\Runtime\JsonObject(['coordinates' => $this->value === null ? null : $context->codec->encode($this->value, $context->member('coordinates'))]);
     }
 }
 
-=== src/Models/LocationUnknown.php ===
+=== src/LocationUnknown.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class LocationUnknown extends Location
 {
@@ -541,10 +493,10 @@ final class LocationUnknown extends Location
     }
 }
 
-=== src/Models/LocationUnknownVariant.php ===
+=== src/LocationUnknownVariant.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class LocationUnknownVariant extends Location
 {
@@ -556,20 +508,20 @@ final class LocationUnknownVariant extends Location
     }
 }
 
-=== src/Models/NotFoundError.php ===
+=== src/NotFoundError.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class NotFoundError extends \Example\Weather\Runtime\ServiceError implements \Example\Weather\Runtime\WireModel
 {
     /**
      * @param string $messageValue
-     * @param \Example\Weather\Runtime\Field<string> $resourceId
+     * @param string|null|\Example\Weather\Runtime\Absent $resourceId
      */
     public function __construct(
         public readonly string $messageValue,
-        public readonly \Example\Weather\Runtime\Field $resourceId = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $resourceId = \Example\Weather\Runtime\Absent::Value,
         \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata(),
     ) { parent::__construct($metadata); }
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context, \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata()): self
@@ -584,28 +536,28 @@ final class NotFoundError extends \Example\Weather\Runtime\ServiceError implemen
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'message', $this->messageValue);
-        $context->put($object, 'resourceId', $this->resourceId);
+        $context->put($object, 'message', $this->messageValue, false);
+        $context->put($object, 'resourceId', $this->resourceId, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/PhotoSummary.php ===
+=== src/PhotoSummary.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class PhotoSummary implements \Example\Weather\Runtime\WireModel
 {
     /**
      * @param int $size
      * @param string $thumbnail
-     * @param \Example\Weather\Runtime\Field<string> $caption
+     * @param string|null|\Example\Weather\Runtime\Absent $caption
      */
     public function __construct(
         public readonly int $size,
         public readonly string $thumbnail,
-        public readonly \Example\Weather\Runtime\Field $caption = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $caption = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -619,29 +571,29 @@ final class PhotoSummary implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'size', $this->size);
-        $context->put($object, 'thumbnail', $this->thumbnail);
-        $context->put($object, 'caption', $this->caption);
+        $context->put($object, 'size', $this->size, false);
+        $context->put($object, 'thumbnail', $this->thumbnail, false);
+        $context->put($object, 'caption', $this->caption, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/PutCityPhotoInput.php ===
+=== src/PutCityPhotoInput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class PutCityPhotoInput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Runtime\Field<string> $cityId
-     * @param \Example\Weather\Runtime\Field<string> $caption
-     * @param \Example\Weather\Runtime\Field<string> $photo
+     * @param string|null|\Example\Weather\Runtime\Absent $cityId
+     * @param string|null|\Example\Weather\Runtime\Absent $caption
+     * @param string|null|\Example\Weather\Runtime\Absent $photo
      */
     public function __construct(
-        public readonly \Example\Weather\Runtime\Field $cityId = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $caption = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $photo = new \Example\Weather\Runtime\Field(),
+        public readonly string|null|\Example\Weather\Runtime\Absent $cityId = \Example\Weather\Runtime\Absent::Value,
+        public readonly string|null|\Example\Weather\Runtime\Absent $caption = \Example\Weather\Runtime\Absent::Value,
+        public readonly string|null|\Example\Weather\Runtime\Absent $photo = \Example\Weather\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -655,25 +607,25 @@ final class PutCityPhotoInput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'cityId', $this->cityId);
-        $context->put($object, 'caption', $this->caption);
-        $context->put($object, 'photo', $this->photo);
+        $context->put($object, 'cityId', $this->cityId, true);
+        $context->put($object, 'caption', $this->caption, true);
+        $context->put($object, 'photo', $this->photo, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/PutCityPhotoOutput.php ===
+=== src/PutCityPhotoOutput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class PutCityPhotoOutput implements \Example\Weather\Runtime\WireModel
 {
     /**
-     * @param \Example\Weather\Models\PhotoSummary $photo
+     * @param \Example\Weather\PhotoSummary $photo
      */
     public function __construct(
-        public readonly \Example\Weather\Models\PhotoSummary $photo,
+        public readonly \Example\Weather\PhotoSummary $photo,
     ) {}
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context): self
     {
@@ -685,15 +637,29 @@ final class PutCityPhotoOutput implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'photo', $this->photo);
+        $context->put($object, 'photo', $this->photo, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/Sky.php ===
+=== src/Schema.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
+
+final class Schema
+{
+    public static function codec(): Runtime\WireCodec
+    {
+        static $codec = null;
+        return $codec ??= new Runtime\WireCodec(Runtime\WireCodec::object(Runtime\ExactJson::decode(file_get_contents(__DIR__ . '/schema.json'))), Decoder::model(...));
+    }
+}
+
+=== src/Sky.php ===
+<?php
+declare(strict_types=1);
+namespace Example\Weather;
 
 final readonly class Sky implements \Example\Weather\Runtime\WireModel
 {
@@ -703,10 +669,10 @@ final readonly class Sky implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): string { return $this->value; }
 }
 
-=== src/Models/StatusInput.php ===
+=== src/StatusInput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class StatusInput implements \Example\Weather\Runtime\WireModel
 {
@@ -727,10 +693,10 @@ final class StatusInput implements \Example\Weather\Runtime\WireModel
     }
 }
 
-=== src/Models/StatusOutput.php ===
+=== src/StatusOutput.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class StatusOutput implements \Example\Weather\Runtime\WireModel
 {
@@ -751,20 +717,20 @@ final class StatusOutput implements \Example\Weather\Runtime\WireModel
     }
 }
 
-=== src/Models/ThrottlingError.php ===
+=== src/ThrottlingError.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class ThrottlingError extends \Example\Weather\Runtime\ServiceError implements \Example\Weather\Runtime\WireModel
 {
     /**
      * @param string $messageValue
-     * @param \Example\Weather\Runtime\Field<int> $retryAfter
+     * @param int|null|\Example\Weather\Runtime\Absent $retryAfter
      */
     public function __construct(
         public readonly string $messageValue,
-        public readonly \Example\Weather\Runtime\Field $retryAfter = new \Example\Weather\Runtime\Field(),
+        public readonly int|null|\Example\Weather\Runtime\Absent $retryAfter = \Example\Weather\Runtime\Absent::Value,
         \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata(),
     ) { parent::__construct($metadata); }
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context, \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata()): self
@@ -779,30 +745,30 @@ final class ThrottlingError extends \Example\Weather\Runtime\ServiceError implem
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'message', $this->messageValue);
-        $context->put($object, 'retryAfter', $this->retryAfter);
+        $context->put($object, 'message', $this->messageValue, false);
+        $context->put($object, 'retryAfter', $this->retryAfter, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/ValidationError.php ===
+=== src/ValidationError.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class ValidationError extends \Example\Weather\Runtime\ServiceError implements \Example\Weather\Runtime\WireModel
 {
     /**
      * @param string $messageValue
-     * @param \Example\Weather\Models\ValidationReason $reason
-     * @param \Example\Weather\Runtime\Field<list<\Example\Weather\Models\ValidationField>> $fieldList
-     * @param \Example\Weather\Runtime\Field<string> $requestId
+     * @param \Example\Weather\ValidationReason $reason
+     * @param list<\Example\Weather\ValidationField>|null|\Example\Weather\Runtime\Absent $fieldList
+     * @param string|null|\Example\Weather\Runtime\Absent $requestId
      */
     public function __construct(
         public readonly string $messageValue,
-        public readonly \Example\Weather\Models\ValidationReason $reason,
-        public readonly \Example\Weather\Runtime\Field $fieldList = new \Example\Weather\Runtime\Field(),
-        public readonly \Example\Weather\Runtime\Field $requestId = new \Example\Weather\Runtime\Field(),
+        public readonly \Example\Weather\ValidationReason $reason,
+        public readonly array|null|\Example\Weather\Runtime\Absent $fieldList = \Example\Weather\Runtime\Absent::Value,
+        public readonly string|null|\Example\Weather\Runtime\Absent $requestId = \Example\Weather\Runtime\Absent::Value,
         \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata(),
     ) { parent::__construct($metadata); }
     public static function fromWire(mixed $value, \Example\Weather\Runtime\WireContext $context, \Example\Weather\Runtime\ErrorMetadata $metadata = new \Example\Weather\Runtime\ErrorMetadata()): self
@@ -819,18 +785,18 @@ final class ValidationError extends \Example\Weather\Runtime\ServiceError implem
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'message', $this->messageValue);
-        $context->put($object, 'reason', $this->reason);
-        $context->put($object, 'fieldList', $this->fieldList);
-        $context->put($object, 'requestId', $this->requestId);
+        $context->put($object, 'message', $this->messageValue, false);
+        $context->put($object, 'reason', $this->reason, false);
+        $context->put($object, 'fieldList', $this->fieldList, true);
+        $context->put($object, 'requestId', $this->requestId, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/ValidationField.php ===
+=== src/ValidationField.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final class ValidationField implements \Example\Weather\Runtime\WireModel
 {
@@ -853,16 +819,16 @@ final class ValidationField implements \Example\Weather\Runtime\WireModel
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'path', $this->path);
-        $context->put($object, 'message', $this->messageValue);
+        $context->put($object, 'path', $this->path, false);
+        $context->put($object, 'message', $this->messageValue, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
 }
 
-=== src/Models/ValidationReason.php ===
+=== src/ValidationReason.php ===
 <?php
 declare(strict_types=1);
-namespace Example\Weather\Models;
+namespace Example\Weather;
 
 final readonly class ValidationReason implements \Example\Weather\Runtime\WireModel
 {
@@ -874,17 +840,51 @@ final readonly class ValidationReason implements \Example\Weather\Runtime\WireMo
     public function toWire(\Example\Weather\Runtime\WireContext $context): string { return $this->value; }
 }
 
-=== src/Schema.php ===
+=== src/WeatherClient.php ===
 <?php
 declare(strict_types=1);
 namespace Example\Weather;
 
-final class Schema
+final class WeatherClient
 {
-    public static function codec(): Runtime\WireCodec
+    private readonly Runtime\ClientRuntime $runtime;
+    public function __construct(Runtime\ClientConfig $config = new Runtime\ClientConfig())
     {
-        static $codec = null;
-        return $codec ??= new Runtime\WireCodec(Runtime\WireCodec::object(Runtime\ExactJson::decode(file_get_contents(__DIR__ . '/schema.json'))), Models\Decoder::model(...));
+        $this->runtime = new Runtime\ClientRuntime($config, Schema::codec(), Decoder::error(...), '', true);
+    }
+    public function close(): void { $this->runtime->close(); }
+    public function createCity(\Example\Weather\CreateCityInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\CreateCityOutput
+    {
+        return $this->runtime->call('CreateCity', $input, $cancellation);
+    }
+    public function getCity(\Example\Weather\GetCityInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\GetCityOutput
+    {
+        return $this->runtime->call('GetCity', $input, $cancellation);
+    }
+    public function getCityPhoto(\Example\Weather\GetCityPhotoInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\GetCityPhotoOutput
+    {
+        return $this->runtime->call('GetCityPhoto', $input, $cancellation);
+    }
+    public function listCities(\Example\Weather\ListCitiesInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\ListCitiesOutput
+    {
+        return $this->runtime->call('ListCities', $input, $cancellation);
+    }
+    /** @return \Generator<int, \Example\Weather\ListCitiesOutput> */
+    public function listCitiesPages(\Example\Weather\ListCitiesInput $input, ?Runtime\CancellationToken $cancellation = null): \Generator
+    {
+        return $this->runtime->pages('ListCities', $input, $cancellation);
+    }
+    public function ping(?Runtime\CancellationToken $cancellation = null): Runtime\Unit
+    {
+        return $this->runtime->call('Ping', new Runtime\Unit(), $cancellation);
+    }
+    public function putCityPhoto(\Example\Weather\PutCityPhotoInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\PutCityPhotoOutput
+    {
+        return $this->runtime->call('PutCityPhoto', $input, $cancellation);
+    }
+    public function status(\Example\Weather\StatusInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\StatusOutput
+    {
+        return $this->runtime->call('Status', $input, $cancellation);
     }
 }
 

@@ -35,7 +35,7 @@ final class SerializationTests: XCTestCase {
             let wire = try JSONValue(data: Data(row["wire"]!.string.utf8))
             var states: [String: String] = [:]
             var blobHex: String?
-            var city: Models.CitySummary?
+            var city: CitySummary?
             func roundTrip<T: WireCodable>(_ type: T.Type) throws -> JSONValue {
                 try codec.encode(target, codec.decode(target, wire, as: type))
             }
@@ -43,17 +43,17 @@ final class SerializationTests: XCTestCase {
             do {
                 switch target {
                 case "example.weather#CitySummary":
-                    let value = try codec.decode(target, wire, as: Models.CitySummary.self)
+                    let value = try codec.decode(target, wire, as: CitySummary.self)
                     city = value
-                    states = ["population": "value", "updatedAt": state(value.updatedAt), "createdAt": state(value.createdAt)]
+                    states = ["population": "value", "updatedAt": state(value.updatedAtPresence), "createdAt": state(value.createdAtPresence)]
                     encoded = try codec.encode(target, value)
                 case "example.weather#Photo":
                     let value = try codec.decode(target, wire, as: Data.self)
                     blobHex = value.map { String(format: "%02x", $0) }.joined()
                     encoded = try codec.encode(target, value)
-                case "example.weather#Sky": encoded = try roundTrip(Models.Sky.self)
-                case "example.weather#Location": encoded = try roundTrip(Models.Location.self)
-                case "example.weather#Forecast": encoded = try roundTrip(Models.Forecast.self)
+                case "example.weather#Sky": encoded = try roundTrip(Sky.self)
+                case "example.weather#Location": encoded = try roundTrip(Location.self)
+                case "example.weather#Forecast": encoded = try roundTrip(Forecast.self)
                 default: throw WireError("Unmapped corpus target: \(target)")
                 }
             } catch is WireError {
@@ -70,7 +70,7 @@ final class SerializationTests: XCTestCase {
             if let hex = expected["blobHex"] { XCTAssertEqual(blobHex, hex.text, id) }
             if let instant = expected["instant"] {
                 let value = try XCTUnwrap(city)
-                let stamp = try XCTUnwrap(instant["member"]?.text == "updatedAt" ? value.updatedAt.value : value.createdAt.value)
+                let stamp = try XCTUnwrap(instant["member"]?.text == "updatedAt" ? value.updatedAt : value.createdAt)
                 XCTAssertEqual(String(stamp.seconds), instant["seconds"]?.text, id)
                 XCTAssertEqual(stamp.nanoseconds, try WireNumber(instant["nanoseconds"]!.number).integer(UInt32.self), id)
             }

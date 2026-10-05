@@ -80,5 +80,12 @@ example service and the integration test. Keep these rules:
 - Generated code must be deterministic: sort by shape id or name, never by
   hash order or model-file order (member order is source order, which is
   part of the model).
+- Client APIs follow the target language's conventions. Ordinary construction,
+  response access, and pagination must not require presence-wrapper plumbing or
+  an artificial enclosing model class. Use native collections where the language
+  can represent them; preserve omitted/null/value distinctions through internal
+  state or an explicit advanced API. Validate examples from an independent consumer.
+  Public clients carry the service name (`LeylineClient`); C uses its configured
+  service prefix. Generic names belong to shared runtime infrastructure.
 - Breaking changes are fine while the only consumers are Leyline and Pigeon.
   Tag a release and bump them deliberately.

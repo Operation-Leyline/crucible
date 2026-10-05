@@ -86,6 +86,10 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                     }
                     if matches!(shape, Shape::Union(_)) {
                         emitted.push(format!("{native}_tag_{field}"));
+                    } else {
+                        for helper in ["set", "get", "has", "clear", "null"] {
+                            emitted.push(format!("{native}_{helper}_{field}"));
+                        }
                     }
                 }
                 if matches!(shape, Shape::Union(_)) {

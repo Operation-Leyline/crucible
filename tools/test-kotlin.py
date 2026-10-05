@@ -20,7 +20,38 @@ def generate(model, output, package="example.weather"):
 
 def qualify(output):
     package = output / "sdk"
-    generate(qualification_model(output), package)
+    model_path = qualification_model(output)
+    model = json.loads(model_path.read_text())
+    defaults = {
+        "flag": ("smithy.api#Boolean", True),
+        "small": ("smithy.api#Byte", -7),
+        "medium": ("smithy.api#Short", 300),
+        "count": ("smithy.api#Integer", 42),
+        "decimalCount": ("smithy.api#Integer", 17.0),
+        "large": ("smithy.api#Long", -9223372036854775808),
+        "ratio": ("smithy.api#Float", 1.5),
+        "score": ("smithy.api#Double", 2.5),
+        "label": ("smithy.api#String", 'default $value\\path'),
+        "sky": ("example.weather#Sky", "sunny"),
+        "tags": ("example.weather#Tags", []),
+        "forecast": ("example.weather#Forecast", {}),
+        "document": ("smithy.api#Document", {"count": 9223372036854775807}),
+        "blob": ("smithy.api#Blob", "AQI="),
+        "date": ("smithy.api#Timestamp", "2024-01-01T00:00:00Z"),
+        "epoch": ("smithy.api#Timestamp", -1.5),
+    }
+    members = {name: {"target": target, "traits": {"smithy.api#default": value}}
+               for name, (target, value) in defaults.items()}
+    members["requiredValue"] = {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
+    members["epoch"]["traits"]["smithy.api#timestampFormat"] = "epoch-seconds"
+    members["optionalDefault"] = {"target": "smithy.api#Integer", "traits": {"smithy.api#default": 19, "smithy.api#clientOptional": {}}}
+    model["shapes"]["example.weather#BuilderDefaults"] = {"type": "structure", "members": members}
+    model["shapes"]["example.weather#ReadBuilderDefaults"] = {
+        "type": "operation", "output": {"target": "example.weather#BuilderDefaults"},
+        "traits": {"smithy.api#http": {"method": "GET", "uri": "/builder-defaults"}, "smithy.api#readonly": {}}}
+    model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.weather#ReadBuilderDefaults"})
+    model_path.write_text(json.dumps(model), encoding="utf-8")
+    generate(model_path, package)
     run(MAVEN, "-q", REPO, "install", "dependency:copy-dependencies", cwd=package)
     consumer = output / "consumer"
     source = consumer / "src/main/kotlin/example/weather"

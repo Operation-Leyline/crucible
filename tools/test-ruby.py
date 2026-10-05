@@ -37,7 +37,7 @@ def qualify(output):
     consumer_env = dict(os.environ, GEM_HOME=str(consumer), GEM_PATH=os.pathsep.join([str(consumer), default_gems]))
     gem("install", "--local", "--no-document",
         str(package / "weather_client-0.0.0.gem"), env=consumer_env)
-    run(RUBY, "-r", "weather_client", "-e", "raise unless Weather::Models::CreateCityInput.new(name: 'consumer').name == 'consumer'",
+    run(RUBY, "-r", "weather_client", "-e", "raise unless Weather::CreateCityInput.new(name: 'consumer').name == 'consumer'; Weather::WeatherClient.new(Weather::Runtime::ClientConfig.new(endpoint: 'https://example.invalid')).close",
         env=consumer_env)
     print("Ruby native gem consumer passed")
     void_model = output / "void.json"
@@ -48,6 +48,7 @@ def qualify(output):
     renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
     renamed["shapes"]["example.weather#Weather"]["rename"] = {
         "example.weather#CitySummary": "String", "example.weather#Location": "Array", "example.weather#Sky": "Time",
+        "example.weather#Coordinates": "ArgumentError", "example.weather#PhotoSummary": "IOError",
     }
     for member in ["self", "context", "object", "metadata", "class", "message", "toWire"]:
         renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}
@@ -57,9 +58,11 @@ def qualify(output):
         generated = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby", str(model),
             "--out", str(generated), "--package-name", "weather_client", "--module-name", "Weather")
-        script = "Weather::Client.new(Weather::Runtime::ClientConfig.new(endpoint: 'http://127.0.0.1')).close"
+        client_name = {"empty":"EmptyClient", "void":"ServiceClient", "renamed":"WeatherClient"}[name]
+        script = f"Weather::{client_name}.new(Weather::Runtime::ClientConfig.new(endpoint: 'http://127.0.0.1')).close"
         if name == "renamed":
-            script += "; input = Weather::Models::CreateCityInput.new(class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'class'=>'x','toWire'=>'y'}"
+            script += "; input = Weather::CreateCityInput.new(class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'class'=>'x','toWire'=>'y'}"
+            script += "; begin; Weather::Runtime::WireCodec.string(7); raise 'Expected native argument error'; rescue ::ArgumentError; end"
         run(RUBY, "-I", str(generated / "lib"), "-r", "weather_client", "-e", script)
     print("Ruby empty, void, and renamed packages passed")
 

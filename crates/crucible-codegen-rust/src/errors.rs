@@ -26,6 +26,7 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
 /// The body of `pub mod errors { ... }`.
 pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostics) -> String {
     let boxed = boxed_members(service);
+    let builders = crate::builders::names(service);
     let mut out =
         String::from("use ::crucible::operation::{ErrorInfo, Fault};\nuse super::__redaction;\n");
     let mut defaults = String::new();
@@ -51,6 +52,17 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
             );
         }
         out.push_str("}\n\n");
+        if client {
+            crate::builders::emit(
+                &mut out,
+                service,
+                id,
+                structure,
+                &boxed,
+                "super::model::",
+                &builders[id],
+            );
+        }
         let fault = match error.fault {
             Fault::Client => "Client",
             Fault::Server => "Server",

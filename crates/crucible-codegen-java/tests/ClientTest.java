@@ -1,5 +1,19 @@
 package example.weather;
 
+import example.weather.model.CitySummary;
+import example.weather.model.ConflictError;
+import example.weather.model.Coordinates;
+import example.weather.model.CreateCityInput;
+import example.weather.model.GetCityInput;
+import example.weather.model.GetCityPhotoInput;
+import example.weather.model.ListCitiesInput;
+import example.weather.model.Location;
+import example.weather.model.PutCityPhotoInput;
+import example.weather.model.Sky;
+import example.weather.model.Unit;
+import example.weather.model.ValidationError;
+import example.weather.model.ValidationReason;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.HttpExchange;
@@ -122,7 +136,7 @@ public final class ClientTest {
                 schema);
         boolean success = false;
         try {
-          runtime.call("Retry", null, Models.Unit.class).get(5, TimeUnit.SECONDS);
+          runtime.call("Retry", null, Unit.class).get(5, TimeUnit.SECONDS);
           success = true;
         } catch (java.util.concurrent.ExecutionException e) {
           check(e.getCause() instanceof ServiceError, "wrong error " + e.getCause());
@@ -138,7 +152,7 @@ public final class ClientTest {
   static void sharedSerialization(Path path) throws Exception {
     var config = new ClientConfig();
     config.endpoint = "https://example.invalid";
-    var runtime = new ClientRuntime(config, "", false, Models.classes());
+    var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes());
     for (var row : JsonParser.parseString(Files.readString(path)).getAsJsonArray()) {
       var test = row.getAsJsonObject();
       String id = test.get("id").getAsString(), target = test.get("target").getAsString();
@@ -217,14 +231,14 @@ public final class ClientTest {
     sharedSerialization(headers.resolveSibling("serialization.json"));
     ClientConfig config = new ClientConfig();
     config.endpoint = "https://example.invalid";
-    var runtime = new ClientRuntime(config, "", false, Models.classes());
+    var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes());
     var sky = runtime.decode("example.weather#Sky", JsonParser.parseString("\"future\""), null);
     check(sky.toString().equals("future"), "unknown enum");
     var wire = JsonParser.parseString("{\"future\":{\"n\":9223372036854775807}}");
     var union = runtime.decode("example.weather#Location", wire, null);
     check(runtime.encode("example.weather#Location", union, null).equals(wire), "unknown union");
-    var unit = new Models.Location();
-    unit.unknown = OptionalValue.of(new Models.Unit());
+    var unit = new Location();
+    unit.unknown = OptionalValue.of(new Unit());
     check(
         runtime
             .encode("example.weather#Location", unit, null)
@@ -232,7 +246,7 @@ public final class ClientTest {
             .equals("{\"unknown\":{}}"),
         "unit union");
     var city =
-        (Models.CitySummary)
+        (CitySummary)
             runtime.decode(
                 "example.weather#CitySummary",
                 JsonParser.parseString(
@@ -243,13 +257,13 @@ public final class ClientTest {
             && city.createdAt.value().equals(Instant.ofEpochSecond(-1, 999999999)),
         "numeric precision");
     var absent =
-        (Models.CitySummary)
+        (CitySummary)
             runtime.decode(
                 "example.weather#CitySummary",
                 JsonParser.parseString("{\"id\":\"c\",\"name\":\"x\"}"),
                 null);
     check(absent.population == 0, "default missing");
-    var input = new Models.CreateCityInput();
+    var input = new CreateCityInput();
     input.name = OptionalValue.of("x");
     input.location = OptionalValue.of(null);
     var encoded = runtime.encode("example.weather#CreateCityInput", input, null).getAsJsonObject();
@@ -306,8 +320,8 @@ public final class ClientTest {
             })) {
       var config = server.config();
       config.token = () -> Integer.toString(credentials.incrementAndGet());
-      var client = new Client(config);
-      var input = new Models.CreateCityInput();
+      var client = new WeatherClient(config);
+      var input = new CreateCityInput();
       input.name = OptionalValue.of("é");
       input.expectedRevision = OptionalValue.of(7L);
       var city = client.createCityAsync(input).get(5, TimeUnit.SECONDS);
@@ -328,13 +342,13 @@ public final class ClientTest {
                   200,
                   "{\"city\":{\"id\":\"c\",\"name\":\"x\"},\"forecast\":{\"future\":123}}");
             })) {
-      var client = new Client(server.config());
-      var input = new Models.GetCityInput();
+      var client = new WeatherClient(server.config());
+      var input = new GetCityInput();
       input.cityId = OptionalValue.of("a/b c~é*");
       var output = client.getCity(input);
       check(
           output.requestId.value().equals("req-1")
-              && output.forecast.value().containsKey(new Models.Sky("future")),
+              && output.forecast.value().containsKey(new Sky("future")),
           "response bindings");
     }
     try (var server =
@@ -346,13 +360,13 @@ public final class ClientTest {
                   400,
                   "{\"__type\":\"ValidationError\",\"message\":\"bad\",\"reason\":\"fieldValidationFailed\",\"requestId\":\"body-id\"}");
             })) {
-      var client = new Client(server.config());
+      var client = new WeatherClient(server.config());
       try {
         client.ping();
         throw new AssertionError("error ignored");
-      } catch (Models.ValidationError error) {
+      } catch (ValidationError error) {
         check(
-            error.reason.equals(Models.ValidationReason.FIELD_VALIDATION_FAILED)
+            error.reason.equals(ValidationReason.FIELD_VALIDATION_FAILED)
                 && error.requestId().equals("req"),
             "typed error metadata");
       }
@@ -365,7 +379,7 @@ public final class ClientTest {
               response(exchange, 400, "{\"__type\":\"FutureError\",\"requestId\":{}}");
             })) {
       try {
-        new Client(server.config()).ping();
+        new WeatherClient(server.config()).ping();
         throw new AssertionError("unknown error ignored");
       } catch (ServiceError error) {
         check(
@@ -379,8 +393,8 @@ public final class ClientTest {
               calls.incrementAndGet();
               response(exchange, 200, "{\"cities\":[],\"nextToken\":\"same\"}");
             })) {
-      var client = new Client(server.config());
-      var input = new Models.ListCitiesInput();
+      var client = new WeatherClient(server.config());
+      var input = new ListCitiesInput();
       var pages = client.listCitiesPages(input);
       pages.next();
       try {
@@ -401,7 +415,7 @@ public final class ClientTest {
               response(exchange, 200, "invalid JSON");
             })) {
       try {
-        new Client(server.config()).listCities(null);
+        new WeatherClient(server.config()).listCities();
         throw new AssertionError("invalid JSON accepted");
       } catch (com.google.gson.JsonParseException expected) {
       }
@@ -418,7 +432,7 @@ public final class ClientTest {
               } else response(exchange, 200, "{\"cities\":[]}");
             })) {
       check(
-          new Client(server.config()).listCities(null).cities.isEmpty() && calls.get() == 2,
+          new WeatherClient(server.config()).listCities().cities.isEmpty() && calls.get() == 2,
           "body interruption retry");
     }
   }
@@ -444,7 +458,7 @@ public final class ClientTest {
             }
             return "token";
           };
-      var future = new Client(config).pingAsync();
+      var future = new WeatherClient(config).pingAsync();
       check(entered.await(2, TimeUnit.SECONDS), "provider not entered");
       long start = System.nanoTime();
       future.cancel(true);
@@ -461,7 +475,7 @@ public final class ClientTest {
     config.endpoint = "http://example.invalid";
     config.token = () -> "secret";
     try {
-      new Client(config).ping();
+      new WeatherClient(config).ping();
       throw new AssertionError("plaintext credentials accepted");
     } catch (IllegalArgumentException expected) {
     }
@@ -501,8 +515,8 @@ public final class ClientTest {
                 exchange.close();
               }
             })) {
-      var client = new Client(server.config());
-      var put = new Models.PutCityPhotoInput();
+      var client = new WeatherClient(server.config());
+      var put = new PutCityPhotoInput();
       put.cityId = OptionalValue.of("c-00000001");
       put.caption = OptionalValue.of("harbour");
       put.photo = OptionalValue.of(photo);
@@ -510,7 +524,7 @@ public final class ClientTest {
       check(
           java.util.Arrays.equals(stored.photo.thumbnail, java.util.Arrays.copyOf(photo, 9)),
           "base64 thumbnail");
-      var get = new Models.GetCityPhotoInput();
+      var get = new GetCityPhotoInput();
       get.cityId = OptionalValue.of("c-00000001");
       var read = client.getCityPhoto(get);
       check(java.util.Arrays.equals(read.photo.value(), photo), "payload read raw");
@@ -520,48 +534,69 @@ public final class ClientTest {
     }
   }
 
+  static void ergonomics() {
+    check(CitySummary.builder().id("city").name("Oslo").build().population() == 0L,
+        "builder omitted modeled default");
+    check(CitySummary.builder().id("city").name("Oslo").population(null).build().population() == null,
+        "explicit null was replaced by modeled default");
+    var builder = CreateCityInput.builder().name("first").location(null);
+    var first = builder.build();
+    var second = builder.name("second").build();
+    check(first.name().equals("first") && second.name().equals("second"), "builder reused live model");
+    check(first.location() == null && first.location.present() && !first.clientToken.present(), "builder presence");
+    var list = ListCitiesInput.builder().tags(List.of("native", "list")).build();
+    check(list.tags().equals(List.of("native", "list")), "native collection");
+    var location = Location.builder().coordinates(Coordinates.builder().latitude(1.0).longitude(2.0).build()).unknown(new Unit()).build();
+    check(!location.coordinates.present() && location.unknown() != null, "union builder retained prior arm");
+    var unknown = Location.builder().unknown(new Unit()).unknownVariant(new UnknownUnion("future", JsonParser.parseString("{}"))).build();
+    check(!unknown.unknown.present() && unknown.unknownVariant.name().equals("future"), "unknown builder retained known arm");
+  }
+
   static void weather() throws Exception {
     String endpoint = System.getenv("WEATHER_URL");
     if (endpoint == null) throw new AssertionError("WEATHER_URL required");
     var config = new ClientConfig();
     config.endpoint = endpoint;
-    var client = new Client(config);
-    var input = new Models.CreateCityInput();
-    input.name = OptionalValue.of("java-http");
-    var location = new Models.Location();
-    location.unknown = OptionalValue.of(new Models.Unit());
-    input.location = OptionalValue.of(location);
+    var client = new WeatherClient(config);
+    var location = Location.builder()
+        .unknown(new Unit())
+        .build();
+    var input = CreateCityInput.builder().name("java-http").location(location).build();
     var city = client.createCity(input);
-    var get = new Models.GetCityInput();
-    get.cityId = OptionalValue.of(city.city.id);
-    check(client.getCityAsync(get).get().city.name.equals("java-http"), "weather get");
+    var get = GetCityInput.builder()
+        .cityId(city.city().id())
+        .build();
+    check(client.getCityAsync(builder -> builder.cityId(get.cityId())).get().city().name().equals("java-http"), "weather get");
     try {
       client.createCity(input);
       throw new AssertionError("missing conflict");
-    } catch (Models.ConflictError expected) {
+    } catch (ConflictError expected) {
     }
     boolean found = false;
-    var list = new Models.ListCitiesInput();
-    list.maxResults = OptionalValue.of(1);
+    var list = ListCitiesInput.builder()
+        .maxResults(1)
+        .build();
     var pages = client.listCitiesPages(list);
     while (pages.hasNext())
-      for (var row : pages.next().cities) found |= row.name.equals("java-http");
+      for (var row : pages.next().cities()) found |= row.name().equals("java-http");
     check(found, "weather pagination");
     byte[] photo = "\u00ff{\"looks\": \"like json\"}".getBytes(StandardCharsets.ISO_8859_1);
-    var put = new Models.PutCityPhotoInput();
-    put.cityId = OptionalValue.of(city.city.id);
-    put.caption = OptionalValue.of("aurora");
-    put.photo = OptionalValue.of(photo);
+    var put = PutCityPhotoInput.builder()
+        .cityId(city.city().id())
+        .caption("aurora")
+        .photo(photo)
+        .build();
     var stored = client.putCityPhoto(put);
-    check(stored.photo.size == photo.length, "weather payload size");
+    check(stored.photo().size() == photo.length, "weather payload size");
     check(
-        java.util.Arrays.equals(stored.photo.thumbnail, java.util.Arrays.copyOf(photo, 8)),
+        java.util.Arrays.equals(stored.photo().thumbnail(), java.util.Arrays.copyOf(photo, 8)),
         "weather thumbnail");
-    var read = new Models.GetCityPhotoInput();
-    read.cityId = OptionalValue.of(city.city.id);
+    var read = GetCityPhotoInput.builder()
+        .cityId(city.city().id())
+        .build();
     var got = client.getCityPhoto(read);
-    check(java.util.Arrays.equals(got.photo.value(), photo), "weather payload round trip");
-    check("aurora".equals(got.caption.value()), "weather payload caption");
+    check(java.util.Arrays.equals(got.photo(), photo), "weather payload round trip");
+    check("aurora".equals(got.caption()), "weather payload caption");
   }
 
   static void independentDeadlines() throws Exception {
@@ -581,7 +616,7 @@ public final class ClientTest {
           return "token";
         };
     try {
-      var first = new Client(config).pingAsync();
+      var first = new WeatherClient(config).pingAsync();
       var callback =
           first.whenComplete(
               (value, error) -> {
@@ -594,7 +629,7 @@ public final class ClientTest {
                 }
               });
       check(callbackEntered.await(2, TimeUnit.SECONDS), "first deadline did not complete");
-      var second = new Client(config).pingAsync();
+      var second = new WeatherClient(config).pingAsync();
       try {
         second.get(2, TimeUnit.SECONDS);
         throw new AssertionError("independent deadline did not fail");
@@ -630,7 +665,7 @@ public final class ClientTest {
               }
             })) {
       try {
-        new Client(server.config()).pingAsync().get(2, TimeUnit.SECONDS);
+        new WeatherClient(server.config()).pingAsync().get(2, TimeUnit.SECONDS);
         check(releaseBody.getCount() == 1 && calls.get() == 1, "Unit call read the body or retried");
       } finally {
         releaseBody.countDown();
@@ -661,7 +696,7 @@ public final class ClientTest {
           var config = server.config();
           config.maxAttempts = limit;
           try {
-            new Client(config).ping();
+            new WeatherClient(config).ping();
             check(limit == 2, "terminal malformed error must fail");
           } catch (ServiceError error) {
             check(limit == 1, "malformed error prevented retry");
@@ -703,6 +738,7 @@ public final class ClientTest {
     cancellation();
     independentDeadlines();
     unitSuccessDoesNotWaitForBody();
+    ergonomics();
     weather();
     System.out.println("Java client conformance and weather HTTP passed");
   }

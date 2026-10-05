@@ -173,6 +173,6 @@ pub fn ty(service: &Service, id: &ShapeId, namespace: &str, docs: bool) -> Strin
             ty(service, &map.value.target, namespace, true)
         ),
         Shape::List(_) | Shape::Map(_) => "array".into(),
-        _ => format!("\\{namespace}\\Models\\{}", service.name_of(id)),
+        _ => format!("\\{namespace}\\{}", service.name_of(id)),
     }
 }

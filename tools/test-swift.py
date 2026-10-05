@@ -153,13 +153,13 @@ struct Fake: VoidSDK.HTTPTransport {
 }
 @main struct Consumer {
     static func main() async throws {
-        let client = try Weather.Client(Weather.ClientConfig(endpoint: "http://127.0.0.1"))
-        let model = Weather.Models.CreateCityInput(name: .value("consumer"), location: .null)
-        precondition(model.name.value == "consumer")
-        let future = Weather.Models.Sky(rawValue: "future")
+        let client = try Weather.WeatherClient(Weather.ClientConfig(endpoint: "http://127.0.0.1"))
+        let model = Weather.CreateCityInput(name: "consumer", locationPresence: .null)
+        precondition(model.name == "consumer")
+        let future = Weather.Sky(rawValue: "future")
         precondition(future.rawValue == "future")
         client.close()
-        let void = try VoidSDK.Client(VoidSDK.ClientConfig(endpoint: "http://127.0.0.1", transport: Fake()))
+        let void = try VoidSDK.ServiceClient(VoidSDK.ClientConfig(endpoint: "http://127.0.0.1", transport: Fake()))
         _ = try await void.ping()
         void.close()
     }

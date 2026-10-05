@@ -150,6 +150,11 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                     ));
                 }
                 header.push_str("};\n");
+                for member in &structure.members {
+                    let field = names::field(&member.name);
+                    let value_type = slot_type(service, &member.target, p);
+                    header.push_str(&format!("static inline void {native}_set_{field}({native} *model, {value_type} value) {{ model->{field}.value = value; model->{field}.state = {p}_present; }}\nstatic inline {value_type} {native}_get_{field}(const {native} *model) {{ {value_type} empty = {{0}}; return model->{field}.state == {p}_present ? model->{field}.value : empty; }}\nstatic inline bool {native}_has_{field}(const {native} *model) {{ return model->{field}.state == {p}_present; }}\nstatic inline void {native}_clear_{field}({native} *model) {{ model->{field}.state = {p}_absent; }}\nstatic inline void {native}_null_{field}({native} *model) {{ model->{field}.state = {p}_null; }}\n"));
+                }
             }
             Shape::List(list) => {
                 header.push_str(&format!(

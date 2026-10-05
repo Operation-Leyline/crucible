@@ -88,7 +88,14 @@ fn configuration_and_reserved_names_are_diagnosed() {
         config.namespace = namespace.into();
         assert!(emit(&service, &config).is_err(), "{namespace}");
     }
-    for name in ["__PROPERTY__", "String", "Decoder"] {
+    for name in [
+        "__PROPERTY__",
+        "String",
+        "Decoder",
+        "WeatherClient",
+        "Schema",
+        "Runtime",
+    ] {
         let mut model = weather();
         model["shapes"]["example.weather#Weather"]["rename"] =
             serde_json::json!({"example.weather#CitySummary":name});

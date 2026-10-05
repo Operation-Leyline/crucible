@@ -19,22 +19,32 @@ version with `--package-version`. `crucible.json` records the generator and
 service versions and SHA-256 of the lowered wire schema. That hash identifies
 the generated wire description, not the original Smithy source file.
 
+The public client name comes from the Smithy service: `WeatherClient` for
+`Weather`, or `LeylineClient` for `Leyline`. Regenerate and replace earlier
+`Client` imports and construction sites with the service-specific name.
+
+The async counterpart is `AsyncWeatherClient` or `AsyncLeylineClient`; replace
+earlier `AsyncClient` imports in the same migration.
+
 ## Calling operations
 
 ```python
-from example_sdk import Client, AsyncClient, CreateCityInput
+from example_sdk import WeatherClient, AsyncWeatherClient, CreateCityInput
 
-with Client(token=lambda: current_access_token()) as client:
+with WeatherClient(token=lambda: current_access_token()) as client:
     city = client.create_city(CreateCityInput(name="Oslo"))
 
-async with AsyncClient(token=async_access_token) as client:
+async with AsyncWeatherClient(token=async_access_token) as client:
     async for page in client.list_cities_pages():
         print(page.cities)
 ```
 
 ## Models and precision
 
-Models are keyword-only dataclasses. `UNSET` omits a member; `None` writes
+Models are exported directly from the package and are keyword-only dataclasses.
+Pass native values, such as `CreateCityInput(name="Oslo", location=None)`, and
+read them directly with `city.city.name`. Lists and maps are ordinary Python
+`list` and `dict` values; iterate `page.cities` or use dictionary lookups. `UNSET` omits a member; `None` writes
 explicit JSON null. Required input members are constructor arguments.
 Timestamps use timezone-aware `datetime`, blobs are `bytes` (base64 in JSON,
 raw as a payload), and integer values retain signed 64-bit precision. Unknown enum strings and union alternatives survive decoding

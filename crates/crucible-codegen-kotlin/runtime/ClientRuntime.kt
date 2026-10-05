@@ -159,7 +159,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         val payload = payloadMember(op.getAsJsonObject("response"))
         val body = if (payload != null) JsonObject().also { it.addProperty(payload, Base64.getEncoder().encodeToString(response.body)) }
             else if (response.body.isEmpty()) JsonObject() else codec.parse(String(response.body, Charsets.UTF_8)).asJsonObject
-        val target = op.text("output") ?: return Models.Unit
+        val target = op.text("output") ?: return kotlin.Unit
         applyHeaders(target, body, op.getAsJsonObject("response").getAsJsonArray("headers").toList(), response)
         return codec.decode(target, body)!!
     }

@@ -40,6 +40,16 @@ def qualify(output):
             str(model), "--out", str(generated), "--group-id", "example", "--artifact-id", label,
             "--package-name", "example." + label)
         run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", cwd=generated)
+    defaults = output / "defaults"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
+        str(ROOT / "crates/crucible-codegen-java/tests/defaults.json"), "--out", str(defaults),
+        "--group-id", "example", "--artifact-id", "defaults", "--package-name", "example.defaults")
+    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
+        "package", "dependency:copy-dependencies", cwd=defaults)
+    defaults_classpath = os.pathsep.join([str(defaults / "target/classes"), str(defaults / "target/dependency/*")])
+    run("javac", "-J-Xmx256m", "--release", "17", "-d", str(classes), "-cp", defaults_classpath,
+        str(ROOT / "crates/crucible-codegen-java/tests/DefaultsTest.java"))
+    run("java", "-Xmx256m", "-cp", os.pathsep.join([str(classes), defaults_classpath]), "example.defaults.DefaultsTest")
 
 
 if __name__ == "__main__":

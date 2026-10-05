@@ -4,7 +4,7 @@ spl_autoload_register(function (string $class): void {
     require getenv('PHP_PACKAGE') . '/src/' . str_replace('\\', '/', substr($class, strlen('Example\\Weather\\'))) . '.php';
 });
 use Example\Weather\Schema;
-use Example\Weather\Runtime\{ExactJson, Field, JsonNumber, JsonObject};
+use Example\Weather\Runtime\{ExactJson, Absent, JsonNumber, JsonObject};
 
 function assertSameWire(mixed $actual, mixed $expected): void {
     if ($expected instanceof JsonNumber) {
@@ -35,13 +35,13 @@ foreach ($cases as $row) {
         assertSameWire(ExactJson::decode(ExactJson::encode($codec->encode($native, $context))), ExactJson::decode($expected['json']));
         foreach ($expected['states'] ?? [] as $member => $state) {
             $value = $native->$member;
-            $actual = $value instanceof Field ? (!$value->isSet ? 'absent' : ($value->value === null ? 'null' : 'value')) : 'value';
+            $actual = $value === Absent::Value ? 'absent' : ($value === null ? 'null' : 'value');
             if ($actual !== $state) throw new RuntimeException('Native presence mismatch: ' . $member);
         }
         if (isset($expected['blobHex']) && bin2hex($native) !== $expected['blobHex']) throw new RuntimeException('Blob mismatch');
         if (isset($expected['instant'])) {
             $instant = $expected['instant'];
-            $stamp = $native->{$instant['member']}->value;
+            $stamp = $native->{$instant['member']};
             if ((string)$stamp->seconds !== $instant['seconds'] || $stamp->nanoseconds !== $instant['nanoseconds']) throw new RuntimeException('Native instant mismatch');
         }
     } catch (Throwable $error) { throw new RuntimeException($row['id'] . ': ' . $error->getMessage(), previous: $error); }

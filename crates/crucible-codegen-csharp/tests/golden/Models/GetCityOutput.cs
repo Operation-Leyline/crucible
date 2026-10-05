@@ -4,6 +4,8 @@ namespace Example.Weather.Models;
 
 public sealed class @GetCityOutput {
     public global::Example.Weather.Models.@CitySummary @City { get; set; } = default!;
-    public global::Example.Weather.Optional<global::Example.Weather.Models.@Forecast> @Forecast { get; set; }
-    public global::Example.Weather.Optional<string> @RequestIdValue { get; set; }
+    public global::Example.Weather.Optional<global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>> @ForecastPresence { get; set; }
+    public global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>? @Forecast { get => @ForecastPresence.IsSet && !@ForecastPresence.IsNull ? @ForecastPresence.Value : (global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>?)null; set => @ForecastPresence = value is null ? global::Example.Weather.Optional<global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>>.Null : global::Example.Weather.Optional<global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>>.Of(value); }
+    public global::Example.Weather.Optional<string> @RequestIdValuePresence { get; set; }
+    public string? @RequestIdValue { get => @RequestIdValuePresence.IsSet && !@RequestIdValuePresence.IsNull ? @RequestIdValuePresence.Value : (string?)null; set => @RequestIdValuePresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
 }

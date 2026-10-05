@@ -8,12 +8,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Example.Weather;
 using Example.Weather.Models;
+using Forecast = System.Collections.Generic.Dictionary<Example.Weather.Models.Sky, System.Text.Json.Nodes.JsonNode>;
 
 static class Program
 {
     static void Check(bool ok, string message) { if (!ok) throw new Exception(message); }
     static JsonNode J(string text) => JsonNode.Parse(text)!;
-    static readonly Type RuntimeType = typeof(Client).Assembly.GetType("Example.Weather.ClientRuntime")!;
+    static readonly Type RuntimeType = typeof(WeatherClient).Assembly.GetType("Example.Weather.ClientRuntime")!;
     static object Runtime(ClientConfig config, JsonObject? schema = null, Dictionary<string, Type>? registry = null) =>
         Activator.CreateInstance(RuntimeType, BindingFlags.NonPublic | BindingFlags.Instance, null,
             schema is null ? [config, "", false] : [config, "", false, schema, registry!], null)!;
@@ -120,7 +121,7 @@ static class Program
                 Check(ExactJsonEquals(sharedEncoded, J(expect["json"]!.GetValue<string>())), id + ": " + sharedEncoded);
                 if (expect["states"] is JsonObject states) foreach (var (member, state) in states)
                 {
-                    var optional = value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..])!.GetValue(value)!;
+                    var optional = (value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..] + "Presence") ?? value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..]))!.GetValue(value)!;
                     var set = (bool?)optional.GetType().GetProperty("IsSet")?.GetValue(optional) ?? true;
                     var isNull = (bool?)optional.GetType().GetProperty("IsNull")?.GetValue(optional) ?? false;
                     Check((!set ? "absent" : isNull ? "null" : "value") == state!.GetValue<string>(), id + " native presence");
@@ -129,7 +130,7 @@ static class Program
                 if (expect["instant"] is JsonNode instant)
                 {
                     var member = instant["member"]!.GetValue<string>();
-                    var optional = value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..])!.GetValue(value)!;
+                    var optional = (value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..] + "Presence") ?? value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..]))!.GetValue(value)!;
                     var time = (DateTimeOffset)optional.GetType().GetProperty("Value")!.GetValue(optional)!;
                     long seconds = time.ToUnixTimeSeconds(), nanos = (time - DateTimeOffset.FromUnixTimeSeconds(seconds)).Ticks * 100;
                     Check(seconds.ToString(System.Globalization.CultureInfo.InvariantCulture) == instant["seconds"]!.GetValue<string>() && nanos == instant["nanoseconds"]!.GetValue<int>(), id + " instant");
@@ -145,10 +146,16 @@ static class Program
             Check(JsonNode.DeepEquals(Encode(runtime, "example.weather#Location", Decode(runtime, "example.weather#Location", unknown)), J(unknown)), "unknown union");
             Check(Encode(runtime, "example.weather#Location", new Location { Unknown = new Unit() }).ToJsonString() == "{\"unknown\":{}}", "unit union");
             var city = (CitySummary)Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x","createdAt":-0.0000001,"population":9223372036854775807}""");
-            Check(city.Population == long.MaxValue && city.CreatedAt.Value == DateTimeOffset.UnixEpoch.AddTicks(-1), "number and timestamp precision");
+            Check(city.Population == long.MaxValue && city.CreatedAt == DateTimeOffset.UnixEpoch.AddTicks(-1), "number and timestamp precision");
             Check(((CitySummary)Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x"}""")).Population == 0, "absent default");
             try { Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x","population":null}"""); throw new Exception("null default accepted"); } catch (JsonException) { }
-            var input = new CreateCityInput { Name = "x", Location = Optional<Location>.Null };
+            var ordinary = new CreateCityInput { Name = "", ExpectedRevision = 0L };
+            Check(ordinary.Name == "" && ordinary.ExpectedRevision == 0L && ordinary.NamePresence.IsSet, "ordinary values retain presence");
+            ordinary.Name = null;
+            Check(ordinary.Name is null && ordinary.NamePresence.IsNull, "nullable assignment is explicit null");
+            ordinary.NamePresence = default;
+            Check(ordinary.Name is null && !ordinary.NamePresence.IsSet, "advanced absence reset");
+            var input = new CreateCityInput { Name = "x", LocationPresence = Optional<Location>.Null };
             var encoded = Encode(runtime, "example.weather#CreateCityInput", input).AsObject();
             Check(encoded.ContainsKey("location") && encoded["location"] is null && !encoded.ContainsKey("clientToken"), "presence");
             var forecast = (Forecast)Decode(runtime, "example.weather#Forecast", """{"future":{"n":9223372036854775807}}""");
@@ -187,30 +194,30 @@ static class Program
             return sent.Count == 1 ? new(503, "{\"__type\":\"FutureError\"}") : new(200, """{"city":{"id":"c","name":"x"}}""");
         }))
         {
-            using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero, Token = _ => ValueTask.FromResult<string?>((++credentials).ToString()),
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero, Token = _ => ValueTask.FromResult<string?>((++credentials).ToString()),
                 Middleware = [async (request, ct) => { var content = await request.Content!.ReadAsStringAsync(ct); request.Content.Dispose(); request.Content = new StringContent(content + " "); }] });
             var input = new CreateCityInput { Name = "x", ExpectedRevision = 7L };
             await client.CreateCityAsync(input);
-            Check(!input.ClientToken.IsSet && sent[0].SequenceEqual(sent[1]), "token reuse and caller immutability");
+            Check(!input.ClientTokenPresence.IsSet && sent[0].SequenceEqual(sent[1]), "token reuse and caller immutability");
         }
         await using (var server = new Server(request => {
             Check(request.Path.Contains("a%2Fb%20%2A%3F%23%C3%A9", StringComparison.OrdinalIgnoreCase), "label encoding " + request.Path);
             return new(200, """{"city":{"id":"x","name":"x"}}""", new() { ["x-request-id"] = "r1" });
         }))
         {
-            using var client = new Client(new() { Endpoint = server.Endpoint });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint });
             var city = await client.GetCityAsync(new() { CityId = "a/b *?#é" });
-            Check(city.RequestIdValue.Value == "r1", "response header");
+            Check(city.RequestIdValue == "r1", "response header");
         }
         await using (var server = new Server(_ => new(400, """{"__type":"ValidationError","message":"bad","reason":"other","requestId":"body"}""", new() { ["x-request-id"] = "wire" })))
         {
-            using var client = new Client(new() { Endpoint = server.Endpoint });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint });
             try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("typed error missing"); }
-            catch (ValidationError e) { Check(e.RequestId == "wire" && e.RequestIdValue.Value == "body" && e.Message == "bad" && e.StatusCode == 400, "error metadata"); }
+            catch (ValidationError e) { Check(e.RequestId == "wire" && e.RequestIdValue == "body" && e.Message == "bad" && e.StatusCode == 400, "error metadata"); }
         }
         await using (var server = new Server(_ => new(400, """{"__type":"FutureError","requestId":{}}""", new() { ["x-request-id"] = "wire" })))
         {
-            using var client = new Client(new() { Endpoint = server.Endpoint });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint });
             try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("error missing"); }
             catch (ServiceError e) { Check(e.ErrorName == "FutureError" && e.RequestId == "wire", "malformed metadata"); }
         }
@@ -234,14 +241,14 @@ static class Program
             Check(request.Headers["x-amz-content-sha256"] == Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant(), "empty payload digest");
             return new(200, """{"photo":{"size":0,"thumbnail":""}}""");
         });
-        using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
+        using var client = new WeatherClient(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
         var stored = await client.PutCityPhotoAsync(new() { CityId = "c-00000001", Caption = "harbour", Photo = photo });
         Check(stored.Photo.Thumbnail.SequenceEqual(photo.Take(8)), "JSON thumbnail decoding");
         var get = new GetCityPhotoInput { CityId = "c-00000001" };
         var read = await client.GetCityPhotoAsync(get);
-        Check(read.Photo.IsSet && read.Photo.Value.SequenceEqual(photo) && read.Caption.Value == "harbour", "raw response and header binding");
+        Check(read.PhotoPresence.IsSet && read.Photo!.SequenceEqual(photo) && read.Caption == "harbour", "raw response and header binding");
         var empty = await client.GetCityPhotoAsync(get);
-        Check(empty.Photo.IsSet && empty.Photo.Value.Length == 0, "empty raw response presence");
+        Check(empty.PhotoPresence.IsSet && empty.Photo!.Length == 0, "empty raw response presence");
         await client.PutCityPhotoAsync(new() { CityId = "c-00000001", Photo = Array.Empty<byte>() });
         Check(calls == 5, "payload retry count");
     }
@@ -254,7 +261,7 @@ static class Program
         })
         {
             await using var server = new Server(_ => new(400, body, new() { ["x-request-id"] = "malformed-id", ["x-error-detail"] = "retained" }));
-            using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
             try { await client.PingAsync(); throw new Exception("malformed modeled error ignored"); }
             catch (ServiceError error)
             {
@@ -264,10 +271,10 @@ static class Program
             }
         }
 
-        using var schemaStream = typeof(Client).Assembly.GetManifestResourceStream("crucible.schema.json")!;
+        using var schemaStream = typeof(WeatherClient).Assembly.GetManifestResourceStream("crucible.schema.json")!;
         var schema = JsonNode.Parse(schemaStream)!.AsObject();
         schema["operations"] = J("""{"Retry":{"method":"POST","uri":"/","input":null,"output":null,"token":null,"safe":false,"request":{"labels":[],"query":[],"headers":[],"body":[]},"response":{"headers":[],"body":[]},"errors":["example.weather#ThrottlingError"]}}""");
-        var registry = (Dictionary<string, Type>)typeof(Client).Assembly.GetType("Example.Weather.ModelRegistry")!.GetField("Types", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        var registry = (Dictionary<string, Type>)typeof(WeatherClient).Assembly.GetType("Example.Weather.ModelRegistry")!.GetField("Types", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         foreach (var (body, header) in new[] {
             ("""{"__type":"ThrottlingError","message":{}}""", "0"),
             ("""{"__type":"ThrottlingError","message":"overflow","retryAfter":2147483648}""", (string?)null),
@@ -325,42 +332,42 @@ static class Program
     {
         await using (var server = new Server(_ => new(200, "invalid")))
         {
-            using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
             try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("JSON accepted"); } catch (JsonException) { }
             Check(server.Attempts == 1, "malformed JSON retried");
         }
         int requests = 0;
         await using (var server = new Server(_ => new(200, """{"city":{"id":"x","name":"x"}}""", Truncated: ++requests == 1)))
         {
-            using var client = new Client(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
             await client.GetCityAsync(new() { CityId = "x" }); Check(requests == 2, "truncated body retry");
         }
         await using (var server = new Server(_ => new(200, "ignored", Stall: true)))
         {
-            using var client = new Client(new() { Endpoint = server.Endpoint });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint });
             await client.PingAsync().WaitAsync(TimeSpan.FromSeconds(2));
         }
         await using (var server = new Server(_ => new(200, "{}")))
         {
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var client = new Client(new() { Endpoint = server.Endpoint, Token = _ => { entered.SetResult(); return new(release.Task); } });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint, Token = _ => { entered.SetResult(); return new(release.Task); } });
             using var cancel = new CancellationTokenSource();
             var call = client.PingAsync(cancel.Token); await entered.Task.WaitAsync(TimeSpan.FromSeconds(2)); cancel.Cancel();
             try { await call.WaitAsync(TimeSpan.FromSeconds(2)); throw new Exception("not canceled"); } catch (OperationCanceledException) { }
             release.SetResult("token"); await Task.Delay(50); Check(server.Attempts == 0, "sent canceled request");
         }
-        using (var client = new Client(new() { Endpoint = "http://example.invalid", Token = _ => ValueTask.FromResult<string?>("secret") }))
+        using (var client = new WeatherClient(new() { Endpoint = "http://example.invalid", Token = _ => ValueTask.FromResult<string?>("secret") }))
         {
             try { await client.PingAsync(); throw new Exception("plaintext credentials allowed"); } catch (ArgumentException) { }
         }
         int pages = 0;
         await using (var server = new Server(_ => { pages++; return new(200, """{"cities":[],"nextToken":"same"}"""); }))
         {
-            using var client = new Client(new() { Endpoint = server.Endpoint });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint });
             var input = new ListCitiesInput();
             try { await foreach (var _ in client.ListCitiesPagesAsync(input)) { } throw new Exception("cycle accepted"); } catch (InvalidOperationException) { }
-            Check(pages == 2 && !input.NextToken.IsSet, "cycle detection and input mutation");
+            Check(pages == 2 && !input.NextTokenPresence.IsSet, "cycle detection and input mutation");
         }
     }
     sealed class NonPumpingContext : SynchronizationContext
@@ -369,7 +376,7 @@ static class Program
     }
     static async Task Weather()
     {
-        using var client = new Client(new() { Endpoint = Environment.GetEnvironmentVariable("WEATHER_URL"), Token = async _ => { await Task.Delay(1); return "test-token"; } });
+        using var client = new WeatherClient(new() { Endpoint = Environment.GetEnvironmentVariable("WEATHER_URL"), Token = async _ => { await Task.Delay(1); return "test-token"; } });
         var input = new CreateCityInput { Name = "csharp-http", Location = new Location { Unknown = new Unit() } };
         var previous = SynchronizationContext.Current;
         CreateCityOutput city;
@@ -384,7 +391,7 @@ static class Program
         var stored = await client.PutCityPhotoAsync(new() { CityId = city.City.Id, Caption = "aurora", Photo = photo });
         Check(stored.Photo.Size == photo.Length && stored.Photo.Thumbnail.SequenceEqual(photo.Take(8)), "weather payload size and thumbnail");
         var read = await client.GetCityPhotoAsync(new() { CityId = city.City.Id });
-        Check(read.Photo.IsSet && read.Photo.Value.SequenceEqual(photo) && read.Caption.Value == "aurora", "weather payload round trip");
+        Check(read.PhotoPresence.IsSet && read.Photo!.SequenceEqual(photo) && read.Caption == "aurora", "weather payload round trip");
     }
     static async Task Main(string[] args)
     {

@@ -1,11 +1,16 @@
 package example.consumer
 
+import example.weather.model.PutCityPhotoInput
+import example.weather.model.Location
+import example.weather.model.ListCitiesInput
+import example.weather.model.GetCityPhotoInput
+import example.weather.model.GetCityInput
+import example.weather.model.CreateCityInput
+import example.weather.model.ConflictError
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import example.weather.Client
+import example.weather.WeatherClient
 import example.weather.ClientConfig
-import example.weather.Models
-import example.weather.OptionalValue
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.time.Instant
@@ -24,23 +29,22 @@ class ClientTest {
     @Test fun weatherAndCancellation(): Unit = runBlocking {
         val endpoint = InstrumentationRegistry.getArguments().getString("endpoint")!!
         withTimeout(30000) {
-            Client(ClientConfig(endpoint = endpoint, token = { "test-token" })).use { client ->
-                val input = Models.CreateCityInput(name = OptionalValue.of("kotlin-android"),
-                    location = OptionalValue.of(Models.Location.Unknown(Models.Unit)))
+            WeatherClient(ClientConfig(endpoint = endpoint, token = { "test-token" })).use { client ->
+                val input = CreateCityInput { this.name = "kotlin-android"; this.location = Location.Unknown(kotlin.Unit) }
                 val city = client.createCity(input)
-                check(client.getCity(Models.GetCityInput(cityId = OptionalValue.of(city.city.id))).city.name == "kotlin-android")
+                check(client.getCity(GetCityInput { this.cityId = city.city.id }).city.name == "kotlin-android")
                 val photo = byteArrayOf(0, 1, -1, -128)
-                val stored = client.putCityPhoto(Models.PutCityPhotoInput(cityId = OptionalValue.of(city.city.id), photo = OptionalValue.of(photo)))
+                val stored = client.putCityPhoto(PutCityPhotoInput { this.cityId = city.city.id; this.photo = photo })
                 check(stored.photo.thumbnail.contentEquals(photo))
-                check(client.getCityPhoto(Models.GetCityPhotoInput(cityId = OptionalValue.of(city.city.id))).photo.value!!.contentEquals(photo))
-                try { client.createCity(input); error("Expected modeled conflict") } catch (_: Models.ConflictError) { }
-                check(client.listCitiesPages(Models.ListCitiesInput(maxResults = OptionalValue.of(1))).toList()
+                check(client.getCityPhoto(GetCityPhotoInput { this.cityId = city.city.id }).photo!!.contentEquals(photo))
+                try { client.createCity(input); error("Expected modeled conflict") } catch (_: ConflictError) { }
+                check(client.listCitiesPages(ListCitiesInput { this.maxResults = 1 }).toList()
                     .any { page -> page.cities.any { it.name == "kotlin-android" } })
-                check(!input.clientToken.present)
+                check(!input.hasClientToken())
             }
             val entered = CompletableDeferred<Unit>()
             val release = CompletableDeferred<String>()
-            Client(ClientConfig(endpoint = endpoint, token = { entered.complete(Unit); release.await() })).use { client ->
+            WeatherClient(ClientConfig(endpoint = endpoint, token = { entered.complete(Unit); release.await() })).use { client ->
                 val pending = launch { client.ping() }
                 entered.await()
                 pending.cancelAndJoin()
@@ -68,10 +72,10 @@ class ClientTest {
                 } catch (error: Throwable) { served.completeExceptionally(error) }
             }
             withTimeout(10000) {
-                Client(ClientConfig(endpoint = "http://127.0.0.1:${server.localPort}")).use { client ->
-                    val city = client.getCity(Models.GetCityInput(cityId = OptionalValue.of("c"))).city
+                WeatherClient(ClientConfig(endpoint = "http://127.0.0.1:${server.localPort}")).use { client ->
+                    val city = client.getCity(GetCityInput { this.cityId = "c" }).city
                     check(city.population == Long.MAX_VALUE)
-                    check(city.createdAt.value == Instant.ofEpochSecond(-1, 999999999))
+                    check(city.createdAt == Instant.ofEpochSecond(-1, 999999999))
                 }
                 served.await()
             }

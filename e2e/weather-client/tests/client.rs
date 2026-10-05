@@ -13,7 +13,7 @@ use weather_client::model::{
     PutCityPhotoInput, Sky, StatusInput,
 };
 use weather_client::{
-    Client, CreateCityError, GetCityError, ListCitiesError, PingError, PutCityPhotoError,
+    CreateCityError, GetCityError, ListCitiesError, PingError, PutCityPhotoError, WeatherClient,
 };
 use weather_service::MemoryCities;
 
@@ -33,31 +33,31 @@ fn fast_retries() -> Retry {
     }
 }
 
-async fn client() -> Client {
-    Client::new(Config::new(serve().await).retry(fast_retries()))
+async fn client() -> WeatherClient {
+    WeatherClient::new(Config::new(serve().await).retry(fast_retries()))
 }
 
 fn create(name: &str) -> CreateCityInput {
-    CreateCityInput {
-        name: Field::Value(name.to_owned()),
-        location: Field::Absent,
-        client_token: Field::Absent,
-        expected_revision: Field::Absent,
-    }
+    CreateCityInput::builder().name(name).build()
 }
 
 #[tokio::test]
 async fn a_created_city_reads_back_with_every_member_intact() {
     let client = client().await;
     let created = client
-        .create_city(CreateCityInput {
-            expected_revision: Field::Value(7),
-            location: Field::Value(Location::Coordinates(Coordinates {
-                latitude: 59.9,
-                longitude: 10.7,
-            })),
-            ..create("oslo")
-        })
+        .create_city(
+            CreateCityInput::builder()
+                .name("oslo")
+                .expected_revision(7)
+                .location(Location::Coordinates(
+                    Coordinates::builder()
+                        .latitude(59.9)
+                        .longitude(10.7)
+                        .build()
+                        .unwrap(),
+                ))
+                .build(),
+        )
         .await
         .unwrap();
     assert!(created.city.id.starts_with("c-"), "{}", created.city.id);
@@ -66,7 +66,7 @@ async fn a_created_city_reads_back_with_every_member_intact() {
         "a header member reached the server"
     );
     assert!(
-        created.city.updated_at.value().is_some(),
+        created.city.updated_at().is_some(),
         "date-time body timestamp"
     );
     // Epoch seconds travel with millisecond precision, date-times with all of it.
@@ -79,10 +79,12 @@ async fn a_created_city_reads_back_with_every_member_intact() {
 
     let at = Utc.with_ymd_and_hms(2026, 10, 1, 12, 30, 0).unwrap();
     let read = client
-        .get_city(GetCityInput {
-            city_id: Field::Value(created.city.id.clone()),
-            at: Field::Value(at),
-        })
+        .get_city(
+            GetCityInput::builder()
+                .city_id(created.city.id())
+                .at(at)
+                .build(),
+        )
         .await
         .unwrap();
     assert_eq!(read.city.name, "oslo");
@@ -188,11 +190,7 @@ async fn pagination_walks_every_page_and_list_query_parameters_repeat() {
     for name in names {
         client.create_city(create(name)).await.unwrap();
     }
-    let mut pages = client.list_cities_pages(ListCitiesInput {
-        max_results: Field::Value(2),
-        next_token: Field::Absent,
-        tags: Field::Absent,
-    });
+    let mut pages = client.list_cities_pages(ListCitiesInput::builder().max_results(2).build());
     let mut seen = Vec::new();
     let mut count = 0;
     while let Some(page) = pages.next_page().await {
@@ -207,11 +205,11 @@ async fn pagination_walks_every_page_and_list_query_parameters_repeat() {
     }
 
     let filtered = client
-        .list_cities(ListCitiesInput {
-            tags: Field::Value(vec!["p-two".to_owned(), "p-three".to_owned()]),
-            max_results: Field::Absent,
-            next_token: Field::Absent,
-        })
+        .list_cities(
+            ListCitiesInput::builder()
+                .tags(vec!["p-two".to_owned(), "p-three".to_owned()])
+                .build(),
+        )
         .await
         .unwrap();
     let mut names: Vec<_> = filtered.cities.into_iter().map(|city| city.name).collect();
@@ -219,8 +217,8 @@ async fn pagination_walks_every_page_and_list_query_parameters_repeat() {
     assert_eq!(names, ["p-three", "p-two"]);
 }
 
-fn failing(endpoint: &str, key: &str, times: u32) -> Client {
-    Client::new(
+fn failing(endpoint: &str, key: &str, times: u32) -> WeatherClient {
+    WeatherClient::new(
         Config::new(endpoint)
             .retry(fast_retries())
             .header("x-fail-key".parse().unwrap(), key.parse().unwrap())
@@ -252,7 +250,7 @@ async fn the_token_provider_is_asked_on_every_attempt() {
     let endpoint = serve().await;
     let asked = Arc::new(AtomicU32::new(0));
     let counter = asked.clone();
-    let client = Client::new(
+    let client = WeatherClient::new(
         Config::new(endpoint)
             .retry(fast_retries())
             .header("x-fail-key".parse().unwrap(), "provider".parse().unwrap())
@@ -299,7 +297,7 @@ impl crucible_client::Interceptor for Sent {
 #[tokio::test]
 async fn a_payload_travels_raw_both_ways() {
     let sent = Sent::default();
-    let client = Client::new(Config::new(serve().await).interceptor(sent.clone()));
+    let client = WeatherClient::new(Config::new(serve().await).interceptor(sent.clone()));
     let city = client.create_city(create("tromso")).await.unwrap().city;
     let photo: &'static [u8] = b"\xff\xd8{\"looks\": \"like json\"}\x00\x80";
     let stored = client
@@ -343,6 +341,6 @@ async fn a_payload_travels_raw_both_ways() {
 
 #[tokio::test]
 async fn an_unreachable_service_is_a_transport_error() {
-    let client = Client::new(Config::new("http://127.0.0.1:9").retry(Retry::none()));
+    let client = WeatherClient::new(Config::new("http://127.0.0.1:9").retry(Retry::none()));
     assert!(matches!(client.ping().await, Err(Error::Transport(_))));
 }

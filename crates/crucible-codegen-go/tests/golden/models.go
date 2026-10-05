@@ -16,11 +16,29 @@ type CitySummary struct {
     UpdatedAt Optional[time.Time]
     CreatedAt Optional[time.Time]
 }
+func (m *CitySummary) SetId(value CityId) { m.Id = value }
+func (m *CitySummary) GetId() CityId { return m.Id }
+func (m *CitySummary) SetName(value CityName) { m.Name = value }
+func (m *CitySummary) GetName() CityName { return m.Name }
+func (m *CitySummary) SetPopulation(value int64) { m.Population = value }
+func (m *CitySummary) GetPopulation() int64 { return m.Population }
+func (m *CitySummary) SetUpdatedAt(value time.Time) { m.UpdatedAt = Some(value) }
+// GetUpdatedAt returns the value, or its zero value when absent or null.
+func (m *CitySummary) GetUpdatedAt() time.Time { if m != nil && m.UpdatedAt.Set && !m.UpdatedAt.Null { return m.UpdatedAt.Value }; var zero time.Time; return zero }
+func (m *CitySummary) HasUpdatedAt() bool { return m != nil && m.UpdatedAt.Set }
+func (m *CitySummary) IsNullUpdatedAt() bool { return m != nil && m.UpdatedAt.Set && m.UpdatedAt.Null }
+func (m *CitySummary) SetCreatedAt(value time.Time) { m.CreatedAt = Some(value) }
+// GetCreatedAt returns the value, or its zero value when absent or null.
+func (m *CitySummary) GetCreatedAt() time.Time { if m != nil && m.CreatedAt.Set && !m.CreatedAt.Null { return m.CreatedAt.Value }; var zero time.Time; return zero }
+func (m *CitySummary) HasCreatedAt() bool { return m != nil && m.CreatedAt.Set }
+func (m *CitySummary) IsNullCreatedAt() bool { return m != nil && m.CreatedAt.Set && m.CreatedAt.Null }
 
 type ConflictError struct {
     Message string
     Metadata *ServiceError
 }
+func (m *ConflictError) SetMessage(value string) { m.Message = value }
+func (m *ConflictError) GetMessage() string { return m.Message }
 func (e *ConflictError) Error() string { return e.Metadata.Error() }
 func (e *ConflictError) Unwrap() error { return e.Metadata }
 
@@ -28,6 +46,10 @@ type Coordinates struct {
     Latitude float64
     Longitude float64
 }
+func (m *Coordinates) SetLatitude(value float64) { m.Latitude = value }
+func (m *Coordinates) GetLatitude() float64 { return m.Latitude }
+func (m *Coordinates) SetLongitude(value float64) { m.Longitude = value }
+func (m *Coordinates) GetLongitude() float64 { return m.Longitude }
 
 type CreateCityInput struct {
     Name Optional[CityName]
@@ -35,10 +57,32 @@ type CreateCityInput struct {
     ClientToken Optional[string]
     ExpectedRevision Optional[int64]
 }
+func (m *CreateCityInput) SetName(value CityName) { m.Name = Some(value) }
+// GetName returns the value, or its zero value when absent or null.
+func (m *CreateCityInput) GetName() CityName { if m != nil && m.Name.Set && !m.Name.Null { return m.Name.Value }; var zero CityName; return zero }
+func (m *CreateCityInput) HasName() bool { return m != nil && m.Name.Set }
+func (m *CreateCityInput) IsNullName() bool { return m != nil && m.Name.Set && m.Name.Null }
+func (m *CreateCityInput) SetLocation(value *Location) { m.Location = Some(value) }
+// GetLocation returns the value, or its zero value when absent or null.
+func (m *CreateCityInput) GetLocation() *Location { if m != nil && m.Location.Set && !m.Location.Null { return m.Location.Value }; var zero *Location; return zero }
+func (m *CreateCityInput) HasLocation() bool { return m != nil && m.Location.Set }
+func (m *CreateCityInput) IsNullLocation() bool { return m != nil && m.Location.Set && m.Location.Null }
+func (m *CreateCityInput) SetClientToken(value string) { m.ClientToken = Some(value) }
+// GetClientToken returns the value, or its zero value when absent or null.
+func (m *CreateCityInput) GetClientToken() string { if m != nil && m.ClientToken.Set && !m.ClientToken.Null { return m.ClientToken.Value }; var zero string; return zero }
+func (m *CreateCityInput) HasClientToken() bool { return m != nil && m.ClientToken.Set }
+func (m *CreateCityInput) IsNullClientToken() bool { return m != nil && m.ClientToken.Set && m.ClientToken.Null }
+func (m *CreateCityInput) SetExpectedRevision(value int64) { m.ExpectedRevision = Some(value) }
+// GetExpectedRevision returns the value, or its zero value when absent or null.
+func (m *CreateCityInput) GetExpectedRevision() int64 { if m != nil && m.ExpectedRevision.Set && !m.ExpectedRevision.Null { return m.ExpectedRevision.Value }; var zero int64; return zero }
+func (m *CreateCityInput) HasExpectedRevision() bool { return m != nil && m.ExpectedRevision.Set }
+func (m *CreateCityInput) IsNullExpectedRevision() bool { return m != nil && m.ExpectedRevision.Set && m.ExpectedRevision.Null }
 
 type CreateCityOutput struct {
     City *CitySummary
 }
+func (m *CreateCityOutput) SetCity(value *CitySummary) { m.City = value }
+func (m *CreateCityOutput) GetCity() *CitySummary { return m.City }
 
 type DateTime = time.Time
 
@@ -48,44 +92,120 @@ type GetCityInput struct {
     CityId Optional[CityId]
     At Optional[DateTime]
 }
+func (m *GetCityInput) SetCityId(value CityId) { m.CityId = Some(value) }
+// GetCityId returns the value, or its zero value when absent or null.
+func (m *GetCityInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
+func (m *GetCityInput) HasCityId() bool { return m != nil && m.CityId.Set }
+func (m *GetCityInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
+func (m *GetCityInput) SetAt(value DateTime) { m.At = Some(value) }
+// GetAt returns the value, or its zero value when absent or null.
+func (m *GetCityInput) GetAt() DateTime { if m != nil && m.At.Set && !m.At.Null { return m.At.Value }; var zero DateTime; return zero }
+func (m *GetCityInput) HasAt() bool { return m != nil && m.At.Set }
+func (m *GetCityInput) IsNullAt() bool { return m != nil && m.At.Set && m.At.Null }
 
 type GetCityOutput struct {
     City *CitySummary
     Forecast Optional[Forecast]
     RequestId Optional[string]
 }
+func (m *GetCityOutput) SetCity(value *CitySummary) { m.City = value }
+func (m *GetCityOutput) GetCity() *CitySummary { return m.City }
+func (m *GetCityOutput) SetForecast(value Forecast) { m.Forecast = Some(value) }
+// GetForecast returns the value, or its zero value when absent or null.
+func (m *GetCityOutput) GetForecast() Forecast { if m != nil && m.Forecast.Set && !m.Forecast.Null { return m.Forecast.Value }; var zero Forecast; return zero }
+func (m *GetCityOutput) HasForecast() bool { return m != nil && m.Forecast.Set }
+func (m *GetCityOutput) IsNullForecast() bool { return m != nil && m.Forecast.Set && m.Forecast.Null }
+func (m *GetCityOutput) SetRequestId(value string) { m.RequestId = Some(value) }
+// GetRequestId returns the value, or its zero value when absent or null.
+func (m *GetCityOutput) GetRequestId() string { if m != nil && m.RequestId.Set && !m.RequestId.Null { return m.RequestId.Value }; var zero string; return zero }
+func (m *GetCityOutput) HasRequestId() bool { return m != nil && m.RequestId.Set }
+func (m *GetCityOutput) IsNullRequestId() bool { return m != nil && m.RequestId.Set && m.RequestId.Null }
 
 type GetCityPhotoInput struct {
     CityId Optional[CityId]
 }
+func (m *GetCityPhotoInput) SetCityId(value CityId) { m.CityId = Some(value) }
+// GetCityId returns the value, or its zero value when absent or null.
+func (m *GetCityPhotoInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
+func (m *GetCityPhotoInput) HasCityId() bool { return m != nil && m.CityId.Set }
+func (m *GetCityPhotoInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
 
 type GetCityPhotoOutput struct {
     Caption Optional[string]
     Photo Optional[Photo]
 }
+func (m *GetCityPhotoOutput) SetCaption(value string) { m.Caption = Some(value) }
+// GetCaption returns the value, or its zero value when absent or null.
+func (m *GetCityPhotoOutput) GetCaption() string { if m != nil && m.Caption.Set && !m.Caption.Null { return m.Caption.Value }; var zero string; return zero }
+func (m *GetCityPhotoOutput) HasCaption() bool { return m != nil && m.Caption.Set }
+func (m *GetCityPhotoOutput) IsNullCaption() bool { return m != nil && m.Caption.Set && m.Caption.Null }
+func (m *GetCityPhotoOutput) SetPhoto(value Photo) { m.Photo = Some(value) }
+// GetPhoto returns the value, or its zero value when absent or null.
+func (m *GetCityPhotoOutput) GetPhoto() Photo { if m != nil && m.Photo.Set && !m.Photo.Null { return m.Photo.Value }; var zero Photo; return zero }
+func (m *GetCityPhotoOutput) HasPhoto() bool { return m != nil && m.Photo.Set }
+func (m *GetCityPhotoOutput) IsNullPhoto() bool { return m != nil && m.Photo.Set && m.Photo.Null }
 
 type ListCitiesInput struct {
     NextToken Optional[string]
     MaxResults Optional[int32]
     Tags Optional[Tags]
 }
+func (m *ListCitiesInput) SetNextToken(value string) { m.NextToken = Some(value) }
+// GetNextToken returns the value, or its zero value when absent or null.
+func (m *ListCitiesInput) GetNextToken() string { if m != nil && m.NextToken.Set && !m.NextToken.Null { return m.NextToken.Value }; var zero string; return zero }
+func (m *ListCitiesInput) HasNextToken() bool { return m != nil && m.NextToken.Set }
+func (m *ListCitiesInput) IsNullNextToken() bool { return m != nil && m.NextToken.Set && m.NextToken.Null }
+func (m *ListCitiesInput) SetMaxResults(value int32) { m.MaxResults = Some(value) }
+// GetMaxResults returns the value, or its zero value when absent or null.
+func (m *ListCitiesInput) GetMaxResults() int32 { if m != nil && m.MaxResults.Set && !m.MaxResults.Null { return m.MaxResults.Value }; var zero int32; return zero }
+func (m *ListCitiesInput) HasMaxResults() bool { return m != nil && m.MaxResults.Set }
+func (m *ListCitiesInput) IsNullMaxResults() bool { return m != nil && m.MaxResults.Set && m.MaxResults.Null }
+func (m *ListCitiesInput) SetTags(value Tags) { m.Tags = Some(value) }
+// GetTags returns the value, or its zero value when absent or null.
+func (m *ListCitiesInput) GetTags() Tags { if m != nil && m.Tags.Set && !m.Tags.Null { return m.Tags.Value }; var zero Tags; return zero }
+func (m *ListCitiesInput) HasTags() bool { return m != nil && m.Tags.Set }
+func (m *ListCitiesInput) IsNullTags() bool { return m != nil && m.Tags.Set && m.Tags.Null }
 
 type ListCitiesOutput struct {
     Cities CitySummaries
     NextToken Optional[string]
 }
+func (m *ListCitiesOutput) SetCities(value CitySummaries) { m.Cities = value }
+func (m *ListCitiesOutput) GetCities() CitySummaries { return m.Cities }
+func (m *ListCitiesOutput) SetNextToken(value string) { m.NextToken = Some(value) }
+// GetNextToken returns the value, or its zero value when absent or null.
+func (m *ListCitiesOutput) GetNextToken() string { if m != nil && m.NextToken.Set && !m.NextToken.Null { return m.NextToken.Value }; var zero string; return zero }
+func (m *ListCitiesOutput) HasNextToken() bool { return m != nil && m.NextToken.Set }
+func (m *ListCitiesOutput) IsNullNextToken() bool { return m != nil && m.NextToken.Set && m.NextToken.Null }
 
 type Location struct {
     Coordinates Optional[*Coordinates]
     Unknown Optional[Unit]
     UnknownVariant *UnknownUnion
 }
+func (m *Location) SetCoordinates(value *Coordinates) { *m = Location{}; m.Coordinates = Some(value) }
+// GetCoordinates returns the value, or its zero value when absent or null.
+func (m *Location) GetCoordinates() *Coordinates { if m != nil && m.Coordinates.Set && !m.Coordinates.Null { return m.Coordinates.Value }; var zero *Coordinates; return zero }
+func (m *Location) HasCoordinates() bool { return m != nil && m.Coordinates.Set }
+func (m *Location) IsNullCoordinates() bool { return m != nil && m.Coordinates.Set && m.Coordinates.Null }
+func (m *Location) SetUnknown(value Unit) { *m = Location{}; m.Unknown = Some(value) }
+// GetUnknown returns the value, or its zero value when absent or null.
+func (m *Location) GetUnknown() Unit { if m != nil && m.Unknown.Set && !m.Unknown.Null { return m.Unknown.Value }; var zero Unit; return zero }
+func (m *Location) HasUnknown() bool { return m != nil && m.Unknown.Set }
+func (m *Location) IsNullUnknown() bool { return m != nil && m.Unknown.Set && m.Unknown.Null }
 
 type NotFoundError struct {
     Message string
     ResourceId Optional[string]
     Metadata *ServiceError
 }
+func (m *NotFoundError) SetMessage(value string) { m.Message = value }
+func (m *NotFoundError) GetMessage() string { return m.Message }
+func (m *NotFoundError) SetResourceId(value string) { m.ResourceId = Some(value) }
+// GetResourceId returns the value, or its zero value when absent or null.
+func (m *NotFoundError) GetResourceId() string { if m != nil && m.ResourceId.Set && !m.ResourceId.Null { return m.ResourceId.Value }; var zero string; return zero }
+func (m *NotFoundError) HasResourceId() bool { return m != nil && m.ResourceId.Set }
+func (m *NotFoundError) IsNullResourceId() bool { return m != nil && m.ResourceId.Set && m.ResourceId.Null }
 func (e *NotFoundError) Error() string { return e.Metadata.Error() }
 func (e *NotFoundError) Unwrap() error { return e.Metadata }
 
@@ -96,16 +216,42 @@ type PhotoSummary struct {
     Thumbnail Thumbnail
     Caption Optional[string]
 }
+func (m *PhotoSummary) SetSize(value int32) { m.Size = value }
+func (m *PhotoSummary) GetSize() int32 { return m.Size }
+func (m *PhotoSummary) SetThumbnail(value Thumbnail) { m.Thumbnail = value }
+func (m *PhotoSummary) GetThumbnail() Thumbnail { return m.Thumbnail }
+func (m *PhotoSummary) SetCaption(value string) { m.Caption = Some(value) }
+// GetCaption returns the value, or its zero value when absent or null.
+func (m *PhotoSummary) GetCaption() string { if m != nil && m.Caption.Set && !m.Caption.Null { return m.Caption.Value }; var zero string; return zero }
+func (m *PhotoSummary) HasCaption() bool { return m != nil && m.Caption.Set }
+func (m *PhotoSummary) IsNullCaption() bool { return m != nil && m.Caption.Set && m.Caption.Null }
 
 type PutCityPhotoInput struct {
     CityId Optional[CityId]
     Caption Optional[string]
     Photo Optional[Photo]
 }
+func (m *PutCityPhotoInput) SetCityId(value CityId) { m.CityId = Some(value) }
+// GetCityId returns the value, or its zero value when absent or null.
+func (m *PutCityPhotoInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
+func (m *PutCityPhotoInput) HasCityId() bool { return m != nil && m.CityId.Set }
+func (m *PutCityPhotoInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
+func (m *PutCityPhotoInput) SetCaption(value string) { m.Caption = Some(value) }
+// GetCaption returns the value, or its zero value when absent or null.
+func (m *PutCityPhotoInput) GetCaption() string { if m != nil && m.Caption.Set && !m.Caption.Null { return m.Caption.Value }; var zero string; return zero }
+func (m *PutCityPhotoInput) HasCaption() bool { return m != nil && m.Caption.Set }
+func (m *PutCityPhotoInput) IsNullCaption() bool { return m != nil && m.Caption.Set && m.Caption.Null }
+func (m *PutCityPhotoInput) SetPhoto(value Photo) { m.Photo = Some(value) }
+// GetPhoto returns the value, or its zero value when absent or null.
+func (m *PutCityPhotoInput) GetPhoto() Photo { if m != nil && m.Photo.Set && !m.Photo.Null { return m.Photo.Value }; var zero Photo; return zero }
+func (m *PutCityPhotoInput) HasPhoto() bool { return m != nil && m.Photo.Set }
+func (m *PutCityPhotoInput) IsNullPhoto() bool { return m != nil && m.Photo.Set && m.Photo.Null }
 
 type PutCityPhotoOutput struct {
     Photo *PhotoSummary
 }
+func (m *PutCityPhotoOutput) SetPhoto(value *PhotoSummary) { m.Photo = value }
+func (m *PutCityPhotoOutput) GetPhoto() *PhotoSummary { return m.Photo }
 
 // Sky preserves unrecognized string values.
 type Sky string
@@ -127,6 +273,13 @@ type ThrottlingError struct {
     RetryAfter Optional[int32]
     Metadata *ServiceError
 }
+func (m *ThrottlingError) SetMessage(value string) { m.Message = value }
+func (m *ThrottlingError) GetMessage() string { return m.Message }
+func (m *ThrottlingError) SetRetryAfter(value int32) { m.RetryAfter = Some(value) }
+// GetRetryAfter returns the value, or its zero value when absent or null.
+func (m *ThrottlingError) GetRetryAfter() int32 { if m != nil && m.RetryAfter.Set && !m.RetryAfter.Null { return m.RetryAfter.Value }; var zero int32; return zero }
+func (m *ThrottlingError) HasRetryAfter() bool { return m != nil && m.RetryAfter.Set }
+func (m *ThrottlingError) IsNullRetryAfter() bool { return m != nil && m.RetryAfter.Set && m.RetryAfter.Null }
 func (e *ThrottlingError) Error() string { return e.Metadata.Error() }
 func (e *ThrottlingError) Unwrap() error { return e.Metadata }
 
@@ -139,6 +292,20 @@ type ValidationError struct {
     RequestId Optional[string]
     Metadata *ServiceError
 }
+func (m *ValidationError) SetMessage(value string) { m.Message = value }
+func (m *ValidationError) GetMessage() string { return m.Message }
+func (m *ValidationError) SetReason(value ValidationReason) { m.Reason = value }
+func (m *ValidationError) GetReason() ValidationReason { return m.Reason }
+func (m *ValidationError) SetFieldList(value ValidationFieldList) { m.FieldList = Some(value) }
+// GetFieldList returns the value, or its zero value when absent or null.
+func (m *ValidationError) GetFieldList() ValidationFieldList { if m != nil && m.FieldList.Set && !m.FieldList.Null { return m.FieldList.Value }; var zero ValidationFieldList; return zero }
+func (m *ValidationError) HasFieldList() bool { return m != nil && m.FieldList.Set }
+func (m *ValidationError) IsNullFieldList() bool { return m != nil && m.FieldList.Set && m.FieldList.Null }
+func (m *ValidationError) SetRequestId(value string) { m.RequestId = Some(value) }
+// GetRequestId returns the value, or its zero value when absent or null.
+func (m *ValidationError) GetRequestId() string { if m != nil && m.RequestId.Set && !m.RequestId.Null { return m.RequestId.Value }; var zero string; return zero }
+func (m *ValidationError) HasRequestId() bool { return m != nil && m.RequestId.Set }
+func (m *ValidationError) IsNullRequestId() bool { return m != nil && m.RequestId.Set && m.RequestId.Null }
 func (e *ValidationError) Error() string { return e.Metadata.Error() }
 func (e *ValidationError) Unwrap() error { return e.Metadata }
 
@@ -146,6 +313,10 @@ type ValidationField struct {
     Path string
     Message string
 }
+func (m *ValidationField) SetPath(value string) { m.Path = value }
+func (m *ValidationField) GetPath() string { return m.Path }
+func (m *ValidationField) SetMessage(value string) { m.Message = value }
+func (m *ValidationField) GetMessage() string { return m.Message }
 
 type ValidationFieldList []*ValidationField
 

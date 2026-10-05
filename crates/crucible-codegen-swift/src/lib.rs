@@ -333,9 +333,16 @@ fn enum_constant(text: &str) -> String {
     }
     result
 }
-fn ty(service: &Service, id: &ShapeId, module: &str) -> String {
+fn model_name(name: &str) -> String {
+    if reserved_module(name) {
+        format!("{name}Model")
+    } else {
+        name.to_owned()
+    }
+}
+fn ty(service: &Service, id: &ShapeId, _module: &str) -> String {
     match service.shape(id).expect("lowered shape") {
-        Shape::Unit => format!("{module}.Models.Unit"),
+        Shape::Unit => "Unit".into(),
         Shape::Simple(s) => match s.kind {
             SimpleKind::String => "Swift.String".into(),
             SimpleKind::Boolean => "Swift.Bool".into(),
@@ -345,11 +352,11 @@ fn ty(service: &Service, id: &ShapeId, module: &str) -> String {
             SimpleKind::Long => "Swift.Int64".into(),
             SimpleKind::Float => "Swift.Float".into(),
             SimpleKind::Double => "Swift.Double".into(),
-            SimpleKind::Timestamp => format!("{module}.Timestamp"),
-            SimpleKind::Document => format!("{module}.JSONValue"),
+            SimpleKind::Timestamp => "Timestamp".into(),
+            SimpleKind::Document => "JSONValue".into(),
             SimpleKind::Blob => "Foundation.Data".into(),
         },
-        _ => format!("{module}.Models.`{}`", service.name_of(id)),
+        _ => format!("`{}`", model_name(service.name_of(id))),
     }
 }
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
@@ -376,11 +383,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ]
         .map(str::to_string),
     );
+    names.insert(format!("{}Client", service.id.name()));
     for (id, shape) in &service.shapes {
         if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
             continue;
         }
-        if !identifier(service.name_of(id)) || !names.insert(service.name_of(id).to_string()) {
+        if !identifier(service.name_of(id)) || !names.insert(model_name(service.name_of(id))) {
             diagnostics.push(id, "invalid or colliding Swift model name");
         }
         if let Shape::Structure(s) | Shape::Union(s) = shape {
@@ -392,6 +400,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     field(&member.name)
                 };
                 if !members.insert(name.clone())
+                    || (matches!(shape, Shape::Structure(_))
+                        && member.optional_on_client()
+                        && !members.insert(format!("{name}Presence")))
                     || matches!(shape, Shape::Union(_))
                         && ["unknownVariant", "fromWire", "toWire"].contains(&name.as_str())
                 {
@@ -439,7 +450,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let provenance = serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"), "service":service.id.to_string(), "serviceVersion":service.version, "packageVersion":options.package_version, "schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
     let mut files = vec![
         File {
-            path: format!("{source}/Client.swift"),
+            path: format!("{source}/{}Client.swift", service.id.name()),
             contents: client::emit(service, options),
         },
         File {

@@ -22,6 +22,8 @@ pub struct File {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
+    let client_name = format!("{}Client", service.id.name());
+    let async_client_name = format!("Async{client_name}");
     if !names::identifier(&options.module_name)
         || field(&options.module_name) != options.module_name
     {
@@ -32,8 +34,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     let reserved = [
         "Any",
-        "Client",
-        "AsyncClient",
         "ServiceError",
         "NetworkError",
         "ResponseMetadata",
@@ -61,6 +61,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         if !names::identifier(name)
             || names::keyword(name)
             || reserved.contains(&name)
+            || name == client_name
+            || name == async_client_name
             || !shapes.insert(name)
         {
             diagnostics.push(
@@ -268,9 +270,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     );
     for asynchronous in [false, true] {
         let (name, base, def, wait) = if asynchronous {
-            ("AsyncClient", "AsyncClientBase", "async def", "await ")
+            (
+                async_client_name.as_str(),
+                "AsyncClientBase",
+                "async def",
+                "await ",
+            )
         } else {
-            ("Client", "SyncClient", "def", "")
+            (client_name.as_str(), "SyncClient", "def", "")
         };
         client.push_str(&format!("class {name}({base}):\n    def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:\n        super().__init__(endpoint=endpoint or {}, schema=m._SCHEMA, classes=m._CLASSES, content_sha256={}, **kwargs)\n\n",options.endpoint.as_ref().map_or("None".into(),|s|literal(s)),if options.content_sha256 {"True"} else {"False"}));
         for op in &service.operations {
@@ -353,7 +360,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         file(
             format!("src/{module}/__init__.py"),
             format!(
-                "from .client import Client, AsyncClient\n{model_import}from .runtime import UNSET, ServiceError, NetworkError, ResponseMetadata\n"
+                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, NetworkError, ResponseMetadata\n"
             ),
         ),
     ])

@@ -76,7 +76,7 @@ fn invalid_metadata_and_collisions_are_diagnosed() {
         assert!(emit(&service, &config).is_err());
     }
     model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#CitySummary":"Client"});
+        serde_json::json!({"example.weather#CitySummary":"WeatherClient"});
     let members = model["shapes"]["example.weather#CreateCityInput"]["members"]
         .as_object_mut()
         .unwrap();

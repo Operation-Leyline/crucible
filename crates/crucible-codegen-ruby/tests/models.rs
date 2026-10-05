@@ -124,3 +124,13 @@ fn case_conversion_cannot_overwrite_model_files() {
     model["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({"example.weather#CitySummary":"HTTPValue","example.weather#Location":"HttpValue"});
     assert!(emit(&lower(&model), &options()).is_err());
 }
+
+#[test]
+fn top_level_support_names_are_diagnosed() {
+    for name in ["WeatherClient", "Runtime", "Registry"] {
+        let mut model = weather();
+        model["shapes"]["example.weather#Weather"]["rename"] =
+            serde_json::json!({"example.weather#CitySummary":name});
+        assert!(emit(&lower(&model), &options()).is_err(), "{name}");
+    }
+}

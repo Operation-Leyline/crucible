@@ -8,7 +8,7 @@ from pathlib import Path
 import unittest
 
 import httpx
-from weather_client import AsyncClient, Client, UNSET, ServiceError
+from weather_client import AsyncWeatherClient, WeatherClient, UNSET, ServiceError, CreateCityInput, ListCitiesInput, CitySummary, ListCitiesOutput
 from weather_client import models as m
 from weather_client.runtime import _Codec, SyncClient, AsyncClientBase, NetworkError
 
@@ -46,6 +46,17 @@ CLASSES = {name: ServiceError for name in ("Ordinary", "Transient", "Throttled")
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_native_model_construction_and_reading(self):
+        value = CreateCityInput(name="Oslo", location=None, expected_revision=7)
+        self.assertEqual(value.name, "Oslo")
+        self.assertIsNone(value.location)
+        self.assertIs(value.client_token, UNSET)
+        cities = [CitySummary(id="c", name="Oslo", population=7)]
+        page = ListCitiesOutput(cities=cities)
+        self.assertIs(type(page.cities), list)
+        self.assertEqual([city.name for city in page.cities], ["Oslo"])
+        self.assertIs(type(ListCitiesInput(tags=["coastal"]).tags), list)
+
     def test_shared_serialization(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
         for case in SERIALIZATION_CASES:
@@ -100,7 +111,7 @@ class RuntimeTests(unittest.TestCase):
                         return (httpx.Response(case["status"], headers=case["headers"], content=case["body"].encode())
                                 if len(sent) == 1 else httpx.Response(200))
                     with httpx.Client(transport=httpx.MockTransport(respond)) as http:
-                        client = Client("https://example.invalid", http=http, max_attempts=attempts, base_delay=0)
+                        client = WeatherClient("https://example.invalid", http=http, max_attempts=attempts, base_delay=0)
                         if attempts == 1:
                             with self.assertRaises(ServiceError) as caught:
                                 client.ping()
@@ -122,7 +133,7 @@ class RuntimeTests(unittest.TestCase):
     def test_cleartext_credentials_are_rejected_before_send(self):
         with httpx.Client(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:
             with self.assertRaisesRegex(ValueError, "plaintext"):
-                Client("http://example.invalid", http=http, token="secret").ping()
+                WeatherClient("http://example.invalid", http=http, token="secret").ping()
 
     def test_shared_retries(self):
         for case in CASES:
@@ -153,7 +164,7 @@ class RuntimeTests(unittest.TestCase):
                 "forecast": {"clear": {"value": 4}},
             })
         with httpx.Client(transport=httpx.MockTransport(respond)) as http:
-            with Client(http=http, token="token") as client:
+            with WeatherClient(http=http, token="token") as client:
                 output = client.get_city(m.GetCityInput(city_id="a/b c~é", at=datetime(2026, 10, 1, tzinfo=timezone.utc)))
             self.assertFalse(http.is_closed, "an injected HTTP client belongs to its caller")
         self.assertIn("a%2Fb%20c~%C3%A9", str(sent[0].url))
@@ -174,7 +185,7 @@ class RuntimeTests(unittest.TestCase):
             return httpx.Response(503, json={"__type": "Unmodeled"}) if len(sent) == 1 else httpx.Response(200, json={"city": {"id": "c-1", "name": "é"}})
         input = m.CreateCityInput(name="é", expected_revision=7)
         with httpx.Client(transport=httpx.MockTransport(respond)) as http:
-            client = Client(http=http, token=credential, base_delay=0)
+            client = WeatherClient(http=http, token=credential, base_delay=0)
             client.create_city(input)
         self.assertIs(input.client_token, UNSET)
         self.assertEqual(len(sent), 2)
@@ -191,7 +202,7 @@ class RuntimeTests(unittest.TestCase):
             return httpx.Response(200, json={"cities": [], "nextToken": "same"})
         input = m.ListCitiesInput(max_results=2, tags=["a", "b"])
         with httpx.Client(transport=httpx.MockTransport(respond)) as http:
-            pages = Client(http=http).list_cities_pages(input)
+            pages = WeatherClient(http=http).list_cities_pages(input)
             next(pages)
             next(pages)
             with self.assertRaisesRegex(ValueError, "advance"):
@@ -213,7 +224,7 @@ class RuntimeTests(unittest.TestCase):
             sent.append(request)
             return responses.pop(0)
         with httpx.Client(transport=httpx.MockTransport(respond)) as http:
-            client = Client(http=http)
+            client = WeatherClient(http=http)
             stored = client.put_city_photo(m.PutCityPhotoInput(city_id="c-00000001", caption="harbour", photo=photo))
             read = client.get_city_photo(m.GetCityPhotoInput(city_id="c-00000001"))
             empty = client.get_city_photo(m.GetCityPhotoInput(city_id="c-00000001"))
@@ -253,7 +264,7 @@ class RuntimeTests(unittest.TestCase):
             sent.append(request)
             return httpx.Response(400, json={"__type": "ValidationError", "message": "bad", "reason": "fieldValidationFailed"}, headers={"x-request-id": "r"})
         with httpx.Client(transport=httpx.MockTransport(respond)) as http:
-            client = Client(http=http)
+            client = WeatherClient(http=http)
             with self.assertRaises(m.ValidationError) as caught:
                 client.ping()
             self.assertEqual(caught.exception.reason, m.ValidationReason.FIELD_VALIDATION_FAILED)
@@ -263,7 +274,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(len(sent), 1)
         with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, content=b"bad"))) as http:
             with self.assertRaises(json.JSONDecodeError):
-                Client(http=http).list_cities()
+                WeatherClient(http=http).list_cities()
 
     def test_body_interruption_retries_but_unit_body_is_not_read(self):
         class Broken(httpx.SyncByteStream):
@@ -275,10 +286,10 @@ class RuntimeTests(unittest.TestCase):
             sent.append(request)
             return httpx.Response(200, stream=Broken()) if len(sent) == 1 else httpx.Response(200, json={"cities": []})
         with httpx.Client(transport=httpx.MockTransport(respond)) as http:
-            self.assertEqual(Client(http=http, base_delay=0).list_cities().cities, [])
+            self.assertEqual(WeatherClient(http=http, base_delay=0).list_cities().cities, [])
         self.assertEqual(len(sent), 2)
         with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, stream=Broken()))) as http:
-            self.assertIsNone(Client(http=http).ping())
+            self.assertIsNone(WeatherClient(http=http).ping())
 
 
 class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
@@ -292,7 +303,7 @@ class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
                         return (httpx.Response(case["status"], headers=case["headers"], content=case["body"].encode())
                                 if len(sent) == 1 else httpx.Response(200))
                     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
-                        client = AsyncClient("https://example.invalid", http=http, max_attempts=attempts, base_delay=0)
+                        client = AsyncWeatherClient("https://example.invalid", http=http, max_attempts=attempts, base_delay=0)
                         if attempts == 1:
                             with self.assertRaises(ServiceError) as caught:
                                 await client.ping()
@@ -304,7 +315,7 @@ class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
     async def test_cleartext_credentials_are_rejected_before_send(self):
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:
             with self.assertRaisesRegex(ValueError, "plaintext"):
-                await AsyncClient("http://example.invalid", http=http, token="secret").ping()
+                await AsyncWeatherClient("http://example.invalid", http=http, token="secret").ping()
 
     async def test_shared_retries(self):
         for case in CASES:
@@ -335,7 +346,7 @@ class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
             sent.append(request)
             return httpx.Response(200, json={"cities": [], **({"nextToken": "next"} if len(sent) == 1 else {})})
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
-            async with AsyncClient(http=http, token=token) as client:
+            async with AsyncWeatherClient(http=http, token=token) as client:
                 pages = [page async for page in client.list_cities_pages()]
             self.assertFalse(http.is_closed)
         self.assertEqual(len(pages), 2)
@@ -350,7 +361,7 @@ class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
             started.set()
             await asyncio.Event().wait()
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
-            task = asyncio.create_task(AsyncClient(http=http).ping())
+            task = asyncio.create_task(AsyncWeatherClient(http=http).ping())
             await started.wait()
             task.cancel()
             with self.assertRaises(asyncio.CancelledError):
@@ -362,19 +373,19 @@ class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
 class HttpTests(unittest.IsolatedAsyncioTestCase):
     async def test_generated_clients_over_http(self):
         endpoint = os.environ["WEATHER_URL"]
-        with Client(endpoint) as client:
+        with WeatherClient(endpoint) as client:
             city = client.create_city(m.CreateCityInput(name="python-http", location=m.Location(unknown=None)))
             self.assertEqual(client.get_city(m.GetCityInput(city_id=city.city.id)).city.name, "python-http")
             with self.assertRaises(m.ConflictError):
                 client.create_city(m.CreateCityInput(name="python-http"))
-        async with AsyncClient(endpoint) as client:
+        async with AsyncWeatherClient(endpoint) as client:
             pages = [p async for p in client.list_cities_pages(m.ListCitiesInput(max_results=1))]
             self.assertTrue(any(c.name == "python-http" for p in pages for c in p.cities))
 
     async def test_payloads_over_http(self):
         endpoint = os.environ["WEATHER_URL"]
         photo = b"\xff\xd8{\"looks\": \"like json\"}\x00\x80"
-        async with AsyncClient(endpoint) as client:
+        async with AsyncWeatherClient(endpoint) as client:
             city = await client.create_city(m.CreateCityInput(name="python-photo"))
             stored = await client.put_city_photo(m.PutCityPhotoInput(city_id=city.city.id, caption="aurora", photo=photo))
             self.assertEqual(stored.photo.size, len(photo))

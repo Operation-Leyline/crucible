@@ -6,11 +6,11 @@
 //! ```
 //!
 //! and its code includes the result with `crucible_client::include_client!()`:
-//! the model's types, its errors, an error enum per operation, and `Client`.
+//! the model's types, its errors, an error enum per operation, and its service-named client.
 //!
 //! ```ignore
-//! let client = Client::new(Config::new("https://weather.example.com").token(Token::fixed(key)));
-//! let city = client.get_city(GetCityInput { city_id: "sea".into() }).await?;
+//! let client = WeatherClient::new(Config::new("https://weather.example.com").token(Token::fixed(key)));
+//! let city = client.get_city(GetCityInput::builder().city_id("sea").build()).await?;
 //! ```
 //!
 //! Requests travel as the service's `crucible.protocols#json` protocol
@@ -18,10 +18,12 @@
 //! only when the operation is safe to repeat (`@readonly`, `@idempotent`,
 //! or carrying an idempotency token, which the client fills when absent).
 
+mod build_error;
 mod config;
 mod paginate;
 mod transport;
 
+pub use build_error::BuildError;
 pub use config::{BoxFuture, Config, Interceptor, Retry, Token};
 pub use crucible_wire::blob::Blob;
 pub use crucible_wire::error::ModelledError;
