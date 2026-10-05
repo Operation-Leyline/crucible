@@ -13,6 +13,51 @@ permissions:
   contents: read
 
 jobs:
+  cpp-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y g++ cmake libcurl4-openssl-dev libssl-dev
+      - run: python3 tools/test-cpp.py
+        env:
+          CPP_SANITIZE: '1'
+          CARGO_BUILD_JOBS: '2'
+  cpp-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v4
+        with:
+          repository: microsoft/vcpkg
+          ref: 19780d9cdf84d0944cf9a318666703b89ab6629c
+          path: target/vcpkg
+          persist-credentials: false
+      - uses: actions/cache@v4
+        with:
+          path: '${{ runner.temp }}/cpp-vcpkg-cache'
+          key: 'cpp-vcpkg-windows-${{ hashFiles(''tools/cpp-vcpkg/vcpkg.json'') }}'
+      - name: Build native dependencies
+        shell: pwsh
+        run: |
+          $cache = Join-Path $env:RUNNER_TEMP 'cpp-vcpkg-cache'
+          New-Item -ItemType Directory -Force $cache | Out-Null
+          $env:VCPKG_DEFAULT_BINARY_CACHE = $cache
+          $env:VCPKG_MAX_CONCURRENCY = '2'
+          & target/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & target/vcpkg/vcpkg.exe install --triplet x64-windows --x-manifest-root=tools/cpp-vcpkg --x-install-root=target/cpp-dependencies
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "CMAKE_TOOLCHAIN_FILE=$env:GITHUB_WORKSPACE/target/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $env:GITHUB_ENV
+          "VCPKG_INSTALLED_DIR=$env:GITHUB_WORKSPACE/target/cpp-dependencies" >> $env:GITHUB_ENV
+      - run: python tools/test-cpp.py
+        env:
+          CARGO_BUILD_JOBS: '2'
   ruby:
     runs-on: ubuntu-latest
     strategy:

@@ -1,0 +1,674 @@
+=== CMakeLists.txt ===
+cmake_minimum_required(VERSION 3.20)
+project(weather_client VERSION 0.0.0 LANGUAGES CXX)
+find_package(CURL 7.68 REQUIRED)
+find_package(OpenSSL 1.1.1 REQUIRED)
+find_package(Threads REQUIRED)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+add_library(weather_client STATIC src/json.cpp src/timestamp.cpp src/codec.cpp src/models.cpp src/schema.cpp src/transport.cpp src/client_runtime.cpp src/client.cpp)
+target_link_libraries(weather_client PRIVATE CURL::libcurl OpenSSL::Crypto PUBLIC Threads::Threads)
+add_library(weather_client::weather_client ALIAS weather_client)
+target_compile_features(weather_client PUBLIC cxx_std_20)
+set_target_properties(weather_client PROPERTIES CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON DEBUG_POSTFIX d)
+target_include_directories(weather_client PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+if(MSVC)
+  target_compile_options(weather_client PUBLIC /utf-8 PRIVATE /W4 /WX)
+else()
+  target_compile_options(weather_client PRIVATE -Wall -Wextra -Werror)
+endif()
+install(TARGETS weather_client EXPORT weather_clientTargets ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT weather_clientTargets NAMESPACE weather_client:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/weather_client)
+configure_package_config_file(cmake/Config.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/weather_clientConfig.cmake INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/weather_client)
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/weather_clientConfigVersion.cmake VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/weather_clientConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/weather_clientConfigVersion.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/weather_client)
+install(FILES crucible.json DESTINATION ${CMAKE_INSTALL_DATADIR}/weather_client)
+
+=== cmake/Config.cmake.in ===
+@PACKAGE_INIT@
+include(CMakeFindDependencyMacro)
+find_dependency(CURL 7.68)
+find_dependency(OpenSSL 1.1.1)
+find_dependency(Threads)
+include("${CMAKE_CURRENT_LIST_DIR}/weather_clientTargets.cmake")
+check_required_components(weather_client)
+
+=== crucible.json ===
+{
+  "generatorVersion": "0.1.0",
+  "service": "example.weather#Weather",
+  "serviceVersion": "2026-10-01",
+  "packageVersion": "0.0.0",
+  "schemaSha256": "47785ec69a6736d9139576948f5b4167a8c9b3357db09ee0244cafaae46655ad"
+}
+=== include/weather_client/client.hpp ===
+#pragma once
+#include "models.hpp"
+#include "runtime/client_runtime.hpp"
+
+namespace example::weather {
+class Client {
+    std::shared_ptr<runtime::ClientRuntime> runtime_;
+public:
+    explicit Client(runtime::ClientConfig config = {});
+    void close() { runtime_->close(); }
+    [[nodiscard]] ::example::weather::models::CreateCityOutput create_city(const ::example::weather::models::CreateCityInput& input, std::stop_token stop = {}) const;
+    [[nodiscard]] ::example::weather::models::GetCityOutput get_city(const ::example::weather::models::GetCityInput& input, std::stop_token stop = {}) const;
+    [[nodiscard]] ::example::weather::models::GetCityPhotoOutput get_city_photo(const ::example::weather::models::GetCityPhotoInput& input, std::stop_token stop = {}) const;
+    [[nodiscard]] ::example::weather::models::ListCitiesOutput list_cities(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop = {}) const;
+    [[nodiscard]] runtime::Pages<::example::weather::models::ListCitiesOutput> list_cities_pages(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop = {}) const;
+    [[nodiscard]] runtime::Unit ping(std::stop_token stop = {}) const;
+    [[nodiscard]] ::example::weather::models::PutCityPhotoOutput put_city_photo(const ::example::weather::models::PutCityPhotoInput& input, std::stop_token stop = {}) const;
+    [[nodiscard]] ::example::weather::models::StatusOutput status(const ::example::weather::models::StatusInput& input, std::stop_token stop = {}) const;
+};
+}
+
+=== include/weather_client/models.hpp ===
+#pragma once
+#include "runtime/codec.hpp"
+#include <compare>
+#include <exception>
+#include <variant>
+
+namespace example::weather::models {
+struct CitySummary;
+struct ConflictError;
+struct Coordinates;
+struct CreateCityInput;
+struct CreateCityOutput;
+struct GetCityInput;
+struct GetCityOutput;
+struct GetCityPhotoInput;
+struct GetCityPhotoOutput;
+struct ListCitiesInput;
+struct ListCitiesOutput;
+struct Location;
+struct NotFoundError;
+struct PhotoSummary;
+struct PutCityPhotoInput;
+struct PutCityPhotoOutput;
+struct Sky;
+struct StatusInput;
+struct StatusOutput;
+struct ThrottlingError;
+struct ValidationError;
+struct ValidationField;
+struct ValidationReason;
+
+struct CitySummary {
+    std::string id;
+    std::string name;
+    std::int64_t population;
+    ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> updated_at;
+    ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> created_at;
+    explicit CitySummary(std::string id, std::string name, std::int64_t population, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> updated_at = {}, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> created_at = {}) : id(std::move(id)), name(std::move(name)), population(std::move(population)), updated_at(std::move(updated_at)), created_at(std::move(created_at)) {}
+};
+
+struct ConflictError : ::example::weather::runtime::ServiceError {
+    std::string message;
+    explicit ConflictError(std::string message, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::ServiceError(std::move(metadata)), message(std::move(message)) {}
+};
+
+struct Coordinates {
+    double latitude;
+    double longitude;
+    explicit Coordinates(double latitude, double longitude) : latitude(std::move(latitude)), longitude(std::move(longitude)) {}
+};
+struct LocationCoordinatesVariant { std::optional<::example::weather::models::Coordinates> value; };
+struct LocationUnknownVariant { std::optional<::example::weather::runtime::Unit> value; };
+struct LocationUnknown { std::string name; ::example::weather::runtime::Json value; };
+struct Location { std::variant<LocationCoordinatesVariant, LocationUnknownVariant, LocationUnknown> value; };
+
+struct CreateCityInput {
+    ::example::weather::runtime::Field<std::string> name;
+    ::example::weather::runtime::Field<::example::weather::models::Location> location;
+    ::example::weather::runtime::Field<std::string> client_token;
+    ::example::weather::runtime::Field<std::int64_t> expected_revision;
+    explicit CreateCityInput(::example::weather::runtime::Field<std::string> name = {}, ::example::weather::runtime::Field<::example::weather::models::Location> location = {}, ::example::weather::runtime::Field<std::string> client_token = {}, ::example::weather::runtime::Field<std::int64_t> expected_revision = {}) : name(std::move(name)), location(std::move(location)), client_token(std::move(client_token)), expected_revision(std::move(expected_revision)) {}
+};
+
+struct CreateCityOutput {
+    ::example::weather::models::CitySummary city;
+    explicit CreateCityOutput(::example::weather::models::CitySummary city) : city(std::move(city)) {}
+};
+
+struct GetCityInput {
+    ::example::weather::runtime::Field<std::string> city_id;
+    ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> at;
+    explicit GetCityInput(::example::weather::runtime::Field<std::string> city_id = {}, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> at = {}) : city_id(std::move(city_id)), at(std::move(at)) {}
+};
+
+struct Sky {
+    std::string value;
+    explicit Sky(std::string value = {}) : value(std::move(value)) {}
+    auto operator<=>(const Sky&) const = default;
+    static Sky known_clear() { return Sky{"clear"}; }
+    static Sky known_cloudy() { return Sky{"cloudy"}; }
+};
+
+struct GetCityOutput {
+    ::example::weather::models::CitySummary city;
+    ::example::weather::runtime::Field<std::map<::example::weather::models::Sky, ::example::weather::runtime::Json>> forecast;
+    ::example::weather::runtime::Field<std::string> request_id;
+    explicit GetCityOutput(::example::weather::models::CitySummary city, ::example::weather::runtime::Field<std::map<::example::weather::models::Sky, ::example::weather::runtime::Json>> forecast = {}, ::example::weather::runtime::Field<std::string> request_id = {}) : city(std::move(city)), forecast(std::move(forecast)), request_id(std::move(request_id)) {}
+};
+
+struct GetCityPhotoInput {
+    ::example::weather::runtime::Field<std::string> city_id;
+    explicit GetCityPhotoInput(::example::weather::runtime::Field<std::string> city_id = {}) : city_id(std::move(city_id)) {}
+};
+
+struct GetCityPhotoOutput {
+    ::example::weather::runtime::Field<std::string> caption;
+    ::example::weather::runtime::Field<::example::weather::runtime::Blob> photo;
+    explicit GetCityPhotoOutput(::example::weather::runtime::Field<std::string> caption = {}, ::example::weather::runtime::Field<::example::weather::runtime::Blob> photo = {}) : caption(std::move(caption)), photo(std::move(photo)) {}
+};
+
+struct ListCitiesInput {
+    ::example::weather::runtime::Field<std::string> next_token;
+    ::example::weather::runtime::Field<std::int32_t> max_results;
+    ::example::weather::runtime::Field<std::vector<std::string>> tags;
+    explicit ListCitiesInput(::example::weather::runtime::Field<std::string> next_token = {}, ::example::weather::runtime::Field<std::int32_t> max_results = {}, ::example::weather::runtime::Field<std::vector<std::string>> tags = {}) : next_token(std::move(next_token)), max_results(std::move(max_results)), tags(std::move(tags)) {}
+};
+
+struct ListCitiesOutput {
+    std::vector<::example::weather::models::CitySummary> cities;
+    ::example::weather::runtime::Field<std::string> next_token;
+    explicit ListCitiesOutput(std::vector<::example::weather::models::CitySummary> cities, ::example::weather::runtime::Field<std::string> next_token = {}) : cities(std::move(cities)), next_token(std::move(next_token)) {}
+};
+
+struct NotFoundError : ::example::weather::runtime::ServiceError {
+    std::string message;
+    ::example::weather::runtime::Field<std::string> resource_id;
+    explicit NotFoundError(std::string message, ::example::weather::runtime::Field<std::string> resource_id = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::ServiceError(std::move(metadata)), message(std::move(message)), resource_id(std::move(resource_id)) {}
+};
+
+struct PhotoSummary {
+    std::int32_t size;
+    ::example::weather::runtime::Blob thumbnail;
+    ::example::weather::runtime::Field<std::string> caption;
+    explicit PhotoSummary(std::int32_t size, ::example::weather::runtime::Blob thumbnail, ::example::weather::runtime::Field<std::string> caption = {}) : size(std::move(size)), thumbnail(std::move(thumbnail)), caption(std::move(caption)) {}
+};
+
+struct PutCityPhotoInput {
+    ::example::weather::runtime::Field<std::string> city_id;
+    ::example::weather::runtime::Field<std::string> caption;
+    ::example::weather::runtime::Field<::example::weather::runtime::Blob> photo;
+    explicit PutCityPhotoInput(::example::weather::runtime::Field<std::string> city_id = {}, ::example::weather::runtime::Field<std::string> caption = {}, ::example::weather::runtime::Field<::example::weather::runtime::Blob> photo = {}) : city_id(std::move(city_id)), caption(std::move(caption)), photo(std::move(photo)) {}
+};
+
+struct PutCityPhotoOutput {
+    ::example::weather::models::PhotoSummary photo;
+    explicit PutCityPhotoOutput(::example::weather::models::PhotoSummary photo) : photo(std::move(photo)) {}
+};
+
+struct StatusInput {
+    explicit StatusInput() {}
+};
+
+struct StatusOutput {
+    explicit StatusOutput() {}
+};
+
+struct ThrottlingError : ::example::weather::runtime::ServiceError {
+    std::string message;
+    ::example::weather::runtime::Field<std::int32_t> retry_after;
+    explicit ThrottlingError(std::string message, ::example::weather::runtime::Field<std::int32_t> retry_after = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::ServiceError(std::move(metadata)), message(std::move(message)), retry_after(std::move(retry_after)) {}
+};
+
+struct ValidationField {
+    std::string path;
+    std::string message;
+    explicit ValidationField(std::string path, std::string message) : path(std::move(path)), message(std::move(message)) {}
+};
+
+struct ValidationReason {
+    std::string value;
+    explicit ValidationReason(std::string value = {}) : value(std::move(value)) {}
+    auto operator<=>(const ValidationReason&) const = default;
+    static ValidationReason known_unknown_operation() { return ValidationReason{"unknownOperation"}; }
+    static ValidationReason known_cannot_parse() { return ValidationReason{"cannotParse"}; }
+    static ValidationReason known_field_validation_failed() { return ValidationReason{"fieldValidationFailed"}; }
+    static ValidationReason known_other() { return ValidationReason{"other"}; }
+};
+
+struct ValidationError : ::example::weather::runtime::ServiceError {
+    std::string message;
+    ::example::weather::models::ValidationReason reason;
+    ::example::weather::runtime::Field<std::vector<::example::weather::models::ValidationField>> field_list;
+    ::example::weather::runtime::Field<std::string> request_id;
+    explicit ValidationError(std::string message, ::example::weather::models::ValidationReason reason, ::example::weather::runtime::Field<std::vector<::example::weather::models::ValidationField>> field_list = {}, ::example::weather::runtime::Field<std::string> request_id = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::ServiceError(std::move(metadata)), message(std::move(message)), reason(std::move(reason)), field_list(std::move(field_list)), request_id(std::move(request_id)) {}
+};
+}
+
+namespace example::weather::runtime {
+template<> struct Codec<::example::weather::models::CitySummary> {
+    static ::example::weather::models::CitySummary decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::CitySummary& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::ConflictError> {
+    static ::example::weather::models::ConflictError decode(const Json& value, const Context& context, ErrorMetadata metadata = {});
+    static Json encode(const ::example::weather::models::ConflictError& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::Coordinates> {
+    static ::example::weather::models::Coordinates decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::Coordinates& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::Location> {
+    static ::example::weather::models::Location decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::Location& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::CreateCityInput> {
+    static ::example::weather::models::CreateCityInput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::CreateCityInput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::CreateCityOutput> {
+    static ::example::weather::models::CreateCityOutput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::CreateCityOutput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::GetCityInput> {
+    static ::example::weather::models::GetCityInput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::GetCityInput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::Sky> {
+    static ::example::weather::models::Sky decode(const Json& value, const Context& context) { return ::example::weather::models::Sky{Codec<std::string>::decode(value, context)}; }
+    static Json encode(const ::example::weather::models::Sky& value, const Context& context) { return Codec<std::string>::encode(value.value, context); }
+};
+template<> struct Codec<::example::weather::models::GetCityOutput> {
+    static ::example::weather::models::GetCityOutput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::GetCityOutput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::GetCityPhotoInput> {
+    static ::example::weather::models::GetCityPhotoInput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::GetCityPhotoInput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::GetCityPhotoOutput> {
+    static ::example::weather::models::GetCityPhotoOutput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::GetCityPhotoOutput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::ListCitiesInput> {
+    static ::example::weather::models::ListCitiesInput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::ListCitiesInput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::ListCitiesOutput> {
+    static ::example::weather::models::ListCitiesOutput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::ListCitiesOutput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::NotFoundError> {
+    static ::example::weather::models::NotFoundError decode(const Json& value, const Context& context, ErrorMetadata metadata = {});
+    static Json encode(const ::example::weather::models::NotFoundError& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::PhotoSummary> {
+    static ::example::weather::models::PhotoSummary decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::PhotoSummary& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::PutCityPhotoInput> {
+    static ::example::weather::models::PutCityPhotoInput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::PutCityPhotoInput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::PutCityPhotoOutput> {
+    static ::example::weather::models::PutCityPhotoOutput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::PutCityPhotoOutput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::StatusInput> {
+    static ::example::weather::models::StatusInput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::StatusInput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::StatusOutput> {
+    static ::example::weather::models::StatusOutput decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::StatusOutput& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::ThrottlingError> {
+    static ::example::weather::models::ThrottlingError decode(const Json& value, const Context& context, ErrorMetadata metadata = {});
+    static Json encode(const ::example::weather::models::ThrottlingError& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::ValidationField> {
+    static ::example::weather::models::ValidationField decode(const Json& value, const Context& context);
+    static Json encode(const ::example::weather::models::ValidationField& value, const Context& context);
+};
+template<> struct Codec<::example::weather::models::ValidationReason> {
+    static ::example::weather::models::ValidationReason decode(const Json& value, const Context& context) { return ::example::weather::models::ValidationReason{Codec<std::string>::decode(value, context)}; }
+    static Json encode(const ::example::weather::models::ValidationReason& value, const Context& context) { return Codec<std::string>::encode(value.value, context); }
+};
+template<> struct Codec<::example::weather::models::ValidationError> {
+    static ::example::weather::models::ValidationError decode(const Json& value, const Context& context, ErrorMetadata metadata = {});
+    static Json encode(const ::example::weather::models::ValidationError& value, const Context& context);
+};
+}
+
+=== include/weather_client/schema.hpp ===
+#pragma once
+#include "runtime/codec.hpp"
+namespace example::weather { const runtime::Schema& schema(); }
+
+=== src/client.cpp ===
+#include "weather_client/client.hpp"
+#include "weather_client/schema.hpp"
+
+namespace example::weather {
+namespace {
+std::exception_ptr decode_error([[maybe_unused]] const std::string& target, [[maybe_unused]] const runtime::Json& value, [[maybe_unused]] runtime::ErrorMetadata metadata) {
+    if (target == "example.weather#ConflictError") return std::make_exception_ptr(runtime::Codec<::example::weather::models::ConflictError>::decode(value, schema().context("example.weather#ConflictError"), std::move(metadata)));
+    if (target == "example.weather#NotFoundError") return std::make_exception_ptr(runtime::Codec<::example::weather::models::NotFoundError>::decode(value, schema().context("example.weather#NotFoundError"), std::move(metadata)));
+    if (target == "example.weather#ThrottlingError") return std::make_exception_ptr(runtime::Codec<::example::weather::models::ThrottlingError>::decode(value, schema().context("example.weather#ThrottlingError"), std::move(metadata)));
+    if (target == "example.weather#ValidationError") return std::make_exception_ptr(runtime::Codec<::example::weather::models::ValidationError>::decode(value, schema().context("example.weather#ValidationError"), std::move(metadata)));
+    return {};
+}
+}
+Client::Client(runtime::ClientConfig config) : runtime_(std::make_shared<runtime::ClientRuntime>(std::move(config), schema(), decode_error, "", true)) {}
+::example::weather::models::CreateCityOutput Client::create_city(const ::example::weather::models::CreateCityInput& input, std::stop_token stop) const {
+    const auto scope = runtime_->scope(stop);
+    scope.check();
+    const auto result = runtime_->call("CreateCity", runtime::Codec<::example::weather::models::CreateCityInput>::encode(input, schema().context("example.weather#CreateCityInput")), scope);
+    auto output = runtime::Codec<::example::weather::models::CreateCityOutput>::decode(result, schema().context("example.weather#CreateCityOutput"));
+    scope.check();
+    return output;
+}
+::example::weather::models::GetCityOutput Client::get_city(const ::example::weather::models::GetCityInput& input, std::stop_token stop) const {
+    const auto scope = runtime_->scope(stop);
+    scope.check();
+    const auto result = runtime_->call("GetCity", runtime::Codec<::example::weather::models::GetCityInput>::encode(input, schema().context("example.weather#GetCityInput")), scope);
+    auto output = runtime::Codec<::example::weather::models::GetCityOutput>::decode(result, schema().context("example.weather#GetCityOutput"));
+    scope.check();
+    return output;
+}
+::example::weather::models::GetCityPhotoOutput Client::get_city_photo(const ::example::weather::models::GetCityPhotoInput& input, std::stop_token stop) const {
+    const auto scope = runtime_->scope(stop);
+    scope.check();
+    const auto result = runtime_->call("GetCityPhoto", runtime::Codec<::example::weather::models::GetCityPhotoInput>::encode(input, schema().context("example.weather#GetCityPhotoInput")), scope);
+    auto output = runtime::Codec<::example::weather::models::GetCityPhotoOutput>::decode(result, schema().context("example.weather#GetCityPhotoOutput"));
+    scope.check();
+    return output;
+}
+::example::weather::models::ListCitiesOutput Client::list_cities(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop) const {
+    const auto scope = runtime_->scope(stop);
+    scope.check();
+    const auto result = runtime_->call("ListCities", runtime::Codec<::example::weather::models::ListCitiesInput>::encode(input, schema().context("example.weather#ListCitiesInput")), scope);
+    auto output = runtime::Codec<::example::weather::models::ListCitiesOutput>::decode(result, schema().context("example.weather#ListCitiesOutput"));
+    scope.check();
+    return output;
+}
+runtime::Pages<::example::weather::models::ListCitiesOutput> Client::list_cities_pages(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop) const {
+    return runtime::Pages<::example::weather::models::ListCitiesOutput>(runtime_, "ListCities", runtime::Codec<::example::weather::models::ListCitiesInput>::encode(input, schema().context("example.weather#ListCitiesInput")), stop);
+}
+runtime::Unit Client::ping(std::stop_token stop) const {
+    const auto scope = runtime_->scope(stop);
+    scope.check();
+    const auto result = runtime_->call("Ping", runtime::Json(runtime::Json::Object{}), scope);
+    scope.check();
+    return {};
+}
+::example::weather::models::PutCityPhotoOutput Client::put_city_photo(const ::example::weather::models::PutCityPhotoInput& input, std::stop_token stop) const {
+    const auto scope = runtime_->scope(stop);
+    scope.check();
+    const auto result = runtime_->call("PutCityPhoto", runtime::Codec<::example::weather::models::PutCityPhotoInput>::encode(input, schema().context("example.weather#PutCityPhotoInput")), scope);
+    auto output = runtime::Codec<::example::weather::models::PutCityPhotoOutput>::decode(result, schema().context("example.weather#PutCityPhotoOutput"));
+    scope.check();
+    return output;
+}
+::example::weather::models::StatusOutput Client::status(const ::example::weather::models::StatusInput& input, std::stop_token stop) const {
+    const auto scope = runtime_->scope(stop);
+    scope.check();
+    const auto result = runtime_->call("Status", runtime::Codec<::example::weather::models::StatusInput>::encode(input, schema().context("example.weather#StatusInput")), scope);
+    auto output = runtime::Codec<::example::weather::models::StatusOutput>::decode(result, schema().context("example.weather#StatusOutput"));
+    scope.check();
+    return output;
+}
+}
+
+=== src/models.cpp ===
+#include "weather_client/models.hpp"
+
+namespace example::weather::runtime {
+::example::weather::models::CitySummary Codec<::example::weather::models::CitySummary>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::CitySummary{read<std::string>(value, context, "id"), read<std::string>(value, context, "name"), read<std::int64_t>(value, context, "population"), optional<::example::weather::runtime::Timestamp>(value, context, "updatedAt"), optional<::example::weather::runtime::Timestamp>(value, context, "createdAt")};
+}
+Json Codec<::example::weather::models::CitySummary>::encode([[maybe_unused]] const ::example::weather::models::CitySummary& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "id", value.id);
+    put(object, context, "name", value.name);
+    put(object, context, "population", value.population);
+    put(object, context, "updatedAt", value.updated_at);
+    put(object, context, "createdAt", value.created_at);
+    return Json(std::move(object));
+}
+::example::weather::models::ConflictError Codec<::example::weather::models::ConflictError>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context, ErrorMetadata metadata) {
+    (void)value.object();
+    return ::example::weather::models::ConflictError{read<std::string>(value, context, "message"), std::move(metadata)};
+}
+Json Codec<::example::weather::models::ConflictError>::encode([[maybe_unused]] const ::example::weather::models::ConflictError& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "message", value.message);
+    return Json(std::move(object));
+}
+::example::weather::models::Coordinates Codec<::example::weather::models::Coordinates>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::Coordinates{read<double>(value, context, "latitude"), read<double>(value, context, "longitude")};
+}
+Json Codec<::example::weather::models::Coordinates>::encode([[maybe_unused]] const ::example::weather::models::Coordinates& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "latitude", value.latitude);
+    put(object, context, "longitude", value.longitude);
+    return Json(std::move(object));
+}
+::example::weather::models::Location Codec<::example::weather::models::Location>::decode(const Json& value, const Context& context) {
+    const auto& object = value.object();
+    if (object.size() != 1) throw std::invalid_argument("Union requires one member");
+    const auto& [name, member] = *object.begin();
+    if (name == "coordinates") return ::example::weather::models::Location{::example::weather::models::LocationCoordinatesVariant{member.is_null() ? std::optional<::example::weather::models::Coordinates>{} : std::optional<::example::weather::models::Coordinates>{Codec<::example::weather::models::Coordinates>::decode(member, context.member(name))}}};
+    if (name == "unknown") return ::example::weather::models::Location{::example::weather::models::LocationUnknownVariant{member.is_null() ? std::optional<::example::weather::runtime::Unit>{} : std::optional<::example::weather::runtime::Unit>{Codec<::example::weather::runtime::Unit>::decode(member, context.member(name))}}};
+    return ::example::weather::models::Location{::example::weather::models::LocationUnknown{name, member}};
+}
+Json Codec<::example::weather::models::Location>::encode(const ::example::weather::models::Location& value, const Context& context) {
+    return std::visit([&](const auto& variant) -> Json {
+        using T = std::decay_t<decltype(variant)>;
+        if constexpr (std::is_same_v<T, ::example::weather::models::LocationCoordinatesVariant>) return Json(Json::Object{{"coordinates", variant.value ? Codec<::example::weather::models::Coordinates>::encode(*variant.value, context.member("coordinates")) : Json()}});
+        else if constexpr (std::is_same_v<T, ::example::weather::models::LocationUnknownVariant>) return Json(Json::Object{{"unknown", variant.value ? Codec<::example::weather::runtime::Unit>::encode(*variant.value, context.member("unknown")) : Json()}});
+        else {
+            if (context.shape().at("members").find(variant.name)) throw std::invalid_argument("Unknown variant name is declared");
+            return Json(Json::Object{{variant.name, variant.value}});
+        }
+    }, value.value);
+}
+::example::weather::models::CreateCityInput Codec<::example::weather::models::CreateCityInput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::CreateCityInput{optional<std::string>(value, context, "name"), optional<::example::weather::models::Location>(value, context, "location"), optional<std::string>(value, context, "clientToken"), optional<std::int64_t>(value, context, "expectedRevision")};
+}
+Json Codec<::example::weather::models::CreateCityInput>::encode([[maybe_unused]] const ::example::weather::models::CreateCityInput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "name", value.name);
+    put(object, context, "location", value.location);
+    put(object, context, "clientToken", value.client_token);
+    put(object, context, "expectedRevision", value.expected_revision);
+    return Json(std::move(object));
+}
+::example::weather::models::CreateCityOutput Codec<::example::weather::models::CreateCityOutput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::CreateCityOutput{read<::example::weather::models::CitySummary>(value, context, "city")};
+}
+Json Codec<::example::weather::models::CreateCityOutput>::encode([[maybe_unused]] const ::example::weather::models::CreateCityOutput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "city", value.city);
+    return Json(std::move(object));
+}
+::example::weather::models::GetCityInput Codec<::example::weather::models::GetCityInput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::GetCityInput{optional<std::string>(value, context, "cityId"), optional<::example::weather::runtime::Timestamp>(value, context, "at")};
+}
+Json Codec<::example::weather::models::GetCityInput>::encode([[maybe_unused]] const ::example::weather::models::GetCityInput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "cityId", value.city_id);
+    put(object, context, "at", value.at);
+    return Json(std::move(object));
+}
+::example::weather::models::GetCityOutput Codec<::example::weather::models::GetCityOutput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::GetCityOutput{read<::example::weather::models::CitySummary>(value, context, "city"), optional<std::map<::example::weather::models::Sky, ::example::weather::runtime::Json>>(value, context, "forecast"), optional<std::string>(value, context, "requestId")};
+}
+Json Codec<::example::weather::models::GetCityOutput>::encode([[maybe_unused]] const ::example::weather::models::GetCityOutput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "city", value.city);
+    put(object, context, "forecast", value.forecast);
+    put(object, context, "requestId", value.request_id);
+    return Json(std::move(object));
+}
+::example::weather::models::GetCityPhotoInput Codec<::example::weather::models::GetCityPhotoInput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::GetCityPhotoInput{optional<std::string>(value, context, "cityId")};
+}
+Json Codec<::example::weather::models::GetCityPhotoInput>::encode([[maybe_unused]] const ::example::weather::models::GetCityPhotoInput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "cityId", value.city_id);
+    return Json(std::move(object));
+}
+::example::weather::models::GetCityPhotoOutput Codec<::example::weather::models::GetCityPhotoOutput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::GetCityPhotoOutput{optional<std::string>(value, context, "caption"), optional<::example::weather::runtime::Blob>(value, context, "photo")};
+}
+Json Codec<::example::weather::models::GetCityPhotoOutput>::encode([[maybe_unused]] const ::example::weather::models::GetCityPhotoOutput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "caption", value.caption);
+    put(object, context, "photo", value.photo);
+    return Json(std::move(object));
+}
+::example::weather::models::ListCitiesInput Codec<::example::weather::models::ListCitiesInput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::ListCitiesInput{optional<std::string>(value, context, "nextToken"), optional<std::int32_t>(value, context, "maxResults"), optional<std::vector<std::string>>(value, context, "tags")};
+}
+Json Codec<::example::weather::models::ListCitiesInput>::encode([[maybe_unused]] const ::example::weather::models::ListCitiesInput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "nextToken", value.next_token);
+    put(object, context, "maxResults", value.max_results);
+    put(object, context, "tags", value.tags);
+    return Json(std::move(object));
+}
+::example::weather::models::ListCitiesOutput Codec<::example::weather::models::ListCitiesOutput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::ListCitiesOutput{read<std::vector<::example::weather::models::CitySummary>>(value, context, "cities"), optional<std::string>(value, context, "nextToken")};
+}
+Json Codec<::example::weather::models::ListCitiesOutput>::encode([[maybe_unused]] const ::example::weather::models::ListCitiesOutput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "cities", value.cities);
+    put(object, context, "nextToken", value.next_token);
+    return Json(std::move(object));
+}
+::example::weather::models::NotFoundError Codec<::example::weather::models::NotFoundError>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context, ErrorMetadata metadata) {
+    (void)value.object();
+    return ::example::weather::models::NotFoundError{read<std::string>(value, context, "message"), optional<std::string>(value, context, "resourceId"), std::move(metadata)};
+}
+Json Codec<::example::weather::models::NotFoundError>::encode([[maybe_unused]] const ::example::weather::models::NotFoundError& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "message", value.message);
+    put(object, context, "resourceId", value.resource_id);
+    return Json(std::move(object));
+}
+::example::weather::models::PhotoSummary Codec<::example::weather::models::PhotoSummary>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::PhotoSummary{read<std::int32_t>(value, context, "size"), read<::example::weather::runtime::Blob>(value, context, "thumbnail"), optional<std::string>(value, context, "caption")};
+}
+Json Codec<::example::weather::models::PhotoSummary>::encode([[maybe_unused]] const ::example::weather::models::PhotoSummary& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "size", value.size);
+    put(object, context, "thumbnail", value.thumbnail);
+    put(object, context, "caption", value.caption);
+    return Json(std::move(object));
+}
+::example::weather::models::PutCityPhotoInput Codec<::example::weather::models::PutCityPhotoInput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::PutCityPhotoInput{optional<std::string>(value, context, "cityId"), optional<std::string>(value, context, "caption"), optional<::example::weather::runtime::Blob>(value, context, "photo")};
+}
+Json Codec<::example::weather::models::PutCityPhotoInput>::encode([[maybe_unused]] const ::example::weather::models::PutCityPhotoInput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "cityId", value.city_id);
+    put(object, context, "caption", value.caption);
+    put(object, context, "photo", value.photo);
+    return Json(std::move(object));
+}
+::example::weather::models::PutCityPhotoOutput Codec<::example::weather::models::PutCityPhotoOutput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::PutCityPhotoOutput{read<::example::weather::models::PhotoSummary>(value, context, "photo")};
+}
+Json Codec<::example::weather::models::PutCityPhotoOutput>::encode([[maybe_unused]] const ::example::weather::models::PutCityPhotoOutput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "photo", value.photo);
+    return Json(std::move(object));
+}
+::example::weather::models::StatusInput Codec<::example::weather::models::StatusInput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::StatusInput{};
+}
+Json Codec<::example::weather::models::StatusInput>::encode([[maybe_unused]] const ::example::weather::models::StatusInput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    return Json(std::move(object));
+}
+::example::weather::models::StatusOutput Codec<::example::weather::models::StatusOutput>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::StatusOutput{};
+}
+Json Codec<::example::weather::models::StatusOutput>::encode([[maybe_unused]] const ::example::weather::models::StatusOutput& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    return Json(std::move(object));
+}
+::example::weather::models::ThrottlingError Codec<::example::weather::models::ThrottlingError>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context, ErrorMetadata metadata) {
+    (void)value.object();
+    return ::example::weather::models::ThrottlingError{read<std::string>(value, context, "message"), optional<std::int32_t>(value, context, "retryAfter"), std::move(metadata)};
+}
+Json Codec<::example::weather::models::ThrottlingError>::encode([[maybe_unused]] const ::example::weather::models::ThrottlingError& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "message", value.message);
+    put(object, context, "retryAfter", value.retry_after);
+    return Json(std::move(object));
+}
+::example::weather::models::ValidationField Codec<::example::weather::models::ValidationField>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context) {
+    (void)value.object();
+    return ::example::weather::models::ValidationField{read<std::string>(value, context, "path"), read<std::string>(value, context, "message")};
+}
+Json Codec<::example::weather::models::ValidationField>::encode([[maybe_unused]] const ::example::weather::models::ValidationField& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "path", value.path);
+    put(object, context, "message", value.message);
+    return Json(std::move(object));
+}
+::example::weather::models::ValidationError Codec<::example::weather::models::ValidationError>::decode([[maybe_unused]] const Json& value, [[maybe_unused]] const Context& context, ErrorMetadata metadata) {
+    (void)value.object();
+    return ::example::weather::models::ValidationError{read<std::string>(value, context, "message"), read<::example::weather::models::ValidationReason>(value, context, "reason"), optional<std::vector<::example::weather::models::ValidationField>>(value, context, "fieldList"), optional<std::string>(value, context, "requestId"), std::move(metadata)};
+}
+Json Codec<::example::weather::models::ValidationError>::encode([[maybe_unused]] const ::example::weather::models::ValidationError& value, [[maybe_unused]] const Context& context) {
+    Json::Object object;
+    put(object, context, "message", value.message);
+    put(object, context, "reason", value.reason);
+    put(object, context, "fieldList", value.field_list);
+    put(object, context, "requestId", value.request_id);
+    return Json(std::move(object));
+}
+}
+
+=== src/schema.cpp ===
+#include "weather_client/schema.hpp"
+namespace example::weather {
+const runtime::Schema& schema() {
+    static const runtime::Schema value([] {
+        const char* chunks[] = {
+            "{\"service\":\"example.weather#Weather\",\"version\":\"2026-10-01\",\"shapes\":{\"example.weather#CityId\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"CityId\"},\"example.weather#CityName\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"CityName\"},\"example.weather#CitySummaries\":{\"kind\":\"list\",\"member\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"CitySummaries\"},\"example.weather#CitySummary\":{\"kind\":\"structure\",\"members\":{\"id\":{\"target\":\"example.weather#CityId\",\"attribute\":\"id\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"name\":{\"target\":\"example.weather#CityName\",\"attribute\":\"name\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"population\":{\"target\":\"smithy.api#Long\",\"attribute\":\"population\",\"required\":false,\"default\":0,\"format\":\"date-time\"},\"updatedAt\":{\"target\":\"smithy.api#Timestamp\",\"attribute\":\"updated_at\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"createdAt\":{\"target\":\"smithy.api#Timestamp\",\"attribute\":\"created_a",
+            "t\",\"required\":false,\"default\":null,\"format\":\"epoch-seconds\"}},\"name\":\"CitySummary\"},\"example.weather#ConflictError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"error\":{\"status\":409,\"fault\":\"client\",\"retryable\":false,\"throttling\":false,\"headers\":[]},\"name\":\"ConflictError\"},\"example.weather#Coordinates\":{\"kind\":\"structure\",\"members\":{\"latitude\":{\"target\":\"smithy.api#Double\",\"attribute\":\"latitude\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"longitude\":{\"target\":\"smithy.api#Double\",\"attribute\":\"longitude\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"Coordinates\"},\"example.weather#CreateCityInput\":{\"kind\":\"structure\",\"members\":{\"name\":{\"target\":\"example.weather#CityName\",\"attribute\":\"name\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"location\":{\"target\":\"example.weather#Location\",\"attribute\":\"location\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"clientToken\":{\"targe",
+            "t\":\"smithy.api#String\",\"attribute\":\"client_token\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"expectedRevision\":{\"target\":\"smithy.api#Long\",\"attribute\":\"expected_revision\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"CreateCityInput\"},\"example.weather#CreateCityOutput\":{\"kind\":\"structure\",\"members\":{\"city\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"city\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"CreateCityOutput\"},\"example.weather#DateTime\":{\"kind\":\"timestamp\",\"format\":\"date-time\",\"name\":\"DateTime\"},\"example.weather#Forecast\":{\"kind\":\"map\",\"key\":{\"target\":\"example.weather#Sky\",\"attribute\":\"key\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"value\":{\"target\":\"smithy.api#Document\",\"attribute\":\"value\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"Forecast\"},\"example.weather#GetCityInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",\"required\":true,\"default\":null,\"format\":\"date-ti",
+            "me\"},\"at\":{\"target\":\"example.weather#DateTime\",\"attribute\":\"at\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"GetCityInput\"},\"example.weather#GetCityOutput\":{\"kind\":\"structure\",\"members\":{\"city\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"city\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"forecast\":{\"target\":\"example.weather#Forecast\",\"attribute\":\"forecast\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"requestId\":{\"target\":\"smithy.api#String\",\"attribute\":\"request_id\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"GetCityOutput\"},\"example.weather#GetCityPhotoInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"GetCityPhotoInput\"},\"example.weather#GetCityPhotoOutput\":{\"kind\":\"structure\",\"members\":{\"caption\":{\"target\":\"smithy.api#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"photo\":{\"target\":\"example.wea",
+            "ther#Photo\",\"attribute\":\"photo\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"GetCityPhotoOutput\"},\"example.weather#ListCitiesInput\":{\"kind\":\"structure\",\"members\":{\"nextToken\":{\"target\":\"smithy.api#String\",\"attribute\":\"next_token\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"maxResults\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"max_results\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"tags\":{\"target\":\"example.weather#Tags\",\"attribute\":\"tags\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"ListCitiesInput\"},\"example.weather#ListCitiesOutput\":{\"kind\":\"structure\",\"members\":{\"cities\":{\"target\":\"example.weather#CitySummaries\",\"attribute\":\"cities\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"nextToken\":{\"target\":\"smithy.api#String\",\"attribute\":\"next_token\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"ListCitiesOutput\"},\"example.weather#Location\":{\"kind\":\"union\",\"members\":{\"coordinates\":{\"target\":\"example.weather#Coordinates\",\"attribute",
+            "\":\"coordinates\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"unknown\":{\"target\":\"smithy.api#Unit\",\"attribute\":\"unknown\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"Location\"},\"example.weather#NotFoundError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"resourceId\":{\"target\":\"smithy.api#String\",\"attribute\":\"resource_id\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"error\":{\"status\":404,\"fault\":\"client\",\"retryable\":false,\"throttling\":false,\"headers\":[]},\"name\":\"NotFoundError\"},\"example.weather#Photo\":{\"kind\":\"blob\",\"format\":\"date-time\",\"name\":\"Photo\"},\"example.weather#PhotoSummary\":{\"kind\":\"structure\",\"members\":{\"size\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"size\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"thumbnail\":{\"target\":\"example.weather#Thumbnail\",\"attribute\":\"thumbnail\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"caption\":{\"target\":\"smithy.a",
+            "pi#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"PhotoSummary\"},\"example.weather#PutCityPhotoInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"caption\":{\"target\":\"smithy.api#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"photo\":{\"target\":\"example.weather#Photo\",\"attribute\":\"photo\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"PutCityPhotoInput\"},\"example.weather#PutCityPhotoOutput\":{\"kind\":\"structure\",\"members\":{\"photo\":{\"target\":\"example.weather#PhotoSummary\",\"attribute\":\"photo\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"PutCityPhotoOutput\"},\"example.weather#Sky\":{\"kind\":\"enum\",\"values\":[\"clear\",\"cloudy\"],\"name\":\"Sky\"},\"example.weather#StatusInput\":{\"kind\":\"structure\",\"members\":{},\"name\":\"StatusInput\"},\"example.weather#StatusOutput\":{\"kind\":\"structure\",\"members\":{},\"name\":\"StatusOutpu",
+            "t\"},\"example.weather#Tags\":{\"kind\":\"list\",\"member\":{\"target\":\"smithy.api#String\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"Tags\"},\"example.weather#ThrottlingError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"retryAfter\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"retry_after\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"error\":{\"status\":429,\"fault\":\"client\",\"retryable\":true,\"throttling\":true,\"headers\":[[\"retryAfter\",\"Retry-After\"]]},\"name\":\"ThrottlingError\"},\"example.weather#Thumbnail\":{\"kind\":\"blob\",\"format\":\"date-time\",\"name\":\"Thumbnail\"},\"example.weather#ValidationError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"reason\":{\"target\":\"example.weather#ValidationReason\",\"attribute\":\"reason\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"fieldList\":{\"",
+            "target\":\"example.weather#ValidationFieldList\",\"attribute\":\"field_list\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"requestId\":{\"target\":\"smithy.api#String\",\"attribute\":\"request_id\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"error\":{\"status\":400,\"fault\":\"client\",\"retryable\":false,\"throttling\":false,\"headers\":[]},\"name\":\"ValidationError\"},\"example.weather#ValidationField\":{\"kind\":\"structure\",\"members\":{\"path\":{\"target\":\"smithy.api#String\",\"attribute\":\"path\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"ValidationField\"},\"example.weather#ValidationFieldList\":{\"kind\":\"list\",\"member\":{\"target\":\"example.weather#ValidationField\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"ValidationFieldList\"},\"example.weather#ValidationReason\":{\"kind\":\"enum\",\"values\":[\"unknownOperation\",\"cannotParse\",\"fieldValidationFailed\",\"other\"],\"name\":\"",
+            "ValidationReason\"},\"smithy.api#Document\":{\"kind\":\"document\",\"format\":\"date-time\",\"name\":\"Document\"},\"smithy.api#Double\":{\"kind\":\"double\",\"format\":\"date-time\",\"name\":\"Double\"},\"smithy.api#Integer\":{\"kind\":\"integer\",\"format\":\"date-time\",\"name\":\"Integer\"},\"smithy.api#Long\":{\"kind\":\"long\",\"format\":\"date-time\",\"name\":\"Long\"},\"smithy.api#String\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"String\"},\"smithy.api#Timestamp\":{\"kind\":\"timestamp\",\"format\":\"date-time\",\"name\":\"Timestamp\"},\"smithy.api#Unit\":{\"kind\":\"unit\",\"name\":\"Unit\"}},\"operations\":{\"CreateCity\":{\"method\":\"POST\",\"uri\":\"/cities\",\"input\":\"example.weather#CreateCityInput\",\"output\":\"example.weather#CreateCityOutput\",\"request\":{\"labels\":[],\"query\":[],\"headers\":[[\"expectedRevision\",\"X-Expected-Revision\"]],\"body\":[\"name\",\"location\",\"clientToken\"],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[\"city\"],\"payload\":null},\"errors\":[\"example.weather#ConflictError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true",
+            ",\"token\":\"clientToken\",\"pagination\":null},\"GetCity\":{\"method\":\"GET\",\"uri\":\"/cities/{cityId}\",\"input\":\"example.weather#GetCityInput\",\"output\":\"example.weather#GetCityOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[[\"at\",\"at\"]],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[[\"requestId\",\"X-Request-Id\"]],\"body\":[\"city\",\"forecast\"],\"payload\":null},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"GetCityPhoto\":{\"method\":\"GET\",\"uri\":\"/cities/{cityId}/photo\",\"input\":\"example.weather#GetCityPhotoInput\",\"output\":\"example.weather#GetCityPhotoOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[[\"caption\",\"X-Photo-Caption\"]],\"body\":[],\"payload\":[\"photo\",\"image/jpeg\"]},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":",
+            "null,\"pagination\":null},\"ListCities\":{\"method\":\"GET\",\"uri\":\"/cities\",\"input\":\"example.weather#ListCitiesInput\",\"output\":\"example.weather#ListCitiesOutput\",\"request\":{\"labels\":[],\"query\":[[\"nextToken\",\"nextToken\"],[\"maxResults\",\"maxResults\"],[\"tags\",\"tag\"]],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[\"cities\",\"nextToken\"],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":{\"input\":\"nextToken\",\"output\":[\"nextToken\"],\"items\":\"cities\",\"pageSize\":\"maxResults\"}},\"Ping\":{\"method\":\"GET\",\"uri\":\"/ping\",\"input\":null,\"output\":null,\"request\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"PutCityPhoto\":{\"method\":\"PUT\",\"uri\":\"/cities/{cityId}/photo\",\"input\":\"example.weather#PutCityPh",
+            "otoInput\",\"output\":\"example.weather#PutCityPhotoOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[],\"headers\":[[\"caption\",\"X-Photo-Caption\"]],\"body\":[],\"payload\":[\"photo\",\"image/jpeg\"]},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[\"photo\"],\"payload\":null},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"Status\":{\"method\":\"GET\",\"uri\":\"/status\",\"input\":\"example.weather#StatusInput\",\"output\":\"example.weather#StatusOutput\",\"request\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null}},\"bearer\":true}",
+        };
+        std::string text;
+        for (const auto* chunk : chunks) text += chunk;
+        return runtime::Json::parse(text);
+    }());
+    return value;
+}
+}
