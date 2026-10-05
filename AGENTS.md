@@ -17,6 +17,7 @@ bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=...
 bash tools/test-e2e.sh            # e2e/: framework tests, the Rust client over HTTP, then the TS client
 python tools/test-c.py           # installed C17 consumer, shared fixtures, native HTTP
 python tools/test-r.py           # installed R package, shared fixtures, native HTTP
+python tools/test-cli.py         # generated service executable, fixture and Weather HTTP
 CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended output change
 ```
 
@@ -40,6 +41,8 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-codegen-common` | compact descriptions of already-lowered wire semantics for bundled client runtimes |
 | `crucible-codegen-{python,go,java,csharp,kotlin,swift,dart,php,ruby,cpp,c,r}` | native client models, operation wrappers, bundled runtimes, and package metadata; each reads only the IR |
 | `crucible-cli` | `check`, `generate <language>`, and service scaffolding |
+| `crucible-codegen-cli` | IR → standalone service CLI package and typed Rust SDK dispatch |
+| `crucible-cli-runtime` | service CLI parsing, configuration, completion, and output; calls use `crucible-client` |
 
 `e2e/` is its own Cargo workspace: `weather-model` (a model package),
 `weather-service` (a service package that generates in `build.rs`, laid out
