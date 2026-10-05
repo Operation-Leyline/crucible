@@ -70,6 +70,7 @@ fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
     match service.shape(id).expect("lowered target") {
         Shape::IntEnum(_) => format!("global::{ns}.Models.@{}", service.name_of(id)),
         Shape::Unit => format!("global::{ns}.Unit"),
+        Shape::Simple(s) if s.streaming => format!("global::{ns}.ByteStream"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::BigInteger => "global::System.Numerics.BigInteger",
             SimpleKind::BigDecimal => return format!("global::{ns}.BigDecimal"),
@@ -140,6 +141,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsJson10,
         Feature::AwsJson11,
         Feature::HttpChecksum,
+        Feature::Streaming,
     ])
 }
 
@@ -228,6 +230,32 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             for v in &e.values {
                 if !values.insert(pascal(&v.name)) {
                     diagnostics.push(id, "C# integer enum constant name collision");
+                }
+            }
+        }
+    }
+    // The runtime carries a stream only as the whole HTTP body.
+    for op in &service.operations {
+        for (shape, bindings) in [(&op.input, &op.request), (&op.output, &op.response)] {
+            let Some(Shape::Structure(s)) = shape.as_ref().and_then(|id| service.shape(id)) else {
+                continue;
+            };
+            for m in &s.members {
+                let streaming =
+                    matches!(service.shape(&m.target), Some(Shape::Simple(t)) if t.streaming);
+                if streaming
+                    && !bindings
+                        .payload
+                        .as_ref()
+                        .is_some_and(|p| p.streaming && p.member == m.name)
+                {
+                    diagnostics.push(
+                        &op.id,
+                        format!(
+                            "C# streams only an HTTP payload; {} is not the streaming payload",
+                            m.name
+                        ),
+                    );
                 }
             }
         }
@@ -413,6 +441,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("NetworkError", include_str!("../runtime/NetworkError.cs")),
         ("UnknownUnion", include_str!("../runtime/UnknownUnion.cs")),
         ("Unit", include_str!("../runtime/Unit.cs")),
+        ("ByteStream", include_str!("../runtime/ByteStream.cs")),
+        (
+            "ByteStreamContent",
+            include_str!("../runtime/ByteStreamContent.cs"),
+        ),
+        (
+            "ResponseBodyStream",
+            include_str!("../runtime/ResponseBodyStream.cs"),
+        ),
         ("BigDecimal", include_str!("../runtime/BigDecimal.cs")),
         (
             "BasicCredentials",

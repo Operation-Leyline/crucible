@@ -7,13 +7,44 @@ import tempfile
 from sdk_test_support import ROOT, run, weather
 
 
-def generate(model, output, namespace="Example.Weather", package="Example.Weather", protocol=None):
+def generate(model, output, namespace="Example.Weather", package="Example.Weather", protocol=None, digest=True):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "csharp",
         str(model), "--out", str(output), "--namespace", namespace, "--package-id", package,
-        "--package-version", "0.0.0-test", "--content-sha256", *(["--protocol", protocol] if protocol else []))
+        "--package-version", "0.0.0-test", *(["--content-sha256"] if digest else []),
+        *(["--protocol", protocol] if protocol else []))
+
+
+def streaming(output):
+    """Streaming blobs over loopback HTTP, with a hard GC heap limit below one buffered 256 MiB body."""
+    model = json.loads((ROOT / "crates/crucible-codegen-java/tests/streaming.json").read_text())
+    # SigV4 is optional per operation, so one package exercises unsigned and signed streams.
+    service = model["shapes"]["example.stream#Streaming"]["traits"]
+    service["aws.auth#sigv4"] = {"name": "service"}
+    service["smithy.api#auth"] = ["aws.auth#sigv4"]
+    for shape in model["shapes"].values():
+        if shape["type"] == "operation":
+            shape["traits"]["smithy.api#optionalAuth"] = {}
+    path = output / "streaming.json"
+    path.write_text(json.dumps(model), encoding="utf-8")
+    package = output / "stream"
+    generate(path, package, "Example.Stream", "Example.Stream", digest=False)
+    feed = output / "stream-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(feed), cwd=package)
+    consumer = output / "stream-consumer"
+    consumer.mkdir()
+    (consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Stream" Version="0.0.0-test"/></ItemGroup>
+      <ItemGroup><RuntimeHostConfigurationOption Include="System.GC.HeapHardLimit" Value="134217728"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Streaming.cs", consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(feed), "--packages", str(output / "stream-installed"), cwd=consumer)
+    run("dotnet", "build", "--no-restore", "--nologo", "-v", "quiet", "-warnaserror", cwd=consumer)
+    run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"), cwd=consumer)
 
 
 def qualify(output):
+    streaming(output)
     checksum = output / "checksum"
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", checksum, "Example.Checksum", "Example.Checksum")
     checksum_feed = output / "checksum-feed"
@@ -173,4 +204,7 @@ def qualify(output):
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="crucible-csharp-") as directory:
-        qualify(Path(directory))
+        if os.environ.get("CSHARP_ONLY") == "streaming":
+            streaming(Path(directory))
+        else:
+            qualify(Path(directory))

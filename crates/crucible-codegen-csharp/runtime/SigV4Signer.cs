@@ -19,8 +19,12 @@ public static class SigV4Signer
         Header("Authorization", null);
         Header("X-Amz-Date", now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture));
         Header("X-Amz-Security-Token", credentials.SessionToken);
-        var bytes = options.UnsignedPayload || request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
-        var digest = options.UnsignedPayload ? "UNSIGNED-PAYLOAD" : Hash(bytes);
+        string digest;
+        if (options.UnsignedPayload) digest = "UNSIGNED-PAYLOAD";
+        // A stream is never buffered to hash it: sign its declared or precomputed digest, else an unsigned payload.
+        else if (request.Content is ByteStreamContent streaming)
+            digest = streaming.Body.Sha256 ?? (request.Headers.TryGetValues("X-Amz-Content-Sha256", out var supplied) ? supplied.Single() : "UNSIGNED-PAYLOAD");
+        else digest = Hash(request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false));
         Header("X-Amz-Content-Sha256", digest);
         var path = url.GetComponents(UriComponents.Path, UriFormat.UriEscaped);
         path = "/" + path;

@@ -50,6 +50,7 @@ internal sealed partial class ClientRuntime
             throw new ArgumentOutOfRangeException(nameof(timeout),"Waiter deadline and ordered delays must be valid");
         var encoded = Encode(Text(op["input"]),input)?.AsObject() ?? new JsonObject();
         var queryInput = QueryModel(Text(op["input"]),encoded);
+        var stream = RequestStream(op.AsObject(),input);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); deadline.CancelAfter(timeout);
         var clock = Stopwatch.StartNew(); int attempts = 0; T? response = default; Exception? error = null;
         try
@@ -57,7 +58,7 @@ internal sealed partial class ClientRuntime
             while (true)
             {
                 deadline.Token.ThrowIfCancellationRequested(); attempts++; error = null;
-                try { response = await SendAsync<T>(Prepare(operation,(JsonObject)encoded.DeepClone()),deadline.Token).ConfigureAwait(false); }
+                try { response = await SendAsync<T>(Prepare(operation,(JsonObject)encoded.DeepClone(),stream),deadline.Token).ConfigureAwait(false); }
                 catch (Exception failure) when (failure is not OperationCanceledException) { response = default; error = failure; }
                 var output = error is null ? QueryModel(Text(op["output"]),Encode(Text(op["output"]),response)) : null;
                 string state = error is null ? "retry" : "failure"; string? message = null;
@@ -75,6 +76,7 @@ internal sealed partial class ClientRuntime
                 }
                 deadline.Token.ThrowIfCancellationRequested();
                 if (state == "success") return response;
+                DisposeStreams(response);
                 if (state == "failure") throw new WaiterException(name,attempts,response,error,message);
                 var remaining = timeout - clock.Elapsed;
                 if (remaining <= TimeSpan.Zero) throw new WaiterTimeoutException(name,attempts,response,error);
@@ -86,5 +88,6 @@ internal sealed partial class ClientRuntime
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         { throw new WaiterTimeoutException(name,attempts,response,error); }
+        finally { stream?.Release(); }
     }
 }
