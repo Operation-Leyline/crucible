@@ -27,6 +27,10 @@ pub fn emit(service: &Service, options: &Options) -> String {
         if op.paginated.is_some() {
             out.push_str(&format!("    public func `{name}Pages`(_ input: {input}) throws -> Pages<{output}> {{\n        try runtime.pages({wire}, input: input, as: {output}.self)\n    }}\n"));
         }
+        for waiter in op.waiters.keys() {
+            let waiter_name = literal(waiter);
+            out.push_str(&format!("    /// Polls `{name}` until the modeled `{waiter}` waiter succeeds, fails, or `timeout` seconds pass.\n    public func `waitUntil{waiter}`(_ input: {input}{default}, timeout: Foundation.TimeInterval, options: WaiterOptions = WaiterOptions()) async throws -> {output}? {{\n        try await runtime.wait({wire}, waiter: {waiter_name}, input: input, timeout: timeout, options: options, as: {output}.self)\n    }}\n"));
+        }
     }
     out.push_str("}\n");
     out

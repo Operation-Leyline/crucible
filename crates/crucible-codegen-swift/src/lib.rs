@@ -77,6 +77,30 @@ fn reserved_module(text: &str) -> bool {
         "WireCodec",
         "WireInteger",
         "Timestamp",
+        "BasicCredentials",
+        "AWSCredentials",
+        "CredentialsProvider",
+        "StaticCredentialsProvider",
+        "ClosureCredentialsProvider",
+        "CredentialChain",
+        "EnvironmentCredentialsProvider",
+        "ProfileCredentialsProvider",
+        "CachedCredentials",
+        "SigningOptions",
+        "SigV4Signer",
+        "AuthOutcome",
+        "ChecksumPolicy",
+        "ChecksumMismatchError",
+        "ChecksumSettings",
+        "Checksums",
+        "QueryDecimal",
+        "JMESPath",
+        "ResolvedEndpoint",
+        "Endpoints",
+        "WaiterOptions",
+        "WaiterError",
+        "WaiterTimeoutError",
+        "WaiterProgress",
         // Imported types used by generated sources. This is a maintained set,
         // not an exhaustive catalogue of every symbol Foundation exposes.
         "String",
@@ -137,6 +161,16 @@ fn reserved_module(text: &str) -> bool {
         "AsyncIteratorProtocol",
         "URLError",
         "SHA256",
+        "SHA512",
+        "HMAC",
+        "SymmetricKey",
+        "Insecure",
+        "Calendar",
+        "ProcessInfo",
+        "FileManager",
+        "Mirror",
+        "NSString",
+        "UUID",
         // Swift declaration, statement, expression, type and contextual keywords.
         "associatedtype",
         "class",
@@ -380,6 +414,17 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::BigDecimal,
         Feature::Sparse,
         Feature::Sets,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
     ])
 }
 
@@ -470,6 +515,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 diagnostics.push(&op.id, "Swift operation name collision");
             }
         }
+        for waiter in op.waiters.keys() {
+            if !identifier(waiter) || !methods.insert(format!("waitUntil{waiter}")) {
+                diagnostics.push(&op.id, "invalid or colliding Swift waiter name");
+            }
+        }
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -510,6 +560,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/HTTPTransport.swift"),
         ),
         ("Deadline", include_str!("../runtime/Deadline.swift")),
+        ("Auth", include_str!("../runtime/Auth.swift")),
+        ("Checksums", include_str!("../runtime/Checksums.swift")),
+        ("Query", include_str!("../runtime/Query.swift")),
+        ("Endpoints", include_str!("../runtime/Endpoints.swift")),
+        ("Waiters", include_str!("../runtime/Waiters.swift")),
         (
             "ClientRuntime",
             include_str!("../runtime/ClientRuntime.swift"),
