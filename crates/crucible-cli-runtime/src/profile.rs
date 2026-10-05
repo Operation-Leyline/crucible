@@ -84,9 +84,21 @@ fn resolve_with(
             "endpoint URL must not contain credentials, a query, or a fragment",
         ));
     }
+    let bearer_token = env(&format!("{}_BEARER_TOKEN", spec.env_prefix)).or(profile.bearer_token);
+    let loopback = match url.host() {
+        Some(url::Host::Domain(host)) => host.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(address)) => address.is_loopback(),
+        Some(url::Host::Ipv6(address)) => address.is_loopback(),
+        None => false,
+    };
+    if bearer_token.is_some() && url.scheme() == "http" && !loopback {
+        return Err(Error::input(
+            "refusing to send a bearer token over non-loopback HTTP; use https://",
+        ));
+    }
     Ok(Profile {
         endpoint_url: Some(endpoint),
-        bearer_token: env(&format!("{}_BEARER_TOKEN", spec.env_prefix)).or(profile.bearer_token),
+        bearer_token,
     })
 }
 
@@ -153,6 +165,13 @@ mod tests {
             Some("https://profile.example")
         );
         assert_eq!(profile.bearer_token.as_deref(), Some("profile-token"));
+        let error = resolve_with(&spec, &matches, |key| {
+            (key == "TEST_ENDPOINT_URL").then(|| "http://api.example".to_owned())
+        })
+        .err()
+        .unwrap();
+        assert_eq!(error.exit_code(), 2);
+        assert!(!error.to_string().contains("profile-token"));
         let profile = resolve_with(&spec, &matches, |key| match key {
             "TEST_BEARER_TOKEN" => Some("environment-token".to_owned()),
             "TEST_ENDPOINT_URL" => Some("https://env.example".to_owned()),
@@ -181,6 +200,38 @@ mod tests {
             assert_eq!(error.exit_code(), 2);
             assert!(!error.to_string().contains(value));
             assert!(!error.to_string().contains("secret"));
+        }
+    }
+
+    #[test]
+    fn bearer_tokens_require_https_except_on_loopback() {
+        let spec = spec();
+        for (endpoint, allowed) in [
+            ("https://api.example", true),
+            ("http://localhost:8080", true),
+            ("http://127.0.0.1:8080", true),
+            ("http://127.10.20.30:8080", true),
+            ("http://[::1]:8080", true),
+            ("http://api.example", false),
+            ("http://localhost.example", false),
+            ("http://192.168.1.2", false),
+            ("http://[2001:db8::1]", false),
+        ] {
+            let matches = crate::command::build(&spec)
+                .unwrap()
+                .try_get_matches_from(["test", "--endpoint-url", endpoint])
+                .unwrap();
+            let result = resolve_with(&spec, &matches, |key| {
+                (key == "TEST_BEARER_TOKEN").then(|| "secret-token".to_owned())
+            });
+            assert_eq!(result.is_ok(), allowed, "{endpoint}");
+            if let Err(error) = result {
+                assert_eq!(error.exit_code(), 2);
+                assert!(error.to_string().contains("https://"));
+                assert!(!error.to_string().contains("secret-token"));
+            }
+            // HTTP remains available when no bearer token is configured.
+            assert!(resolve_with(&spec, &matches, |_| None).is_ok());
         }
     }
 }

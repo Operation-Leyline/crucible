@@ -67,6 +67,8 @@ For a binary named `weather`, use `WEATHER_ENDPOINT_URL` and
 `WEATHER_BEARER_TOKEN`. The prefix comes from the binary name, uppercased with
 hyphens replaced by underscores. Credentials are supplied through configuration
 or environment, rather than a command-line token flag.
+When a bearer token is configured, the endpoint must use HTTPS, except for
+local development on `localhost`, loopback IPv4 addresses, or `::1`.
 
 Pass `--config profiles.json --profile development` with a configuration file:
 
