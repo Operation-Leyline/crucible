@@ -188,7 +188,7 @@ async fn api_keys_and_utf8_basic_credentials_use_the_modeled_binding() {
 async fn credential_resolution_has_the_total_call_deadline() {
     let config = Config::new("http://127.0.0.1:1")
         .timeout(Duration::from_millis(5))
-        .basic_credentials(Identity::provider(|| std::future::pending()));
+        .basic_credentials(Identity::provider(std::future::pending));
     assert!(matches!(
         header::AuthHeaderClient::new(config).basic().await,
         Err(Error::Timeout)
