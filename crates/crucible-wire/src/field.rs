@@ -31,6 +31,10 @@ impl<T> Field<T> {
     pub fn is_null(&self) -> bool {
         matches!(self, Self::Null)
     }
+    /// Absent or null: what a protocol that omits null members leaves out.
+    pub fn is_unset(&self) -> bool {
+        !matches!(self, Self::Value(_))
+    }
     pub fn value(&self) -> Option<&T> {
         if let Self::Value(value) = self {
             Some(value)

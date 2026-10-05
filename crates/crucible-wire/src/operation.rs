@@ -21,6 +21,10 @@ pub trait Operation: Send + Sync + 'static {
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = None;
     const OPTIONAL_AUTH: bool = false;
     const UNSIGNED_PAYLOAD: bool = false;
+    /// The wire protocol a client speaks. Servers serve `crucible.protocols#json`.
+    const PROTOCOL: Protocol = Protocol::CrucibleJson;
+    /// The operation's modeled HTTP checksum behavior, for clients.
+    const CHECKSUM: Option<Checksum> = None;
     fn output_status(_output: &Self::Output) -> Option<u16> {
         None
     }
@@ -230,6 +234,11 @@ pub enum Location {
     /// type a sender gives it. A structure with a payload member has no
     /// other body members.
     Payload(&'static str),
+    /// The whole HTTP body as UTF-8 text (`@httpPayload` on a string or enum).
+    TextPayload(&'static str),
+    /// The whole HTTP body as one JSON value (`@httpPayload` on a structure,
+    /// union or document). An absent or null value sends no body.
+    DocumentPayload(&'static str),
     StreamingPayload {
         media_type: &'static str,
         requires_length: bool,
@@ -242,9 +251,10 @@ impl Location {
     /// The payload member of `members`, if it has one, and its media type.
     pub fn payload(members: &[MemberInfo]) -> Option<(&MemberInfo, &'static str)> {
         members.iter().find_map(|member| match member.location {
-            Self::Payload(media_type) | Self::StreamingPayload { media_type, .. } => {
-                Some((member, media_type))
-            }
+            Self::Payload(media_type)
+            | Self::TextPayload(media_type)
+            | Self::DocumentPayload(media_type)
+            | Self::StreamingPayload { media_type, .. } => Some((member, media_type)),
             _ => None,
         })
     }
@@ -262,8 +272,147 @@ pub enum Scalar {
     DateTime,
     EpochSeconds,
     HttpDate,
+    /// A timestamp whose bound text uses a different format than its JSON
+    /// value: a REST protocol's HTTP-date header for an epoch-seconds member.
+    Timestamp {
+        text: TimestampFormat,
+        json: TimestampFormat,
+    },
+    /// A `@mediaType` string bound to a header: base64 of its UTF-8 text.
+    Base64,
     List(&'static Scalar),
     Json,
+}
+
+impl Scalar {
+    /// HTTP-date text, whose own commas a header list does not quote.
+    pub fn http_date(self) -> bool {
+        matches!(
+            self,
+            Self::HttpDate
+                | Self::Timestamp {
+                    text: TimestampFormat::HttpDate,
+                    ..
+                }
+        )
+    }
+}
+
+/// A timestamp's wire format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimestampFormat {
+    DateTime,
+    EpochSeconds,
+    HttpDate,
+}
+
+/// The protocol a generated client speaks, chosen once from the model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Protocol {
+    /// `crucible.protocols#json`: HTTP bindings, `__type` or
+    /// `x-crucible-error` naming errors.
+    CrucibleJson,
+    /// `aws.protocols#restJson1`: HTTP bindings, `X-Amzn-Errortype`.
+    AwsRestJson1,
+    /// `aws.protocols#awsJson1_0`: every member in a JSON body POSTed to `/`
+    /// with `X-Amz-Target: {service}.{operation}`.
+    AwsJson10 { service: &'static str },
+    /// `aws.protocols#awsJson1_1`, as `AwsJson10` with its own content type.
+    AwsJson11 { service: &'static str },
+}
+
+impl Protocol {
+    /// Whether errors and messages follow the AWS JSON conventions.
+    pub fn aws(self) -> bool {
+        !matches!(self, Self::CrucibleJson)
+    }
+}
+
+/// An operation's modeled HTTP checksum behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Checksum {
+    /// `@httpChecksumRequired`: `Content-MD5` over the complete body.
+    Md5,
+    /// `@aws.protocols#httpChecksum`. Member names are wire names.
+    Flexible {
+        request_required: bool,
+        request_algorithm_member: Option<&'static str>,
+        validation_mode_member: Option<&'static str>,
+        response_algorithms: &'static [ChecksumAlgorithm],
+    },
+}
+
+/// A checksum algorithm a model may name. A client computes only those
+/// `supported` reports; the others are recognized so a model can name them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ChecksumAlgorithm {
+    Crc32,
+    Crc32c,
+    Crc64Nvme,
+    Md5,
+    Sha1,
+    Sha256,
+    Sha512,
+    Xxhash64,
+    Xxhash3,
+    Xxhash128,
+}
+
+impl ChecksumAlgorithm {
+    pub const ALL: &'static [Self] = &[
+        Self::Crc32,
+        Self::Crc32c,
+        Self::Crc64Nvme,
+        Self::Md5,
+        Self::Sha1,
+        Self::Sha256,
+        Self::Sha512,
+        Self::Xxhash64,
+        Self::Xxhash3,
+        Self::Xxhash128,
+    ];
+
+    /// The model's spelling: `CRC32`, `SHA256`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Crc32 => "CRC32",
+            Self::Crc32c => "CRC32C",
+            Self::Crc64Nvme => "CRC64NVME",
+            Self::Md5 => "MD5",
+            Self::Sha1 => "SHA1",
+            Self::Sha256 => "SHA256",
+            Self::Sha512 => "SHA512",
+            Self::Xxhash64 => "XXHASH64",
+            Self::Xxhash3 => "XXHASH3",
+            Self::Xxhash128 => "XXHASH128",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|value| value.name() == name)
+    }
+
+    /// The `x-amz-checksum-*` header that carries this checksum.
+    pub fn header(self) -> &'static str {
+        match self {
+            Self::Crc32 => "x-amz-checksum-crc32",
+            Self::Crc32c => "x-amz-checksum-crc32c",
+            Self::Crc64Nvme => "x-amz-checksum-crc64nvme",
+            Self::Md5 => "x-amz-checksum-md5",
+            Self::Sha1 => "x-amz-checksum-sha1",
+            Self::Sha256 => "x-amz-checksum-sha256",
+            Self::Sha512 => "x-amz-checksum-sha512",
+            Self::Xxhash64 => "x-amz-checksum-xxhash64",
+            Self::Xxhash3 => "x-amz-checksum-xxhash3",
+            Self::Xxhash128 => "x-amz-checksum-xxhash128",
+        }
+    }
+}
+
+impl std::fmt::Display for ChecksumAlgorithm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
 }
 
 #[derive(Debug)]

@@ -319,6 +319,11 @@ fn bound_members<'a>(
             // An empty body is no payload: a required one is missing.
             (Location::Payload(_), _) if job.body().is_empty() => continue,
             (Location::Payload(_), _) => Ok(BoundValue::Bytes(job.body().clone())),
+            (Location::TextPayload(_), _) => std::str::from_utf8(job.body())
+                .map(|text| BoundValue::Text(Cow::Borrowed(text)))
+                .map_err(|_| "must be UTF-8 text".to_owned()),
+            (Location::DocumentPayload(_), _) if job.body().trim_ascii().is_empty() => continue,
+            (Location::DocumentPayload(_), _) => Ok(BoundValue::RawJson(job.body())),
             (Location::Label, scalar) => {
                 match job.labels().iter().find(|(name, _)| *name == member.name) {
                     Some((_, text)) => BoundValue::parse(Cow::Borrowed(text.as_str()), scalar),
@@ -369,6 +374,8 @@ fn wire_name(member: &MemberInfo) -> &'static str {
         Location::Label
         | Location::Body
         | Location::Payload(_)
+        | Location::TextPayload(_)
+        | Location::DocumentPayload(_)
         | Location::QueryParams
         | Location::PrefixHeaders(_)
         | Location::ResponseCode

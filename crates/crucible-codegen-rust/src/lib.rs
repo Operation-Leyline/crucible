@@ -85,6 +85,13 @@ pub fn client_capabilities() -> crucible_smithy::Capabilities {
         Feature::EndpointRules,
         Feature::Waiters,
         Feature::SigV4,
+        Feature::NonBlobPayload,
+        Feature::ErrorPayload,
+        Feature::MediaTypeHeaders,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
     ]))
 }
 

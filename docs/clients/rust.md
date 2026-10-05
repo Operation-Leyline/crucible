@@ -200,6 +200,10 @@ its change. Other bodyless requests receive no generated digest.
 
 Run `cargo test -p crucible-codegen-rust -p crucible-client -p crucible-wire`,
 then `bash tools/test-e2e.sh` for the generated client over the weather service.
+The E2E client tests also drive generated clients for the shared
+`error-payloads`, `checksums` (with its vectors), and `protocol-json` fixtures
+(once per AWS JSON protocol) against loopback HTTP servers, since the server
+framework serves only `crucible.protocols#json`.
 The real loopback retry runner consumes the shared retry fixture. The E2E
 workspace is a separate Cargo workspace and uses a generated model package.
 
@@ -358,6 +362,75 @@ Endpoint paths and waiter expressions use model member names even with
 `@jsonName`; timestamps are normalized to exact epoch seconds. Compiled JMESPath
 metadata is adapted once, and comparisons and numeric functions preserve exact
 decimal values rather than converting to floating point.
+
+### Payloads and media-type headers
+
+An `@httpPayload` member is the whole HTTP body. A blob is raw bytes. A string
+or enum is UTF-8 text; an empty body reads as an empty string. A structure,
+union, or document is one JSON value; an absent or explicitly null value sends
+no body, and an empty response body reads as absent. Each payload is sent under
+its target's `@mediaType`, or the protocol default. Modeled errors may also
+bind a payload: the error is named by the `x-crucible-error` header
+(`X-Amzn-Errortype` for AWS protocols) because the body is no longer a JSON
+envelope, and header members still decode beside it.
+
+Header strings whose target has `@mediaType`, including list elements and
+`@httpPrefixHeaders` values, travel base64-encoded. The public model holds the
+decoded text. A response header that is not base64 of UTF-8 text is
+`Error::Decode`.
+
+### AWS JSON protocols
+
+A model can be generated for `aws.protocols#restJson1`, `awsJson1_0`, or
+`awsJson1_1`; a service that declares several needs one selected at generation.
+`restJson1` uses HTTP bindings like `crucible.protocols#json`, but body
+timestamps default to epoch seconds, header timestamps to HTTP dates (lists are
+sent unquoted), and query and label timestamps to RFC 3339. The two RPC
+protocols POST every member as a JSON body (`{}` for an empty input) to `/`
+with `X-Amz-Target: {Service}.{Operation}` and
+`application/x-amz-json-1.0` or `-1.1`.
+
+All three omit an explicit `Field::Null` structure member when sending and read
+a null member as `Field::Absent`; document members keep their nulls. `NaN`,
+`Infinity`, and `-Infinity` floats are sent and read as those strings. A
+`__type` key beside a union member is ignored. Errors are named by
+`X-Amzn-Errortype`, then the body's `__type` or `code`; namespaces and `:`
+suffixes are dropped, and renamed errors still match their wire name. A
+capitalized `Message` fills a modeled `message` member and
+`UnknownError::message`. Request IDs come from `x-request-id`,
+`x-amzn-requestid`, or `x-amz-request-id`.
+
+### HTTP checksums
+
+`@httpChecksumRequired` and `@aws.protocols#httpChecksum` compute request
+checksums over the bytes actually sent: after interceptors and before SigV4
+signing. CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512 are supported;
+choosing another algorithm is `Error::Invalid` before dispatch. A checksum
+header the caller supplies, through a bound member or an interceptor, is sent
+unchanged.
+
+By default (`ChecksumPolicy::WhenSupported`) an absent algorithm member is sent
+as `CRC32` and an absent validation-mode member as `ENABLED`, without changing
+the caller's input. `Config::request_checksum_calculation(ChecksumPolicy::WhenRequired)`
+computes a checksum only when the model requires one or the caller chose an
+algorithm; `response_checksum_validation(ChecksumPolicy::WhenRequired)` verifies
+responses only when the caller enabled validation. A required checksum without
+an algorithm member is `Content-MD5`.
+
+When validation is enabled, the first modeled, supported response algorithm
+that the response carries is verified. A mismatch is
+`Error::ChecksumMismatch(algorithm)` and is not retried.
+`Config::on_checksum_validated(|operation, algorithm| ..)` reports each verified
+response. A streamed response is verified as it is read: a mismatch ends the
+stream with an `InvalidData` error, and the callback runs at its end. A streamed
+upload cannot be hashed before it is sent, so an optional checksum is skipped
+and a required or chosen one needs a caller-supplied header.
+
+These additions change `crucible-wire` descriptions (`Location::TextPayload`,
+`Location::DocumentPayload`, `Scalar::Base64`, `Scalar::Timestamp`, and the
+`Operation::PROTOCOL` and `Operation::CHECKSUM` constants) and add
+`Error::ChecksumMismatch`. Regenerate clients with the matching runtime, and
+add the new variant to exhaustive matches on `Error`.
 
 ### AWS signing and credential providers
 

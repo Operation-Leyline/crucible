@@ -109,7 +109,14 @@ pub struct Config {
     pub(crate) http: reqwest::Client,
     pub(crate) timeout: Option<Duration>,
     pub(crate) content_sha256: bool,
+    pub(crate) request_checksum_calculation: crate::ChecksumPolicy,
+    pub(crate) response_checksum_validation: crate::ChecksumPolicy,
+    pub(crate) checksum_validated: Option<ChecksumValidated>,
 }
+
+/// Told which operation's response checksum was verified, and with which algorithm.
+pub type ChecksumValidated =
+    Arc<dyn Fn(&'static str, crucible_wire::operation::ChecksumAlgorithm) + Send + Sync>;
 
 impl Config {
     pub fn new(endpoint: impl Into<String>) -> Self {
@@ -133,6 +140,9 @@ impl Config {
             http: reqwest::Client::new(),
             timeout: None,
             content_sha256: false,
+            request_checksum_calculation: crate::ChecksumPolicy::WhenSupported,
+            response_checksum_validation: crate::ChecksumPolicy::WhenSupported,
+            checksum_validated: None,
         }
     }
 
@@ -171,6 +181,35 @@ impl Config {
     /// Hashes the replayed body before caller interceptors (including empty writes).
     pub fn content_sha256(mut self, enabled: bool) -> Self {
         self.content_sha256 = enabled;
+        self
+    }
+
+    /// When modeled request checksums are computed: `WhenSupported` (the
+    /// default) fills an absent algorithm member with CRC32; `WhenRequired`
+    /// computes one only when the model requires it or the caller chose one.
+    pub fn request_checksum_calculation(mut self, policy: crate::ChecksumPolicy) -> Self {
+        self.request_checksum_calculation = policy;
+        self
+    }
+
+    /// When modeled response checksums are verified: `WhenSupported` (the
+    /// default) enables an absent validation-mode member; `WhenRequired`
+    /// verifies only when the caller enabled it.
+    pub fn response_checksum_validation(mut self, policy: crate::ChecksumPolicy) -> Self {
+        self.response_checksum_validation = policy;
+        self
+    }
+
+    /// Called with the operation name and algorithm whenever a response
+    /// checksum is verified. A streamed body is verified when it ends.
+    pub fn on_checksum_validated(
+        mut self,
+        callback: impl Fn(&'static str, crucible_wire::operation::ChecksumAlgorithm)
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.checksum_validated = Some(Arc::new(callback));
         self
     }
 

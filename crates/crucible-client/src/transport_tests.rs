@@ -50,7 +50,12 @@ fn modeled_and_unknown_errors_expose_identical_http_metadata() {
     headers.insert("retry-after", HeaderValue::from_static("2"));
     for name in ["Known", "Future"] {
         let wire = format!("{{\"__type\":\"{name}\"}}");
-        let error = decode_error::<Known>(429, &headers, wire.as_bytes());
+        let error = decode_error::<Known>(
+            crucible_wire::operation::Protocol::CrucibleJson,
+            429,
+            &headers,
+            wire.as_bytes(),
+        );
         let metadata = error.metadata().unwrap();
         assert_eq!(metadata.status, 429);
         assert_eq!(metadata.request_id.as_deref(), Some("request-17"));
@@ -116,6 +121,7 @@ async fn body_digests_cover_empty_writes_and_raw_bytes() {
                 body,
                 crate::auth::OperationAuth::of::<Probe>(),
                 None,
+                &crate::checksum::Plan::default(),
             )
             .await
             .unwrap();

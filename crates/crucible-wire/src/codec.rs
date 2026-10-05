@@ -130,6 +130,68 @@ impl<T, C: Codec<T>> Codec<crate::field::Field<T>> for Field<C> {
             .map(|value| value.map_or(crate::field::Field::Null, crate::field::Field::Value))
     }
 }
+/// A protocol that omits null structure members reads an explicit null as
+/// absence. Documents keep their nulls and never use this codec.
+pub struct NullAbsent<C>(PhantomData<C>);
+impl<T, C: Codec<T>> Codec<crate::field::Field<T>> for NullAbsent<C> {
+    fn serialize<S: Serializer>(
+        value: &crate::field::Field<T>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        Field::<C>::serialize(value, serializer)
+    }
+    fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<crate::field::Field<T>, D::Error> {
+        Field::<C>::deserialize(deserializer).map(|value| match value {
+            crate::field::Field::Null => crate::field::Field::Absent,
+            value => value,
+        })
+    }
+}
+
+/// Floating-point values whose protocol spells non-finite numbers as the
+/// strings `NaN`, `Infinity` and `-Infinity`.
+pub struct NonFinite;
+macro_rules! non_finite {
+    ($float:ty, $serialize:ident) => {
+        impl Codec<$float> for NonFinite {
+            fn serialize<S: Serializer>(value: &$float, serializer: S) -> Result<S::Ok, S::Error> {
+                if value.is_nan() {
+                    serializer.serialize_str("NaN")
+                } else if value.is_infinite() {
+                    serializer.serialize_str(if *value > 0.0 {
+                        "Infinity"
+                    } else {
+                        "-Infinity"
+                    })
+                } else {
+                    serializer.$serialize(*value)
+                }
+            }
+            fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<$float, D::Error> {
+                match serde_json::Value::deserialize(deserializer)? {
+                    serde_json::Value::Number(number) => number
+                        .as_f64()
+                        .map(|value| value as $float)
+                        .ok_or_else(|| serde::de::Error::custom("number out of range")),
+                    serde_json::Value::String(text) => match text.as_str() {
+                        "NaN" => Ok(<$float>::NAN),
+                        "Infinity" => Ok(<$float>::INFINITY),
+                        "-Infinity" => Ok(<$float>::NEG_INFINITY),
+                        _ => Err(serde::de::Error::custom(
+                            "a float is a number, NaN, Infinity or -Infinity",
+                        )),
+                    },
+                    _ => Err(serde::de::Error::custom("expected a number")),
+                }
+            }
+        }
+    };
+}
+non_finite!(f32, serialize_f32);
+non_finite!(f64, serialize_f64);
+
 pub struct Boxed<C>(PhantomData<C>);
 impl<T, C: Codec<T>> Codec<Box<T>> for Boxed<C> {
     fn serialize<S: Serializer>(value: &Box<T>, serializer: S) -> Result<S::Ok, S::Error> {
@@ -249,6 +311,35 @@ mod tests {
     use super::{Adapter, Document, Identity, List, Map};
     use serde_json::Value;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn non_finite_floats_are_strings_and_finite_floats_numbers() {
+        use super::{Field, NonFinite, NullAbsent};
+        for (value, wire) in [
+            (f64::NAN, "\"NaN\""),
+            (f64::INFINITY, "\"Infinity\""),
+            (f64::NEG_INFINITY, "\"-Infinity\""),
+            (1.5, "1.5"),
+        ] {
+            let mut out = Vec::new();
+            Adapter::<NonFinite>::serialize(&value, &mut serde_json::Serializer::new(&mut out))
+                .unwrap();
+            assert_eq!(std::str::from_utf8(&out).unwrap(), wire);
+            let mut input = serde_json::Deserializer::from_str(wire);
+            let read: f64 = Adapter::<NonFinite>::deserialize(&mut input).unwrap();
+            assert!(read == value || (read.is_nan() && value.is_nan()));
+        }
+        let mut input = serde_json::Deserializer::from_str("\"nan\"");
+        assert!(Adapter::<NonFinite>::deserialize::<f32, _>(&mut input).is_err());
+        let mut input = serde_json::Deserializer::from_str("null");
+        let value: crate::field::Field<String> =
+            Adapter::<NullAbsent<Identity>>::deserialize(&mut input).unwrap();
+        assert!(value.is_absent());
+        let mut input = serde_json::Deserializer::from_str("null");
+        let value: crate::field::Field<String> =
+            Adapter::<Field<Identity>>::deserialize(&mut input).unwrap();
+        assert!(value.is_null());
+    }
 
     #[test]
     fn unique_items_ignore_object_order_and_exact_numeric_spelling() {

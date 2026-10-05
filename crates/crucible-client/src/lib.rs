@@ -13,14 +13,15 @@
 //! let city = client.get_city(GetCityInput::builder().city_id("sea").build()).await?;
 //! ```
 //!
-//! Requests travel as the service's `crucible.protocols#json` protocol
-//! describes them. Throttling errors are retried; other transient failures
+//! Requests travel as the service's protocol describes them:
+//! `crucible.protocols#json`, or an AWS JSON protocol chosen at generation. Throttling errors are retried; other transient failures
 //! only when the operation is safe to repeat (`@readonly`, `@idempotent`,
 //! or carrying an idempotency token, which the client fills when absent).
 
 mod auth;
 mod build_error;
 mod cancellation;
+pub mod checksum;
 mod config;
 mod credentials;
 mod endpoint;
@@ -33,14 +34,17 @@ mod waiter;
 
 pub use build_error::BuildError;
 pub use cancellation::CancellationToken;
+pub use checksum::ChecksumPolicy;
 pub use config::{
-    BasicCredentials, BoxFuture, CallOptions, Config, Identity, Interceptor, Retry, Token,
+    BasicCredentials, BoxFuture, CallOptions, ChecksumValidated, Config, Identity, Interceptor,
+    Retry, Token,
 };
 pub use credentials::AwsCredentials;
 pub use crucible_wire::blob::Blob;
 pub use crucible_wire::error::ModelledError;
 pub use crucible_wire::field::Field;
 pub use crucible_wire::open::UnknownUnion;
+pub use crucible_wire::operation::{Checksum, ChecksumAlgorithm, Protocol};
 pub use crucible_wire::operation::{Operation, OperationInfo};
 pub use crucible_wire::{blob, codec, error, number, operation, time, validate};
 pub use crucible_wire::{field, open};

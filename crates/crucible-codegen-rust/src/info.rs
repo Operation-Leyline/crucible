@@ -2,7 +2,7 @@
 //! and where they travel, operations, errors, the service.
 
 use crucible_smithy::ir::{
-    Binding, Bindings, Member, Service, Shape, SimpleKind, Structure, TimestampFormat,
+    Binding, Bindings, Member, PayloadKind, Service, Shape, SimpleKind, Structure, TimestampFormat,
 };
 
 use crate::names::literal;
@@ -28,14 +28,26 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
             } else if bindings.response_code.as_deref() == Some(&member.name) {
                 "ResponseCode".to_owned()
             } else if let Some(p) = bindings.payload.as_ref().filter(|p| p.member == member.name) {
-                if p.streaming { format!("StreamingPayload {{ media_type: {}, requires_length: {}, minimum: {:?}, maximum: {:?} }}", literal(&p.media_type), p.requires_length, member.constraints.length.as_ref().and_then(|b| b.min), member.constraints.length.as_ref().and_then(|b| b.max)) } else { format!("Payload({})", literal(&p.media_type)) }
+                if p.streaming { format!("StreamingPayload {{ media_type: {}, requires_length: {}, minimum: {:?}, maximum: {:?} }}", literal(&p.media_type), p.requires_length, member.constraints.length.as_ref().and_then(|b| b.min), member.constraints.length.as_ref().and_then(|b| b.max)) } else {
+                    let kind = match p.kind {
+                        PayloadKind::String => "TextPayload",
+                        PayloadKind::Document => "DocumentPayload",
+                        PayloadKind::Blob | PayloadKind::EventStream => "Payload",
+                    };
+                    format!("{kind}({})", literal(&p.media_type))
+                }
             } else {
                 "Body".to_owned()
             };
-            let scalar = if location == "Body" || location.starts_with("Payload") || location.starts_with("StreamingPayload") {
+            let scalar = if location == "Body" || location.contains("Payload") {
                 "Json".to_owned()
             } else {
-                scalar(service, member)
+                scalar(
+                    service,
+                    member,
+                    bindings.timestamp_formats.get(&member.name).copied(),
+                    bindings.header_encodings.contains_key(&member.name),
+                )
             };
             format!(
                 "::crucible::operation::MemberInfo {{ name: {}, location: ::crucible::operation::Location::{location}, scalar: ::crucible::operation::Scalar::{scalar}, redaction: {}, traits: {} }}",
@@ -54,12 +66,15 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
     }
 }
 
-/// Error structures bind only headers.
+/// Error structures bind headers, a status member and a payload.
 pub(crate) fn error_bindings(error: &crucible_smithy::ir::ErrorInfo) -> Bindings {
     Bindings {
         headers: error.headers.clone(),
         prefix_headers: error.prefix_headers.clone(),
         response_code: error.response_code.clone(),
+        payload: error.payload.clone(),
+        header_encodings: error.header_encodings.clone(),
+        timestamp_formats: error.timestamp_formats.clone(),
         ..Bindings::default()
     }
 }
@@ -68,14 +83,27 @@ fn find<'b>(bindings: &'b [Binding], member: &str) -> Option<&'b Binding> {
     bindings.iter().find(|b| b.member == member)
 }
 
-/// How a bound member's text reads: the `Scalar` variant.
-fn scalar(service: &Service, member: &Member) -> String {
+/// How a bound member's text reads: the `Scalar` variant. `timestamp` is
+/// the binding's own format when it differs from the document's; `base64`
+/// marks a header whose `@mediaType` strings travel base64-encoded.
+fn scalar(
+    service: &Service,
+    member: &Member,
+    timestamp: Option<TimestampFormat>,
+    base64: bool,
+) -> String {
+    let format = |format: TimestampFormat| match format {
+        TimestampFormat::DateTime => "DateTime",
+        TimestampFormat::EpochSeconds => "EpochSeconds",
+        TimestampFormat::HttpDate => "HttpDate",
+    };
     match service.shape(&member.target) {
-        Some(Shape::Map(map)) => scalar(service, &map.value),
+        Some(Shape::Map(map)) => scalar(service, &map.value, timestamp, base64),
         Some(Shape::IntEnum(_)) => "Integer".to_owned(),
+        Some(Shape::Enum(_)) if base64 => "Base64".to_owned(),
         Some(Shape::List(list)) => format!(
             "List(&::crucible::operation::Scalar::{})",
-            scalar(service, &list.member)
+            scalar(service, &list.member, timestamp, base64)
         ),
         Some(Shape::Simple(simple)) => match simple.kind {
             SimpleKind::BigInteger => "BigInteger",
@@ -85,11 +113,20 @@ fn scalar(service: &Service, member: &Member) -> String {
                 "Integer"
             }
             SimpleKind::Float | SimpleKind::Double => "Float",
-            SimpleKind::Timestamp => match service.timestamp_format(member) {
-                TimestampFormat::DateTime => "DateTime",
-                TimestampFormat::EpochSeconds => "EpochSeconds",
-                TimestampFormat::HttpDate => "HttpDate",
-            },
+            SimpleKind::Timestamp => {
+                let text = timestamp.unwrap_or_else(|| service.timestamp_format(member));
+                let json = service.document_timestamp_format(member);
+                if text == json {
+                    format(text)
+                } else {
+                    return format!(
+                        "Timestamp {{ text: ::crucible::operation::TimestampFormat::{}, json: ::crucible::operation::TimestampFormat::{} }}",
+                        format(text),
+                        format(json)
+                    );
+                }
+            }
+            SimpleKind::String if base64 => "Base64",
             SimpleKind::String => "String",
             // Never bound: lowering refuses a blob in a label, query or header.
             SimpleKind::Document | SimpleKind::Blob => "Json",

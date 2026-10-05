@@ -77,7 +77,18 @@ pub(crate) fn union(
         }
         out.push_str(&format!("    {}({ty}),\n", variant(&member.name)));
     }
-    out.push_str(&format!("    /// An arm introduced by a newer service.\n    {unknown}(::crucible::UnknownUnion),\n}}\nimpl ::crucible::open::Union for {name} {{\n    fn deserialize_member<'de, D: ::crucible::__private::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {{\n        match name.as_str() {{\n"));
+    // AWS JSON protocols may add a `__type` key beside the member.
+    let ignore = if service.protocol_settings.ignore_unknown_union_type
+        && !union
+            .members
+            .iter()
+            .any(|member| member.wire_name == "__type")
+    {
+        "    const IGNORE_TYPE: bool = true;\n"
+    } else {
+        ""
+    };
+    out.push_str(&format!("    /// An arm introduced by a newer service.\n    {unknown}(::crucible::UnknownUnion),\n}}\nimpl ::crucible::open::Union for {name} {{\n{ignore}    fn deserialize_member<'de, D: ::crucible::__private::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {{\n        match name.as_str() {{\n"));
     for member in &union.members {
         let decode = if let Some(mut codec) = crate::types::codec(service, member) {
             if boxed.contains(&id.with_member(&member.name)) {

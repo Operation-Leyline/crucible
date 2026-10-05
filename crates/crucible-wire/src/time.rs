@@ -16,6 +16,49 @@ pub fn parse_date_time(text: &str) -> Option<Timestamp> {
         .map(|time| time.with_timezone(&Utc))
 }
 
+/// Timestamp text in `format`: what a label, query parameter or header holds.
+pub fn parse(text: &str, format: crate::operation::TimestampFormat) -> Option<Timestamp> {
+    use crate::operation::TimestampFormat;
+    match format {
+        TimestampFormat::DateTime => parse_date_time(text),
+        TimestampFormat::EpochSeconds => epoch_seconds::parse(text),
+        TimestampFormat::HttpDate => http_date::parse(text),
+    }
+}
+
+/// A timestamp as text in `format`.
+pub fn format(time: &Timestamp, format: crate::operation::TimestampFormat) -> String {
+    use crate::operation::TimestampFormat;
+    match format {
+        TimestampFormat::DateTime => format_date_time(time),
+        TimestampFormat::EpochSeconds => epoch_seconds::format(time),
+        TimestampFormat::HttpDate => http_date::format(time),
+    }
+}
+
+/// A timestamp's JSON value in any of its three formats: a number is epoch
+/// seconds, and RFC 3339 and HTTP-date text cannot be mistaken for each other.
+pub fn from_json(value: &serde_json::Value) -> Option<Timestamp> {
+    match value {
+        serde_json::Value::Number(number) => epoch_seconds::parse(&number.to_string()),
+        serde_json::Value::String(text) => parse_date_time(text).or_else(|| http_date::parse(text)),
+        _ => None,
+    }
+}
+
+/// A timestamp as the JSON value of a member in `format`.
+pub fn to_json(time: &Timestamp, format: crate::operation::TimestampFormat) -> serde_json::Value {
+    use crate::operation::TimestampFormat;
+    match format {
+        TimestampFormat::EpochSeconds => serde_json::Value::Number(
+            epoch_seconds::format(time)
+                .parse()
+                .expect("epoch seconds are JSON numeric syntax"),
+        ),
+        _ => serde_json::Value::String(self::format(time, format)),
+    }
+}
+
 pub mod epoch_seconds {
     use chrono::{DateTime, Utc};
     use serde::{Deserialize, Deserializer, Serializer};

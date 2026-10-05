@@ -254,6 +254,9 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         "    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
         op.optional_auth
     );
+    if client {
+        auth.push_str(&client_wire(service, op));
+    }
     if op.unsigned_payload {
         auth.push_str("    const UNSIGNED_PAYLOAD: bool = true;\n");
     }
@@ -263,6 +266,79 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         operation_static(op),
         input_type(service, op),
         output_ty,
+    ));
+    out
+}
+
+/// A client marker's protocol and checksum description, when they differ
+/// from the defaults: `crucible.protocols#json` and no checksum.
+fn client_wire(service: &Service, op: &Operation) -> String {
+    use crucible_smithy::Protocol;
+    use crucible_smithy::ir::{Checksum, ChecksumAlgorithm};
+    let mut out = String::new();
+    let protocol = match service.protocol {
+        Protocol::AwsRestJson1 => Some("AwsRestJson1".to_owned()),
+        Protocol::AwsJson10 => Some(format!(
+            "AwsJson10 {{ service: {} }}",
+            literal(service.id.name())
+        )),
+        Protocol::AwsJson11 => Some(format!(
+            "AwsJson11 {{ service: {} }}",
+            literal(service.id.name())
+        )),
+        _ => None,
+    };
+    if let Some(protocol) = protocol {
+        out.push_str(&format!(
+            "    const PROTOCOL: ::crucible::operation::Protocol = ::crucible::operation::Protocol::{protocol};\n"
+        ));
+    }
+    let wire = |name: &Option<String>| {
+        name.as_ref().map_or("None".to_owned(), |name| {
+            let wire = structure(service, op.input.as_ref())
+                .and_then(|s| s.member(name))
+                .map_or(name.as_str(), |m| m.wire_name.as_str());
+            format!("Some({})", literal(wire))
+        })
+    };
+    let checksum = match &op.checksum {
+        None => return out,
+        Some(Checksum::Md5) => "Md5".to_owned(),
+        Some(Checksum::AwsFlexible {
+            request_required,
+            request_algorithm_member,
+            validation_mode_member,
+            response_algorithms,
+            ..
+        }) => {
+            let algorithms = response_algorithms
+                .iter()
+                .map(|algorithm| {
+                    let name = match algorithm {
+                        ChecksumAlgorithm::Crc32 => "Crc32",
+                        ChecksumAlgorithm::Crc32c => "Crc32c",
+                        ChecksumAlgorithm::Crc64nvme => "Crc64Nvme",
+                        ChecksumAlgorithm::Md5 => "Md5",
+                        ChecksumAlgorithm::Sha1 => "Sha1",
+                        ChecksumAlgorithm::Sha256 => "Sha256",
+                        ChecksumAlgorithm::Sha512 => "Sha512",
+                        ChecksumAlgorithm::Xxhash64 => "Xxhash64",
+                        ChecksumAlgorithm::Xxhash3 => "Xxhash3",
+                        ChecksumAlgorithm::Xxhash128 => "Xxhash128",
+                    };
+                    format!("::crucible::operation::ChecksumAlgorithm::{name}")
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "Flexible {{ request_required: {request_required}, request_algorithm_member: {}, validation_mode_member: {}, response_algorithms: &[{algorithms}] }}",
+                wire(request_algorithm_member),
+                wire(validation_mode_member)
+            )
+        }
+    };
+    out.push_str(&format!(
+        "    const CHECKSUM: Option<::crucible::operation::Checksum> = Some(::crucible::operation::Checksum::{checksum});\n"
     ));
     out
 }

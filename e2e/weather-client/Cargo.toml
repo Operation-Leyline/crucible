@@ -12,8 +12,10 @@ weather-model = { path = "../weather-model" }
 
 [build-dependencies]
 crucible-build = { path = "../../crates/crucible-build" }
+serde_json = "1"
 
 [dev-dependencies]
+base64 = "0.22"
 bytes = "1"
 futures-util = "0.3"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }

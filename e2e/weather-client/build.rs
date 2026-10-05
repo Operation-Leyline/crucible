@@ -88,4 +88,66 @@ fn main() {
             .expect("auth fixture");
         std::fs::write(out.join(format!("auth_{name}_client.rs")), code).unwrap();
     }
+    wire_extensions(&out);
+}
+
+/// Fixtures for payload kinds, media-type headers, AWS JSON protocols and
+/// HTTP checksums. Each protocol variant keeps one protocol trait, as
+/// `--protocol` selects one.
+fn wire_extensions(out: &std::path::Path) {
+    let generate = |fixture: &str, name: &str| {
+        println!("cargo::rerun-if-changed={fixture}");
+        let code = crucible_build::Codegen::client_from_model(fixture)
+            .render()
+            .unwrap_or_else(|error| panic!("{fixture}: {error}"));
+        std::fs::write(out.join(name), code).unwrap();
+    };
+    generate(
+        "../../crates/crucible-smithy/tests/fixtures/error-payloads.json",
+        "wire_client.rs",
+    );
+    generate("tests/fixtures/payload-kinds.json", "kinds_client.rs");
+    let checksums = "../../crates/crucible-smithy/tests/fixtures/checksums.json";
+    generate(checksums, "checksum_client.rs");
+    // The same operations with a streamed output, verified as it is read.
+    println!("cargo::rerun-if-changed={checksums}");
+    let mut model: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(checksums).unwrap()).unwrap();
+    model["shapes"]["example.checksums#Stream"] =
+        serde_json::json!({"type":"blob","traits":{"smithy.api#streaming":{}}});
+    model["shapes"]["example.checksums#Output"]["members"]["data"]["target"] =
+        serde_json::json!("example.checksums#Stream");
+    model["shapes"]["example.checksums#Input"]["members"]["data"]["target"] =
+        serde_json::json!("example.checksums#Stream");
+    for structure in ["Input", "Output"] {
+        model["shapes"][format!("example.checksums#{structure}")]["members"]["data"]["traits"]["smithy.api#required"] =
+            serde_json::json!({});
+    }
+    let path = out.join("checksum-streaming.json");
+    std::fs::write(&path, model.to_string()).unwrap();
+    std::fs::write(
+        out.join("checksum_streaming_client.rs"),
+        crucible_build::Codegen::client_from_model(&path)
+            .render()
+            .expect("streaming checksum fixture"),
+    )
+    .unwrap();
+    let protocols = "../../crates/crucible-smithy/tests/fixtures/protocol-json.json";
+    println!("cargo::rerun-if-changed={protocols}");
+    for protocol in ["restJson1", "awsJson1_0", "awsJson1_1"] {
+        let mut model: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(protocols).unwrap()).unwrap();
+        let service = &mut model["shapes"]["example.json#JsonService"];
+        service["traits"] = serde_json::json!({ format!("aws.protocols#{protocol}"): {} });
+        service["rename"] = serde_json::json!({"example.json#Problem": "ProblemFault"});
+        let path = out.join(format!("protocol-{protocol}.json"));
+        std::fs::write(&path, model.to_string()).unwrap();
+        std::fs::write(
+            out.join(format!("protocol_{protocol}_client.rs")),
+            crucible_build::Codegen::client_from_model(&path)
+                .render()
+                .unwrap_or_else(|error| panic!("{protocol}: {error}")),
+        )
+        .unwrap();
+    }
 }

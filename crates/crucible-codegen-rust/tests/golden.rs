@@ -304,3 +304,84 @@ fn scaffold_plans_a_file_per_operation_in_a_folder_per_resource() {
         ping.contents
     );
 }
+
+#[test]
+fn aws_json_protocols_describe_their_wire_in_client_markers() {
+    use crucible_smithy::Protocol;
+    let model = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/protocol-json.json"
+    ))
+    .unwrap();
+    for (protocol, marker) in [
+        (Protocol::AwsRestJson1, "Protocol::AwsRestJson1;"),
+        (
+            Protocol::AwsJson10,
+            "Protocol::AwsJson10 { service: \"JsonService\" };",
+        ),
+        (
+            Protocol::AwsJson11,
+            "Protocol::AwsJson11 { service: \"JsonService\" };",
+        ),
+    ] {
+        let service = model
+            .lower_with_protocol(
+                None,
+                &crucible_codegen_rust::client_capabilities(),
+                protocol,
+            )
+            .unwrap();
+        let client = generate_client(&service).unwrap();
+        assert!(client.contains(marker), "{protocol:?}");
+        assert!(client.contains("const IGNORE_TYPE: bool = true;"));
+        assert!(client.contains("codec::NullAbsent<"));
+        assert!(client.contains("codec::NonFinite"));
+        assert!(client.contains("skip_serializing_if = \"::crucible_client::Field::is_unset\""));
+        // Documents keep explicit nulls.
+        assert!(client.contains(
+            "#[serde(rename = \"document\", default, skip_serializing_if = \"::crucible_client::Field::is_absent\")]"
+        ));
+        let rest = protocol == Protocol::AwsRestJson1;
+        assert_eq!(
+            client.contains("Scalar::Timestamp { text: ::crucible_client::operation::TimestampFormat::HttpDate, json: ::crucible_client::operation::TimestampFormat::EpochSeconds }"),
+            rest
+        );
+    }
+}
+
+#[test]
+fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/checksums.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
+    .unwrap();
+    let client = generate_client(&service).unwrap();
+    assert!(client.contains("Some(::crucible_client::operation::Checksum::Md5)"));
+    assert!(client.contains("request_algorithm_member: Some(\"algorithm\"), validation_mode_member: Some(\"validation\")"));
+    assert!(client.contains("ChecksumAlgorithm::Crc64Nvme"));
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/error-payloads.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
+    .unwrap();
+    let client = generate_client(&service).unwrap();
+    assert!(client.contains("Location::TextPayload(\"text/plain\")"));
+    assert!(client.contains("Location::DocumentPayload(\"application/json\")"));
+    assert!(client.contains("Scalar::List(&::crucible_client::operation::Scalar::Base64)"));
+    assert!(client.contains("Location::PrefixHeaders(\"x-extra-\"), scalar: ::crucible_client::operation::Scalar::Base64"));
+    // The error's payload is described too, so its body decodes as text.
+    assert!(client.contains(
+        "name: \"details\", location: ::crucible_client::operation::Location::TextPayload"
+    ));
+    // The server generator does not accept these constructs.
+    assert!(
+        Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/error-payloads.json"
+        ))
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+        .is_err()
+    );
+}

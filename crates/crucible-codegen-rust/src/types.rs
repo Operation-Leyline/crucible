@@ -135,6 +135,12 @@ pub(crate) fn codec(service: &Service, member: &Member) -> Option<String> {
             }
             Some(format!("{base}Map<{inner}>"))
         }
+        Shape::Simple(simple)
+            if matches!(simple.kind, SimpleKind::Float | SimpleKind::Double)
+                && service.protocol_settings.non_finite_float_strings =>
+        {
+            Some(format!("{base}NonFinite"))
+        }
         Shape::Simple(simple) if simple.kind == SimpleKind::Timestamp => {
             match service.document_timestamp_format(member) {
                 TimestampFormat::EpochSeconds => Some(format!("{base}EpochSeconds")),

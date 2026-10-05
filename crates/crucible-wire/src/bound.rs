@@ -14,7 +14,7 @@ use serde::de::{
     SeqAccess, Visitor,
 };
 
-use crate::operation::Scalar;
+use crate::operation::{Scalar, TimestampFormat};
 use crate::{blob, text, time};
 
 /// A bound member's value, already checked against its kind, so a bad one
@@ -30,6 +30,9 @@ pub enum BoundValue<'a> {
     List(Vec<BoundValue<'a>>),
     /// A payload member: the whole body.
     Bytes(Bytes),
+    /// A structure, union or document payload member: the whole body, JSON,
+    /// read straight into the member's type.
+    RawJson(&'a [u8]),
 }
 
 impl<'a> BoundValue<'a> {
@@ -78,11 +81,38 @@ impl<'a> BoundValue<'a> {
                 Some(_) => Ok(Self::Text(text)),
                 None => Err("must be an HTTP date".to_owned()),
             },
-            Scalar::List(item) => text::split_header(&text)
-                .into_iter()
-                .map(|item_text| Self::parse(Cow::Owned(item_text), *item))
-                .collect::<Result<Vec<_>, _>>()
-                .map(Self::List),
+            Scalar::Timestamp { text: format, json } => {
+                let time = time::parse(&text, format).ok_or_else(|| match format {
+                    TimestampFormat::DateTime => "must be an RFC 3339 timestamp".to_owned(),
+                    TimestampFormat::EpochSeconds => {
+                        "must be epoch seconds with nanosecond precision".to_owned()
+                    }
+                    TimestampFormat::HttpDate => "must be an HTTP date".to_owned(),
+                })?;
+                Ok(match time::to_json(&time, json) {
+                    serde_json::Value::Number(number) => Self::Number(number),
+                    serde_json::Value::String(text) => Self::Text(Cow::Owned(text)),
+                    _ => unreachable!("timestamps are numbers or text"),
+                })
+            }
+            Scalar::Base64 => {
+                use base64::Engine;
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(text.as_bytes())
+                    .map_err(|_| "must be base64".to_owned())?;
+                String::from_utf8(bytes)
+                    .map(|text| Self::Text(Cow::Owned(text)))
+                    .map_err(|_| "must be base64 of UTF-8 text".to_owned())
+            }
+            Scalar::List(item) => if item.http_date() && !text.contains('"') {
+                text::split_http_dates(&text)
+            } else {
+                text::split_header(&text)
+            }
+            .into_iter()
+            .map(|item_text| Self::parse(Cow::Owned(item_text), *item))
+            .collect::<Result<Vec<_>, _>>()
+            .map(Self::List),
         }
     }
 }
@@ -303,6 +333,7 @@ impl<'de, E: de::Error> Deserializer<'de> for Bound<'de, E> {
                 error: PhantomData,
             }),
             BoundValue::Bytes(bytes) => visitor.visit_bytes(&bytes),
+            BoundValue::RawJson(json) => raw_json(json, |de| de.deserialize_any(visitor)),
         }
     }
 
@@ -334,6 +365,9 @@ impl<'de, E: de::Error> Deserializer<'de> for Bound<'de, E> {
                 .deserialize_enum(name, variants, visitor),
             BoundValue::Text(Cow::Owned(text)) => IntoDeserializer::<E>::into_deserializer(text)
                 .deserialize_enum(name, variants, visitor),
+            BoundValue::RawJson(json) => {
+                raw_json(json, |de| de.deserialize_enum(name, variants, visitor))
+            }
             _ => Err(de::Error::custom("an enum value is text")),
         }
     }
@@ -342,6 +376,19 @@ impl<'de, E: de::Error> Deserializer<'de> for Bound<'de, E> {
         bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string bytes byte_buf
         unit unit_struct seq tuple tuple_struct map struct identifier ignored_any
     }
+}
+
+/// Reads all of `json` with `read`, refusing trailing data.
+fn raw_json<'de, T, E: de::Error>(
+    json: &'de [u8],
+    read: impl FnOnce(
+        &mut serde_json::Deserializer<serde_json::de::SliceRead<'de>>,
+    ) -> Result<T, serde_json::Error>,
+) -> Result<T, E> {
+    let mut deserializer = serde_json::Deserializer::from_slice(json);
+    let value = read(&mut deserializer).map_err(de::Error::custom)?;
+    deserializer.end().map_err(de::Error::custom)?;
+    Ok(value)
 }
 
 struct Items<'b, E> {
@@ -464,6 +511,80 @@ mod tests {
         assert!(
             error.to_string().contains("missing field `photo`"),
             "{error}"
+        );
+    }
+
+    #[test]
+    fn media_type_headers_are_base64_of_utf8_text() {
+        assert_eq!(
+            BoundValue::parse("aMOpbGxv".into(), Scalar::Base64).unwrap(),
+            BoundValue::Text("h\u{e9}llo".into())
+        );
+        assert!(BoundValue::parse("%%%".into(), Scalar::Base64).is_err());
+        assert!(BoundValue::parse("/w==".into(), Scalar::Base64).is_err());
+        assert_eq!(
+            BoundValue::parse(r#"YSxi, """#.into(), Scalar::List(&Scalar::Base64)).unwrap(),
+            BoundValue::List(vec![
+                BoundValue::Text("a,b".into()),
+                BoundValue::Text("".into())
+            ])
+        );
+    }
+
+    #[test]
+    fn converted_timestamps_read_as_their_document_format() {
+        const EPOCH: Scalar = Scalar::Timestamp {
+            text: TimestampFormat::HttpDate,
+            json: TimestampFormat::EpochSeconds,
+        };
+        let epoch = EPOCH;
+        assert_eq!(
+            BoundValue::parse("Wed, 31 Dec 1969 23:59:59 GMT".into(), epoch).unwrap(),
+            BoundValue::Number("-1".parse().unwrap())
+        );
+        let list = BoundValue::parse(
+            "Wed, 31 Dec 1969 23:59:59 GMT, Thu, 01 Jan 1970 00:00:01 GMT".into(),
+            Scalar::List(&EPOCH),
+        )
+        .unwrap();
+        assert_eq!(
+            list,
+            BoundValue::List(vec![
+                BoundValue::Number("-1".parse().unwrap()),
+                BoundValue::Number("1".parse().unwrap())
+            ])
+        );
+        let date_time = Scalar::Timestamp {
+            text: TimestampFormat::EpochSeconds,
+            json: TimestampFormat::DateTime,
+        };
+        assert_eq!(
+            BoundValue::parse("-0.25".into(), date_time).unwrap(),
+            BoundValue::Text("1969-12-31T23:59:59.750Z".into())
+        );
+        assert!(BoundValue::parse("soon".into(), epoch).is_err());
+    }
+
+    #[test]
+    fn a_json_payload_reads_straight_into_the_member() {
+        let input: Input = read(
+            b"",
+            vec![
+                ("cityId", BoundValue::Text("c".into())),
+                ("nested", BoundValue::RawJson(br#" {"x":2.5} "#)),
+            ],
+        )
+        .unwrap();
+        assert_eq!(input.nested, Some(Nested { x: 2.5 }));
+        assert!(
+            read::<Input>(
+                b"",
+                vec![
+                    ("cityId", BoundValue::Text("c".into())),
+                    ("nested", BoundValue::RawJson(br#"{"x":2.5} []"#)),
+                ],
+            )
+            .is_err()
         );
     }
 

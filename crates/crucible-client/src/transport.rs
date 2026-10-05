@@ -11,7 +11,10 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use crucible_wire::bound::{self, BoundValue};
-use crucible_wire::operation::{ErrorInfo, Location, MemberInfo, Operation, Segment};
+use crucible_wire::operation::{
+    Checksum, ChecksumAlgorithm, ErrorInfo, Location, MemberInfo, Operation, Protocol, Scalar,
+    Segment,
+};
 use crucible_wire::split;
 use http::{HeaderMap, HeaderName, HeaderValue, Method};
 use serde::de::DeserializeOwned;
@@ -55,6 +58,8 @@ pub enum Error<E> {
     Decode(String),
     /// The total call budget expired. No further attempts are made.
     Timeout,
+    /// A response checksum the client verified does not match the body.
+    ChecksumMismatch(ChecksumAlgorithm),
     /// The caller cancelled the operation.
     Cancelled,
 }
@@ -108,6 +113,9 @@ impl<E: fmt::Debug> fmt::Display for Error<E> {
             Self::Invalid(message) => write!(f, "invalid request: {message}"),
             Self::Decode(message) => write!(f, "unreadable response: {message}"),
             Self::Timeout => f.write_str("call deadline exceeded"),
+            Self::ChecksumMismatch(algorithm) => {
+                write!(f, "response {algorithm} checksum mismatch")
+            }
             Self::Cancelled => f.write_str("call cancelled"),
         }
     }
@@ -226,12 +234,16 @@ impl Transport {
             .map(|metadata| metadata.endpoint(input, &self.config))
             .transpose()
             .map_err(Error::Invalid)?;
-        let (url, bound_headers, body) = self.prepare_at(
+        let streaming = O::input_stream(input).is_some();
+        let (url, bound_headers, body, plan) = self.prepare_at(
             info,
             input,
             endpoint
                 .as_ref()
                 .map_or(&self.config.endpoint, |endpoint| &endpoint.url),
+            O::PROTOCOL,
+            O::CHECKSUM,
+            streaming,
         )?;
         let mut headers = endpoint
             .as_ref()
@@ -282,6 +294,7 @@ impl Transport {
                     crate::auth::OperationAuth::of::<O>()
                         .with_properties(endpoint.as_ref().map(|endpoint| &endpoint.properties)),
                     stream.as_ref(),
+                    &plan,
                 )
                 .await?;
             let response = match self.config.http.execute(request).await {
@@ -312,11 +325,21 @@ impl Transport {
                         body = body.with_bounds(minimum, maximum);
                     }
                 }
-                let stream = guarded_stream(
+                let mut stream = guarded_stream(
                     body.open().map_err(|e| Error::Decode(e.to_string()))?,
                     deadline,
                     cancellation,
                 );
+                if let Some((algorithm, expected)) = response_checksum(&plan, &response_headers) {
+                    stream = verified_stream(
+                        stream,
+                        algorithm,
+                        expected,
+                        info.name,
+                        self.config.checksum_validated.clone(),
+                    )
+                    .map_err(|e| Error::Decode(e.to_string()))?;
+                }
                 let mut bound = header_members(status, info.output, &response_headers)
                     .map_err(Error::Decode)?;
                 if let Some((member, _)) = Location::payload(info.output) {
@@ -341,9 +364,19 @@ impl Transport {
                 }
             };
             if (200..300).contains(&status) {
+                if let Some((algorithm, expected)) = response_checksum(&plan, &response_headers) {
+                    let actual = crate::checksum::digest(algorithm, &bytes)
+                        .expect("planned algorithms are supported");
+                    if !crate::checksum::same(expected.as_bytes(), actual.as_bytes()) {
+                        return Err(Error::ChecksumMismatch(algorithm));
+                    }
+                    if let Some(callback) = &self.config.checksum_validated {
+                        callback(info.name, algorithm);
+                    }
+                }
                 return decode_output::<O, E>(status, info.output, &response_headers, &bytes);
             }
-            let error = decode_error::<E>(status, &response_headers, &bytes);
+            let error = decode_error::<E>(O::PROTOCOL, status, &response_headers, &bytes);
             let (throttling, transient) = match &error {
                 Error::Service(error) => {
                     let info = error.error.info();
@@ -371,15 +404,31 @@ impl Transport {
 
     /// URL, bound headers and body (with its content type), once: every
     /// attempt resends them.
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     fn prepare_at<E, I: serde::Serialize>(
         &self,
         info: &'static crucible_wire::operation::OperationInfo,
         input: &I,
         endpoint: &str,
-    ) -> Result<(String, HeaderMap, Option<Body>), Error<E>> {
+        protocol: Protocol,
+        checksum: Option<Checksum>,
+        streaming: bool,
+    ) -> Result<(String, HeaderMap, Option<Body>, crate::checksum::Plan), Error<E>> {
         let mut body = Vec::with_capacity(128);
-        let bound = split::write_bound(input, info.input, &mut body)
+        let mut bound = split::write_bound(input, info.input, &mut body)
             .map_err(|error| Error::Invalid(error.to_string()))?;
+        let plan = crate::checksum::plan(
+            checksum,
+            info.input,
+            &mut bound,
+            &mut body,
+            crate::checksum::Policies {
+                request: self.config.request_checksum_calculation,
+                response: self.config.response_checksum_validation,
+                streaming,
+            },
+        )
+        .map_err(Error::Invalid)?;
         let mut url = endpoint.trim_end_matches('/').to_owned();
         for segment in info.path {
             url.push('/');
@@ -389,7 +438,7 @@ impl Transport {
                     let value = bound
                         .iter()
                         .find(|(member, _)| member.name == *name)
-                        .map(|(_, value)| split::text(value))
+                        .map(|(member, value)| text(value, member.scalar))
                         .ok_or_else(|| Error::Invalid(format!("`{name}` is required")))?;
                     if value.is_empty() {
                         return Err(Error::Invalid(format!("`{name}` is required")));
@@ -432,9 +481,12 @@ impl Transport {
         for (member, value) in &bound {
             match member.location {
                 Location::Query(param) => {
-                    let items: Vec<String> = match value {
-                        Value::Array(items) => items.iter().map(split::text).collect(),
-                        other => vec![split::text(other)],
+                    let items: Vec<String> = match (value, member.scalar) {
+                        (Value::Array(items), Scalar::List(item)) => {
+                            items.iter().map(|value| text(value, *item)).collect()
+                        }
+                        (Value::Array(items), _) => items.iter().map(split::text).collect(),
+                        (other, scalar) => vec![text(other, scalar)],
                     };
                     for item in items {
                         url.push(separator);
@@ -447,7 +499,7 @@ impl Transport {
                 Location::Header(name) => {
                     let name = HeaderName::from_bytes(name.as_bytes())
                         .map_err(|e| Error::Invalid(e.to_string()))?;
-                    let value = HeaderValue::from_str(&split::text(value))
+                    let value = HeaderValue::from_str(&header_text(value, member.scalar))
                         .map_err(|e| Error::Invalid(e.to_string()))?;
                     headers.insert(name, value);
                 }
@@ -487,7 +539,7 @@ impl Transport {
                         headers.insert(
                             HeaderName::from_bytes(name.as_bytes())
                                 .map_err(|e| Error::Invalid(e.to_string()))?,
-                            HeaderValue::from_str(&split::text(value))
+                            HeaderValue::from_str(&header_text(value, member.scalar))
                                 .map_err(|e| Error::Invalid(e.to_string()))?,
                         );
                     }
@@ -495,13 +547,15 @@ impl Transport {
                 Location::Label
                 | Location::Body
                 | Location::Payload(_)
+                | Location::TextPayload(_)
+                | Location::DocumentPayload(_)
                 | Location::ResponseCode
                 | Location::StreamingPayload { .. } => {}
             }
         }
         // A payload is sent raw under its media type; an absent one sends
         // no body.
-        let body = match Location::payload(info.input) {
+        let mut body = match Location::payload(info.input) {
             Some((_, media_type)) => (!body.is_empty()).then(|| (media_type, Bytes::from(body))),
             None => info
                 .input
@@ -509,9 +563,25 @@ impl Transport {
                 .any(|member| member.location == Location::Body)
                 .then(|| (JSON, Bytes::from(body))),
         };
-        Ok((url, headers, body))
+        if let Protocol::AwsJson10 { service } | Protocol::AwsJson11 { service } = protocol {
+            // Every call carries a JSON document, an empty object when the
+            // input has no members.
+            let content_type = match protocol {
+                Protocol::AwsJson10 { .. } => "application/x-amz-json-1.0",
+                _ => "application/x-amz-json-1.1",
+            };
+            let bytes = body.map_or_else(|| Bytes::from_static(b"{}"), |(_, bytes)| bytes);
+            body = Some((content_type, bytes));
+            headers.insert(
+                HeaderName::from_static("x-amz-target"),
+                HeaderValue::from_str(&format!("{service}.{}", info.name))
+                    .map_err(|e| Error::Invalid(e.to_string()))?,
+            );
+        }
+        Ok((url, headers, body, plan))
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn request<E>(
         &self,
         method: Method,
@@ -520,6 +590,7 @@ impl Transport {
         body: Option<Body>,
         auth: crate::auth::OperationAuth<'_>,
         stream: Option<&ByteStream>,
+        plan: &crate::checksum::Plan,
     ) -> Result<reqwest::Request, Error<E>> {
         let url = reqwest::Url::parse(url).map_err(|error| Error::Invalid(error.to_string()))?;
         let mut request = reqwest::Request::new(method, url);
@@ -584,6 +655,32 @@ impl Transport {
                 .intercept(&mut request)
                 .map_err(Error::Invalid)?;
         }
+        // After interceptors, so the checksum covers the bytes actually sent;
+        // a checksum the caller or an interceptor supplied is kept as is.
+        if let Some((algorithm, header)) = plan.request {
+            if !request.headers().contains_key(header) {
+                let bytes = match request.body() {
+                    None => Some(&[][..]),
+                    Some(body) => body.as_bytes(),
+                };
+                match bytes {
+                    Some(bytes) => {
+                        let digest = crate::checksum::digest(algorithm, bytes)
+                            .expect("planned algorithms are supported");
+                        request.headers_mut().insert(
+                            HeaderName::from_static(header),
+                            HeaderValue::from_str(&digest).expect("base64 is a valid header"),
+                        );
+                    }
+                    None if plan.required => {
+                        return Err(Error::Invalid(format!(
+                            "a streamed body needs a caller-supplied {header} checksum"
+                        )));
+                    }
+                    None => {}
+                }
+            }
+        }
         if let Some(signing) = signing {
             signing.apply(&mut request).map_err(Error::Invalid)?;
         }
@@ -638,20 +735,42 @@ where
     O: Operation,
     O::Output: DeserializeOwned,
 {
-    let mut bound = header_members(status, members, headers).map_err(Error::Decode)?;
+    read_response(status, members, headers, body, || body.clone()).map_err(Error::Decode)
+}
+
+/// A response structure from its bound headers and its body: a JSON object,
+/// or the payload member's bytes, text or JSON value.
+fn read_response<T: DeserializeOwned>(
+    status: u16,
+    members: &'static [MemberInfo],
+    headers: &HeaderMap,
+    body: &[u8],
+    bytes: impl FnOnce() -> Bytes,
+) -> Result<T, String> {
+    let mut bound = header_members(status, members, headers)?;
     if let Some((member, _)) = Location::payload(members) {
-        // The body is the payload, whatever it holds; it shares the
-        // response's buffer.
-        bound.push((member.name, BoundValue::Bytes(body.clone())));
-        return bound::read(&[], bound).map_err(|error| Error::Decode(error.to_string()));
+        match member.location {
+            Location::TextPayload(_) => {
+                let text = std::str::from_utf8(body)
+                    .map_err(|_| format!("{}: the payload is not UTF-8 text", member.name))?;
+                bound.push((member.name, BoundValue::Text(Cow::Borrowed(text))));
+            }
+            // No body is an absent value.
+            Location::DocumentPayload(_) if body.trim_ascii().is_empty() => {}
+            Location::DocumentPayload(_) => bound.push((member.name, BoundValue::RawJson(body))),
+            // The body is the payload, whatever it holds; it shares the
+            // response's buffer.
+            _ => bound.push((member.name, BoundValue::Bytes(bytes()))),
+        }
+        return bound::read(&[], bound).map_err(|error| error.to_string());
     }
     // An operation without output answers `null` or nothing; both read as `{}`.
     let body = if body.trim_ascii() == b"null" {
         &[]
     } else {
-        &body[..]
+        body
     };
-    bound::read(body, bound).map_err(|error| Error::Decode(error.to_string()))
+    bound::read(body, bound).map_err(|error| error.to_string())
 }
 
 /// Header members of a response, read as their kinds.
@@ -669,10 +788,19 @@ fn header_members<'h>(
             let mut values = serde_json::Map::new();
             for (name, value) in headers {
                 if let Some(key) = name.as_str().strip_prefix(prefix) {
-                    values.insert(
-                        key.to_owned(),
-                        Value::String(value.to_str().map_err(|e| e.to_string())?.to_owned()),
-                    );
+                    let text = value.to_str().map_err(|e| e.to_string())?;
+                    let text = match member.scalar {
+                        Scalar::Base64 => {
+                            match BoundValue::parse(Cow::Borrowed(text), Scalar::Base64)
+                                .map_err(|message| format!("{name}: {message}"))?
+                            {
+                                BoundValue::Text(text) => text.into_owned(),
+                                _ => unreachable!("base64 headers read as text"),
+                            }
+                        }
+                        _ => text.to_owned(),
+                    };
+                    values.insert(key.to_owned(), Value::String(text));
                 }
             }
             bound.push((member.name, BoundValue::Json(Value::Object(values))));
@@ -705,8 +833,10 @@ pub fn decode_modelled_at<T: DeserializeOwned>(
     headers: &HeaderMap,
     body: &[u8],
 ) -> Option<T> {
-    let bound = header_members(status, info.members, headers).ok()?;
-    bound::read(body, bound).ok()
+    read_response(status, info.members, headers, body, || {
+        Bytes::copy_from_slice(body)
+    })
+    .ok()
 }
 
 /// For generated `OperationErrors::decode`: the one error of `errors` with
@@ -719,22 +849,53 @@ pub fn by_status(status: u16, errors: &[&'static ErrorInfo]) -> Option<&'static 
     }
 }
 
-fn decode_error<E: OperationErrors>(status: u16, headers: &HeaderMap, body: &[u8]) -> Error<E> {
-    let envelope: Option<Value> = serde_json::from_slice(body).ok();
-    let type_name = envelope
-        .as_ref()
-        .and_then(|e| e.get("__type"))
-        .and_then(Value::as_str)
-        .map(|name| name.rsplit('#').next().unwrap_or(name));
+fn decode_error<E: OperationErrors>(
+    protocol: Protocol,
+    status: u16,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> Error<E> {
+    let mut envelope: Option<Value> = serde_json::from_slice(body).ok();
+    let header = if protocol.aws() {
+        "x-amzn-errortype"
+    } else {
+        "x-crucible-error"
+    };
+    let header_name = headers.get(header).and_then(|value| value.to_str().ok());
+    let body_name = envelope.as_ref().and_then(|e| {
+        e.get("__type")
+            .and_then(Value::as_str)
+            .or_else(|| protocol.aws().then(|| e.get("code")?.as_str()).flatten())
+    });
+    // `aws.protocols#ThrottlingError:http://...`: the shape name alone.
+    let type_name = header_name.or(body_name).map(|name| {
+        let name = name.split(':').next().unwrap_or(name);
+        name.rsplit('#').next().unwrap_or(name).to_owned()
+    });
+    let type_name = type_name.as_deref();
     let info = E::classify(status, type_name);
     let metadata = Box::new(ResponseMetadata {
         status,
         headers: headers.clone(),
-        request_id: headers
-            .get("x-request-id")
-            .and_then(|value| value.to_str().ok())
+        request_id: ["x-request-id", "x-amzn-requestid", "x-amz-request-id"]
+            .into_iter()
+            .find_map(|name| headers.get(name)?.to_str().ok())
             .map(str::to_owned),
     });
+    // AWS JSON protocols may capitalize the message member.
+    let normalized = match envelope.as_mut() {
+        Some(Value::Object(object)) if protocol.aws() && !object.contains_key("message") => {
+            match object.get("Message").cloned() {
+                Some(message) => {
+                    object.insert("message".to_owned(), message);
+                    serde_json::to_vec(&object).ok()
+                }
+                None => None,
+            }
+        }
+        _ => None,
+    };
+    let body = normalized.as_deref().unwrap_or(body);
     match E::decode(status, type_name, headers, body) {
         Some(error) => Error::Service(ServiceError { error, metadata }),
         None => Error::Unknown(UnknownError {
@@ -750,6 +911,102 @@ fn decode_error<E: OperationErrors>(status: u16, headers: &HeaderMap, body: &[u8
             retryable: info.is_some_and(|i| i.retryable),
             throttling: info.is_some_and(|i| i.throttling),
         }),
+    }
+}
+
+/// The response checksum to verify: the first modeled algorithm the
+/// response carries a header for.
+fn response_checksum(
+    plan: &crate::checksum::Plan,
+    headers: &HeaderMap,
+) -> Option<(ChecksumAlgorithm, String)> {
+    plan.response.iter().find_map(|algorithm| {
+        let value = headers.get(algorithm.header())?;
+        Some((*algorithm, value.to_str().unwrap_or_default().to_owned()))
+    })
+}
+
+/// A streamed response body checked as it passes: a mismatch is an
+/// `InvalidData` error in place of the end of the stream.
+fn verified_stream(
+    stream: ByteStream,
+    algorithm: ChecksumAlgorithm,
+    expected: String,
+    operation: &'static str,
+    callback: Option<crate::config::ChecksumValidated>,
+) -> std::io::Result<ByteStream> {
+    let hasher = crate::checksum::Hasher::new(algorithm).expect("planned algorithms are supported");
+    let chunks = stream.open()?;
+    Ok(ByteStream::new(futures_util::stream::unfold(
+        Some((chunks, hasher)),
+        move |state| {
+            let expected = expected.clone();
+            let callback = callback.clone();
+            async move {
+                let (mut chunks, mut hasher) = state?;
+                match chunks.next().await {
+                    Some(Ok(chunk)) => {
+                        hasher.update(&chunk);
+                        Some((Ok(chunk), Some((chunks, hasher))))
+                    }
+                    Some(Err(error)) => Some((Err(error), None)),
+                    None => {
+                        let actual = hasher.finish();
+                        if crate::checksum::same(expected.as_bytes(), actual.as_bytes()) {
+                            if let Some(callback) = callback {
+                                callback(operation, algorithm);
+                            }
+                            None
+                        } else {
+                            Some((
+                                Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    format!("response {algorithm} checksum mismatch"),
+                                )),
+                                None,
+                            ))
+                        }
+                    }
+                }
+            }
+        },
+    )))
+}
+
+/// A bound member's value as the text of one label, query value or header
+/// item: timestamps in the binding's format, media-type strings in base64.
+fn text(value: &Value, scalar: Scalar) -> String {
+    use crucible_wire::operation::TimestampFormat;
+    let format = match scalar {
+        Scalar::DateTime => Some(TimestampFormat::DateTime),
+        Scalar::EpochSeconds => Some(TimestampFormat::EpochSeconds),
+        Scalar::HttpDate => Some(TimestampFormat::HttpDate),
+        Scalar::Timestamp { text, .. } => Some(text),
+        Scalar::Base64 => {
+            use base64::Engine;
+            return base64::engine::general_purpose::STANDARD.encode(split::text(value));
+        }
+        _ => None,
+    };
+    match format.and_then(|format| Some((crucible_wire::time::from_json(value)?, format))) {
+        Some((time, format)) => crucible_wire::time::format(&time, format),
+        None => split::text(value),
+    }
+}
+
+/// A header member's text: a list's items joined as a header list.
+fn header_text(value: &Value, scalar: Scalar) -> String {
+    match (value, scalar) {
+        // REST protocols send HTTP dates unquoted despite their commas.
+        (Value::Array(items), Scalar::List(item)) if item.http_date() => items
+            .iter()
+            .map(|value| text(value, *item))
+            .collect::<Vec<_>>()
+            .join(", "),
+        (Value::Array(items), Scalar::List(item)) => {
+            crucible_wire::text::join_header(items.iter().map(|value| text(value, *item)))
+        }
+        (value, scalar) => text(value, scalar),
     }
 }
 
@@ -923,16 +1180,21 @@ mod tests {
             br#"{"__type":"Throttled","message":42}"#.as_slice(),
             br#"{"message":42}"#.as_slice(),
         ] {
-            let Error::Unknown(error) = decode_error::<Malformed>(429, &headers, body) else {
+            let Error::Unknown(error) =
+                decode_error::<Malformed>(Protocol::CrucibleJson, 429, &headers, body)
+            else {
                 panic!("unknown error")
             };
             assert_eq!(error.type_name.as_deref(), Some("Throttled"));
             assert!(error.retryable && error.throttling);
             assert_eq!(error.message, None);
         }
-        let Error::Unknown(error) =
-            decode_error::<Malformed>(429, &headers, br#"{"__type":"Future","message":42}"#)
-        else {
+        let Error::Unknown(error) = decode_error::<Malformed>(
+            Protocol::CrucibleJson,
+            429,
+            &headers,
+            br#"{"__type":"Future","message":42}"#,
+        ) else {
             panic!("unknown error")
         };
         assert_eq!(error.type_name.as_deref(), Some("Future"));

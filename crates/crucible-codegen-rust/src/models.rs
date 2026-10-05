@@ -268,12 +268,20 @@ pub(crate) fn member_field(
     } else {
         member.default.as_ref()
     };
+    // A protocol that omits null structure members never sends an explicit
+    // null and reads one as absence; documents keep their nulls.
+    let omit_null = client
+        && optional
+        && service.protocol_settings.omit_null_structure_members
+        && crate::types::simple_kind(service, &member.target) != Some(SimpleKind::Document);
     if optional {
         if default.is_none() {
             serde.push("default".to_owned());
         }
         serde.push(
-            if client {
+            if omit_null {
+                "skip_serializing_if = \"::crucible::Field::is_unset\""
+            } else if client {
                 "skip_serializing_if = \"::crucible::Field::is_absent\""
             } else {
                 "skip_serializing_if = \"::std::option::Option::is_none\""
@@ -320,10 +328,21 @@ pub(crate) fn member_field(
         if optional {
             codec = format!(
                 "::crucible::codec::{}<{codec}>",
-                if client { "Field" } else { "Optional" }
+                if omit_null {
+                    "NullAbsent"
+                } else if client {
+                    "Field"
+                } else {
+                    "Optional"
+                }
             );
         }
         serde.push(format!("with = \"::crucible::codec::Adapter::<{codec}>\""));
+    } else if omit_null {
+        serde.push(
+            "with = \"::crucible::codec::Adapter::<::crucible::codec::NullAbsent<::crucible::codec::Identity>>\""
+                .to_owned(),
+        );
     }
     out.push_str(&format!("    #[serde({})]\n", serde.join(", ")));
     out.push_str(&format!(
@@ -377,6 +396,14 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
                     literal(&number.to_string())
                 ))
             }
+            (SimpleKind::Timestamp, Value::Number(number)) => Some(format!(
+                "::crucible::time::epoch_seconds::parse({}).expect(\"validated timestamp default\")",
+                literal(&number.to_string())
+            )),
+            (SimpleKind::Timestamp, Value::String(text)) => Some(format!(
+                "::crucible::time::parse_date_time({}).expect(\"validated timestamp default\")",
+                literal(text)
+            )),
             (SimpleKind::Document, value) => {
                 Some(format!("::crucible::__private::serde_json::json!({value})"))
             }
