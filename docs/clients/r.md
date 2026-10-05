@@ -3,15 +3,18 @@
 [All clients](../clients.md) · [Repository overview](../../README.md)
 
 `crucible generate r` emits an installable R package with native model
-constructors, operation methods, error conditions, and lazy paginators. It uses
-the shared lowered IR for bindings, defaults, nullability, timestamp formats,
-retry traits, and pagination.
+constructors, operation methods, error conditions, lazy paginators, and modeled
+waiters. It uses the shared lowered IR for bindings, defaults, nullability,
+timestamp formats, retry traits, pagination, authentication schemes, endpoint
+rules, and checksums. The package speaks the Crucible JSON protocol and the
+AWS `restJson1`, `awsJson1_0`, and `awsJson1_1` protocols.
 
 ## Generating and installing
 
 Use R 4.1 or later with the `curl`, `jsonlite`, and `openssl` packages installed.
 Source installation also needs R's C package build tools, including Rtools on
-Windows. One registered C routine supplies a monotonic clock for deadlines.
+Windows. Registered C routines supply a monotonic clock for deadlines and the
+CRC32, CRC32C, and CRC64-NVME checksums.
 The generated package declares its dependencies in `DESCRIPTION`.
 
 ```sh
@@ -91,7 +94,7 @@ produce local errors. Recursive values are supported up to 255 model levels.
 
 ## Calls, retries, and cancellation
 
-`client_config()` accepts a token callback, named header list, middleware list,
+`client_config()` accepts identities (see [Authentication](#authentication)), a named header list, middleware list,
 timeout, maximum attempts, and base/maximum retry delays. Middleware receives
 and returns a request list containing `url`, `method`, `headers`, and raw `body`.
 Credentials refresh on every attempt. The optional SHA-256 header is computed
@@ -150,13 +153,122 @@ repeat {
 Creating a paginator sends no request. Each invocation fetches one page with a
 new call deadline. A repeated token produces an error before another request.
 
+## Authentication
+
+`client_config()` takes one identity or provider function per modeled scheme:
+`token` (bearer, a function), `basic_auth`, `api_key`, and `credentials`
+(SigV4) with `region`. A provider returns the identity, or `NULL` when it has
+none, and runs on every attempt. The operation's modeled schemes are tried in
+order and the first available identity is used. An operation with
+`@optionalAuth`, or with an empty `@auth` list, may be called anonymously;
+otherwise a missing identity fails before any request is sent. Credentials the
+caller already supplied through `headers` (an `authorization` header with the
+scheme's prefix, or the API key header or query parameter) bypass the
+provider. Credentials over plain HTTP are refused except on loopback hosts.
+
+```r
+client <- WeatherClient(client_config(
+  endpoint = "https://api.example.com",
+  credentials = cached_credentials(credential_chain(
+    environment_credentials,
+    function() profile_credentials("deploy")
+  )),
+  region = "us-east-1"
+))
+client <- WeatherClient(client_config(endpoint = url, basic_auth = basic_credentials("user", "secret")))
+client <- WeatherClient(client_config(endpoint = url, api_key = function() Sys.getenv("API_KEY")))
+```
+
+`aws_credentials()` holds an access key, secret key, optional session token,
+and optional `POSIXct` expiry; `basic_credentials()` rejects a username with a
+colon. Both print as redacted values. `environment_credentials()` reads
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN`.
+`profile_credentials(profile, path)` reads static keys from the shared
+credentials file (`AWS_PROFILE`, `AWS_SHARED_CREDENTIALS_FILE`) and never runs
+`credential_process`. `credential_chain(...)` returns the first non-`NULL`
+identity; an error stops the chain. `cached_credentials(provider,
+refresh_before = 60)` reuses an identity until `refresh_before` seconds (at
+most half its remaining lifetime) before it expires, and rejects expired
+identities. R evaluates one call at a time per session, so a refresh cannot
+race another caller in that session.
+
+SigV4 signs the final request after middleware, the checksum headers, and the
+optional SHA-256 header: the host, every remaining header, the sorted query,
+and the payload digest (`UNSIGNED-PAYLOAD` for `@unsignedPayload`). S3 keeps the
+path as sent; other services normalize it and encode it again, unless the
+endpoint's auth scheme overrides either rule.
+
+## Endpoints
+
+A model with endpoint rules does not need an `endpoint`: the rules resolve the
+URL, headers, and auth scheme properties for each call from `region`
+(`AWS::Region`), `endpoint` (`SDK::Endpoint`), `endpoint_parameters`, and
+`endpoint_builtins`, plus the operation's context parameters. An explicit
+`endpoint` remains available to the rules. A rule's error message becomes a
+`crucible_endpoint_error` condition before anything is sent. A modeled
+`@endpoint` host prefix is expanded from the input's host labels, each of
+which must be a valid DNS label; `disable_host_prefix = TRUE` turns expansion
+off.
+
+## Waiters
+
+Each modeled waiter is a client method named `wait_until_<waiter>`:
+
+```r
+job <- client$wait_until_ready(GetJobInput(id = "job-1"), timeout = 300)
+```
+
+The waiter polls the operation until an acceptor matches. Matchers evaluate the
+compiled JMESPath expressions against the input and output, keeping numbers
+exact and timestamps as epoch seconds. Delays grow exponentially with jitter
+between the modeled (or `min_delay`/`max_delay`) bounds, and the final delay
+ends at the deadline. A failure acceptor or an unmatched error signals
+`crucible_waiter_error` with `attempts`, `response`, `error`, and the modeled
+`reason`; running out of time signals `crucible_waiter_timeout`, which also
+inherits `crucible_waiter_error`. Each poll is limited by both the waiter
+deadline and the client timeout. A `cancellation` token stops the wait between
+or during polls with `crucible_cancelled`.
+
+## Checksums
+
+Operations with `@httpChecksumRequired` send `Content-MD5`. For
+`@httpChecksum`, the request algorithm member chooses CRC32, CRC32C,
+CRC64NVME, MD5, SHA1, SHA256, or SHA512; any other value fails before sending.
+With `request_checksum_calculation = "WHEN_SUPPORTED"` (the default) an unset
+algorithm defaults to CRC32, and with `response_checksum_validation =
+"WHEN_SUPPORTED"` an unset validation mode is enabled. `"WHEN_REQUIRED"` limits
+either to operations that require it. Injected members are bound like caller
+input; the caller's model is not changed. A checksum header already set by the
+input or a middleware is sent unchanged.
+
+Validation checks the first modeled response algorithm whose header is
+present against the received body, signals `crucible_checksum_error` on a
+mismatch, and calls `checksum_validated(operation, algorithm)` when it passes.
+Unsupported algorithms in the response are ignored.
+
+## AWS JSON protocols
+
+Generate with `--protocol aws.protocols#restJson1`, `#awsJson1_0`, or
+`#awsJson1_1` when a service declares more than one protocol. `awsJson1_x`
+posts every member in the body to `/` with `X-Amz-Target` and the versioned
+media type; `restJson1` uses the HTTP bindings. Timestamps default to epoch
+seconds in documents and HTTP dates in headers. Null structure members are
+omitted when sent and treated as absent when received, `NaN` and infinities
+travel as the strings `"NaN"`, `"Infinity"`, and `"-Infinity"`, and a union's
+`__type` member is ignored. Errors are identified from `X-Amzn-Errortype`,
+`code`, or `__type` (namespace and URL suffix removed), with `message` or
+`Message` and the `X-Amzn-RequestId` header.
+
 ## Qualification
 
 Run `cargo test -p crucible-codegen-r` for deterministic package snapshots and
 diagnostics. `python tools/test-r.py` builds and installs the generated source
 package into an isolated R library, runs shared retry/header fixtures, and
 tests native HTTP against the weather service and loopback transport fixture.
-Set `R` and `RSCRIPT` to select a toolchain.
+It also generates the authentication, waiter, endpoint-rule, checksum, and AWS
+JSON protocol fixtures and runs each against fake transports and a loopback
+HTTP server: the published S3 SigV4 vector, the shared checksum vectors, and
+credential provider caching. Set `R` and `RSCRIPT` to select a toolchain.
 
 The adapted full Leyline model is generated and loaded separately. This proves
 model and method coverage, not authenticated access to a deployed Leyline
