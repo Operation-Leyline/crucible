@@ -1,0 +1,254 @@
+=== DESCRIPTION ===
+Package: weather.client
+Version: 0.0.0
+Title: Generated Client for Weather
+Description: Native client generated from the Crucible Smithy semantic model.
+Authors@R: person('SDK', 'Maintainer', role = c('aut', 'cre'), email = 'sdk@example.invalid')
+License: file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.1.0)
+Imports: curl (>= 4.3.2), jsonlite (>= 1.7.3), openssl (>= 1.4.6), stats
+
+=== LICENSE ===
+Package owner must supply distribution terms before publishing. Generated model code inherits the model owner's licensing requirements.
+
+=== NAMESPACE ===
+useDynLib("weather.client", .registration = TRUE, .fixes = "C_")
+export("CitySummary")
+export("Client")
+export("ConflictError")
+export("Coordinates")
+export("CreateCityInput")
+export("CreateCityOutput")
+export("GetCityInput")
+export("GetCityOutput")
+export("GetCityPhotoInput")
+export("GetCityPhotoOutput")
+export("ListCitiesInput")
+export("ListCitiesOutput")
+export("Location")
+export("NotFoundError")
+export("PhotoSummary")
+export("PutCityPhotoInput")
+export("PutCityPhotoOutput")
+export("Sky")
+export("StatusInput")
+export("StatusOutput")
+export("ThrottlingError")
+export("UNSET")
+export("ValidationError")
+export("ValidationField")
+export("ValidationReason")
+export("cancellation_token")
+export("client_config")
+export("json_encode")
+export("json_number")
+export("json_object")
+export("json_parse")
+export("long")
+export("timestamp")
+
+=== R/client.R ===
+# Generated native operation methods.
+Client <- function(config = client_config()) {
+  client <- .crucible_client(config, NULL, TRUE)
+  client$`create_city` <- function(input, cancellation = NULL) client$call("CreateCity", input, cancellation)
+  client$`get_city` <- function(input, cancellation = NULL) client$call("GetCity", input, cancellation)
+  client$`get_city_photo` <- function(input, cancellation = NULL) client$call("GetCityPhoto", input, cancellation)
+  client$`list_cities` <- function(input, cancellation = NULL) client$call("ListCities", input, cancellation)
+  client$`list_cities_pages` <- function(input, cancellation = NULL) client$pages("ListCities", input, cancellation)
+  client$`ping` <- function(input = NULL, cancellation = NULL) client$call("Ping", input, cancellation)
+  client$`put_city_photo` <- function(input, cancellation = NULL) client$call("PutCityPhoto", input, cancellation)
+  client$`status` <- function(input, cancellation = NULL) client$call("Status", input, cancellation)
+  client
+}
+
+=== R/model-CitySummary.R ===
+# Generated from the lowered Smithy model.
+`CitySummary` <- function(`id`, `name`, `population`, `updated_at` = UNSET, `created_at` = UNSET) .crucible_model("example.weather#CitySummary", list("id" = `id`, "name" = `name`, "population" = `population`, "updated_at" = `updated_at`, "created_at" = `created_at`))
+
+=== R/model-ConflictError.R ===
+# Generated from the lowered Smithy model.
+`ConflictError` <- function(`message`) .crucible_model("example.weather#ConflictError", list("message" = `message`))
+
+=== R/model-Coordinates.R ===
+# Generated from the lowered Smithy model.
+`Coordinates` <- function(`latitude`, `longitude`) .crucible_model("example.weather#Coordinates", list("latitude" = `latitude`, "longitude" = `longitude`))
+
+=== R/model-CreateCityInput.R ===
+# Generated from the lowered Smithy model.
+`CreateCityInput` <- function(`name` = UNSET, `location` = UNSET, `client_token` = UNSET, `expected_revision` = UNSET) .crucible_model("example.weather#CreateCityInput", list("name" = `name`, "location" = `location`, "client_token" = `client_token`, "expected_revision" = `expected_revision`))
+
+=== R/model-CreateCityOutput.R ===
+# Generated from the lowered Smithy model.
+`CreateCityOutput` <- function(`city`) .crucible_model("example.weather#CreateCityOutput", list("city" = `city`))
+
+=== R/model-GetCityInput.R ===
+# Generated from the lowered Smithy model.
+`GetCityInput` <- function(`city_id` = UNSET, `at` = UNSET) .crucible_model("example.weather#GetCityInput", list("city_id" = `city_id`, "at" = `at`))
+
+=== R/model-GetCityOutput.R ===
+# Generated from the lowered Smithy model.
+`GetCityOutput` <- function(`city`, `forecast` = UNSET, `request_id` = UNSET) .crucible_model("example.weather#GetCityOutput", list("city" = `city`, "forecast" = `forecast`, "request_id" = `request_id`))
+
+=== R/model-GetCityPhotoInput.R ===
+# Generated from the lowered Smithy model.
+`GetCityPhotoInput` <- function(`city_id` = UNSET) .crucible_model("example.weather#GetCityPhotoInput", list("city_id" = `city_id`))
+
+=== R/model-GetCityPhotoOutput.R ===
+# Generated from the lowered Smithy model.
+`GetCityPhotoOutput` <- function(`caption` = UNSET, `photo` = UNSET) .crucible_model("example.weather#GetCityPhotoOutput", list("caption" = `caption`, "photo" = `photo`))
+
+=== R/model-ListCitiesInput.R ===
+# Generated from the lowered Smithy model.
+`ListCitiesInput` <- function(`next_token` = UNSET, `max_results` = UNSET, `tags` = UNSET) .crucible_model("example.weather#ListCitiesInput", list("next_token" = `next_token`, "max_results" = `max_results`, "tags" = `tags`))
+
+=== R/model-ListCitiesOutput.R ===
+# Generated from the lowered Smithy model.
+`ListCitiesOutput` <- function(`cities`, `next_token` = UNSET) .crucible_model("example.weather#ListCitiesOutput", list("cities" = `cities`, "next_token" = `next_token`))
+
+=== R/model-Location.R ===
+# Generated from the lowered Smithy model.
+`Location` <- function(member, value = NULL) .crucible_union("example.weather#Location", member, value)
+
+=== R/model-NotFoundError.R ===
+# Generated from the lowered Smithy model.
+`NotFoundError` <- function(`message`, `resource_id` = UNSET) .crucible_model("example.weather#NotFoundError", list("message" = `message`, "resource_id" = `resource_id`))
+
+=== R/model-PhotoSummary.R ===
+# Generated from the lowered Smithy model.
+`PhotoSummary` <- function(`size`, `thumbnail`, `caption` = UNSET) .crucible_model("example.weather#PhotoSummary", list("size" = `size`, "thumbnail" = `thumbnail`, "caption" = `caption`))
+
+=== R/model-PutCityPhotoInput.R ===
+# Generated from the lowered Smithy model.
+`PutCityPhotoInput` <- function(`city_id` = UNSET, `caption` = UNSET, `photo` = UNSET) .crucible_model("example.weather#PutCityPhotoInput", list("city_id" = `city_id`, "caption" = `caption`, "photo" = `photo`))
+
+=== R/model-PutCityPhotoOutput.R ===
+# Generated from the lowered Smithy model.
+`PutCityPhotoOutput` <- function(`photo`) .crucible_model("example.weather#PutCityPhotoOutput", list("photo" = `photo`))
+
+=== R/model-Sky.R ===
+# Generated from the lowered Smithy model.
+`Sky` <- function(value) structure(.crucible_string(value), class = c("Sky", 'crucible_enum', 'character'))
+
+=== R/model-StatusInput.R ===
+# Generated from the lowered Smithy model.
+`StatusInput` <- function() .crucible_model("example.weather#StatusInput", list())
+
+=== R/model-StatusOutput.R ===
+# Generated from the lowered Smithy model.
+`StatusOutput` <- function() .crucible_model("example.weather#StatusOutput", list())
+
+=== R/model-ThrottlingError.R ===
+# Generated from the lowered Smithy model.
+`ThrottlingError` <- function(`message`, `retry_after` = UNSET) .crucible_model("example.weather#ThrottlingError", list("message" = `message`, "retry_after" = `retry_after`))
+
+=== R/model-ValidationError.R ===
+# Generated from the lowered Smithy model.
+`ValidationError` <- function(`message`, `reason`, `field_list` = UNSET, `request_id` = UNSET) .crucible_model("example.weather#ValidationError", list("message" = `message`, "reason" = `reason`, "field_list" = `field_list`, "request_id" = `request_id`))
+
+=== R/model-ValidationField.R ===
+# Generated from the lowered Smithy model.
+`ValidationField` <- function(`path`, `message`) .crucible_model("example.weather#ValidationField", list("path" = `path`, "message" = `message`))
+
+=== R/model-ValidationReason.R ===
+# Generated from the lowered Smithy model.
+`ValidationReason` <- function(value) structure(.crucible_string(value), class = c("ValidationReason", 'crucible_enum', 'character'))
+
+=== R/zzz-schema.R ===
+.crucible_schema <- json_parse(paste0("{\"service\":\"example.weather#Weather\",\"version\":\"2026-10-01\",\"shapes\":{\"example.weather#CityId\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"CityId\"},\"example.weather#CityName\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"CityName\"},\"example.weather#CitySummaries\":{\"kind\":\"list\",\"member\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"CitySummaries\"},\"example.weather#CitySummary\":{\"kind\":\"structure\",\"members\":{\"id\":{\"target\":\"example.weather#CityId\",\"attribute\":\"id\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"name\":{\"target\":\"example.weather#CityName\",\"attribute\":\"name\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"population\":{\"target\":\"smithy.api#Long\",\"attribute\":\"population\",\"required\":false,\"default\":0,\"format\":\"date-time\",\"optional\":false},\"updatedAt\":{\"target\":\"smithy.api#Timestamp\",\"attribute\":\"updated_at\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"createdAt\":{\"target\":\"smithy.api#Timestamp\",\"attribute\":\"created_at\",\"required\":false,\"default\":null,\"format\":\"epoch-seconds\",\"optional\":true}},\"name\":\"CitySummary\"},\"example.weather#ConflictError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false}},\"error\":{\"status\":409,\"fault\":\"client\",\"retryable\":false,\"throttling\":false,\"headers\":[]},\"name\":\"ConflictError\"},\"example.weather#Coordinates\":{\"kind\":\"structure\",\"members\":{\"latitude\":{\"target\":\"smithy.api#Double\",\"attribute\":\"latitude\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"longitude\":{\"target\":\"smithy.api#Double\",\"attribute\":\"longitude\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false}},\"name\":\"Coordinates\"},\"example.weather#CreateCityInput\":{\"kind\":\"structure\",\"members\":{\"name\":{\"target\":\"example.weather#CityName\",\"attribute\":\"name\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":tr",
+"ue},\"location\":{\"target\":\"example.weather#Location\",\"attribute\":\"location\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"clientToken\":{\"target\":\"smithy.api#String\",\"attribute\":\"client_token\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"expectedRevision\":{\"target\":\"smithy.api#Long\",\"attribute\":\"expected_revision\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"CreateCityInput\"},\"example.weather#CreateCityOutput\":{\"kind\":\"structure\",\"members\":{\"city\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"city\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false}},\"name\":\"CreateCityOutput\"},\"example.weather#DateTime\":{\"kind\":\"timestamp\",\"format\":\"date-time\",\"name\":\"DateTime\"},\"example.weather#Forecast\":{\"kind\":\"map\",\"key\":{\"target\":\"example.weather#Sky\",\"attribute\":\"key\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"value\":{\"target\":\"smithy.api#Document\",\"attribute\":\"value\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"Forecast\"},\"example.weather#GetCityInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"at\":{\"target\":\"example.weather#DateTime\",\"attribute\":\"at\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"GetCityInput\"},\"example.weather#GetCityOutput\":{\"kind\":\"structure\",\"members\":{\"city\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"city\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"forecast\":{\"target\":\"example.weather#Forecast\",\"attribute\":\"forecast\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"requestId\":{\"target\":\"smithy.api#String\",\"attribute\":\"request_id\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"GetCityOutput\"},\"example.weather#GetCityPhotoInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",",
+"\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"GetCityPhotoInput\"},\"example.weather#GetCityPhotoOutput\":{\"kind\":\"structure\",\"members\":{\"caption\":{\"target\":\"smithy.api#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"photo\":{\"target\":\"example.weather#Photo\",\"attribute\":\"photo\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"GetCityPhotoOutput\"},\"example.weather#ListCitiesInput\":{\"kind\":\"structure\",\"members\":{\"nextToken\":{\"target\":\"smithy.api#String\",\"attribute\":\"next_token\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"maxResults\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"max_results\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"tags\":{\"target\":\"example.weather#Tags\",\"attribute\":\"tags\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"ListCitiesInput\"},\"example.weather#ListCitiesOutput\":{\"kind\":\"structure\",\"members\":{\"cities\":{\"target\":\"example.weather#CitySummaries\",\"attribute\":\"cities\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"nextToken\":{\"target\":\"smithy.api#String\",\"attribute\":\"next_token\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"ListCitiesOutput\"},\"example.weather#Location\":{\"kind\":\"union\",\"members\":{\"coordinates\":{\"target\":\"example.weather#Coordinates\",\"attribute\":\"coordinates\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"unknown\":{\"target\":\"smithy.api#Unit\",\"attribute\":\"unknown\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"Location\"},\"example.weather#NotFoundError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"resourceId\":{\"target\":\"smithy.api#String\",\"attribute\":\"resource_id\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"error\":{\"status\":404,\"fault\":\"client\",\"retryable\":false,\"th",
+"rottling\":false,\"headers\":[]},\"name\":\"NotFoundError\"},\"example.weather#Photo\":{\"kind\":\"blob\",\"format\":\"date-time\",\"name\":\"Photo\"},\"example.weather#PhotoSummary\":{\"kind\":\"structure\",\"members\":{\"size\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"size\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"thumbnail\":{\"target\":\"example.weather#Thumbnail\",\"attribute\":\"thumbnail\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"caption\":{\"target\":\"smithy.api#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"PhotoSummary\"},\"example.weather#PutCityPhotoInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"caption\":{\"target\":\"smithy.api#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"photo\":{\"target\":\"example.weather#Photo\",\"attribute\":\"photo\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"name\":\"PutCityPhotoInput\"},\"example.weather#PutCityPhotoOutput\":{\"kind\":\"structure\",\"members\":{\"photo\":{\"target\":\"example.weather#PhotoSummary\",\"attribute\":\"photo\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false}},\"name\":\"PutCityPhotoOutput\"},\"example.weather#Sky\":{\"kind\":\"enum\",\"values\":[\"clear\",\"cloudy\"],\"name\":\"Sky\"},\"example.weather#StatusInput\":{\"kind\":\"structure\",\"members\":{},\"name\":\"StatusInput\"},\"example.weather#StatusOutput\":{\"kind\":\"structure\",\"members\":{},\"name\":\"StatusOutput\"},\"example.weather#Tags\":{\"kind\":\"list\",\"member\":{\"target\":\"smithy.api#String\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"Tags\"},\"example.weather#ThrottlingError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"retryAfter\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"retry_after\",\"required\":fa",
+"lse,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"error\":{\"status\":429,\"fault\":\"client\",\"retryable\":true,\"throttling\":true,\"headers\":[[\"retryAfter\",\"Retry-After\"]]},\"name\":\"ThrottlingError\"},\"example.weather#Thumbnail\":{\"kind\":\"blob\",\"format\":\"date-time\",\"name\":\"Thumbnail\"},\"example.weather#ValidationError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"reason\":{\"target\":\"example.weather#ValidationReason\",\"attribute\":\"reason\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"fieldList\":{\"target\":\"example.weather#ValidationFieldList\",\"attribute\":\"field_list\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true},\"requestId\":{\"target\":\"smithy.api#String\",\"attribute\":\"request_id\",\"required\":false,\"default\":null,\"format\":\"date-time\",\"optional\":true}},\"error\":{\"status\":400,\"fault\":\"client\",\"retryable\":false,\"throttling\":false,\"headers\":[]},\"name\":\"ValidationError\"},\"example.weather#ValidationField\":{\"kind\":\"structure\",\"members\":{\"path\":{\"target\":\"smithy.api#String\",\"attribute\":\"path\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false},\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\",\"optional\":false}},\"name\":\"ValidationField\"},\"example.weather#ValidationFieldList\":{\"kind\":\"list\",\"member\":{\"target\":\"example.weather#ValidationField\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"ValidationFieldList\"},\"example.weather#ValidationReason\":{\"kind\":\"enum\",\"values\":[\"unknownOperation\",\"cannotParse\",\"fieldValidationFailed\",\"other\"],\"name\":\"ValidationReason\"},\"smithy.api#Document\":{\"kind\":\"document\",\"format\":\"date-time\",\"name\":\"Document\"},\"smithy.api#Double\":{\"kind\":\"double\",\"format\":\"date-time\",\"name\":\"Double\"},\"smithy.api#Integer\":{\"kind\":\"integer\",\"format\":\"date-time\",\"name\":\"Integer\"},\"smithy.api#Long\":{\"kind\":\"long\",\"format\":\"date-time\",\"name\":\"Lon",
+"g\"},\"smithy.api#String\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"String\"},\"smithy.api#Timestamp\":{\"kind\":\"timestamp\",\"format\":\"date-time\",\"name\":\"Timestamp\"},\"smithy.api#Unit\":{\"kind\":\"unit\",\"name\":\"Unit\"}},\"operations\":{\"CreateCity\":{\"method\":\"POST\",\"uri\":\"/cities\",\"input\":\"example.weather#CreateCityInput\",\"output\":\"example.weather#CreateCityOutput\",\"request\":{\"labels\":[],\"query\":[],\"headers\":[[\"expectedRevision\",\"X-Expected-Revision\"]],\"body\":[\"name\",\"location\",\"clientToken\"],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[\"city\"],\"payload\":null},\"errors\":[\"example.weather#ConflictError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":\"clientToken\",\"pagination\":null},\"GetCity\":{\"method\":\"GET\",\"uri\":\"/cities/{cityId}\",\"input\":\"example.weather#GetCityInput\",\"output\":\"example.weather#GetCityOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[[\"at\",\"at\"]],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[[\"requestId\",\"X-Request-Id\"]],\"body\":[\"city\",\"forecast\"],\"payload\":null},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"GetCityPhoto\":{\"method\":\"GET\",\"uri\":\"/cities/{cityId}/photo\",\"input\":\"example.weather#GetCityPhotoInput\",\"output\":\"example.weather#GetCityPhotoOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[[\"caption\",\"X-Photo-Caption\"]],\"body\":[],\"payload\":[\"photo\",\"image/jpeg\"]},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"ListCities\":{\"method\":\"GET\",\"uri\":\"/cities\",\"input\":\"example.weather#ListCitiesInput\",\"output\":\"example.weather#ListCitiesOutput\",\"request\":{\"labels\":[],\"query\":[[\"nextToken\",\"nextToken\"],[\"maxResults\",\"maxResults\"],[\"tags\",\"tag\"]],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[",
+"],\"query\":[],\"headers\":[],\"body\":[\"cities\",\"nextToken\"],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":{\"input\":\"nextToken\",\"output\":[\"nextToken\"],\"items\":\"cities\",\"pageSize\":\"maxResults\"}},\"Ping\":{\"method\":\"GET\",\"uri\":\"/ping\",\"input\":null,\"output\":null,\"request\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"PutCityPhoto\":{\"method\":\"PUT\",\"uri\":\"/cities/{cityId}/photo\",\"input\":\"example.weather#PutCityPhotoInput\",\"output\":\"example.weather#PutCityPhotoOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[],\"headers\":[[\"caption\",\"X-Photo-Caption\"]],\"body\":[],\"payload\":[\"photo\",\"image/jpeg\"]},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[\"photo\"],\"payload\":null},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"Status\":{\"method\":\"GET\",\"uri\":\"/status\",\"input\":\"example.weather#StatusInput\",\"output\":\"example.weather#StatusOutput\",\"request\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null}},\"bearer\":true}"))
+
+=== inst/crucible.json ===
+{
+  "generator": "crucible-codegen-r",
+  "generatorVersion": "0.1.0",
+  "packageVersion": "0.0.0",
+  "service": "example.weather#Weather",
+  "serviceVersion": "2026-10-01",
+  "schemaSha256": "d3df90afc79ba684ccc64a6043485d31d419e54ba360aac554e18baddb1e255d",
+  "contentSha256": true
+}
+=== man/client.Rd ===
+\name{weather.client-client}
+\alias{CitySummary}
+\alias{Client}
+\alias{ConflictError}
+\alias{Coordinates}
+\alias{CreateCityInput}
+\alias{CreateCityOutput}
+\alias{GetCityInput}
+\alias{GetCityOutput}
+\alias{GetCityPhotoInput}
+\alias{GetCityPhotoOutput}
+\alias{ListCitiesInput}
+\alias{ListCitiesOutput}
+\alias{Location}
+\alias{NotFoundError}
+\alias{PhotoSummary}
+\alias{PutCityPhotoInput}
+\alias{PutCityPhotoOutput}
+\alias{Sky}
+\alias{StatusInput}
+\alias{StatusOutput}
+\alias{ThrottlingError}
+\alias{UNSET}
+\alias{ValidationError}
+\alias{ValidationField}
+\alias{ValidationReason}
+\alias{cancellation_token}
+\alias{client_config}
+\alias{json_encode}
+\alias{json_number}
+\alias{json_object}
+\alias{json_parse}
+\alias{long}
+\alias{timestamp}
+\title{Generated Smithy Client}
+\description{Native model constructors and an HTTP client for the generated service.}
+\details{Use Client(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}
+
+=== src/clock.c ===
+#ifndef _WIN32
+#define _POSIX_C_SOURCE 200809L
+#endif
+#include <R.h>
+#include <Rinternals.h>
+#include <R_ext/Rdynload.h>
+#include <R_ext/Visibility.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <time.h>
+#endif
+
+/* Deadline accounting must not follow wall-clock corrections. */
+static SEXP crucible_now(void) {
+#ifdef _WIN32
+    LARGE_INTEGER counter, frequency;
+    if (!QueryPerformanceFrequency(&frequency) || !QueryPerformanceCounter(&counter))
+        Rf_error("Cannot read monotonic clock");
+    return Rf_ScalarReal((double) counter.QuadPart / (double) frequency.QuadPart);
+#else
+    struct timespec value;
+    if (clock_gettime(CLOCK_MONOTONIC, &value) != 0)
+        Rf_error("Cannot read monotonic clock");
+    return Rf_ScalarReal((double) value.tv_sec + (double) value.tv_nsec / 1e9);
+#endif
+}
+
+static const R_CallMethodDef methods[] = {
+    {"crucible_now", (DL_FUNC) &crucible_now, 0},
+    {NULL, NULL, 0}
+};
+
+void attribute_visible R_init_weather_client(DllInfo *dll) {
+    R_registerRoutines(dll, NULL, methods, NULL, NULL);
+    R_useDynamicSymbols(dll, FALSE);
+    R_forceSymbols(dll, TRUE);
+}

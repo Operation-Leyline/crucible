@@ -1,0 +1,1104 @@
+=== CMakeLists.txt ===
+cmake_minimum_required(VERSION 3.20)
+project(weather_client VERSION 0.0.0 LANGUAGES C)
+find_package(yyjson CONFIG REQUIRED)
+find_package(CURL 7.68 REQUIRED)
+find_package(OpenSSL 1.1.1 REQUIRED)
+find_package(Threads REQUIRED)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+add_library(weather_client STATIC src/models.c src/client.c src/arena.c src/json.c src/number.c src/timestamp.c src/codec.c src/scope.c src/headers.c src/transport.c src/client_runtime.c src/bindings.c)
+add_library(weather_client::weather_client ALIAS weather_client)
+target_compile_features(weather_client PUBLIC c_std_17)
+set_target_properties(weather_client PROPERTIES C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON DEBUG_POSTFIX d)
+target_link_libraries(weather_client PRIVATE yyjson::yyjson CURL::libcurl OpenSSL::Crypto Threads::Threads)
+target_include_directories(weather_client PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+if(MSVC)
+  target_compile_definitions(weather_client PRIVATE _CRT_SECURE_NO_WARNINGS)
+  target_compile_options(weather_client PRIVATE /W4 /WX)
+else()
+  target_compile_options(weather_client PRIVATE -Wall -Wextra -Werror)
+  target_link_libraries(weather_client PRIVATE m)
+endif()
+install(TARGETS weather_client EXPORT weather_clientTargets ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT weather_clientTargets NAMESPACE weather_client:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/weather_client)
+configure_package_config_file(cmake/Config.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/weather_clientConfig.cmake INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/weather_client)
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/weather_clientConfigVersion.cmake VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/weather_clientConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/weather_clientConfigVersion.cmake DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/weather_client)
+install(FILES crucible.json schema.json DESTINATION ${CMAKE_INSTALL_DATADIR}/weather_client)
+
+=== cmake/Config.cmake.in ===
+@PACKAGE_INIT@
+include(CMakeFindDependencyMacro)
+find_dependency(yyjson CONFIG)
+find_dependency(CURL 7.68)
+find_dependency(OpenSSL 1.1.1)
+find_dependency(Threads)
+include("${CMAKE_CURRENT_LIST_DIR}/weather_clientTargets.cmake")
+check_required_components(weather_client)
+
+=== crucible.json ===
+{
+  "generatorVersion": "0.1.0",
+  "service": "example.weather#Weather",
+  "serviceVersion": "2026-10-01",
+  "packageVersion": "0.0.0",
+  "schemaSha256": "47785ec69a6736d9139576948f5b4167a8c9b3357db09ee0244cafaae46655ad"
+}
+=== include/weather_client/client.h ===
+#ifndef WEATHER_CLIENT_H
+#define WEATHER_CLIENT_H
+#include "models.h"
+#include "runtime/client_runtime.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+weather_status weather_client_new(const weather_client_config *config, weather_client **output, weather_error *error);
+
+/* Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { weather_result base; const weather_models_create_city_output *value; } weather_operations_create_city_result;
+weather_status weather_operations_create_city(weather_client *client, const weather_models_create_city_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_create_city_result *result, weather_error *error);
+void weather_operations_create_city_result_free(weather_operations_create_city_result *result);
+
+/* Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { weather_result base; const weather_models_get_city_output *value; } weather_operations_get_city_result;
+weather_status weather_operations_get_city(weather_client *client, const weather_models_get_city_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_get_city_result *result, weather_error *error);
+void weather_operations_get_city_result_free(weather_operations_get_city_result *result);
+
+/* Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { weather_result base; const weather_models_get_city_photo_output *value; } weather_operations_get_city_photo_result;
+weather_status weather_operations_get_city_photo(weather_client *client, const weather_models_get_city_photo_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_get_city_photo_result *result, weather_error *error);
+void weather_operations_get_city_photo_result_free(weather_operations_get_city_photo_result *result);
+
+/* Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { weather_result base; const weather_models_list_cities_output *value; } weather_operations_list_cities_result;
+weather_status weather_operations_list_cities(weather_client *client, const weather_models_list_cities_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_list_cities_result *result, weather_error *error);
+void weather_operations_list_cities_result_free(weather_operations_list_cities_result *result);
+weather_status weather_operations_list_cities_pages_new(weather_client *client, const weather_models_list_cities_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_pages **pages, weather_error *error);
+weather_status weather_operations_list_cities_pages_next(weather_pages *pages, bool *has_page, weather_operations_list_cities_result *result, weather_error *error);
+
+/* Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { weather_result base; const weather_unit *value; } weather_operations_ping_result;
+weather_status weather_operations_ping(weather_client *client, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_ping_result *result, weather_error *error);
+void weather_operations_ping_result_free(weather_operations_ping_result *result);
+
+/* Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { weather_result base; const weather_models_put_city_photo_output *value; } weather_operations_put_city_photo_result;
+weather_status weather_operations_put_city_photo(weather_client *client, const weather_models_put_city_photo_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_put_city_photo_result *result, weather_error *error);
+void weather_operations_put_city_photo_result_free(weather_operations_put_city_photo_result *result);
+
+/* Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { weather_result base; const weather_models_status_output *value; } weather_operations_status_result;
+weather_status weather_operations_status(weather_client *client, const weather_models_status_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_status_result *result, weather_error *error);
+void weather_operations_status_result_free(weather_operations_status_result *result);
+const weather_models_conflict_error *weather_error_as_conflict_error(const weather_result *result);
+const weather_models_not_found_error *weather_error_as_not_found_error(const weather_result *result);
+const weather_models_throttling_error *weather_error_as_throttling_error(const weather_result *result);
+const weather_models_validation_error *weather_error_as_validation_error(const weather_result *result);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
+
+=== include/weather_client/models.h ===
+#ifndef WEATHER_MODELS_H
+#define WEATHER_MODELS_H
+#include "runtime/schema.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern const weather_shape weather_shape_0;
+extern const weather_shape weather_shape_1;
+typedef struct weather_models_city_summaries weather_models_city_summaries;
+extern const weather_shape weather_shape_2;
+typedef struct weather_models_city_summary weather_models_city_summary;
+extern const weather_shape weather_shape_3;
+typedef struct weather_models_conflict_error weather_models_conflict_error;
+extern const weather_shape weather_shape_4;
+typedef struct weather_models_coordinates weather_models_coordinates;
+extern const weather_shape weather_shape_5;
+typedef struct weather_models_create_city_input weather_models_create_city_input;
+extern const weather_shape weather_shape_6;
+typedef struct weather_models_create_city_output weather_models_create_city_output;
+extern const weather_shape weather_shape_7;
+extern const weather_shape weather_shape_8;
+typedef struct weather_models_forecast weather_models_forecast;
+extern const weather_shape weather_shape_9;
+typedef struct weather_models_get_city_input weather_models_get_city_input;
+extern const weather_shape weather_shape_10;
+typedef struct weather_models_get_city_output weather_models_get_city_output;
+extern const weather_shape weather_shape_11;
+typedef struct weather_models_get_city_photo_input weather_models_get_city_photo_input;
+extern const weather_shape weather_shape_12;
+typedef struct weather_models_get_city_photo_output weather_models_get_city_photo_output;
+extern const weather_shape weather_shape_13;
+typedef struct weather_models_list_cities_input weather_models_list_cities_input;
+extern const weather_shape weather_shape_14;
+typedef struct weather_models_list_cities_output weather_models_list_cities_output;
+extern const weather_shape weather_shape_15;
+typedef struct weather_models_location weather_models_location;
+extern const weather_shape weather_shape_16;
+typedef struct weather_models_not_found_error weather_models_not_found_error;
+extern const weather_shape weather_shape_17;
+extern const weather_shape weather_shape_18;
+typedef struct weather_models_photo_summary weather_models_photo_summary;
+extern const weather_shape weather_shape_19;
+typedef struct weather_models_put_city_photo_input weather_models_put_city_photo_input;
+extern const weather_shape weather_shape_20;
+typedef struct weather_models_put_city_photo_output weather_models_put_city_photo_output;
+extern const weather_shape weather_shape_21;
+typedef weather_string weather_models_sky;
+extern const weather_shape weather_shape_22;
+typedef struct weather_models_status_input weather_models_status_input;
+extern const weather_shape weather_shape_23;
+typedef struct weather_models_status_output weather_models_status_output;
+extern const weather_shape weather_shape_24;
+typedef struct weather_models_tags weather_models_tags;
+extern const weather_shape weather_shape_25;
+typedef struct weather_models_throttling_error weather_models_throttling_error;
+extern const weather_shape weather_shape_26;
+extern const weather_shape weather_shape_27;
+typedef struct weather_models_validation_error weather_models_validation_error;
+extern const weather_shape weather_shape_28;
+typedef struct weather_models_validation_field weather_models_validation_field;
+extern const weather_shape weather_shape_29;
+typedef struct weather_models_validation_field_list weather_models_validation_field_list;
+extern const weather_shape weather_shape_30;
+typedef weather_string weather_models_validation_reason;
+extern const weather_shape weather_shape_31;
+extern const weather_shape weather_shape_32;
+extern const weather_shape weather_shape_33;
+extern const weather_shape weather_shape_34;
+extern const weather_shape weather_shape_35;
+extern const weather_shape weather_shape_36;
+extern const weather_shape weather_shape_37;
+extern const weather_shape weather_shape_38;
+
+struct weather_models_city_summaries { size_t length; const weather_models_city_summary * const *items; };
+weather_status weather_models_city_summaries_encode(weather_arena *arena, const weather_models_city_summaries *value, const weather_json **output, weather_error *error);
+weather_status weather_models_city_summaries_decode(weather_arena *arena, const weather_json *value, const weather_models_city_summaries **output, weather_error *error);
+
+struct weather_models_city_summary {
+    struct { weather_presence state; weather_string value; } id;
+    struct { weather_presence state; weather_string value; } name;
+    struct { weather_presence state; int64_t value; } population;
+    struct { weather_presence state; weather_timestamp value; } updated_at;
+    struct { weather_presence state; weather_timestamp value; } created_at;
+};
+weather_status weather_models_city_summary_encode(weather_arena *arena, const weather_models_city_summary *value, const weather_json **output, weather_error *error);
+weather_status weather_models_city_summary_decode(weather_arena *arena, const weather_json *value, const weather_models_city_summary **output, weather_error *error);
+
+struct weather_models_conflict_error {
+    struct { weather_presence state; weather_string value; } message;
+};
+weather_status weather_models_conflict_error_encode(weather_arena *arena, const weather_models_conflict_error *value, const weather_json **output, weather_error *error);
+weather_status weather_models_conflict_error_decode(weather_arena *arena, const weather_json *value, const weather_models_conflict_error **output, weather_error *error);
+
+struct weather_models_coordinates {
+    struct { weather_presence state; double value; } latitude;
+    struct { weather_presence state; double value; } longitude;
+};
+weather_status weather_models_coordinates_encode(weather_arena *arena, const weather_models_coordinates *value, const weather_json **output, weather_error *error);
+weather_status weather_models_coordinates_decode(weather_arena *arena, const weather_json *value, const weather_models_coordinates **output, weather_error *error);
+
+struct weather_models_create_city_input {
+    struct { weather_presence state; weather_string value; } name;
+    struct { weather_presence state; const weather_models_location * value; } location;
+    struct { weather_presence state; weather_string value; } client_token;
+    struct { weather_presence state; int64_t value; } expected_revision;
+};
+weather_status weather_models_create_city_input_encode(weather_arena *arena, const weather_models_create_city_input *value, const weather_json **output, weather_error *error);
+weather_status weather_models_create_city_input_decode(weather_arena *arena, const weather_json *value, const weather_models_create_city_input **output, weather_error *error);
+
+struct weather_models_create_city_output {
+    struct { weather_presence state; const weather_models_city_summary * value; } city;
+};
+weather_status weather_models_create_city_output_encode(weather_arena *arena, const weather_models_create_city_output *value, const weather_json **output, weather_error *error);
+weather_status weather_models_create_city_output_decode(weather_arena *arena, const weather_json *value, const weather_models_create_city_output **output, weather_error *error);
+
+typedef struct { weather_models_sky key; const weather_json * value; } weather_models_forecast_entry;
+struct weather_models_forecast { size_t length; const weather_models_forecast_entry *items; };
+weather_status weather_models_forecast_encode(weather_arena *arena, const weather_models_forecast *value, const weather_json **output, weather_error *error);
+weather_status weather_models_forecast_decode(weather_arena *arena, const weather_json *value, const weather_models_forecast **output, weather_error *error);
+
+struct weather_models_get_city_input {
+    struct { weather_presence state; weather_string value; } city_id;
+    struct { weather_presence state; weather_timestamp value; } at;
+};
+weather_status weather_models_get_city_input_encode(weather_arena *arena, const weather_models_get_city_input *value, const weather_json **output, weather_error *error);
+weather_status weather_models_get_city_input_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_input **output, weather_error *error);
+
+struct weather_models_get_city_output {
+    struct { weather_presence state; const weather_models_city_summary * value; } city;
+    struct { weather_presence state; const weather_models_forecast * value; } forecast;
+    struct { weather_presence state; weather_string value; } request_id;
+};
+weather_status weather_models_get_city_output_encode(weather_arena *arena, const weather_models_get_city_output *value, const weather_json **output, weather_error *error);
+weather_status weather_models_get_city_output_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_output **output, weather_error *error);
+
+struct weather_models_get_city_photo_input {
+    struct { weather_presence state; weather_string value; } city_id;
+};
+weather_status weather_models_get_city_photo_input_encode(weather_arena *arena, const weather_models_get_city_photo_input *value, const weather_json **output, weather_error *error);
+weather_status weather_models_get_city_photo_input_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_photo_input **output, weather_error *error);
+
+struct weather_models_get_city_photo_output {
+    struct { weather_presence state; weather_string value; } caption;
+    struct { weather_presence state; weather_blob value; } photo;
+};
+weather_status weather_models_get_city_photo_output_encode(weather_arena *arena, const weather_models_get_city_photo_output *value, const weather_json **output, weather_error *error);
+weather_status weather_models_get_city_photo_output_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_photo_output **output, weather_error *error);
+
+struct weather_models_list_cities_input {
+    struct { weather_presence state; weather_string value; } next_token;
+    struct { weather_presence state; int32_t value; } max_results;
+    struct { weather_presence state; const weather_models_tags * value; } tags;
+};
+weather_status weather_models_list_cities_input_encode(weather_arena *arena, const weather_models_list_cities_input *value, const weather_json **output, weather_error *error);
+weather_status weather_models_list_cities_input_decode(weather_arena *arena, const weather_json *value, const weather_models_list_cities_input **output, weather_error *error);
+
+struct weather_models_list_cities_output {
+    struct { weather_presence state; const weather_models_city_summaries * value; } cities;
+    struct { weather_presence state; weather_string value; } next_token;
+};
+weather_status weather_models_list_cities_output_encode(weather_arena *arena, const weather_models_list_cities_output *value, const weather_json **output, weather_error *error);
+weather_status weather_models_list_cities_output_decode(weather_arena *arena, const weather_json *value, const weather_models_list_cities_output **output, weather_error *error);
+
+enum weather_models_location_tag { weather_models_location_unknown = 0, weather_models_location_tag_coordinates = 1, weather_models_location_tag_unknown = 2 };
+struct weather_models_location {
+    uint32_t tag;
+    weather_presence state;
+    union {
+        const weather_models_coordinates * coordinates;
+        weather_unit unknown;
+    } value;
+    weather_string unknown_name;
+    const weather_json *unknown_value;
+};
+weather_status weather_models_location_encode(weather_arena *arena, const weather_models_location *value, const weather_json **output, weather_error *error);
+weather_status weather_models_location_decode(weather_arena *arena, const weather_json *value, const weather_models_location **output, weather_error *error);
+
+struct weather_models_not_found_error {
+    struct { weather_presence state; weather_string value; } message;
+    struct { weather_presence state; weather_string value; } resource_id;
+};
+weather_status weather_models_not_found_error_encode(weather_arena *arena, const weather_models_not_found_error *value, const weather_json **output, weather_error *error);
+weather_status weather_models_not_found_error_decode(weather_arena *arena, const weather_json *value, const weather_models_not_found_error **output, weather_error *error);
+
+struct weather_models_photo_summary {
+    struct { weather_presence state; int32_t value; } size;
+    struct { weather_presence state; weather_blob value; } thumbnail;
+    struct { weather_presence state; weather_string value; } caption;
+};
+weather_status weather_models_photo_summary_encode(weather_arena *arena, const weather_models_photo_summary *value, const weather_json **output, weather_error *error);
+weather_status weather_models_photo_summary_decode(weather_arena *arena, const weather_json *value, const weather_models_photo_summary **output, weather_error *error);
+
+struct weather_models_put_city_photo_input {
+    struct { weather_presence state; weather_string value; } city_id;
+    struct { weather_presence state; weather_string value; } caption;
+    struct { weather_presence state; weather_blob value; } photo;
+};
+weather_status weather_models_put_city_photo_input_encode(weather_arena *arena, const weather_models_put_city_photo_input *value, const weather_json **output, weather_error *error);
+weather_status weather_models_put_city_photo_input_decode(weather_arena *arena, const weather_json *value, const weather_models_put_city_photo_input **output, weather_error *error);
+
+struct weather_models_put_city_photo_output {
+    struct { weather_presence state; const weather_models_photo_summary * value; } photo;
+};
+weather_status weather_models_put_city_photo_output_encode(weather_arena *arena, const weather_models_put_city_photo_output *value, const weather_json **output, weather_error *error);
+weather_status weather_models_put_city_photo_output_decode(weather_arena *arena, const weather_json *value, const weather_models_put_city_photo_output **output, weather_error *error);
+static inline weather_models_sky weather_models_sky_known_clear(void) { weather_models_sky result = {"clear", 5}; return result; }
+static inline weather_models_sky weather_models_sky_known_cloudy(void) { weather_models_sky result = {"cloudy", 6}; return result; }
+weather_status weather_models_sky_encode(weather_arena *arena, const weather_models_sky *value, const weather_json **output, weather_error *error);
+weather_status weather_models_sky_decode(weather_arena *arena, const weather_json *value, const weather_models_sky **output, weather_error *error);
+
+struct weather_models_status_input {
+    unsigned char unused;
+};
+weather_status weather_models_status_input_encode(weather_arena *arena, const weather_models_status_input *value, const weather_json **output, weather_error *error);
+weather_status weather_models_status_input_decode(weather_arena *arena, const weather_json *value, const weather_models_status_input **output, weather_error *error);
+
+struct weather_models_status_output {
+    unsigned char unused;
+};
+weather_status weather_models_status_output_encode(weather_arena *arena, const weather_models_status_output *value, const weather_json **output, weather_error *error);
+weather_status weather_models_status_output_decode(weather_arena *arena, const weather_json *value, const weather_models_status_output **output, weather_error *error);
+
+struct weather_models_tags { size_t length; weather_string const *items; };
+weather_status weather_models_tags_encode(weather_arena *arena, const weather_models_tags *value, const weather_json **output, weather_error *error);
+weather_status weather_models_tags_decode(weather_arena *arena, const weather_json *value, const weather_models_tags **output, weather_error *error);
+
+struct weather_models_throttling_error {
+    struct { weather_presence state; weather_string value; } message;
+    struct { weather_presence state; int32_t value; } retry_after;
+};
+weather_status weather_models_throttling_error_encode(weather_arena *arena, const weather_models_throttling_error *value, const weather_json **output, weather_error *error);
+weather_status weather_models_throttling_error_decode(weather_arena *arena, const weather_json *value, const weather_models_throttling_error **output, weather_error *error);
+
+struct weather_models_validation_error {
+    struct { weather_presence state; weather_string value; } message;
+    struct { weather_presence state; weather_models_validation_reason value; } reason;
+    struct { weather_presence state; const weather_models_validation_field_list * value; } field_list;
+    struct { weather_presence state; weather_string value; } request_id;
+};
+weather_status weather_models_validation_error_encode(weather_arena *arena, const weather_models_validation_error *value, const weather_json **output, weather_error *error);
+weather_status weather_models_validation_error_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_error **output, weather_error *error);
+
+struct weather_models_validation_field {
+    struct { weather_presence state; weather_string value; } path;
+    struct { weather_presence state; weather_string value; } message;
+};
+weather_status weather_models_validation_field_encode(weather_arena *arena, const weather_models_validation_field *value, const weather_json **output, weather_error *error);
+weather_status weather_models_validation_field_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_field **output, weather_error *error);
+
+struct weather_models_validation_field_list { size_t length; const weather_models_validation_field * const *items; };
+weather_status weather_models_validation_field_list_encode(weather_arena *arena, const weather_models_validation_field_list *value, const weather_json **output, weather_error *error);
+weather_status weather_models_validation_field_list_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_field_list **output, weather_error *error);
+static inline weather_models_validation_reason weather_models_validation_reason_known_unknown_operation(void) { weather_models_validation_reason result = {"unknownOperation", 16}; return result; }
+static inline weather_models_validation_reason weather_models_validation_reason_known_cannot_parse(void) { weather_models_validation_reason result = {"cannotParse", 11}; return result; }
+static inline weather_models_validation_reason weather_models_validation_reason_known_field_validation_failed(void) { weather_models_validation_reason result = {"fieldValidationFailed", 21}; return result; }
+static inline weather_models_validation_reason weather_models_validation_reason_known_other(void) { weather_models_validation_reason result = {"other", 5}; return result; }
+weather_status weather_models_validation_reason_encode(weather_arena *arena, const weather_models_validation_reason *value, const weather_json **output, weather_error *error);
+weather_status weather_models_validation_reason_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_reason **output, weather_error *error);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
+
+=== schema.json ===
+{"service":"example.weather#Weather","version":"2026-10-01","shapes":{"example.weather#CityId":{"kind":"string","format":"date-time","name":"CityId"},"example.weather#CityName":{"kind":"string","format":"date-time","name":"CityName"},"example.weather#CitySummaries":{"kind":"list","member":{"target":"example.weather#CitySummary","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"CitySummaries"},"example.weather#CitySummary":{"kind":"structure","members":{"id":{"target":"example.weather#CityId","attribute":"id","required":true,"default":null,"format":"date-time"},"name":{"target":"example.weather#CityName","attribute":"name","required":true,"default":null,"format":"date-time"},"population":{"target":"smithy.api#Long","attribute":"population","required":false,"default":0,"format":"date-time"},"updatedAt":{"target":"smithy.api#Timestamp","attribute":"updated_at","required":false,"default":null,"format":"date-time"},"createdAt":{"target":"smithy.api#Timestamp","attribute":"created_at","required":false,"default":null,"format":"epoch-seconds"}},"name":"CitySummary"},"example.weather#ConflictError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"message","required":true,"default":null,"format":"date-time"}},"error":{"status":409,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"ConflictError"},"example.weather#Coordinates":{"kind":"structure","members":{"latitude":{"target":"smithy.api#Double","attribute":"latitude","required":true,"default":null,"format":"date-time"},"longitude":{"target":"smithy.api#Double","attribute":"longitude","required":true,"default":null,"format":"date-time"}},"name":"Coordinates"},"example.weather#CreateCityInput":{"kind":"structure","members":{"name":{"target":"example.weather#CityName","attribute":"name","required":true,"default":null,"format":"date-time"},"location":{"target":"example.weather#Location","attribute":"location","required":false,"default":null,"format":"date-time"},"clientToken":{"target":"smithy.api#String","attribute":"client_token","required":false,"default":null,"format":"date-time"},"expectedRevision":{"target":"smithy.api#Long","attribute":"expected_revision","required":false,"default":null,"format":"date-time"}},"name":"CreateCityInput"},"example.weather#CreateCityOutput":{"kind":"structure","members":{"city":{"target":"example.weather#CitySummary","attribute":"city","required":true,"default":null,"format":"date-time"}},"name":"CreateCityOutput"},"example.weather#DateTime":{"kind":"timestamp","format":"date-time","name":"DateTime"},"example.weather#Forecast":{"kind":"map","key":{"target":"example.weather#Sky","attribute":"key","required":false,"default":null,"format":"date-time"},"value":{"target":"smithy.api#Document","attribute":"value","required":false,"default":null,"format":"date-time"},"name":"Forecast"},"example.weather#GetCityInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"city_id","required":true,"default":null,"format":"date-time"},"at":{"target":"example.weather#DateTime","attribute":"at","required":false,"default":null,"format":"date-time"}},"name":"GetCityInput"},"example.weather#GetCityOutput":{"kind":"structure","members":{"city":{"target":"example.weather#CitySummary","attribute":"city","required":true,"default":null,"format":"date-time"},"forecast":{"target":"example.weather#Forecast","attribute":"forecast","required":false,"default":null,"format":"date-time"},"requestId":{"target":"smithy.api#String","attribute":"request_id","required":false,"default":null,"format":"date-time"}},"name":"GetCityOutput"},"example.weather#GetCityPhotoInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"city_id","required":true,"default":null,"format":"date-time"}},"name":"GetCityPhotoInput"},"example.weather#GetCityPhotoOutput":{"kind":"structure","members":{"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"},"photo":{"target":"example.weather#Photo","attribute":"photo","required":false,"default":null,"format":"date-time"}},"name":"GetCityPhotoOutput"},"example.weather#ListCitiesInput":{"kind":"structure","members":{"nextToken":{"target":"smithy.api#String","attribute":"next_token","required":false,"default":null,"format":"date-time"},"maxResults":{"target":"smithy.api#Integer","attribute":"max_results","required":false,"default":null,"format":"date-time"},"tags":{"target":"example.weather#Tags","attribute":"tags","required":false,"default":null,"format":"date-time"}},"name":"ListCitiesInput"},"example.weather#ListCitiesOutput":{"kind":"structure","members":{"cities":{"target":"example.weather#CitySummaries","attribute":"cities","required":true,"default":null,"format":"date-time"},"nextToken":{"target":"smithy.api#String","attribute":"next_token","required":false,"default":null,"format":"date-time"}},"name":"ListCitiesOutput"},"example.weather#Location":{"kind":"union","members":{"coordinates":{"target":"example.weather#Coordinates","attribute":"coordinates","required":false,"default":null,"format":"date-time"},"unknown":{"target":"smithy.api#Unit","attribute":"unknown","required":false,"default":null,"format":"date-time"}},"name":"Location"},"example.weather#NotFoundError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"message","required":true,"default":null,"format":"date-time"},"resourceId":{"target":"smithy.api#String","attribute":"resource_id","required":false,"default":null,"format":"date-time"}},"error":{"status":404,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"NotFoundError"},"example.weather#Photo":{"kind":"blob","format":"date-time","name":"Photo"},"example.weather#PhotoSummary":{"kind":"structure","members":{"size":{"target":"smithy.api#Integer","attribute":"size","required":true,"default":null,"format":"date-time"},"thumbnail":{"target":"example.weather#Thumbnail","attribute":"thumbnail","required":true,"default":null,"format":"date-time"},"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"}},"name":"PhotoSummary"},"example.weather#PutCityPhotoInput":{"kind":"structure","members":{"cityId":{"target":"example.weather#CityId","attribute":"city_id","required":true,"default":null,"format":"date-time"},"caption":{"target":"smithy.api#String","attribute":"caption","required":false,"default":null,"format":"date-time"},"photo":{"target":"example.weather#Photo","attribute":"photo","required":true,"default":null,"format":"date-time"}},"name":"PutCityPhotoInput"},"example.weather#PutCityPhotoOutput":{"kind":"structure","members":{"photo":{"target":"example.weather#PhotoSummary","attribute":"photo","required":true,"default":null,"format":"date-time"}},"name":"PutCityPhotoOutput"},"example.weather#Sky":{"kind":"enum","values":["clear","cloudy"],"name":"Sky"},"example.weather#StatusInput":{"kind":"structure","members":{},"name":"StatusInput"},"example.weather#StatusOutput":{"kind":"structure","members":{},"name":"StatusOutput"},"example.weather#Tags":{"kind":"list","member":{"target":"smithy.api#String","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"Tags"},"example.weather#ThrottlingError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"message","required":true,"default":null,"format":"date-time"},"retryAfter":{"target":"smithy.api#Integer","attribute":"retry_after","required":false,"default":null,"format":"date-time"}},"error":{"status":429,"fault":"client","retryable":true,"throttling":true,"headers":[["retryAfter","Retry-After"]]},"name":"ThrottlingError"},"example.weather#Thumbnail":{"kind":"blob","format":"date-time","name":"Thumbnail"},"example.weather#ValidationError":{"kind":"structure","members":{"message":{"target":"smithy.api#String","attribute":"message","required":true,"default":null,"format":"date-time"},"reason":{"target":"example.weather#ValidationReason","attribute":"reason","required":true,"default":null,"format":"date-time"},"fieldList":{"target":"example.weather#ValidationFieldList","attribute":"field_list","required":false,"default":null,"format":"date-time"},"requestId":{"target":"smithy.api#String","attribute":"request_id","required":false,"default":null,"format":"date-time"}},"error":{"status":400,"fault":"client","retryable":false,"throttling":false,"headers":[]},"name":"ValidationError"},"example.weather#ValidationField":{"kind":"structure","members":{"path":{"target":"smithy.api#String","attribute":"path","required":true,"default":null,"format":"date-time"},"message":{"target":"smithy.api#String","attribute":"message","required":true,"default":null,"format":"date-time"}},"name":"ValidationField"},"example.weather#ValidationFieldList":{"kind":"list","member":{"target":"example.weather#ValidationField","attribute":"member","required":false,"default":null,"format":"date-time"},"name":"ValidationFieldList"},"example.weather#ValidationReason":{"kind":"enum","values":["unknownOperation","cannotParse","fieldValidationFailed","other"],"name":"ValidationReason"},"smithy.api#Document":{"kind":"document","format":"date-time","name":"Document"},"smithy.api#Double":{"kind":"double","format":"date-time","name":"Double"},"smithy.api#Integer":{"kind":"integer","format":"date-time","name":"Integer"},"smithy.api#Long":{"kind":"long","format":"date-time","name":"Long"},"smithy.api#String":{"kind":"string","format":"date-time","name":"String"},"smithy.api#Timestamp":{"kind":"timestamp","format":"date-time","name":"Timestamp"},"smithy.api#Unit":{"kind":"unit","name":"Unit"}},"operations":{"CreateCity":{"method":"POST","uri":"/cities","input":"example.weather#CreateCityInput","output":"example.weather#CreateCityOutput","request":{"labels":[],"query":[],"headers":[["expectedRevision","X-Expected-Revision"]],"body":["name","location","clientToken"],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":["city"],"payload":null},"errors":["example.weather#ConflictError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":"clientToken","pagination":null},"GetCity":{"method":"GET","uri":"/cities/{cityId}","input":"example.weather#GetCityInput","output":"example.weather#GetCityOutput","request":{"labels":["cityId"],"query":[["at","at"]],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[["requestId","X-Request-Id"]],"body":["city","forecast"],"payload":null},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"GetCityPhoto":{"method":"GET","uri":"/cities/{cityId}/photo","input":"example.weather#GetCityPhotoInput","output":"example.weather#GetCityPhotoOutput","request":{"labels":["cityId"],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[["caption","X-Photo-Caption"]],"body":[],"payload":["photo","image/jpeg"]},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"ListCities":{"method":"GET","uri":"/cities","input":"example.weather#ListCitiesInput","output":"example.weather#ListCitiesOutput","request":{"labels":[],"query":[["nextToken","nextToken"],["maxResults","maxResults"],["tags","tag"]],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":["cities","nextToken"],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":{"input":"nextToken","output":["nextToken"],"items":"cities","pageSize":"maxResults"}},"Ping":{"method":"GET","uri":"/ping","input":null,"output":null,"request":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"PutCityPhoto":{"method":"PUT","uri":"/cities/{cityId}/photo","input":"example.weather#PutCityPhotoInput","output":"example.weather#PutCityPhotoOutput","request":{"labels":["cityId"],"query":[],"headers":[["caption","X-Photo-Caption"]],"body":[],"payload":["photo","image/jpeg"]},"response":{"labels":[],"query":[],"headers":[],"body":["photo"],"payload":null},"errors":["example.weather#NotFoundError","example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null},"Status":{"method":"GET","uri":"/status","input":"example.weather#StatusInput","output":"example.weather#StatusOutput","request":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"response":{"labels":[],"query":[],"headers":[],"body":[],"payload":null},"errors":["example.weather#ThrottlingError","example.weather#ValidationError"],"safe":true,"token":null,"pagination":null}},"bearer":true}
+=== src/client.c ===
+#include "weather_client/client.h"
+
+static const weather_string schema_chunks[] = {
+    {"{\"service\":\"example.weather#Weather\",\"version\":\"2026-10-01\",\"shapes\":{\"example.weather#CityId\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"CityId\"},\"example.weather#CityName\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"CityName\"},\"example.weather#CitySummaries\":{\"kind\":\"list\",\"member\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"CitySummaries\"},\"example.weather#CitySummary\":{\"kind\":\"structure\",\"members\":{\"id\":{\"target\":\"exampl", 512},
+    {"e.weather#CityId\",\"attribute\":\"id\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"name\":{\"target\":\"example.weather#CityName\",\"attribute\":\"name\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"population\":{\"target\":\"smithy.api#Long\",\"attribute\":\"population\",\"required\":false,\"default\":0,\"format\":\"date-time\"},\"updatedAt\":{\"target\":\"smithy.api#Timestamp\",\"attribute\":\"updated_at\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"createdAt\":{\"target\":\"smithy.api#Timestamp\",\"attribute\":\"created_a", 512},
+    {"t\",\"required\":false,\"default\":null,\"format\":\"epoch-seconds\"}},\"name\":\"CitySummary\"},\"example.weather#ConflictError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"error\":{\"status\":409,\"fault\":\"client\",\"retryable\":false,\"throttling\":false,\"headers\":[]},\"name\":\"ConflictError\"},\"example.weather#Coordinates\":{\"kind\":\"structure\",\"members\":{\"latitude\":{\"target\":\"smithy.api#Double\",\"attribute\":\"latitude\",\"required\"", 512},
+    {":true,\"default\":null,\"format\":\"date-time\"},\"longitude\":{\"target\":\"smithy.api#Double\",\"attribute\":\"longitude\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"Coordinates\"},\"example.weather#CreateCityInput\":{\"kind\":\"structure\",\"members\":{\"name\":{\"target\":\"example.weather#CityName\",\"attribute\":\"name\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"location\":{\"target\":\"example.weather#Location\",\"attribute\":\"location\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"clientToken\":{\"targe", 512},
+    {"t\":\"smithy.api#String\",\"attribute\":\"client_token\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"expectedRevision\":{\"target\":\"smithy.api#Long\",\"attribute\":\"expected_revision\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"CreateCityInput\"},\"example.weather#CreateCityOutput\":{\"kind\":\"structure\",\"members\":{\"city\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"city\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"CreateCityOutput\"},\"example.weather#DateTime\":{\"kind\":", 512},
+    {"\"timestamp\",\"format\":\"date-time\",\"name\":\"DateTime\"},\"example.weather#Forecast\":{\"kind\":\"map\",\"key\":{\"target\":\"example.weather#Sky\",\"attribute\":\"key\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"value\":{\"target\":\"smithy.api#Document\",\"attribute\":\"value\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"Forecast\"},\"example.weather#GetCityInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",\"required\":true,\"default\":null,\"format\":\"date-ti", 512},
+    {"me\"},\"at\":{\"target\":\"example.weather#DateTime\",\"attribute\":\"at\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"GetCityInput\"},\"example.weather#GetCityOutput\":{\"kind\":\"structure\",\"members\":{\"city\":{\"target\":\"example.weather#CitySummary\",\"attribute\":\"city\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"forecast\":{\"target\":\"example.weather#Forecast\",\"attribute\":\"forecast\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"requestId\":{\"target\":\"smithy.api#String\",\"attribute\":\"request_", 512},
+    {"id\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"GetCityOutput\"},\"example.weather#GetCityPhotoInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"GetCityPhotoInput\"},\"example.weather#GetCityPhotoOutput\":{\"kind\":\"structure\",\"members\":{\"caption\":{\"target\":\"smithy.api#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"photo\":{\"target\":\"example.wea", 512},
+    {"ther#Photo\",\"attribute\":\"photo\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"GetCityPhotoOutput\"},\"example.weather#ListCitiesInput\":{\"kind\":\"structure\",\"members\":{\"nextToken\":{\"target\":\"smithy.api#String\",\"attribute\":\"next_token\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"maxResults\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"max_results\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"tags\":{\"target\":\"example.weather#Tags\",\"attribute\":\"tags\",\"required\":false,\"default\":", 512},
+    {"null,\"format\":\"date-time\"}},\"name\":\"ListCitiesInput\"},\"example.weather#ListCitiesOutput\":{\"kind\":\"structure\",\"members\":{\"cities\":{\"target\":\"example.weather#CitySummaries\",\"attribute\":\"cities\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"nextToken\":{\"target\":\"smithy.api#String\",\"attribute\":\"next_token\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"ListCitiesOutput\"},\"example.weather#Location\":{\"kind\":\"union\",\"members\":{\"coordinates\":{\"target\":\"example.weather#Coordinates\",\"attribute", 512},
+    {"\":\"coordinates\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"unknown\":{\"target\":\"smithy.api#Unit\",\"attribute\":\"unknown\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"Location\"},\"example.weather#NotFoundError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"resourceId\":{\"target\":\"smithy.api#String\",\"attribute\":\"resource_id\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"error", 512},
+    {"\":{\"status\":404,\"fault\":\"client\",\"retryable\":false,\"throttling\":false,\"headers\":[]},\"name\":\"NotFoundError\"},\"example.weather#Photo\":{\"kind\":\"blob\",\"format\":\"date-time\",\"name\":\"Photo\"},\"example.weather#PhotoSummary\":{\"kind\":\"structure\",\"members\":{\"size\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"size\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"thumbnail\":{\"target\":\"example.weather#Thumbnail\",\"attribute\":\"thumbnail\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"caption\":{\"target\":\"smithy.a", 512},
+    {"pi#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"name\":\"PhotoSummary\"},\"example.weather#PutCityPhotoInput\":{\"kind\":\"structure\",\"members\":{\"cityId\":{\"target\":\"example.weather#CityId\",\"attribute\":\"city_id\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"caption\":{\"target\":\"smithy.api#String\",\"attribute\":\"caption\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"photo\":{\"target\":\"example.weather#Photo\",\"attribute\":\"photo\",\"required\":true,\"default\":null,\"forma", 512},
+    {"t\":\"date-time\"}},\"name\":\"PutCityPhotoInput\"},\"example.weather#PutCityPhotoOutput\":{\"kind\":\"structure\",\"members\":{\"photo\":{\"target\":\"example.weather#PhotoSummary\",\"attribute\":\"photo\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"PutCityPhotoOutput\"},\"example.weather#Sky\":{\"kind\":\"enum\",\"values\":[\"clear\",\"cloudy\"],\"name\":\"Sky\"},\"example.weather#StatusInput\":{\"kind\":\"structure\",\"members\":{},\"name\":\"StatusInput\"},\"example.weather#StatusOutput\":{\"kind\":\"structure\",\"members\":{},\"name\":\"StatusOutpu", 512},
+    {"t\"},\"example.weather#Tags\":{\"kind\":\"list\",\"member\":{\"target\":\"smithy.api#String\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"Tags\"},\"example.weather#ThrottlingError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"retryAfter\":{\"target\":\"smithy.api#Integer\",\"attribute\":\"retry_after\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"error\":{\"status\":429,\"fault\":\"clien", 512},
+    {"t\",\"retryable\":true,\"throttling\":true,\"headers\":[[\"retryAfter\",\"Retry-After\"]]},\"name\":\"ThrottlingError\"},\"example.weather#Thumbnail\":{\"kind\":\"blob\",\"format\":\"date-time\",\"name\":\"Thumbnail\"},\"example.weather#ValidationError\":{\"kind\":\"structure\",\"members\":{\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"reason\":{\"target\":\"example.weather#ValidationReason\",\"attribute\":\"reason\",\"required\":true,\"default\":null,\"format\":\"date-time\"},\"fieldList\":{\"", 512},
+    {"target\":\"example.weather#ValidationFieldList\",\"attribute\":\"field_list\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"requestId\":{\"target\":\"smithy.api#String\",\"attribute\":\"request_id\",\"required\":false,\"default\":null,\"format\":\"date-time\"}},\"error\":{\"status\":400,\"fault\":\"client\",\"retryable\":false,\"throttling\":false,\"headers\":[]},\"name\":\"ValidationError\"},\"example.weather#ValidationField\":{\"kind\":\"structure\",\"members\":{\"path\":{\"target\":\"smithy.api#String\",\"attribute\":\"path\",\"required\":true,\"default\":nu", 512},
+    {"ll,\"format\":\"date-time\"},\"message\":{\"target\":\"smithy.api#String\",\"attribute\":\"message\",\"required\":true,\"default\":null,\"format\":\"date-time\"}},\"name\":\"ValidationField\"},\"example.weather#ValidationFieldList\":{\"kind\":\"list\",\"member\":{\"target\":\"example.weather#ValidationField\",\"attribute\":\"member\",\"required\":false,\"default\":null,\"format\":\"date-time\"},\"name\":\"ValidationFieldList\"},\"example.weather#ValidationReason\":{\"kind\":\"enum\",\"values\":[\"unknownOperation\",\"cannotParse\",\"fieldValidationFailed\",\"other\"],\"name\":\"", 512},
+    {"ValidationReason\"},\"smithy.api#Document\":{\"kind\":\"document\",\"format\":\"date-time\",\"name\":\"Document\"},\"smithy.api#Double\":{\"kind\":\"double\",\"format\":\"date-time\",\"name\":\"Double\"},\"smithy.api#Integer\":{\"kind\":\"integer\",\"format\":\"date-time\",\"name\":\"Integer\"},\"smithy.api#Long\":{\"kind\":\"long\",\"format\":\"date-time\",\"name\":\"Long\"},\"smithy.api#String\":{\"kind\":\"string\",\"format\":\"date-time\",\"name\":\"String\"},\"smithy.api#Timestamp\":{\"kind\":\"timestamp\",\"format\":\"date-time\",\"name\":\"Timestamp\"},\"smithy.api#Unit\":{\"kind\":\"unit", 512},
+    {"\",\"name\":\"Unit\"}},\"operations\":{\"CreateCity\":{\"method\":\"POST\",\"uri\":\"/cities\",\"input\":\"example.weather#CreateCityInput\",\"output\":\"example.weather#CreateCityOutput\",\"request\":{\"labels\":[],\"query\":[],\"headers\":[[\"expectedRevision\",\"X-Expected-Revision\"]],\"body\":[\"name\",\"location\",\"clientToken\"],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[\"city\"],\"payload\":null},\"errors\":[\"example.weather#ConflictError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true", 512},
+    {",\"token\":\"clientToken\",\"pagination\":null},\"GetCity\":{\"method\":\"GET\",\"uri\":\"/cities/{cityId}\",\"input\":\"example.weather#GetCityInput\",\"output\":\"example.weather#GetCityOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[[\"at\",\"at\"]],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[[\"requestId\",\"X-Request-Id\"]],\"body\":[\"city\",\"forecast\"],\"payload\":null},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"toke", 512},
+    {"n\":null,\"pagination\":null},\"GetCityPhoto\":{\"method\":\"GET\",\"uri\":\"/cities/{cityId}/photo\",\"input\":\"example.weather#GetCityPhotoInput\",\"output\":\"example.weather#GetCityPhotoOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[[\"caption\",\"X-Photo-Caption\"]],\"body\":[],\"payload\":[\"photo\",\"image/jpeg\"]},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":", 512},
+    {"null,\"pagination\":null},\"ListCities\":{\"method\":\"GET\",\"uri\":\"/cities\",\"input\":\"example.weather#ListCitiesInput\",\"output\":\"example.weather#ListCitiesOutput\",\"request\":{\"labels\":[],\"query\":[[\"nextToken\",\"nextToken\"],[\"maxResults\",\"maxResults\"],[\"tags\",\"tag\"]],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[\"cities\",\"nextToken\"],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":{\"inp", 512},
+    {"ut\":\"nextToken\",\"output\":[\"nextToken\"],\"items\":\"cities\",\"pageSize\":\"maxResults\"}},\"Ping\":{\"method\":\"GET\",\"uri\":\"/ping\",\"input\":null,\"output\":null,\"request\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"PutCityPhoto\":{\"method\":\"PUT\",\"uri\":\"/cities/{cityId}/photo\",\"input\":\"example.weather#PutCityPh", 512},
+    {"otoInput\",\"output\":\"example.weather#PutCityPhotoOutput\",\"request\":{\"labels\":[\"cityId\"],\"query\":[],\"headers\":[[\"caption\",\"X-Photo-Caption\"]],\"body\":[],\"payload\":[\"photo\",\"image/jpeg\"]},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[\"photo\"],\"payload\":null},\"errors\":[\"example.weather#NotFoundError\",\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null},\"Status\":{\"method\":\"GET\",\"uri\":\"/status\",\"input\":\"example.weather#StatusInput\",\"output\":\"exa", 512},
+    {"mple.weather#StatusOutput\",\"request\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},\"errors\":[\"example.weather#ThrottlingError\",\"example.weather#ValidationError\"],\"safe\":true,\"token\":null,\"pagination\":null}},\"bearer\":true}", 312},
+};
+weather_status weather_client_new(const weather_client_config *config, weather_client **output, weather_error *error) {
+    const weather_string endpoint = {"", 0};
+    return weather_runtime_new(config, schema_chunks, sizeof(schema_chunks) / sizeof(schema_chunks[0]), endpoint, true, output, error);
+}
+weather_status weather_operations_create_city(weather_client *client, const weather_models_create_city_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_create_city_result *result, weather_error *error) {
+    const weather_string operation = {"CreateCity", 10};
+    weather_status status;
+    if (!result) return weather_client_call(client, operation, input, cancelled, cancel_user, NULL, error);
+    result->value = NULL;
+    status = weather_client_call(client, operation, input, cancelled, cancel_user, &result->base, error);
+    if (status == weather_ok) result->value = (const weather_models_create_city_output *)result->base.output;
+    return status;
+}
+void weather_operations_create_city_result_free(weather_operations_create_city_result *result) {
+    if (result) { weather_result_free(&result->base); result->value = NULL; }
+}
+weather_status weather_operations_get_city(weather_client *client, const weather_models_get_city_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_get_city_result *result, weather_error *error) {
+    const weather_string operation = {"GetCity", 7};
+    weather_status status;
+    if (!result) return weather_client_call(client, operation, input, cancelled, cancel_user, NULL, error);
+    result->value = NULL;
+    status = weather_client_call(client, operation, input, cancelled, cancel_user, &result->base, error);
+    if (status == weather_ok) result->value = (const weather_models_get_city_output *)result->base.output;
+    return status;
+}
+void weather_operations_get_city_result_free(weather_operations_get_city_result *result) {
+    if (result) { weather_result_free(&result->base); result->value = NULL; }
+}
+weather_status weather_operations_get_city_photo(weather_client *client, const weather_models_get_city_photo_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_get_city_photo_result *result, weather_error *error) {
+    const weather_string operation = {"GetCityPhoto", 12};
+    weather_status status;
+    if (!result) return weather_client_call(client, operation, input, cancelled, cancel_user, NULL, error);
+    result->value = NULL;
+    status = weather_client_call(client, operation, input, cancelled, cancel_user, &result->base, error);
+    if (status == weather_ok) result->value = (const weather_models_get_city_photo_output *)result->base.output;
+    return status;
+}
+void weather_operations_get_city_photo_result_free(weather_operations_get_city_photo_result *result) {
+    if (result) { weather_result_free(&result->base); result->value = NULL; }
+}
+weather_status weather_operations_list_cities(weather_client *client, const weather_models_list_cities_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_list_cities_result *result, weather_error *error) {
+    const weather_string operation = {"ListCities", 10};
+    weather_status status;
+    if (!result) return weather_client_call(client, operation, input, cancelled, cancel_user, NULL, error);
+    result->value = NULL;
+    status = weather_client_call(client, operation, input, cancelled, cancel_user, &result->base, error);
+    if (status == weather_ok) result->value = (const weather_models_list_cities_output *)result->base.output;
+    return status;
+}
+void weather_operations_list_cities_result_free(weather_operations_list_cities_result *result) {
+    if (result) { weather_result_free(&result->base); result->value = NULL; }
+}
+weather_status weather_operations_list_cities_pages_new(weather_client *client, const weather_models_list_cities_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_pages **pages, weather_error *error) {
+    const weather_string operation = {"ListCities", 10};
+    return weather_pages_new(client, operation, input, cancelled, cancel_user, pages, error);
+}
+weather_status weather_operations_list_cities_pages_next(weather_pages *pages, bool *has_page, weather_operations_list_cities_result *result, weather_error *error) {
+    weather_status status;
+    if (!result) return weather_pages_next(pages, has_page, NULL, error);
+    result->value = NULL;
+    status = weather_pages_next(pages, has_page, &result->base, error);
+    if (status == weather_ok && has_page && *has_page) result->value = (const weather_models_list_cities_output *)result->base.output;
+    return status;
+}
+weather_status weather_operations_ping(weather_client *client, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_ping_result *result, weather_error *error) {
+    const weather_string operation = {"Ping", 4};
+    weather_status status;
+    if (!result) return weather_client_call(client, operation, NULL, cancelled, cancel_user, NULL, error);
+    result->value = NULL;
+    status = weather_client_call(client, operation, NULL, cancelled, cancel_user, &result->base, error);
+    if (status == weather_ok) result->value = (const weather_unit *)result->base.output;
+    return status;
+}
+void weather_operations_ping_result_free(weather_operations_ping_result *result) {
+    if (result) { weather_result_free(&result->base); result->value = NULL; }
+}
+weather_status weather_operations_put_city_photo(weather_client *client, const weather_models_put_city_photo_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_put_city_photo_result *result, weather_error *error) {
+    const weather_string operation = {"PutCityPhoto", 12};
+    weather_status status;
+    if (!result) return weather_client_call(client, operation, input, cancelled, cancel_user, NULL, error);
+    result->value = NULL;
+    status = weather_client_call(client, operation, input, cancelled, cancel_user, &result->base, error);
+    if (status == weather_ok) result->value = (const weather_models_put_city_photo_output *)result->base.output;
+    return status;
+}
+void weather_operations_put_city_photo_result_free(weather_operations_put_city_photo_result *result) {
+    if (result) { weather_result_free(&result->base); result->value = NULL; }
+}
+weather_status weather_operations_status(weather_client *client, const weather_models_status_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_status_result *result, weather_error *error) {
+    const weather_string operation = {"Status", 6};
+    weather_status status;
+    if (!result) return weather_client_call(client, operation, input, cancelled, cancel_user, NULL, error);
+    result->value = NULL;
+    status = weather_client_call(client, operation, input, cancelled, cancel_user, &result->base, error);
+    if (status == weather_ok) result->value = (const weather_models_status_output *)result->base.output;
+    return status;
+}
+void weather_operations_status_result_free(weather_operations_status_result *result) {
+    if (result) { weather_result_free(&result->base); result->value = NULL; }
+}
+const weather_models_conflict_error *weather_error_as_conflict_error(const weather_result *result) {
+    return result && result->error_shape == &weather_shape_4 ? (const weather_models_conflict_error *)result->modeled_error : NULL;
+}
+const weather_models_not_found_error *weather_error_as_not_found_error(const weather_result *result) {
+    return result && result->error_shape == &weather_shape_17 ? (const weather_models_not_found_error *)result->modeled_error : NULL;
+}
+const weather_models_throttling_error *weather_error_as_throttling_error(const weather_result *result) {
+    return result && result->error_shape == &weather_shape_26 ? (const weather_models_throttling_error *)result->modeled_error : NULL;
+}
+const weather_models_validation_error *weather_error_as_validation_error(const weather_result *result) {
+    return result && result->error_shape == &weather_shape_28 ? (const weather_models_validation_error *)result->modeled_error : NULL;
+}
+
+=== src/models.c ===
+#include "weather_client/models.h"
+#include <stddef.h>
+
+weather_status weather_models_city_summaries_encode(weather_arena *arena, const weather_models_city_summaries *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_2, value, output, error);
+}
+weather_status weather_models_city_summaries_decode(weather_arena *arena, const weather_json *value, const weather_models_city_summaries **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_2, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_2, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_city_summaries *)native;
+    return status;
+}
+weather_status weather_models_city_summary_encode(weather_arena *arena, const weather_models_city_summary *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_3, value, output, error);
+}
+weather_status weather_models_city_summary_decode(weather_arena *arena, const weather_json *value, const weather_models_city_summary **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_3, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_3, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_city_summary *)native;
+    return status;
+}
+weather_status weather_models_conflict_error_encode(weather_arena *arena, const weather_models_conflict_error *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_4, value, output, error);
+}
+weather_status weather_models_conflict_error_decode(weather_arena *arena, const weather_json *value, const weather_models_conflict_error **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_4, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_4, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_conflict_error *)native;
+    return status;
+}
+weather_status weather_models_coordinates_encode(weather_arena *arena, const weather_models_coordinates *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_5, value, output, error);
+}
+weather_status weather_models_coordinates_decode(weather_arena *arena, const weather_json *value, const weather_models_coordinates **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_5, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_5, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_coordinates *)native;
+    return status;
+}
+weather_status weather_models_create_city_input_encode(weather_arena *arena, const weather_models_create_city_input *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_6, value, output, error);
+}
+weather_status weather_models_create_city_input_decode(weather_arena *arena, const weather_json *value, const weather_models_create_city_input **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_6, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_6, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_create_city_input *)native;
+    return status;
+}
+weather_status weather_models_create_city_output_encode(weather_arena *arena, const weather_models_create_city_output *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_7, value, output, error);
+}
+weather_status weather_models_create_city_output_decode(weather_arena *arena, const weather_json *value, const weather_models_create_city_output **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_7, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_7, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_create_city_output *)native;
+    return status;
+}
+weather_status weather_models_forecast_encode(weather_arena *arena, const weather_models_forecast *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_9, value, output, error);
+}
+weather_status weather_models_forecast_decode(weather_arena *arena, const weather_json *value, const weather_models_forecast **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_9, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_9, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_forecast *)native;
+    return status;
+}
+weather_status weather_models_get_city_input_encode(weather_arena *arena, const weather_models_get_city_input *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_10, value, output, error);
+}
+weather_status weather_models_get_city_input_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_input **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_10, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_10, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_get_city_input *)native;
+    return status;
+}
+weather_status weather_models_get_city_output_encode(weather_arena *arena, const weather_models_get_city_output *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_11, value, output, error);
+}
+weather_status weather_models_get_city_output_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_output **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_11, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_11, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_get_city_output *)native;
+    return status;
+}
+weather_status weather_models_get_city_photo_input_encode(weather_arena *arena, const weather_models_get_city_photo_input *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_12, value, output, error);
+}
+weather_status weather_models_get_city_photo_input_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_photo_input **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_12, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_12, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_get_city_photo_input *)native;
+    return status;
+}
+weather_status weather_models_get_city_photo_output_encode(weather_arena *arena, const weather_models_get_city_photo_output *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_13, value, output, error);
+}
+weather_status weather_models_get_city_photo_output_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_photo_output **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_13, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_13, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_get_city_photo_output *)native;
+    return status;
+}
+weather_status weather_models_list_cities_input_encode(weather_arena *arena, const weather_models_list_cities_input *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_14, value, output, error);
+}
+weather_status weather_models_list_cities_input_decode(weather_arena *arena, const weather_json *value, const weather_models_list_cities_input **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_14, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_14, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_list_cities_input *)native;
+    return status;
+}
+weather_status weather_models_list_cities_output_encode(weather_arena *arena, const weather_models_list_cities_output *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_15, value, output, error);
+}
+weather_status weather_models_list_cities_output_decode(weather_arena *arena, const weather_json *value, const weather_models_list_cities_output **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_15, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_15, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_list_cities_output *)native;
+    return status;
+}
+weather_status weather_models_location_encode(weather_arena *arena, const weather_models_location *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_16, value, output, error);
+}
+weather_status weather_models_location_decode(weather_arena *arena, const weather_json *value, const weather_models_location **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_16, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_16, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_location *)native;
+    return status;
+}
+weather_status weather_models_not_found_error_encode(weather_arena *arena, const weather_models_not_found_error *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_17, value, output, error);
+}
+weather_status weather_models_not_found_error_decode(weather_arena *arena, const weather_json *value, const weather_models_not_found_error **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_17, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_17, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_not_found_error *)native;
+    return status;
+}
+weather_status weather_models_photo_summary_encode(weather_arena *arena, const weather_models_photo_summary *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_19, value, output, error);
+}
+weather_status weather_models_photo_summary_decode(weather_arena *arena, const weather_json *value, const weather_models_photo_summary **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_19, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_19, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_photo_summary *)native;
+    return status;
+}
+weather_status weather_models_put_city_photo_input_encode(weather_arena *arena, const weather_models_put_city_photo_input *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_20, value, output, error);
+}
+weather_status weather_models_put_city_photo_input_decode(weather_arena *arena, const weather_json *value, const weather_models_put_city_photo_input **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_20, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_20, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_put_city_photo_input *)native;
+    return status;
+}
+weather_status weather_models_put_city_photo_output_encode(weather_arena *arena, const weather_models_put_city_photo_output *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_21, value, output, error);
+}
+weather_status weather_models_put_city_photo_output_decode(weather_arena *arena, const weather_json *value, const weather_models_put_city_photo_output **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_21, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_21, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_put_city_photo_output *)native;
+    return status;
+}
+weather_status weather_models_sky_encode(weather_arena *arena, const weather_models_sky *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_22, value, output, error);
+}
+weather_status weather_models_sky_decode(weather_arena *arena, const weather_json *value, const weather_models_sky **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_22, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_22, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_sky *)native;
+    return status;
+}
+weather_status weather_models_status_input_encode(weather_arena *arena, const weather_models_status_input *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_23, value, output, error);
+}
+weather_status weather_models_status_input_decode(weather_arena *arena, const weather_json *value, const weather_models_status_input **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_23, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_23, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_status_input *)native;
+    return status;
+}
+weather_status weather_models_status_output_encode(weather_arena *arena, const weather_models_status_output *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_24, value, output, error);
+}
+weather_status weather_models_status_output_decode(weather_arena *arena, const weather_json *value, const weather_models_status_output **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_24, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_24, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_status_output *)native;
+    return status;
+}
+weather_status weather_models_tags_encode(weather_arena *arena, const weather_models_tags *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_25, value, output, error);
+}
+weather_status weather_models_tags_decode(weather_arena *arena, const weather_json *value, const weather_models_tags **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_25, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_25, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_tags *)native;
+    return status;
+}
+weather_status weather_models_throttling_error_encode(weather_arena *arena, const weather_models_throttling_error *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_26, value, output, error);
+}
+weather_status weather_models_throttling_error_decode(weather_arena *arena, const weather_json *value, const weather_models_throttling_error **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_26, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_26, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_throttling_error *)native;
+    return status;
+}
+weather_status weather_models_validation_error_encode(weather_arena *arena, const weather_models_validation_error *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_28, value, output, error);
+}
+weather_status weather_models_validation_error_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_error **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_28, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_28, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_validation_error *)native;
+    return status;
+}
+weather_status weather_models_validation_field_encode(weather_arena *arena, const weather_models_validation_field *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_29, value, output, error);
+}
+weather_status weather_models_validation_field_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_field **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_29, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_29, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_validation_field *)native;
+    return status;
+}
+weather_status weather_models_validation_field_list_encode(weather_arena *arena, const weather_models_validation_field_list *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_30, value, output, error);
+}
+weather_status weather_models_validation_field_list_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_field_list **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_30, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_30, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_validation_field_list *)native;
+    return status;
+}
+weather_status weather_models_validation_reason_encode(weather_arena *arena, const weather_models_validation_reason *value, const weather_json **output, weather_error *error) {
+    return weather_model_encode(arena, &weather_shape_31, value, output, error);
+}
+weather_status weather_models_validation_reason_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_reason **output, weather_error *error) {
+    const void *native;
+    weather_status status;
+    if (!output) return weather_model_decode(arena, &weather_shape_31, value, NULL, error);
+    status = weather_model_decode(arena, &weather_shape_31, value, &native, error);
+    if (status == weather_ok) *output = (const weather_models_validation_reason *)native;
+    return status;
+}
+const weather_shape weather_shape_0 = {
+    .id = {"example.weather#CityId", 22}, .kind = weather_kind_string, .size = sizeof(weather_string), .format = weather_date_time,
+};
+const weather_shape weather_shape_1 = {
+    .id = {"example.weather#CityName", 24}, .kind = weather_kind_string, .size = sizeof(weather_string), .format = weather_date_time,
+};
+static const weather_member weather_shape_2_members[] = {
+    {{"member", 6}, &weather_shape_3, 0, 0, true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_2 = {
+    .id = {"example.weather#CitySummaries", 29}, .kind = weather_kind_list, .size = sizeof(weather_models_city_summaries), .format = weather_date_time,
+    .members = weather_shape_2_members, .member_count = 1,
+    .length_offset = offsetof(weather_models_city_summaries, length), .items_offset = offsetof(weather_models_city_summaries, items), .item_size = sizeof(const weather_models_city_summary *),
+};
+static const weather_member weather_shape_3_members[] = {
+    {{"id", 2}, &weather_shape_0, offsetof(weather_models_city_summary, id.state), offsetof(weather_models_city_summary, id.value), false, weather_date_time, {NULL, 0}},
+    {{"name", 4}, &weather_shape_1, offsetof(weather_models_city_summary, name.state), offsetof(weather_models_city_summary, name.value), false, weather_date_time, {NULL, 0}},
+    {{"population", 10}, &weather_shape_35, offsetof(weather_models_city_summary, population.state), offsetof(weather_models_city_summary, population.value), false, weather_date_time, {"0", 1}},
+    {{"updatedAt", 9}, &weather_shape_37, offsetof(weather_models_city_summary, updated_at.state), offsetof(weather_models_city_summary, updated_at.value), true, weather_date_time, {NULL, 0}},
+    {{"createdAt", 9}, &weather_shape_37, offsetof(weather_models_city_summary, created_at.state), offsetof(weather_models_city_summary, created_at.value), true, weather_epoch_seconds, {NULL, 0}},
+};
+const weather_shape weather_shape_3 = {
+    .id = {"example.weather#CitySummary", 27}, .kind = weather_kind_structure, .size = sizeof(weather_models_city_summary), .format = weather_date_time,
+    .members = weather_shape_3_members, .member_count = 5,
+};
+static const weather_member weather_shape_4_members[] = {
+    {{"message", 7}, &weather_shape_36, offsetof(weather_models_conflict_error, message.state), offsetof(weather_models_conflict_error, message.value), false, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_4 = {
+    .id = {"example.weather#ConflictError", 29}, .kind = weather_kind_structure, .size = sizeof(weather_models_conflict_error), .format = weather_date_time,
+    .members = weather_shape_4_members, .member_count = 1,
+};
+static const weather_member weather_shape_5_members[] = {
+    {{"latitude", 8}, &weather_shape_33, offsetof(weather_models_coordinates, latitude.state), offsetof(weather_models_coordinates, latitude.value), false, weather_date_time, {NULL, 0}},
+    {{"longitude", 9}, &weather_shape_33, offsetof(weather_models_coordinates, longitude.state), offsetof(weather_models_coordinates, longitude.value), false, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_5 = {
+    .id = {"example.weather#Coordinates", 27}, .kind = weather_kind_structure, .size = sizeof(weather_models_coordinates), .format = weather_date_time,
+    .members = weather_shape_5_members, .member_count = 2,
+};
+static const weather_member weather_shape_6_members[] = {
+    {{"name", 4}, &weather_shape_1, offsetof(weather_models_create_city_input, name.state), offsetof(weather_models_create_city_input, name.value), true, weather_date_time, {NULL, 0}},
+    {{"location", 8}, &weather_shape_16, offsetof(weather_models_create_city_input, location.state), offsetof(weather_models_create_city_input, location.value), true, weather_date_time, {NULL, 0}},
+    {{"clientToken", 11}, &weather_shape_36, offsetof(weather_models_create_city_input, client_token.state), offsetof(weather_models_create_city_input, client_token.value), true, weather_date_time, {NULL, 0}},
+    {{"expectedRevision", 16}, &weather_shape_35, offsetof(weather_models_create_city_input, expected_revision.state), offsetof(weather_models_create_city_input, expected_revision.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_6 = {
+    .id = {"example.weather#CreateCityInput", 31}, .kind = weather_kind_structure, .size = sizeof(weather_models_create_city_input), .format = weather_date_time,
+    .members = weather_shape_6_members, .member_count = 4,
+};
+static const weather_member weather_shape_7_members[] = {
+    {{"city", 4}, &weather_shape_3, offsetof(weather_models_create_city_output, city.state), offsetof(weather_models_create_city_output, city.value), false, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_7 = {
+    .id = {"example.weather#CreateCityOutput", 32}, .kind = weather_kind_structure, .size = sizeof(weather_models_create_city_output), .format = weather_date_time,
+    .members = weather_shape_7_members, .member_count = 1,
+};
+const weather_shape weather_shape_8 = {
+    .id = {"example.weather#DateTime", 24}, .kind = weather_kind_timestamp, .size = sizeof(weather_timestamp), .format = weather_date_time,
+};
+static const weather_member weather_shape_9_members[] = {
+    {{"key", 3}, &weather_shape_22, 0, offsetof(weather_models_forecast_entry, key), true, weather_date_time, {NULL, 0}},
+    {{"value", 5}, &weather_shape_32, 0, offsetof(weather_models_forecast_entry, value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_9 = {
+    .id = {"example.weather#Forecast", 24}, .kind = weather_kind_map, .size = sizeof(weather_models_forecast), .format = weather_date_time,
+    .members = weather_shape_9_members, .member_count = 2,
+    .length_offset = offsetof(weather_models_forecast, length), .items_offset = offsetof(weather_models_forecast, items), .item_size = sizeof(weather_models_forecast_entry),
+};
+static const weather_member weather_shape_10_members[] = {
+    {{"cityId", 6}, &weather_shape_0, offsetof(weather_models_get_city_input, city_id.state), offsetof(weather_models_get_city_input, city_id.value), true, weather_date_time, {NULL, 0}},
+    {{"at", 2}, &weather_shape_8, offsetof(weather_models_get_city_input, at.state), offsetof(weather_models_get_city_input, at.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_10 = {
+    .id = {"example.weather#GetCityInput", 28}, .kind = weather_kind_structure, .size = sizeof(weather_models_get_city_input), .format = weather_date_time,
+    .members = weather_shape_10_members, .member_count = 2,
+};
+static const weather_member weather_shape_11_members[] = {
+    {{"city", 4}, &weather_shape_3, offsetof(weather_models_get_city_output, city.state), offsetof(weather_models_get_city_output, city.value), false, weather_date_time, {NULL, 0}},
+    {{"forecast", 8}, &weather_shape_9, offsetof(weather_models_get_city_output, forecast.state), offsetof(weather_models_get_city_output, forecast.value), true, weather_date_time, {NULL, 0}},
+    {{"requestId", 9}, &weather_shape_36, offsetof(weather_models_get_city_output, request_id.state), offsetof(weather_models_get_city_output, request_id.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_11 = {
+    .id = {"example.weather#GetCityOutput", 29}, .kind = weather_kind_structure, .size = sizeof(weather_models_get_city_output), .format = weather_date_time,
+    .members = weather_shape_11_members, .member_count = 3,
+};
+static const weather_member weather_shape_12_members[] = {
+    {{"cityId", 6}, &weather_shape_0, offsetof(weather_models_get_city_photo_input, city_id.state), offsetof(weather_models_get_city_photo_input, city_id.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_12 = {
+    .id = {"example.weather#GetCityPhotoInput", 33}, .kind = weather_kind_structure, .size = sizeof(weather_models_get_city_photo_input), .format = weather_date_time,
+    .members = weather_shape_12_members, .member_count = 1,
+};
+static const weather_member weather_shape_13_members[] = {
+    {{"caption", 7}, &weather_shape_36, offsetof(weather_models_get_city_photo_output, caption.state), offsetof(weather_models_get_city_photo_output, caption.value), true, weather_date_time, {NULL, 0}},
+    {{"photo", 5}, &weather_shape_18, offsetof(weather_models_get_city_photo_output, photo.state), offsetof(weather_models_get_city_photo_output, photo.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_13 = {
+    .id = {"example.weather#GetCityPhotoOutput", 34}, .kind = weather_kind_structure, .size = sizeof(weather_models_get_city_photo_output), .format = weather_date_time,
+    .members = weather_shape_13_members, .member_count = 2,
+};
+static const weather_member weather_shape_14_members[] = {
+    {{"nextToken", 9}, &weather_shape_36, offsetof(weather_models_list_cities_input, next_token.state), offsetof(weather_models_list_cities_input, next_token.value), true, weather_date_time, {NULL, 0}},
+    {{"maxResults", 10}, &weather_shape_34, offsetof(weather_models_list_cities_input, max_results.state), offsetof(weather_models_list_cities_input, max_results.value), true, weather_date_time, {NULL, 0}},
+    {{"tags", 4}, &weather_shape_25, offsetof(weather_models_list_cities_input, tags.state), offsetof(weather_models_list_cities_input, tags.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_14 = {
+    .id = {"example.weather#ListCitiesInput", 31}, .kind = weather_kind_structure, .size = sizeof(weather_models_list_cities_input), .format = weather_date_time,
+    .members = weather_shape_14_members, .member_count = 3,
+};
+static const weather_member weather_shape_15_members[] = {
+    {{"cities", 6}, &weather_shape_2, offsetof(weather_models_list_cities_output, cities.state), offsetof(weather_models_list_cities_output, cities.value), false, weather_date_time, {NULL, 0}},
+    {{"nextToken", 9}, &weather_shape_36, offsetof(weather_models_list_cities_output, next_token.state), offsetof(weather_models_list_cities_output, next_token.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_15 = {
+    .id = {"example.weather#ListCitiesOutput", 32}, .kind = weather_kind_structure, .size = sizeof(weather_models_list_cities_output), .format = weather_date_time,
+    .members = weather_shape_15_members, .member_count = 2,
+};
+static const weather_member weather_shape_16_members[] = {
+    {{"coordinates", 11}, &weather_shape_5, offsetof(weather_models_location, state), offsetof(weather_models_location, value.coordinates), true, weather_date_time, {NULL, 0}},
+    {{"unknown", 7}, &weather_shape_38, offsetof(weather_models_location, state), offsetof(weather_models_location, value.unknown), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_16 = {
+    .id = {"example.weather#Location", 24}, .kind = weather_kind_union, .size = sizeof(weather_models_location), .format = weather_date_time,
+    .members = weather_shape_16_members, .member_count = 2,
+    .tag_offset = offsetof(weather_models_location, tag), .state_offset = offsetof(weather_models_location, state), .unknown_name_offset = offsetof(weather_models_location, unknown_name), .unknown_value_offset = offsetof(weather_models_location, unknown_value),
+};
+static const weather_member weather_shape_17_members[] = {
+    {{"message", 7}, &weather_shape_36, offsetof(weather_models_not_found_error, message.state), offsetof(weather_models_not_found_error, message.value), false, weather_date_time, {NULL, 0}},
+    {{"resourceId", 10}, &weather_shape_36, offsetof(weather_models_not_found_error, resource_id.state), offsetof(weather_models_not_found_error, resource_id.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_17 = {
+    .id = {"example.weather#NotFoundError", 29}, .kind = weather_kind_structure, .size = sizeof(weather_models_not_found_error), .format = weather_date_time,
+    .members = weather_shape_17_members, .member_count = 2,
+};
+const weather_shape weather_shape_18 = {
+    .id = {"example.weather#Photo", 21}, .kind = weather_kind_blob, .size = sizeof(weather_blob), .format = weather_date_time,
+};
+static const weather_member weather_shape_19_members[] = {
+    {{"size", 4}, &weather_shape_34, offsetof(weather_models_photo_summary, size.state), offsetof(weather_models_photo_summary, size.value), false, weather_date_time, {NULL, 0}},
+    {{"thumbnail", 9}, &weather_shape_27, offsetof(weather_models_photo_summary, thumbnail.state), offsetof(weather_models_photo_summary, thumbnail.value), false, weather_date_time, {NULL, 0}},
+    {{"caption", 7}, &weather_shape_36, offsetof(weather_models_photo_summary, caption.state), offsetof(weather_models_photo_summary, caption.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_19 = {
+    .id = {"example.weather#PhotoSummary", 28}, .kind = weather_kind_structure, .size = sizeof(weather_models_photo_summary), .format = weather_date_time,
+    .members = weather_shape_19_members, .member_count = 3,
+};
+static const weather_member weather_shape_20_members[] = {
+    {{"cityId", 6}, &weather_shape_0, offsetof(weather_models_put_city_photo_input, city_id.state), offsetof(weather_models_put_city_photo_input, city_id.value), true, weather_date_time, {NULL, 0}},
+    {{"caption", 7}, &weather_shape_36, offsetof(weather_models_put_city_photo_input, caption.state), offsetof(weather_models_put_city_photo_input, caption.value), true, weather_date_time, {NULL, 0}},
+    {{"photo", 5}, &weather_shape_18, offsetof(weather_models_put_city_photo_input, photo.state), offsetof(weather_models_put_city_photo_input, photo.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_20 = {
+    .id = {"example.weather#PutCityPhotoInput", 33}, .kind = weather_kind_structure, .size = sizeof(weather_models_put_city_photo_input), .format = weather_date_time,
+    .members = weather_shape_20_members, .member_count = 3,
+};
+static const weather_member weather_shape_21_members[] = {
+    {{"photo", 5}, &weather_shape_19, offsetof(weather_models_put_city_photo_output, photo.state), offsetof(weather_models_put_city_photo_output, photo.value), false, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_21 = {
+    .id = {"example.weather#PutCityPhotoOutput", 34}, .kind = weather_kind_structure, .size = sizeof(weather_models_put_city_photo_output), .format = weather_date_time,
+    .members = weather_shape_21_members, .member_count = 1,
+};
+const weather_shape weather_shape_22 = {
+    .id = {"example.weather#Sky", 19}, .kind = weather_kind_enum, .size = sizeof(weather_models_sky), .format = weather_date_time,
+};
+const weather_shape weather_shape_23 = {
+    .id = {"example.weather#StatusInput", 27}, .kind = weather_kind_structure, .size = sizeof(weather_models_status_input), .format = weather_date_time,
+};
+const weather_shape weather_shape_24 = {
+    .id = {"example.weather#StatusOutput", 28}, .kind = weather_kind_structure, .size = sizeof(weather_models_status_output), .format = weather_date_time,
+};
+static const weather_member weather_shape_25_members[] = {
+    {{"member", 6}, &weather_shape_36, 0, 0, true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_25 = {
+    .id = {"example.weather#Tags", 20}, .kind = weather_kind_list, .size = sizeof(weather_models_tags), .format = weather_date_time,
+    .members = weather_shape_25_members, .member_count = 1,
+    .length_offset = offsetof(weather_models_tags, length), .items_offset = offsetof(weather_models_tags, items), .item_size = sizeof(weather_string),
+};
+static const weather_member weather_shape_26_members[] = {
+    {{"message", 7}, &weather_shape_36, offsetof(weather_models_throttling_error, message.state), offsetof(weather_models_throttling_error, message.value), false, weather_date_time, {NULL, 0}},
+    {{"retryAfter", 10}, &weather_shape_34, offsetof(weather_models_throttling_error, retry_after.state), offsetof(weather_models_throttling_error, retry_after.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_26 = {
+    .id = {"example.weather#ThrottlingError", 31}, .kind = weather_kind_structure, .size = sizeof(weather_models_throttling_error), .format = weather_date_time,
+    .members = weather_shape_26_members, .member_count = 2,
+};
+const weather_shape weather_shape_27 = {
+    .id = {"example.weather#Thumbnail", 25}, .kind = weather_kind_blob, .size = sizeof(weather_blob), .format = weather_date_time,
+};
+static const weather_member weather_shape_28_members[] = {
+    {{"message", 7}, &weather_shape_36, offsetof(weather_models_validation_error, message.state), offsetof(weather_models_validation_error, message.value), false, weather_date_time, {NULL, 0}},
+    {{"reason", 6}, &weather_shape_31, offsetof(weather_models_validation_error, reason.state), offsetof(weather_models_validation_error, reason.value), false, weather_date_time, {NULL, 0}},
+    {{"fieldList", 9}, &weather_shape_30, offsetof(weather_models_validation_error, field_list.state), offsetof(weather_models_validation_error, field_list.value), true, weather_date_time, {NULL, 0}},
+    {{"requestId", 9}, &weather_shape_36, offsetof(weather_models_validation_error, request_id.state), offsetof(weather_models_validation_error, request_id.value), true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_28 = {
+    .id = {"example.weather#ValidationError", 31}, .kind = weather_kind_structure, .size = sizeof(weather_models_validation_error), .format = weather_date_time,
+    .members = weather_shape_28_members, .member_count = 4,
+};
+static const weather_member weather_shape_29_members[] = {
+    {{"path", 4}, &weather_shape_36, offsetof(weather_models_validation_field, path.state), offsetof(weather_models_validation_field, path.value), false, weather_date_time, {NULL, 0}},
+    {{"message", 7}, &weather_shape_36, offsetof(weather_models_validation_field, message.state), offsetof(weather_models_validation_field, message.value), false, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_29 = {
+    .id = {"example.weather#ValidationField", 31}, .kind = weather_kind_structure, .size = sizeof(weather_models_validation_field), .format = weather_date_time,
+    .members = weather_shape_29_members, .member_count = 2,
+};
+static const weather_member weather_shape_30_members[] = {
+    {{"member", 6}, &weather_shape_29, 0, 0, true, weather_date_time, {NULL, 0}},
+};
+const weather_shape weather_shape_30 = {
+    .id = {"example.weather#ValidationFieldList", 35}, .kind = weather_kind_list, .size = sizeof(weather_models_validation_field_list), .format = weather_date_time,
+    .members = weather_shape_30_members, .member_count = 1,
+    .length_offset = offsetof(weather_models_validation_field_list, length), .items_offset = offsetof(weather_models_validation_field_list, items), .item_size = sizeof(const weather_models_validation_field *),
+};
+const weather_shape weather_shape_31 = {
+    .id = {"example.weather#ValidationReason", 32}, .kind = weather_kind_enum, .size = sizeof(weather_models_validation_reason), .format = weather_date_time,
+};
+const weather_shape weather_shape_32 = {
+    .id = {"smithy.api#Document", 19}, .kind = weather_kind_document, .size = sizeof(const weather_json *), .format = weather_date_time,
+};
+const weather_shape weather_shape_33 = {
+    .id = {"smithy.api#Double", 17}, .kind = weather_kind_double, .size = sizeof(double), .format = weather_date_time,
+};
+const weather_shape weather_shape_34 = {
+    .id = {"smithy.api#Integer", 18}, .kind = weather_kind_integer, .size = sizeof(int32_t), .format = weather_date_time,
+};
+const weather_shape weather_shape_35 = {
+    .id = {"smithy.api#Long", 15}, .kind = weather_kind_long, .size = sizeof(int64_t), .format = weather_date_time,
+};
+const weather_shape weather_shape_36 = {
+    .id = {"smithy.api#String", 17}, .kind = weather_kind_string, .size = sizeof(weather_string), .format = weather_date_time,
+};
+const weather_shape weather_shape_37 = {
+    .id = {"smithy.api#Timestamp", 20}, .kind = weather_kind_timestamp, .size = sizeof(weather_timestamp), .format = weather_date_time,
+};
+const weather_shape weather_shape_38 = {
+    .id = {"smithy.api#Unit", 15}, .kind = weather_kind_unit, .size = sizeof(weather_unit), .format = weather_date_time,
+};
+const weather_shape *weather_shape_lookup(weather_string id) {
+    (void)id;
+    if (weather_string_equal(id, weather_shape_0.id)) return &weather_shape_0;
+    if (weather_string_equal(id, weather_shape_1.id)) return &weather_shape_1;
+    if (weather_string_equal(id, weather_shape_2.id)) return &weather_shape_2;
+    if (weather_string_equal(id, weather_shape_3.id)) return &weather_shape_3;
+    if (weather_string_equal(id, weather_shape_4.id)) return &weather_shape_4;
+    if (weather_string_equal(id, weather_shape_5.id)) return &weather_shape_5;
+    if (weather_string_equal(id, weather_shape_6.id)) return &weather_shape_6;
+    if (weather_string_equal(id, weather_shape_7.id)) return &weather_shape_7;
+    if (weather_string_equal(id, weather_shape_8.id)) return &weather_shape_8;
+    if (weather_string_equal(id, weather_shape_9.id)) return &weather_shape_9;
+    if (weather_string_equal(id, weather_shape_10.id)) return &weather_shape_10;
+    if (weather_string_equal(id, weather_shape_11.id)) return &weather_shape_11;
+    if (weather_string_equal(id, weather_shape_12.id)) return &weather_shape_12;
+    if (weather_string_equal(id, weather_shape_13.id)) return &weather_shape_13;
+    if (weather_string_equal(id, weather_shape_14.id)) return &weather_shape_14;
+    if (weather_string_equal(id, weather_shape_15.id)) return &weather_shape_15;
+    if (weather_string_equal(id, weather_shape_16.id)) return &weather_shape_16;
+    if (weather_string_equal(id, weather_shape_17.id)) return &weather_shape_17;
+    if (weather_string_equal(id, weather_shape_18.id)) return &weather_shape_18;
+    if (weather_string_equal(id, weather_shape_19.id)) return &weather_shape_19;
+    if (weather_string_equal(id, weather_shape_20.id)) return &weather_shape_20;
+    if (weather_string_equal(id, weather_shape_21.id)) return &weather_shape_21;
+    if (weather_string_equal(id, weather_shape_22.id)) return &weather_shape_22;
+    if (weather_string_equal(id, weather_shape_23.id)) return &weather_shape_23;
+    if (weather_string_equal(id, weather_shape_24.id)) return &weather_shape_24;
+    if (weather_string_equal(id, weather_shape_25.id)) return &weather_shape_25;
+    if (weather_string_equal(id, weather_shape_26.id)) return &weather_shape_26;
+    if (weather_string_equal(id, weather_shape_27.id)) return &weather_shape_27;
+    if (weather_string_equal(id, weather_shape_28.id)) return &weather_shape_28;
+    if (weather_string_equal(id, weather_shape_29.id)) return &weather_shape_29;
+    if (weather_string_equal(id, weather_shape_30.id)) return &weather_shape_30;
+    if (weather_string_equal(id, weather_shape_31.id)) return &weather_shape_31;
+    if (weather_string_equal(id, weather_shape_32.id)) return &weather_shape_32;
+    if (weather_string_equal(id, weather_shape_33.id)) return &weather_shape_33;
+    if (weather_string_equal(id, weather_shape_34.id)) return &weather_shape_34;
+    if (weather_string_equal(id, weather_shape_35.id)) return &weather_shape_35;
+    if (weather_string_equal(id, weather_shape_36.id)) return &weather_shape_36;
+    if (weather_string_equal(id, weather_shape_37.id)) return &weather_shape_37;
+    if (weather_string_equal(id, weather_shape_38.id)) return &weather_shape_38;
+    return NULL;
+}
