@@ -3,7 +3,10 @@
 namespace Example.Weather.Models;
 
 public sealed class @PutCityPhotoInput {
-    public global::Example.Weather.Optional<string> @CityId { get; set; }
-    public global::Example.Weather.Optional<string> @Caption { get; set; }
-    public global::Example.Weather.Optional<byte[]> @Photo { get; set; }
+    public global::Example.Weather.Optional<string> @CityIdPresence { get; set; }
+    public string? @CityId { get => @CityIdPresence.IsSet && !@CityIdPresence.IsNull ? @CityIdPresence.Value : (string?)null; set => @CityIdPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    public global::Example.Weather.Optional<string> @CaptionPresence { get; set; }
+    public string? @Caption { get => @CaptionPresence.IsSet && !@CaptionPresence.IsNull ? @CaptionPresence.Value : (string?)null; set => @CaptionPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    public global::Example.Weather.Optional<byte[]> @PhotoPresence { get; set; }
+    public byte[]? @Photo { get => @PhotoPresence.IsSet && !@PhotoPresence.IsNull ? @PhotoPresence.Value : (byte[]?)null; set => @PhotoPresence = value is null ? global::Example.Weather.Optional<byte[]>.Null : global::Example.Weather.Optional<byte[]>.Of(value); }
 }

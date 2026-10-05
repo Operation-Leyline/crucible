@@ -41,7 +41,15 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         diagnostics.push(&service.id, "Ruby module name must be a valid constant");
     }
     let mut files = BTreeSet::new();
-    let mut constants = BTreeSet::from(["Registry".to_owned()]);
+    let mut constants = BTreeSet::from(["Registry", "Runtime"].map(str::to_owned));
+    let client_name = format!("{}Client", service.id.name());
+    if !constant(&client_name) {
+        diagnostics.push(
+            &service.id,
+            "Ruby service client name must be a valid constant",
+        );
+    }
+    constants.insert(client_name);
     for (id, shape) in &service.shapes {
         if !matches!(
             shape,
@@ -106,6 +114,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
+    let client_name = format!("{}Client", service.id.name());
     let package = &options.package_name;
     let module = &options.module_name;
     let schema =
@@ -170,10 +179,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             ));
         }
     }
-    entry.push_str(&format!("module {module}\n  def self.codec\n    @codec ||= Runtime::WireCodec.new(Runtime::ExactJson.decode(::File.read(::File.join(__dir__, '{package}/schema.json'))), Models::Registry::TYPES)\n  end\nend\n"));
+    entry.push_str(&format!("module {module}\n  def self.codec\n    @codec ||= Runtime::WireCodec.new(Runtime::ExactJson.decode(::File.read(::File.join(__dir__, '{package}/schema.json'))), Registry::TYPES)\n  end\nend\n"));
     entry.push_str(&format!("require_relative '{package}/client'\n"));
     let mut client = format!(
-        "# frozen_string_literal: true\nmodule {module}\n  class Client\n    def initialize(config = Runtime::ClientConfig.new)\n      @runtime = Runtime::ClientRuntime.new(config, ::{module}.codec, endpoint: {}, digest: {})\n    end\n    def close = @runtime.close\n",
+        "# frozen_string_literal: true\nmodule {module}\n  class {client_name}\n    def initialize(config = Runtime::ClientConfig.new)\n      @runtime = Runtime::ClientRuntime.new(config, ::{module}.codec, endpoint: {}, digest: {})\n    end\n    def close = @runtime.close\n",
         literal(options.endpoint.as_deref().unwrap_or("")),
         options.content_sha256
     );

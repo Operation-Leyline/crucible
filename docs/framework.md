@@ -421,8 +421,8 @@ existing consumers.
 
 The generated file holds `model`, `errors`, the operation markers, and per
 operation an error enum (`GetCityError`) of the errors it declares, plus
-`Client` with one async method per operation and `*_pages` for
-`@paginated` ones.
+a service-named client (`WeatherClient`, for example) with one async method per
+operation and `*_pages` for `@paginated` ones.
 
 `Transport::send` builds a request from the operation's `OperationInfo`:
 `split::write_bound` writes the body members in one pass and hands back

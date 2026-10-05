@@ -3,6 +3,7 @@
 namespace Example.Weather.Models;
 
 public sealed class @ListCitiesOutput {
-    public global::Example.Weather.Models.@CitySummaries @Cities { get; set; } = default!;
-    public global::Example.Weather.Optional<string> @NextToken { get; set; }
+    public global::System.Collections.Generic.List<global::Example.Weather.Models.@CitySummary> @Cities { get; set; } = default!;
+    public global::Example.Weather.Optional<string> @NextTokenPresence { get; set; }
+    public string? @NextToken { get => @NextTokenPresence.IsSet && !@NextTokenPresence.IsNull ? @NextTokenPresence.Value : (string?)null; set => @NextTokenPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
 }

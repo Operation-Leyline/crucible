@@ -3,7 +3,9 @@
 namespace Example.Weather.Models;
 
 public sealed class @Location {
-    public global::Example.Weather.Optional<global::Example.Weather.Models.@Coordinates> @Coordinates { get; set; }
-    public global::Example.Weather.Optional<global::Example.Weather.Unit> @Unknown { get; set; }
+    public global::Example.Weather.Optional<global::Example.Weather.Models.@Coordinates> @CoordinatesPresence { get; set; }
+    public global::Example.Weather.Models.@Coordinates? @Coordinates { get => @CoordinatesPresence.IsSet && !@CoordinatesPresence.IsNull ? @CoordinatesPresence.Value : (global::Example.Weather.Models.@Coordinates?)null; set => @CoordinatesPresence = value is null ? global::Example.Weather.Optional<global::Example.Weather.Models.@Coordinates>.Null : global::Example.Weather.Optional<global::Example.Weather.Models.@Coordinates>.Of(value); }
+    public global::Example.Weather.Optional<global::Example.Weather.Unit> @UnknownPresence { get; set; }
+    public global::Example.Weather.Unit? @Unknown { get => @UnknownPresence.IsSet && !@UnknownPresence.IsNull ? @UnknownPresence.Value : (global::Example.Weather.Unit?)null; set => @UnknownPresence = value is null ? global::Example.Weather.Optional<global::Example.Weather.Unit>.Null : global::Example.Weather.Optional<global::Example.Weather.Unit>.Of(value); }
     public global::Example.Weather.UnknownUnion? UnknownVariant { get; set; }
 }

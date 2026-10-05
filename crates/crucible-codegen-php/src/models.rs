@@ -7,7 +7,7 @@ use crucible_smithy::ir::{Service, Shape};
 pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
     let mut files = Vec::new();
     let runtime = format!("\\{namespace}\\Runtime");
-    let header = format!("<?php\ndeclare(strict_types=1);\nnamespace {namespace}\\Models;\n\n");
+    let header = format!("<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\n");
     let mut decode = format!(
         "{header}final class Decoder\n{{\n    public static function model(string $target, mixed $value, {runtime}\\WireContext $context): mixed\n    {{\n        return match ($target) {{\n"
     );
@@ -38,7 +38,7 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                 for member in &members {
                     let value = ty(service, &member.target, namespace, true);
                     let value = if member.optional_on_client() {
-                        format!("{runtime}\\Field<{value}>")
+                        format!("{value}|null|{runtime}\\Absent")
                     } else {
                         value
                     };
@@ -48,12 +48,12 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                 for member in &members {
                     let value = ty(service, &member.target, namespace, false);
                     let value = if member.optional_on_client() {
-                        format!("{runtime}\\Field")
+                        format!("{value}|null|{runtime}\\Absent")
                     } else {
                         value
                     };
                     let default = if member.optional_on_client() {
-                        format!(" = new {runtime}\\Field()")
+                        format!(" = {runtime}\\Absent::Value")
                     } else {
                         String::new()
                     };
@@ -94,9 +94,10 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                 out.push_str(&format!("        );\n    }}\n    public function toWire({runtime}\\WireContext $context): {runtime}\\JsonObject\n    {{\n        $object = [];\n"));
                 for member in &structure.members {
                     out.push_str(&format!(
-                        "        $context->put($object, {}, $this->{});\n",
+                        "        $context->put($object, {}, $this->{}, {});\n",
                         literal(&member.name),
-                        field(&member.name)
+                        field(&member.name),
+                        member.optional_on_client()
                     ));
                 }
                 out.push_str(&format!(
@@ -136,10 +137,10 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                     let wire_name = literal(&member.name);
                     let member_type = ty(service, &member.target, namespace, false);
                     let doc = ty(service, &member.target, namespace, true);
-                    files.push(File { path:format!("src/Models/{variant}.php"), contents:format!("{header}final class {variant} extends {name}\n{{\n    /** @param {doc}|null $value */\n    public function __construct(public readonly ?{member_type} $value) {{}}\n    public function toWire({runtime}\\WireContext $context): {runtime}\\JsonObject\n    {{\n        return new {runtime}\\JsonObject([{wire_name} => $this->value === null ? null : $context->codec->encode($this->value, $context->member({wire_name}))]);\n    }}\n}}\n") });
+                    files.push(File { path:format!("src/{variant}.php"), contents:format!("{header}final class {variant} extends {name}\n{{\n    /** @param {doc}|null $value */\n    public function __construct(public readonly ?{member_type} $value) {{}}\n    public function toWire({runtime}\\WireContext $context): {runtime}\\JsonObject\n    {{\n        return new {runtime}\\JsonObject([{wire_name} => $this->value === null ? null : $context->codec->encode($this->value, $context->member({wire_name}))]);\n    }}\n}}\n") });
                 }
                 let unknown = format!("{name}UnknownVariant");
-                files.push(File {path:format!("src/Models/{unknown}.php"),contents:format!("{header}final class {unknown} extends {name}\n{{\n    public function __construct(public readonly string $name, public readonly {runtime}\\JsonValue $value) {{}}\n    public function toWire({runtime}\\WireContext $context): {runtime}\\JsonObject\n    {{\n        if ({runtime}\\WireCodec::object($context->shape()->get('members'))->has($this->name)) throw new \\UnexpectedValueException('Unknown variant name is declared');\n        return new {runtime}\\JsonObject([$this->name => $this->value->value()]);\n    }}\n}}\n")});
+                files.push(File {path:format!("src/{unknown}.php"),contents:format!("{header}final class {unknown} extends {name}\n{{\n    public function __construct(public readonly string $name, public readonly {runtime}\\JsonValue $value) {{}}\n    public function toWire({runtime}\\WireContext $context): {runtime}\\JsonObject\n    {{\n        if ({runtime}\\WireCodec::object($context->shape()->get('members'))->has($this->name)) throw new \\UnexpectedValueException('Unknown variant name is declared');\n        return new {runtime}\\JsonObject([$this->name => $this->value->value()]);\n    }}\n}}\n")});
                 decode.push_str(&format!(
                     "            {target} => {name}::fromWire($value, $context),\n"
                 ));
@@ -147,14 +148,14 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
             _ => continue,
         }
         files.push(File {
-            path: format!("src/Models/{name}.php"),
+            path: format!("src/{name}.php"),
             contents: out,
         });
     }
     decode.push_str("            default => throw new \\UnexpectedValueException('Unknown model: ' . $target),\n        };\n    }\n");
     errors.push_str(&format!("            default => new {runtime}\\UnknownServiceError($metadata),\n        }};\n    }}\n"));
     files.push(File {
-        path: "src/Models/Decoder.php".into(),
+        path: "src/Decoder.php".into(),
         contents: format!("{decode}{errors}}}\n"),
     });
     files

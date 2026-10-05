@@ -41,6 +41,7 @@ pub(crate) fn emit(
     diagnostics: &mut Diagnostics,
 ) -> String {
     let boxed = boxed_members(service);
+    let builders = crate::builders::names(service);
     let validated = input_reachable(service);
     let mut patterns = Patterns::default();
     let mut out = String::new();
@@ -104,6 +105,17 @@ pub(crate) fn emit(
                     );
                 }
                 out.push_str("}\n");
+                if client {
+                    crate::builders::emit(
+                        &mut out,
+                        service,
+                        id,
+                        structure,
+                        &boxed,
+                        "",
+                        &builders[id],
+                    );
+                }
             }
             Shape::Union(union) if client => {
                 crate::open::union(&mut out, service, id, name, union, &boxed)

@@ -27,11 +27,11 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
     let runtime = format!("::{module}::Runtime");
     let mut files = Vec::new();
     let mut registry = format!(
-        "# frozen_string_literal: true\nmodule {module}\n  module Models\n    module Registry\n      TYPES = {{\n"
+        "# frozen_string_literal: true\nmodule {module}\n    module Registry\n      TYPES = {{\n"
     );
     for (id, shape) in &service.shapes {
         let name = service.name_of(id);
-        let mut out = format!("# frozen_string_literal: true\nmodule {module}\n  module Models\n");
+        let mut out = format!("# frozen_string_literal: true\nmodule {module}\n");
         match shape {
             Shape::Structure(structure) => {
                 let error = structure.error.is_some();
@@ -125,7 +125,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             }
             _ => continue,
         }
-        out.push_str("  end\nend\n");
+        out.push_str("end\n");
         registry.push_str(&format!(
             "        {} => {name},\n",
             literal(&id.to_string())
@@ -135,7 +135,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             contents: out,
         });
     }
-    registry.push_str("      }.freeze\n    end\n  end\nend\n");
+    registry.push_str("      }.freeze\n    end\nend\n");
     files.push(File {
         path: format!("lib/{}/models/registry.rb", options.package_name),
         contents: registry,

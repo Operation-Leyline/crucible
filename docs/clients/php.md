@@ -23,24 +23,27 @@ Generation writes package identity and provenance; it does not publish.
 Supply your license and release metadata before distribution. Use a Composer
 path repository during development or archive the package for distribution.
 
+The public client name comes from the Smithy service: `WeatherClient` for
+`Weather`, or `LeylineClient` for `Leyline`. Regenerate and replace earlier
+`Client` imports and construction sites with the service-specific name.
+
 ## Calling operations
 
 ```php
 <?php
 require 'vendor/autoload.php';
 
-use Example\Weather\Client;
-use Example\Weather\Models\CreateCityInput;
-use Example\Weather\Models\ListCitiesInput;
+use Example\Weather\WeatherClient;
+use Example\Weather\CreateCityInput;
+use Example\Weather\ListCitiesInput;
 use Example\Weather\Runtime\ClientConfig;
-use Example\Weather\Runtime\Field;
 
-$client = new Client(new ClientConfig(
+$client = new WeatherClient(new ClientConfig(
     endpoint: 'https://weather.example',
     token: fn() => getenv('WEATHER_TOKEN'),
 ));
 try {
-    $client->createCity(new CreateCityInput(name: Field::value('London')));
+    $client->createCity(new CreateCityInput(name: 'London'));
     foreach ($client->listCitiesPages(new ListCitiesInput()) as $page) {
         foreach ($page->cities as $city) echo $city->name, "\n";
     }
@@ -51,10 +54,23 @@ try {
 
 ## Models and precision
 
-Model properties are readonly. Required members are constructor arguments;
-optional members use `Field`, whose default constructor means absent.
-`Field::nullValue()` means explicit null and `Field::value($value)` means
-present. Missing response members receive modeled defaults; explicit null
+Models live directly in the configured namespace, beside `WeatherClient`. Properties
+are readonly and contain their native value. Pass ordinary named arguments:
+`new CreateCityInput(name: 'London', location: null)`, then read `$input->name`.
+Required members are constructor arguments. Optional members default to
+`Runtime\Absent::Value`; explicit `null` remains null. Check
+`$value === Absent::Value` when absence matters, and `$value === null` for an
+explicit null. Import the sentinel with `use Example\Weather\Runtime\Absent;`.
+No wrapper is needed around assigned values.
+
+This changes earlier generated packages: remove `Models\` from model imports,
+replace `Field::value($x)` with `$x`, `Field::nullValue()` with `null`, and
+`new Field()` with `Absent::Value`. Read `$response->member` directly instead
+of `$response->member->value`; replace `!$field->isSet` with
+`$value === Absent::Value`. Regenerate the entire package and migrate its
+consumers together; keeping the previous generated package restores the old API.
+
+Missing response members receive modeled defaults; explicit null
 does not receive a default. Lists and maps use PHP arrays, with element types
 recorded in PHPDoc. PHP canonicalizes integer-looking map keys to integers;
 serialization preserves their string wire spelling.

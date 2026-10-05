@@ -48,7 +48,7 @@ def qualify(package):
     with tempfile.TemporaryDirectory() as installed:
         wheel = next((package / "dist").glob("*.whl"))
         run(sys.executable, "-m", "pip", "install", "--no-deps", "--target", installed, str(wheel))
-        run(sys.executable, "-c", "from weather_client import Client, CreateCityInput; from importlib.resources import files; assert files('weather_client').joinpath('py.typed').is_file(); assert files('weather_client').joinpath('crucible.json').is_file()",
+        run(sys.executable, "-c", "from weather_client import WeatherClient, AsyncWeatherClient, CreateCityInput; from importlib.resources import files; assert files('weather_client').joinpath('py.typed').is_file(); assert files('weather_client').joinpath('crucible.json').is_file()",
             env=dict(os.environ, PYTHONPATH=installed))
 
 

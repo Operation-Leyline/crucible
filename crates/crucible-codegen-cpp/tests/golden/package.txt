@@ -48,10 +48,10 @@ check_required_components(weather_client)
 #include "runtime/client_runtime.hpp"
 
 namespace example::weather {
-class Client {
+class WeatherClient {
     std::shared_ptr<runtime::ClientRuntime> runtime_;
 public:
-    explicit Client(runtime::ClientConfig config = {});
+    explicit WeatherClient(runtime::ClientConfig config = {});
     void close() { runtime_->close(); }
     [[nodiscard]] ::example::weather::models::CreateCityOutput create_city(const ::example::weather::models::CreateCityInput& input, std::stop_token stop = {}) const;
     [[nodiscard]] ::example::weather::models::GetCityOutput get_city(const ::example::weather::models::GetCityInput& input, std::stop_token stop = {}) const;
@@ -356,8 +356,8 @@ std::exception_ptr decode_error([[maybe_unused]] const std::string& target, [[ma
     return {};
 }
 }
-Client::Client(runtime::ClientConfig config) : runtime_(std::make_shared<runtime::ClientRuntime>(std::move(config), schema(), decode_error, "", true)) {}
-::example::weather::models::CreateCityOutput Client::create_city(const ::example::weather::models::CreateCityInput& input, std::stop_token stop) const {
+WeatherClient::WeatherClient(runtime::ClientConfig config) : runtime_(std::make_shared<runtime::ClientRuntime>(std::move(config), schema(), decode_error, "", true)) {}
+::example::weather::models::CreateCityOutput WeatherClient::create_city(const ::example::weather::models::CreateCityInput& input, std::stop_token stop) const {
     const auto scope = runtime_->scope(stop);
     scope.check();
     const auto result = runtime_->call("CreateCity", runtime::Codec<::example::weather::models::CreateCityInput>::encode(input, schema().context("example.weather#CreateCityInput")), scope);
@@ -365,7 +365,7 @@ Client::Client(runtime::ClientConfig config) : runtime_(std::make_shared<runtime
     scope.check();
     return output;
 }
-::example::weather::models::GetCityOutput Client::get_city(const ::example::weather::models::GetCityInput& input, std::stop_token stop) const {
+::example::weather::models::GetCityOutput WeatherClient::get_city(const ::example::weather::models::GetCityInput& input, std::stop_token stop) const {
     const auto scope = runtime_->scope(stop);
     scope.check();
     const auto result = runtime_->call("GetCity", runtime::Codec<::example::weather::models::GetCityInput>::encode(input, schema().context("example.weather#GetCityInput")), scope);
@@ -373,7 +373,7 @@ Client::Client(runtime::ClientConfig config) : runtime_(std::make_shared<runtime
     scope.check();
     return output;
 }
-::example::weather::models::GetCityPhotoOutput Client::get_city_photo(const ::example::weather::models::GetCityPhotoInput& input, std::stop_token stop) const {
+::example::weather::models::GetCityPhotoOutput WeatherClient::get_city_photo(const ::example::weather::models::GetCityPhotoInput& input, std::stop_token stop) const {
     const auto scope = runtime_->scope(stop);
     scope.check();
     const auto result = runtime_->call("GetCityPhoto", runtime::Codec<::example::weather::models::GetCityPhotoInput>::encode(input, schema().context("example.weather#GetCityPhotoInput")), scope);
@@ -381,7 +381,7 @@ Client::Client(runtime::ClientConfig config) : runtime_(std::make_shared<runtime
     scope.check();
     return output;
 }
-::example::weather::models::ListCitiesOutput Client::list_cities(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop) const {
+::example::weather::models::ListCitiesOutput WeatherClient::list_cities(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop) const {
     const auto scope = runtime_->scope(stop);
     scope.check();
     const auto result = runtime_->call("ListCities", runtime::Codec<::example::weather::models::ListCitiesInput>::encode(input, schema().context("example.weather#ListCitiesInput")), scope);
@@ -389,17 +389,17 @@ Client::Client(runtime::ClientConfig config) : runtime_(std::make_shared<runtime
     scope.check();
     return output;
 }
-runtime::Pages<::example::weather::models::ListCitiesOutput> Client::list_cities_pages(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop) const {
+runtime::Pages<::example::weather::models::ListCitiesOutput> WeatherClient::list_cities_pages(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop) const {
     return runtime::Pages<::example::weather::models::ListCitiesOutput>(runtime_, "ListCities", runtime::Codec<::example::weather::models::ListCitiesInput>::encode(input, schema().context("example.weather#ListCitiesInput")), stop);
 }
-runtime::Unit Client::ping(std::stop_token stop) const {
+runtime::Unit WeatherClient::ping(std::stop_token stop) const {
     const auto scope = runtime_->scope(stop);
     scope.check();
     const auto result = runtime_->call("Ping", runtime::Json(runtime::Json::Object{}), scope);
     scope.check();
     return {};
 }
-::example::weather::models::PutCityPhotoOutput Client::put_city_photo(const ::example::weather::models::PutCityPhotoInput& input, std::stop_token stop) const {
+::example::weather::models::PutCityPhotoOutput WeatherClient::put_city_photo(const ::example::weather::models::PutCityPhotoInput& input, std::stop_token stop) const {
     const auto scope = runtime_->scope(stop);
     scope.check();
     const auto result = runtime_->call("PutCityPhoto", runtime::Codec<::example::weather::models::PutCityPhotoInput>::encode(input, schema().context("example.weather#PutCityPhotoInput")), scope);
@@ -407,7 +407,7 @@ runtime::Unit Client::ping(std::stop_token stop) const {
     scope.check();
     return output;
 }
-::example::weather::models::StatusOutput Client::status(const ::example::weather::models::StatusInput& input, std::stop_token stop) const {
+::example::weather::models::StatusOutput WeatherClient::status(const ::example::weather::models::StatusInput& input, std::stop_token stop) const {
     const auto scope = runtime_->scope(stop);
     scope.check();
     const auto result = runtime_->call("Status", runtime::Codec<::example::weather::models::StatusInput>::encode(input, schema().context("example.weather#StatusInput")), scope);

@@ -12,8 +12,9 @@
 //!
 //! `generate_client` writes the client side from the same model: `model` and
 //! `errors` as above, the marker types, an error enum per operation and
-//! `Client`, all against `crucible-client`.
+//! a service-named client such as `WeatherClient`, all against `crucible-client`.
 
+mod builders;
 mod client;
 mod errors;
 mod info;

@@ -18,7 +18,7 @@ module CrucibleGenerated
         scope.wait(0.01) until @mutex.try_lock
         worker = nil
         begin
-          raise IOError, 'Transport is closed' if @closed
+          raise ::IOError, 'Transport is closed' if @closed
           # Only owned network work runs here. Killing it never interrupts caller hooks.
           worker = ::Thread.new do
             ::Thread.current.report_on_exception = false
@@ -47,7 +47,7 @@ module CrucibleGenerated
       private
       def disconnect
         @http.finish if @http&.started?
-      rescue IOError, SystemCallError
+      rescue ::IOError, ::SystemCallError
         nil
       ensure
         @http = @origin = nil
@@ -78,12 +78,12 @@ module CrucibleGenerated
               throw :irrelevant_body, HttpResponse.new(status, headers: headers)
             end
             length = response['content-length']
-            raise EOFError, 'Invalid Content-Length' if length && !/\A[0-9]+\z/.match?(length)
+            raise ::EOFError, 'Invalid Content-Length' if length && !/\A[0-9]+\z/.match?(length)
             expected = length && ::Kernel.Integer(length, 10)
             body = +''.b
             response.read_body { |chunk| body << chunk }
             if request.method != 'HEAD' && status >= 200 && ![204, 304].include?(status) && expected && !response['transfer-encoding'] && body.bytesize != expected
-              raise EOFError, 'Truncated response body'
+              raise ::EOFError, 'Truncated response body'
             end
             decoded = HttpResponse.new(status, headers: headers, body: body)
           end

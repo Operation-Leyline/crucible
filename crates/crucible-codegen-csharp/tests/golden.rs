@@ -21,7 +21,7 @@ fn weather_matches_goldens() {
     for file in emit(&service, &options()).unwrap() {
         if file.path.ends_with(".cs")
             && !file.path.starts_with("Models/")
-            && !["Client.cs", "ModelRegistry.cs"].contains(&file.path.as_str())
+            && !["WeatherClient.cs", "ModelRegistry.cs"].contains(&file.path.as_str())
         {
             continue;
         }
@@ -73,4 +73,19 @@ fn model_name_diagnostics_are_collected() {
         .lower(None)
         .unwrap();
     assert_eq!(emit(&service, &options()).err().unwrap().len(), 2);
+}
+
+#[test]
+fn service_client_name_is_reserved() {
+    let mut model: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap();
+    model["shapes"]["example.weather#Weather"]["rename"] =
+        serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    assert!(emit(&service, &options()).is_err());
 }

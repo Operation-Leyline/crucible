@@ -11,6 +11,29 @@ fn options() -> Options {
         content_sha256: true,
     }
 }
+
+#[test]
+fn client_name_follows_service_identity() {
+    let mut service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    service.id = crucible_smithy::ShapeId::new("dev.leyline", "Leyline");
+    let files = emit(&service, &options()).unwrap();
+    let client = files
+        .iter()
+        .find(|file| file.path.ends_with("/LeylineClient.java"))
+        .unwrap();
+    assert!(client.contents.contains("public final class LeylineClient"));
+    assert!(
+        client
+            .contents
+            .contains("public LeylineClient(ClientConfig config)")
+    );
+    assert!(!files.iter().any(|file| file.path.ends_with("/Client.java")));
+}
 #[test]
 fn weather_matches_goldens() {
     let service = Model::from_json(include_str!(
@@ -21,7 +44,8 @@ fn weather_matches_goldens() {
     .unwrap();
     for file in emit(&service, &options()).unwrap() {
         if file.path.ends_with(".java")
-            && !file.path.ends_with("Models.java")
+            && !file.path.contains("/model/")
+            && !file.path.ends_with("ModelRegistry.java")
             && !file.path.ends_with("Client.java")
         {
             continue;

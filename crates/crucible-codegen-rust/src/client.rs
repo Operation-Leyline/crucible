@@ -1,18 +1,27 @@
 //! The client's top level: per operation its marker type, an error enum of
-//! the errors it declares, and a method on `Client`; `*_pages` for a
+//! the errors it declares, and a method on the service client; `*_pages` for a
 //! `@paginated` operation.
 
 use crucible_smithy::ir::{Member, Operation, Service, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::errors::info_static;
-use crate::names::{doc, field, function, literal};
+use crate::names::{doc, field, function, literal, variant};
 use crate::operations::{input_type, marker, output_type, structure};
 use crate::types::simple_kind;
 
 const UNIT: &str = "::crucible::operation::Unit";
 
 pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
+    let client = format!("{}Client", variant(service.id.name()));
+    for id in service.shapes.keys() {
+        if !id.is_prelude() && service.name_of(id) == client {
+            diagnostics.push(
+                id,
+                format!("model name collides with generated client `{client}`"),
+            );
+        }
+    }
     let mut out = String::new();
     let mut methods = String::new();
     for op in &service.operations {
@@ -26,11 +35,20 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         methods.push_str(&method(service, op));
         methods.push_str(&pages(service, op, diagnostics));
         if function(op.name()) == "new" {
-            diagnostics.push(&op.id, "an operation named New collides with Client::new");
+            diagnostics.push(
+                &op.id,
+                format!("an operation named New collides with {client}::new"),
+            );
+        }
+        if op.name() == client || error_type(op) == client {
+            diagnostics.push(
+                &op.id,
+                format!("operation declaration collides with generated client `{client}`"),
+            );
         }
     }
     out.push_str(&format!(
-        "\n/// A client for {}. Cheap to clone: clones share connections.\n#[derive(Clone)]\npub struct Client {{\n    transport: ::crucible::Transport,\n}}\n\nimpl Client {{\n    pub fn new(config: ::crucible::Config) -> Self {{\n        Self {{\n            transport: ::crucible::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
+        "\n/// A client for {}. Cheap to clone: clones share connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible::Transport,\n}}\n\nimpl {client} {{\n    pub fn new(config: ::crucible::Config) -> Self {{\n        Self {{\n            transport: ::crucible::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
         service.id.name()
     ));
     out

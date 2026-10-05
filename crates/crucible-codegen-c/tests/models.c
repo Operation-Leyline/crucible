@@ -26,7 +26,7 @@ int main(void) {
     json = parse(source, "{\"id\":\"x\",\"name\":\"city\",\"population\":9223372036854775807,\"createdAt\":-0.000000001}", &error);
     good(weather_models_city_summary_decode(decoded, json, &city, &error), &error);
     weather_arena_free(source); source = weather_arena_new();
-    assert(city->population.state == weather_present && city->population.value == INT64_MAX);
+    assert(weather_models_city_summary_has_population(city) && weather_models_city_summary_get_population(city) == INT64_MAX);
     assert(weather_string_equal(city->name.value, weather_string_view("city")));
     assert(city->created_at.value.seconds == -1 && city->created_at.value.nanoseconds == 999999999);
     good(weather_models_city_summary_encode(encoded, city, &wire, &error), &error);
@@ -41,7 +41,13 @@ int main(void) {
     location.state = weather_present;
     location.unknown_name = weather_string_view("future");
     location.unknown_value = parse(source, "{\"n\":9223372036854775807,\"decimal\":1.000000000000000000001}", &error);
-    input.name.state = weather_null;
+    weather_models_create_city_input_set_name(&input, weather_string_view("ordinary"));
+    assert(weather_models_create_city_input_has_name(&input));
+    assert(weather_string_equal(weather_models_create_city_input_get_name(&input), weather_string_view("ordinary")));
+    weather_models_create_city_input_clear_name(&input);
+    assert(!weather_models_create_city_input_has_name(&input));
+    assert(weather_models_create_city_input_get_name(&input).length == 0);
+    weather_models_create_city_input_null_name(&input);
     input.location.state = weather_present; input.location.value = &location;
     good(weather_models_create_city_input_encode(encoded, &input, &wire, &error), &error);
     assert(weather_json_type(weather_json_get(wire, weather_string_view("name"))) == weather_json_null);

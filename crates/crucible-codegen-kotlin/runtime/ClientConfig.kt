@@ -2,7 +2,7 @@ import java.net.URI
 import java.time.Duration
 import okhttp3.OkHttpClient
 
-/** Configuration is copied by Client. An injected OkHttpClient remains caller-owned. */
+/** Configuration is copied by the client. An injected OkHttpClient remains caller-owned. */
 data class ClientConfig(
     val endpoint: String? = null,
     val httpClient: OkHttpClient? = null,

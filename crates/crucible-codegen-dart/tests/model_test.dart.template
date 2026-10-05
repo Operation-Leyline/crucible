@@ -13,12 +13,12 @@ void main() {
   String id(String name) => shapes.keys.singleWhere((id) => wireObject(shapes[id])['name'] == name);
   final population = BigInt.parse('9223372036854775807');
   final city = CitySummary(id:'x', name:'name', population:population,
-    updatedAt:Field.value(Timestamp.parse('2026-10-04T00:00:00.123456789Z')));
+    updatedAt:Timestamp.parse('2026-10-04T00:00:00.123456789Z'));
   final context = codec.context(id('CitySummary'));
   final encoded = codec.encode(city, context);
   final copy = codec.decode(exactJsonDecode(exactJsonEncode(encoded)), context) as CitySummary;
   check(copy.population == population, 'Generated long round trip');
-  check(copy.updatedAt.value == city.updatedAt.value, 'Generated timestamp round trip');
+  check(copy.updatedAt == city.updatedAt, 'Generated timestamp round trip');
   final union = codec.context(id('Location'));
   for (final value in <Location>[const LocationUnknown(Unit()), const LocationCoordinates(null), LocationUnknownVariant('future', JsonValue.parse('9223372036854775807'))]) {
     final encoded = codec.encode(value, union);

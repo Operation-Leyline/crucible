@@ -1,6 +1,6 @@
 args <- commandArgs(trailingOnly = TRUE)
 suppressPackageStartupMessages(library(weather.client,lib.loc=args[1L]))
-client <- Client(client_config(endpoint='https://destination.invalid',timeout=2,max_attempts=1))
+client <- WeatherClient(client_config(endpoint='https://destination.invalid',timeout=2,max_attempts=1))
 error <- tryCatch({ client$ping(); NULL },error=identity)
 stopifnot(inherits(error,'crucible_network'))
 client$close()

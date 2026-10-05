@@ -50,7 +50,7 @@ fn weather_matches_goldens() {
     let mut snapshots = 0;
     for file in emit(&lower(&weather()), &options()).unwrap() {
         if file.path.ends_with(".swift")
-            && !["Models.swift", "Client.swift", "Package.swift"]
+            && !["Models.swift", "WeatherClient.swift", "Package.swift"]
                 .iter()
                 .any(|name| file.path.ends_with(name))
         {
@@ -150,7 +150,7 @@ fn reserved_and_path_names_are_diagnosed() {
 fn model_and_member_collisions_are_collected() {
     let mut model = weather();
     model["shapes"]["example.weather#Weather"]["rename"] =
-        json!({"example.weather#Location": "Models"});
+        json!({"example.weather#Location": "WeatherClient"});
     for name in ["metadata", "metadataValue"] {
         model["shapes"]["example.weather#CreateCityInput"]["members"][name] =
             json!({"target": "smithy.api#String"});
@@ -200,7 +200,7 @@ fn endpoint_escapes_backslashes_and_swift_interpolation() {
     let files = emit(&lower(&weather()), &config).unwrap();
     let client = files
         .iter()
-        .find(|file| file.path.ends_with("/Client.swift"))
+        .find(|file| file.path.ends_with("Client.swift"))
         .unwrap();
     assert!(
         client
@@ -214,15 +214,17 @@ fn void_operation_has_typed_default_unit_input_and_output() {
     let files = emit(&void_service("Ping"), &options()).unwrap();
     let client = files
         .iter()
-        .find(|file| file.path.ends_with("/Client.swift"))
+        .find(|file| file.path.ends_with("Client.swift"))
         .unwrap();
-    assert!(client.contents.contains(
-        "public func `ping`(_ input: WeatherClient.Models.Unit = .init()) async throws -> WeatherClient.Models.Unit"
-    ));
     assert!(
         client
             .contents
-            .contains("runtime.call(\"Ping\", input: input, as: WeatherClient.Models.Unit.self)")
+            .contains("public func `ping`(_ input: Unit = .init()) async throws -> Unit")
+    );
+    assert!(
+        client
+            .contents
+            .contains("runtime.call(\"Ping\", input: input, as: Unit.self)")
     );
     let schema: Value = serde_json::from_str(
         &files
@@ -501,4 +503,12 @@ fn recursion_through_indirect_or_nominal_representations_is_accepted() {
             panic!("Representable recursion rejected: {shapes}\n{diagnostics}");
         }
     }
+}
+
+#[test]
+fn service_client_name_is_reserved() {
+    let mut model = weather();
+    model["shapes"]["example.weather#Weather"]["rename"] =
+        serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
+    assert!(emit(&lower(&model), &options()).is_err());
 }

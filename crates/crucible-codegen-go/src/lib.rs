@@ -72,6 +72,7 @@ fn ty(service: &Service, id: &ShapeId) -> String {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     let mut errors = Diagnostics::default();
+    let client_name = format!("{}Client", exported(service.id.name()));
     if options.package_name.is_empty()
         || !options
             .package_name
@@ -125,7 +126,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         errors.push(&service.id, "Go module path contains invalid characters");
     }
     let mut names: BTreeSet<String> = [
-        "Client",
         "Config",
         "HTTPClient",
         "Optional",
@@ -135,12 +135,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "ServiceError",
         "ResponseMetadata",
         "UnknownUnion",
-        "NewClient",
         "NetworkError",
     ]
     .into_iter()
     .map(str::to_string)
     .collect();
+    names.insert(client_name.clone());
+    names.insert(format!("New{client_name}"));
     let mut methods = BTreeSet::new();
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
         let name = exported(service.name_of(id));
@@ -247,6 +248,45 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     models.push_str("    Metadata *ServiceError\n");
                 }
                 models.push_str("}\n");
+                // Keep tri-state storage available, while ordinary callers use
+                // native arguments and return values as in conventional Go APIs.
+                let mut used: BTreeSet<String> =
+                    s.members.iter().map(|m| exported(&m.name)).collect();
+                used.extend(["Error", "Unwrap", "Metadata", "UnknownVariant"].map(str::to_owned));
+                for m in &s.members {
+                    let native = exported(&m.name);
+                    let t = ty(service, &m.target);
+                    let optional = m.optional_on_client() || matches!(shape, Shape::Union(_));
+                    for action in ["Set", "Get", "Has", "IsNull"] {
+                        if !optional && matches!(action, "Has" | "IsNull") {
+                            continue;
+                        }
+                        let base = format!("{action}{native}");
+                        let mut method = base.clone();
+                        let mut suffix = 2;
+                        while !used.insert(method.clone()) {
+                            method = format!("{base}{suffix}");
+                            suffix += 1;
+                        }
+                        match action {
+                            "Set" => {
+                                let value = if optional { "Some(value)" } else { "value" };
+                                let clear = if matches!(shape, Shape::Union(_)) { "*m = ".to_owned() + &name + "{}; " } else { String::new() };
+                                models.push_str(&format!("func (m *{name}) {method}(value {t}) {{ {clear}m.{native} = {value} }}\n"));
+                            }
+                            "Get" => {
+                                let value = if optional { format!("m.{native}.Value") } else { format!("m.{native}") };
+                                if optional {
+                                    models.push_str(&format!("// {method} returns the value, or its zero value when absent or null.\nfunc (m *{name}) {method}() {t} {{ if m != nil && m.{native}.Set && !m.{native}.Null {{ return {value} }}; var zero {t}; return zero }}\n"));
+                                } else {
+                                    models.push_str(&format!("func (m *{name}) {method}() {t} {{ return {value} }}\n"));
+                                }
+                            }
+                            "Has" => models.push_str(&format!("func (m *{name}) {method}() bool {{ return m != nil && m.{native}.Set }}\n")),
+                            _ => models.push_str(&format!("func (m *{name}) {method}() bool {{ return m != nil && m.{native}.Set && m.{native}.Null }}\n")),
+                        }
+                    }
+                }
                 if s.error.is_some() {
                     models.push_str(&format!("func (e *{name}) Error() string {{ return e.Metadata.Error() }}\nfunc (e *{name}) Unwrap() error {{ return e.Metadata }}\n"));
                 }
@@ -264,7 +304,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "var wireSchema = mustSchema({})\n\n",
         literal(&schema)
     ));
-    client.push_str(&format!("func NewClient(config Config) (*Client, error) {{\n if config.Endpoint == \"\" {{ config.Endpoint = {} }}\n return newClient(config, wireSchema, {})\n}}\n\n",literal(options.endpoint.as_deref().unwrap_or("")),options.content_sha256));
+    client.push_str(&format!("type {client_name} struct {{ *clientRuntime }}\n\nfunc New{client_name}(config Config) (*{client_name}, error) {{\n if config.Endpoint == \"\" {{ config.Endpoint = {} }}\n runtime, err := newClient(config, wireSchema, {})\n if err != nil {{ return nil, err }}\n return &{client_name}{{clientRuntime: runtime}}, nil\n}}\n\n",literal(options.endpoint.as_deref().unwrap_or("")),options.content_sha256));
     client.push_str("func modeledError(target string, values map[string]any, metadata *ServiceError) error {\n switch target {\n");
     for (id, shape) in &service.shapes {
         if matches!(shape,Shape::Structure(s) if s.error.is_some()) {
@@ -287,9 +327,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .output
             .as_ref()
             .map_or(String::new(), ToString::to_string);
-        client.push_str(&format!("func (c *Client) {name}(ctx context.Context, input {input}) ({output}, error) {{\n var output {output}\n values, err := c.call(ctx, {}, input)\n if err != nil {{ return output, err }}\n err = decodeModel(c.schema, {}, values, &output)\n return output, err\n}}\n\n",literal(op.name()),literal(&target)));
+        client.push_str(&format!("func (c *{client_name}) {name}(ctx context.Context, input {input}) ({output}, error) {{\n var output {output}\n values, err := c.call(ctx, {}, input)\n if err != nil {{ return output, err }}\n err = decodeModel(c.schema, {}, values, &output)\n return output, err\n}}\n\n",literal(op.name()),literal(&target)));
         if let Some(p) = &op.paginated {
-            client.push_str(&format!("type {name}Paginator struct {{ client *Client; input map[string]any; seen map[string]bool; done bool }}\nfunc (c *Client) {name}Pages(input {input}) (*{name}Paginator, error) {{\n values, err := encodeModel(c.schema, {}, input)\n if err != nil {{ return nil, err }}\n seen := map[string]bool{{}}\n if token, ok := values[{}].(string); ok && token != \"\" {{ seen[token] = true }}\n return &{name}Paginator{{client:c, input:values, seen:seen}}, nil\n}}\nfunc (p *{name}Paginator) HasMorePages() bool {{ return !p.done }}\nfunc (p *{name}Paginator) NextPage(ctx context.Context) ({output}, error) {{\n var result {output}\n if p.done {{ return result, errNoMorePages }}\n values, err := p.client.callValues(ctx, {}, p.input)\n if err != nil {{ return result, err }}\n if err = decodeModel(p.client.schema, {}, values, &result); err != nil {{ return result, err }}\n token, err := pageToken(values, {})\n if err != nil {{ return result, err }}\n if token == \"\" {{ p.done = true }} else if p.seen[token] {{ p.done = true; return result, errRepeatedToken }} else {{ p.seen[token] = true; p.input[{}] = token }}\n return result, nil\n}}\n\n",literal(&op.input.as_ref().expect("paginated input").to_string()),literal(&p.input_token),literal(op.name()),literal(&target),literal(&p.output_token),literal(&p.input_token)));
+            client.push_str(&format!("type {name}Paginator struct {{ client *{client_name}; input map[string]any; seen map[string]bool; done bool }}\nfunc (c *{client_name}) {name}Pages(input {input}) (*{name}Paginator, error) {{\n values, err := encodeModel(c.schema, {}, input)\n if err != nil {{ return nil, err }}\n seen := map[string]bool{{}}\n if token, ok := values[{}].(string); ok && token != \"\" {{ seen[token] = true }}\n return &{name}Paginator{{client:c, input:values, seen:seen}}, nil\n}}\nfunc (p *{name}Paginator) HasMorePages() bool {{ return !p.done }}\nfunc (p *{name}Paginator) NextPage(ctx context.Context) ({output}, error) {{\n var result {output}\n if p.done {{ return result, errNoMorePages }}\n values, err := p.client.callValues(ctx, {}, p.input)\n if err != nil {{ return result, err }}\n if err = decodeModel(p.client.schema, {}, values, &result); err != nil {{ return result, err }}\n token, err := pageToken(values, {})\n if err != nil {{ return result, err }}\n if token == \"\" {{ p.done = true }} else if p.seen[token] {{ p.done = true; return result, errRepeatedToken }} else {{ p.seen[token] = true; p.input[{}] = token }}\n return result, nil\n}}\n\n",literal(&op.input.as_ref().expect("paginated input").to_string()),literal(&p.input_token),literal(op.name()),literal(&target),literal(&p.output_token),literal(&p.input_token)));
         }
     }
     let provenance = serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");

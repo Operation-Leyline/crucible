@@ -191,12 +191,42 @@ struct weather_models_city_summary {
     struct { weather_presence state; weather_timestamp value; } updated_at;
     struct { weather_presence state; weather_timestamp value; } created_at;
 };
+static inline void weather_models_city_summary_set_id(weather_models_city_summary *model, weather_string value) { model->id.value = value; model->id.state = weather_present; }
+static inline weather_string weather_models_city_summary_get_id(const weather_models_city_summary *model) { weather_string empty = {0}; return model->id.state == weather_present ? model->id.value : empty; }
+static inline bool weather_models_city_summary_has_id(const weather_models_city_summary *model) { return model->id.state == weather_present; }
+static inline void weather_models_city_summary_clear_id(weather_models_city_summary *model) { model->id.state = weather_absent; }
+static inline void weather_models_city_summary_null_id(weather_models_city_summary *model) { model->id.state = weather_null; }
+static inline void weather_models_city_summary_set_name(weather_models_city_summary *model, weather_string value) { model->name.value = value; model->name.state = weather_present; }
+static inline weather_string weather_models_city_summary_get_name(const weather_models_city_summary *model) { weather_string empty = {0}; return model->name.state == weather_present ? model->name.value : empty; }
+static inline bool weather_models_city_summary_has_name(const weather_models_city_summary *model) { return model->name.state == weather_present; }
+static inline void weather_models_city_summary_clear_name(weather_models_city_summary *model) { model->name.state = weather_absent; }
+static inline void weather_models_city_summary_null_name(weather_models_city_summary *model) { model->name.state = weather_null; }
+static inline void weather_models_city_summary_set_population(weather_models_city_summary *model, int64_t value) { model->population.value = value; model->population.state = weather_present; }
+static inline int64_t weather_models_city_summary_get_population(const weather_models_city_summary *model) { int64_t empty = {0}; return model->population.state == weather_present ? model->population.value : empty; }
+static inline bool weather_models_city_summary_has_population(const weather_models_city_summary *model) { return model->population.state == weather_present; }
+static inline void weather_models_city_summary_clear_population(weather_models_city_summary *model) { model->population.state = weather_absent; }
+static inline void weather_models_city_summary_null_population(weather_models_city_summary *model) { model->population.state = weather_null; }
+static inline void weather_models_city_summary_set_updated_at(weather_models_city_summary *model, weather_timestamp value) { model->updated_at.value = value; model->updated_at.state = weather_present; }
+static inline weather_timestamp weather_models_city_summary_get_updated_at(const weather_models_city_summary *model) { weather_timestamp empty = {0}; return model->updated_at.state == weather_present ? model->updated_at.value : empty; }
+static inline bool weather_models_city_summary_has_updated_at(const weather_models_city_summary *model) { return model->updated_at.state == weather_present; }
+static inline void weather_models_city_summary_clear_updated_at(weather_models_city_summary *model) { model->updated_at.state = weather_absent; }
+static inline void weather_models_city_summary_null_updated_at(weather_models_city_summary *model) { model->updated_at.state = weather_null; }
+static inline void weather_models_city_summary_set_created_at(weather_models_city_summary *model, weather_timestamp value) { model->created_at.value = value; model->created_at.state = weather_present; }
+static inline weather_timestamp weather_models_city_summary_get_created_at(const weather_models_city_summary *model) { weather_timestamp empty = {0}; return model->created_at.state == weather_present ? model->created_at.value : empty; }
+static inline bool weather_models_city_summary_has_created_at(const weather_models_city_summary *model) { return model->created_at.state == weather_present; }
+static inline void weather_models_city_summary_clear_created_at(weather_models_city_summary *model) { model->created_at.state = weather_absent; }
+static inline void weather_models_city_summary_null_created_at(weather_models_city_summary *model) { model->created_at.state = weather_null; }
 weather_status weather_models_city_summary_encode(weather_arena *arena, const weather_models_city_summary *value, const weather_json **output, weather_error *error);
 weather_status weather_models_city_summary_decode(weather_arena *arena, const weather_json *value, const weather_models_city_summary **output, weather_error *error);
 
 struct weather_models_conflict_error {
     struct { weather_presence state; weather_string value; } message;
 };
+static inline void weather_models_conflict_error_set_message(weather_models_conflict_error *model, weather_string value) { model->message.value = value; model->message.state = weather_present; }
+static inline weather_string weather_models_conflict_error_get_message(const weather_models_conflict_error *model) { weather_string empty = {0}; return model->message.state == weather_present ? model->message.value : empty; }
+static inline bool weather_models_conflict_error_has_message(const weather_models_conflict_error *model) { return model->message.state == weather_present; }
+static inline void weather_models_conflict_error_clear_message(weather_models_conflict_error *model) { model->message.state = weather_absent; }
+static inline void weather_models_conflict_error_null_message(weather_models_conflict_error *model) { model->message.state = weather_null; }
 weather_status weather_models_conflict_error_encode(weather_arena *arena, const weather_models_conflict_error *value, const weather_json **output, weather_error *error);
 weather_status weather_models_conflict_error_decode(weather_arena *arena, const weather_json *value, const weather_models_conflict_error **output, weather_error *error);
 
@@ -204,6 +234,16 @@ struct weather_models_coordinates {
     struct { weather_presence state; double value; } latitude;
     struct { weather_presence state; double value; } longitude;
 };
+static inline void weather_models_coordinates_set_latitude(weather_models_coordinates *model, double value) { model->latitude.value = value; model->latitude.state = weather_present; }
+static inline double weather_models_coordinates_get_latitude(const weather_models_coordinates *model) { double empty = {0}; return model->latitude.state == weather_present ? model->latitude.value : empty; }
+static inline bool weather_models_coordinates_has_latitude(const weather_models_coordinates *model) { return model->latitude.state == weather_present; }
+static inline void weather_models_coordinates_clear_latitude(weather_models_coordinates *model) { model->latitude.state = weather_absent; }
+static inline void weather_models_coordinates_null_latitude(weather_models_coordinates *model) { model->latitude.state = weather_null; }
+static inline void weather_models_coordinates_set_longitude(weather_models_coordinates *model, double value) { model->longitude.value = value; model->longitude.state = weather_present; }
+static inline double weather_models_coordinates_get_longitude(const weather_models_coordinates *model) { double empty = {0}; return model->longitude.state == weather_present ? model->longitude.value : empty; }
+static inline bool weather_models_coordinates_has_longitude(const weather_models_coordinates *model) { return model->longitude.state == weather_present; }
+static inline void weather_models_coordinates_clear_longitude(weather_models_coordinates *model) { model->longitude.state = weather_absent; }
+static inline void weather_models_coordinates_null_longitude(weather_models_coordinates *model) { model->longitude.state = weather_null; }
 weather_status weather_models_coordinates_encode(weather_arena *arena, const weather_models_coordinates *value, const weather_json **output, weather_error *error);
 weather_status weather_models_coordinates_decode(weather_arena *arena, const weather_json *value, const weather_models_coordinates **output, weather_error *error);
 
@@ -213,12 +253,37 @@ struct weather_models_create_city_input {
     struct { weather_presence state; weather_string value; } client_token;
     struct { weather_presence state; int64_t value; } expected_revision;
 };
+static inline void weather_models_create_city_input_set_name(weather_models_create_city_input *model, weather_string value) { model->name.value = value; model->name.state = weather_present; }
+static inline weather_string weather_models_create_city_input_get_name(const weather_models_create_city_input *model) { weather_string empty = {0}; return model->name.state == weather_present ? model->name.value : empty; }
+static inline bool weather_models_create_city_input_has_name(const weather_models_create_city_input *model) { return model->name.state == weather_present; }
+static inline void weather_models_create_city_input_clear_name(weather_models_create_city_input *model) { model->name.state = weather_absent; }
+static inline void weather_models_create_city_input_null_name(weather_models_create_city_input *model) { model->name.state = weather_null; }
+static inline void weather_models_create_city_input_set_location(weather_models_create_city_input *model, const weather_models_location * value) { model->location.value = value; model->location.state = weather_present; }
+static inline const weather_models_location * weather_models_create_city_input_get_location(const weather_models_create_city_input *model) { const weather_models_location * empty = {0}; return model->location.state == weather_present ? model->location.value : empty; }
+static inline bool weather_models_create_city_input_has_location(const weather_models_create_city_input *model) { return model->location.state == weather_present; }
+static inline void weather_models_create_city_input_clear_location(weather_models_create_city_input *model) { model->location.state = weather_absent; }
+static inline void weather_models_create_city_input_null_location(weather_models_create_city_input *model) { model->location.state = weather_null; }
+static inline void weather_models_create_city_input_set_client_token(weather_models_create_city_input *model, weather_string value) { model->client_token.value = value; model->client_token.state = weather_present; }
+static inline weather_string weather_models_create_city_input_get_client_token(const weather_models_create_city_input *model) { weather_string empty = {0}; return model->client_token.state == weather_present ? model->client_token.value : empty; }
+static inline bool weather_models_create_city_input_has_client_token(const weather_models_create_city_input *model) { return model->client_token.state == weather_present; }
+static inline void weather_models_create_city_input_clear_client_token(weather_models_create_city_input *model) { model->client_token.state = weather_absent; }
+static inline void weather_models_create_city_input_null_client_token(weather_models_create_city_input *model) { model->client_token.state = weather_null; }
+static inline void weather_models_create_city_input_set_expected_revision(weather_models_create_city_input *model, int64_t value) { model->expected_revision.value = value; model->expected_revision.state = weather_present; }
+static inline int64_t weather_models_create_city_input_get_expected_revision(const weather_models_create_city_input *model) { int64_t empty = {0}; return model->expected_revision.state == weather_present ? model->expected_revision.value : empty; }
+static inline bool weather_models_create_city_input_has_expected_revision(const weather_models_create_city_input *model) { return model->expected_revision.state == weather_present; }
+static inline void weather_models_create_city_input_clear_expected_revision(weather_models_create_city_input *model) { model->expected_revision.state = weather_absent; }
+static inline void weather_models_create_city_input_null_expected_revision(weather_models_create_city_input *model) { model->expected_revision.state = weather_null; }
 weather_status weather_models_create_city_input_encode(weather_arena *arena, const weather_models_create_city_input *value, const weather_json **output, weather_error *error);
 weather_status weather_models_create_city_input_decode(weather_arena *arena, const weather_json *value, const weather_models_create_city_input **output, weather_error *error);
 
 struct weather_models_create_city_output {
     struct { weather_presence state; const weather_models_city_summary * value; } city;
 };
+static inline void weather_models_create_city_output_set_city(weather_models_create_city_output *model, const weather_models_city_summary * value) { model->city.value = value; model->city.state = weather_present; }
+static inline const weather_models_city_summary * weather_models_create_city_output_get_city(const weather_models_create_city_output *model) { const weather_models_city_summary * empty = {0}; return model->city.state == weather_present ? model->city.value : empty; }
+static inline bool weather_models_create_city_output_has_city(const weather_models_create_city_output *model) { return model->city.state == weather_present; }
+static inline void weather_models_create_city_output_clear_city(weather_models_create_city_output *model) { model->city.state = weather_absent; }
+static inline void weather_models_create_city_output_null_city(weather_models_create_city_output *model) { model->city.state = weather_null; }
 weather_status weather_models_create_city_output_encode(weather_arena *arena, const weather_models_create_city_output *value, const weather_json **output, weather_error *error);
 weather_status weather_models_create_city_output_decode(weather_arena *arena, const weather_json *value, const weather_models_create_city_output **output, weather_error *error);
 
@@ -231,6 +296,16 @@ struct weather_models_get_city_input {
     struct { weather_presence state; weather_string value; } city_id;
     struct { weather_presence state; weather_timestamp value; } at;
 };
+static inline void weather_models_get_city_input_set_city_id(weather_models_get_city_input *model, weather_string value) { model->city_id.value = value; model->city_id.state = weather_present; }
+static inline weather_string weather_models_get_city_input_get_city_id(const weather_models_get_city_input *model) { weather_string empty = {0}; return model->city_id.state == weather_present ? model->city_id.value : empty; }
+static inline bool weather_models_get_city_input_has_city_id(const weather_models_get_city_input *model) { return model->city_id.state == weather_present; }
+static inline void weather_models_get_city_input_clear_city_id(weather_models_get_city_input *model) { model->city_id.state = weather_absent; }
+static inline void weather_models_get_city_input_null_city_id(weather_models_get_city_input *model) { model->city_id.state = weather_null; }
+static inline void weather_models_get_city_input_set_at(weather_models_get_city_input *model, weather_timestamp value) { model->at.value = value; model->at.state = weather_present; }
+static inline weather_timestamp weather_models_get_city_input_get_at(const weather_models_get_city_input *model) { weather_timestamp empty = {0}; return model->at.state == weather_present ? model->at.value : empty; }
+static inline bool weather_models_get_city_input_has_at(const weather_models_get_city_input *model) { return model->at.state == weather_present; }
+static inline void weather_models_get_city_input_clear_at(weather_models_get_city_input *model) { model->at.state = weather_absent; }
+static inline void weather_models_get_city_input_null_at(weather_models_get_city_input *model) { model->at.state = weather_null; }
 weather_status weather_models_get_city_input_encode(weather_arena *arena, const weather_models_get_city_input *value, const weather_json **output, weather_error *error);
 weather_status weather_models_get_city_input_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_input **output, weather_error *error);
 
@@ -239,12 +314,32 @@ struct weather_models_get_city_output {
     struct { weather_presence state; const weather_models_forecast * value; } forecast;
     struct { weather_presence state; weather_string value; } request_id;
 };
+static inline void weather_models_get_city_output_set_city(weather_models_get_city_output *model, const weather_models_city_summary * value) { model->city.value = value; model->city.state = weather_present; }
+static inline const weather_models_city_summary * weather_models_get_city_output_get_city(const weather_models_get_city_output *model) { const weather_models_city_summary * empty = {0}; return model->city.state == weather_present ? model->city.value : empty; }
+static inline bool weather_models_get_city_output_has_city(const weather_models_get_city_output *model) { return model->city.state == weather_present; }
+static inline void weather_models_get_city_output_clear_city(weather_models_get_city_output *model) { model->city.state = weather_absent; }
+static inline void weather_models_get_city_output_null_city(weather_models_get_city_output *model) { model->city.state = weather_null; }
+static inline void weather_models_get_city_output_set_forecast(weather_models_get_city_output *model, const weather_models_forecast * value) { model->forecast.value = value; model->forecast.state = weather_present; }
+static inline const weather_models_forecast * weather_models_get_city_output_get_forecast(const weather_models_get_city_output *model) { const weather_models_forecast * empty = {0}; return model->forecast.state == weather_present ? model->forecast.value : empty; }
+static inline bool weather_models_get_city_output_has_forecast(const weather_models_get_city_output *model) { return model->forecast.state == weather_present; }
+static inline void weather_models_get_city_output_clear_forecast(weather_models_get_city_output *model) { model->forecast.state = weather_absent; }
+static inline void weather_models_get_city_output_null_forecast(weather_models_get_city_output *model) { model->forecast.state = weather_null; }
+static inline void weather_models_get_city_output_set_request_id(weather_models_get_city_output *model, weather_string value) { model->request_id.value = value; model->request_id.state = weather_present; }
+static inline weather_string weather_models_get_city_output_get_request_id(const weather_models_get_city_output *model) { weather_string empty = {0}; return model->request_id.state == weather_present ? model->request_id.value : empty; }
+static inline bool weather_models_get_city_output_has_request_id(const weather_models_get_city_output *model) { return model->request_id.state == weather_present; }
+static inline void weather_models_get_city_output_clear_request_id(weather_models_get_city_output *model) { model->request_id.state = weather_absent; }
+static inline void weather_models_get_city_output_null_request_id(weather_models_get_city_output *model) { model->request_id.state = weather_null; }
 weather_status weather_models_get_city_output_encode(weather_arena *arena, const weather_models_get_city_output *value, const weather_json **output, weather_error *error);
 weather_status weather_models_get_city_output_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_output **output, weather_error *error);
 
 struct weather_models_get_city_photo_input {
     struct { weather_presence state; weather_string value; } city_id;
 };
+static inline void weather_models_get_city_photo_input_set_city_id(weather_models_get_city_photo_input *model, weather_string value) { model->city_id.value = value; model->city_id.state = weather_present; }
+static inline weather_string weather_models_get_city_photo_input_get_city_id(const weather_models_get_city_photo_input *model) { weather_string empty = {0}; return model->city_id.state == weather_present ? model->city_id.value : empty; }
+static inline bool weather_models_get_city_photo_input_has_city_id(const weather_models_get_city_photo_input *model) { return model->city_id.state == weather_present; }
+static inline void weather_models_get_city_photo_input_clear_city_id(weather_models_get_city_photo_input *model) { model->city_id.state = weather_absent; }
+static inline void weather_models_get_city_photo_input_null_city_id(weather_models_get_city_photo_input *model) { model->city_id.state = weather_null; }
 weather_status weather_models_get_city_photo_input_encode(weather_arena *arena, const weather_models_get_city_photo_input *value, const weather_json **output, weather_error *error);
 weather_status weather_models_get_city_photo_input_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_photo_input **output, weather_error *error);
 
@@ -252,6 +347,16 @@ struct weather_models_get_city_photo_output {
     struct { weather_presence state; weather_string value; } caption;
     struct { weather_presence state; weather_blob value; } photo;
 };
+static inline void weather_models_get_city_photo_output_set_caption(weather_models_get_city_photo_output *model, weather_string value) { model->caption.value = value; model->caption.state = weather_present; }
+static inline weather_string weather_models_get_city_photo_output_get_caption(const weather_models_get_city_photo_output *model) { weather_string empty = {0}; return model->caption.state == weather_present ? model->caption.value : empty; }
+static inline bool weather_models_get_city_photo_output_has_caption(const weather_models_get_city_photo_output *model) { return model->caption.state == weather_present; }
+static inline void weather_models_get_city_photo_output_clear_caption(weather_models_get_city_photo_output *model) { model->caption.state = weather_absent; }
+static inline void weather_models_get_city_photo_output_null_caption(weather_models_get_city_photo_output *model) { model->caption.state = weather_null; }
+static inline void weather_models_get_city_photo_output_set_photo(weather_models_get_city_photo_output *model, weather_blob value) { model->photo.value = value; model->photo.state = weather_present; }
+static inline weather_blob weather_models_get_city_photo_output_get_photo(const weather_models_get_city_photo_output *model) { weather_blob empty = {0}; return model->photo.state == weather_present ? model->photo.value : empty; }
+static inline bool weather_models_get_city_photo_output_has_photo(const weather_models_get_city_photo_output *model) { return model->photo.state == weather_present; }
+static inline void weather_models_get_city_photo_output_clear_photo(weather_models_get_city_photo_output *model) { model->photo.state = weather_absent; }
+static inline void weather_models_get_city_photo_output_null_photo(weather_models_get_city_photo_output *model) { model->photo.state = weather_null; }
 weather_status weather_models_get_city_photo_output_encode(weather_arena *arena, const weather_models_get_city_photo_output *value, const weather_json **output, weather_error *error);
 weather_status weather_models_get_city_photo_output_decode(weather_arena *arena, const weather_json *value, const weather_models_get_city_photo_output **output, weather_error *error);
 
@@ -260,6 +365,21 @@ struct weather_models_list_cities_input {
     struct { weather_presence state; int32_t value; } max_results;
     struct { weather_presence state; const weather_models_tags * value; } tags;
 };
+static inline void weather_models_list_cities_input_set_next_token(weather_models_list_cities_input *model, weather_string value) { model->next_token.value = value; model->next_token.state = weather_present; }
+static inline weather_string weather_models_list_cities_input_get_next_token(const weather_models_list_cities_input *model) { weather_string empty = {0}; return model->next_token.state == weather_present ? model->next_token.value : empty; }
+static inline bool weather_models_list_cities_input_has_next_token(const weather_models_list_cities_input *model) { return model->next_token.state == weather_present; }
+static inline void weather_models_list_cities_input_clear_next_token(weather_models_list_cities_input *model) { model->next_token.state = weather_absent; }
+static inline void weather_models_list_cities_input_null_next_token(weather_models_list_cities_input *model) { model->next_token.state = weather_null; }
+static inline void weather_models_list_cities_input_set_max_results(weather_models_list_cities_input *model, int32_t value) { model->max_results.value = value; model->max_results.state = weather_present; }
+static inline int32_t weather_models_list_cities_input_get_max_results(const weather_models_list_cities_input *model) { int32_t empty = {0}; return model->max_results.state == weather_present ? model->max_results.value : empty; }
+static inline bool weather_models_list_cities_input_has_max_results(const weather_models_list_cities_input *model) { return model->max_results.state == weather_present; }
+static inline void weather_models_list_cities_input_clear_max_results(weather_models_list_cities_input *model) { model->max_results.state = weather_absent; }
+static inline void weather_models_list_cities_input_null_max_results(weather_models_list_cities_input *model) { model->max_results.state = weather_null; }
+static inline void weather_models_list_cities_input_set_tags(weather_models_list_cities_input *model, const weather_models_tags * value) { model->tags.value = value; model->tags.state = weather_present; }
+static inline const weather_models_tags * weather_models_list_cities_input_get_tags(const weather_models_list_cities_input *model) { const weather_models_tags * empty = {0}; return model->tags.state == weather_present ? model->tags.value : empty; }
+static inline bool weather_models_list_cities_input_has_tags(const weather_models_list_cities_input *model) { return model->tags.state == weather_present; }
+static inline void weather_models_list_cities_input_clear_tags(weather_models_list_cities_input *model) { model->tags.state = weather_absent; }
+static inline void weather_models_list_cities_input_null_tags(weather_models_list_cities_input *model) { model->tags.state = weather_null; }
 weather_status weather_models_list_cities_input_encode(weather_arena *arena, const weather_models_list_cities_input *value, const weather_json **output, weather_error *error);
 weather_status weather_models_list_cities_input_decode(weather_arena *arena, const weather_json *value, const weather_models_list_cities_input **output, weather_error *error);
 
@@ -267,6 +387,16 @@ struct weather_models_list_cities_output {
     struct { weather_presence state; const weather_models_city_summaries * value; } cities;
     struct { weather_presence state; weather_string value; } next_token;
 };
+static inline void weather_models_list_cities_output_set_cities(weather_models_list_cities_output *model, const weather_models_city_summaries * value) { model->cities.value = value; model->cities.state = weather_present; }
+static inline const weather_models_city_summaries * weather_models_list_cities_output_get_cities(const weather_models_list_cities_output *model) { const weather_models_city_summaries * empty = {0}; return model->cities.state == weather_present ? model->cities.value : empty; }
+static inline bool weather_models_list_cities_output_has_cities(const weather_models_list_cities_output *model) { return model->cities.state == weather_present; }
+static inline void weather_models_list_cities_output_clear_cities(weather_models_list_cities_output *model) { model->cities.state = weather_absent; }
+static inline void weather_models_list_cities_output_null_cities(weather_models_list_cities_output *model) { model->cities.state = weather_null; }
+static inline void weather_models_list_cities_output_set_next_token(weather_models_list_cities_output *model, weather_string value) { model->next_token.value = value; model->next_token.state = weather_present; }
+static inline weather_string weather_models_list_cities_output_get_next_token(const weather_models_list_cities_output *model) { weather_string empty = {0}; return model->next_token.state == weather_present ? model->next_token.value : empty; }
+static inline bool weather_models_list_cities_output_has_next_token(const weather_models_list_cities_output *model) { return model->next_token.state == weather_present; }
+static inline void weather_models_list_cities_output_clear_next_token(weather_models_list_cities_output *model) { model->next_token.state = weather_absent; }
+static inline void weather_models_list_cities_output_null_next_token(weather_models_list_cities_output *model) { model->next_token.state = weather_null; }
 weather_status weather_models_list_cities_output_encode(weather_arena *arena, const weather_models_list_cities_output *value, const weather_json **output, weather_error *error);
 weather_status weather_models_list_cities_output_decode(weather_arena *arena, const weather_json *value, const weather_models_list_cities_output **output, weather_error *error);
 
@@ -288,6 +418,16 @@ struct weather_models_not_found_error {
     struct { weather_presence state; weather_string value; } message;
     struct { weather_presence state; weather_string value; } resource_id;
 };
+static inline void weather_models_not_found_error_set_message(weather_models_not_found_error *model, weather_string value) { model->message.value = value; model->message.state = weather_present; }
+static inline weather_string weather_models_not_found_error_get_message(const weather_models_not_found_error *model) { weather_string empty = {0}; return model->message.state == weather_present ? model->message.value : empty; }
+static inline bool weather_models_not_found_error_has_message(const weather_models_not_found_error *model) { return model->message.state == weather_present; }
+static inline void weather_models_not_found_error_clear_message(weather_models_not_found_error *model) { model->message.state = weather_absent; }
+static inline void weather_models_not_found_error_null_message(weather_models_not_found_error *model) { model->message.state = weather_null; }
+static inline void weather_models_not_found_error_set_resource_id(weather_models_not_found_error *model, weather_string value) { model->resource_id.value = value; model->resource_id.state = weather_present; }
+static inline weather_string weather_models_not_found_error_get_resource_id(const weather_models_not_found_error *model) { weather_string empty = {0}; return model->resource_id.state == weather_present ? model->resource_id.value : empty; }
+static inline bool weather_models_not_found_error_has_resource_id(const weather_models_not_found_error *model) { return model->resource_id.state == weather_present; }
+static inline void weather_models_not_found_error_clear_resource_id(weather_models_not_found_error *model) { model->resource_id.state = weather_absent; }
+static inline void weather_models_not_found_error_null_resource_id(weather_models_not_found_error *model) { model->resource_id.state = weather_null; }
 weather_status weather_models_not_found_error_encode(weather_arena *arena, const weather_models_not_found_error *value, const weather_json **output, weather_error *error);
 weather_status weather_models_not_found_error_decode(weather_arena *arena, const weather_json *value, const weather_models_not_found_error **output, weather_error *error);
 
@@ -296,6 +436,21 @@ struct weather_models_photo_summary {
     struct { weather_presence state; weather_blob value; } thumbnail;
     struct { weather_presence state; weather_string value; } caption;
 };
+static inline void weather_models_photo_summary_set_size(weather_models_photo_summary *model, int32_t value) { model->size.value = value; model->size.state = weather_present; }
+static inline int32_t weather_models_photo_summary_get_size(const weather_models_photo_summary *model) { int32_t empty = {0}; return model->size.state == weather_present ? model->size.value : empty; }
+static inline bool weather_models_photo_summary_has_size(const weather_models_photo_summary *model) { return model->size.state == weather_present; }
+static inline void weather_models_photo_summary_clear_size(weather_models_photo_summary *model) { model->size.state = weather_absent; }
+static inline void weather_models_photo_summary_null_size(weather_models_photo_summary *model) { model->size.state = weather_null; }
+static inline void weather_models_photo_summary_set_thumbnail(weather_models_photo_summary *model, weather_blob value) { model->thumbnail.value = value; model->thumbnail.state = weather_present; }
+static inline weather_blob weather_models_photo_summary_get_thumbnail(const weather_models_photo_summary *model) { weather_blob empty = {0}; return model->thumbnail.state == weather_present ? model->thumbnail.value : empty; }
+static inline bool weather_models_photo_summary_has_thumbnail(const weather_models_photo_summary *model) { return model->thumbnail.state == weather_present; }
+static inline void weather_models_photo_summary_clear_thumbnail(weather_models_photo_summary *model) { model->thumbnail.state = weather_absent; }
+static inline void weather_models_photo_summary_null_thumbnail(weather_models_photo_summary *model) { model->thumbnail.state = weather_null; }
+static inline void weather_models_photo_summary_set_caption(weather_models_photo_summary *model, weather_string value) { model->caption.value = value; model->caption.state = weather_present; }
+static inline weather_string weather_models_photo_summary_get_caption(const weather_models_photo_summary *model) { weather_string empty = {0}; return model->caption.state == weather_present ? model->caption.value : empty; }
+static inline bool weather_models_photo_summary_has_caption(const weather_models_photo_summary *model) { return model->caption.state == weather_present; }
+static inline void weather_models_photo_summary_clear_caption(weather_models_photo_summary *model) { model->caption.state = weather_absent; }
+static inline void weather_models_photo_summary_null_caption(weather_models_photo_summary *model) { model->caption.state = weather_null; }
 weather_status weather_models_photo_summary_encode(weather_arena *arena, const weather_models_photo_summary *value, const weather_json **output, weather_error *error);
 weather_status weather_models_photo_summary_decode(weather_arena *arena, const weather_json *value, const weather_models_photo_summary **output, weather_error *error);
 
@@ -304,12 +459,32 @@ struct weather_models_put_city_photo_input {
     struct { weather_presence state; weather_string value; } caption;
     struct { weather_presence state; weather_blob value; } photo;
 };
+static inline void weather_models_put_city_photo_input_set_city_id(weather_models_put_city_photo_input *model, weather_string value) { model->city_id.value = value; model->city_id.state = weather_present; }
+static inline weather_string weather_models_put_city_photo_input_get_city_id(const weather_models_put_city_photo_input *model) { weather_string empty = {0}; return model->city_id.state == weather_present ? model->city_id.value : empty; }
+static inline bool weather_models_put_city_photo_input_has_city_id(const weather_models_put_city_photo_input *model) { return model->city_id.state == weather_present; }
+static inline void weather_models_put_city_photo_input_clear_city_id(weather_models_put_city_photo_input *model) { model->city_id.state = weather_absent; }
+static inline void weather_models_put_city_photo_input_null_city_id(weather_models_put_city_photo_input *model) { model->city_id.state = weather_null; }
+static inline void weather_models_put_city_photo_input_set_caption(weather_models_put_city_photo_input *model, weather_string value) { model->caption.value = value; model->caption.state = weather_present; }
+static inline weather_string weather_models_put_city_photo_input_get_caption(const weather_models_put_city_photo_input *model) { weather_string empty = {0}; return model->caption.state == weather_present ? model->caption.value : empty; }
+static inline bool weather_models_put_city_photo_input_has_caption(const weather_models_put_city_photo_input *model) { return model->caption.state == weather_present; }
+static inline void weather_models_put_city_photo_input_clear_caption(weather_models_put_city_photo_input *model) { model->caption.state = weather_absent; }
+static inline void weather_models_put_city_photo_input_null_caption(weather_models_put_city_photo_input *model) { model->caption.state = weather_null; }
+static inline void weather_models_put_city_photo_input_set_photo(weather_models_put_city_photo_input *model, weather_blob value) { model->photo.value = value; model->photo.state = weather_present; }
+static inline weather_blob weather_models_put_city_photo_input_get_photo(const weather_models_put_city_photo_input *model) { weather_blob empty = {0}; return model->photo.state == weather_present ? model->photo.value : empty; }
+static inline bool weather_models_put_city_photo_input_has_photo(const weather_models_put_city_photo_input *model) { return model->photo.state == weather_present; }
+static inline void weather_models_put_city_photo_input_clear_photo(weather_models_put_city_photo_input *model) { model->photo.state = weather_absent; }
+static inline void weather_models_put_city_photo_input_null_photo(weather_models_put_city_photo_input *model) { model->photo.state = weather_null; }
 weather_status weather_models_put_city_photo_input_encode(weather_arena *arena, const weather_models_put_city_photo_input *value, const weather_json **output, weather_error *error);
 weather_status weather_models_put_city_photo_input_decode(weather_arena *arena, const weather_json *value, const weather_models_put_city_photo_input **output, weather_error *error);
 
 struct weather_models_put_city_photo_output {
     struct { weather_presence state; const weather_models_photo_summary * value; } photo;
 };
+static inline void weather_models_put_city_photo_output_set_photo(weather_models_put_city_photo_output *model, const weather_models_photo_summary * value) { model->photo.value = value; model->photo.state = weather_present; }
+static inline const weather_models_photo_summary * weather_models_put_city_photo_output_get_photo(const weather_models_put_city_photo_output *model) { const weather_models_photo_summary * empty = {0}; return model->photo.state == weather_present ? model->photo.value : empty; }
+static inline bool weather_models_put_city_photo_output_has_photo(const weather_models_put_city_photo_output *model) { return model->photo.state == weather_present; }
+static inline void weather_models_put_city_photo_output_clear_photo(weather_models_put_city_photo_output *model) { model->photo.state = weather_absent; }
+static inline void weather_models_put_city_photo_output_null_photo(weather_models_put_city_photo_output *model) { model->photo.state = weather_null; }
 weather_status weather_models_put_city_photo_output_encode(weather_arena *arena, const weather_models_put_city_photo_output *value, const weather_json **output, weather_error *error);
 weather_status weather_models_put_city_photo_output_decode(weather_arena *arena, const weather_json *value, const weather_models_put_city_photo_output **output, weather_error *error);
 static inline weather_models_sky weather_models_sky_known_clear(void) { weather_models_sky result = {"clear", 5}; return result; }
@@ -337,6 +512,16 @@ struct weather_models_throttling_error {
     struct { weather_presence state; weather_string value; } message;
     struct { weather_presence state; int32_t value; } retry_after;
 };
+static inline void weather_models_throttling_error_set_message(weather_models_throttling_error *model, weather_string value) { model->message.value = value; model->message.state = weather_present; }
+static inline weather_string weather_models_throttling_error_get_message(const weather_models_throttling_error *model) { weather_string empty = {0}; return model->message.state == weather_present ? model->message.value : empty; }
+static inline bool weather_models_throttling_error_has_message(const weather_models_throttling_error *model) { return model->message.state == weather_present; }
+static inline void weather_models_throttling_error_clear_message(weather_models_throttling_error *model) { model->message.state = weather_absent; }
+static inline void weather_models_throttling_error_null_message(weather_models_throttling_error *model) { model->message.state = weather_null; }
+static inline void weather_models_throttling_error_set_retry_after(weather_models_throttling_error *model, int32_t value) { model->retry_after.value = value; model->retry_after.state = weather_present; }
+static inline int32_t weather_models_throttling_error_get_retry_after(const weather_models_throttling_error *model) { int32_t empty = {0}; return model->retry_after.state == weather_present ? model->retry_after.value : empty; }
+static inline bool weather_models_throttling_error_has_retry_after(const weather_models_throttling_error *model) { return model->retry_after.state == weather_present; }
+static inline void weather_models_throttling_error_clear_retry_after(weather_models_throttling_error *model) { model->retry_after.state = weather_absent; }
+static inline void weather_models_throttling_error_null_retry_after(weather_models_throttling_error *model) { model->retry_after.state = weather_null; }
 weather_status weather_models_throttling_error_encode(weather_arena *arena, const weather_models_throttling_error *value, const weather_json **output, weather_error *error);
 weather_status weather_models_throttling_error_decode(weather_arena *arena, const weather_json *value, const weather_models_throttling_error **output, weather_error *error);
 
@@ -346,6 +531,26 @@ struct weather_models_validation_error {
     struct { weather_presence state; const weather_models_validation_field_list * value; } field_list;
     struct { weather_presence state; weather_string value; } request_id;
 };
+static inline void weather_models_validation_error_set_message(weather_models_validation_error *model, weather_string value) { model->message.value = value; model->message.state = weather_present; }
+static inline weather_string weather_models_validation_error_get_message(const weather_models_validation_error *model) { weather_string empty = {0}; return model->message.state == weather_present ? model->message.value : empty; }
+static inline bool weather_models_validation_error_has_message(const weather_models_validation_error *model) { return model->message.state == weather_present; }
+static inline void weather_models_validation_error_clear_message(weather_models_validation_error *model) { model->message.state = weather_absent; }
+static inline void weather_models_validation_error_null_message(weather_models_validation_error *model) { model->message.state = weather_null; }
+static inline void weather_models_validation_error_set_reason(weather_models_validation_error *model, weather_models_validation_reason value) { model->reason.value = value; model->reason.state = weather_present; }
+static inline weather_models_validation_reason weather_models_validation_error_get_reason(const weather_models_validation_error *model) { weather_models_validation_reason empty = {0}; return model->reason.state == weather_present ? model->reason.value : empty; }
+static inline bool weather_models_validation_error_has_reason(const weather_models_validation_error *model) { return model->reason.state == weather_present; }
+static inline void weather_models_validation_error_clear_reason(weather_models_validation_error *model) { model->reason.state = weather_absent; }
+static inline void weather_models_validation_error_null_reason(weather_models_validation_error *model) { model->reason.state = weather_null; }
+static inline void weather_models_validation_error_set_field_list(weather_models_validation_error *model, const weather_models_validation_field_list * value) { model->field_list.value = value; model->field_list.state = weather_present; }
+static inline const weather_models_validation_field_list * weather_models_validation_error_get_field_list(const weather_models_validation_error *model) { const weather_models_validation_field_list * empty = {0}; return model->field_list.state == weather_present ? model->field_list.value : empty; }
+static inline bool weather_models_validation_error_has_field_list(const weather_models_validation_error *model) { return model->field_list.state == weather_present; }
+static inline void weather_models_validation_error_clear_field_list(weather_models_validation_error *model) { model->field_list.state = weather_absent; }
+static inline void weather_models_validation_error_null_field_list(weather_models_validation_error *model) { model->field_list.state = weather_null; }
+static inline void weather_models_validation_error_set_request_id(weather_models_validation_error *model, weather_string value) { model->request_id.value = value; model->request_id.state = weather_present; }
+static inline weather_string weather_models_validation_error_get_request_id(const weather_models_validation_error *model) { weather_string empty = {0}; return model->request_id.state == weather_present ? model->request_id.value : empty; }
+static inline bool weather_models_validation_error_has_request_id(const weather_models_validation_error *model) { return model->request_id.state == weather_present; }
+static inline void weather_models_validation_error_clear_request_id(weather_models_validation_error *model) { model->request_id.state = weather_absent; }
+static inline void weather_models_validation_error_null_request_id(weather_models_validation_error *model) { model->request_id.state = weather_null; }
 weather_status weather_models_validation_error_encode(weather_arena *arena, const weather_models_validation_error *value, const weather_json **output, weather_error *error);
 weather_status weather_models_validation_error_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_error **output, weather_error *error);
 
@@ -353,6 +558,16 @@ struct weather_models_validation_field {
     struct { weather_presence state; weather_string value; } path;
     struct { weather_presence state; weather_string value; } message;
 };
+static inline void weather_models_validation_field_set_path(weather_models_validation_field *model, weather_string value) { model->path.value = value; model->path.state = weather_present; }
+static inline weather_string weather_models_validation_field_get_path(const weather_models_validation_field *model) { weather_string empty = {0}; return model->path.state == weather_present ? model->path.value : empty; }
+static inline bool weather_models_validation_field_has_path(const weather_models_validation_field *model) { return model->path.state == weather_present; }
+static inline void weather_models_validation_field_clear_path(weather_models_validation_field *model) { model->path.state = weather_absent; }
+static inline void weather_models_validation_field_null_path(weather_models_validation_field *model) { model->path.state = weather_null; }
+static inline void weather_models_validation_field_set_message(weather_models_validation_field *model, weather_string value) { model->message.value = value; model->message.state = weather_present; }
+static inline weather_string weather_models_validation_field_get_message(const weather_models_validation_field *model) { weather_string empty = {0}; return model->message.state == weather_present ? model->message.value : empty; }
+static inline bool weather_models_validation_field_has_message(const weather_models_validation_field *model) { return model->message.state == weather_present; }
+static inline void weather_models_validation_field_clear_message(weather_models_validation_field *model) { model->message.state = weather_absent; }
+static inline void weather_models_validation_field_null_message(weather_models_validation_field *model) { model->message.state = weather_null; }
 weather_status weather_models_validation_field_encode(weather_arena *arena, const weather_models_validation_field *value, const weather_json **output, weather_error *error);
 weather_status weather_models_validation_field_decode(weather_arena *arena, const weather_json *value, const weather_models_validation_field **output, weather_error *error);
 

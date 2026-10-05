@@ -128,6 +128,26 @@ Backoff, `Retry-After`, deadlines, cancellation, middleware ordering, and transp
 ownership are documented per language. A per-attempt transport timeout does not
 establish an overall call deadline.
 
+## Public API conventions
+
+Client types carry the Smithy service name: `LeylineClient` for Leyline and
+`WeatherClient` for the example service. C uses its configured service prefix;
+R uses a service-specific constructor following R naming conventions.
+
+Each client uses its language's normal construction and access patterns. The
+guides demonstrate ordinary values and collections without requiring presence
+wrappers at every call site. Kotlin has request DSLs, Java and Rust have fluent
+builders, Go and C provide native setters, and dynamic languages use named
+arguments or object literals. C++, C#, Swift, and Dart expose native value
+construction and access appropriate to their type systems.
+
+The wire contract still distinguishes omission from explicit null. Convenience
+getters may return the same nullable value for both; use the language's advanced
+presence API when the distinction matters. Read the language guide before passing
+null or nil: a nullable initializer default cannot always distinguish an omitted
+argument from an explicit null. Native API examples are verified by independent
+package consumers as well as the shared serialization fixtures.
+
 ## Qualification
 
 The commands above exercise generated code and its native runtime. Shared fixtures

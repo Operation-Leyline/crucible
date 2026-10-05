@@ -62,24 +62,33 @@ pub fn emit(service: &Service) -> String {
                 let base = if error { " extends errors.ServiceError" } else { "" };
                 out.push_str(&format!("final class {name}{base} implements wire.WireModel {{\n"));
                 let mut params = Vec::new();
+                let mut initializers = Vec::new();
                 for member in &structure.members {
-                    let name = field(&member.name);
+                    let field = field(&member.name);
                     let value = ty(service, &member.target);
-                    let value = if member.optional_on_client() { format!("wire.Field<{value}>") } else { value };
-                    out.push_str(&format!("  final {value} {name};\n"));
-                    params.push(if member.optional_on_client() {format!("this.{name} = const wire.Field.unset()") } else { format!("required this.{name}") });
+                    if member.optional_on_client() {
+                        out.push_str(&format!("  final {value}? _{field};\n  final wire.Field<{value}>? _{field}Presence;\n  {value}? get {field} => _{field}Presence != null ? _{field}Presence.value : _{field};\n  wire.Field<{value}> get {field}Presence => _{field}Presence ?? (_{field} == null ? const wire.Field.unset() : wire.Field.value(_{field}));\n"));
+                        params.push(format!("{value}? {field}"));
+                        params.push(format!("wire.Field<{value}>? {field}Presence"));
+                        initializers.push(format!("_{field} = {field}"));
+                        initializers.push(format!("_{field}Presence = {field}Presence"));
+                    } else {
+                        out.push_str(&format!("  final {value} {field};\n"));
+                        params.push(format!("required this.{field}"));
+                    }
                 }
-                if error { params.push("errors.ErrorMetadata metadata = const errors.ErrorMetadata()".into()); }
+                if error { params.push("errors.ErrorMetadata metadata = const errors.ErrorMetadata()".into()); initializers.push("super(metadata)".into()); }
                 let params = if params.is_empty() {String::new()} else {format!("{{{}}}", params.join(", "))};
-                out.push_str(&format!("  const {name}({params}){};\n", if error {" : super(metadata)"} else {""}));
+                let initialization = if initializers.is_empty() { String::new() } else { format!(" : {}", initializers.join(", ")) };
+                out.push_str(&format!("  const {name}({params}){initialization};\n"));
                 out.push_str(&format!("  factory {name}.fromWire(core.Object? value, wire.WireContext context{}) {{\n    {}wire.wireObject(value);\n    return {name}(\n", if error {", {errors.ErrorMetadata metadata = const errors.ErrorMetadata()}"} else {""}, if structure.members.is_empty() { "" } else { "final object = " }));
                 for member in &structure.members {
-                    out.push_str(&format!("      {}: context.{}<{}>({}, object),\n", field(&member.name), if member.optional_on_client() {"optional"} else {"read"}, ty(service, &member.target), literal(&member.name)));
+                    out.push_str(&format!("      {}{}: context.{}<{}>({}, object),\n", field(&member.name), if member.optional_on_client() { "Presence" } else { "" }, if member.optional_on_client() {"optional"} else {"read"}, ty(service, &member.target), literal(&member.name)));
                 }
                 if error {out.push_str("      metadata: metadata,\n");}
                 out.push_str("    );\n  }\n  @core.override\n  core.Object toWire(wire.WireContext context) {\n    final object = <core.String, core.Object?>{};\n");
                 for member in &structure.members {
-                    out.push_str(&format!("    context.put(object, {}, this.{});\n", literal(&member.name), field(&member.name)));
+                    out.push_str(&format!("    context.put(object, {}, this.{}{});\n", literal(&member.name), field(&member.name), if member.optional_on_client() { "Presence" } else { "" }));
                 }
                 out.push_str("    return object;\n  }\n}\n");
                 decode.push_str(&format!("    case {target}: return {name}.fromWire(value, context);\n"));

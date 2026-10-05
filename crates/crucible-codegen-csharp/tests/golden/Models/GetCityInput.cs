@@ -3,6 +3,8 @@
 namespace Example.Weather.Models;
 
 public sealed class @GetCityInput {
-    public global::Example.Weather.Optional<string> @CityId { get; set; }
-    public global::Example.Weather.Optional<global::System.DateTimeOffset> @At { get; set; }
+    public global::Example.Weather.Optional<string> @CityIdPresence { get; set; }
+    public string? @CityId { get => @CityIdPresence.IsSet && !@CityIdPresence.IsNull ? @CityIdPresence.Value : (string?)null; set => @CityIdPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    public global::Example.Weather.Optional<global::System.DateTimeOffset> @AtPresence { get; set; }
+    public global::System.DateTimeOffset? @At { get => @AtPresence.IsSet && !@AtPresence.IsNull ? @AtPresence.Value : (global::System.DateTimeOffset?)null; set => @AtPresence = value is null ? global::Example.Weather.Optional<global::System.DateTimeOffset>.Null : global::Example.Weather.Optional<global::System.DateTimeOffset>.Of(value.Value); }
 }

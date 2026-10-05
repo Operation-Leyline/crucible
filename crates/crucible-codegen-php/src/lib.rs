@@ -51,7 +51,8 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             "PHP namespace must contain valid non-reserved identifiers",
         );
     }
-    let mut names = BTreeSet::from(["decoder".to_string()]);
+    let mut names = BTreeSet::from(["decoder", "schema", "runtime"].map(str::to_owned));
+    names.insert(format!("{}Client", service.id.name()).to_ascii_lowercase());
     let mut aliases = BTreeMap::new();
     for (id, shape) in &service.shapes {
         let name = service.name_of(id);
@@ -163,7 +164,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         });
     }
     let namespace = &options.namespace;
-    files.push(File {path:"src/Schema.php".into(), contents:format!("<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\nfinal class Schema\n{{\n    public static function codec(): Runtime\\WireCodec\n    {{\n        static $codec = null;\n        return $codec ??= new Runtime\\WireCodec(Runtime\\WireCodec::object(Runtime\\ExactJson::decode(file_get_contents(__DIR__ . '/schema.json'))), Models\\Decoder::model(...));\n    }}\n}}\n")});
+    files.push(File {path:"src/Schema.php".into(), contents:format!("<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\nfinal class Schema\n{{\n    public static function codec(): Runtime\\WireCodec\n    {{\n        static $codec = null;\n        return $codec ??= new Runtime\\WireCodec(Runtime\\WireCodec::object(Runtime\\ExactJson::decode(file_get_contents(__DIR__ . '/schema.json'))), Decoder::model(...));\n    }}\n}}\n")});
     for (name, source) in [
         ("CallScope", include_str!("../runtime/CallScope.php")),
         (
@@ -188,7 +189,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/ErrorMetadata.php"),
         ),
         ("ExactJson", include_str!("../runtime/ExactJson.php")),
-        ("Field", include_str!("../runtime/Field.php")),
+        ("Absent", include_str!("../runtime/Absent.php")),
         ("HttpRequest", include_str!("../runtime/HttpRequest.php")),
         ("HttpResponse", include_str!("../runtime/HttpResponse.php")),
         (
@@ -223,7 +224,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         });
     }
     files.push(File {
-        path: "src/Client.php".into(),
+        path: format!("src/{}Client.php", service.id.name()),
         contents: client::emit(service, options),
     });
     files.sort_by(|a, b| a.path.cmp(&b.path));

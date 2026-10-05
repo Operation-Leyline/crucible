@@ -282,3 +282,11 @@ fn endpoint_escapes_dart_interpolation() {
         .contents;
     assert!(source.contains("https://example.invalid/\\$secret/\\\\value\\\""));
 }
+
+#[test]
+fn service_client_name_is_reserved() {
+    let mut model = weather();
+    model["shapes"]["example.weather#Weather"]["rename"] =
+        serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
+    assert!(emit(&lower(&model), &options()).is_err());
+}

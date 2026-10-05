@@ -2,7 +2,7 @@
 require 'weather_client'
 require 'json'
 include Weather::Runtime
-include Weather::Models
+include Weather
 
 def check(value, message)
   raise message unless value
@@ -15,6 +15,11 @@ def rejects(type = ArgumentError)
   end
   raise "Expected #{type}"
 end
+native_input = Weather::CreateCityInput.new(name: 'Oslo', location: nil, expected_revision: 7)
+check(native_input.name == 'Oslo' && native_input.location.nil? && native_input.client_token.equal?(UNSET), 'Direct package models and native presence')
+native_page = Weather::ListCitiesOutput.new(cities: [Weather::CitySummary.new(id: 'c', name: 'Oslo', population: 7)])
+check(native_page.cities.instance_of?(Array) && native_page.cities.map(&:name) == ['Oslo'], 'Native response collections and readers')
+check(!Weather.const_defined?(:Models, false), 'No artificial model container')
 class Fake
   attr_reader :requests, :closed
   def initialize(&handler)
@@ -27,7 +32,7 @@ class Fake
   def close = @closed = true
 end
 def sdk(fake, **config)
-  Weather::Client.new(ClientConfig.new(endpoint: 'https://example.invalid', transport: fake, base_delay: 0, **config))
+  Weather::WeatherClient.new(ClientConfig.new(endpoint: 'https://example.invalid', transport: fake, base_delay: 0, **config))
 end
 
 codec = Weather.codec
@@ -144,7 +149,7 @@ rejects(CancelledError) { latched.check }
 rejects(CancelledError) { latched.check }
 check(polls == 1, 'Cancellation stays latched')
 
-client = Weather::Client.new(ClientConfig.new(endpoint: ENV.fetch('WEATHER_URL'), token: -> { 'weather-token' }))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: ENV.fetch('WEATHER_URL'), token: -> { 'weather-token' }))
 city = client.create_city(CreateCityInput.new(name: 'Ruby city')).city
 check(client.get_city(GetCityInput.new(city_id: city.id)).city.name == 'Ruby city', 'Real create and read')
 photo = "\x00\x80\xff".b
@@ -155,42 +160,42 @@ rejects(ConflictError) { client.create_city(CreateCityInput.new(name: 'Ruby city
 client.ping
 client.close
 fixture = ENV.fetch('FIXTURE_URL') + '/native/'
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'bad-length', base_delay: 0))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'bad-length', base_delay: 0))
 check(client.get_city_photo(GetCityPhotoInput.new(city_id: 'x')).photo == 'complete', 'Malformed Content-Length retries')
 client.close
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'not-modified', max_attempts: 1))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'not-modified', max_attempts: 1))
 check(rejects(ServiceError) { client.get_city(GetCityInput.new(city_id: 'x')) }.metadata.status == 304, 'Bodyless 304 retains wire status')
 client.close
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'partial', base_delay: 0))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'partial', base_delay: 0))
 check(client.get_city_photo(GetCityPhotoInput.new(city_id: 'x')).photo == 'complete', 'Partial body retry')
 client.close
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'empty-header', headers: {'x-empty' => ''}))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'empty-header', headers: {'x-empty' => ''}))
 client.ping
 client.close
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'stall', timeout: 0.15))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'stall', timeout: 0.15))
 start = CallScope.now
 rejects(DeadlineError) { client.get_city(GetCityInput.new(city_id: 'x')) }
 check(CallScope.now - start < 1.5, 'Stalled body deadline')
 client.close
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'stall', timeout: 5))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'stall', timeout: 5))
 start = CallScope.now
 token = CancellationToken.new { CallScope.now - start >= 0.1 }
 rejects(CancelledError) { client.get_city(GetCityInput.new(city_id: 'x'), cancellation: token) }
 check(CallScope.now - start < 1.5, 'Stalled body cancellation')
 client.close
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'discard', timeout: 0.5))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'discard', timeout: 0.5))
 client.ping
 client.close
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'redirect', max_attempts: 1))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'redirect', max_attempts: 1))
 check(rejects(ServiceError) { client.ping }.metadata.status == 302, 'Redirect refusal')
 client.close
 token = 0
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'echo', token: -> { (token += 1).to_s }, base_delay: 0))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'echo', token: -> { (token += 1).to_s }, base_delay: 0))
 client.create_city(CreateCityInput.new(name: 'x'))
 check(token == 2, 'Real refreshed retry credential')
 client.close
 token = 0
-client = Weather::Client.new(ClientConfig.new(endpoint: fixture + 'cache', token: -> { (token += 1).to_s }))
+client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'cache', token: -> { (token += 1).to_s }))
 check(client.get_city(GetCityInput.new(city_id: 'c')).city.name == 'Bearer 1', 'First credential')
 check(client.get_city(GetCityInput.new(city_id: 'c')).city.name == 'Bearer 2', 'No cached credential response')
 client.close

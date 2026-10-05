@@ -26,10 +26,15 @@ contain at least two characters, and do not end in a dot. The package owner
 must replace the generated maintainer and distribution-license placeholders
 before publishing. `inst/crucible.json` records the service and schema digest.
 
+The exported constructor is `WeatherClient()` for Smithy service `Weather`,
+and `LeylineClient()` for `Leyline`. These capitalized factory names match the
+package's model constructors; operation methods remain snake_case. Replace
+earlier `Client()` calls when regenerating.
+
 ```r
 library(weather.client)
 
-client <- Client(client_config(
+client <- WeatherClient(client_config(
   endpoint = "http://127.0.0.1:8080",
   token = function() Sys.getenv("WEATHER_TOKEN")
 ))
@@ -44,7 +49,10 @@ query, or fragment. Authorization over HTTP is limited to loopback hosts.
 
 ## Native models and exact values
 
-Each structure has an S3 constructor and class. Constructor arguments use
+Each structure has a package-level S3 constructor and class. Pass ordinary
+arguments such as `CreateCityInput(name = "Oslo", location = NULL)` and read
+values with `$name`. Response collections remain native lists: access a city
+with `page$cities[[1L]]$name` or process them with `lapply(page$cities, ...)`. Constructor arguments use
 snake case; wire names remain the model's original names. A nonoptional client
 member is a required constructor argument. Input members and `@clientOptional`
 members can be omitted under the IR's client nullability rules. Missing HTTP

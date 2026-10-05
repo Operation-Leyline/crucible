@@ -4,5 +4,6 @@ namespace Example.Weather.Models;
 
 public sealed class @ThrottlingError : global::Example.Weather.ServiceError {
     public string @MessageValue { get; set; } = default!;
-    public global::Example.Weather.Optional<int> @RetryAfter { get; set; }
+    public global::Example.Weather.Optional<int> @RetryAfterPresence { get; set; }
+    public int? @RetryAfter { get => @RetryAfterPresence.IsSet && !@RetryAfterPresence.IsNull ? @RetryAfterPresence.Value : (int?)null; set => @RetryAfterPresence = value is null ? global::Example.Weather.Optional<int>.Null : global::Example.Weather.Optional<int>.Of(value.Value); }
 }

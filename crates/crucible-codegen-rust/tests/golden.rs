@@ -10,6 +10,20 @@ use serde_json::{Value, json};
 
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
+#[test]
+fn service_client_name_cannot_collide_with_a_model() {
+    let service = edited(|model| {
+        model["shapes"]["example.weather#Weather"]["rename"] =
+            json!({"example.weather#CitySummary":"WeatherClient"});
+    });
+    let diagnostics = generate_client(&service).unwrap_err();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("generated client `WeatherClient`")
+    );
+}
+
 fn edited(edit: impl FnOnce(&mut Value)) -> crucible_smithy::ir::Service {
     let mut model: Value = serde_json::from_str(WEATHER).unwrap();
     edit(&mut model);

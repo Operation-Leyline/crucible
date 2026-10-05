@@ -148,3 +148,11 @@ fn head_request_bodies_are_diagnosed_before_generation() {
         .to_string();
     assert!(diagnostics.contains("HEAD request body"));
 }
+
+#[test]
+fn service_client_name_is_reserved() {
+    let mut model = weather();
+    model["shapes"]["example.weather#Weather"]["rename"] =
+        serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
+    assert!(emit(&lower(&model), &options()).is_err());
+}

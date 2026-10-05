@@ -7,35 +7,35 @@ String endpoint(String suffix) => '$fixtureUrl/${browser ? 'browser' : 'native'}
 
 void main() {
   test('real transport deadline interrupts a stalled body', () async {
-    final sdk = Client(ClientConfig(endpoint:endpoint('stall'), timeout:const Duration(milliseconds:150)));
+    final sdk = WeatherClient(ClientConfig(endpoint:endpoint('stall'), timeout:const Duration(milliseconds:150)));
     addTearDown(sdk.close);
     final elapsed = Stopwatch()..start();
-    await expectLater(sdk.getCity(const GetCityInput(cityId:Field.value('x'))), throwsA(isA<TimeoutException>()));
+    await expectLater(sdk.getCity(const GetCityInput(cityId:'x')), throwsA(isA<TimeoutException>()));
     expect(elapsed.elapsedMilliseconds, lessThan(1500));
   });
   test('real transport cancellation interrupts a stalled body', () async {
-    final sdk = Client(ClientConfig(endpoint:endpoint('stall'), timeout:const Duration(seconds:10)));
+    final sdk = WeatherClient(ClientConfig(endpoint:endpoint('stall'), timeout:const Duration(seconds:10)));
     addTearDown(sdk.close);
     final cancellation = CancellationToken();
-    final operation = sdk.getCity(const GetCityInput(cityId:Field.value('x')), cancellation:cancellation);
+    final operation = sdk.getCity(const GetCityInput(cityId:'x'), cancellation:cancellation);
     final result = expectLater(operation, throwsA(isA<CancelledException>()));
     await Future<void>.delayed(const Duration(milliseconds:100)); cancellation.cancel();
     await result;
   });
   test('real transport discards a successful irrelevant body', () async {
-    final sdk = Client(ClientConfig(endpoint:endpoint('discard'), timeout:const Duration(seconds:1)));
+    final sdk = WeatherClient(ClientConfig(endpoint:endpoint('discard'), timeout:const Duration(seconds:1)));
     addTearDown(sdk.close);
     await sdk.ping();
   });
   test('real pagination subscription cancellation interrupts a stalled body', () async {
-    final sdk = Client(ClientConfig(endpoint:endpoint('stall'), timeout:const Duration(seconds:10)));
+    final sdk = WeatherClient(ClientConfig(endpoint:endpoint('stall'), timeout:const Duration(seconds:10)));
     addTearDown(sdk.close);
     final subscription = sdk.listCitiesPages(const ListCitiesInput()).listen((_) => fail('Cancelled page delivered'));
     await Future<void>.delayed(const Duration(milliseconds:100));
     await subscription.cancel().timeout(const Duration(seconds:1));
   });
   test('real transport refuses redirects', () async {
-    final sdk = Client(ClientConfig(endpoint:endpoint('redirect'), maxAttempts:1));
+    final sdk = WeatherClient(ClientConfig(endpoint:endpoint('redirect'), maxAttempts:1));
     addTearDown(sdk.close);
     if (browser) {
       // Fetch hides a refused redirect; native HTTP exposes its status.
@@ -46,17 +46,17 @@ void main() {
   });
   test('real transport refreshes credentials and preserves signed retry bytes', () async {
     var token = 0;
-    final sdk = Client(ClientConfig(endpoint:endpoint('echo'), token:() => '${++token}', baseDelay:Duration.zero));
+    final sdk = WeatherClient(ClientConfig(endpoint:endpoint('echo'), token:() => '${++token}', baseDelay:Duration.zero));
     addTearDown(sdk.close);
-    final result = await sdk.createCity(const CreateCityInput(name:Field.value('x')));
+    final result = await sdk.createCity(const CreateCityInput(name:'x'));
     expect(result.city.name, 'x'); expect(token, 2);
   });
   test('real transport does not reuse cached responses across credentials', () async {
     var token = 0;
-    final sdk = Client(ClientConfig(endpoint:endpoint('cache'), token:() => '${++token}'));
+    final sdk = WeatherClient(ClientConfig(endpoint:endpoint('cache'), token:() => '${++token}'));
     addTearDown(sdk.close);
-    final first = await sdk.getCity(const GetCityInput(cityId:Field.value('c')));
-    final second = await sdk.getCity(const GetCityInput(cityId:Field.value('c')));
+    final first = await sdk.getCity(const GetCityInput(cityId:'c'));
+    final second = await sdk.getCity(const GetCityInput(cityId:'c'));
     expect(first.city.name, 'Bearer 1'); expect(second.city.name, 'Bearer 2');
   });
 }

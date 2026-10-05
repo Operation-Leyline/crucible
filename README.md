@@ -7,6 +7,9 @@ unions, modeled errors, defaults, pagination, and idempotency tokens.
 The service framework provides validation, an ordered handler chain, error
 translation, logging, and HTTP or Lambda hosting. Client runtimes provide
 transport, authentication, retries, and pagination using each language's APIs.
+Public clients carry the service name, such as `LeylineClient`. Requests use
+native values, collections, and language-appropriate builders or constructors;
+ordinary calls do not require presence wrappers.
 
 ## Clients
 

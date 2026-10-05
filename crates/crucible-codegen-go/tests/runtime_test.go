@@ -18,15 +18,52 @@ import (
 	"time"
 )
 
-func clientFor(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Server) {
+func clientFor(t *testing.T, handler http.HandlerFunc) (*WeatherClient, *httptest.Server) {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	client, err := NewClient(Config{Endpoint: server.URL, BaseDelay: time.Nanosecond, MaxDelay: time.Nanosecond})
+	client, err := NewWeatherClient(Config{Endpoint: server.URL, BaseDelay: time.Nanosecond, MaxDelay: time.Nanosecond})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return client, server
+}
+
+func TestNativeAccessorsKeepPresenceAndUnionSelection(t *testing.T) {
+	input := &ListCitiesInput{}
+	if input.HasTags() || input.IsNullTags() || input.GetTags() != nil {
+		t.Fatal("initial presence")
+	}
+	input.SetTags([]string{})
+	input.SetMaxResults(0)
+	if !input.HasTags() || input.GetTags() == nil || input.IsNullTags() || !input.HasMaxResults() {
+		t.Fatal("empty and zero must remain present")
+	}
+	input.Tags = Null[Tags]()
+	if !input.HasTags() || !input.IsNullTags() || input.GetTags() != nil {
+		t.Fatal("explicit null")
+	}
+	input.SetTags([]string{"a", "b"})
+	if input.IsNullTags() || len(input.GetTags()) != 2 {
+		t.Fatal("setter must replace null")
+	}
+	encoded, err := encodeModel(wireSchema, "example.weather#ListCitiesInput", input)
+	if err != nil || encoded["maxResults"] != int32(0) {
+		t.Fatalf("%#v %v", encoded, err)
+	}
+	location := &Location{}
+	location.SetUnknown(Unit{})
+	location.SetCoordinates(&Coordinates{Latitude: 1, Longitude: 2})
+	if location.HasUnknown() || !location.HasCoordinates() {
+		t.Fatal("setting a union arm must replace the previous arm")
+	}
+	if _, err := encodeModel(wireSchema, "example.weather#Location", location); err != nil {
+		t.Fatal(err)
+	}
+	var absent *ListCitiesInput
+	if absent.GetTags() != nil || absent.HasTags() {
+		t.Fatal("nil optional getter")
+	}
 }
 func TestSharedRetryCases(t *testing.T) {
 	data, err := os.ReadFile("retry.json")
@@ -383,7 +420,7 @@ func (brokenBody) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
 func (brokenBody) Close() error             { return nil }
 func TestTransportFailureAndCancellation(t *testing.T) {
 	attempts := 0
-	client, err := NewClient(Config{Endpoint: "http://localhost", BaseDelay: time.Nanosecond, MaxDelay: time.Nanosecond, HTTPClient: transportFunc(func(r *http.Request) (*http.Response, error) {
+	client, err := NewWeatherClient(Config{Endpoint: "http://localhost", BaseDelay: time.Nanosecond, MaxDelay: time.Nanosecond, HTTPClient: transportFunc(func(r *http.Request) (*http.Response, error) {
 		attempts++
 		return &http.Response{StatusCode: 200, Header: http.Header{}, Body: brokenBody{}}, nil
 	})})
@@ -420,7 +457,7 @@ func TestTransportFailureAndCancellation(t *testing.T) {
 }
 
 func TestCleartextCredentialsAndRetryAfter(t *testing.T) {
-	client, err := NewClient(Config{Endpoint: "http://example.invalid", Token: func(context.Context) (string, error) { return "secret", nil }, HTTPClient: transportFunc(func(*http.Request) (*http.Response, error) { t.Fatal("credentials leaked"); return nil, nil })})
+	client, err := NewWeatherClient(Config{Endpoint: "http://example.invalid", Token: func(context.Context) (string, error) { return "secret", nil }, HTTPClient: transportFunc(func(*http.Request) (*http.Response, error) { t.Fatal("credentials leaked"); return nil, nil })})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,15 +510,22 @@ func TestHTTPWeatherService(t *testing.T) {
 	if endpoint == "" {
 		t.Skip("weather service URL is supplied by tools/test-go.py")
 	}
-	client, err := NewClient(Config{Endpoint: endpoint})
+	client, err := NewWeatherClient(Config{Endpoint: endpoint})
 	if err != nil {
 		t.Fatal(err)
 	}
-	city, err := client.CreateCity(context.Background(), &CreateCityInput{Name: Some[CityName]("go-http"), Location: Some(&Location{Unknown: Some(Unit{})})})
+	input := &CreateCityInput{}
+	input.SetName("go-http")
+	location := &Location{}
+	location.SetUnknown(Unit{})
+	input.SetLocation(location)
+	city, err := client.CreateCity(context.Background(), input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := client.GetCity(context.Background(), &GetCityInput{CityId: Some(city.City.Id)})
+	get := &GetCityInput{}
+	get.SetCityId(city.City.Id)
+	got, err := client.GetCity(context.Background(), get)
 	if err != nil || got.City.Name != "go-http" {
 		t.Fatalf("%v %v", got, err)
 	}
@@ -490,7 +534,9 @@ func TestHTTPWeatherService(t *testing.T) {
 	if !errors.As(err, &conflict) {
 		t.Fatal(err)
 	}
-	pages, err := client.ListCitiesPages(&ListCitiesInput{MaxResults: Some[int32](1)})
+	list := &ListCitiesInput{}
+	list.SetMaxResults(1)
+	pages, err := client.ListCitiesPages(list)
 	if err != nil {
 		t.Fatal(err)
 	}

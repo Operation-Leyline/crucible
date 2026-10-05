@@ -61,6 +61,7 @@ fn contains_nul(value: &serde_json::Value) -> bool {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
+    let client_name = format!("{}Client", service.id.name());
     if service.version.contains('\0')
         || options
             .endpoint
@@ -94,7 +95,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         );
     }
     let mut exported: BTreeSet<String> = [
-        "Client",
+        client_name.as_str(),
         "client_config",
         "cancellation_token",
         "long",
@@ -252,7 +253,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     let mut methods = BTreeSet::from(["close".to_owned(), "call".to_owned(), "pages".to_owned()]);
     let mut client = format!(
-        "# Generated native operation methods.\nClient <- function(config = client_config()) {{\n  client <- .crucible_client(config, {}, {})\n",
+        "# Generated native operation methods.\n{} <- function(config = client_config()) {{\n  client <- .crucible_client(config, {}, {})\n",
+        function(&client_name),
         options
             .endpoint
             .as_ref()
@@ -334,7 +336,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .iter()
         .map(|s| format!("\\alias{{{s}}}\n"))
         .collect::<String>();
-    files.push(File{path:"man/client.Rd".into(),contents:format!("\\name{{{package}-client}}\n{aliases}\\title{{Generated Smithy Client}}\n\\description{{Native model constructors and an HTTP client for the generated service.}}\n\\details{{Use Client(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}}\n")});
+    files.push(File{path:"man/client.Rd".into(),contents:format!("\\name{{{package}-client}}\n{aliases}\\title{{Generated Smithy Client}}\n\\description{{Native model constructors and an HTTP client for the generated service.}}\n\\details{{Use {client_name}(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}}\n")});
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
 }

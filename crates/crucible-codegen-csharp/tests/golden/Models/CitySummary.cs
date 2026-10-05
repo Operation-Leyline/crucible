@@ -6,6 +6,8 @@ public sealed class @CitySummary {
     public string @Id { get; set; } = default!;
     public string @Name { get; set; } = default!;
     public long @Population { get; set; } = default!;
-    public global::Example.Weather.Optional<global::System.DateTimeOffset> @UpdatedAt { get; set; }
-    public global::Example.Weather.Optional<global::System.DateTimeOffset> @CreatedAt { get; set; }
+    public global::Example.Weather.Optional<global::System.DateTimeOffset> @UpdatedAtPresence { get; set; }
+    public global::System.DateTimeOffset? @UpdatedAt { get => @UpdatedAtPresence.IsSet && !@UpdatedAtPresence.IsNull ? @UpdatedAtPresence.Value : (global::System.DateTimeOffset?)null; set => @UpdatedAtPresence = value is null ? global::Example.Weather.Optional<global::System.DateTimeOffset>.Null : global::Example.Weather.Optional<global::System.DateTimeOffset>.Of(value.Value); }
+    public global::Example.Weather.Optional<global::System.DateTimeOffset> @CreatedAtPresence { get; set; }
+    public global::System.DateTimeOffset? @CreatedAt { get => @CreatedAtPresence.IsSet && !@CreatedAtPresence.IsNull ? @CreatedAtPresence.Value : (global::System.DateTimeOffset?)null; set => @CreatedAtPresence = value is null ? global::Example.Weather.Optional<global::System.DateTimeOffset>.Null : global::Example.Weather.Optional<global::System.DateTimeOffset>.Of(value.Value); }
 }

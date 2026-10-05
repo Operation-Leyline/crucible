@@ -18,22 +18,42 @@ cargo run -p crucible-cli -- generate kotlin model.json \
 mvn -f generated/client/pom.xml package
 ```
 
-The package contains `Client`, `ClientConfig`, `OptionalValue`, error metadata,
-and `Models`. Structures are data classes, unions are sealed interfaces with
-one data class per variant, and string enums accept unknown string values.
+The client name comes from the Smithy service: `LeylineClient` for `Leyline`,
+or `WeatherClient` for the example below. The package also contains `ClientConfig`, error metadata, and top-level
+model types in the `.model` package. Structures expose read-only properties and
+type-safe builders; unions are sealed interfaces with one data class per variant,
+and string enums accept unknown string values.
 Unknown union variants preserve their name and JSON value. Generated codecs
 dispatch directly to constructors without model reflection.
 
 ## Calling operations
 
 ```kotlin
-Client(ClientConfig(endpoint = "https://weather.example", token = { accessToken() })).use { client ->
-    val city = client.createCity(Models.CreateCityInput(name = OptionalValue.of("London")))
-    client.listCitiesPages(Models.ListCitiesInput(maxResults = OptionalValue.of(20))).collect { page ->
+import example.weather.WeatherClient
+import example.weather.ClientConfig
+
+WeatherClient(ClientConfig(endpoint = "https://weather.example", token = { accessToken() })).use { client ->
+    val city = client.createCity { name = "London" }
+    println(city.city.name)
+    client.listCitiesPages { maxResults = 20 }.collect { page ->
         page.cities.forEach { println(it.name) }
     }
 }
 ```
+
+Request objects can also be constructed independently:
+
+```kotlin
+import example.weather.model.CreateCityInput
+
+val request = CreateCityInput { name = "London" }
+val changed = request.copy { name = "Oslo" }
+client.createCity(changed)
+```
+
+Every operation with a modeled input has a builder overload; paginators have the
+same overload. `client.listCities()` builds an input with every optional member
+omitted. Lists and maps accept `listOf(...)` and `mapOf(...)` directly.
 
 ## Transport and cancellation
 
@@ -54,12 +74,17 @@ modeled body members do not read the response body.
 
 ## Models and errors
 
-Optional members use `OptionalValue<T>`: `unset()` is absent, `of(null)` is
-explicit null, and `of(value)` is present. Required members are constructor
-arguments. Missing response members receive modeled defaults; explicit null
+Optional members expose `T?`. A builder tracks assignment internally: leaving a
+property untouched omits it, assigning `null` sends explicit null, and assigning
+a value sends that value. Use `hasLocation()` when the distinction matters on a
+response, or `unsetLocation()` in a builder to omit a previously assigned member.
+`copy { ... }` preserves untouched presence states. Required output members expose
+non-null types; building such a model checks that its required values are set. Missing response members receive modeled defaults; explicit null
 does not receive a default. `Long` preserves signed 64-bit integers and
 `Instant` preserves nanosecond timestamps. Documents use Gson JSON values,
-retaining integer tokens. Lists and maps have generated named collection types.
+retaining integer tokens. Lists and maps use native Kotlin collection types through named type aliases.
+Directly recursive collection aliases retain a nominal collection type because
+Kotlin cannot represent a recursive type alias.
 Blobs use `ByteArray` and standard base64 in JSON. A modeled blob payload is
 sent and received as raw bytes with its declared request media type; body
 digests cover those exact bytes.
@@ -93,3 +118,21 @@ build configuration follows the [AGP compatibility table](https://developer.andr
 The complete Leyline model is checked separately using its adapted Crucible
 projection. Package compilation, emulator tests, and local weather tests do
 not establish published-package or authenticated deployed-Leyline compatibility.
+
+## Migrating from Models and OptionalValue
+
+Replace the generated `Client` import and constructor with the service-specific
+name (`WeatherClient` or `LeylineClient`).
+
+Import `example.weather.model.CreateCityInput` instead of `Models.CreateCityInput`.
+Replace `CreateCityInput(name = OptionalValue.of("London"))` with
+`CreateCityInput { name = "London" }`, or use `client.createCity { name = "London" }`.
+Read `result.caption` instead of `result.caption.value`. `OptionalValue` is now an
+internal codec type. Use `hasCaption()` only when you need to distinguish omitted
+from explicit null. Replace mutable structure assignments and data-class copies
+with `request.copy { ... }`; modeled-error copies retain response metadata.
+
+Replace named collection constructors with `listOf` / `mapOf`, and `Models.Unit`
+with `kotlin.Unit`. Regenerate and upgrade the jar and its consumers together.
+Keep the previous generator revision, generated jar, and consumer revision as
+one rollback unit; the wire contract has not changed.

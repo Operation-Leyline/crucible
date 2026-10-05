@@ -59,258 +59,258 @@ internal object ModelCodecs {
         "example.weather#ValidationReason" -> decode31(target, value, codec)
         else -> error("No generated decoder for $target")
     }
-    private fun decode2(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`CitySummaries`().apply { addAll(codec.readList(target, value) as List<Models.`CitySummary`>) }
+    private fun decode2(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`CitySummaries`
 
     private fun encode3(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`CitySummary`
+            val model = value as example.weather.model.`CitySummary`
             codec.put(result, target, "id", model.`id`)
             codec.put(result, target, "name", model.`name`)
             codec.put(result, target, "population", model.`population`)
-            codec.put(result, target, "updatedAt", model.`updatedAt`)
-            codec.put(result, target, "createdAt", model.`createdAt`)
+            codec.put(result, target, "updatedAt", model.__crucibleField3)
+            codec.put(result, target, "createdAt", model.__crucibleField4)
         }
 
-    private fun decode3(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`CitySummary`(
+    private fun decode3(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`CitySummary`(
             `id` = codec.readMember(target, value.asJsonObject, "id", false) as kotlin.String,
             `name` = codec.readMember(target, value.asJsonObject, "name", false) as kotlin.String,
             `population` = codec.readMember(target, value.asJsonObject, "population", false) as kotlin.Long,
-            `updatedAt` = codec.readMember(target, value.asJsonObject, "updatedAt", true) as example.weather.OptionalValue<java.time.Instant>,
-            `createdAt` = codec.readMember(target, value.asJsonObject, "createdAt", true) as example.weather.OptionalValue<java.time.Instant>,
+            __crucibleField3 = codec.readMember(target, value.asJsonObject, "updatedAt", true) as example.weather.OptionalValue<java.time.Instant>,
+            __crucibleField4 = codec.readMember(target, value.asJsonObject, "createdAt", true) as example.weather.OptionalValue<java.time.Instant>,
         )
 
     private fun encode4(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`ConflictError`
+            val model = value as example.weather.model.`ConflictError`
             codec.put(result, target, "message", model.`messageValue`)
         }
 
-    private fun decode4(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`ConflictError`(
+    private fun decode4(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`ConflictError`(
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
         )
 
     private fun encode5(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`Coordinates`
+            val model = value as example.weather.model.`Coordinates`
             codec.put(result, target, "latitude", model.`latitude`)
             codec.put(result, target, "longitude", model.`longitude`)
         }
 
-    private fun decode5(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`Coordinates`(
+    private fun decode5(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`Coordinates`(
             `latitude` = codec.readMember(target, value.asJsonObject, "latitude", false) as kotlin.Double,
             `longitude` = codec.readMember(target, value.asJsonObject, "longitude", false) as kotlin.Double,
         )
 
     private fun encode6(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`CreateCityInput`
-            codec.put(result, target, "name", model.`name`)
-            codec.put(result, target, "location", model.`location`)
-            codec.put(result, target, "clientToken", model.`clientToken`)
-            codec.put(result, target, "expectedRevision", model.`expectedRevision`)
+            val model = value as example.weather.model.`CreateCityInput`
+            codec.put(result, target, "name", model.__crucibleField0)
+            codec.put(result, target, "location", model.__crucibleField1)
+            codec.put(result, target, "clientToken", model.__crucibleField2)
+            codec.put(result, target, "expectedRevision", model.__crucibleField3)
         }
 
-    private fun decode6(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`CreateCityInput`(
-            `name` = codec.readMember(target, value.asJsonObject, "name", true) as example.weather.OptionalValue<kotlin.String>,
-            `location` = codec.readMember(target, value.asJsonObject, "location", true) as example.weather.OptionalValue<Models.`Location`>,
-            `clientToken` = codec.readMember(target, value.asJsonObject, "clientToken", true) as example.weather.OptionalValue<kotlin.String>,
-            `expectedRevision` = codec.readMember(target, value.asJsonObject, "expectedRevision", true) as example.weather.OptionalValue<kotlin.Long>,
+    private fun decode6(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`CreateCityInput`(
+            __crucibleField0 = codec.readMember(target, value.asJsonObject, "name", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "location", true) as example.weather.OptionalValue<example.weather.model.`Location`>,
+            __crucibleField2 = codec.readMember(target, value.asJsonObject, "clientToken", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField3 = codec.readMember(target, value.asJsonObject, "expectedRevision", true) as example.weather.OptionalValue<kotlin.Long>,
         )
 
     private fun encode7(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`CreateCityOutput`
+            val model = value as example.weather.model.`CreateCityOutput`
             codec.put(result, target, "city", model.`city`)
         }
 
-    private fun decode7(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`CreateCityOutput`(
-            `city` = codec.readMember(target, value.asJsonObject, "city", false) as Models.`CitySummary`,
+    private fun decode7(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`CreateCityOutput`(
+            `city` = codec.readMember(target, value.asJsonObject, "city", false) as example.weather.model.`CitySummary`,
         )
 
-    private fun decode9(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`Forecast`().apply { putAll(codec.readMap(target, value) as Map<Models.`Sky`, com.google.gson.JsonElement>) }
+    private fun decode9(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = codec.readMap(target, value) as example.weather.model.`Forecast`
 
     private fun encode10(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`GetCityInput`
-            codec.put(result, target, "cityId", model.`cityId`)
-            codec.put(result, target, "at", model.`at`)
+            val model = value as example.weather.model.`GetCityInput`
+            codec.put(result, target, "cityId", model.__crucibleField0)
+            codec.put(result, target, "at", model.__crucibleField1)
         }
 
-    private fun decode10(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`GetCityInput`(
-            `cityId` = codec.readMember(target, value.asJsonObject, "cityId", true) as example.weather.OptionalValue<kotlin.String>,
-            `at` = codec.readMember(target, value.asJsonObject, "at", true) as example.weather.OptionalValue<java.time.Instant>,
+    private fun decode10(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityInput`(
+            __crucibleField0 = codec.readMember(target, value.asJsonObject, "cityId", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "at", true) as example.weather.OptionalValue<java.time.Instant>,
         )
 
     private fun encode11(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`GetCityOutput`
+            val model = value as example.weather.model.`GetCityOutput`
             codec.put(result, target, "city", model.`city`)
-            codec.put(result, target, "forecast", model.`forecast`)
-            codec.put(result, target, "requestId", model.`requestIdValue`)
+            codec.put(result, target, "forecast", model.__crucibleField1)
+            codec.put(result, target, "requestId", model.__crucibleField2)
         }
 
-    private fun decode11(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`GetCityOutput`(
-            `city` = codec.readMember(target, value.asJsonObject, "city", false) as Models.`CitySummary`,
-            `forecast` = codec.readMember(target, value.asJsonObject, "forecast", true) as example.weather.OptionalValue<Models.`Forecast`>,
-            `requestIdValue` = codec.readMember(target, value.asJsonObject, "requestId", true) as example.weather.OptionalValue<kotlin.String>,
+    private fun decode11(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityOutput`(
+            `city` = codec.readMember(target, value.asJsonObject, "city", false) as example.weather.model.`CitySummary`,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "forecast", true) as example.weather.OptionalValue<example.weather.model.`Forecast`>,
+            __crucibleField2 = codec.readMember(target, value.asJsonObject, "requestId", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
     private fun encode12(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`GetCityPhotoInput`
-            codec.put(result, target, "cityId", model.`cityId`)
+            val model = value as example.weather.model.`GetCityPhotoInput`
+            codec.put(result, target, "cityId", model.__crucibleField0)
         }
 
-    private fun decode12(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`GetCityPhotoInput`(
-            `cityId` = codec.readMember(target, value.asJsonObject, "cityId", true) as example.weather.OptionalValue<kotlin.String>,
+    private fun decode12(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityPhotoInput`(
+            __crucibleField0 = codec.readMember(target, value.asJsonObject, "cityId", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
     private fun encode13(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`GetCityPhotoOutput`
-            codec.put(result, target, "caption", model.`caption`)
-            codec.put(result, target, "photo", model.`photo`)
+            val model = value as example.weather.model.`GetCityPhotoOutput`
+            codec.put(result, target, "caption", model.__crucibleField0)
+            codec.put(result, target, "photo", model.__crucibleField1)
         }
 
-    private fun decode13(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`GetCityPhotoOutput`(
-            `caption` = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
-            `photo` = codec.readMember(target, value.asJsonObject, "photo", true) as example.weather.OptionalValue<kotlin.ByteArray>,
+    private fun decode13(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`GetCityPhotoOutput`(
+            __crucibleField0 = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "photo", true) as example.weather.OptionalValue<kotlin.ByteArray>,
         )
 
     private fun encode14(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`ListCitiesInput`
-            codec.put(result, target, "nextToken", model.`nextToken`)
-            codec.put(result, target, "maxResults", model.`maxResults`)
-            codec.put(result, target, "tags", model.`tags`)
+            val model = value as example.weather.model.`ListCitiesInput`
+            codec.put(result, target, "nextToken", model.__crucibleField0)
+            codec.put(result, target, "maxResults", model.__crucibleField1)
+            codec.put(result, target, "tags", model.__crucibleField2)
         }
 
-    private fun decode14(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`ListCitiesInput`(
-            `nextToken` = codec.readMember(target, value.asJsonObject, "nextToken", true) as example.weather.OptionalValue<kotlin.String>,
-            `maxResults` = codec.readMember(target, value.asJsonObject, "maxResults", true) as example.weather.OptionalValue<kotlin.Int>,
-            `tags` = codec.readMember(target, value.asJsonObject, "tags", true) as example.weather.OptionalValue<Models.`Tags`>,
+    private fun decode14(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`ListCitiesInput`(
+            __crucibleField0 = codec.readMember(target, value.asJsonObject, "nextToken", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "maxResults", true) as example.weather.OptionalValue<kotlin.Int>,
+            __crucibleField2 = codec.readMember(target, value.asJsonObject, "tags", true) as example.weather.OptionalValue<example.weather.model.`Tags`>,
         )
 
     private fun encode15(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`ListCitiesOutput`
+            val model = value as example.weather.model.`ListCitiesOutput`
             codec.put(result, target, "cities", model.`cities`)
-            codec.put(result, target, "nextToken", model.`nextToken`)
+            codec.put(result, target, "nextToken", model.__crucibleField1)
         }
 
-    private fun decode15(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`ListCitiesOutput`(
-            `cities` = codec.readMember(target, value.asJsonObject, "cities", false) as Models.`CitySummaries`,
-            `nextToken` = codec.readMember(target, value.asJsonObject, "nextToken", true) as example.weather.OptionalValue<kotlin.String>,
+    private fun decode15(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`ListCitiesOutput`(
+            `cities` = codec.readMember(target, value.asJsonObject, "cities", false) as example.weather.model.`CitySummaries`,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "nextToken", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
-    private fun encode16(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = when (val model = value as Models.`Location`) {
-            is Models.`Location`.`Coordinates` -> com.google.gson.JsonObject().also { codec.put(it, target, "coordinates", model.value) }
-            is Models.`Location`.`Unknown` -> com.google.gson.JsonObject().also { codec.put(it, target, "unknown", model.value) }
-            is Models.`Location`.UnknownVariant -> codec.unknownUnion(target, model.name, model.value)
+    private fun encode16(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = when (val model = value as example.weather.model.`Location`) {
+            is example.weather.model.`Location`.`Coordinates` -> com.google.gson.JsonObject().also { codec.put(it, target, "coordinates", model.value) }
+            is example.weather.model.`Location`.`Unknown` -> com.google.gson.JsonObject().also { codec.put(it, target, "unknown", model.value) }
+            is example.weather.model.`Location`.UnknownVariant -> codec.unknownUnion(target, model.name, model.value)
         }
 
     private fun decode16(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = codec.union(value).let { (name, item) -> when (name) {
-            "coordinates" -> Models.`Location`.`Coordinates`(codec.readUnionMember(target, name, item) as Models.`Coordinates`?)
-            "unknown" -> Models.`Location`.`Unknown`(codec.readUnionMember(target, name, item) as Models.Unit?)
-            else -> Models.`Location`.UnknownVariant(name, item.deepCopy())
+            "coordinates" -> example.weather.model.`Location`.`Coordinates`(codec.readUnionMember(target, name, item) as example.weather.model.`Coordinates`?)
+            "unknown" -> example.weather.model.`Location`.`Unknown`(codec.readUnionMember(target, name, item) as kotlin.Unit?)
+            else -> example.weather.model.`Location`.UnknownVariant(name, item.deepCopy())
         } }
 
     private fun encode17(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`NotFoundError`
+            val model = value as example.weather.model.`NotFoundError`
             codec.put(result, target, "message", model.`messageValue`)
-            codec.put(result, target, "resourceId", model.`resourceId`)
+            codec.put(result, target, "resourceId", model.__crucibleField1)
         }
 
-    private fun decode17(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`NotFoundError`(
+    private fun decode17(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`NotFoundError`(
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
-            `resourceId` = codec.readMember(target, value.asJsonObject, "resourceId", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "resourceId", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
     private fun encode19(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`PhotoSummary`
+            val model = value as example.weather.model.`PhotoSummary`
             codec.put(result, target, "size", model.`size`)
             codec.put(result, target, "thumbnail", model.`thumbnail`)
-            codec.put(result, target, "caption", model.`caption`)
+            codec.put(result, target, "caption", model.__crucibleField2)
         }
 
-    private fun decode19(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`PhotoSummary`(
+    private fun decode19(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`PhotoSummary`(
             `size` = codec.readMember(target, value.asJsonObject, "size", false) as kotlin.Int,
             `thumbnail` = codec.readMember(target, value.asJsonObject, "thumbnail", false) as kotlin.ByteArray,
-            `caption` = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField2 = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
     private fun encode20(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`PutCityPhotoInput`
-            codec.put(result, target, "cityId", model.`cityId`)
-            codec.put(result, target, "caption", model.`caption`)
-            codec.put(result, target, "photo", model.`photo`)
+            val model = value as example.weather.model.`PutCityPhotoInput`
+            codec.put(result, target, "cityId", model.__crucibleField0)
+            codec.put(result, target, "caption", model.__crucibleField1)
+            codec.put(result, target, "photo", model.__crucibleField2)
         }
 
-    private fun decode20(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`PutCityPhotoInput`(
-            `cityId` = codec.readMember(target, value.asJsonObject, "cityId", true) as example.weather.OptionalValue<kotlin.String>,
-            `caption` = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
-            `photo` = codec.readMember(target, value.asJsonObject, "photo", true) as example.weather.OptionalValue<kotlin.ByteArray>,
+    private fun decode20(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`PutCityPhotoInput`(
+            __crucibleField0 = codec.readMember(target, value.asJsonObject, "cityId", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "caption", true) as example.weather.OptionalValue<kotlin.String>,
+            __crucibleField2 = codec.readMember(target, value.asJsonObject, "photo", true) as example.weather.OptionalValue<kotlin.ByteArray>,
         )
 
     private fun encode21(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`PutCityPhotoOutput`
+            val model = value as example.weather.model.`PutCityPhotoOutput`
             codec.put(result, target, "photo", model.`photo`)
         }
 
-    private fun decode21(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`PutCityPhotoOutput`(
-            `photo` = codec.readMember(target, value.asJsonObject, "photo", false) as Models.`PhotoSummary`,
+    private fun decode21(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`PutCityPhotoOutput`(
+            `photo` = codec.readMember(target, value.asJsonObject, "photo", false) as example.weather.model.`PhotoSummary`,
         )
 
-    private fun encode22(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonPrimitive((value as Models.`Sky`).value)
+    private fun encode22(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonPrimitive((value as example.weather.model.`Sky`).value)
 
-    private fun decode22(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`Sky`(codec.string(value))
+    private fun decode22(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`Sky`(codec.string(value))
 
     private fun encode23(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`StatusInput`
+            val model = value as example.weather.model.`StatusInput`
         }
 
-    private fun decode23(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`StatusInput`(
+    private fun decode23(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`StatusInput`(
         )
 
     private fun encode24(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`StatusOutput`
+            val model = value as example.weather.model.`StatusOutput`
         }
 
-    private fun decode24(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`StatusOutput`(
+    private fun decode24(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`StatusOutput`(
         )
 
-    private fun decode25(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`Tags`().apply { addAll(codec.readList(target, value) as List<kotlin.String>) }
+    private fun decode25(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`Tags`
 
     private fun encode26(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`ThrottlingError`
+            val model = value as example.weather.model.`ThrottlingError`
             codec.put(result, target, "message", model.`messageValue`)
-            codec.put(result, target, "retryAfter", model.`retryAfter`)
+            codec.put(result, target, "retryAfter", model.__crucibleField1)
         }
 
-    private fun decode26(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`ThrottlingError`(
+    private fun decode26(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`ThrottlingError`(
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
-            `retryAfter` = codec.readMember(target, value.asJsonObject, "retryAfter", true) as example.weather.OptionalValue<kotlin.Int>,
+            __crucibleField1 = codec.readMember(target, value.asJsonObject, "retryAfter", true) as example.weather.OptionalValue<kotlin.Int>,
         )
 
     private fun encode28(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`ValidationError`
+            val model = value as example.weather.model.`ValidationError`
             codec.put(result, target, "message", model.`messageValue`)
             codec.put(result, target, "reason", model.`reason`)
-            codec.put(result, target, "fieldList", model.`fieldList`)
-            codec.put(result, target, "requestId", model.`requestIdValue`)
+            codec.put(result, target, "fieldList", model.__crucibleField2)
+            codec.put(result, target, "requestId", model.__crucibleField3)
         }
 
-    private fun decode28(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`ValidationError`(
+    private fun decode28(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationError`(
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
-            `reason` = codec.readMember(target, value.asJsonObject, "reason", false) as Models.`ValidationReason`,
-            `fieldList` = codec.readMember(target, value.asJsonObject, "fieldList", true) as example.weather.OptionalValue<Models.`ValidationFieldList`>,
-            `requestIdValue` = codec.readMember(target, value.asJsonObject, "requestId", true) as example.weather.OptionalValue<kotlin.String>,
+            `reason` = codec.readMember(target, value.asJsonObject, "reason", false) as example.weather.model.`ValidationReason`,
+            __crucibleField2 = codec.readMember(target, value.asJsonObject, "fieldList", true) as example.weather.OptionalValue<example.weather.model.`ValidationFieldList`>,
+            __crucibleField3 = codec.readMember(target, value.asJsonObject, "requestId", true) as example.weather.OptionalValue<kotlin.String>,
         )
 
     private fun encode29(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonObject().also { result ->
-            val model = value as Models.`ValidationField`
+            val model = value as example.weather.model.`ValidationField`
             codec.put(result, target, "path", model.`path`)
             codec.put(result, target, "message", model.`messageValue`)
         }
 
-    private fun decode29(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`ValidationField`(
+    private fun decode29(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationField`(
             `path` = codec.readMember(target, value.asJsonObject, "path", false) as kotlin.String,
             `messageValue` = codec.readMember(target, value.asJsonObject, "message", false) as kotlin.String,
         )
 
-    private fun decode30(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`ValidationFieldList`().apply { addAll(codec.readList(target, value) as List<Models.`ValidationField`>) }
+    private fun decode30(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = codec.readList(target, value) as example.weather.model.`ValidationFieldList`
 
-    private fun encode31(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonPrimitive((value as Models.`ValidationReason`).value)
+    private fun encode31(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = com.google.gson.JsonPrimitive((value as example.weather.model.`ValidationReason`).value)
 
-    private fun decode31(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = Models.`ValidationReason`(codec.string(value))
+    private fun decode31(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationReason`(codec.string(value))
 
 }

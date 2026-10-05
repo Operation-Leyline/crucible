@@ -50,7 +50,7 @@ require_relative 'weather_client/models/validation_reason'
 require_relative 'weather_client/models/registry'
 module Weather
   def self.codec
-    @codec ||= Runtime::WireCodec.new(Runtime::ExactJson.decode(::File.read(::File.join(__dir__, 'weather_client/schema.json'))), Models::Registry::TYPES)
+    @codec ||= Runtime::WireCodec.new(Runtime::ExactJson.decode(::File.read(::File.join(__dir__, 'weather_client/schema.json'))), Registry::TYPES)
   end
 end
 require_relative 'weather_client/client'
@@ -58,7 +58,7 @@ require_relative 'weather_client/client'
 === lib/weather_client/client.rb ===
 # frozen_string_literal: true
 module Weather
-  class Client
+  class WeatherClient
     def initialize(config = Runtime::ClientConfig.new)
       @runtime = Runtime::ClientRuntime.new(config, ::Weather.codec, endpoint: '', digest: true)
     end
@@ -93,7 +93,6 @@ end
 === lib/weather_client/models/city_summary.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class CitySummary
       attr_reader :id
       attr_reader :name
@@ -128,13 +127,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/conflict_error.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class ConflictError < ::Weather::Runtime::ServiceError
       attr_reader :message_value
       def initialize(message_value:, metadata: ::Weather::Runtime::ErrorMetadata.new)
@@ -154,13 +151,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/coordinates.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class Coordinates
       attr_reader :latitude
       attr_reader :longitude
@@ -183,13 +178,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/create_city_input.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class CreateCityInput
       attr_reader :name
       attr_reader :location
@@ -220,13 +213,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/create_city_output.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class CreateCityOutput
       attr_reader :city
       def initialize(city:)
@@ -245,13 +236,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/get_city_input.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class GetCityInput
       attr_reader :city_id
       attr_reader :at
@@ -274,13 +263,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/get_city_output.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class GetCityOutput
       attr_reader :city
       attr_reader :forecast
@@ -307,13 +294,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/get_city_photo_input.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class GetCityPhotoInput
       attr_reader :city_id
       def initialize(city_id: ::Weather::Runtime::UNSET)
@@ -332,13 +317,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/get_city_photo_output.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class GetCityPhotoOutput
       attr_reader :caption
       attr_reader :photo
@@ -361,13 +344,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/list_cities_input.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class ListCitiesInput
       attr_reader :next_token
       attr_reader :max_results
@@ -394,13 +375,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/list_cities_output.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class ListCitiesOutput
       attr_reader :cities
       attr_reader :next_token
@@ -423,13 +402,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/location.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class Location
       def self.from_wire(value, context)
         object = ::Weather::Runtime::WireCodec.object(value)
@@ -475,13 +452,11 @@ module Weather
         end
       end
     end
-  end
 end
 
 === lib/weather_client/models/not_found_error.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class NotFoundError < ::Weather::Runtime::ServiceError
       attr_reader :message_value
       attr_reader :resource_id
@@ -505,13 +480,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/photo_summary.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class PhotoSummary
       attr_reader :size
       attr_reader :thumbnail
@@ -538,13 +511,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/put_city_photo_input.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class PutCityPhotoInput
       attr_reader :city_id
       attr_reader :caption
@@ -571,13 +542,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/put_city_photo_output.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class PutCityPhotoOutput
       attr_reader :photo
       def initialize(photo:)
@@ -596,13 +565,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/registry.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     module Registry
       TYPES = {
         'example.weather#CitySummary' => CitySummary,
@@ -630,13 +597,11 @@ module Weather
         'example.weather#ValidationReason' => ValidationReason,
       }.freeze
     end
-  end
 end
 
 === lib/weather_client/models/sky.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class Sky
       attr_reader :value
       def initialize(value)
@@ -651,13 +616,11 @@ module Weather
       CLEAR = new('clear')
       CLOUDY = new('cloudy')
     end
-  end
 end
 
 === lib/weather_client/models/status_input.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class StatusInput
       def initialize()
         freeze
@@ -672,13 +635,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/status_output.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class StatusOutput
       def initialize()
         freeze
@@ -693,13 +654,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/throttling_error.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class ThrottlingError < ::Weather::Runtime::ServiceError
       attr_reader :message_value
       attr_reader :retry_after
@@ -723,13 +682,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/validation_error.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class ValidationError < ::Weather::Runtime::ServiceError
       attr_reader :message_value
       attr_reader :reason
@@ -761,13 +718,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/validation_field.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class ValidationField
       attr_reader :path
       attr_reader :message_value
@@ -790,13 +745,11 @@ module Weather
         object
       end
     end
-  end
 end
 
 === lib/weather_client/models/validation_reason.rb ===
 # frozen_string_literal: true
 module Weather
-  module Models
     class ValidationReason
       attr_reader :value
       def initialize(value)
@@ -813,7 +766,6 @@ module Weather
       FIELD_VALIDATION_FAILED = new('fieldValidationFailed')
       OTHER = new('other')
     end
-  end
 end
 
 === lib/weather_client/schema.json ===

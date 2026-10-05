@@ -224,6 +224,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         ]
         .map(str::to_string),
     );
+    names.insert(format!("{}Client", service.id.name()));
     let mut aliases = BTreeMap::new();
     for (id, shape) in &service.shapes {
         if matches!(shape, Shape::Simple(_) | Shape::Unit) {
@@ -240,7 +241,11 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                     let member_name = field(&member.name);
                     if !identifier(&member_name)
                         || member_name == name
-                        || !members.insert(member_name)
+                        || !members.insert(member_name.clone())
+                        || (member.optional_on_client()
+                            && (!members.insert(format!("{member_name}Presence"))
+                                || !members.insert(format!("_{member_name}"))
+                                || !members.insert(format!("_{member_name}Presence"))))
                     {
                         result.push(&id.with_member(&member.name), "Dart member name collision");
                     }
@@ -302,6 +307,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         }
     }
     let mut methods = BTreeSet::from_iter(["Client", "close"].map(str::to_string));
+    methods.insert(format!("{}Client", service.id.name()));
     for op in &service.operations {
         if matches!(op.method.as_str(), "GET" | "HEAD")
             && (!op.request.body.is_empty() || op.request.payload.is_some())

@@ -24,7 +24,7 @@ service name.
 ## Calling operations
 
 ```go
-client, err := weather.NewClient(weather.Config{
+client, err := weather.NewWeatherClient(weather.Config{
     Endpoint: "https://api.example.com",
     Token: func(ctx context.Context) (string, error) {
         return credentials.AccessToken(ctx)
@@ -32,14 +32,36 @@ client, err := weather.NewClient(weather.Config{
 })
 if err != nil { return err }
 
-city, err := client.CreateCity(ctx, &weather.CreateCityInput{
-    Name: weather.Some[weather.CityName]("Oslo"),
-})
+input := &weather.CreateCityInput{}
+input.SetName("Oslo")
+city, err := client.CreateCity(ctx, input)
+if err != nil { return err }
+fmt.Println(city.City.Name)
+
+list := &weather.ListCitiesInput{}
+list.SetMaxResults(50)
+list.SetTags([]string{"capital"})
+pages, err := client.ListCitiesPages(list)
+if err != nil { return err }
+for pages.HasMorePages() {
+    page, err := pages.NextPage(ctx)
+    if err != nil { return err }
+    for _, city := range page.Cities { fmt.Println(city.Name) }
+}
 ```
 
 ## Models and errors
 
 Every operation takes a context. A payload-free operation uses `Unit{}`.
+For ordinary input construction, use native-value setters such as
+`input.SetName("Oslo")` and `input.SetTags([]string{"capital"})`. Optional response
+getters return native values, such as `output.GetRequestId()` and
+`output.GetForecast()`. A getter returns the type's zero value or nil when the
+optional member is absent or null; `HasRequestId()` distinguishes absence, and
+`IsNullRequestId()` identifies explicit null. `Has` includes explicit null.
+Required fields remain native public fields and their getters return those
+values directly. Setters do not change the modeled defaults or validation.
+
 Optional fields use `Optional[T]`: its zero value omits a member, `Some(value)`
 sends a value, and `Null[T]()` sends JSON null. This also applies to client
 optional input members settled by Smithy lowering. Required output members
@@ -53,7 +75,12 @@ received, an empty body to empty bytes.
 
 Enums are named strings and preserve future values. Unions have optional typed
 arms and an `UnknownVariant` that retains an unrecognized name and payload.
-Set exactly one arm. Use `Some(Unit{})` for an arm with no payload.
+Ordinary union setters select an arm and clear the previous selection:
+`location.SetUnknown(weather.Unit{})` selects the weather union's no-payload arm.
+Direct fields remain available for advanced presence-aware construction, such as
+`Some(Unit{})` in a no-payload field; set exactly one arm when using them.
+If a generated method name would collide
+with a modeled field or another method, it receives a numeric suffix.
 Serialization follows the model's wire names through the client runtime.
 
 Modeled errors support `errors.As(err, &typedError)`. Their `Metadata` is a
@@ -80,6 +107,19 @@ the last failure immediately, preserving the modeled error for `errors.As`.
 input. Call `NextPage(ctx)` while `HasMorePages()` is true. Repeated continuation
 tokens stop pagination with an error. Paginators are stateful and should be
 used by one goroutine at a time.
+
+## Updating generated code
+
+The public client type and constructor now use the Smithy service name:
+`WeatherClient` / `NewWeatherClient` for `Weather`, and `LeylineClient` /
+`NewLeylineClient` for `Leyline`. Replace old `Client` type references and
+`NewClient` calls when regenerating. No generic public alias is retained;
+the transport runtime stays internal.
+
+Setters and getters are additive. Existing struct literals and `Optional[T]`
+code remain compatible; regenerate the module to use the helpers. Keep the
+previous generated module and consumer revision together for rollback. Native
+collections, explicit presence, wire serialization, and retry policy are unchanged.
 
 ## Qualification
 

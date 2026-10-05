@@ -4,7 +4,7 @@ from typing import Any, Iterator, AsyncIterator
 from . import models as m
 from .runtime import SyncClient, AsyncClientBase
 
-class Client(SyncClient):
+class WeatherClient(SyncClient):
     def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:
         super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, content_sha256=True, **kwargs)
 
@@ -34,7 +34,7 @@ class Client(SyncClient):
     def status(self, input: m.StatusInput | None = None, **options: Any) -> m.StatusOutput:
         return self._call("Status", input, **options)
 
-class AsyncClient(AsyncClientBase):
+class AsyncWeatherClient(AsyncClientBase):
     def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:
         super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, content_sha256=True, **kwargs)
 

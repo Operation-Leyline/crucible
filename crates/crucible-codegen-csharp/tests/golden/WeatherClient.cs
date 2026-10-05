@@ -2,9 +2,9 @@
 #nullable enable
 namespace Example.Weather;
 
-public sealed class Client : global::System.IDisposable {
+public sealed class WeatherClient : global::System.IDisposable {
     private readonly ClientRuntime runtime;
-    public Client(ClientConfig config) { runtime = new(config, "https://weather.example", true); }
+    public WeatherClient(ClientConfig config) { runtime = new(config, "https://weather.example", true); }
     public void Dispose() => runtime.Dispose();
     public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@CreateCityOutput> @CreateCityAsync(global::Example.Weather.Models.@CreateCityInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@CreateCityOutput>("CreateCity", input, cancellationToken);
     public global::Example.Weather.Models.@CreateCityOutput @CreateCity(global::Example.Weather.Models.@CreateCityInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @CreateCityAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();

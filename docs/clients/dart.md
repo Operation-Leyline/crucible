@@ -23,18 +23,21 @@ your package repository. Generation writes a pubspec and provenance manifest;
 it does not publish the package. The package owner supplies repository metadata,
 license, and release documentation before publishing.
 
+The public client type follows the service name: `WeatherClient` for Weather
+and `LeylineClient` for Leyline. Package and module names remain configurable.
+
 ## Calling operations
 
 ```dart
 import 'package:weather_client/weather_client.dart';
 
 Future<void> readCities(TokenProvider accessToken) async {
-  final client = Client(ClientConfig(
+  final client = WeatherClient(ClientConfig(
     endpoint: 'https://weather.example', token: accessToken));
   try {
-    await client.createCity(const CreateCityInput(name: Field.value('London')));
+    await client.createCity(const CreateCityInput(name: 'London'));
     await for (final page in client.listCitiesPages(
-        const ListCitiesInput(maxResults: Field.value(20)))) {
+        const ListCitiesInput(maxResults: 20))) {
       for (final city in page.cities) { print(city.name); }
     }
   } finally { client.close(); }
@@ -43,11 +46,15 @@ Future<void> readCities(TokenProvider accessToken) async {
 
 ## Models and precision
 
-Models expose final fields and const constructors where possible. Collections
+Models expose immutable typed properties and const constructors where possible. Collections
 remain ordinary Dart collections. Each call snapshots its input before
-asynchronous work, and retries reuse the snapshot. `Field<T>` distinguishes
-`Field.unset()`, `Field.nullValue()`, and `Field.value(value)`. Required members
-are constructor arguments. Missing response members receive modeled defaults;
+asynchronous work, and retries reuse the snapshot. Optional members accept
+native nullable values and expose native nullable getters: `name: 'London'`
+and `output.caption`. An omitted or `null` ordinary argument means absent.
+For advanced presence control, use the companion `namePresence` argument/getter:
+`Field.unset()`, `Field.nullValue()`, or `Field.value(value)`. A supplied presence
+value takes precedence over the ordinary argument. Required members are
+constructor arguments. Missing response members receive modeled defaults;
 explicit null does not receive a default.
 
 Smithy `long` uses `BigInt` so browser compilation preserves the full signed
@@ -95,6 +102,13 @@ cancellable Retry-After or jitter delays.
 Generation diagnoses naming collisions, recursive collection aliases, and
 GET/HEAD bodies unsupported by browser Fetch. Nominal recursive structures are
 supported.
+
+## Migrating existing callers
+
+Pass ordinary typed values instead of `Field.value(...)` and read response
+properties directly instead of extracting `.value`. Move explicit null
+arguments and state checks to the companion `...Presence` API. Const constructors
+remain available. Regenerate and rebuild the package and its consumers together.
 
 ## Qualification
 

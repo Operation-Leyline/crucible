@@ -8,7 +8,7 @@ int main() {
     crucible_generated::runtime::ClientConfig config;
     config.endpoint = "https://unreachable.invalid";
     config.max_attempts = 1;
-    crucible_generated::Client client(config);
+    crucible_generated::WeatherClient client(config);
 #ifdef __linux__
     sigset_t before{};
     pthread_sigmask(SIG_SETMASK, nullptr, &before);

@@ -102,7 +102,7 @@ async fn literal_queries_select_the_operation_and_the_generated_client_sends_the
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(crucible::host::http_on(service, listener));
-    let client = client::Client::new(crucible_client::Config::new(endpoint));
+    let client = client::ObservabilityClient::new(crucible_client::Config::new(endpoint));
     let payload = || serde_json::from_value::<client::model::Payload>(json!({})).unwrap();
     client.echo(payload()).await.unwrap();
     client.other(payload()).await.unwrap();

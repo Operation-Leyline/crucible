@@ -5,10 +5,10 @@ module CrucibleGenerated
       attr_reader :url, :method, :headers, :body
       def initialize(url:, method:, headers: {}, body: nil)
         token = /\A[!#$%&'*+.^_`|~0-9A-Za-z-]+\z/
-        raise ArgumentError, 'Invalid HTTP method' unless method.is_a?(::String) && token.match?(method)
+        raise ::ArgumentError, 'Invalid HTTP method' unless method.is_a?(::String) && token.match?(method)
         headers.each do |name, value|
           unless name.is_a?(::String) && token.match?(name) && value.is_a?(::String) && !/[\r\n\x00]/.match?(value)
-            raise ArgumentError, 'Invalid HTTP header'
+            raise ::ArgumentError, 'Invalid HTTP header'
           end
         end
         @url, @method = url.dup.freeze, method.dup.freeze

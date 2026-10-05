@@ -8,7 +8,7 @@ module CrucibleGenerated
         @config, @codec, @digest = config, codec, digest
         @endpoint = (config.endpoint || endpoint).sub(%r{/+\z}, '')
         uri = self.class.url(@endpoint)
-        raise ArgumentError, 'Endpoint cannot contain query or fragment' if uri.query || uri.fragment
+        raise ::ArgumentError, 'Endpoint cannot contain query or fragment' if uri.query || uri.fragment
         @transport, @closed = config.transport || NetHttpTransport.new, false
       end
       def close
@@ -44,7 +44,7 @@ module CrucibleGenerated
             token = pagination.fetch('output').reduce(result) { |value, part| value.is_a?(::Hash) ? value[part] : nil }
             break if token.nil? || token == ''
             token = WireCodec.string(token)
-            raise ArgumentError, 'Pagination token cycle' if seen[token]
+            raise ::ArgumentError, 'Pagination token cycle' if seen[token]
             seen[token] = true
             values[token_name] = token
           end
@@ -53,11 +53,11 @@ module CrucibleGenerated
       def self.url(text)
         uri = ::URI.parse(text)
         unless %w[https http].include?(uri.scheme) && uri.host && !uri.host.empty? && !uri.userinfo && !/[\x00-\x20\x7f]/.match?(text)
-          raise ArgumentError, 'Absolute HTTP(S) URL without credentials required'
+          raise ::ArgumentError, 'Absolute HTTP(S) URL without credentials required'
         end
         uri
       rescue ::URI::InvalidURIError => error
-        raise ArgumentError, error.message
+        raise ::ArgumentError, error.message
       end
       private
       def operation(name) = @codec.schema.fetch('operations').fetch(name)
@@ -72,7 +72,7 @@ module CrucibleGenerated
         path = op.fetch('uri').dup
         bindings.fetch('labels').each do |name|
           text = @codec.bound(values.fetch(name))
-          raise ArgumentError, 'Empty label: ' + name if text.empty?
+          raise ::ArgumentError, 'Empty label: ' + name if text.empty?
           path = path.gsub('{' + name + '}', escape(text))
         end
         query = []
@@ -96,7 +96,7 @@ module CrucibleGenerated
         HttpRequest.new(url: @endpoint + path, method: op.fetch('method'), headers: headers, body: body)
       end
       def send_request(op, prepared, scope)
-        raise IOError, 'Client is closed' if @closed
+        raise ::IOError, 'Client is closed' if @closed
         safe = op.fetch('safe')
         (1..@config.max_attempts).each do |attempt|
           scope.check
@@ -109,12 +109,12 @@ module CrucibleGenerated
           @config.middleware.each do |middleware|
             scope.check
             request = middleware.call(request)
-            raise ArgumentError, 'Middleware must return HttpRequest' unless request.is_a?(HttpRequest)
+            raise ::ArgumentError, 'Middleware must return HttpRequest' unless request.is_a?(HttpRequest)
           end
           scope.check
           uri = self.class.url(request.url)
           if request.headers.key?('authorization') && uri.scheme != 'https' && !%w[localhost 127.0.0.1 ::1].include?(uri.hostname.downcase)
-            raise ArgumentError, 'Credentials require HTTPS or loopback HTTP'
+            raise ::ArgumentError, 'Credentials require HTTPS or loopback HTTP'
           end
           if @digest
             headers = request.headers.reject { |name, _| name == 'x-amz-content-sha256' }
@@ -161,7 +161,7 @@ module CrucibleGenerated
       def failure(op, response)
         begin
           body = WireCodec.object(ExactJson.decode(response.body))
-        rescue ArgumentError
+        rescue ::ArgumentError
           body = {}
         end
         name = body['__type'].is_a?(::String) ? body['__type'] : nil
@@ -180,7 +180,7 @@ module CrucibleGenerated
           begin
             object = apply_headers(target, traits.fetch('headers'), response, body)
             return @codec.error(target, object, metadata)
-          rescue ArgumentError, TypeError
+          rescue ::ArgumentError, ::TypeError
             # Keep wire metadata when modeled members cannot be decoded.
           end
         end
@@ -191,10 +191,10 @@ module CrucibleGenerated
           begin
             number = ::Kernel.Float(header)
             return number if number.finite? && number >= 0
-          rescue ArgumentError
+          rescue ::ArgumentError
             begin
               return [0.0, Timestamp.from_http_date(header).seconds - ::Time.now.to_f].max
-            rescue ArgumentError
+            rescue ::ArgumentError
               # Invalid Retry-After uses bounded jitter.
             end
           end

@@ -52,7 +52,7 @@ def qualify(output):
         generated = output / name
         generate(model, generated, "empty.client")
         run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(generated))
-        run(RSCRIPT, "-e", "library(empty.client, lib.loc=commandArgs(TRUE)[1]); Client(client_config(endpoint='http://127.0.0.1'))$close()", str(library))
+        run(RSCRIPT, "-e", "library(empty.client, lib.loc=commandArgs(TRUE)[1]); EmptyClient(client_config(endpoint='http://127.0.0.1'))$close()", str(library))
     print("R native package build/install and consumer qualification passed")
 
 

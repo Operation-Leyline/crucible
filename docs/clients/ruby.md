@@ -22,17 +22,21 @@ Generation does not publish the gem. The package owner supplies author,
 license, and repository metadata before publishing. `crucible.json` records
 the generator version, service version, package version, and schema digest.
 
+The public client name comes from the Smithy service: `WeatherClient` for
+`Weather`, or `LeylineClient` for `Leyline`. Regenerate and replace earlier
+`Client` imports and construction sites with the service-specific name.
+
 ## Calling operations
 
 ```ruby
 require 'weather_client'
 
-client = Weather::Client.new(Weather::Runtime::ClientConfig.new(
+client = Weather::WeatherClient.new(Weather::Runtime::ClientConfig.new(
   endpoint: 'https://weather.example', token: -> { ENV.fetch('WEATHER_TOKEN') }
 ))
 begin
-  client.create_city(Weather::Models::CreateCityInput.new(name: 'London'))
-  client.list_cities_pages(Weather::Models::ListCitiesInput.new).each do |page|
+  client.create_city(Weather::CreateCityInput.new(name: 'London'))
+  client.list_cities_pages(Weather::ListCitiesInput.new).each do |page|
     page.cities.each { |city| puts city.name }
   end
 ensure
@@ -42,7 +46,13 @@ end
 
 ## Models and precision
 
-Each model has keyword constructor arguments and readers in `Models`.
+Each model has keyword constructor arguments and readers directly under the
+package module, for example `Weather::CreateCityInput.new(name: "London")`.
+Read native values with `input.name` or `page.cities.each`. To migrate an
+earlier package, replace `Weather::Models::Type` with `Weather::Type`;
+constructor arguments and member values keep their existing semantics.
+Regenerate the package and its consumers together; the previous generated gem
+retains the old namespace if a rollback is needed.
 Ordinary model instances are frozen; their arrays and strings remain native
 Ruby values. A call snapshots its input before invoking hooks. Optional
 members default to `Runtime::UNSET`; `nil` means explicit null. Members that

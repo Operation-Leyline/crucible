@@ -2,10 +2,11 @@ use crate::{File, Options, models::Layout, names};
 use crucible_smithy::ir::{Service, Shape};
 
 pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<File> {
+    let client_name = format!("{}Client", service.id.name());
     let package = &options.package_name;
     let ns = &options.namespace;
     let mut header = format!(
-        "#pragma once\n#include \"models.hpp\"\n#include \"runtime/client_runtime.hpp\"\n\nnamespace {ns} {{\nclass Client {{\n    std::shared_ptr<runtime::ClientRuntime> runtime_;\npublic:\n    explicit Client(runtime::ClientConfig config = {{}});\n    void close() {{ runtime_->close(); }}\n"
+        "#pragma once\n#include \"models.hpp\"\n#include \"runtime/client_runtime.hpp\"\n\nnamespace {ns} {{\nclass {client_name} {{\n    std::shared_ptr<runtime::ClientRuntime> runtime_;\npublic:\n    explicit {client_name}(runtime::ClientConfig config = {{}});\n    void close() {{ runtime_->close(); }}\n"
     );
     let mut source = format!(
         "#include \"{package}/client.hpp\"\n#include \"{package}/schema.hpp\"\n\nnamespace {ns} {{\nnamespace {{\nstd::exception_ptr decode_error([[maybe_unused]] const std::string& target, [[maybe_unused]] const runtime::Json& value, [[maybe_unused]] runtime::ErrorMetadata metadata) {{\n"
@@ -18,7 +19,7 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
         }
     }
     source.push_str("    return {};\n}\n}\n");
-    source.push_str(&format!("Client::Client(runtime::ClientConfig config) : runtime_(std::make_shared<runtime::ClientRuntime>(std::move(config), schema(), decode_error, {}, {})) {{}}\n", names::literal(options.endpoint.as_deref().unwrap_or("")),options.content_sha256));
+    source.push_str(&format!("{client_name}::{client_name}(runtime::ClientConfig config) : runtime_(std::make_shared<runtime::ClientRuntime>(std::move(config), schema(), decode_error, {}, {})) {{}}\n", names::literal(options.endpoint.as_deref().unwrap_or("")),options.content_sha256));
     for operation in &service.operations {
         let name = names::field(operation.name());
         let wire_name = names::literal(operation.name());
@@ -46,7 +47,7 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
         header.push_str(&format!(
             "    [[nodiscard]] {output} {name}({input}std::stop_token stop = {{}}) const;\n"
         ));
-        source.push_str(&format!("{output} Client::{name}({input}std::stop_token stop) const {{\n    const auto scope = runtime_->scope(stop);\n    scope.check();\n    const auto result = runtime_->call({wire_name}, {encoded}, scope);\n"));
+        source.push_str(&format!("{output} {client_name}::{name}({input}std::stop_token stop) const {{\n    const auto scope = runtime_->scope(stop);\n    scope.check();\n    const auto result = runtime_->call({wire_name}, {encoded}, scope);\n"));
         if let Some(id) = &operation.output {
             source.push_str(&format!("    auto output = runtime::Codec<{output}>::decode(result, schema().context({}));\n    scope.check();\n    return output;\n}}\n",names::literal(&id.to_string())));
         } else {
@@ -54,7 +55,7 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
         }
         if operation.paginated.is_some() {
             header.push_str(&format!("    [[nodiscard]] runtime::Pages<{output}> {name}_pages({input}std::stop_token stop = {{}}) const;\n"));
-            source.push_str(&format!("runtime::Pages<{output}> Client::{name}_pages({input}std::stop_token stop) const {{\n    return runtime::Pages<{output}>(runtime_, {wire_name}, {encoded}, stop);\n}}\n"));
+            source.push_str(&format!("runtime::Pages<{output}> {client_name}::{name}_pages({input}std::stop_token stop) const {{\n    return runtime::Pages<{output}>(runtime_, {wire_name}, {encoded}, stop);\n}}\n"));
         }
     }
     header.push_str("};\n}\n");

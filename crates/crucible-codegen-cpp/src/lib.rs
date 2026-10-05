@@ -68,7 +68,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             "C++ namespace must contain non-reserved identifiers",
         );
     }
-    let mut generated = BTreeSet::new();
+    let mut generated = BTreeSet::from([format!("{}Client", service.id.name())]);
     let mut aliases = BTreeMap::new();
     for (id, shape) in &service.shapes {
         let name = service.name_of(id);
@@ -139,6 +139,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         }
     }
     let mut methods = BTreeSet::from(["close".to_owned(), "runtime_".to_owned()]);
+    methods.insert(format!("{}Client", service.id.name()));
     for operation in &service.operations {
         if operation.method == "HEAD"
             && (!operation.request.body.is_empty() || operation.request.payload.is_some())

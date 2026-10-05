@@ -4,13 +4,13 @@ namespace Example.Weather;
 
 internal static class ModelRegistry {
     internal static readonly global::System.Collections.Generic.Dictionary<string, global::System.Type> Types = new() {
-        ["example.weather#CitySummaries"] = typeof(global::Example.Weather.Models.@CitySummaries),
+        ["example.weather#CitySummaries"] = typeof(global::System.Collections.Generic.List<global::Example.Weather.Models.@CitySummary>),
         ["example.weather#CitySummary"] = typeof(global::Example.Weather.Models.@CitySummary),
         ["example.weather#ConflictError"] = typeof(global::Example.Weather.Models.@ConflictError),
         ["example.weather#Coordinates"] = typeof(global::Example.Weather.Models.@Coordinates),
         ["example.weather#CreateCityInput"] = typeof(global::Example.Weather.Models.@CreateCityInput),
         ["example.weather#CreateCityOutput"] = typeof(global::Example.Weather.Models.@CreateCityOutput),
-        ["example.weather#Forecast"] = typeof(global::Example.Weather.Models.@Forecast),
+        ["example.weather#Forecast"] = typeof(global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>),
         ["example.weather#GetCityInput"] = typeof(global::Example.Weather.Models.@GetCityInput),
         ["example.weather#GetCityOutput"] = typeof(global::Example.Weather.Models.@GetCityOutput),
         ["example.weather#GetCityPhotoInput"] = typeof(global::Example.Weather.Models.@GetCityPhotoInput),
@@ -25,11 +25,11 @@ internal static class ModelRegistry {
         ["example.weather#Sky"] = typeof(global::Example.Weather.Models.@Sky),
         ["example.weather#StatusInput"] = typeof(global::Example.Weather.Models.@StatusInput),
         ["example.weather#StatusOutput"] = typeof(global::Example.Weather.Models.@StatusOutput),
-        ["example.weather#Tags"] = typeof(global::Example.Weather.Models.@Tags),
+        ["example.weather#Tags"] = typeof(global::System.Collections.Generic.List<string>),
         ["example.weather#ThrottlingError"] = typeof(global::Example.Weather.Models.@ThrottlingError),
         ["example.weather#ValidationError"] = typeof(global::Example.Weather.Models.@ValidationError),
         ["example.weather#ValidationField"] = typeof(global::Example.Weather.Models.@ValidationField),
-        ["example.weather#ValidationFieldList"] = typeof(global::Example.Weather.Models.@ValidationFieldList),
+        ["example.weather#ValidationFieldList"] = typeof(global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>),
         ["example.weather#ValidationReason"] = typeof(global::Example.Weather.Models.@ValidationReason),
     };
 }

@@ -10,8 +10,8 @@ pub fn variant(name: &str) -> String {
     )
 }
 
-pub fn emit(service: &Service, package: &str) -> (String, String) {
-    let mut models = String::from("object Models {\n    data object Unit\n");
+pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String) {
+    let mut files = Vec::new();
     let mut encode = String::from(
         "    fun encode(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = when (target) {\n",
     );
@@ -23,26 +23,43 @@ pub fn emit(service: &Service, package: &str) -> (String, String) {
         if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
             continue;
         }
+        let mut models = String::new();
         let name = service.name_of(id);
         let target = literal(&id.to_string());
-        let native = format!("Models.`{name}`");
+        let native = format!("{package}.model.`{name}`");
         let encode_start = encode.len();
         let decode_start = decode.len();
         match shape {
             Shape::List(l) => {
-                let t = ty(service, &l.member.target);
-                models.push_str(&format!(
-                    "    class `{name}` : java.util.ArrayList<{t}>()\n"
-                ));
-                decode.push_str(&format!("        {target} -> {native}().apply {{ addAll(codec.readList(target, value) as List<{t}>) }}\n"));
+                let t = ty(service, &l.member.target, package);
+                if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
+                    models.push_str(&format!("class `{name}` : java.util.ArrayList<{t}>()\n"));
+                    decode.push_str(&format!("        {target} -> {native}().apply {{ addAll(codec.readList(target, value) as List<{t}>) }}\n"));
+                } else {
+                    models.push_str(&format!(
+                        "typealias `{name}` = kotlin.collections.List<{t}>\n"
+                    ));
+                    decode.push_str(&format!(
+                        "        {target} -> codec.readList(target, value) as {native}\n"
+                    ));
+                }
             }
             Shape::Map(m) => {
-                let key = ty(service, &m.key.target);
-                let val = ty(service, &m.value.target);
-                models.push_str(&format!(
-                    "    class `{name}` : java.util.LinkedHashMap<{key}, {val}>()\n"
-                ));
-                decode.push_str(&format!("        {target} -> {native}().apply {{ putAll(codec.readMap(target, value) as Map<{key}, {val}>) }}\n"));
+                let key = ty(service, &m.key.target, package);
+                let val = ty(service, &m.value.target, package);
+                if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
+                    models.push_str(&format!(
+                        "class `{name}` : java.util.LinkedHashMap<{key}, {val}>()\n"
+                    ));
+                    decode.push_str(&format!("        {target} -> {native}().apply {{ putAll(codec.readMap(target, value) as Map<{key}, {val}>) }}\n"));
+                } else {
+                    models.push_str(&format!(
+                        "typealias `{name}` = kotlin.collections.Map<{key}, {val}>\n"
+                    ));
+                    decode.push_str(&format!(
+                        "        {target} -> codec.readMap(target, value) as {native}\n"
+                    ));
+                }
             }
             Shape::Enum(e) => {
                 models.push_str(&format!("    data class `{name}`(val value: kotlin.String) {{\n        override fun toString(): kotlin.String = value\n        companion object {{\n"));
@@ -62,45 +79,65 @@ pub fn emit(service: &Service, package: &str) -> (String, String) {
                 ));
             }
             Shape::Structure(s) => {
-                let prefix = if s.members.is_empty() {
-                    "class"
-                } else {
-                    "data class"
-                };
-                models.push_str(&format!("    {prefix} `{name}`(\n"));
-                for m in &s.members {
-                    let t = ty(service, &m.target);
+                models.push_str(&format!("class `{name}` internal constructor(\n"));
+                let mut builder = String::from("    class Builder {\n");
+                let mut properties = String::new();
+                let mut build = format!("        fun build(): {native} = {native}(\n");
+                let mut copy =
+                    String::from("    fun copy(block: Builder.() -> kotlin.Unit = {}): ");
+                copy.push_str(&format!("{native} = Builder().also {{ builder ->\n"));
+                encode.push_str(&format!("        {target} -> com.google.gson.JsonObject().also {{ result ->\n            val model = value as {native}\n"));
+                decode.push_str(&format!("        {target} -> {native}(\n"));
+                for (index, m) in s.members.iter().enumerate() {
+                    let t = ty(service, &m.target, package);
                     let f = field(&m.name);
-                    if m.optional_on_client() {
-                        models.push_str(&format!("        var `{f}`: {package}.OptionalValue<{t}> = {package}.OptionalValue.unset(),\n"));
+                    let n = literal(&m.name);
+                    let (storage, cast) = if m.optional_on_client() {
+                        let storage = format!("__crucibleField{index}");
+                        let cast = format!("{package}.OptionalValue<{t}>");
+                        models.push_str(&format!("    internal val {storage}: {cast},\n"));
+                        properties.push_str(&format!("    val `{f}`: {t}? get() = {storage}.value\n    fun has{}(): kotlin.Boolean = {storage}.present\n", variant(&f)));
+                        builder.push_str(&format!("        internal var {storage}: {cast} = {package}.OptionalValue.unset()\n        var `{f}`: {t}?\n            get() = {storage}.value\n            set(value) {{ {storage} = {package}.OptionalValue.of(value) }}\n        fun unset{}() {{ {storage} = {package}.OptionalValue.unset() }}\n", variant(&f)));
+                        build.push_str(&format!("            {storage} = {storage},\n"));
+                        copy.push_str(&format!("        builder.{storage} = {storage}\n"));
+                        (storage, cast)
                     } else {
-                        models.push_str(&format!("        var `{f}`: {t},\n"));
-                    }
+                        models.push_str(&format!("    val `{f}`: {t},\n"));
+                        builder.push_str(&format!("        var `{f}`: {t}? = null\n"));
+                        build.push_str(&format!(
+                            "            `{f}` = requireNotNull(`{f}`) {{ {} }},\n",
+                            literal(&format!("Missing required member: {}", m.name))
+                        ));
+                        copy.push_str(&format!("        builder.`{f}` = `{f}`\n"));
+                        (format!("`{f}`"), t)
+                    };
+                    encode.push_str(&format!(
+                        "            codec.put(result, target, {n}, model.{storage})\n"
+                    ));
+                    decode.push_str(&format!("            {storage} = codec.readMember(target, value.asJsonObject, {n}, {}) as {cast},\n",m.optional_on_client()));
                 }
                 models.push_str(&format!(
-                    "    ){}\n",
+                    "){} {{\n",
                     if s.error.is_some() {
                         format!(" : {package}.ServiceError()")
                     } else {
                         String::new()
                     }
                 ));
-                encode.push_str(&format!("        {target} -> com.google.gson.JsonObject().also {{ result ->\n            val model = value as {native}\n"));
-                decode.push_str(&format!("        {target} -> {native}(\n"));
-                for m in &s.members {
-                    let f = field(&m.name);
-                    let n = literal(&m.name);
-                    let t = ty(service, &m.target);
-                    encode.push_str(&format!(
-                        "            codec.put(result, target, {n}, model.`{f}`)\n"
-                    ));
-                    let cast = if m.optional_on_client() {
-                        format!("{package}.OptionalValue<{t}>")
-                    } else {
-                        t
-                    };
-                    decode.push_str(&format!("            `{f}` = codec.readMember(target, value.asJsonObject, {n}, {}) as {cast},\n",m.optional_on_client()));
+                models.push_str(&properties);
+                models.push_str("    companion object {\n");
+                models.push_str(&format!("        operator fun invoke(block: Builder.() -> kotlin.Unit = {{}}): {native} = Builder().apply(block).build()\n    }}\n"));
+                copy.push_str("    }.apply(block).build()");
+                if s.error.is_some() {
+                    copy.push_str(".also { it.initialize(errorName, message, status, requestId, headers, retryable, throttling) }");
                 }
+                copy.push('\n');
+                models.push_str(&copy);
+                build.push_str("        )\n");
+                builder.push_str(&build);
+                builder.push_str("    }\n");
+                models.push_str(&builder);
+                models.push_str("}\n");
                 encode.push_str("        }\n");
                 decode.push_str("        )\n");
             }
@@ -114,7 +151,7 @@ pub fn emit(service: &Service, package: &str) -> (String, String) {
                 ));
                 for m in &s.members {
                     let v = variant(&m.name);
-                    let t = ty(service, &m.target);
+                    let t = ty(service, &m.target, package);
                     let n = literal(&m.name);
                     models.push_str(&format!(
                         "        data class `{v}`(val value: {t}?) : `{name}`\n"
@@ -128,6 +165,7 @@ pub fn emit(service: &Service, package: &str) -> (String, String) {
             }
             _ => unreachable!(),
         }
+        files.push((name.to_string(), models));
         // Per-shape methods keep full-service codecs below the JVM's method-size limit.
         let arm_prefix = format!("        {target} -> ");
         for (dispatch, start, name, value_type, result_type) in [
@@ -155,13 +193,32 @@ pub fn emit(service: &Service, package: &str) -> (String, String) {
             }
         }
     }
-    models.push_str("}\n");
     encode.push_str("        else -> error(\"No generated encoder for $target\")\n    }\n");
     decode.push_str("        else -> error(\"No generated decoder for $target\")\n    }\n");
     (
-        models,
+        files,
         format!(
             "@Suppress(\"UNCHECKED_CAST\", \"UNUSED_VARIABLE\", \"UNUSED_PARAMETER\")\ninternal object ModelCodecs {{\n{encode}{decode}{helpers}}}\n"
         ),
     )
+}
+
+// Kotlin aliases cannot recurse without a nominal type breaking the cycle.
+fn recursive_collection(
+    service: &Service,
+    start: &crucible_smithy::ShapeId,
+    current: &crucible_smithy::ShapeId,
+    visited: &mut std::collections::BTreeSet<crucible_smithy::ShapeId>,
+) -> bool {
+    if !visited.insert(current.clone()) {
+        return false;
+    }
+    let targets = match service.shape(current) {
+        Some(Shape::List(list)) => vec![&list.member.target],
+        Some(Shape::Map(map)) => vec![&map.key.target, &map.value.target],
+        _ => return false,
+    };
+    targets
+        .into_iter()
+        .any(|target| target == start || recursive_collection(service, start, target, visited))
 }
