@@ -7,10 +7,52 @@ fn id(name: &str) -> ShapeId {
     ShapeId::new("example.resources", name)
 }
 
+#[test]
+fn sdk_lowering_keeps_resource_operations_without_resource_only_shapes() {
+    let model = Model::from_json(FIXTURE).unwrap();
+    let sdk = model.lower(None).unwrap();
+    let infrastructure = model.lower_infrastructure(None).unwrap();
+    assert!(sdk.resources.is_empty());
+    assert!(sdk.resource_roots.is_empty());
+    assert!(sdk.resource_references.is_empty());
+    assert!(!sdk.shapes.contains_key(&id("Body")));
+    assert!(infrastructure.shapes.contains_key(&id("Body")));
+    assert_eq!(
+        sdk.operations
+            .iter()
+            .map(|op| (&op.id, &op.resource))
+            .collect::<Vec<_>>(),
+        infrastructure
+            .operations
+            .iter()
+            .map(|op| (&op.id, &op.resource))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn provisioning_diagnostics_do_not_fail_sdk_lowering() {
+    let mut value: Value = serde_json::from_str(FIXTURE).unwrap();
+    value["shapes"]["example.resources#ReadOutput"]["members"]["inbox"]["target"] =
+        json!("smithy.api#String");
+    let model = Model::from_json(&value.to_string()).unwrap();
+    assert!(model.lower(None).is_ok());
+    assert!(
+        model
+            .lower_infrastructure(None)
+            .unwrap_err()
+            .to_string()
+            .contains("@nestedProperties must target a structure")
+    );
+}
+
 fn refused(edit: impl FnOnce(&mut Value)) -> String {
     let mut model: Value = serde_json::from_str(FIXTURE).unwrap();
     edit(&mut model["shapes"]);
-    match Model::from_json(&model.to_string()).unwrap().lower(None) {
+    match Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_infrastructure(None)
+    {
         Err(Error::Unsupported(errors)) => errors.to_string(),
         other => panic!("expected collected diagnostics, got {other:?}"),
     }
@@ -18,7 +60,10 @@ fn refused(edit: impl FnOnce(&mut Value)) -> String {
 
 #[test]
 fn preserves_resource_graph_and_explicit_lifecycle_slots() {
-    let service = Model::from_json(FIXTURE).unwrap().lower(None).unwrap();
+    let service = Model::from_json(FIXTURE)
+        .unwrap()
+        .lower_infrastructure(None)
+        .unwrap();
     assert_eq!(service.resource_roots, [id("Inbox")]);
     assert_eq!(service.resources.len(), 2);
     let inbox = &service.resources[&id("Inbox")];
@@ -34,7 +79,7 @@ fn preserves_resource_graph_and_explicit_lifecycle_slots() {
     assert_eq!(message.lifecycle.list, Some(id("Scan")));
     assert_eq!(message.operations, [id("InspectMessage")]);
     assert_eq!(message.collection_operations, [id("Purge")]);
-    // Resource-only targets must be available to every emitter.
+    // Infrastructure emitters also need resource-only targets.
     assert!(service.shapes.contains_key(&id("Body")));
     assert_eq!(
         service
@@ -49,7 +94,10 @@ fn preserves_resource_graph_and_explicit_lifecycle_slots() {
 
 #[test]
 fn resolves_member_paths_once_and_preserves_external_references() {
-    let service = Model::from_json(FIXTURE).unwrap().lower(None).unwrap();
+    let service = Model::from_json(FIXTURE)
+        .unwrap()
+        .lower_infrastructure(None)
+        .unwrap();
     let inbox = &service.resources[&id("Inbox")];
     let read = &inbox.bindings[&id("Inspect")];
     assert_eq!(read.input.identifiers["inboxId"], ["id"]);
@@ -164,7 +212,7 @@ fn respects_not_property_and_custom_carrier_traits() {
         json!({});
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower(None)
+        .lower_infrastructure(None)
         .unwrap();
     assert!(
         service.resources[&id("Inbox")].bindings[&id("Allocate")]
@@ -181,7 +229,7 @@ fn nested_properties_exclude_adjacent_property_bindings() {
         json!({"target": "smithy.api#String"});
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower(None)
+        .lower_infrastructure(None)
         .unwrap();
     assert_eq!(
         service.resources[&id("Inbox")].bindings[&id("Inspect")]
@@ -222,7 +270,7 @@ fn resolves_explicit_and_inferred_collection_property_paths() {
         }
         let service = Model::from_json(&model.to_string())
             .unwrap()
-            .lower(None)
+            .lower_infrastructure(None)
             .unwrap();
         let output = &service.resources[&id("Inbox")].bindings[&id("ListInboxes")].output;
         assert!(output.properties.is_empty());
@@ -237,7 +285,7 @@ fn string_enums_can_identify_resources_and_carry_references() {
     model["shapes"]["example.resources#InboxId"]["members"] = json!({"PRIMARY": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "primary"}}});
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower(None)
+        .lower_infrastructure(None)
         .unwrap();
     assert_eq!(
         service.resources[&id("Inbox")].bindings[&id("Inspect")]
@@ -259,7 +307,7 @@ fn collection_operations_can_return_one_nested_resource() {
         .remove("read");
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower(None)
+        .lower_infrastructure(None)
         .unwrap();
     assert_eq!(
         service.resources[&id("Inbox")].bindings[&id("Inspect")]

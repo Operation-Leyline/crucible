@@ -6,7 +6,7 @@ fn fixture() -> (crucible_smithy::ir::Service, Bindings) {
     (
         Model::from_json(include_str!("fixtures/inventory.json"))
             .unwrap()
-            .lower(None)
+            .lower_infrastructure(None)
             .unwrap(),
         serde_json::from_str(include_str!("fixtures/bindings.json")).unwrap(),
     )

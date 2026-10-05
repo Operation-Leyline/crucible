@@ -372,12 +372,21 @@ fn main() -> ExitCode {
 }
 
 fn lower(source: &Source) -> Result<Service, String> {
-    let json = std::fs::read_to_string(&source.model)
-        .map_err(|error| format!("cannot read {}: {error}", source.model.display()))?;
-    let model = Model::from_json(&json).map_err(|error| error.to_string())?;
-    model
+    load_model(source)?
         .lower(source.service.as_ref())
         .map_err(|error| error.to_string())
+}
+
+fn lower_infrastructure(source: &Source) -> Result<Service, String> {
+    load_model(source)?
+        .lower_infrastructure(source.service.as_ref())
+        .map_err(|error| error.to_string())
+}
+
+fn load_model(source: &Source) -> Result<Model, String> {
+    let json = std::fs::read_to_string(&source.model)
+        .map_err(|error| format!("cannot read {}: {error}", source.model.display()))?;
+    Model::from_json(&json).map_err(|error| error.to_string())
 }
 
 fn generate(target: Target) -> Result<(), String> {
@@ -388,7 +397,7 @@ fn generate(target: Target) -> Result<(), String> {
             config,
             out,
         } => {
-            let service = lower(&source)?;
+            let service = lower_infrastructure(&source)?;
             let bindings = read_config(&bindings)?;
             let options = read_config(&config)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)
@@ -411,7 +420,7 @@ fn generate(target: Target) -> Result<(), String> {
             provider_address,
             out,
         } => {
-            let service = lower(&source)?;
+            let service = lower_infrastructure(&source)?;
             let bindings = read_config(&bindings)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)
                 .map_err(|d| format!("invalid provisioning bindings:\n{d}"))?;

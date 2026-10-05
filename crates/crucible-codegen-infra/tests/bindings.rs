@@ -15,7 +15,10 @@ fn bindings() -> Value {
 
 #[test]
 fn resolves_nested_outputs_and_effective_member_constraints() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = Model::from_json(WEATHER)
+        .unwrap()
+        .lower_infrastructure(None)
+        .unwrap();
     let bindings: Bindings = serde_json::from_value(bindings()).unwrap();
     let plan = resolve(&service, &bindings).unwrap();
     let city = &plan.resources[0];
@@ -38,7 +41,10 @@ fn resolves_nested_outputs_and_effective_member_constraints() {
 
 #[test]
 fn bad_paths_and_unbound_resources_are_collected() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = Model::from_json(WEATHER)
+        .unwrap()
+        .lower_infrastructure(None)
+        .unwrap();
     let mut value = bindings();
     value["resources"]["example.weather#City"]["properties"]["name"]["source"]["path"] =
         json!(["typo"]);
@@ -59,7 +65,7 @@ fn cannot_override_model_types_or_expose_sensitive_parent() {
         json!({});
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower(None)
+        .lower_infrastructure(None)
         .unwrap();
     let mut value = bindings();
     value["resources"]["example.weather#City"]["properties"]["name"] =
@@ -77,7 +83,7 @@ fn aggregate_attributes_cannot_expose_sensitive_descendants() {
         json!({});
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower(None)
+        .lower_infrastructure(None)
         .unwrap();
     let mut value = bindings();
     value["resources"]["example.weather#City"]["attributes"]["id"]["source"]["path"] =
@@ -88,7 +94,10 @@ fn aggregate_attributes_cannot_expose_sensitive_descendants() {
 
 #[test]
 fn provider_context_cannot_shadow_contract_and_unknown_policy_is_refused() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = Model::from_json(WEATHER)
+        .unwrap()
+        .lower_infrastructure(None)
+        .unwrap();
     let mut value = bindings();
     value["resources"]["example.weather#City"]["cdk"]["context"]["name"] =
         json!({"target": "smithy.api#String"});
@@ -110,7 +119,7 @@ fn mutability_and_timestamp_representation_are_explicit() {
         json!("create-and-read");
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower(None)
+        .lower_infrastructure(None)
         .unwrap();
     let mut value = bindings();
     value["resources"]["example.weather#City"]["cdk"]["context"]["createdAt"] = json!({"source":{"shape":"example.weather#CitySummary","path":["createdAt"]},"timestamp_format":"date-time"});
@@ -124,7 +133,10 @@ fn mutability_and_timestamp_representation_are_explicit() {
 
 #[test]
 fn provider_length_refinements_cannot_weaken_model_constraints() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = Model::from_json(WEATHER)
+        .unwrap()
+        .lower_infrastructure(None)
+        .unwrap();
     let mut value = bindings();
     value["resources"]["example.weather#City"]["cdk"]["context"]["secretArn"]["length"] =
         json!({"min": 1});
@@ -150,7 +162,7 @@ fn write_only_members_cannot_be_returned_as_attributes() {
         json!("write");
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower(None)
+        .lower_infrastructure(None)
         .unwrap();
     let mut value = bindings();
     value["resources"]["example.weather#City"]["attributes"]["name"] =
@@ -165,7 +177,10 @@ fn write_only_members_cannot_be_returned_as_attributes() {
 
 #[test]
 fn numeric_context_refinements_do_not_require_prelude_reachability() {
-    let mut service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let mut service = Model::from_json(WEATHER)
+        .unwrap()
+        .lower_infrastructure(None)
+        .unwrap();
     service.shapes.remove(&"smithy.api#Long".parse().unwrap());
     let mut value = bindings();
     value["resources"]["example.weather#City"]["cdk"]["context"]["revision"] =

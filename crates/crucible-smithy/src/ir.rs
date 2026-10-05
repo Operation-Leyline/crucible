@@ -25,13 +25,15 @@ pub struct Service {
     pub auth: Vec<ShapeId>,
     /// Sorted by name, so output does not depend on model file order.
     pub operations: Vec<Operation>,
-    /// Resources bound to this service, including nested resources.
+    /// Resources bound to this service, including nested resources. Populated
+    /// only by `Model::lower_infrastructure`, as are roots and references.
     pub resources: BTreeMap<ShapeId, Resource>,
     /// Direct service bindings, sorted by shape ID.
     pub resource_roots: Vec<ShapeId>,
     /// Design-time resource references, keyed by the referencing shape.
     pub resource_references: BTreeMap<ShapeId, Vec<ResourceReference>>,
-    /// Every shape an operation reaches, prelude shapes included.
+    /// Every shape an operation reaches, prelude shapes included. Infrastructure
+    /// lowering additionally includes resource identifier/property targets.
     pub shapes: BTreeMap<ShapeId, Shape>,
     pub traits: Traits,
     pub(crate) renames: BTreeMap<ShapeId, String>,

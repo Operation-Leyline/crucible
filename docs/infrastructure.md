@@ -21,6 +21,11 @@ lifecycle slots, collection operations, and resource references. It resolves
 generator runs. Collection element mappings remain separate from instance paths.
 Smithy validates and flattens the source; generators never read the AST directly.
 
+Library callers use `Model::lower_infrastructure` to include resource metadata,
+resource-only shapes, and provisioning diagnostics. The CDK and Terraform CLI
+targets select this path automatically. `Model::lower`, SDK/server generation,
+and `crucible check` retain the operation-only contract.
+
 CDK packages bind to an existing custom-resource provider. They do not deploy a
 service backend, create a provider Lambda, or implement CloudFormation lifecycle
 handlers. Terraform packages implement their supported lifecycle subset using

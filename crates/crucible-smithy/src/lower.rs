@@ -48,6 +48,7 @@ const UNSUPPORTED_TRAITS: &[&str] = &[
 pub(crate) fn lower(
     shapes: &BTreeMap<ShapeId, ast::Shape>,
     service_id: &ShapeId,
+    infrastructure: bool,
 ) -> Result<Service, Diagnostics> {
     let mut lowerer = Lowerer {
         model: shapes,
@@ -55,7 +56,7 @@ pub(crate) fn lower(
         shapes: BTreeMap::new(),
         visiting: BTreeSet::new(),
     };
-    let service = lowerer.service(service_id);
+    let service = lowerer.service(service_id, infrastructure);
     if lowerer.diagnostics.is_empty() {
         Ok(service)
     } else {
@@ -73,7 +74,7 @@ struct Lowerer<'m> {
 }
 
 impl<'m> Lowerer<'m> {
-    fn service(&mut self, id: &ShapeId) -> Service {
+    fn service(&mut self, id: &ShapeId, infrastructure: bool) -> Service {
         let shape = &self.model[id];
         self.check_protocol(id, shape);
         let auth = self.auth(id, shape);
@@ -87,7 +88,11 @@ impl<'m> Lowerer<'m> {
             })
             .collect();
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
-        let resources = crate::resources::lower(self.model, shape, &mut self.diagnostics);
+        let resources = if infrastructure {
+            crate::resources::lower(self.model, shape, &mut self.diagnostics)
+        } else {
+            BTreeMap::new()
+        };
         for resource in resources.values() {
             for target in resource
                 .identifiers
@@ -97,8 +102,14 @@ impl<'m> Lowerer<'m> {
                 self.visit(target);
             }
         }
-        let resource_references =
-            crate::resources::references(self.model, self.shapes.keys(), &mut self.diagnostics);
+        let (resource_roots, resource_references) = if infrastructure {
+            (
+                crate::resources::sorted_refs(&shape.resources),
+                crate::resources::references(self.model, self.shapes.keys(), &mut self.diagnostics),
+            )
+        } else {
+            (Vec::new(), BTreeMap::new())
+        };
         self.check_stray_payloads(&operations);
         Service {
             id: id.clone(),
@@ -108,7 +119,7 @@ impl<'m> Lowerer<'m> {
             auth,
             operations,
             resources,
-            resource_roots: crate::resources::sorted_refs(&shape.resources),
+            resource_roots,
             resource_references,
             shapes: std::mem::take(&mut self.shapes),
             traits: shape.traits.clone(),

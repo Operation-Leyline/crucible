@@ -89,7 +89,10 @@ reach, keyed by shape id. Lowering settles, once:
 Raw `traits` maps stay on the service, operations, shapes and members, so a
 project's own traits reach emitters intact.
 
-The IR also preserves the resource graph, identifiers, properties, explicit
+`Model::lower` preserves the operation contract for SDKs and servers without
+resource-only shapes or provisioning diagnostics. Infrastructure generators
+opt in through `Model::lower_infrastructure`, which also preserves the resource graph,
+identifiers, properties, explicit
 lifecycle slots, collection operations, and resolved resource member/reference
 paths. Infrastructure emitters consume a selected projection validated by
 `crucible-codegen-infra`; deployment policy remains separate from HTTP semantics.

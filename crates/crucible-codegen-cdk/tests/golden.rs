@@ -8,7 +8,7 @@ fn inputs() -> (crucible_smithy::ir::Service, Bindings, Options) {
     (
         Model::from_json(include_str!("fixtures/model.json"))
             .unwrap()
-            .lower(None)
+            .lower_infrastructure(None)
             .unwrap(),
         serde_json::from_str(include_str!("fixtures/bindings.json")).unwrap(),
         serde_json::from_str(include_str!("fixtures/options.json")).unwrap(),
