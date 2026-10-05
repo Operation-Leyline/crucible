@@ -12,7 +12,6 @@ use crucible_wire::bound::{self, BoundValue};
 use crucible_wire::operation::{ErrorInfo, Location, MemberInfo, Operation, Segment};
 use crucible_wire::split;
 use http::{HeaderMap, HeaderName, HeaderValue, Method};
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -30,6 +29,11 @@ pub trait OperationErrors: Sized + fmt::Debug {
     ) -> Option<Self>;
 
     fn info(&self) -> &'static ErrorInfo;
+
+    /// Identifies modeled metadata independently of decoding the error's fields.
+    fn classify(_status: u16, _type_name: Option<&str>) -> Option<&'static ErrorInfo> {
+        None
+    }
 }
 
 /// Why a call failed.
@@ -54,6 +58,9 @@ pub struct UnknownError {
     pub type_name: Option<String>,
     pub message: Option<String>,
     pub request_id: Option<String>,
+    /// Retained even when a known error's fields cannot be decoded.
+    pub retryable: bool,
+    pub throttling: bool,
 }
 
 impl<E: fmt::Debug> fmt::Display for Error<E> {
@@ -104,7 +111,7 @@ impl Transport {
         let mut attempt = 1;
         loop {
             let request = self
-                .request(method.clone(), &url, &headers, body.clone())
+                .request(method.clone(), &url, &headers, body.clone(), O::AUTH_BEARER)
                 .await?;
             let response = match self.config.http.execute(request).await {
                 Ok(response) => response,
@@ -141,6 +148,10 @@ impl Transport {
                     let info = error.info();
                     (info.throttling, info.retryable || retryable_status(status))
                 }
+                Error::Unknown(error) => (
+                    error.throttling,
+                    error.retryable || retryable_status(status),
+                ),
                 _ => (false, retryable_status(status)),
             };
             if (throttling || (retry_safe && transient)) && attempt < retry.max_attempts {
@@ -177,6 +188,11 @@ impl Transport {
                         .ok_or_else(|| Error::Invalid(format!("`{name}` is required")))?;
                     if value.is_empty() {
                         return Err(Error::Invalid(format!("`{name}` is required")));
+                    }
+                    if matches!(value.as_str(), "." | "..") {
+                        return Err(Error::Invalid(format!(
+                            "`{name}` cannot be a dot-only path segment"
+                        )));
                     }
                     encode(&mut url, &value);
                 }
@@ -240,6 +256,7 @@ impl Transport {
         url: &str,
         bound_headers: &HeaderMap,
         body: Option<Body>,
+        bearer: bool,
     ) -> Result<reqwest::Request, Error<E>> {
         let url = reqwest::Url::parse(url).map_err(|error| Error::Invalid(error.to_string()))?;
         let mut request = reqwest::Request::new(method, url);
@@ -255,7 +272,9 @@ impl Transport {
             headers.insert(http::header::CONTENT_TYPE, content_type);
             *request.body_mut() = Some(reqwest::Body::from(body));
         }
-        if let Some(token) = &self.config.token {
+        if let Some(token) = &self.config.token
+            && bearer
+        {
             if let Some(token) = token.get().await {
                 let value = HeaderValue::from_str(&format!("Bearer {token}"))
                     .map_err(|error| Error::Invalid(error.to_string()))?;
@@ -342,25 +361,28 @@ pub fn by_status(status: u16, errors: &[&'static ErrorInfo]) -> Option<&'static 
     }
 }
 
-#[derive(Deserialize)]
-struct Envelope {
-    #[serde(rename = "__type")]
-    type_name: Option<String>,
-    message: Option<String>,
-}
-
 fn decode_error<E: OperationErrors>(status: u16, headers: &HeaderMap, body: &[u8]) -> Error<E> {
-    let envelope: Option<Envelope> = serde_json::from_slice(body).ok();
+    let envelope: Option<Value> = serde_json::from_slice(body).ok();
     let type_name = envelope
         .as_ref()
-        .and_then(|e| e.type_name.as_deref())
+        .and_then(|e| e.get("__type"))
+        .and_then(Value::as_str)
         .map(|name| name.rsplit('#').next().unwrap_or(name));
+    let info = E::classify(status, type_name);
     match E::decode(status, type_name, headers, body) {
         Some(error) => Error::Service(error),
         None => Error::Unknown(UnknownError {
             status,
-            type_name: type_name.map(str::to_owned),
-            message: envelope.and_then(|e| e.message),
+            type_name: type_name
+                .or_else(|| info.map(|i| i.name))
+                .map(str::to_owned),
+            message: envelope
+                .as_ref()
+                .and_then(|e| e.get("message"))
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            retryable: info.is_some_and(|i| i.retryable),
+            throttling: info.is_some_and(|i| i.throttling),
             request_id: headers
                 .get("x-request-id")
                 .and_then(|value| value.to_str().ok())
@@ -385,8 +407,22 @@ fn backoff(attempt: u32, retry: &crate::config::Retry) -> Duration {
 }
 
 fn retry_after(headers: &HeaderMap) -> Option<Duration> {
-    let seconds: f64 = headers.get("retry-after")?.to_str().ok()?.parse().ok()?;
-    (seconds.is_finite() && seconds >= 0.0).then(|| Duration::from_secs_f64(seconds))
+    retry_after_at(headers, chrono::Utc::now())
+}
+
+fn retry_after_at(headers: &HeaderMap, now: chrono::DateTime<chrono::Utc>) -> Option<Duration> {
+    let value = headers.get("retry-after")?.to_str().ok()?.trim();
+    let delay = if let Ok(seconds) = value.parse::<f64>() {
+        Duration::try_from_secs_f64(seconds).ok()?
+    } else {
+        let date = chrono::DateTime::parse_from_rfc2822(value).ok()?;
+        date.signed_duration_since(now)
+            .to_std()
+            .unwrap_or(Duration::ZERO)
+    };
+    // Tokio's timer must also be able to represent the resulting deadline.
+    std::time::Instant::now().checked_add(delay)?;
+    Some(delay)
 }
 
 /// Percent-encodes everything but the unreserved characters.
@@ -468,5 +504,76 @@ mod tests {
         assert_eq!(retry_after(&headers), None);
         headers.insert("retry-after", HeaderValue::from_static("-1"));
         assert_eq!(retry_after(&headers), None);
+    }
+
+    #[test]
+    fn retry_after_dates_zero_and_overflow_are_safe() {
+        let now = chrono::DateTime::parse_from_rfc2822("Wed, 21 Oct 2015 07:28:00 GMT")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let mut headers = HeaderMap::new();
+        for (value, expected) in [
+            (
+                "Wed, 21 Oct 2015 07:28:02 GMT",
+                Some(Duration::from_secs(2)),
+            ),
+            ("Wed, 21 Oct 2015 07:27:59 GMT", Some(Duration::ZERO)),
+            ("0", Some(Duration::ZERO)),
+            ("1e300", None),
+            ("NaN", None),
+            ("inf", None),
+            ("18446744073709551615", None),
+        ] {
+            headers.insert("retry-after", HeaderValue::from_str(value).unwrap());
+            assert_eq!(retry_after_at(&headers, now), expected, "{value}");
+        }
+    }
+
+    #[derive(Debug)]
+    struct Malformed;
+    static THROTTLED: ErrorInfo = ErrorInfo {
+        name: "Throttled",
+        status: 429,
+        fault: Fault::Client,
+        retryable: true,
+        throttling: true,
+        members: &[],
+    };
+    impl OperationErrors for Malformed {
+        fn decode(_: u16, _: Option<&str>, _: &HeaderMap, _: &[u8]) -> Option<Self> {
+            None
+        }
+        fn info(&self) -> &'static ErrorInfo {
+            &THROTTLED
+        }
+        fn classify(status: u16, name: Option<&str>) -> Option<&'static ErrorInfo> {
+            match name.or_else(|| by_status(status, &[&THROTTLED]))? {
+                "Throttled" => Some(&THROTTLED),
+                _ => None,
+            }
+        }
+    }
+
+    #[test]
+    fn malformed_fields_do_not_erase_the_error_name_or_retry_policy() {
+        let headers = HeaderMap::new();
+        for body in [
+            br#"{"__type":"Throttled","message":42}"#.as_slice(),
+            br#"{"message":42}"#.as_slice(),
+        ] {
+            let Error::Unknown(error) = decode_error::<Malformed>(429, &headers, body) else {
+                panic!("unknown error")
+            };
+            assert_eq!(error.type_name.as_deref(), Some("Throttled"));
+            assert!(error.retryable && error.throttling);
+            assert_eq!(error.message, None);
+        }
+        let Error::Unknown(error) =
+            decode_error::<Malformed>(429, &headers, br#"{"__type":"Future","message":42}"#)
+        else {
+            panic!("unknown error")
+        };
+        assert_eq!(error.type_name.as_deref(), Some("Future"));
+        assert!(!error.retryable && !error.throttling);
     }
 }

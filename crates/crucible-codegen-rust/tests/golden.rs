@@ -11,6 +11,32 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
+fn empty_services_do_not_import_unused_redaction_types() {
+    let model = include_str!("../../../tests/conformance/empty-service.json");
+    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+    for code in [
+        generate_client(&service).unwrap(),
+        generate(&service, &Options::default()).unwrap(),
+    ] {
+        assert!(code.contains("mod __redaction {\n}"));
+        assert!(!code.contains("operation::Redaction;"));
+    }
+}
+
+#[test]
+fn client_optional_defaults_are_removed_only_from_client_code() {
+    let model = include_str!("../../crucible-smithy/tests/fixtures/review-hardening.json");
+    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+    let client = generate_client(&service).unwrap();
+    let server = generate(&service, &Options::default()).unwrap();
+    assert!(!client.contains("defaults::values__optional_default"));
+    assert!(server.contains("defaults::values__optional_default"));
+    assert!(client.contains("fn classify(status:"));
+    assert!(client.contains("const AUTH_BEARER: bool = false;"));
+    assert!(client.contains("const AUTH_BEARER: bool = true;"));
+}
+
+#[test]
 fn service_client_name_cannot_collide_with_a_model() {
     let service = edited(|model| {
         model["shapes"]["example.weather#Weather"]["rename"] =

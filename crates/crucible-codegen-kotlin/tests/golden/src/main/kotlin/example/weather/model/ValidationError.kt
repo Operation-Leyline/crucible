@@ -15,8 +15,8 @@ class `ValidationError` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`ValidationError` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`ValidationError` = Builder().also { builder ->
-        builder.`messageValue` = `messageValue`
-        builder.`reason` = `reason`
+        builder.`messageValue` = this.`messageValue`
+        builder.`reason` = this.`reason`
         builder.__crucibleField2 = __crucibleField2
         builder.__crucibleField3 = __crucibleField3
     }.apply(block).build().also { it.initialize(errorName, message, status, requestId, headers, retryable, throttling) }

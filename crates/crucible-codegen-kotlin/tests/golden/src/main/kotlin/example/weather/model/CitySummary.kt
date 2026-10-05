@@ -16,9 +16,9 @@ class `CitySummary` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`CitySummary` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`CitySummary` = Builder().also { builder ->
-        builder.`id` = `id`
-        builder.`name` = `name`
-        builder.`population` = `population`
+        builder.`id` = this.`id`
+        builder.`name` = this.`name`
+        builder.`population` = this.`population`
         builder.__crucibleField3 = __crucibleField3
         builder.__crucibleField4 = __crucibleField4
     }.apply(block).build()

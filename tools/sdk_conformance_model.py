@@ -25,6 +25,12 @@ def qualification_model(output):
             "input": {"target": "smithy.api#Unit"}, "output": {"target": "smithy.api#Unit"},
             "errors": [{"target": "example.weather#" + error} for error in ["Ordinary", "Transient", "Throttled"]]}
         service["operations"].append({"target": "example.weather#" + name})
+    shapes["example.weather#PublicPing"] = {
+        "type": "operation",
+        "traits": {"smithy.api#http": {"method": "GET", "uri": "/public", "code": 204},
+                   "smithy.api#readonly": {}, "smithy.api#auth": []},
+    }
+    service["operations"].append({"target": "example.weather#PublicPing"})
     path = output / "model.json"
     path.write_text(json.dumps(model), encoding="utf-8")
     return path

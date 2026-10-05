@@ -8,7 +8,7 @@ class `ConflictError` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`ConflictError` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`ConflictError` = Builder().also { builder ->
-        builder.`messageValue` = `messageValue`
+        builder.`messageValue` = this.`messageValue`
     }.apply(block).build().also { it.initialize(errorName, message, status, requestId, headers, retryable, throttling) }
     class Builder {
         var `messageValue`: kotlin.String? = null

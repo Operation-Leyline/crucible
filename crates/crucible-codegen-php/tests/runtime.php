@@ -24,6 +24,21 @@ final class Fake implements HttpTransport {
 function sdk(Fake $fake, int $maxAttempts = 3, ?Closure $token = null,array $middleware = [],float $timeout = 5): WeatherClient {
     return new WeatherClient(new ClientConfig(endpoint:'http://127.0.0.1',transport:$fake,maxAttempts:$maxAttempts,baseDelay:0,token:$token,middleware:$middleware,timeout:$timeout));
 }
+$fake = new Fake(function($attempt, $request): HttpResponse {
+    check(!isset($request->headers['authorization']), 'Public operation has no bearer header');
+    return new HttpResponse(204, [], '');
+});
+sdk($fake, token: static function(): never { throw new RuntimeException('Public operation requested credentials'); })->publicPing();
+$fake = new Fake(function($attempt, $request): HttpResponse {
+    check($request->headers['x-amz-content-sha256'] === hash('sha256', ''), 'Empty write digest');
+    return new HttpResponse(200, [], '{}');
+});
+sdk($fake)->retrySafe();
+foreach (['.', '..'] as $label) {
+    $fake = new Fake(static function(): never { throw new RuntimeException('Dot label reached transport'); });
+    throws(UnexpectedValueException::class, fn() => sdk($fake)->getCity(new GetCityInput(cityId: $label)));
+    check(count($fake->requests) === 0, 'Dot label rejected before dispatch');
+}
 $cases = json_decode(file_get_contents(getenv('RETRY_CASES')),true,flags:JSON_THROW_ON_ERROR);
 foreach ($cases as $case) {
     $fake = new Fake(function($attempt) use ($case): HttpResponse {
@@ -44,7 +59,7 @@ $fake = new Fake(function($attempt,HttpRequest $request): HttpResponse {
 $result = sdk($fake)->getCity(new GetCityInput(cityId:'a/b *?#é',at:Timestamp::parse('2026-10-01T00:00:00Z')));
 check($result->requestId === 'bound','Response header binding');
 $fake = new Fake(function($attempt,HttpRequest $request): HttpResponse {
-    check($request->body === null && !isset($request->headers['content-type']) && !isset($request->headers['x-amz-content-sha256']),'Empty payload request');
+    check($request->body === null && !isset($request->headers['content-type']) && $request->headers['x-amz-content-sha256'] === hash('sha256', ''),'Empty payload request');
     return new HttpResponse(200,body:'{"photo":{"size":0,"thumbnail":""}}');
 });
 sdk($fake)->putCityPhoto(new PutCityPhotoInput(cityId:'x',photo:''));

@@ -287,6 +287,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.6.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "037e2a1a92236d0aff7e845093f64661d6df4c02c9fcc61a60e9e1d736fa392f"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -389,6 +398,7 @@ dependencies = [
  "clap",
  "crucible-codegen-c",
  "crucible-codegen-cdk",
+ "crucible-codegen-cli",
  "crucible-codegen-cpp",
  "crucible-codegen-csharp",
  "crucible-codegen-dart",
@@ -407,6 +417,18 @@ dependencies = [
  "crucible-smithy",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "crucible-cli-runtime"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "clap_complete",
+ "crucible-client",
+ "serde",
+ "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -443,6 +465,16 @@ dependencies = [
  "crucible-codegen-infra",
  "crucible-smithy",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "crucible-codegen-cli"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-rust",
+ "crucible-smithy",
+ "semver",
  "serde_json",
 ]
 
@@ -605,6 +637,7 @@ dependencies = [
 name = "crucible-smithy"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "indexmap",
  "serde",
  "serde_json",

@@ -12,6 +12,7 @@ name = "crucible"
 path = "src/main.rs"
 
 [dependencies]
+crucible-codegen-cli.workspace = true
 crucible-smithy.workspace = true
 crucible-codegen-rust.workspace = true
 crucible-codegen-ts.workspace = true

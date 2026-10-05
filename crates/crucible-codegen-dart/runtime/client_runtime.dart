@@ -157,6 +157,7 @@ final class ClientRuntime {
       if (value == null) throw FormatException('Missing label: $name');
       final text = codec.bound(value);
       if (text.isEmpty) throw FormatException('Empty label: $name');
+      if (text == '.' || text == '..') throw FormatException('Dot-segment HTTP label: $name');
       path = path.replaceAll('{$name}', _escape(text));
     }
     final query = <String>[];
@@ -213,7 +214,7 @@ final class ClientRuntime {
     for (var attempt = 1; attempt <= config.maxAttempts; attempt++) {
       scope.check();
       var request = prepared.copyWith();
-      if (codec.schema['bearer'] == true && config.token != null) {
+      if (op['bearer'] == true && config.token != null) {
         final token = await config.token!();
         scope.check();
         if (token != null)
@@ -229,9 +230,9 @@ final class ClientRuntime {
       _validateUrl(request.url);
       if (headers.containsKey('authorization') && !_secure(request.url))
         throw ArgumentError('Credentials require HTTPS or loopback HTTP');
-      if (digest && request.body != null && request.body!.isNotEmpty)
+      if (digest && (request.body != null || const ['POST', 'PUT', 'PATCH'].contains(request.method)))
         headers['x-amz-content-sha256'] =
-            sha256.convert(request.body!).toString();
+            sha256.convert(request.body ?? const <int>[]).toString();
       request = request.copyWith(headers: headers);
       late final HttpResponse response;
       try {

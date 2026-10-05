@@ -68,6 +68,12 @@ final class ClientRuntime {
   private final Map<String, Class<?>> classes;
   private final boolean digest;
 
+  private void checkCollectionValue(JsonObject member, Object value) {
+    if ((value == null || value instanceof JsonElement item && item.isJsonNull())
+        && !"document".equals(text(shape(text(member, "target")), "kind")))
+      throw new IllegalArgumentException("Null value in non-sparse collection");
+  }
+
   private static ScheduledThreadPoolExecutor timer() {
     var executor =
         new ScheduledThreadPoolExecutor(
@@ -187,18 +193,22 @@ final class ClientRuntime {
         {
           var result = new JsonArray();
           var member = shape.getAsJsonObject("member");
-          for (Object item : (List<?>) value)
+          for (Object item : (List<?>) value) {
+            checkCollectionValue(member, item);
             result.add(encode(text(member, "target"), item, text(member, "format")));
+          }
           return result;
         }
       case "map":
         {
           var result = new JsonObject();
           var member = shape.getAsJsonObject("value");
-          for (var entry : ((Map<?, ?>) value).entrySet())
+          for (var entry : ((Map<?, ?>) value).entrySet()) {
+            checkCollectionValue(member, entry.getValue());
             result.add(
                 entry.getKey().toString(),
                 encode(text(member, "target"), entry.getValue(), text(member, "format")));
+          }
           return result;
         }
       case "structure":
@@ -291,8 +301,10 @@ final class ClientRuntime {
         {
           var result = (List<Object>) construct(classes.get(target));
           var member = shape.getAsJsonObject("member");
-          for (JsonElement item : value.getAsJsonArray())
+          for (JsonElement item : value.getAsJsonArray()) {
+            checkCollectionValue(member, item);
             result.add(decode(text(member, "target"), item, text(member, "format")));
+          }
           return result;
         }
       case "map":
@@ -300,10 +312,12 @@ final class ClientRuntime {
           var result = (Map<Object, Object>) construct(classes.get(target));
           var member = shape.getAsJsonObject("value");
           var key = shape.getAsJsonObject("key");
-          for (var entry : value.getAsJsonObject().entrySet())
+          for (var entry : value.getAsJsonObject().entrySet()) {
+            checkCollectionValue(member, entry.getValue());
             result.put(
                 decode(text(key, "target"), new JsonPrimitive(entry.getKey()), null),
                 decode(text(member, "target"), entry.getValue(), text(member, "format")));
+          }
           return result;
         }
       case "structure":
@@ -469,7 +483,10 @@ final class ClientRuntime {
       JsonElement value = values.get(key);
       if (value == null || value.isJsonNull() || bound(value).isEmpty())
         throw new IllegalArgumentException(key + " is required");
-      uri = uri.replace("{" + key + "}", escape(bound(value)));
+      String labelValue = bound(value);
+      if (labelValue.equals(".") || labelValue.equals(".."))
+        throw new IllegalArgumentException(key + " cannot be a dot segment");
+      uri = uri.replace("{" + key + "}", escape(labelValue));
     }
     List<String> query = new ArrayList<>();
     for (JsonElement item : request.getAsJsonArray("query")) {
@@ -587,7 +604,7 @@ final class ClientRuntime {
       long remaining = config.timeout.toNanos() - (System.nanoTime() - start);
       if (remaining <= 0) throw new HttpTimeoutException("request deadline exceeded");
       Map<String, String> headers = new LinkedHashMap<>(prepared.headers());
-      if (config.token != null && flag(schema, "bearer")) {
+      if (config.token != null && flag(prepared.operation(), "bearer")) {
         String token = config.token.get();
         if (token != null) headers.put("authorization", "Bearer " + token);
       }
@@ -606,10 +623,11 @@ final class ClientRuntime {
           && !Set.of("localhost", "127.0.0.1", "[::1]", "::1").contains(host))
         throw new IllegalArgumentException(
             "refusing credentials over plaintext HTTP outside loopback");
-      if (digest && request.body != null && request.body.length > 0)
+      if (digest && ((request.body != null && request.body.length > 0)
+          || Set.of("POST", "PUT", "PATCH").contains(request.method)))
         headers.put(
             "x-amz-content-sha256",
-            HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(request.body)));
+            HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(request.body == null ? new byte[0] : request.body)));
       var builder = HttpRequest.newBuilder(request.uri).timeout(Duration.ofNanos(remaining));
       headers.forEach(builder::setHeader);
       builder.method(

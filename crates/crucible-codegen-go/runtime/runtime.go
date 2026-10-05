@@ -113,6 +113,7 @@ type bindings struct {
 	Payload []string
 }
 type operationDescription struct {
+	Bearer   bool
 	Method   string
 	URI      string
 	Input    string
@@ -277,6 +278,9 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 	case "list":
 		result := make([]any, value.Len())
 		for i := range result {
+			if !unwrap(value.Index(i)).IsValid() && schema.Shapes[shape.Member.Target].Kind != "document" {
+				return nil, errors.New("null element in non-sparse list")
+			}
 			var err error
 			result[i], err = encodeValue(schema, shape.Member.Target, value.Index(i), shape.Member.Format)
 			if err != nil {
@@ -288,6 +292,9 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 		result := map[string]any{}
 		iter := value.MapRange()
 		for iter.Next() {
+			if !unwrap(iter.Value()).IsValid() && schema.Shapes[shape.Value.Target].Kind != "document" {
+				return nil, errors.New("null value in non-sparse map")
+			}
 			item, err := encodeValue(schema, shape.Value.Target, iter.Value(), shape.Value.Format)
 			if err != nil {
 				return nil, err
@@ -392,6 +399,9 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		}
 		out.Set(reflect.MakeSlice(out.Type(), len(items), len(items)))
 		for i, item := range items {
+			if item == nil && schema.Shapes[shape.Member.Target].Kind != "document" {
+				return errors.New("null element in non-sparse list")
+			}
 			if err := decodeValue(schema, shape.Member.Target, item, out.Index(i), shape.Member.Format); err != nil {
 				return err
 			}
@@ -403,6 +413,9 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		}
 		out.Set(reflect.MakeMap(out.Type()))
 		for key, item := range items {
+			if item == nil && schema.Shapes[shape.Value.Target].Kind != "document" {
+				return errors.New("null value in non-sparse map")
+			}
 			k := reflect.New(out.Type().Key()).Elem()
 			k.SetString(key)
 			v := reflect.New(out.Type().Elem()).Elem()
@@ -608,6 +621,9 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		if err != nil || text == "" {
 			return nil, fmt.Errorf("%s is required", key)
 		}
+		if text == "." || text == ".." {
+			return nil, fmt.Errorf("%s cannot be a dot segment", key)
+		}
 		uri = strings.ReplaceAll(uri, "{"+key+"}", escape(text))
 	}
 	query := []string{}
@@ -682,7 +698,7 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 			return nil, err
 		}
 		request.Header = headers.Clone()
-		if c.config.Token != nil && c.schema.Bearer {
+		if c.config.Token != nil && op.Bearer {
 			token, err := c.config.Token(ctx)
 			if err != nil {
 				return nil, err
@@ -701,9 +717,13 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 				return nil, errors.New("refusing to send credentials over plaintext HTTP outside loopback")
 			}
 		}
-		if c.digest && request.Body != nil {
-			data, err := io.ReadAll(request.Body)
-			request.Body.Close()
+		if c.digest && (request.Body != nil || request.Method == "POST" || request.Method == "PUT" || request.Method == "PATCH") {
+			var data []byte
+			var err error
+			if request.Body != nil {
+				data, err = io.ReadAll(request.Body)
+				request.Body.Close()
+			}
 			if err != nil {
 				return nil, err
 			}
@@ -715,7 +735,7 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 				request.Body = io.NopCloser(bytes.NewReader(data))
 				request.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(data)), nil }
 			}
-			if len(data) > 0 {
+			if len(data) > 0 || request.Method == "POST" || request.Method == "PUT" || request.Method == "PATCH" {
 				sum := sha256.Sum256(data)
 				request.Header.Set("x-amz-content-sha256", hex.EncodeToString(sum[:]))
 			}

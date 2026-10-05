@@ -11,6 +11,7 @@ pub mod ir;
 mod lower;
 mod resources;
 mod shape_id;
+mod timestamp_default;
 
 use std::collections::BTreeMap;
 

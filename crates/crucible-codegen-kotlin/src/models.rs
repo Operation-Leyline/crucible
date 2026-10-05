@@ -109,7 +109,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                             "requireNotNull(`{f}`) {{ {} }}",
                             literal(&format!("Missing required member: {}", m.name))
                         );
-                        let assigned = if let Some(default) = &m.default {
+                        let assigned = if let Some(default) = m.client_default() {
                             let default = default_expr(service, &m.target, default, package)
                                 .expect("validated default");
                             let assigned = format!("__crucibleField{index}Assigned");
@@ -120,7 +120,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                             required
                         };
                         build.push_str(&format!("            `{f}` = {assigned},\n"));
-                        copy.push_str(&format!("        builder.`{f}` = `{f}`\n"));
+                        copy.push_str(&format!("        builder.`{f}` = this.`{f}`\n"));
                         (format!("`{f}`"), t)
                     };
                     encode.push_str(&format!(

@@ -99,6 +99,11 @@ private class Codec {
     fun encode(target: String, value: Any?, format: String? = null): JsonElement = invoke("encode", target, value, format) as JsonElement
     fun header(wire: String): JsonElement = invoke("header", json("""{"target":"example.weather#Tags"}""").asJsonObject, wire) as JsonElement
     fun bound(values: JsonElement): String = invoke("bound", values) as String
+    fun checkDenseMapNulls() {
+        schema.getAsJsonObject("shapes").getAsJsonObject("example.weather#Forecast").getAsJsonObject("value").addProperty("target", "smithy.api#String")
+        try { decode("example.weather#Forecast", "{\"key\":null}"); error("Dense map null accepted") } catch (_: IllegalArgumentException) {}
+        try { encode("example.weather#Forecast", mapOf("key" to null)); error("Dense map null encoded") } catch (_: IllegalArgumentException) {}
+    }
 }
 private fun serialization(path: String) {
     val codec = Codec()
@@ -136,13 +141,16 @@ private fun serialization(path: String) {
     check((codec.decode("example.weather#CitySummary", """{"id":"c","name":"x"}""") as CitySummary).population == 0L)
     check(CitySummary { id = "c"; name = "x" }.population == 0L)
     val defaults = BuilderDefaults { requiredValue = "required" }
+    check(defaults.copy().builder == "builder-value" && defaults.copy().block == "block-value")
     check(defaults.flag && defaults.small == (-7).toByte() && defaults.medium == 300.toShort())
     check(defaults.count == 42 && defaults.large == Long.MIN_VALUE && defaults.ratio == 1.5f && defaults.score == 2.5)
     check(defaults.decimalCount == 17 && defaults.blob.contentEquals(byteArrayOf(1, 2)))
-    check(defaults.date == Instant.parse("2024-01-01T00:00:00Z") && defaults.epoch == Instant.ofEpochSecond(-2, 500_000_000))
+    check(defaults.date == Instant.parse("1969-12-31T23:59:59.750Z") && defaults.epoch == Instant.ofEpochSecond(-2, 500_000_000))
     check(defaults.label == "default \$value\\path" && defaults.sky == Sky("sunny"))
     check(defaults.tags.isEmpty() && defaults.forecast.isEmpty() && defaults.document.asJsonObject.get("count").asLong == Long.MAX_VALUE)
     check(!defaults.hasOptionalDefault())
+    val decodedDefaults = codec.decode("example.weather#BuilderDefaults", """{"requiredValue":"required"}""") as BuilderDefaults
+    check(!decodedDefaults.hasOptionalDefault() && decodedDefaults.count == 42 && decodedDefaults.date == defaults.date)
     check(BuilderDefaults { requiredValue = "required"; count = 0 }.count == 0)
     defaults.document.asJsonObject.addProperty("changed", true)
     check(!BuilderDefaults { requiredValue = "required" }.document.asJsonObject.has("changed"))
@@ -369,7 +377,38 @@ private suspend fun weather() {
         check(pages.any { page -> page.cities.any { it.name == "kotlin-http" } })
     }
 }
+private suspend fun hardening() {
+    val sent = AtomicInteger()
+    Server { exchange ->
+        sent.incrementAndGet()
+        check(exchange.requestHeaders.getFirst("Authorization") == null)
+        val hash = MessageDigest.getInstance("SHA-256").digest(byteArrayOf()).joinToString("") { "%02x".format(it.toInt() and 255) }
+        check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash)
+        exchange.sendResponseHeaders(200, -1)
+    }.use { server ->
+        WeatherClient(server.config().copy(token = { error("Anonymous credential provider invoked") })).use { client ->
+            val runtimeField = client.javaClass.getDeclaredField("runtime").apply { isAccessible = true }
+            val runtime = runtimeField.get(client)
+            val schemaField = runtime.javaClass.getDeclaredField("schema").apply { isAccessible = true }
+            val schema = schemaField.get(runtime) as JsonObject
+            val ping = schema.getAsJsonObject("operations").getAsJsonObject("Ping")
+            ping.addProperty("bearer", false)
+            for (method in listOf("POST", "PUT", "PATCH")) { ping.addProperty("method", method); client.ping() }
+            for (label in listOf(".", "..")) {
+                try { client.getCity { cityId = label }; error("Dot label accepted") }
+                catch (e: IllegalArgumentException) { check(e.message!!.contains("dot segment")) }
+            }
+        }
+    }
+    check(sent.get() == 3)
+    val codec = Codec()
+    try { codec.decode("example.weather#Tags", "[null]"); error("Dense null accepted") } catch (_: IllegalArgumentException) {}
+    try { codec.encode("example.weather#Tags", listOf(null)); error("Dense null encoded") } catch (_: IllegalArgumentException) {}
+    check(codec.encode("example.weather#Forecast", codec.decode("example.weather#Forecast", "{\"key\":null}")) == json("{\"key\":null}"))
+    codec.checkDenseMapNulls()
+}
 fun main(args: Array<String>) = runBlocking {
+    hardening()
     withTimeout(60000) { retries(args[0]); serialization(args[1]); httpBehavior(); failures(); deadlines(); payloads(); weather() }
     println("Kotlin native package, conformance, and weather HTTP passed")
 }

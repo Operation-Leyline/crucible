@@ -153,9 +153,13 @@ class _Codec:
             return self.classes[target](value) if decode else str(value)
         if kind == "list":
             member = shape["member"]
+            if self.shapes[member["target"]]["kind"] != "document" and any(v is None for v in value):
+                raise ValueError("Null element in non-sparse list")
             return [self.convert(member["target"], v, decode=decode, fmt=member["format"]) for v in value]
         if kind == "map":
             member = shape["value"]
+            if self.shapes[member["target"]]["kind"] != "document" and any(v is None for v in value.values()):
+                raise ValueError("Null value in non-sparse map")
             return {self.convert(shape["key"]["target"], k, decode=decode): self.convert(member["target"], v, decode=decode, fmt=member["format"]) for k, v in value.items()}
         if kind in ("structure", "union"):
             if decode and not isinstance(value, dict):
@@ -284,7 +288,10 @@ class _Base:
             value = original(key)
             if value is None or isinstance(value, Unset) or str(value) == "":
                 raise ValueError(f"{key} is required")
-            uri = uri.replace("{" + key + "}", quote(self._codec.bound(members[key], value), safe="-._~"))
+            label = self._codec.bound(members[key], value)
+            if label in (".", ".."):
+                raise ValueError(f"{key} cannot be a dot segment")
+            uri = uri.replace("{" + key + "}", quote(label, safe="-._~"))
         query: list[tuple[str, str]] = []
         for key, wire in op["request"]["query"]:
             value = original(key)
@@ -430,15 +437,15 @@ class SyncClient(_Base):
             if remaining <= 0:
                 raise TimeoutError("request deadline exceeded")
             request = self._http.build_request(op["method"], url, content=body, headers=headers, timeout=remaining)
-            token = self._token() if callable(self._token) else self._token
+            token = (self._token() if callable(self._token) else self._token) if op["bearer"] else None
             if inspect.isawaitable(token):
                 raise TypeError("use AsyncClient with an async token provider")
-            if token is not None and self._codec.schema["bearer"]:
+            if token is not None:
                 request.headers["authorization"] = f"Bearer {token}"
             for middleware in self._middleware:
                 middleware(request)
             _check_credentials(request)
-            if self._digest and request.content:
+            if self._digest and (request.content or request.method in ("POST", "PUT", "PATCH")):
                 request.headers["x-amz-content-sha256"] = hashlib.sha256(request.content).hexdigest()
             response = None
             try:
@@ -506,17 +513,17 @@ class AsyncClientBase(_Base):
         for attempt in range(1, self._attempts + 1):
             request = self._http.build_request(op["method"], url, content=body, headers=headers,
                                                timeout=self._timeout if timeout is None else timeout)
-            token = self._token() if callable(self._token) else self._token
+            token = (self._token() if callable(self._token) else self._token) if op["bearer"] else None
             if inspect.isawaitable(token):
                 token = await token
-            if token is not None and self._codec.schema["bearer"]:
+            if token is not None:
                 request.headers["authorization"] = f"Bearer {token}"
             for middleware in self._middleware:
                 result = middleware(request)
                 if inspect.isawaitable(result):
                     await result
             _check_credentials(request)
-            if self._digest and request.content:
+            if self._digest and (request.content or request.method in ("POST", "PUT", "PATCH")):
                 request.headers["x-amz-content-sha256"] = hashlib.sha256(request.content).hexdigest()
             response = None
             try:

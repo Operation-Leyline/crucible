@@ -9,8 +9,8 @@ class `ValidationField` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`ValidationField` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`ValidationField` = Builder().also { builder ->
-        builder.`path` = `path`
-        builder.`messageValue` = `messageValue`
+        builder.`path` = this.`path`
+        builder.`messageValue` = this.`messageValue`
     }.apply(block).build()
     class Builder {
         var `path`: kotlin.String? = null

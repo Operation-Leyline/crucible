@@ -9,8 +9,8 @@ class `Coordinates` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`Coordinates` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`Coordinates` = Builder().also { builder ->
-        builder.`latitude` = `latitude`
-        builder.`longitude` = `longitude`
+        builder.`latitude` = this.`latitude`
+        builder.`longitude` = this.`longitude`
     }.apply(block).build()
     class Builder {
         var `latitude`: kotlin.Double? = null

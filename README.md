@@ -60,6 +60,13 @@ lifecycles. Both use shared Smithy resource metadata and validated deployment
 bindings. See [infrastructure generation](docs/infrastructure.md) for examples,
 language packages, supported subsets, and migration checks.
 
+## Generate a service CLI
+
+`crucible generate cli` creates a standalone Rust executable backed by the
+generated SDK. It supports typed flags, JSON input, profiles, shell completion,
+and pagination. See the [service CLI guide](docs/clients/cli.md) for generation,
+configuration, output conventions, and independent executable tests.
+
 ## Build a service
 
 The [framework guide](docs/framework.md) explains model packages, generated

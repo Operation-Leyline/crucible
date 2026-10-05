@@ -21,6 +21,28 @@ private actor Counter {
     func next() -> Int { value += 1; return value }
 }
 final class RuntimeTests: XCTestCase, @unchecked Sendable {
+    func testPublicAuthEmptyDigestAndDotLabels() async throws {
+        let publicTransport = FakeTransport { _, request, _ in
+            XCTAssertNil(request.headers["authorization"])
+            return response(204, "")
+        }
+        let publicClient = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: publicTransport, token: { throw WireError("Public operation requested credentials") }))
+        _ = try await publicClient.publicPing()
+        let emptyTransport = FakeTransport { _, request, _ in
+            XCTAssertEqual(request.headers["x-amz-content-sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            return response(200)
+        }
+        _ = try await WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: emptyTransport)).retrySafe()
+        for label in [".", ".."] {
+            let transport = FakeTransport { _, _, _ in XCTFail("Dot label reached transport"); return response(200) }
+            do {
+                _ = try await WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: transport)).getCity(GetCityInput(cityId: label))
+                XCTFail("Dot label accepted")
+            } catch is WireError { }
+            let count = await transport.count
+            XCTAssertEqual(count, 0)
+        }
+    }
     private func codec() throws -> WireCodec {
         try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1"), endpoint: "", digest: false).codec
     }
@@ -161,7 +183,7 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         }
         let empty = FakeTransport { _, request, _ in
             XCTAssertNil(request.body); XCTAssertNil(request.headers["content-type"])
-            XCTAssertNil(request.headers["x-amz-content-sha256"])
+            XCTAssertEqual(request.headers["x-amz-content-sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
             return response(200, "{\"photo\":{\"size\":0,\"thumbnail\":\"\"}}")
         }
         let emptyClient = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: empty))

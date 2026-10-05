@@ -118,8 +118,27 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             infos.join(", ")
         )
     };
+    let classify = if errors.is_empty() {
+        "let _ = (status, type_name); None".to_owned()
+    } else {
+        let arms = errors
+            .iter()
+            .map(|error| {
+                format!(
+                    "{} => Some(&errors::{}),",
+                    literal(error),
+                    info_static(error)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!(
+            "let name = type_name.or_else(|| ::crucible::by_status(status, &[{}]))?; match name {{ {arms} _ => None }}",
+            infos.join(", ")
+        )
+    };
     out.push_str(&format!(
-        "impl ::crucible::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible::operation::ErrorInfo {{\n        {info_body}\n    }}\n}}\n\n"
+        "impl ::crucible::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible::operation::ErrorInfo> {{\n        {classify}\n    }}\n}}\n\n"
     ));
     out.push_str(&format!(
         "impl ::std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        {display_body}\n    }}\n}}\n\nimpl ::std::error::Error for {name} {{}}\n"

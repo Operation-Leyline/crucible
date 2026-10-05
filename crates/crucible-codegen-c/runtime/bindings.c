@@ -136,9 +136,9 @@ status crucible_generated_binding_digest(arena *storage, crucible_generated_requ
         if (!crucible_generated_header_get(one, VIEW("x-amz-content-sha256"), NULL)) items[count++] = request->headers.items[i];
     }
     request->headers = (crucible_generated_headers){items, count};
-    if (request->has_body && request->body.length) {
+    if (request->has_body || (request->method.length == 4 && memcmp(request->method.data, "POST", 4) == 0) || (request->method.length == 3 && memcmp(request->method.data, "PUT", 3) == 0) || (request->method.length == 5 && memcmp(request->method.data, "PATCH", 5) == 0)) {
         unsigned char bytes[EVP_MAX_MD_SIZE]; unsigned length; char digest[EVP_MAX_MD_SIZE * 2 + 1];
-        if (EVP_Digest(request->body.data, request->body.length, bytes, &length, EVP_sha256(), NULL) != 1) return fail(issue, "SHA256 failed");
+        if (EVP_Digest(request->has_body ? request->body.data : NULL, request->has_body ? request->body.length : 0, bytes, &length, EVP_sha256(), NULL) != 1) return fail(issue, "SHA256 failed");
         hex(bytes, length, digest);
         TRY(crucible_generated_header_set(storage, &request->headers, VIEW("x-amz-content-sha256"), VIEW(digest), issue));
     }
@@ -156,6 +156,7 @@ static status prepare_path(arena *storage, const yyjson_val *op, const yyjson_va
         string encoded;
         code = scalar(storage, value, &encoded, issue);
         if (!code && !encoded.length) code = fail(issue, "Empty HTTP label");
+        if (!code && ((encoded.length == 1 && encoded.data[0] == '.') || (encoded.length == 2 && memcmp(encoded.data, "..", 2) == 0))) code = fail(issue, "Dot-segment HTTP label");
         if (!code) code = escape(&path, encoded, issue);
         i = end + 1;
     }

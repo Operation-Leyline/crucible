@@ -200,6 +200,10 @@ func TestMalformedErrorMetadataAndRetry(t *testing.T) {
 	}
 }
 func TestExplicitNullDoesNotUseDefault(t *testing.T) {
+	var input *ListCitiesInput
+	if err := decodeModel(wireSchema, "example.weather#ListCitiesInput", map[string]any{}, &input); err != nil || input.HasMaxResults() {
+		t.Fatalf("input defaults must remain absent: %v", err)
+	}
 	type record struct{ Count Optional[int32] }
 	schema := &schemaDescription{Shapes: map[string]shapeDescription{
 		"record":  {Kind: "structure", Members: map[string]memberDescription{"count": {Attribute: "Count", Target: "integer", Default: json.Number("7")}}},
@@ -565,6 +569,76 @@ func TestHTTPWeatherService(t *testing.T) {
 	_, err = client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: Some(city.City.Id), Photo: Some[Photo](make([]byte, 4097))})
 	var invalid *ValidationError
 	if !errors.As(err, &invalid) {
+		t.Fatal(err)
+	}
+}
+
+func TestHardeningAuthEmptyDigestDotLabelsAndDenseCollections(t *testing.T) {
+	calls := 0
+	client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("Authorization") != "" {
+			t.Error("anonymous credentials")
+		}
+		hash := sha256.Sum256(nil)
+		if r.Header.Get("x-amz-content-sha256") != hex.EncodeToString(hash[:]) {
+			t.Error("empty digest")
+		}
+		w.WriteHeader(200)
+	})
+	client.config.Token = func(context.Context) (string, error) {
+		t.Fatal("anonymous credential provider invoked")
+		return "", nil
+	}
+	operations := make(map[string]operationDescription)
+	for name, op := range client.schema.Operations {
+		operations[name] = op
+	}
+	client.schema = &schemaDescription{Shapes: client.schema.Shapes, Operations: operations, Bearer: true}
+	op := operations["Ping"]
+	op.Bearer = false
+	for _, method := range []string{"POST", "PUT", "PATCH"} {
+		op.Method = method
+		operations["Ping"] = op
+		if _, err := client.Ping(context.Background(), Unit{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, label := range []string{".", ".."} {
+		input := &GetCityInput{}
+		input.SetCityId(label)
+		if _, err := client.GetCity(context.Background(), input); err == nil || !strings.Contains(err.Error(), "dot segment") {
+			t.Fatalf("dot label: %v", err)
+		}
+	}
+	if calls != 3 {
+		t.Fatal("invalid request dispatched")
+	}
+	schema := &schemaDescription{Shapes: map[string]shapeDescription{
+		"text": {Kind: "string"}, "doc": {Kind: "document"},
+		"list": {Kind: "list", Member: memberDescription{Target: "text"}},
+		"map":  {Kind: "map", Key: memberDescription{Target: "text"}, Value: memberDescription{Target: "text"}},
+		"docs": {Kind: "list", Member: memberDescription{Target: "doc"}},
+	}}
+	var list []string
+	if err := decodeValue(schema, "list", []any{nil}, reflect.ValueOf(&list).Elem(), ""); err == nil {
+		t.Fatal("dense list null accepted")
+	}
+	var values map[string]string
+	if err := decodeValue(schema, "map", map[string]any{"key": nil}, reflect.ValueOf(&values).Elem(), ""); err == nil {
+		t.Fatal("dense map null accepted")
+	}
+	if _, err := encodeValue(schema, "list", reflect.ValueOf([]*string{nil}), ""); err == nil {
+		t.Fatal("dense list null encoded")
+	}
+	if _, err := encodeValue(schema, "map", reflect.ValueOf(map[string]*string{"key": nil}), ""); err == nil {
+		t.Fatal("dense map null encoded")
+	}
+	var documents []any
+	if err := decodeValue(schema, "docs", []any{nil}, reflect.ValueOf(&documents).Elem(), ""); err != nil || len(documents) != 1 || documents[0] != nil {
+		t.Fatalf("document null: %v", err)
+	}
+	if _, err := encodeValue(schema, "docs", reflect.ValueOf(documents), ""); err != nil {
 		t.Fatal(err)
 	}
 }

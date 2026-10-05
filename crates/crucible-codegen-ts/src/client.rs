@@ -1,6 +1,9 @@
 //! `client.ts`: the client class, one method per operation and a paginator
 //! per paginated operation.
 
+use std::collections::{BTreeMap, BTreeSet};
+
+use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Operation, Service, Shape};
 
 use crate::names::{doc, literal, method_name, optional, smithy};
@@ -29,12 +32,20 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
          this.#transport = new Transport(config, {{ endpoint: {endpoint}, middleware: [{}], bearer: {bearer} }}, spec.errors);\n  }}\n",
         middleware.join(", ")
     ));
+    let names = method_names(service);
     for operation in &service.operations {
         out.push('\n');
-        method(&mut out, service, operation);
+        let (name, paginator_name) = &names[&operation.id];
+        method(&mut out, service, operation, name);
         if operation.paginated.is_some() {
             out.push('\n');
-            paginator(&mut out, service, operation);
+            paginator(
+                &mut out,
+                service,
+                operation,
+                name,
+                paginator_name.as_deref().unwrap(),
+            );
         }
     }
     out.push_str("}\n");
@@ -56,6 +67,44 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
     }
     header.push_str("import * as spec from \"./schemas.js\";\n\n");
     header + &out
+}
+
+/// Reserve natural operation names before assigning suffixes or paginator
+/// helpers, so adding a helper never hides an ordinary modeled operation.
+fn method_names(service: &Service) -> BTreeMap<ShapeId, (String, Option<String>)> {
+    let mut operations: Vec<_> = service.operations.iter().collect();
+    operations.sort_by_key(|op| &op.id);
+    let mut reserved: BTreeSet<_> = operations.iter().map(|op| method_name(op.name())).collect();
+    let mut used = BTreeSet::from(["constructor".to_owned()]);
+    let mut names = BTreeMap::new();
+    for op in &operations {
+        let name = allocate(method_name(op.name()), &reserved, &mut used);
+        names.insert(op.id.clone(), (name, None));
+    }
+    reserved.extend(
+        operations
+            .iter()
+            .filter(|op| op.paginated.is_some())
+            .map(|op| format!("paginate{}", op.name())),
+    );
+    for op in operations.into_iter().filter(|op| op.paginated.is_some()) {
+        let name = allocate(format!("paginate{}", op.name()), &reserved, &mut used);
+        names.get_mut(&op.id).unwrap().1 = Some(name);
+    }
+    names
+}
+
+fn allocate(base: String, reserved: &BTreeSet<String>, used: &mut BTreeSet<String>) -> String {
+    if used.insert(base.clone()) {
+        return base;
+    }
+    for suffix in 2.. {
+        let name = format!("{base}_{suffix}");
+        if !reserved.contains(&name) && used.insert(name.clone()) {
+            return name;
+        }
+    }
+    unreachable!()
 }
 
 /// `(input: m.XInput, options?)`, with `input` defaulting to `{}` when every
@@ -85,20 +134,25 @@ fn output_type(service: &Service, operation: &Operation) -> String {
         .map_or("void".to_owned(), |id| format!("m.{}", service.name_of(id)))
 }
 
-fn method(out: &mut String, service: &Service, operation: &Operation) {
+fn method(out: &mut String, service: &Service, operation: &Operation, name: &str) {
     doc(out, "  ", operation.docs.as_deref());
     let (params, input) = parameters(service, operation);
     out.push_str(&format!(
         "  {}({params}): Promise<{}> {{\n    return this.#transport.send(spec.{}, {input}, options);\n  }}\n",
-        method_name(operation.name()),
+        name,
         output_type(service, operation),
         operation.name(),
     ));
 }
 
-fn paginator(out: &mut String, service: &Service, operation: &Operation) {
+fn paginator(
+    out: &mut String,
+    service: &Service,
+    operation: &Operation,
+    name: &str,
+    paginator_name: &str,
+) {
     let paginated = operation.paginated.as_ref().expect("checked by the caller");
-    let name = method_name(operation.name());
     out.push_str(&format!(
         "  /** Every page of {}, following `{}` until a page comes back without one. */\n",
         operation.name(),
@@ -107,9 +161,8 @@ fn paginator(out: &mut String, service: &Service, operation: &Operation) {
     let (params, _) = parameters(service, operation);
     let path: Vec<String> = paginated.output_token.split('.').map(literal).collect();
     out.push_str(&format!(
-        "  paginate{}({params}): AsyncGenerator<{}, void, undefined> {{\n    \
+        "  {paginator_name}({params}): AsyncGenerator<{}, void, undefined> {{\n    \
          return paginate(page => this.{name}(page, options), input, {}, [{}]);\n  }}\n",
-        operation.name(),
         output_type(service, operation),
         literal(&paginated.input_token),
         path.join(", "),

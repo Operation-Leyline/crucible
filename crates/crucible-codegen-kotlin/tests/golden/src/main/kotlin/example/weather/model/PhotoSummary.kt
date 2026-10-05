@@ -12,8 +12,8 @@ class `PhotoSummary` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`PhotoSummary` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`PhotoSummary` = Builder().also { builder ->
-        builder.`size` = `size`
-        builder.`thumbnail` = `thumbnail`
+        builder.`size` = this.`size`
+        builder.`thumbnail` = this.`thumbnail`
         builder.__crucibleField2 = __crucibleField2
     }.apply(block).build()
     class Builder {

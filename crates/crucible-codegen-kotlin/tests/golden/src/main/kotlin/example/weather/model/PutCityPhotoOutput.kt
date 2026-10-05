@@ -8,7 +8,7 @@ class `PutCityPhotoOutput` internal constructor(
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`PutCityPhotoOutput` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`PutCityPhotoOutput` = Builder().also { builder ->
-        builder.`photo` = `photo`
+        builder.`photo` = this.`photo`
     }.apply(block).build()
     class Builder {
         var `photo`: example.weather.model.`PhotoSummary`? = null

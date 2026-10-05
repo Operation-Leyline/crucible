@@ -584,6 +584,7 @@ static CREATE_CITY_OPERATION: ::crucible::OperationInfo = ::crucible::OperationI
 };
 
 impl ::crucible::Operation for CreateCity {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible::OperationInfo = &CREATE_CITY_OPERATION;
     type Input = model::CreateCityInput;
     type Output = model::CreateCityOutput;
@@ -620,6 +621,7 @@ static GET_CITY_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo
 };
 
 impl ::crucible::Operation for GetCity {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible::OperationInfo = &GET_CITY_OPERATION;
     type Input = model::GetCityInput;
     type Output = model::GetCityOutput;
@@ -654,6 +656,7 @@ static GET_CITY_PHOTO_OPERATION: ::crucible::OperationInfo = ::crucible::Operati
 };
 
 impl ::crucible::Operation for GetCityPhoto {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible::OperationInfo = &GET_CITY_PHOTO_OPERATION;
     type Input = model::GetCityPhotoInput;
     type Output = model::GetCityPhotoOutput;
@@ -690,6 +693,7 @@ static LIST_CITIES_OPERATION: ::crucible::OperationInfo = ::crucible::OperationI
 };
 
 impl ::crucible::Operation for ListCities {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible::OperationInfo = &LIST_CITIES_OPERATION;
     type Input = model::ListCitiesInput;
     type Output = model::ListCitiesOutput;
@@ -719,6 +723,7 @@ static PING_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo {
 };
 
 impl ::crucible::Operation for Ping {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible::OperationInfo = &PING_OPERATION;
     type Input = ::crucible::operation::Unit;
     type Output = ();
@@ -755,6 +760,7 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible::OperationInfo = ::crucible::Operati
 };
 
 impl ::crucible::Operation for PutCityPhoto {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
     type Input = model::PutCityPhotoInput;
     type Output = model::PutCityPhotoOutput;
@@ -785,6 +791,7 @@ static STATUS_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo {
 };
 
 impl ::crucible::Operation for Status {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible::OperationInfo = &STATUS_OPERATION;
     type Input = model::StatusInput;
     type Output = model::StatusOutput;

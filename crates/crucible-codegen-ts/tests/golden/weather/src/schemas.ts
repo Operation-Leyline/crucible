@@ -57,6 +57,7 @@ export const S_ValidationFieldList: Schema = list(() => S_ValidationField);
 export const CreateCity: OperationSpec = {
   name: "CreateCity",
   method: "POST",
+  bearer: true,
   path: ["cities"],
   input: S_CreateCityInput,
   headers: [["expectedRevision", "X-Expected-Revision", integer(64)]],
@@ -70,6 +71,7 @@ export const CreateCity: OperationSpec = {
 export const GetCity: OperationSpec = {
   name: "GetCity",
   method: "GET",
+  bearer: true,
   path: ["cities", { label: "cityId" }],
   input: S_GetCityInput,
   query: [["at", "at", timestamp("date-time")]],
@@ -81,6 +83,7 @@ export const GetCity: OperationSpec = {
 export const GetCityPhoto: OperationSpec = {
   name: "GetCityPhoto",
   method: "GET",
+  bearer: true,
   path: ["cities", { label: "cityId" }, "photo"],
   input: S_GetCityPhotoInput,
   output: { body: false, payload: "photo", schema: S_GetCityPhotoOutput, headers: [["caption", "X-Photo-Caption"]] },
@@ -91,6 +94,7 @@ export const GetCityPhoto: OperationSpec = {
 export const ListCities: OperationSpec = {
   name: "ListCities",
   method: "GET",
+  bearer: true,
   path: ["cities"],
   input: S_ListCitiesInput,
   query: [["nextToken", "nextToken"], ["maxResults", "maxResults", integer(32)], ["tags", "tag", list(string)]],
@@ -102,6 +106,7 @@ export const ListCities: OperationSpec = {
 export const Ping: OperationSpec = {
   name: "Ping",
   method: "GET",
+  bearer: true,
   path: ["ping"],
   errors: ["ThrottlingError", "ValidationError"],
   retrySafe: true,
@@ -110,6 +115,7 @@ export const Ping: OperationSpec = {
 export const PutCityPhoto: OperationSpec = {
   name: "PutCityPhoto",
   method: "PUT",
+  bearer: true,
   path: ["cities", { label: "cityId" }, "photo"],
   input: S_PutCityPhotoInput,
   headers: [["caption", "X-Photo-Caption"]],
@@ -122,6 +128,7 @@ export const PutCityPhoto: OperationSpec = {
 export const Status: OperationSpec = {
   name: "Status",
   method: "GET",
+  bearer: true,
   path: ["status"],
   input: S_StatusInput,
   output: { body: false, schema: S_StatusOutput },

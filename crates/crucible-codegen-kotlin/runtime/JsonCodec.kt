@@ -37,11 +37,17 @@ internal class JsonCodec(val schema: JsonObject) {
             "blob" -> JsonPrimitive(Base64.getEncoder().encodeToString(value as ByteArray))
             "list" -> JsonArray().also { result ->
                 val member = shape.getAsJsonObject("member")
-                (value as Iterable<*>).forEach { result.add(encode(member.text("target"), it, member.text("format"))) }
+                (value as Iterable<*>).forEach {
+                    require(it != null || shape(member.text("target")!!).text("kind") == "document") { "Null element in non-sparse list" }
+                    result.add(encode(member.text("target"), it, member.text("format")))
+                }
             }
             "map" -> JsonObject().also { result ->
                 val member = shape.getAsJsonObject("value")
-                (value as Map<*, *>).forEach { (key, item) -> result.add(key.toString(), encode(member.text("target"), item, member.text("format"))) }
+                (value as Map<*, *>).forEach { (key, item) ->
+                    require(item != null || shape(member.text("target")!!).text("kind") == "document") { "Null value in non-sparse map" }
+                    result.add(key.toString(), encode(member.text("target"), item, member.text("format")))
+                }
             }
             "structure", "union", "enum" -> ModelCodecs.encode(target, value, this)
             else -> json.toJsonTree(value)
