@@ -15,12 +15,19 @@ pub fn variant(name: &str) -> String {
 pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String) {
     let mut files = Vec::new();
     let mut encode = String::from(
-        "    fun encode(target: String, value: Any, codec: JsonCodec): com.google.gson.JsonElement = when (target) {\n",
+        "    fun encode(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = when (target) {\n",
     );
     let mut decode = String::from(
-        "    fun decode(target: String, value: com.google.gson.JsonElement, codec: JsonCodec): Any = when (target) {\n",
+        "    fun decode(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = when (target) {\n",
     );
     let mut helpers = String::new();
+    let mut stream_read = String::from(
+        "    fun stream(target: String?, value: Any?): ByteStream? = when(target) {\n",
+    );
+    let mut stream_write = String::from(
+        "    fun withStream(target: String, value: Any, stream: ByteStream): Any = when(target) {\n",
+    );
+
     for (index, (id, shape)) in service.shapes.iter().enumerate() {
         if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
             continue;
@@ -33,25 +40,42 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
         let decode_start = decode.len();
         match shape {
             Shape::List(l) => {
-                let t = ty(service, &l.member.target, package);
+                let t = format!(
+                    "{}{}",
+                    ty(service, &l.member.target, package),
+                    if l.sparse { "?" } else { "" }
+                );
+                let collection = if l.is_set { "Set" } else { "List" };
+                let base = if l.is_set {
+                    "LinkedHashSet"
+                } else {
+                    "ArrayList"
+                };
+                let conversion = if l.is_set { ".toSet()" } else { "" };
                 if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
-                    models.push_str(&format!("class `{name}` : java.util.ArrayList<{t}>()\n"));
+                    models.push_str(&format!(
+                        "class `{name}` : kotlin.collections.{base}<{t}>()\n"
+                    ));
                     decode.push_str(&format!("        {target} -> {native}().apply {{ addAll(codec.readList(target, value) as List<{t}>) }}\n"));
                 } else {
                     models.push_str(&format!(
-                        "typealias `{name}` = kotlin.collections.List<{t}>\n"
+                        "typealias `{name}` = kotlin.collections.{collection}<{t}>\n"
                     ));
                     decode.push_str(&format!(
-                        "        {target} -> codec.readList(target, value) as {native}\n"
+                        "        {target} -> codec.readList(target, value){conversion} as {native}\n"
                     ));
                 }
             }
             Shape::Map(m) => {
                 let key = ty(service, &m.key.target, package);
-                let val = ty(service, &m.value.target, package);
+                let val = format!(
+                    "{}{}",
+                    ty(service, &m.value.target, package),
+                    if m.sparse { "?" } else { "" }
+                );
                 if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
                     models.push_str(&format!(
-                        "class `{name}` : java.util.LinkedHashMap<{key}, {val}>()\n"
+                        "class `{name}` : kotlin.collections.LinkedHashMap<{key}, {val}>()\n"
                     ));
                     decode.push_str(&format!("        {target} -> {native}().apply {{ putAll(codec.readMap(target, value) as Map<{key}, {val}>) }}\n"));
                 } else {
@@ -67,20 +91,41 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 models.push_str(&format!("    data class `{name}`(val value: kotlin.String) {{\n        override fun toString(): kotlin.String = value\n        companion object {{\n"));
                 for v in &e.values {
                     models.push_str(&format!(
-                        "            @JvmField val `{}` = `{name}`({})\n",
+                        "            val `{}` = `{name}`({})\n",
                         v.name.to_uppercase(),
                         literal(&v.value)
                     ));
                 }
                 models.push_str("        }\n    }\n");
                 encode.push_str(&format!(
-                    "        {target} -> com.google.gson.JsonPrimitive((value as {native}).value)\n"
+                    "        {target} -> kotlinx.serialization.json.JsonPrimitive((value as {native}).value)\n"
                 ));
                 decode.push_str(&format!(
                     "        {target} -> {native}(codec.string(value))\n"
                 ));
             }
+            Shape::IntEnum(e) => {
+                models.push_str(&format!("data class `{name}`(val value: kotlin.Int) {{\n    override fun toString(): kotlin.String = value.toString()\n    companion object {{\n"));
+                for v in &e.values {
+                    models.push_str(&format!(
+                        "        val `{}` = `{name}`({})\n",
+                        v.name.to_uppercase(),
+                        v.value
+                    ));
+                }
+                models.push_str("    }\n}\n");
+                encode.push_str(&format!("        {target} -> kotlinx.serialization.json.JsonPrimitive((value as {native}).value)\n"));
+                decode.push_str(&format!(
+                    "        {target} -> {native}(codec.intValue(value))\n"
+                ));
+            }
             Shape::Structure(s) => {
+                if let Some(member)=s.members.iter().find(|member| matches!(service.shape(&member.target),Some(Shape::Simple(simple)) if simple.streaming)) {
+                    let attribute=field(&member.name);
+                    stream_read.push_str(&format!("        {target} -> (value as? {native})?.`{attribute}`\n"));
+                    stream_write.push_str(&format!("        {target} -> (value as {native}).copy {{ `{attribute}`=stream }}\n"));
+                }
+
                 models.push_str(&format!("class `{name}` internal constructor(\n"));
                 let mut builder = String::from("    class Builder {\n");
                 let mut properties = String::new();
@@ -88,7 +133,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 let mut copy =
                     String::from("    fun copy(block: Builder.() -> kotlin.Unit = {}): ");
                 copy.push_str(&format!("{native} = Builder().also {{ builder ->\n"));
-                encode.push_str(&format!("        {target} -> com.google.gson.JsonObject().also {{ result ->\n            val model = value as {native}\n"));
+                encode.push_str(&format!("        {target} -> wireObject {{ result ->\n            val model = value as {native}\n"));
                 decode.push_str(&format!("        {target} -> {native}(\n"));
                 for (index, m) in s.members.iter().enumerate() {
                     let t = ty(service, &m.target, package);
@@ -159,7 +204,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     "        {target} -> when (val model = value as {native}) {{\n"
                 ));
                 decode.push_str(&format!(
-                    "        {target} -> codec.union(value).let {{ (name, item) -> when (name) {{\n"
+                    "        {target} -> codec.union({target}, value).let {{ (name, item) -> when (name) {{\n"
                 ));
                 for m in &s.members {
                     let v = variant(&m.name);
@@ -168,12 +213,15 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     models.push_str(&format!(
                         "        data class `{v}`(val value: {t}?) : `{name}`\n"
                     ));
-                    encode.push_str(&format!("            is {native}.`{v}` -> com.google.gson.JsonObject().also {{ codec.put(it, target, {n}, model.value) }}\n"));
-                    decode.push_str(&format!("            {n} -> {native}.`{v}`(codec.readUnionMember(target, name, item) as {t}?)\n"));
+                    encode.push_str(&format!("            is {native}.`{v}` -> wireObject {{ codec.put(it, target, {n}, model.value) }}\n"));
+                    let wire = literal(&m.wire_name);
+                    decode.push_str(&format!("            {wire} -> {native}.`{v}`(codec.readUnionMember(target, {n}, item) as {t}?)\n"));
                 }
-                models.push_str(&format!("        data class UnknownVariant(val name: kotlin.String, val value: com.google.gson.JsonElement) : `{name}`\n    }}\n"));
+                models.push_str(&format!("        data class UnknownVariant(val name: kotlin.String, val value: kotlinx.serialization.json.JsonElement) : `{name}`\n    }}\n"));
                 encode.push_str(&format!("            is {native}.UnknownVariant -> codec.unknownUnion(target, model.name, model.value)\n        }}\n"));
-                decode.push_str(&format!("            else -> {native}.UnknownVariant(name, item.deepCopy())\n        }} }}\n"));
+                decode.push_str(&format!(
+                    "            else -> {native}.UnknownVariant(name, item)\n        }} }}\n"
+                ));
             }
             _ => unreachable!(),
         }
@@ -186,13 +234,13 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 encode_start,
                 "encode",
                 "Any",
-                "com.google.gson.JsonElement",
+                "kotlinx.serialization.json.JsonElement",
             ),
             (
                 &mut decode,
                 decode_start,
                 "decode",
-                "com.google.gson.JsonElement",
+                "kotlinx.serialization.json.JsonElement",
                 "Any",
             ),
         ] {
@@ -205,12 +253,14 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
             }
         }
     }
+    stream_read.push_str("        else -> null\n    }\n");
+    stream_write.push_str("        else -> error(\"No streaming member for $target\")\n    }\n");
     encode.push_str("        else -> error(\"No generated encoder for $target\")\n    }\n");
     decode.push_str("        else -> error(\"No generated decoder for $target\")\n    }\n");
     (
         files,
         format!(
-            "@Suppress(\"UNCHECKED_CAST\", \"UNUSED_VARIABLE\", \"UNUSED_PARAMETER\")\ninternal object ModelCodecs {{\n{encode}{decode}{helpers}}}\n"
+            "@Suppress(\"UNCHECKED_CAST\", \"UNUSED_VARIABLE\", \"UNUSED_PARAMETER\")\ninternal object ModelCodecs {{\n{encode}{decode}{helpers}{stream_read}{stream_write}}}\n"
         ),
     )
 }
@@ -228,7 +278,18 @@ pub(crate) fn default_expr(
             ty(service, target, package),
             literal(text)
         )),
+        (Shape::IntEnum(_), Value::Number(value)) => {
+            Some(format!("{}({})", ty(service, target, package), value))
+        }
         (Shape::Simple(simple), value) => match (simple.kind, value) {
+            (SimpleKind::BigInteger, Value::Number(value)) => Some(format!(
+                "com.ionspin.kotlin.bignum.integer.BigInteger.parseString({package}.WireDecimal({}).integerText())",
+                literal(&value.to_string())
+            )),
+            (SimpleKind::BigDecimal, Value::Number(value)) => Some(format!(
+                "com.ionspin.kotlin.bignum.decimal.BigDecimal.parseString({})",
+                literal(&value.to_string())
+            )),
             (SimpleKind::Boolean, Value::Bool(value)) => Some(value.to_string()),
             (SimpleKind::String, Value::String(value)) => Some(literal(value)),
             (
@@ -237,14 +298,14 @@ pub(crate) fn default_expr(
             ) => {
                 let Some(value) = number.as_i64() else {
                     let method = match simple.kind {
-                        SimpleKind::Byte => "byteValueExact",
-                        SimpleKind::Short => "shortValueExact",
-                        SimpleKind::Integer => "intValueExact",
-                        SimpleKind::Long => "longValueExact",
+                        SimpleKind::Byte => "toByte",
+                        SimpleKind::Short => "toShort",
+                        SimpleKind::Integer => "toInt",
+                        SimpleKind::Long => "toLong",
                         _ => unreachable!(),
                     };
                     return Some(format!(
-                        "java.math.BigDecimal({}).{method}()",
+                        "{package}.WireDecimal({}).longExact().{method}()",
                         literal(&number.to_string())
                     ));
                 };
@@ -272,23 +333,23 @@ pub(crate) fn default_expr(
                 Some(text)
             }
             (SimpleKind::Document, value) => Some(format!(
-                "com.google.gson.JsonParser.parseString({})",
+                "kotlinx.serialization.json.Json.parseToJsonElement({})",
                 literal(&value.to_string())
             )),
             (SimpleKind::Blob, Value::String(value)) => Some(format!(
-                "java.util.Base64.getDecoder().decode({})",
+                "kotlin.io.encoding.Base64.decode({})",
                 literal(value)
             )),
             (SimpleKind::Timestamp, Value::String(value)) => {
-                Some(format!("java.time.Instant.parse({})", literal(value)))
+                Some(format!("kotlin.time.Instant.parse({})", literal(value)))
             }
             (SimpleKind::Timestamp, Value::Number(value)) => Some(format!(
-                "java.math.BigDecimal({}).let {{ value -> java.time.Instant.ofEpochSecond(value.toLong(), value.remainder(java.math.BigDecimal.ONE).movePointRight(9).longValueExact()) }}",
+                "{package}.WireDecimal({}).instant()",
                 literal(&value.to_string())
             )),
             _ => None,
         },
-        (Shape::List(_), Value::Array(value)) if value.is_empty() => Some(
+        (Shape::List(list), Value::Array(value)) if value.is_empty() => Some(
             if recursive_collection(
                 service,
                 target,
@@ -297,7 +358,11 @@ pub(crate) fn default_expr(
             ) {
                 format!("{}()", ty(service, target, package))
             } else {
-                "kotlin.collections.emptyList()".into()
+                if list.is_set {
+                    "kotlin.collections.emptySet()".into()
+                } else {
+                    "kotlin.collections.emptyList()".into()
+                }
             },
         ),
         (Shape::Map(_), Value::Object(value)) if value.is_empty() => Some(

@@ -143,10 +143,13 @@ fake = Fake.new do |attempt, request|
   check(request.headers['x-amz-content-sha256'] == ::Digest::SHA256.hexdigest(request.body), 'Final digest')
   HttpResponse.new(attempt == 1 ? 503 : 201, body: attempt == 1 ? '{"__type":"Future"}' : '{"city":{"id":"x","name":"n"}}')
 end
-client = sdk(fake, token: -> { (token += 1).to_s }, middleware: [->(request) { request.with(body: request.body + ' ') }])
+token_calls = 0
+client = sdk(fake, token: -> { (token += 1).to_s }, idempotency_token: -> { token_calls += 1; 'deterministic-idempotency-token' },
+  middleware: [->(request) { request.with(body: request.body + ' ') }])
 input = CreateCityInput.new(name: 'ruby')
 client.create_city(input)
 check(fake.requests.size == 2 && fake.requests[0].body == fake.requests[1].body && input.client_token.equal?(UNSET), 'Stable bytes and caller ownership')
+check(token_calls == 1 && fake.requests[0].body.include?('deterministic-idempotency-token'), 'Configured idempotency token generated once and reused on retry')
 fake = Fake.new { HttpResponse.new(429, headers: {'x-request-id' => 'header'}, body: '{"__type":"ThrottlingError","message":42}') }
 error = rejects(ServiceError) { sdk(fake, max_attempts: 2).ping }
 check(error.metadata.status == 429 && error.metadata.throttling && error.metadata.request_id == 'header' && fake.requests.size == 2, 'Malformed error retains metadata')

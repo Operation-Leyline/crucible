@@ -3,10 +3,12 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
 from sdk_http_fixture import fixture
+from xml_qualification import PACKAGES, REGRESSIONS, conformance_options, write_exclusions
 
 RUBY = os.environ.get("RUBY", "ruby")
 
@@ -64,7 +66,81 @@ def qualify(output):
             script += "; input = Weather::CreateCityInput.new(class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'class'=>'x','toWire'=>'y'}"
             script += "; begin; Weather::Runtime::WireCodec.string(7); raise 'Expected native argument error'; rescue ::ArgumentError; end"
         run(RUBY, "-I", str(generated / "lib"), "-r", "weather_client", "-e", script)
-    print("Ruby empty, void, and renamed packages passed")
+    for name, fixture_name, package_name, module in [
+        ("dynamic", "dynamic-bindings", "dynamic_client", "Dynamic"),
+        ("extended", "extended-types", "types_client", "Types"),
+    ]:
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
+            "--package-name", package_name, "--module-name", module)
+    run(RUBY, "-I", str(output / "dynamic/lib"), "-I", str(output / "extended/lib"),
+        str(ROOT / "crates/crucible-codegen-ruby/tests/extensions.rb"))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
+        "--package-name", "wire_client", "--module-name", "WireSdk")
+    run(RUBY, "-I", str(output / "wire/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/wire.rb"))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+        str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
+        "--package-name", "auth_client", "--module-name", "AuthSdk")
+    run(RUBY, "-I", str(output / "auth/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/auth.rb"))
+    behaviors(output)
+    print("Ruby empty, void, renamed, dynamic-binding and extended-type packages passed")
+
+
+def generate(model, out, package, module, *extra):
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby", str(model), *extra,
+        "--out", str(out), "--package-name", package, "--module-name", module)
+    for source in sorted(out.rglob("*.rb")):
+        run(RUBY, "-c", str(source), stdout=subprocess.DEVNULL)
+
+
+def behaviors(output):
+    """Waiters, endpoint rules, host prefixes, checksums, and the AWS JSON protocols."""
+    tests = ROOT / "crates/crucible-codegen-ruby/tests"
+    generate(ROOT / "crates/crucible-codegen-java/tests/waiters.json", output / "jobs", "jobs_client", "Jobs")
+    run(RUBY, "-I", str(output / "jobs/lib"), str(tests / "waiters.rb"))
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json", output / "behavior", "behavior_client", "Behavior")
+    run(RUBY, "-I", str(output / "behavior/lib"), str(tests / "endpoints.rb"))
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", output / "checksum", "checksum_client", "ChecksumSdk")
+    run(RUBY, "-I", str(output / "checksum/lib"), str(tests / "checksums.rb"),
+        env=dict(os.environ, CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json")))
+    protocol = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
+    protocol["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
+    protocol_path = output / "protocol.json"
+    protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
+    includes = []
+    for name, package, module in [("restJson1", "restjson_client", "RestJson"),
+                                  ("awsJson1_0", "json10_client", "Json10"),
+                                  ("awsJson1_1", "json11_client", "Json11")]:
+        generate(protocol_path, output / package, package, module, "--protocol", "aws.protocols#" + name)
+        includes += ["-I", str(output / package / "lib")]
+    run(RUBY, *includes, str(tests / "protocols.rb"))
+    xml_protocols(output)
+    generate(ROOT / "crates/crucible-codegen-java/tests/streaming.json", output / "stream", "stream_client", "StreamSdk")
+    run(RUBY, "-I", str(output / "stream/lib"), str(tests / "streaming.rb"),
+        env=dict(os.environ, CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json")))
+
+
+def xml_protocols(output):
+    """restXml, awsQuery and ec2Query: Smithy vectors through a native adapter, then the gems' own tests."""
+    fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
+    write_exclusions(output)
+    includes = []
+    modules = {"xml": "RestXml", "nowrap": "NoWrap", "query": "Query", "ec2": "Ec2",
+               "officialxml": "OfficialXml", "namespace": "Namespace", "s3": "S3",
+               "officialquery": "OfficialQuery", "officialec2": "OfficialEc2"}
+    for label, fixture, service, protocol in PACKAGES:
+        package, module = label + "_client", modules[label]
+        generate(fixtures / fixture, output / package, package, module, "--service", service)
+        if (label, fixture, service, protocol) in REGRESSIONS:
+            includes += ["-I", str(output / package / "lib")]
+        vectors = output / (package + "-vectors")
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance", str(fixtures / fixture),
+            "--service", service, "--target", "ruby", "--out", str(vectors))
+        run(sys.executable, str(ROOT / "tools/protocol_conformance.py"), str(vectors / "protocol-tests.json"),
+            "--protocol", protocol, "--report", str(vectors / "results.json"), *conformance_options(label), "--", RUBY, "-I", str(output / package / "lib"),
+            str(ROOT / "crates/crucible-codegen-ruby/tests/protocol_adapter.rb"), package, module)
+    run(RUBY, *includes, str(ROOT / "crates/crucible-codegen-ruby/tests/xml_protocols.rb"))
 
 
 if __name__ == "__main__":

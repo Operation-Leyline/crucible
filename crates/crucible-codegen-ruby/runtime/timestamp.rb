@@ -38,6 +38,20 @@ module CrucibleGenerated
         result.checked_time
         result
       end
+      def self.read(value, format)
+        case format
+        when 'epoch-seconds' then from_epoch(value.is_a?(::String) ? JsonNumber.new(value) : value)
+        when 'http-date' then from_http_date(WireCodec.string(value))
+        else parse(WireCodec.string(value))
+        end
+      end
+      def wire(format)
+        case format
+        when 'epoch-seconds' then epoch
+        when 'http-date' then http_date
+        else date_time
+        end
+      end
       def checked_time
         time = to_time
         raise ::ArgumentError, 'Text timestamp year out of range' unless time.year.between?(1, 9999)

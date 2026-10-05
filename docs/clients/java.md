@@ -18,6 +18,131 @@ The generator owns and replaces its output directory. Set `--package-version`
 to the Maven artifact version. The jar includes the lowered wire description
 and `crucible.json` with generator/service versions and a wire-schema SHA-256.
 The runtime uses JDK HTTP and Gson; Maven declares the dependency.
+Arbitrary precision numbers use `java.math.BigInteger` and `BigDecimal`.
+Integer enums are open records with an `int value()` and named constants.
+Sets use `Set<T>` and reject duplicate wire values; sparse lists and maps
+preserve null elements or values. JSON member renames, greedy path labels,
+query maps, prefix headers, and response-code members use the modeled bindings.
+Whole-body payloads support bytes, strings, and JSON structures/unions/documents,
+including modeled errors. Media-type string headers are base64 encoded on the wire.
+
+## AWS JSON protocols and checksums
+
+The generator accepts `aws.protocols#restJson1`, `aws.protocols#awsJson1_0`, and
+`aws.protocols#awsJson1_1`. Use `--protocol aws.protocols#restJson1` to choose
+among multiple protocol traits declared by one service. RPC protocols send the
+modeled operation through `X-Amz-Target` and serialize an empty input as `{}`.
+REST JSON applies the lowered HTTP bindings and timestamp formats. AWS JSON
+omits null ordinary structure members, retains explicit document nulls, and
+supports the protocol's string representations of nonfinite floating-point values.
+
+Buffered payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`;
+streaming payloads follow the rules under Streaming blobs.
+The supported algorithms are CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and
+SHA512. Selecting an unsupported XXHASH algorithm raises an error before sending.
+Required legacy checksums use `Content-MD5`; flexible requests default to CRC32
+and response validation defaults to `ENABLED` when the model supplies those input
+members. These defaults change only the private request copy. Explicit checksum
+headers take precedence. Request checksums cover the final middleware body and
+are included in authentication signing. Response verification runs before decoding;
+a mismatch raises `ChecksumMismatch` and returns no model.
+
+`requestChecksumCalculation` and `responseChecksumValidation` default to
+`ChecksumPolicy.WHEN_SUPPORTED`. Set either to `WHEN_REQUIRED` to disable its
+automatic opt-in while retaining required request checksums and explicit input
+choices. The `checksumValidated` callback receives the operation name and the
+single algorithm actually verified. It is invoked only after successful validation;
+absence of a callback means no checksum was verified for that response.
+
+## AWS XML protocols
+
+The generator also accepts `aws.protocols#restXml`, `aws.protocols#awsQuery`, and
+`aws.protocols#ec2Query`, again chosen with `--protocol` when a service declares
+several. The runtime uses only the JDK's StAX parser (`javax.xml.stream`) with DTD
+support and external entities disabled; it adds no dependency.
+Element and query names, flattening, attributes, and namespaces come from the
+lowered IR (`@xmlName`, `@xmlFlattened`, `@xmlAttribute`, `@xmlNamespace`,
+`aws.protocols#ec2QueryName`). restXml applies the HTTP bindings and writes the
+remaining members under the input's root element, in the input's namespace or
+else the service's; a structure `@httpPayload` is named by the member's
+`@xmlName`, else the target's name. Lists wrap `<member>` (or the list member's
+`@xmlName`) elements, maps wrap `<entry><key>...</key><value>...</value></entry>`,
+and flattened collections repeat the member's own element. awsQuery and ec2Query
+POST `application/x-www-form-urlencoded` forms that start with `Action` and the
+service `Version`: awsQuery lists are `Name.member.N` (`Name.N` when flattened, a
+bare `Name=` when empty) and maps `Name.entry.N.key`/`.value`; ec2Query always
+flattens, leaves empty lists out, and names members by `ec2QueryName` or the
+capitalized XML name. Timestamps default to date-time; non-finite floats are
+`NaN`, `Infinity`, and `-Infinity`; blobs are base64.
+
+Responses are read by local element name, so namespace prefixes do not matter.
+awsQuery reads the `<OperationResult>` element and ignores `<ResponseMetadata>`;
+ec2Query reads the root element. Errors are found in `<ErrorResponse><Error>`,
+restXml's unwrapped `<Error>` (`noErrorWrapping`, as S3 sends), or ec2Query's
+`<Response><Errors><Error>`: `Code` selects the modeled error (an
+`aws.protocols#awsQueryError` code under awsQuery), `Message` becomes the
+error message, and `RequestId`/`RequestID` is the request ID unless an
+`x-amzn-requestid` or `x-amz-request-id` header supplies one. A success
+response's request ID is not exposed. The parser accepts no document type
+declaration, so no external entity or entity expansion is ever processed;
+nesting is limited to 256 elements, and malformed XML fails the call.
+A restXml body with text XML 1.0 cannot carry (most control characters) is
+rejected before sending. Sparse collections are refused for these protocols at
+generation time, because XML has no null element; document shapes and raw restXml error payloads are refused as
+well, and `awsQueryCompatible` is not supported.
+
+## Authentication and credentials
+
+Authentication follows each operation's effective ordered scheme list. Set
+`config.basicAuth = () -> new BasicCredentials(user, password)` for Basic auth,
+`config.apiKey = () -> key` for a modeled API key, or `config.credentials` and
+`config.region` for AWS Signature V4. API keys use the modeled header or query
+location. An operation with `auth: []` never calls these providers; optional
+authentication permits an absent identity. Providers are called per attempt,
+after middleware, and SigV4 signs the final request bytes and headers.
+
+```java
+config.region = "us-east-1";
+config.credentials = new CachedCredentials(CredentialProviders.chain(
+    CredentialProviders::environment,
+    CredentialProviders.profile(java.nio.file.Path.of("/path/to/credentials"), "development")));
+```
+
+Provider chains stop at the first identity. `CachedCredentials` serializes
+refreshes and refreshes expiring credentials one minute before expiry by default.
+Environment and profile lookup happen only when explicitly configured. Credential
+objects redact secrets from `toString()`. All authentication schemes require
+HTTPS except for loopback test endpoints.
+
+## Endpoints and waiters
+
+When the model declares endpoint rules, an explicit endpoint is optional. Rules
+consume `region`, `endpointBuiltins`, `endpointParameters`, and modeled input
+sources in the precedence resolved by Smithy. Endpoint headers and signing
+properties apply to the prepared request. Host-prefix labels are validated before
+transport; set `disableHostPrefix = true` to opt out of prefix expansion.
+An explicit endpoint is available to the rules as `SDK::Endpoint`; the rules
+determine whether it overrides other resolution logic.
+
+Each modeled waiter generates `waitUntilName(input, options)` and
+`waitUntilNameAsync(input, options)`, with default-options and builder overloads.
+For a service declaring a `Ready` waiter:
+
+```java
+var options = new WaiterOptions(java.time.Duration.ofMinutes(2));
+var response = client.waitUntilReady(options, b -> b.names(java.util.List.of("job")));
+var future = client.waitUntilReadyAsync(options, b -> b.names(java.util.List.of("job")));
+future.cancel(true);
+```
+
+A waiter returns the final operation result, or `null` when an error acceptor
+represents success, such as a deleted resource. `WaiterError` retains the attempt
+count, last response/error, and modeled failure message; `WaiterTimeout` marks an
+expired overall deadline. The default deadline is five minutes. The deadline
+includes every operation and retry; cancelling the future stops the active
+operation and further polls. Delay overrides are optional; otherwise the waiter
+uses its modeled minimum/maximum delay and jitter. Compiled query expressions
+operate on modeled member names, including renamed wire fields and timestamps.
 
 ## Calling operations
 
@@ -43,6 +168,110 @@ while (pages.hasNext()) {
     for (var row : pages.next().cities()) System.out.println(row.name());
 }
 ```
+
+## Streaming blobs
+
+A `@streaming` blob is an `example.weather.ByteStream`, sent or received as the
+whole HTTP body without buffering it. Requests choose a source:
+
+| Source | Replay | Length |
+|---|---|---|
+| `ByteStream.fromBytes(bytes)`, `fromString(text)` | replayable | known |
+| `ByteStream.fromFile(path)` | replayable, reopened per attempt | file size |
+| `ByteStream.fromInputStreamSupplier(factory[, length])` | replayable, one factory call per attempt | optional |
+| `ByteStream.fromInputStream(input[, length])` | one-shot | optional |
+| `ByteStream.fromPublisher(publisher[, length])` (`Flow.Publisher<ByteBuffer>`) | one-shot | optional |
+
+A replay factory must return the same bytes every time. A one-shot body is
+opened once, so its operation is never retried, and passing it to a second call
+raises `IllegalStateException`. The client closes every `InputStream` it opens,
+including one-shot inputs, at the end of the body, on failure, or on cancellation.
+A known length is sent as `Content-Length` and the stream must produce exactly
+that many bytes; otherwise the body is chunked. `@requiresLength` rejects a
+stream without a length before sending, and modeled `@length` bounds are checked
+as bytes flow. A stream that fails or breaks its declared length raises its own
+error, never a retried `NetworkError`. For `PutObject` and `GetObject` operations
+with a streaming `body`:
+
+```java
+client.putObject(b -> b.key("photo.jpg").body(ByteStream.fromFile(path)));
+client.putObject(b -> b.key("log").body(ByteStream.fromInputStream(socketInput)));
+
+var object = client.getObject(b -> b.key("photo.jpg"));
+try (InputStream in = object.body().inputStream()) {
+    in.transferTo(Files.newOutputStream(target));
+}
+```
+
+A streaming response is returned as soon as its headers are decoded; the body is
+then read once through `inputStream()`, `publisher()`, `transferTo(output)`, or
+`readAllBytes()`. The runtime pulls one received chunk at a time, only when the
+reader needs it; `publisher()` requests chunks only as the subscriber signals demand, so
+asynchronous clients get backpressure too (`client.getObjectAsync(...)` completes
+at the headers in the same way). The configured `timeout` remains in force while
+the body is read: an expired deadline fails the read with `HttpTimeoutException`.
+Close the returned stream, or call `close()` on an unread `ByteStream`, to cancel
+the body and release its connection; closing from another thread, or interrupting
+a blocked reader, ends a pending read with an `IOException`. Cancelling the
+future of an asynchronous call stops an upload in progress; once the future has
+completed, cancel the body by closing it. A waiter closes the streams of every
+response it does not return.
+
+Streams are never buffered to compute a digest. With `--content-sha256` or
+SigV4 signing, declare the hex SHA-256 with `withSha256(hex)`; without it the call
+fails before the stream is opened. SigV4 signs an operation modeled with an
+unsigned payload as `UNSIGNED-PAYLOAD` instead. A streaming request receives no automatic checksum: a required
+or explicitly selected algorithm needs its header supplied by the caller (for
+example the modeled `x-amz-checksum-crc32` member). A streaming response checksum
+is verified incrementally; a mismatch fails the final read with `ChecksumMismatch`
+as its cause, and `checksumValidated` runs only after the last byte verified.
+Middleware sees a streaming body as `request.stream`, with a null `body`.
+
+The native suite exercises one-shot and replayed uploads, files, publishers,
+`requiresLength`, 256 MiB uploads and downloads under a 64 MiB heap, demand,
+deadlines after return, cancellation and connection release, checksums, and
+declared digests against a loopback HTTP server. Event streams are not
+supported.
+
+## Asynchronous pagination
+
+Every paginator also exposes a cold `Flow.Publisher<Output>` through
+`operationPagesAsync(input)`, its builder overload, and a no-argument overload
+when every input member can be omitted. Creating or subscribing to a publisher
+does not send a request until the subscriber requests positive demand.
+
+```java
+import java.util.concurrent.Flow;
+import example.weather.model.ListCitiesOutput;
+
+client.listCitiesPagesAsync(b -> b.maxResults(20)).subscribe(
+    new Flow.Subscriber<ListCitiesOutput>() {
+        private Flow.Subscription subscription;
+        public void onSubscribe(Flow.Subscription value) {
+            subscription = value;
+            subscription.request(1);
+        }
+        public void onNext(ListCitiesOutput page) {
+            page.cities().forEach(city -> System.out.println(city.name()));
+            subscription.request(1);
+        }
+        public void onError(Throwable error) { error.printStackTrace(); }
+        public void onComplete() { System.out.println("Complete"); }
+    });
+```
+
+Demand counts pages. At most one page request is active per subscriber; callbacks
+are serialized. Each subscriber owns an independent cursor and receives a snapshot
+of the input captured when the publisher was created. Cancelling the subscription
+cancels the active operation, including credential-provider work and pending
+retries. Cancellation suppresses signals from the cancelled exchange and stops
+new page requests; a subscriber callback already running may finish.
+Nonpositive demand signals `IllegalArgumentException`; repeated pagination tokens
+signal an error. The existing synchronous iterator remains available.
+
+The native consumer suite exercises demand, independent subscribers, cancellation,
+invalid demand, and repeated tokens against a loopback HTTP server. These tests do
+not establish deployed service or application executor behavior.
 
 ## Models and errors
 
@@ -72,7 +301,7 @@ model's wire names.
 HTTP-date has second precision. Modeled integer widths are checked on decode,
 including exact signed 64-bit values. Documents use Gson's `JsonElement` and
 preserve JSON numbers. Missing modeled defaults are applied; explicit null is
-kept distinct. Blobs are `byte[]`: standard, padded base64 in JSON, and the bytes
+kept distinct. Blobs are `byte[]` (streaming blobs are `ByteStream`; see above): standard, padded base64 in JSON, and the bytes
 themselves, under the blob's media type, as an `@httpPayload`; a payload
 response is the body as received, an empty body empty bytes.
 
@@ -97,6 +326,9 @@ caller-owned; the default does not follow redirects. Credentials are refreshed
 per attempt and require HTTPS except on loopback. Middleware receives the
 request's headers and body bytes; the optional digest is computed afterwards.
 Generated tokens are reused across retries without mutating input models.
+`ClientConfig.idempotencyToken` defaults to a random UUID supplier. A custom
+supplier runs once when the modeled input token is omitted; explicit tokens
+remain unchanged.
 `maxAttempts` defaults to 3 and includes the first call; `timeout` defaults to
 30 seconds. Retry-After takes precedence over jittered backoff.
 
@@ -109,10 +341,18 @@ remain available for applications managing pagination themselves.
 
 Run `python tools/test-java.py` with Maven, a JDK, and Rust available. Set
 `MAVEN` to an executable path if necessary. The harness builds the jar and
-tests it through a separate consumer, shared retry/header cases, and the
-weather service over HTTP. Generate and package the current full Leyline
+tests it through a separate consumer, shared retry/header cases, the
+weather service over HTTP, and generated feature packages (payloads, streaming,
+authentication, waiters, endpoints, checksums, and the AWS JSON protocols). The
+XML-family fixtures (`protocol-rest-xml.json`, `protocol-aws-query.json`,
+`protocol-ec2-query.json`, assembled from pinned official Smithy sources) run
+through `tests/ProtocolAdapter.java` and
+`tools/protocol_conformance.py`, then `XmlProtocolTest` and `QueryProtocolTest`
+exercise the generated clients over loopback HTTP, including hostile XML. Generate and package the current full Leyline
 projection separately, recording its model fingerprint and operation coverage.
-Published Maven artifacts and authenticated deployed Leyline traffic are
+The [XML qualification scope](../xml-qualification.md) records supported cases,
+explicit compression/S3 addressing exclusions, and the separate handwritten
+regression fixtures. Published Maven artifacts and authenticated deployed Leyline traffic are
 separate qualification steps.
 
 ## Migration

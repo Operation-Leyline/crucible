@@ -112,6 +112,18 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                     ));
                 }
             }
+            Shape::IntEnum(enumeration) => {
+                out.push_str(&format!("final readonly class {name} implements {runtime}\\WireModel\n{{\n    public function __construct(public int $value) {{ if ($value < -2147483648 || $value > 2147483647) throw new \\UnexpectedValueException('Integer enum overflow'); }}\n"));
+                for value in &enumeration.values {
+                    out.push_str(&format!(
+                        "    public const {} = {};\n",
+                        crate::names::constant(&value.name),
+                        value.value
+                    ));
+                }
+                out.push_str(&format!("    public function toWire({runtime}\\WireContext $context): {runtime}\\JsonNumber {{ return new {runtime}\\JsonNumber((string)$this->value); }}\n}}\n"));
+                decode.push_str(&format!("            {target} => new {name}($value instanceof {runtime}\\JsonNumber ? $value->integer(-2147483648, 2147483647) : throw new \\UnexpectedValueException('Expected integer enum')),\n"));
+            }
             Shape::Enum(enumeration) => {
                 out.push_str(&format!("final readonly class {name} implements {runtime}\\WireModel\n{{\n    public function __construct(public string $value) {{}}\n"));
                 for value in &enumeration.values {

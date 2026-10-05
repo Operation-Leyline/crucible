@@ -12,9 +12,7 @@ import example.weather.model.Forecast
 import example.weather.model.CreateCityInput
 import example.weather.model.ConflictError
 import example.weather.model.CitySummary
-import com.google.gson.JsonElement
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
+import kotlinx.serialization.json.*
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.io.Closeable
@@ -24,9 +22,12 @@ import java.net.InetSocketAddress
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.security.MessageDigest
-import java.time.Duration
-import java.time.Instant
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import java.util.concurrent.Executors
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
@@ -41,8 +42,35 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import io.ktor.utils.io.readAvailable
+import io.ktor.utils.io.writeFully
+import io.ktor.utils.io.writer
 
-private fun json(value: String): JsonElement = JsonParser.parseString(value)
+
+private val JsonElement?.asJsonObject: JsonObject get() = this!!.jsonObject
+private val JsonElement?.asJsonArray: JsonArray get() = this!!.jsonArray
+private val JsonElement?.asJsonPrimitive: JsonPrimitive get() = this!!.jsonPrimitive
+private val JsonElement?.asString: String get() = this!!.jsonPrimitive.content
+private val JsonElement?.asInt: Int get() = asString.toInt()
+private val JsonElement?.asLong: Long get() = asString.toLong()
+private val JsonElement?.asBoolean: Boolean get() = asString.toBooleanStrict()
+private val JsonElement?.asBigDecimal: java.math.BigDecimal get() = java.math.BigDecimal(asString)
+private val JsonElement?.isJsonNull: Boolean get() = this == JsonNull
+private val JsonElement?.isJsonPrimitive: Boolean get() = this is JsonPrimitive && this != JsonNull
+private val JsonElement?.isJsonObject: Boolean get() = this is JsonObject
+private val JsonElement?.isJsonArray: Boolean get() = this is JsonArray
+private val JsonPrimitive.isNumber: Boolean get() = !isString && booleanOrNull == null && this != JsonNull
+private fun JsonObject?.getAsJsonObject(name: String): JsonObject? = this?.get(name) as? JsonObject
+private fun JsonObject?.get(name: String): JsonElement? = this?.get(name)
+private fun JsonObject.has(name: String): Boolean = containsKey(name)
+private fun JsonObject.keySet(): Set<String> = keys
+private fun JsonObject.entrySet(): Set<Map.Entry<String, JsonElement>> = entries
+private fun JsonArray.size(): Int = size
+private fun changed(objectValue: JsonObject, path: List<String>, value: JsonElement): JsonObject = JsonObject(objectValue.toMutableMap().apply {
+    this[path.first()] = if (path.size == 1) value else changed(getValue(path.first()).jsonObject, path.drop(1), value)
+})
+
+private fun json(value: String): JsonElement = Json.parseToJsonElement(value)
 private class Server(handler: (HttpExchange) -> Unit) : Closeable {
     private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
     private val executor = Executors.newCachedThreadPool { task -> Thread(task).also { it.isDaemon = true } }
@@ -73,7 +101,7 @@ private suspend fun retries(path: String) {
     for (case in json(String(Files.readAllBytes(Paths.get(path)))).asJsonArray) {
         val test = case.asJsonObject; val attempts = AtomicInteger()
         Server { exchange ->
-            val body = JsonObject().also { if (!test.get("error").isJsonNull) it.add("__type", test.get("error")) }
+            val body = buildJsonObject { if (!test.get("error").isJsonNull) put("__type", test.getValue("error")) }
             exchange.responseHeaders.add("x-amzn-errortype", "Throttled")
             response(exchange, if (attempts.incrementAndGet() <= test.get("failures").asInt) test.get("status").asInt else 200, body.toString())
         }.use { server ->
@@ -90,17 +118,17 @@ private suspend fun retries(path: String) {
 private class Codec {
     private val type = Class.forName("example.weather.JsonCodec")
     private val schema = WeatherClient::class.java.getResourceAsStream("schema.json")!!.bufferedReader().use { json(it.readText()).asJsonObject }
-    private val instance = type.getConstructor(JsonObject::class.java).newInstance(schema)
+    private var instance = type.getConstructor(JsonObject::class.java).newInstance(schema)
     private fun invoke(name: String, vararg args: Any?): Any? {
         val method = type.methods.first { it.name == name && it.parameterCount == args.size }
         try { return method.invoke(instance, *args) } catch (error: InvocationTargetException) { throw error.cause!! }
     }
     fun decode(target: String, wire: String): Any? = invoke("decode", target, json(wire), null)
     fun encode(target: String, value: Any?, format: String? = null): JsonElement = invoke("encode", target, value, format) as JsonElement
-    fun header(wire: String): JsonElement = invoke("header", json("""{"target":"example.weather#Tags"}""").asJsonObject, wire) as JsonElement
+    fun header(wire: String): JsonElement = invoke("header", json("""{"target":"example.weather#Tags"}""").asJsonObject, wire, null) as JsonElement
     fun bound(values: JsonElement): String = invoke("bound", values) as String
     fun checkDenseMapNulls() {
-        schema.getAsJsonObject("shapes").getAsJsonObject("example.weather#Forecast").getAsJsonObject("value").addProperty("target", "smithy.api#String")
+        instance = type.getConstructor(JsonObject::class.java).newInstance(changed(schema, listOf("shapes", "example.weather#Forecast", "value", "target"), JsonPrimitive("smithy.api#String")))
         try { decode("example.weather#Forecast", "{\"key\":null}"); error("Dense map null accepted") } catch (_: IllegalArgumentException) {}
         try { encode("example.weather#Forecast", mapOf("key" to null)); error("Dense map null encoded") } catch (_: IllegalArgumentException) {}
     }
@@ -128,7 +156,7 @@ private fun serialization(path: String) {
         expect.getAsJsonObject("instant")?.let { instant ->
             val member = instant.get("member").asString
             val actual = value!!::class.java.getMethod("get" + member.replaceFirstChar { it.uppercase() }).invoke(value) as Instant
-            check(actual.epochSecond.toString() == instant.get("seconds").asString && actual.nano == instant.get("nanoseconds").asInt) { "$id instant" }
+            check(actual.epochSeconds.toString() == instant.get("seconds").asString && actual.nanosecondsOfSecond == instant.get("nanoseconds").asInt) { "$id instant" }
         }
     }
     check(codec.decode("example.weather#Sky", "\"future\"") == Sky("future"))
@@ -137,7 +165,7 @@ private fun serialization(path: String) {
     check(union is Location.UnknownVariant && codec.encode("example.weather#Location", union) == json(future))
     check(codec.encode("example.weather#Location", Location.Unknown(kotlin.Unit)) == json("""{"unknown":{}}"""))
     val city = codec.decode("example.weather#CitySummary", """{"id":"c","name":"x","createdAt":-0.000000001,"population":9223372036854775807}""") as CitySummary
-    check(city.population == Long.MAX_VALUE && city.createdAt == Instant.ofEpochSecond(-1, 999999999))
+    check(city.population == Long.MAX_VALUE && city.createdAt == Instant.fromEpochSeconds(-1, 999999999))
     check((codec.decode("example.weather#CitySummary", """{"id":"c","name":"x"}""") as CitySummary).population == 0L)
     check(CitySummary { id = "c"; name = "x" }.population == 0L)
     val defaults = BuilderDefaults { requiredValue = "required" }
@@ -145,18 +173,16 @@ private fun serialization(path: String) {
     check(defaults.flag && defaults.small == (-7).toByte() && defaults.medium == 300.toShort())
     check(defaults.count == 42 && defaults.large == Long.MIN_VALUE && defaults.ratio == 1.5f && defaults.score == 2.5)
     check(defaults.decimalCount == 17 && defaults.blob.contentEquals(byteArrayOf(1, 2)))
-    check(defaults.date == Instant.parse("1969-12-31T23:59:59.750Z") && defaults.epoch == Instant.ofEpochSecond(-2, 500_000_000))
+    check(defaults.date == Instant.parse("1969-12-31T23:59:59.750Z") && defaults.epoch == Instant.fromEpochSeconds(-2, 500_000_000))
     check(defaults.label == "default \$value\\path" && defaults.sky == Sky("sunny"))
     check(defaults.tags.isEmpty() && defaults.forecast.isEmpty() && defaults.document.asJsonObject.get("count").asLong == Long.MAX_VALUE)
     check(!defaults.hasOptionalDefault())
     val decodedDefaults = codec.decode("example.weather#BuilderDefaults", """{"requiredValue":"required"}""") as BuilderDefaults
     check(!decodedDefaults.hasOptionalDefault() && decodedDefaults.count == 42 && decodedDefaults.date == defaults.date)
     check(BuilderDefaults { requiredValue = "required"; count = 0 }.count == 0)
-    defaults.document.asJsonObject.addProperty("changed", true)
     check(!BuilderDefaults { requiredValue = "required" }.document.asJsonObject.has("changed"))
     val reusedDefaults = BuilderDefaults.Builder().apply { requiredValue = "required" }
     val firstDefaults = reusedDefaults.build()
-    firstDefaults.document.asJsonObject.addProperty("changed", true)
     firstDefaults.blob[0] = 99
     val secondDefaults = reusedDefaults.build()
     check(!secondDefaults.document.asJsonObject.has("changed") && secondDefaults.blob.contentEquals(byteArrayOf(1, 2)))
@@ -173,8 +199,10 @@ private fun serialization(path: String) {
     check(encoded.get("location").isJsonNull && !encoded.has("clientToken"))
     val map = codec.decode("example.weather#Forecast", """{"future":{"n":9223372036854775807}}""") as Forecast
     check(map[Sky("future")]!!.asJsonObject.get("n").asLong == Long.MAX_VALUE)
-    val nullDocument = codec.decode("example.weather#Forecast", """{"future":null}""") as Forecast
-    check(nullDocument[Sky("future")]!!.isJsonNull)
+    val nullDocument = codec.decode("example.weather#Forecast", """{"future":{"nil":null}}""") as Forecast
+    check(nullDocument[Sky("future")]!!.asJsonObject.get("nil").isJsonNull)
+    try { codec.decode("example.weather#Forecast", """{"future":null}"""); error("Dense document null accepted") } catch (_: IllegalArgumentException) {}
+    try { codec.encode("example.weather#Forecast", mapOf(Sky("future") to JsonNull)); error("Dense document null encoded") } catch (_: IllegalArgumentException) {}
     val binary = byteArrayOf(0, 1, -1, -128)
     check(codec.encode("example.weather#Photo", binary).asString == "AAH/gA==")
     check((codec.decode("example.weather#Photo", "\"AAH/gA==\"") as ByteArray).contentEquals(binary))
@@ -182,7 +210,7 @@ private fun serialization(path: String) {
     catch (_: IllegalArgumentException) { }
     for (test in json(String(Files.readAllBytes(Paths.get(path)))).asJsonArray) {
         check(codec.header(test.asJsonObject.get("wire").asString) == test.asJsonObject.get("values"))
-        val encoded = codec.bound(test.asJsonObject.get("values"))
+        val encoded = codec.bound(test.asJsonObject.getValue("values"))
         check(encoded == test.asJsonObject.get("encoded").asString)
         check(codec.header(encoded) == test.asJsonObject.get("values"))
     }
@@ -190,7 +218,7 @@ private fun serialization(path: String) {
 }
 private fun exactJsonEquals(a: JsonElement, b: JsonElement): Boolean {
     if (a.isJsonPrimitive && a.asJsonPrimitive.isNumber) return b.isJsonPrimitive && b.asJsonPrimitive.isNumber && a.asBigDecimal.compareTo(b.asBigDecimal) == 0
-    if (a.isJsonObject) return b.isJsonObject && a.asJsonObject.keySet() == b.asJsonObject.keySet() && a.asJsonObject.entrySet().all { (key, value) -> exactJsonEquals(value, b.asJsonObject.get(key)) }
+    if (a.isJsonObject) return b.isJsonObject && a.asJsonObject.keySet() == b.asJsonObject.keySet() && a.asJsonObject.entrySet().all { (key, value) -> exactJsonEquals(value, b.asJsonObject.getValue(key)) }
     if (a.isJsonArray) return b.isJsonArray && a.asJsonArray.size() == b.asJsonArray.size() && (0 until a.asJsonArray.size()).all { exactJsonEquals(a.asJsonArray[it], b.asJsonArray[it]) }
     return a == b
 }
@@ -244,7 +272,7 @@ private suspend fun failures() = coroutineScope {
     Server { exchange -> count.incrementAndGet(); response(exchange, 200, "invalid") }.use { server ->
         WeatherClient(server.config()).use { client ->
             try { client.getCity(GetCityInput { this.cityId = "x" }); error("invalid JSON accepted") }
-            catch (_: com.google.gson.JsonParseException) { check(count.get() == 1) }
+            catch (_: kotlinx.serialization.SerializationException) { check(count.get() == 1) }
         }
     }
     count.set(0)
@@ -253,12 +281,21 @@ private suspend fun failures() = coroutineScope {
         exchange.sendResponseHeaders(200, body.size.toLong() + if (count.incrementAndGet() == 1) 10 else 0)
         exchange.responseBody.write(body)
     }.use { server -> WeatherClient(server.config()).use { it.getCity(GetCityInput { this.cityId = "x" }); check(count.get() == 2) } }
+    val headersSent = CompletableDeferred<Unit>()
+    val releaseBody = CountDownLatch(1)
     Server { exchange ->
         exchange.sendResponseHeaders(200, 100)
         exchange.responseBody.write('{'.code); exchange.responseBody.flush()
-        Thread.sleep(5000)
+        headersSent.complete(Unit)
+        releaseBody.await()
     }.use { server ->
-        WeatherClient(server.config()).use { withTimeout(1500) { it.ping() } }
+        WeatherClient(server.config()).use { client ->
+            try {
+                val call = async { client.ping() }
+                withTimeout(10000) { headersSent.await(); call.await() }
+                check(releaseBody.count == 1L) { "header-only call waited for the body" }
+            } finally { releaseBody.countDown() }
+        }
     }
     count.set(0)
     Server { exchange -> count.incrementAndGet(); response(exchange, 200, "{}") }.use { server ->
@@ -285,7 +322,7 @@ private suspend fun deadlines() = coroutineScope {
         Thread.sleep(11000)
         response(exchange, 200, "{}")
     }.use { server ->
-        WeatherClient(server.config().copy(timeout = Duration.ofSeconds(15), maxAttempts = 1)).use { client ->
+        WeatherClient(server.config().copy(timeout = 15.seconds, maxAttempts = 1)).use { client ->
             withTimeout(18000) { client.ping() }
         }
     }
@@ -296,7 +333,7 @@ private suspend fun deadlines() = coroutineScope {
         exchange.responseBody.write('{'.code); exchange.responseBody.flush()
         Thread.sleep(5000)
     }.use { server ->
-        WeatherClient(server.config().copy(timeout = Duration.ofMillis(250))).use { client ->
+        WeatherClient(server.config().copy(timeout = 250.milliseconds)).use { client ->
             withTimeout(2000) {
                 try { client.getCity(GetCityInput { this.cityId = "x" }); error("deadline ignored") }
                 catch (_: TimeoutCancellationException) { }
@@ -316,7 +353,7 @@ private suspend fun deadlines() = coroutineScope {
             withTimeout(2000) { entered.await(); call.cancelAndJoin() }
         }
     }
-    val injected = okhttp3.OkHttpClient.Builder().readTimeout(100, TimeUnit.MILLISECONDS).build()
+    val injected = io.ktor.client.HttpClient(io.ktor.client.engine.cio.CIO) { install(io.ktor.client.plugins.HttpTimeout) { socketTimeoutMillis = 100 } }
     try {
         Server { exchange ->
             exchange.sendResponseHeaders(200, 100)
@@ -325,13 +362,16 @@ private suspend fun deadlines() = coroutineScope {
         }.use { server ->
             WeatherClient(server.config().copy(httpClient = injected, maxAttempts = 1)).use { client ->
                 try { withTimeout(2000) { client.getCity(GetCityInput { this.cityId = "x" }) }; error("injected timeout ignored") }
-                catch (error: NetworkError) { check(error.cause is java.net.SocketTimeoutException) }
+                catch (error: NetworkError) {
+                    check(generateSequence(error.cause) { it.cause }.any { it is io.ktor.client.network.sockets.SocketTimeoutException }) {
+                        "Unexpected injected transport failure: " + generateSequence(error.cause) { it.cause }.joinToString { "${it::class.qualifiedName}: ${it.message}" }
+                    }
+                }
             }
-            check(!injected.dispatcher.executorService.isShutdown) { "caller-owned transport was closed" }
+            check(injected.coroutineContext[kotlinx.coroutines.Job]!!.isActive) { "caller-owned transport was closed" }
         }
     } finally {
-        injected.dispatcher.executorService.shutdown()
-        injected.connectionPool.evictAll()
+        injected.close()
     }
 }
 private suspend fun payloads() {
@@ -393,9 +433,11 @@ private suspend fun hardening() {
             val runtime = runtimeField.get(client)
             val schemaField = runtime.javaClass.getDeclaredField("schema").apply { isAccessible = true }
             val schema = schemaField.get(runtime) as JsonObject
-            val ping = schema.getAsJsonObject("operations").getAsJsonObject("Ping")
-            ping.addProperty("bearer", false)
-            for (method in listOf("POST", "PUT", "PATCH", "GET", "DELETE")) { ping.addProperty("method", method); client.ping() }
+            val anonymous = changed(schema, listOf("operations", "Ping", "bearer"), JsonPrimitive(false))
+            for (method in listOf("POST", "PUT", "PATCH", "GET", "DELETE")) {
+                schemaField.set(runtime, changed(anonymous, listOf("operations", "Ping", "method"), JsonPrimitive(method)))
+                client.ping()
+            }
             for (label in listOf(".", "..")) {
                 try { client.getCity { cityId = label }; error("Dot label accepted") }
                 catch (e: IllegalArgumentException) { check(e.message!!.contains("dot segment")) }
@@ -406,11 +448,76 @@ private suspend fun hardening() {
     val codec = Codec()
     try { codec.decode("example.weather#Tags", "[null]"); error("Dense null accepted") } catch (_: IllegalArgumentException) {}
     try { codec.encode("example.weather#Tags", listOf(null)); error("Dense null encoded") } catch (_: IllegalArgumentException) {}
-    check(codec.encode("example.weather#Forecast", codec.decode("example.weather#Forecast", "{\"key\":null}")) == json("{\"key\":null}"))
+    check(codec.encode("example.weather#Forecast", codec.decode("example.weather#Forecast", "{\"key\":{\"nil\":null}}")) == json("{\"key\":{\"nil\":null}}"))
     codec.checkDenseMapNulls()
+}
+private const val STREAM_CHUNK = 64 * 1024
+private const val STREAM_CHUNKS = 8192 // 512 MiB, twice the consumer's -Xmx256m heap.
+private fun streamChunk(index: Int) = ByteArray(STREAM_CHUNK) { (it + index).toByte() }
+private fun streamDigest(): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    repeat(STREAM_CHUNKS) { digest.update(streamChunk(it)) }
+    return digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+}
+private fun CoroutineScope.streamSource() = writer { repeat(STREAM_CHUNKS) { channel.writeFully(streamChunk(it), 0, STREAM_CHUNK) } }.channel
+/** Real CIO transfers larger than the heap prove that streamed bodies are never buffered. */
+private suspend fun streaming() = coroutineScope {
+    val total = STREAM_CHUNK.toLong() * STREAM_CHUNKS
+    val expected = streamDigest()
+    Server { exchange ->
+        when (exchange.requestURI.path) {
+            "/upload" -> {
+                val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(STREAM_CHUNK); var count = 0L
+                exchange.requestBody.use { body -> while (true) { val size = body.read(buffer); if (size < 0) break; digest.update(buffer, 0, size); count += size } }
+                val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+                check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash) { "streamed body digest" }
+                exchange.responseHeaders.add("x-received", count.toString()); exchange.responseHeaders.add("x-digest", hash)
+                exchange.sendResponseHeaders(200, -1)
+            }
+            "/download" -> {
+                exchange.responseHeaders.add("x-count", STREAM_CHUNKS.toString())
+                exchange.sendResponseHeaders(200, total)
+                exchange.responseBody.use { body -> repeat(STREAM_CHUNKS) { body.write(streamChunk(it)) } }
+            }
+            "/transfer" -> {
+                val body = exchange.requestBody.readBytes()
+                val crc = java.util.zip.CRC32().apply { update(body) }.value
+                check(exchange.requestHeaders.getFirst("x-amz-checksum-crc32") == java.util.Base64.getEncoder().encodeToString(java.nio.ByteBuffer.allocate(4).putInt(crc.toInt()).array()))
+                exchange.responseHeaders.add("x-amz-checksum-crc32", exchange.requestHeaders.getFirst("x-amz-checksum-crc32"))
+                response(exchange, 200, if (body.decodeToString() == "corrupt") "corrupted".toByteArray() else body)
+            }
+            else -> response(exchange, 404, "{}")
+        }
+    }.use { server ->
+        val validated = mutableListOf<String>()
+        WeatherClient(server.config().copy(timeout = 120.seconds, checksumValidated = { operation, algorithm -> validated.add("$operation:$algorithm") })).use { client ->
+            val output = client.upload { body = ByteStream.replay(total, expected) { streamSource() } }
+            check(output.received == total && output.digest == expected) { "replayable upload" }
+            val chunked = client.upload { body = ByteStream.once(streamSource(), sha256 = expected) }
+            check(chunked.received == total && chunked.digest == expected) { "unsized one-shot upload" }
+            val unsigned = ByteStream.once(streamSource())
+            try { client.upload { body = unsigned }; error("unsigned stream digest accepted") }
+            catch (error: IllegalArgumentException) { check(error.message!!.contains("SHA-256")) }
+            finally { unsigned.close() } // The caller owns an unsent body; closing cancels its producer.
+            val received = client.download { result ->
+                check(result.count == STREAM_CHUNKS && result.body.contentLength == total)
+                val channel = result.body.openChannel(); val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(STREAM_CHUNK); var count = 0L
+                while (true) { val size = channel.readAvailable(buffer, 0, buffer.size); if (size < 0) break; digest.update(buffer, 0, size); count += size }
+                check(digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) } == expected)
+                count
+            }
+            check(received == total) { "download length" }
+            val echoed = client.transfer({ body = ByteStream.fromBytes("streamed checksum".toByteArray()) }) { it.body.toByteArray(1024).decodeToString() }
+            check(echoed == "streamed checksum" && validated == listOf("Transfer:CRC32")) { "streamed checksum validation" }
+            try { client.transfer({ body = ByteStream.fromBytes("corrupt".toByteArray()) }) { it.body.toByteArray(1024) }; error("corrupt body accepted") }
+            catch (_: ChecksumMismatch) { }
+            check(validated.size == 1)
+        }
+    }
 }
 fun main(args: Array<String>) = runBlocking {
     hardening()
+    withTimeout(300000) { streaming() }
     withTimeout(60000) { retries(args[0]); serialization(args[1]); httpBehavior(); failures(); deadlines(); payloads(); weather() }
     println("Kotlin native package, conformance, and weather HTTP passed")
 }
