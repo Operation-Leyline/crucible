@@ -160,6 +160,43 @@ class StreamingTest {
         }
     }
 
+    @Test fun optionalStreamChecksumsDoNotReadOrRejectAnUnrequestedBody() = realTest {
+        var requests = 0
+        streaming { request ->
+            requests++
+            assertNull(request.headers["x-algorithm"])
+            assertNull(request.headers["x-amz-checksum-crc32"])
+            assertEquals("123456789", request.body.read().decodeToString())
+            respond("123456789", HttpStatusCode.OK)
+        }.use { client ->
+            assertEquals("123456789", client.transfer({ body = ByteStream.once(text("123456789")) }) { it.body.toByteArray(9).decodeToString() })
+            var opens = 0
+            client.transfer({ body = ByteStream.replay { opens++; text("123456789") } }) { it.body.toByteArray(9) }
+            assertEquals(1, opens, "an optional checksum must not open a second reader")
+            client.transfer({ body = ByteStream.fromBytes("123456789".encodeToByteArray()) }) { it.body.toByteArray(9) }
+            assertEquals(3, requests)
+        }
+    }
+
+    @Test fun requiredStreamChecksumsStillSelectTheDefaultAlgorithm() = realTest {
+        var requests = 0
+        streaming { request ->
+            requests++
+            assertEquals("CRC32", request.headers["x-algorithm"])
+            assertEquals("123456789", request.body.read().decodeToString())
+            assertEquals(if (requests == 1) "y/Q5Jg==" else "supplied", request.headers["x-amz-checksum-crc32"])
+            respond("123456789", HttpStatusCode.OK)
+        }.use { client ->
+            var opens = 0
+            client.requiredTransfer({ body = ByteStream.replay { opens++; text("123456789") } }) { it.body.toByteArray(9) }
+            assertEquals(2, opens, "a required checksum keeps its checksum pass")
+            assertFailsWith<IllegalArgumentException> { client.requiredTransfer({ body = ByteStream.once(text("123456789")) }) { } }
+            assertEquals(1, requests, "a required one-shot checksum must fail before sending")
+            client.requiredTransfer({ body = ByteStream.once(text("123456789")); checksum = "supplied" }) { it.body.toByteArray(9) }
+            assertEquals(2, requests)
+        }
+    }
+
     @Test fun streamingChecksumsComputeReplayableBodiesAndVerifyWhileReading() = realTest {
         val vectors = linkedMapOf("CRC32" to "y/Q5Jg==", "CRC32C" to "4waSgw==", "CRC64NVME" to "rosUhgp5mIg=",
             "MD5" to "JfnnlDI7RTiF9RgfG2JNCw==", "SHA1" to "98O8HYCOBHMq32eZZczDTKeuNEE=", "SHA256" to "FeKw08M4keuw8e9gnsQZQgwg4yDOlMZfvIwzEkSOsiU=",
@@ -171,7 +208,7 @@ class StreamingTest {
         }.use { client ->
             var opens = 0
             fun replay() = ByteStream.replay(9) { opens++; text("123456789") }
-            assertEquals("123456789", client.transfer({ body = replay() }) { it.body.toByteArray(9).decodeToString() })
+            assertEquals("123456789", client.transfer({ body = replay(); algorithm = TransferAlgorithm.CRC32 }) { it.body.toByteArray(9).decodeToString() })
             assertEquals(2, opens, "one checksum pass plus one send")
             assertEquals("CRC32", sent!!.headers["x-algorithm"]); assertEquals("ENABLED", sent!!.headers["x-validation"])
             assertEquals(vectors["CRC32"], sent!!.headers["x-amz-checksum-crc32"]); assertEquals(listOf("Transfer:CRC32"), validated)
@@ -184,9 +221,9 @@ class StreamingTest {
             client.transfer({ body = ByteStream.fromBytes("123456789".encodeToByteArray()); algorithm = TransferAlgorithm.SHA256 }) { it.body.toByteArray(9) }
             assertEquals(vectors["SHA256"], sent!!.headers["x-amz-checksum-sha256"])
             replyAlgorithm = "CRC32"; val requests = sent
-            assertFailsWith<IllegalArgumentException> { client.transfer({ body = ByteStream.once(text("123456789")) }) { } }
+            assertFailsWith<IllegalArgumentException> { client.transfer({ body = ByteStream.once(text("123456789")); algorithm = TransferAlgorithm.CRC32 }) { } }
             assertTrue(requests === sent, "a one-shot body without a checksum is rejected before sending")
-            client.transfer({ body = ByteStream.once(text("123456789")); checksum = "supplied" }) { it.body.toByteArray(9) }
+            client.transfer({ body = ByteStream.once(text("123456789")); algorithm = TransferAlgorithm.CRC32; checksum = "supplied" }) { it.body.toByteArray(9) }
             assertEquals("supplied", sent!!.headers["x-amz-checksum-crc32"])
             val count = validated.size
             client.transfer({ body = replay() }) { }

@@ -101,6 +101,12 @@ Ruby detects duplicate set members through canonical hash keys, preserving
 numeric and nested-value equality; its 10,000-member regression forbids prefix
 scans and pairwise comparisons. The C++ signature vector, C# waiter consumer,
 Java streaming suite, and Ruby wire consumers pass natively after these fixes.
+Kotlin optional stream checksums leave one-shot uploads and replay factories
+untouched unless an algorithm is required or explicitly selected. Native Ktor
+regressions cover optional, required and explicit selections. Memory qualification
+fails when C++ process metrics are unavailable; Python marks unsupported RSS
+platforms as skipped. R query arithmetic bounds exponent alignment before padding
+and preallocates average division output.
 
 The complete native CI matrix, published packages, authenticated AWS/Leyline
 traffic, and consumer migrations remain separate proof requirements. The PR's

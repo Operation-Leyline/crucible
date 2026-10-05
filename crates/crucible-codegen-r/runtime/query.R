@@ -64,6 +64,7 @@
 }
 .crucible_decimal_add <- function(a, b) {
   exponent <- min(a$exponent, b$exponent)
+  if (max(a$exponent, b$exponent) - exponent > 1e5) .crucible_query_fail('JMESPath arithmetic exceeds supported precision')
   x <- paste0(a$digits, strrep('0', a$exponent - exponent)); y <- paste0(b$digits, strrep('0', b$exponent - exponent))
   if (a$negative == b$negative) return(list(negative = a$negative, digits = .crucible_digits_add(x, y), exponent = exponent))
   order <- .crucible_digits_compare(x, y)
@@ -210,8 +211,9 @@
       if (!length(list)) return(NULL)
       # Long division to 34 fractional digits, matching the other runtimes.
       digits <- paste0(total$digits, strrep('0', 34)); exponent <- total$exponent - 34
-      quotient <- character(); remainder <- 0
-      for (digit in as.integer(strsplit(digits, '', fixed = TRUE)[[1L]])) { remainder <- remainder * 10 + digit; quotient <- c(quotient, as.character(remainder %/% length(list))); remainder <- remainder %% length(list) }
+      source <- as.integer(strsplit(digits, '', fixed = TRUE)[[1L]])
+      quotient <- integer(length(source)); remainder <- 0
+      for (i in seq_along(source)) { remainder <- remainder * 10 + source[i]; quotient[i] <- remainder %/% length(list); remainder <- remainder %% length(list) }
       .crucible_decimal_text(total$negative, paste0(quotient, collapse = ''), exponent)
     },
     contains = {

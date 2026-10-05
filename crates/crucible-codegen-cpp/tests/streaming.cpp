@@ -82,9 +82,11 @@ struct Memory {
 #ifndef _WIN32
     static std::uint64_t status(const std::string& key) {
         std::ifstream file("/proc/self/status");
+        if (!file.is_open()) throw std::runtime_error("Cannot open /proc/self/status for memory metric " + key);
         std::string line;
         while (std::getline(file, line)) if (line.starts_with(key)) return std::stoull(line.substr(key.size())) * 1024;
-        return 0;
+        if (file.bad()) throw std::runtime_error("Cannot read /proc/self/status for memory metric " + key);
+        throw std::runtime_error("Missing memory metric in /proc/self/status: " + key);
     }
 #endif
 };
@@ -387,6 +389,10 @@ void custom_transport_buffers() {
 
 int main() {
     try {
+#ifndef _WIN32
+        (void)raises<std::runtime_error>([] { (void)Memory::status("CrucibleMissingMemoryMetric:"); }, "missing memory metric must fail");
+        check(Memory::current() > 0 && Memory::peak() > 0, "process memory metrics are available");
+#endif
         Server server;
         large_streams_bounded_memory(server);
         uploads(server);

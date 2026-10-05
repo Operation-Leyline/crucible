@@ -5,7 +5,7 @@ import kotlinx.serialization.json.*
 internal object Checksums {
     private val supported=setOf("CRC32","CRC32C","CRC64NVME","MD5","SHA1","SHA256","SHA512")
     data class Plan(val operation: String,val algorithm: String?,val legacy: Boolean,val validate: Boolean,val descriptor: JsonObject?)
-    fun prepare(operation: String,op: JsonObject,values: MutableMap<String,JsonElement>,config: ClientConfig): Plan {
+    fun prepare(operation: String,op: JsonObject,values: MutableMap<String,JsonElement>,config: ClientConfig,streaming: Boolean = false): Plan {
         val checksum=op["checksum"] as? JsonObject ?: return Plan(operation,null,false,false,null)
         if(checksum.text("kind")=="md5")return Plan(operation,"MD5",true,false,checksum)
         fun value(member: String?)=(values[member] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content
@@ -14,7 +14,7 @@ internal object Checksums {
         val required=checksum.flag("requestRequired")
         val legacy=member==null && required
         if(legacy)algorithm="MD5"
-        else if(member!=null && algorithm==null && (required || config.requestChecksumCalculation==ChecksumPolicy.WHEN_SUPPORTED)) { algorithm="CRC32";values[member]=JsonPrimitive(algorithm) }
+        else if(member!=null && algorithm==null && (required || !streaming && config.requestChecksumCalculation==ChecksumPolicy.WHEN_SUPPORTED)) { algorithm="CRC32";values[member]=JsonPrimitive(algorithm) }
         if(algorithm!=null) {
             require(algorithm in supported) { "Unsupported checksum algorithm: $algorithm" }
         }

@@ -12,6 +12,7 @@ import example.weather.model.Forecast
 import example.weather.model.CreateCityInput
 import example.weather.model.ConflictError
 import example.weather.model.CitySummary
+import example.weather.model.TransferAlgorithm
 import kotlinx.serialization.json.*
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -507,9 +508,9 @@ private suspend fun streaming() = coroutineScope {
                 count
             }
             check(received == total) { "download length" }
-            val echoed = client.transfer({ body = ByteStream.fromBytes("streamed checksum".toByteArray()) }) { it.body.toByteArray(1024).decodeToString() }
+            val echoed = client.transfer({ body = ByteStream.fromBytes("streamed checksum".toByteArray()); algorithm = TransferAlgorithm.CRC32 }) { it.body.toByteArray(1024).decodeToString() }
             check(echoed == "streamed checksum" && validated == listOf("Transfer:CRC32")) { "streamed checksum validation" }
-            try { client.transfer({ body = ByteStream.fromBytes("corrupt".toByteArray()) }) { it.body.toByteArray(1024) }; error("corrupt body accepted") }
+            try { client.transfer({ body = ByteStream.fromBytes("corrupt".toByteArray()); algorithm = TransferAlgorithm.CRC32 }) { it.body.toByteArray(1024) }; error("corrupt body accepted") }
             catch (_: ChecksumMismatch) { }
             check(validated.size == 1)
         }

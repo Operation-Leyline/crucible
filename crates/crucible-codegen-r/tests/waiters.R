@@ -85,6 +85,29 @@ check(call('type', literal(json_number('1.1'))) == 'number', 'Number type')
 check(call('to_string', literal(json_parse('{"number":1.000000000000000000001}'))) == '{"number":1.000000000000000000001}', 'Exact to_string')
 check(as.character(call('sum', literal(json_parse('[0.1,0.2,10000000000000000000000]')))) == '10000000000000000000000.3', 'Exact sum')
 check(as.character(call('avg', literal(json_parse('[1,2]')))) == '1.5', 'Average')
+for (name in c('sum', 'avg')) {
+  for (value in c('1e100001', '1e-100001', '1e1000000')) {
+    error <- rejects(call(name, literal(list(json_number(value), json_number('1')))), 'crucible_query_error')
+    check(conditionMessage(error) == 'JMESPath arithmetic exceeds supported precision', 'Alignment precision failure')
+  }
+}
+# Copy the arithmetic closure to observe padding without changing the installed namespace.
+padding <- new.env(parent = ns)
+padding$calls <- 0L
+padding$strrep <- function(...) { padding$calls <- padding$calls + 1L; stop('Padded before checking precision') }
+guarded_add <- get('.crucible_decimal_add', ns)
+environment(guarded_add) <- padding
+rejects(guarded_add(list(negative = FALSE, digits = '1', exponent = 100001),
+                    list(negative = FALSE, digits = '1', exponent = 0)), 'crucible_query_error')
+check(padding$calls == 0L, 'Alignment rejected before padding allocation')
+boundary <- as.character(call('sum', literal(list(json_number('1e100000'), json_number('1')))))
+check(identical(boundary, paste0('1', strrep('0', 99999L), '1')), 'Exact alignment limit remains supported')
+check(as.character(call('avg', literal(json_parse('[1,0,0]')))) == paste0('0.', strrep('3', 34L)), 'Average repeating remainder precision')
+check(as.character(call('avg', literal(json_parse('[-1,0,0]')))) == paste0('-0.', strrep('3', 34L)), 'Negative average remainder precision')
+check(is.null(call('avg', literal(list()))) && as.character(call('avg', literal(json_parse('[1,-1]')))) == '0', 'Empty and cancelling averages')
+large_number <- paste0(strrep('7', 1000L), '2')
+large_average <- as.character(call('avg', literal(list(json_number(large_number), json_number(large_number)))))
+check(identical(large_average, large_number), 'Large coefficient average preserves exact digits')
 check(as.character(call('floor', literal(json_number('-1.5')))) == '-2' && as.character(call('ceil', literal(json_number('1.01')))) == '2', 'Floor and ceil')
 check(call('length', literal('héllo')) == '5', 'Code point length')
 compare <- function(op, a, b) query(list(kind = 'compare', comparator = op, left = literal(a), right = literal(b)), NULL)

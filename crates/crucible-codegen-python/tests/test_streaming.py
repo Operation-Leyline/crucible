@@ -145,6 +145,8 @@ def memory() -> tuple[int, int]:
         if not info(process(), ctypes.byref(counters), counters.cb):
             raise OSError("GetProcessMemoryInfo failed")
         return int(counters.working), int(counters.peak)
+    if sys.platform != "linux":
+        raise unittest.SkipTest(f"Resident memory measurement is unsupported on {sys.platform}")
     with open("/proc/self/status") as status:
         fields = dict(line.split(":", 1) for line in status if ":" in line)
     return int(fields["VmRSS"].split()[0]) * 1024, int(fields["VmHWM"].split()[0]) * 1024
