@@ -53,6 +53,10 @@ def edge_packages(output):
 
 def qualify(output):
     package = output / "sdk"
+    for name, fixture_name, namespace in [("dynamic", "dynamic-bindings", "dynamic"), ("extended", "extended-types", "types"), ("wire", "error-payloads", "wire_sdk")]:
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
+            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
+            "--package-name", {"dynamic": "dynamic_client", "extended": "types_client", "wire": "wire_client"}[name], "--namespace", namespace)
     edge_packages(output)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
         str(qualification_model(output)), "--out", str(package), "--package-name", "weather_client",
@@ -70,6 +74,13 @@ project(consumer LANGUAGES CXX)
 find_package(weather_client CONFIG REQUIRED)
 add_subdirectory("{(output / 'edge').as_posix()}" edge)
 add_subdirectory("{(output / 'empty').as_posix()}" empty)
+add_subdirectory("{(output / 'dynamic').as_posix()}" dynamic)
+add_subdirectory("{(output / 'extended').as_posix()}" extended)
+add_subdirectory("{(output / 'wire').as_posix()}" wire-sdk)
+add_executable(wire_test "{tests.as_posix()}/wire.cpp")
+target_link_libraries(wire_test PRIVATE wire_client)
+add_executable(extensions "{tests.as_posix()}/extensions.cpp")
+target_link_libraries(extensions PRIVATE dynamic_client types_client)
 add_executable(edge_models "{tests.as_posix()}/edge_models.cpp")
 target_link_libraries(edge_models PRIVATE edge_client empty_client)
 foreach(name core runtime proxy serialization)
@@ -92,6 +103,8 @@ endforeach()
         runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
     run(str(executable(consumer_build, "core")), env=runtime_env)
     run(str(executable(consumer_build, "edge_models")), env=runtime_env)
+    run(str(executable(consumer_build, "extensions")), env=runtime_env)
+    run(str(executable(consumer_build, "wire_test")), env=runtime_env)
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))
     with weather() as endpoint, fixture() as fixture_url:

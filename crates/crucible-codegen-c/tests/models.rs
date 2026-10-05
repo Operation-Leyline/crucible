@@ -120,7 +120,7 @@ fn recursive_collections_and_structures_use_pointers() {
         "test#Node":{"type":"structure","members":{"next":{"target":"test#Node"},"children":{"target":"test#Nodes"},"lookup":{"target":"test#NodeMap"}}},
         "test#Nodes":{"type":"list","member":{"target":"test#Node"}},
         "test#NodeMap":{"type":"map","key":{"target":"smithy.api#String"},"value":{"target":"test#Node"}},
-        "test#Loop":{"type":"list","member":{"target":"test#Loop"}},
+        "test#Loop":{"type":"list","member":{"target":"test#Node"}},
         "test#Choice":{"type":"union","members":{"node":{"target":"test#Node"},"choice":{"target":"test#Choice"},"none":{"target":"smithy.api#Unit"}}}
     }));
     let files = emit(&lower(&model), &options()).unwrap();
@@ -129,7 +129,7 @@ fn recursive_collections_and_structures_use_pointers() {
         .find(|f| f.path.ends_with("/models.h"))
         .unwrap()
         .contents;
-    assert!(header.contains("const weather_models_loop * const *items"));
+    assert!(header.contains("const weather_models_node * const *items"));
     assert!(header.contains("const weather_models_node * value; } next"));
     if let Some(path) = std::env::var_os("C_MODEL_RECURSIVE_OUTPUT") {
         write(&files, Path::new(&path));

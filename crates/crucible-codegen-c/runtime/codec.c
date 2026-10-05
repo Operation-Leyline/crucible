@@ -125,11 +125,21 @@ static status decode_into(arena *storage, const shape *type, format timestamp_fo
         if (!yyjson_is_str(value)) return FAIL("Expected string");
         ((string *)output)->data = yyjson_get_str(value); ((string *)output)->length = yyjson_get_len(value);
         break;
+    case crucible_generated_kind_big_integer: case crucible_generated_kind_big_decimal: {
+        char *canonical = NULL; bool integral;
+        TRY(crucible_generated_number_canonical(value, &canonical, &integral, issue)); free(canonical);
+        if (type->kind == crucible_generated_kind_big_integer && !integral) return FAIL("Expected integral arbitrary precision number");
+        string number_text;
+        if (yyjson_is_raw(value)) { number_text.data = yyjson_get_raw(value); number_text.length = yyjson_get_len(value); }
+        else { TRY(crucible_generated_json_write(storage, value, &number_text, issue)); }
+        memcpy(output, &number_text, sizeof(number_text)); break;
+    }
     case crucible_generated_kind_boolean: return crucible_generated_json_boolean_value(value, output, issue);
     case crucible_generated_kind_byte:
         TRY(crucible_generated_json_integer(value, INT8_MIN, INT8_MAX, &integer, issue)); *(int8_t *)output = (int8_t)integer; break;
     case crucible_generated_kind_short:
         TRY(crucible_generated_json_integer(value, INT16_MIN, INT16_MAX, &integer, issue)); *(int16_t *)output = (int16_t)integer; break;
+    case crucible_generated_kind_int_enum:
     case crucible_generated_kind_integer:
         TRY(crucible_generated_json_integer(value, INT32_MIN, INT32_MAX, &integer, issue)); *(int32_t *)output = (int32_t)integer; break;
     case crucible_generated_kind_long: return crucible_generated_json_integer(value, INT64_MIN, INT64_MAX, output, issue);
@@ -165,6 +175,7 @@ static status decode_into(arena *storage, const shape *type, format timestamp_fo
         yyjson_val *item, *key;
         if (map ? !yyjson_is_obj(value) : !yyjson_is_arr(value)) return FAIL("Expected collection");
         length = map ? yyjson_obj_size(value) : yyjson_arr_size(value);
+        if (type->unique) { TRY(crucible_generated_json_unique(value, issue)); }
         TRY(allocate(storage, length, type->item_size, &items, issue));
         memcpy(native + type->length_offset, &length, sizeof(length));
         memcpy(native + type->items_offset, &items, sizeof(items));
@@ -172,11 +183,15 @@ static status decode_into(arena *storage, const shape *type, format timestamp_fo
             yyjson_obj_foreach(value, index, maximum, key, item) {
                 unsigned char *entry = (unsigned char *)items + index * type->item_size;
                 TRY(decode_slot(storage, type->members[0].target, type->members[0].format, key, entry + type->members[0].value_offset, depth + 1, issue));
-                TRY(decode_slot(storage, type->members[1].target, type->members[1].format, item, entry + type->members[1].value_offset, depth + 1, issue));
+                const member *field = &type->members[1];
+                if (yyjson_is_null(item)) { if (!type->sparse) return FAIL("Dense map cannot contain null"); presence state = crucible_generated_null; memcpy(entry + field->state_offset, &state, sizeof(state)); }
+                else { TRY(decode_slot(storage, field->target, field->format, item, entry + field->value_offset, depth + 1, issue)); if (type->sparse) { presence state = crucible_generated_present; memcpy(entry + field->state_offset, &state, sizeof(state)); } }
             }
         } else {
             yyjson_arr_foreach(value, index, maximum, item) {
-                TRY(decode_slot(storage, type->members[0].target, type->members[0].format, item, (unsigned char *)items + index * type->item_size, depth + 1, issue));
+                unsigned char *entry = (unsigned char *)items + index * type->item_size; const member *field = &type->members[0];
+                if (yyjson_is_null(item)) { if (!type->sparse) return FAIL("Dense list cannot contain null"); presence state = crucible_generated_null; memcpy(entry + field->state_offset, &state, sizeof(state)); }
+                else { TRY(decode_slot(storage, field->target, field->format, item, entry + field->value_offset, depth + 1, issue)); if (type->sparse) { presence state = crucible_generated_present; memcpy(entry + field->state_offset, &state, sizeof(state)); } }
             }
         }
         break;
@@ -231,9 +246,22 @@ static status encode_value(yyjson_mut_doc *document, const shape *type, format t
         if (!crucible_generated_utf8(*text)) return FAIL("Invalid string UTF-8");
         result = yyjson_mut_strncpy(document, text->data ? text->data : "", text->length); break;
     }
+    case crucible_generated_kind_big_integer: case crucible_generated_kind_big_decimal: {
+        const string *text = (const string *)native;
+        if (!text->data || !text->length) return FAIL("Expected arbitrary precision number token");
+        yyjson_doc *parsed = yyjson_read_opts((char *)text->data, text->length, YYJSON_READ_NUMBER_AS_RAW, NULL, NULL);
+        if (!parsed) return FAIL("Invalid arbitrary precision number token");
+        char *canonical = NULL; bool integral = false;
+        status code = crucible_generated_number_canonical(yyjson_doc_get_root(parsed), &canonical, &integral, issue);
+        free(canonical); yyjson_doc_free(parsed);
+        if (code) return code;
+        if (type->kind == crucible_generated_kind_big_integer && !integral) return FAIL("Expected integral arbitrary precision number");
+        result = yyjson_mut_rawncpy(document, text->data, text->length); break;
+    }
     case crucible_generated_kind_boolean: result = yyjson_mut_bool(document, *(const bool *)native); break;
     case crucible_generated_kind_byte: result = yyjson_mut_sint(document, *(const int8_t *)native); break;
     case crucible_generated_kind_short: result = yyjson_mut_sint(document, *(const int16_t *)native); break;
+    case crucible_generated_kind_int_enum:
     case crucible_generated_kind_integer: result = yyjson_mut_sint(document, *(const int32_t *)native); break;
     case crucible_generated_kind_long: result = yyjson_mut_sint(document, *(const int64_t *)native); break;
     case crucible_generated_kind_float: case crucible_generated_kind_double: {
@@ -287,7 +315,12 @@ static status encode_value(yyjson_mut_doc *document, const shape *type, format t
             const unsigned char *entry = items + at * type->item_size;
             yyjson_mut_val *value;
             const member *field = &type->members[map ? 1 : 0];
-            TRY(encode_value(document, field->target, field->format, entry + field->value_offset, true, &value, depth + 1, issue));
+            presence state = crucible_generated_present;
+            if (type->sparse) memcpy(&state, entry + field->state_offset, sizeof(state));
+            if (state == crucible_generated_null) value = yyjson_mut_null(document);
+            else if (state == crucible_generated_present) { TRY(encode_value(document, field->target, field->format, entry + field->value_offset, true, &value, depth + 1, issue)); }
+            else return FAIL("Sparse collection values must be present or null");
+            if (!type->sparse && yyjson_mut_is_null(value)) return FAIL("Dense collection cannot contain null");
             if (map) {
                 yyjson_mut_val *key;
                 string name;
@@ -328,6 +361,11 @@ static status encode_value(yyjson_mut_doc *document, const shape *type, format t
     }
     }
     if (!result) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
+    if (type->unique) {
+        yyjson_doc *copy = yyjson_mut_val_imut_copy(result, NULL);
+        if (!copy) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
+        status code = crucible_generated_json_unique(yyjson_doc_get_root(copy), issue); yyjson_doc_free(copy); if (code) return code;
+    }
     *output = result;
     return OK;
 }

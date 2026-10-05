@@ -9,6 +9,8 @@ repository.workspace = true
 
 [dependencies]
 crucible-smithy.workspace = true
+crucible-codegen-common.workspace = true
+sha2 = "0.10"
 serde_json = { workspace = true, features = ["preserve_order"] }
 
 [lints]

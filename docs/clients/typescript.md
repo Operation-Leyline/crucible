@@ -31,8 +31,9 @@ and `npm pack` do not publish it.
 
 For another service, replace the fixture with its prepared Smithy JSON model.
 Use `--service` when that model defines multiple services. Package metadata
-records the generator and service versions; TypeScript does not currently emit
-the separate schema-digest manifest used by newer targets.
+records the generator and service versions. The packaged `crucible.json` manifest
+also records `generatorVersion`, `service`, `serviceVersion`, and `schemaSha256`:
+the SHA-256 digest of the shared lowered wire schema.
 
 ## Calling operations
 
@@ -95,9 +96,9 @@ The wire still uses ordinary, unquoted JSON numbers. Byte, short, and integer
 use `number` with signed 8-, 16-, and 32-bit validation; float and double use
 finite `number` values.
 
-Document numbers and numbers inside unknown union arms still use JavaScript
-`number`; values beyond its safe integer range can round. Nonfinite numbers
-are rejected. This limitation does not apply to modeled `long` members.
+Document numbers use JavaScript `number`; values beyond its safe integer range
+can round. Nonfinite numbers are rejected. Modeled `long` members and the raw
+payload of an unknown union arm preserve their numeric values.
 
 ### Migrating long values to bigint
 
@@ -118,11 +119,22 @@ encoded body, suitable for computing a digest without reparsing it.
 
 
 Timestamps use `Date`, with millisecond precision; submillisecond fractions are
-lost. HTTP-date has second precision. Enums and unions describe the known model
-at compile time. The runtime retains unrecognized JSON properties and strings,
-but it does not expose a dedicated typed unknown-union alternative. Unions must
-contain exactly one member; known members are decoded using their generated
-schemas. Unknown arms retain their JSON value.
+lost. HTTP-date has second precision. Known union arms use native object types.
+A future arm has the exported `UnknownUnion` form:
+
+```typescript
+const location: Location = {
+  $unknown: { name: "futureCoordinate", json: '{"precise":1790812800.123456789}' },
+};
+```
+
+`json` is the arm's payload, not its enclosing union object. Decoding preserves
+unknown nested structure and numeric values without converting them to `number`;
+encoding restores the original arm name and JSON value. Whitespace need not be
+preserved. Null payloads use `json: "null"`. Malformed JSON and unknown arms that
+use a declared member name are rejected. When upgrading, replace reads of
+undeclared union properties with `$unknown.name` and `$unknown.json`. Known arms
+remain unchanged and unions still require exactly one member.
 
 Each modeled exception is a `ServiceError` subclass with its modeled fields,
 `$metadata` (status, request ID, headers), `$fault`, and optional `$retryable`
@@ -142,9 +154,14 @@ come from `RequestOptions`.
 Retries follow the [shared contract](../clients.md#http-retry-contract).
 `retry: false` disables them. `maxAttempts` includes the first attempt; defaults
 are three attempts, 100ms base delay, and 20s maximum backoff, with full jitter.
-Numeric or HTTP-date `Retry-After` takes precedence. An abort signal covers
-fetch and retry sleeps; supply `AbortSignal.timeout(...)` when you need an
-overall deadline. There is no default total-call timeout.
+Numeric or HTTP-date `Retry-After` takes precedence. `ClientConfig.timeoutMs`
+sets a total-call budget across credentials, middleware, fetch, body reads, and
+retry sleeps; expiry throws `TimeoutError`. `RequestOptions.timeoutMs` overrides
+that budget, and `null` disables it for one call. Zero expires before dispatch.
+There is no total-call timeout by default. A supplied abort signal covers the
+same stages and rejects with its reason. Timers and signal listeners are removed
+when the call completes. Late credentials or middleware cannot dispatch another
+request after cancellation.
 
 A missing idempotency token is generated once. If the input object is extensible,
 the client writes the token back into it; sending that same object again then
@@ -173,3 +190,109 @@ a particular browser application's CORS, authentication, or deployment setup.
 
 See [qualification levels](../clients.md#qualification) for the distinction
 between local generation, package consumption, and authenticated Leyline proof.
+
+### Dynamic HTTP bindings
+
+Generated clients support `@jsonName`, greedy path labels, `@httpQueryParams`,
+`@httpPrefixHeaders`, and `@httpResponseCode`. Public member names stay unchanged;
+JSON names affect only the wire. Explicit query/header bindings take precedence
+when a map supplies the same name. Greedy labels preserve slash separators and
+reject dot-only segments before dispatch. Response-code members read the actual
+HTTP status, including modeled errors. Nested pagination token paths continue to
+use the public model names.
+
+### Streaming payloads
+
+An `@streaming` blob uses `ByteStream`. Pass a `ReadableStream<Uint8Array>` for a
+one-shot upload, or a factory that returns a fresh stream containing the same
+bytes for each attempt. One-shot uploads never retry after opening. Factories
+follow the operation's existing retry policy.
+
+```ts
+const body = new ByteStream(() => openFileStream(), { length: fileSize, sha256: digest });
+await client.upload({ body });
+const output = await client.download();
+const reader = output.body.open().getReader();
+try {
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    consume(chunk.value);
+  }
+} finally {
+  await reader.cancel();
+  reader.releaseLock();
+}
+```
+
+Call deadlines and cancellation remain active until the response stream ends or
+is cancelled. Cancel an unopened response with `output.body.cancel()`. Streaming
+never collects the body for hashing: `contentSha256` requires a precomputed
+`sha256` value (or an explicitly supplied digest header). `@requiresLength`
+requires a declared length, which is checked while reading. Modeled length
+bounds are also checked incrementally. Request streaming requires Fetch support
+for streaming request bodies; browsers control which HTTP headers can be sent.
+The native gate covers Node's Fetch implementation.
+
+### Exact numbers and collections
+
+`bigInteger` uses `bigint`. `bigDecimal` uses the exported immutable `Decimal`:
+construct it from decimal text or `bigint`, inspect it with `toString()`, and
+compare numeric values with `equals()`. The codecs write JSON numeric tokens;
+values, defaults, HTTP headers, and retry snapshots never pass through `number`.
+Integer enums expose named numeric constants and accept future signed 32-bit
+values when reading responses.
+
+Sparse lists and maps include `null` in their element or value type. Sets and
+`@uniqueItems` lists remain arrays; encoding and decoding reject duplicate
+values, comparing objects structurally and numbers mathematically. Dense collections reject null elements, including document elements; null nested inside a document is preserved.
+
+### Authentication options
+
+`basicCredentials` accepts `{ username, password }` or a sync/async provider;
+`apiKey` accepts a string or provider. The model selects the API-key header or
+query parameter and optional scheme prefix. Identities are selected in modeled
+priority order and resolved again on each attempt. Explicit matching credentials
+in request headers take precedence over providers. `@auth([])` invokes no
+identity provider; `@optionalAuth` permits anonymous calls when none is available.
+Required Basic/API-key combinations fail before dispatch if no identity exists.
+The existing bearer-only behavior remains: without a token, the service decides
+whether the anonymous call is allowed. Credential resolution shares the call's
+timeout and cancellation signal.
+
+### Endpoints and waiters
+
+Models with endpoint rules accept `region`, `endpointParameters`, and
+`endpointBuiltins`; `endpoint` supplies `SDK::Endpoint`. Rules provide the base
+URL, headers, and signing properties. Modeled host prefixes expand input labels;
+`disableHostPrefix` disables expansion. Invalid labels and rule errors fail
+before Fetch runs.
+
+Waiters generate `waitUntil<Name>(input, { maxWaitTimeMs })`. Results distinguish
+`{ outcome: "response", output, attempts }` from
+`{ outcome: "error", error, attempts }`, because a modeled error can satisfy a
+success acceptor. `WaiterError` retains the last response and cause;
+`WaiterTimeout` identifies an exhausted budget. `signal`, `minDelayMs`, and
+`maxDelayMs` configure cancellation and polling. The total budget includes calls,
+retries, and delays, and discarded response streams are cancelled before retry.
+Generated helper names gain deterministic suffixes when ordinary operations use
+the same name.
+
+Endpoint paths and waiter expressions use public model member names. Timestamps
+are compared as epoch seconds, while `bigint` and `Decimal` comparisons preserve
+numeric precision. The bundled JMESPath interpreter has no external dependency.
+
+### AWS signing and credential providers
+
+For modeled SigV4 auth, configure `awsCredentials` with
+`{ accessKeyId, secretAccessKey, sessionToken?, expiration? }` or a sync/async
+provider. `region` and optional `signingName` configure the signing scope;
+endpoint auth properties can override it. The client signs the final request
+after middleware and resolves credentials for each attempt. Streaming requests
+require a precomputed SHA-256 digest unless the model permits unsigned payloads.
+
+`credentialsFromEnvironment` accepts an environment map;
+`credentialsFromProfile` parses caller-supplied shared profile text. These work
+in browsers without Node filesystem imports. Use `chainCredentials` for ordered
+fallbacks and `cacheCredentials` to coalesce refreshes and refresh before
+expiration. File loading remains an application-supplied async provider.

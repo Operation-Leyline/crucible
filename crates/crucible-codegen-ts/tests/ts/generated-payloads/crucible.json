@@ -1,0 +1,6 @@
+{
+  "generatorVersion": "0.1.0",
+  "service": "example.wire#Wire",
+  "serviceVersion": "1",
+  "schemaSha256": "fbb54cce969e1b0e264d360b7262fa22ccb3cb705eebcc0e44d6498c1021535e"
+}

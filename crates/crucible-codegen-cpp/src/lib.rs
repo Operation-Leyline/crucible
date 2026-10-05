@@ -102,13 +102,18 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                     }
                 }
             }
-            Shape::Enum(enumeration) => {
+            Shape::Enum(_) | Shape::IntEnum(_) => {
                 if name == "value" {
                     result.push(id, "C++ enum name collides with its value member");
                 }
                 let mut constants = BTreeSet::new();
-                for value in &enumeration.values {
-                    let factory = format!("known_{}", names::field(&value.name));
+                let values = match shape {
+                    Shape::Enum(e) => e.values.iter().map(|value| &value.name).collect::<Vec<_>>(),
+                    Shape::IntEnum(e) => e.values.iter().map(|value| &value.name).collect(),
+                    _ => unreachable!(),
+                };
+                for value in values {
+                    let factory = format!("known_{}", names::field(value));
                     if !names::identifier(&factory) || factory == name || !constants.insert(factory)
                     {
                         result.push(id, "C++ enum value name collision");
@@ -160,7 +165,27 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     result
 }
 
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);

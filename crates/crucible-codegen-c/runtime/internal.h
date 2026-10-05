@@ -12,4 +12,6 @@ bool crucible_generated_utf8(crucible_generated_string value);
 crucible_generated_status crucible_generated_json_depth(const yyjson_val *value, unsigned depth, crucible_generated_error *error);
 crucible_generated_status crucible_generated_number_scaled(const yyjson_val *value, unsigned places, char output[64], crucible_generated_error *error);
 crucible_generated_status crucible_generated_integer_text(const char *text, int64_t minimum, int64_t maximum, int64_t *output, crucible_generated_error *error);
+crucible_generated_status crucible_generated_number_canonical(const yyjson_val *, char **, bool *, crucible_generated_error *);
+crucible_generated_status crucible_generated_json_unique(const yyjson_val *, crucible_generated_error *);
 #endif

@@ -12,15 +12,26 @@ pub(crate) fn emit(service: &Service) -> String {
         out.push('\n');
         let name = service.name_of(id);
         match shape {
+            Shape::IntEnum(values) => {
+                doc(&mut out, "", values.docs.as_deref());
+                out.push_str(&format!("export const {name} = {{\n"));
+                for value in &values.values {
+                    doc(&mut out, "  ", value.docs.as_deref());
+                    out.push_str(&format!("  {}: {},\n", property(&value.name), value.value));
+                }
+                out.push_str(&format!("}} as const;\nexport type {name} = (typeof {name})[keyof typeof {name}] | (number & {{}});\n"));
+            }
             Shape::Unit => {}
             Shape::Simple(simple) => {
                 doc(&mut out, "", simple.docs.as_deref());
                 let ts = match simple.kind {
                     SimpleKind::Boolean => "boolean",
                     SimpleKind::String => "string",
-                    SimpleKind::Long => "bigint",
+                    SimpleKind::Long | SimpleKind::BigInteger => "bigint",
+                    SimpleKind::BigDecimal => "Decimal",
                     SimpleKind::Timestamp => "globalThis.Date",
                     SimpleKind::Document => "Document",
+                    SimpleKind::Blob if simple.streaming => "ByteStream",
                     SimpleKind::Blob => "Uint8Array",
                     _ => "number",
                 };
@@ -46,11 +57,21 @@ pub(crate) fn emit(service: &Service) -> String {
             Shape::List(list) => {
                 doc(&mut out, "", list.docs.as_deref());
                 let item = ts_type(service, &list.member.target, "");
+                let item = if list.sparse {
+                    format!("({item} | null)")
+                } else {
+                    item
+                };
                 out.push_str(&format!("export type {name} = {item}[];\n"));
             }
             Shape::Map(map) => {
                 doc(&mut out, "", map.docs.as_deref());
                 let value = ts_type(service, &map.value.target, "");
+                let value = if map.sparse {
+                    format!("{value} | null")
+                } else {
+                    value
+                };
                 let record = match service.shape(&map.key.target) {
                     Some(Shape::Enum(_)) => format!(
                         "Partial<Record<{}, {value}>>",
@@ -114,14 +135,17 @@ fn union_arms(out: &mut String, service: &Service, union: &Structure) {
             .map(|other| format!(" {}?: never;", property(&other.name)))
             .collect();
         out.push_str(&format!(
-            "  | {{ {}: {};{others} }}\n",
+            "  | {{ {}: {};{others} $unknown?: never; }}\n",
             property(&member.name),
             ts_type(service, &member.target, "")
         ));
     }
-    if union.members.is_empty() {
-        out.push_str("  never\n");
-    }
+    let absent: String = union
+        .members
+        .iter()
+        .map(|member| format!(" {}?: never;", property(&member.name)))
+        .collect();
+    out.push_str(&format!("  | (UnknownUnion & {{{absent} }})\n"));
     // Close the type alias.
     let trimmed = out.trim_end_matches('\n').len();
     out.truncate(trimmed);

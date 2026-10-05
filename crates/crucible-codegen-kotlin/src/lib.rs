@@ -1,4 +1,4 @@
-//! Kotlin models and coroutine clients for JVM and Android.
+//! Kotlin Multiplatform models and coroutine clients.
 mod models;
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
@@ -105,6 +105,7 @@ fn method(text: &str) -> String {
 fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     match service.shape(id).expect("lowered target") {
         Shape::Unit => "kotlin.Unit".into(),
+        Shape::Simple(s) if s.streaming => format!("{package}.ByteStream"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::String => "kotlin.String",
             SimpleKind::Boolean => "kotlin.Boolean",
@@ -114,16 +115,79 @@ fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
             SimpleKind::Long => "kotlin.Long",
             SimpleKind::Float => "kotlin.Float",
             SimpleKind::Double => "kotlin.Double",
-            SimpleKind::Timestamp => "java.time.Instant",
-            SimpleKind::Document => "com.google.gson.JsonElement",
+            SimpleKind::Timestamp => "kotlin.time.Instant",
+            SimpleKind::Document => "kotlinx.serialization.json.JsonElement",
             SimpleKind::Blob => "kotlin.ByteArray",
+            SimpleKind::BigInteger => "com.ionspin.kotlin.bignum.integer.BigInteger",
+            SimpleKind::BigDecimal => "com.ionspin.kotlin.bignum.decimal.BigDecimal",
         }
         .into(),
         _ => format!("{package}.model.`{}`", service.name_of(id)),
     }
 }
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+        Feature::NonBlobPayload,
+        Feature::ErrorPayload,
+        Feature::MediaTypeHeaders,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::HttpChecksum,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let mut diagnostics = Diagnostics::default();
+    if !service
+        .protocol_settings
+        .http
+        .iter()
+        .any(|version| version == "http/1.1")
+    {
+        diagnostics.push(
+            &service.id,
+            "Kotlin default multiplatform transports require an HTTP/1.1-compatible service",
+        );
+    }
+    for operation in &service.operations {
+        if (operation
+            .request
+            .payload
+            .as_ref()
+            .is_some_and(|payload| payload.streaming)
+            || operation
+                .response
+                .payload
+                .as_ref()
+                .is_some_and(|payload| payload.streaming))
+            && (operation.paginated.is_some() || !operation.waiters.is_empty())
+        {
+            diagnostics.push(
+                &operation.id,
+                "Kotlin streaming operations cannot declare pagination or waiters",
+            );
+        }
+    }
     let client_name = format!("{}Client", service.id.name());
     if !options
         .package_name
@@ -155,6 +219,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "kotlin",
             "java",
             "com",
+            "kotlinx",
+            "io",
             options.package_name.split('.').next().unwrap_or(""),
         ]
         .map(str::to_string),
@@ -248,10 +314,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
             }
         }
-        if let Shape::Enum(e) = shape {
+        let enum_names: Vec<&str> = match shape {
+            Shape::Enum(e) => e.values.iter().map(|v| v.name.as_str()).collect(),
+            Shape::IntEnum(e) => e.values.iter().map(|v| v.name.as_str()).collect(),
+            _ => Vec::new(),
+        };
+        if !enum_names.is_empty() {
             let mut values = BTreeSet::from(["Companion".to_string()]);
-            for v in &e.values {
-                if !values.insert(v.name.to_uppercase()) {
+            for name in enum_names {
+                if !values.insert(name.to_uppercase()) {
                     diagnostics.push(id, "Kotlin enum constant name collision");
                 }
             }
@@ -276,7 +347,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         {
             diagnostics.push(
                 &op.id,
-                "Kotlin OkHttp transport cannot send a GET or HEAD body",
+                "Kotlin portable transports cannot send a GET or HEAD body",
             );
         }
         for suffix in [""]
@@ -287,19 +358,25 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 diagnostics.push(&op.id, "Kotlin client method name collision");
             }
         }
+        for name in op.waiters.keys() {
+            let name = format!("waitUntil{name}");
+            if !identifier(&name) || !methods.insert(name) {
+                diagnostics.push(&op.id, "Kotlin waiter method name collision");
+            }
+        }
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
     let package = &options.package_name;
     let header = format!("// Generated by Crucible. DO NOT EDIT.\npackage {package}\n\n");
-    let source = format!("src/main/kotlin/{}", package.replace('.', "/"));
-    let resource = format!("src/main/resources/{}", package.replace('.', "/"));
+    let source = format!("src/commonMain/kotlin/{}", package.replace('.', "/"));
+    let resource = format!("src/commonMain/resources/{}", package.replace('.', "/"));
     let schema = serde_json::to_string(&crucible_codegen_common::schema(service, field))
         .expect("schema serializes");
     let (models, codecs) = models::emit(service, package);
     let mut client = format!(
-        "class {client_name}(config: ClientConfig) : java.io.Closeable {{\n    private val runtime = ClientRuntime(config, {}, {})\n    override fun close() = runtime.close()\n",
+        "class {client_name}(config: ClientConfig) : AutoCloseable {{\n    private val runtime = ClientRuntime(config, {}, {})\n    override fun close() = runtime.close()\n",
         literal(options.endpoint.as_deref().unwrap_or("")),
         options.content_sha256
     );
@@ -314,15 +391,40 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .as_ref()
             .map_or(String::new(), |t| format!("input: {t}"));
         let argument = if input.is_some() { "input" } else { "null" };
-        client.push_str(&format!("    suspend fun `{name}`({parameter}): {output} = runtime.call({}, {argument}) as {output}\n",literal(op.name())));
-        if let Some(input) = &input {
-            client.push_str(&format!("    suspend fun `{name}`(block: {input}.Builder.() -> kotlin.Unit = {{}}): {output} = `{name}`({input}(block))\n"));
+        let streaming_output = op
+            .response
+            .payload
+            .as_ref()
+            .is_some_and(|payload| payload.streaming);
+        if streaming_output {
+            let separator = if input.is_some() { ", " } else { "" };
+            client.push_str(&format!("    suspend fun <T> `{name}`({parameter}{separator}consume: suspend ({output}) -> T): T = runtime.callScoped({}, {argument}) {{ consume(it as {output}) }}\n",literal(op.name())));
+            if let Some(input) = &input {
+                client.push_str(&format!("    suspend fun <T> `{name}`(configure: {input}.Builder.() -> kotlin.Unit = {{}}, consume: suspend ({output}) -> T): T = `{name}`({input}(configure), consume)\n"));
+            }
+        } else {
+            client.push_str(&format!("    suspend fun `{name}`({parameter}): {output} = runtime.call({}, {argument}) as {output}\n",literal(op.name())));
+            if let Some(input) = &input {
+                client.push_str(&format!("    suspend fun `{name}`(block: {input}.Builder.() -> kotlin.Unit = {{}}): {output} = `{name}`({input}(block))\n"));
+            }
         }
         if op.paginated.is_some() {
             if let Some(input) = &input {
                 client.push_str(&format!("    fun `{name}Pages`(block: {input}.Builder.() -> kotlin.Unit = {{}}): kotlinx.coroutines.flow.Flow<{output}> = `{name}Pages`({input}(block))\n"));
             }
             client.push_str(&format!("    fun `{name}Pages`({parameter}): kotlinx.coroutines.flow.Flow<{output}> = kotlinx.coroutines.flow.flow {{\n        runtime.pages({}, {argument}).collect {{ emit(it as {output}) }}\n    }}\n",literal(op.name())));
+        }
+        for waiter in op.waiters.keys() {
+            let method_name = format!("waitUntil{waiter}");
+            let parameters = if input.is_some() {
+                format!("{parameter}, options: WaiterOptions = WaiterOptions()")
+            } else {
+                "options: WaiterOptions = WaiterOptions()".into()
+            };
+            client.push_str(&format!("    suspend fun `{method_name}`({parameters}): {output}? = runtime.waitUntil({}, {}, {argument}, options) as {output}?\n", literal(op.name()), literal(waiter)));
+            if let Some(input) = &input {
+                client.push_str(&format!("    suspend fun `{method_name}`(options: WaiterOptions = WaiterOptions(), block: {input}.Builder.() -> kotlin.Unit = {{}}): {output}? = `{method_name}`({input}(block), options)\n"));
+            }
         }
     }
     client.push_str("}\n");
@@ -338,13 +440,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         },
         File {
             path: format!("{resource}/schema.json"),
-            contents: schema,
+            contents: schema.clone(),
         },
         File {
             path: format!("{resource}/crucible.json"),
             contents: provenance,
         },
     ];
+    files.push(File { path: format!("{source}/WireSchema.kt"), contents: format!("{header}internal fun loadSchema(): kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.Json.parseToJsonElement(listOf({}).joinToString(\"\")) as kotlinx.serialization.json.JsonObject\n", schema.chars().collect::<Vec<_>>().chunks(6000).map(|chunk| literal(&chunk.iter().collect::<String>())).collect::<Vec<_>>().join(",\n")) });
     for (name, body) in models {
         files.push(File {
             path: format!("{source}/model/{name}.kt"),
@@ -355,9 +458,38 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     for (name, body) in [
         ("ClientConfig", include_str!("../runtime/ClientConfig.kt")),
+        ("Auth", include_str!("../runtime/Auth.kt")),
+        ("Checksums", include_str!("../runtime/Checksums.kt")),
+        ("ByteStream", include_str!("../runtime/ByteStream.kt")),
+        (
+            "ChecksumPolicy",
+            include_str!("../runtime/ChecksumPolicy.kt"),
+        ),
+        (
+            "ChecksumMismatch",
+            include_str!("../runtime/ChecksumMismatch.kt"),
+        ),
+        (
+            "BasicCredentials",
+            include_str!("../runtime/BasicCredentials.kt"),
+        ),
+        (
+            "AwsCredentials",
+            include_str!("../runtime/AwsCredentials.kt"),
+        ),
+        (
+            "CachedCredentials",
+            include_str!("../runtime/CachedCredentials.kt"),
+        ),
         ("OptionalValue", include_str!("../runtime/OptionalValue.kt")),
         ("ClientRuntime", include_str!("../runtime/ClientRuntime.kt")),
         ("JsonCodec", include_str!("../runtime/JsonCodec.kt")),
+        ("Query", include_str!("../runtime/Query.kt")),
+        ("Endpoints", include_str!("../runtime/Endpoints.kt")),
+        ("WaiterOptions", include_str!("../runtime/WaiterOptions.kt")),
+        ("WaiterError", include_str!("../runtime/WaiterError.kt")),
+        ("WireNumbers", include_str!("../runtime/WireNumbers.kt")),
+        ("Sha256", include_str!("../runtime/Sha256.kt")),
         ("ServiceError", include_str!("../runtime/ServiceError.kt")),
     ] {
         files.push(File {
@@ -373,5 +505,25 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .replace("@ARTIFACT@", &options.artifact_id)
             .replace("@VERSION@", &options.package_version),
     });
+    for (path, template) in [
+        (
+            "build.gradle.kts",
+            include_str!("../runtime/build.gradle.kts"),
+        ),
+        (
+            "settings.gradle.kts",
+            include_str!("../runtime/settings.gradle.kts"),
+        ),
+    ] {
+        files.push(File {
+            path: path.into(),
+            contents: template
+                .replace("\r\n", "\n")
+                .replace("@GROUP@", &options.group_id)
+                .replace("@ARTIFACT@", &options.artifact_id)
+                .replace("@VERSION@", &options.package_version)
+                .replace("@PACKAGE@", &options.package_name),
+        });
+    }
     Ok(files)
 }

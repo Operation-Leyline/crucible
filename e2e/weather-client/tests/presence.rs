@@ -68,7 +68,7 @@ fn optional_documents_lists_recursive_members_and_defaults_keep_presence() {
     for wire in [
         json!({"requiredDocument":null,"fallback":3}),
         json!({"requiredDocument":null,"document":null,"items":null,"next":null,"fallback":null,"httpDate":null}),
-        json!({"requiredDocument":{},"document":[],"items":[null,{},[]],"next":{"requiredDocument":null,"fallback":3},"fallback":0,"httpDate":"Thu, 01 Jan 1970 00:00:00 GMT"}),
+        json!({"requiredDocument":{},"document":[],"items":[{"nil":null},{},[]],"next":{"requiredDocument":null,"fallback":3},"fallback":0,"httpDate":"Thu, 01 Jan 1970 00:00:00 GMT"}),
     ] {
         let value: Root = serde_json::from_value(wire.clone()).unwrap();
         assert_eq!(serde_json::to_value(value).unwrap(), wire);

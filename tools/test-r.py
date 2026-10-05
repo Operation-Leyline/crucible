@@ -53,6 +53,14 @@ def qualify(output):
         generate(model, generated, "empty.client")
         run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(generated))
         run(RSCRIPT, "-e", "library(empty.client, lib.loc=commandArgs(TRUE)[1]); EmptyClient(client_config(endpoint='http://127.0.0.1'))$close()", str(library))
+    for name, fixture_name, package_name in [("dynamic", "dynamic-bindings", "dynamic.client"), ("extended", "extended-types", "types.client")]:
+        generated = output / name
+        generate(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json", generated, package_name)
+        run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(generated))
+    run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/extensions.R"), str(library))
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", output / "wire", "wire.client")
+    run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "wire"))
+    run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/wire.R"), str(library))
     print("R native package build/install and consumer qualification passed")
 
 

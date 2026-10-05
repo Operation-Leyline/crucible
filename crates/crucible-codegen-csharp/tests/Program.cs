@@ -162,11 +162,11 @@ static class Program
             Check(forecast[new Sky("future")]["n"]!.GetValue<long>() == long.MaxValue, "enum keys and document precision");
             foreach (var test in J(File.ReadAllText(path)).AsArray())
             {
-                var actual = (JsonNode)Invoke(runtime, "Header", J("""{"target":"example.weather#Tags"}"""), test!["wire"]!.GetValue<string>())!;
+                var actual = (JsonNode)Invoke(runtime, "Header", J("""{"target":"example.weather#Tags"}"""), test!["wire"]!.GetValue<string>(), null)!;
                 Check(JsonNode.DeepEquals(actual, test["values"]), "header list");
                 var headerText = (string)RuntimeType.GetMethod("Bound", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [test["values"]])!;
                 Check(headerText == test["encoded"]!.GetValue<string>(), "header encoding");
-                var roundTrip = (JsonNode)Invoke(runtime, "Header", J("""{"target":"example.weather#Tags"}"""), headerText)!;
+                var roundTrip = (JsonNode)Invoke(runtime, "Header", J("""{"target":"example.weather#Tags"}"""), headerText, null)!;
                 Check(JsonNode.DeepEquals(roundTrip, test["values"]), "header roundtrip");
             }
             var date = (JsonNode)Invoke(runtime, "Encode", "example.weather#DateTime", DateTimeOffset.Parse("2026-10-01T00:00:00Z"), "http-date")!;
@@ -237,7 +237,7 @@ static class Program
             }
             if (call == 3) return new(200, "", new() { ["Content-Type"] = "image/jpeg", ["X-Photo-Caption"] = "harbour" }, BinaryBody: photo);
             if (call == 4) return new(200, "");
-            Check(request.Body.Length == 0 && !request.Headers.ContainsKey("Content-Type"), "empty payload request");
+            Check(request.Body.Length == 0 && request.Headers["Content-Type"] == "image/jpeg", "empty payload request retains its modeled media type");
             Check(request.Headers["x-amz-content-sha256"] == Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant(), "empty payload digest");
             return new(200, """{"photo":{"size":0,"thumbnail":""}}""");
         });
@@ -419,7 +419,9 @@ static class Program
         try {
             try { Decode(codec, "example.weather#Tags", "[null]"); throw new Exception("Dense null accepted"); }
             catch (JsonException) { }
-            Check(((Forecast)Decode(codec, "example.weather#Forecast", "{\"future\":null}")).ContainsKey(new Sky("future")), "Document null remains valid");
+            try { Decode(codec, "example.weather#Forecast", "{\"future\":null}"); throw new Exception("Dense document null accepted"); }
+            catch (JsonException) { }
+            Check(((Forecast)Decode(codec, "example.weather#Forecast", "{\"future\":{\"nested\":null}}")).ContainsKey(new Sky("future")), "Nested document null remains valid");
         } finally { ((IDisposable)codec).Dispose(); }
     }
 }

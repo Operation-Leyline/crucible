@@ -157,8 +157,10 @@ final class ClientRuntime {
       if (value == null) throw FormatException('Missing label: $name');
       final text = codec.bound(value);
       if (text.isEmpty) throw FormatException('Empty label: $name');
-      if (text == '.' || text == '..') throw FormatException('Dot-segment HTTP label: $name');
-      path = path.replaceAll('{$name}', _escape(text));
+      final greedy = (op['greedyLabels'] as List? ?? const []).contains(name);
+      final parts = greedy ? text.split('/') : [text];
+      if (parts.any((part) => part == '.' || part == '..')) throw FormatException('Dot-segment HTTP label: $name');
+      path = path.replaceAll(greedy ? '{$name+}' : '{$name}', parts.map(_escape).join('/'));
     }
     final query = <String>[];
     for (final binding in wireArray(bindings['query'])) {
@@ -170,6 +172,22 @@ final class ClientRuntime {
             '${_escape(wireString(pair[1]))}=${_escape(codec.bound(item))}');
       }
     }
+    if (bindings['queryParams'] case final String member) {
+      final reserved = wireArray(bindings['query']).map((pair) => wireString(wireArray(pair)[1])).toSet();
+      if (path.contains('?')) {
+        for (final pair in path.split('?').last.split('&')) reserved.add(Uri.decodeComponent(pair.split('=').first));
+      }
+      if (values[member] != null) {
+        final map = wireObject(values[member]);
+        for (final key in map.keys.toList()..sort()) {
+          if (reserved.contains(key)) continue;
+          final value = map[key];
+          for (final item in value is List ? value : [value]) {
+            if (item != null) query.add('${_escape(key)}=${_escape(codec.bound(item))}');
+          }
+        }
+      }
+    }
     if (query.isNotEmpty)
       path += '${path.contains('?') ? '&' : '?'}${query.join('&')}';
     final headers = _headers(config.headers);
@@ -177,9 +195,20 @@ final class ClientRuntime {
       final pair = wireArray(binding);
       final value = values[wireString(pair[0])];
       if (value != null)
-        headers[wireString(pair[1]).toLowerCase()] = codec.bound(value);
+        headers[wireString(pair[1]).toLowerCase()] = codec.bound(_media(value, bindings, wireString(pair[0]), true));
     }
     Uint8List? body;
+    final explicitHeaders = wireArray(bindings['headers']).map((pair) => wireString(wireArray(pair)[1]).toLowerCase()).toSet();
+    for (final binding in bindings['prefixHeaders'] as List? ?? const []) {
+      final pair = wireArray(binding);
+      final value = values[wireString(pair[0])];
+      if (value == null) continue;
+      final map = wireObject(value);
+      for (final key in map.keys.toList()..sort()) {
+        final name = '${wireString(pair[1])}$key'.toLowerCase();
+        if (!explicitHeaders.contains(name)) headers[name] = codec.bound(_media(map[key], bindings, wireString(pair[0]), true));
+      }
+    }
     final members = wireArray(bindings['body']);
     if (members.isNotEmpty) {
       final object = <String, Object?>{};
@@ -187,17 +216,17 @@ final class ClientRuntime {
         final name = wireString(member);
         if (values.containsKey(name)) object[name] = values[name];
       }
-      body = Uint8List.fromList(utf8.encode(exactJsonEncode(object)));
+      body = Uint8List.fromList(utf8.encode(exactJsonEncode(codec.document(wireString(op['input']), object, encode: true))));
       headers['content-type'] = 'application/json';
     }
     if (bindings['payload'] case final List payload) {
       final value = values[wireString(payload[0])];
       if (value != null) {
-        final bytes = base64Decode(wireString(value));
-        if (bytes.isNotEmpty) {
-          body = bytes;
-          headers['content-type'] = wireString(payload[1]);
-        }
+        final kind = bindings['payloadKind'] ?? 'blob';
+        body = kind == 'string' ? Uint8List.fromList(utf8.encode(wireString(value)))
+            : kind == 'document' ? Uint8List.fromList(utf8.encode(exactJsonEncode(codec.document(_payloadTarget(wireString(op['input']), payload), value, encode: true))))
+            : base64Decode(wireString(value));
+        headers['content-type'] = wireString(payload[1]);
       }
     }
     return HttpRequest(
@@ -268,26 +297,38 @@ final class ClientRuntime {
     final bindings = wireObject(op['response']);
     final Map<String, Object?> body;
     if (bindings['payload'] case final List payload) {
-      body = {wireString(payload[0]): base64Encode(response.body)};
+      body = {wireString(payload[0]): _payloadValue(wireString(op['output']), bindings, response.body)};
     } else if (wireArray(bindings['body']).isEmpty || response.body.isEmpty) {
       body = {};
     } else {
-      body = wireObject(exactJsonDecode(utf8.decode(response.body)));
+      body = wireObject(codec.document(wireString(op['output']), exactJsonDecode(utf8.decode(response.body)), encode: false));
     }
     if (op['output'] case final String target)
-      _applyHeaders(target, bindings['headers'], response, body);
+      _applyHeaders(target, bindings, response, body);
     return body;
   }
 
-  void _applyHeaders(String target, Object? bindings, HttpResponse response,
+  void _applyHeaders(String target, Map<String, Object?> bindings, HttpResponse response,
       Map<String, Object?> body) {
     final members = wireObject(codec.shape(target)['members']);
-    for (final binding in wireArray(bindings)) {
+    for (final binding in wireArray(bindings['headers'])) {
       final pair = wireArray(binding);
       final name = wireString(pair[0]);
       final text = response.headers[wireString(pair[1]).toLowerCase()];
-      if (text != null) body[name] = codec.header(members[name], text);
+      if (text != null) body[name] = _media(codec.header(members[name], text), bindings, name, false);
     }
+    final explicit = wireArray(bindings['headers']).map((pair) => wireString(wireArray(pair)[1]).toLowerCase()).toSet();
+    for (final binding in bindings['prefixHeaders'] as List? ?? const []) {
+      final pair = wireArray(binding);
+      final prefix = wireString(pair[1]).toLowerCase();
+      final map = <String, Object?>{};
+      for (final entry in response.headers.entries) {
+        final name = entry.key.toLowerCase();
+        if (name.startsWith(prefix) && !explicit.contains(name)) map[name.substring(prefix.length)] = _media(entry.value, bindings, wireString(pair[0]), false);
+      }
+      body[wireString(pair[0])] = map;
+    }
+    if (bindings['responseCode'] case final String member) body[member] = JsonNumber(response.status.toString());
   }
 
   ServiceError _failure(Map<String, Object?> op, HttpResponse response) {
@@ -295,10 +336,10 @@ final class ClientRuntime {
     try {
       body = wireObject(exactJsonDecode(utf8.decode(response.body)));
     } on FormatException {/* HTTP metadata remains authoritative. */}
-    final name = body['__type'] is String ? body['__type'] as String : null;
+    final name = response.headers['x-crucible-error'] ?? (body['__type'] is String ? body['__type'] as String : null);
     final matches = wireArray(op['errors']).cast<String>().where((id) {
       final shape = codec.shape(id);
-      if (name != null) return shape['name'] == name;
+      if (name != null) return ((shape['error'] as Map)['wireCode'] ?? shape['name']) == name;
       return (wireObject(shape['error'])['status'] as JsonNumber).scaled(0) ==
           BigInt.from(response.status);
     }).toList();
@@ -318,13 +359,33 @@ final class ClientRuntime {
         throttling: traits?['throttling'] == true);
     if (target != null) {
       try {
-        _applyHeaders(target, traits!['headers'], response, body);
+        if (traits!['payload'] case final List payload) { body = {wireString(payload[0]): _payloadValue(target, traits, response.body)}; }
+        else { body = wireObject(codec.document(target, body, encode: false)); }
+        _applyHeaders(target, traits, response, body);
         return errors(target, body, codec.context(target), metadata);
       } on FormatException {
         /* Retain metadata if modeled members cannot decode. */
       } on TypeError {/* Generated casts also reject malformed members. */}
     }
     return UnknownServiceError(metadata);
+  }
+
+  String _payloadTarget(String target, List payload) => wireString(wireObject(wireObject(codec.shape(target)['members'])[wireString(payload[0])])['target']);
+  Object? _payloadValue(String target, Map<String, Object?> bindings, Uint8List body) {
+    switch (bindings['payloadKind'] ?? 'blob') {
+      case 'string': return utf8.decode(body);
+      case 'document': return body.isEmpty ? null : codec.document(_payloadTarget(target, wireArray(bindings['payload'])), exactJsonDecode(utf8.decode(body)), encode: false);
+      default: return base64Encode(body);
+    }
+  }
+  static Object? _media(Object? value, Map<String, Object?> bindings, String member, bool encode) {
+    if ((bindings['headerEncodings'] as Map?)?[member] != 'base64') return value;
+    if (value is List) return value.map((item) => _media(item, bindings, member, encode)).toList();
+    final text = wireString(value);
+    if (encode) return base64Encode(utf8.encode(text));
+    final bytes = base64Decode(text);
+    if (base64Encode(bytes) != text) throw const FormatException('Invalid media-type header base64');
+    return utf8.decode(bytes);
   }
 
   Duration retryDelay(int attempt, String? header) {

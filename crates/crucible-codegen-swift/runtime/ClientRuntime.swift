@@ -47,8 +47,10 @@ internal final class ClientRuntime: Sendable {
             guard let value = values[name], value != .null else { throw WireError("Missing label: \(name)") }
             let text = try codec.bound(value)
             guard !text.isEmpty else { throw WireError("Empty label: \(name)") }
-            guard text != "." && text != ".." else { throw WireError("Dot-segment HTTP label: \(name)") }
-            path = path.replacingOccurrences(of: "{\(name)}", with: Self.escape(text))
+            let greedy = ((try? op["greedyLabels"]?.array) ?? []).contains(.string(name))
+            let parts = greedy ? text.split(separator: "/", omittingEmptySubsequences: false).map(String.init) : [text]
+            guard !parts.contains(".") && !parts.contains("..") else { throw WireError("Dot-segment HTTP label: \(name)") }
+            path = path.replacingOccurrences(of: greedy ? "{\(name)+}" : "{\(name)}", with: parts.map(Self.escape).joined(separator: "/"))
         }
         var query: [String] = []
         for binding in try bindings["query"]!.array {
@@ -57,22 +59,55 @@ internal final class ClientRuntime: Sendable {
             let items = (try? value.array) ?? [value]
             for item in items { query.append(try Self.escape(pair[1].string) + "=" + Self.escape(codec.bound(item))) }
         }
+        if let name = bindings["queryParams"]?.text, let value = values[name], value != .null {
+            var reserved = Set(try bindings["query"]!.array.map { try $0.array[1].string })
+            if let literal = path.split(separator: "?", maxSplits: 1).dropFirst().first {
+                for pair in literal.split(separator: "&") {
+                    let key = String(pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)[0])
+                    reserved.insert(key.removingPercentEncoding ?? key)
+                }
+            }
+            let map = try value.object
+            for key in map.keys.sorted() where !reserved.contains(key) {
+                let item = map[key]!
+                if item == .null { continue }
+                for scalar in (try? item.array) ?? [item] where scalar != .null {
+                    query.append(try Self.escape(key) + "=" + Self.escape(codec.bound(scalar)))
+                }
+            }
+        }
         if !query.isEmpty { path += (path.contains("?") ? "&" : "?") + query.joined(separator: "&") }
         var headers = Self.headers(config.headers)
         for binding in try bindings["headers"]!.array {
             let pair = try binding.array
-            if let value = values[try pair[0].string], value != .null { headers[try pair[1].string.lowercased()] = try codec.bound(value) }
+            if let value = values[try pair[0].string], value != .null { headers[try pair[1].string.lowercased()] = try codec.bound(Self.media(value, bindings: bindings, member: pair[0].string, encode: true)) }
+        }
+        let explicitHeaders = Set(try bindings["headers"]!.array.map { try $0.array[1].string.lowercased() })
+        for binding in (try? bindings["prefixHeaders"]?.array) ?? [] {
+            let pair = try binding.array
+            guard let value = values[try pair[0].string], value != .null else { continue }
+            let map = try value.object
+            for key in map.keys.sorted() {
+                let header = try (pair[1].string + key).lowercased()
+                if !explicitHeaders.contains(header) { headers[header] = try codec.bound(Self.media(map[key]!, bindings: bindings, member: pair[0].string, encode: true)) }
+            }
         }
         var body: Data?
         let members = try bindings["body"]!.array
         if !members.isEmpty {
             var object: [String: JSONValue] = [:]
             for member in members { let name = try member.string; if let value = values[name] { object[name] = value } }
-            body = try JSONValue.object(object).data(); headers["content-type"] = "application/json"
+            body = try codec.document(op["input"]!.string, .object(object), encode: true).data(); headers["content-type"] = "application/json"
         }
         if let payload = try Self.payload(bindings), let value = values[payload.0], value != .null {
-            guard let raw = try Data(base64Encoded: value.string) else { throw WireError("Invalid payload blob") }
-            if !raw.isEmpty { body = raw; headers["content-type"] = payload.1 }
+            switch bindings["payloadKind"]?.text ?? "blob" {
+            case "string": body = try Data(value.string.utf8)
+            case "document": body = try codec.document(codec.member(op["input"]!.string, payload.0)["target"]!.string, value, encode: true).data()
+            default:
+                guard let raw = try Data(base64Encoded: value.string) else { throw WireError("Invalid payload blob") }
+                body = raw
+            }
+            headers["content-type"] = payload.1
         }
         guard let url = URL(string: endpoint + path) else { throw WireError("Invalid request URL") }
         return Prepared(operation: op, request: HTTPRequest(url: url, method: try op["method"]!.string, headers: headers, body: body))
@@ -139,25 +174,40 @@ internal final class ClientRuntime: Sendable {
     private func success(_ op: JSONValue, _ response: HTTPResponse) throws -> JSONValue {
         let bindings = op["response"]!
         var body: [String: JSONValue]
-        if let payload = try Self.payload(bindings) { body = [payload.0: .string(response.body.base64EncodedString())] }
+        if let payload = try Self.payload(bindings) { body = [payload.0: try payloadValue(op["output"]!.string, bindings: bindings, data: response.body)] }
         else if try bindings["body"]!.array.isEmpty { body = [:] }
-        else { body = response.body.isEmpty ? [:] : try JSONValue(data: response.body).object }
-        if let target = op["output"]?.text { try applyHeaders(target, bindings: bindings["headers"]!, response: response, into: &body) }
+        else { body = response.body.isEmpty ? [:] : try codec.document(op["output"]!.string, JSONValue(data: response.body), encode: false).object }
+        if let target = op["output"]?.text { try applyHeaders(target, bindings: bindings, response: response, into: &body) }
         return .object(body)
     }
     private func applyHeaders(_ target: String, bindings: JSONValue, response: HTTPResponse, into body: inout [String: JSONValue]) throws {
-        for binding in try bindings.array {
+        for binding in try bindings["headers"]!.array {
             let pair = try binding.array; let name = try pair[0].string
-            if let value = try response.header(pair[1].string) { body[name] = try codec.header(codec.member(target, name), value) }
+            if let value = try response.header(pair[1].string) { body[name] = try Self.media(codec.header(codec.member(target, name), value), bindings: bindings, member: name, encode: false) }
         }
+        let explicit = Set(try bindings["headers"]!.array.map { try $0.array[1].string.lowercased() })
+        for binding in (try? bindings["prefixHeaders"]?.array) ?? [] {
+            let pair = try binding.array
+            let member = try pair[0].string
+            let prefix = try pair[1].string.lowercased()
+            var values: [String: JSONValue] = [:]
+            for header in response.headers.keys.sorted() {
+                let lower = header.lowercased()
+                if lower.hasPrefix(prefix) && !explicit.contains(lower), let text = response.header(header) {
+                    values[String(lower.dropFirst(prefix.count))] = try Self.media(.string(text), bindings: bindings, member: member, encode: false)
+                }
+            }
+            body[member] = .object(values)
+        }
+        if let member = bindings["responseCode"]?.text { body[member] = .number(String(response.status)) }
     }
     private func failure(_ op: JSONValue, _ response: HTTPResponse) -> any ServiceError {
         var body = (try? JSONValue(data: response.body).object) ?? [:]
-        let name = body["__type"]?.text
+        let name = response.header("x-crucible-error") ?? body["__type"]?.text
         let declared = ((try? op["errors"]?.array) ?? []).compactMap(\.text)
         let matches = declared.filter { id in
             guard let shape = try? codec.shape(id) else { return false }
-            if let name { return shape["name"]?.text == name }
+            if let name { return (shape["error"]?["wireCode"]?.text ?? shape["name"]?.text) == name }
             return (try? WireNumber(shape["error"]!["status"]!.number).integer(Int64.self)) == Int64(response.status)
         }
         let target = matches.count == 1 ? matches[0] : nil
@@ -167,9 +217,11 @@ internal final class ClientRuntime: Sendable {
             message: body["message"]?.text ?? "HTTP \(response.status)", status: response.status,
             requestID: response.header("x-request-id") ?? body["requestId"]?.text, headers: response.headers,
             retryable: traits?["retryable"]?.flag == true, throttling: traits?["throttling"]?.flag == true)
-        if let target, let headers = traits?["headers"] {
+        if let target, let traits {
             do {
-                try applyHeaders(target, bindings: headers, response: response, into: &body)
+                if let payload = try Self.payload(traits) { body = [payload.0: try payloadValue(target, bindings: traits, data: response.body)] }
+                else { body = try codec.document(target, .object(body), encode: false).object }
+                try applyHeaders(target, bindings: traits, response: response, into: &body)
                 return try ModeledErrors.decode(target, value: .object(body), codec: codec, metadata: metadata)
             } catch { /* Preserve HTTP metadata when a modeled member is malformed. */ }
         }
@@ -187,6 +239,26 @@ internal final class ClientRuntime: Sendable {
         }
         let cap = min(config.maxDelay, config.baseDelay * pow(2, Double(min(attempt - 1, 30))))
         return Double.random(in: 0...cap)
+    }
+    private func payloadValue(_ target: String, bindings: JSONValue, data: Data) throws -> JSONValue {
+        switch bindings["payloadKind"]?.text ?? "blob" {
+        case "string":
+            guard let text = String(data: data, encoding: .utf8) else { throw WireError("Invalid UTF-8 payload") }
+            return .string(text)
+        case "document":
+            if data.isEmpty { return .null }
+            let payload = try Self.payload(bindings)!
+            return try codec.document(codec.member(target, payload.0)["target"]!.string, JSONValue(data: data), encode: false)
+        default: return .string(data.base64EncodedString())
+        }
+    }
+    private static func media(_ value: JSONValue, bindings: JSONValue, member: String, encode: Bool) throws -> JSONValue {
+        guard bindings["headerEncodings"]?[member]?.text == "base64" else { return value }
+        if case .array(let items) = value { return .array(try items.map { try media($0, bindings: bindings, member: member, encode: encode) }) }
+        if encode { return try .string(Data(value.string.utf8).base64EncodedString()) }
+        let text = try value.string
+        guard let bytes = Data(base64Encoded: text), bytes.base64EncodedString() == text, let decoded = String(data: bytes, encoding: .utf8) else { throw WireError("Invalid media-type header base64 or UTF-8") }
+        return .string(decoded)
     }
     private static func payload(_ bindings: JSONValue) throws -> (String, String)? {
         guard let value = bindings["payload"], value != .null else { return nil }

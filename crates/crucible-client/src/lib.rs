@@ -18,22 +18,39 @@
 //! only when the operation is safe to repeat (`@readonly`, `@idempotent`,
 //! or carrying an idempotency token, which the client fills when absent).
 
+mod auth;
 mod build_error;
+mod cancellation;
 mod config;
+mod credentials;
+mod endpoint;
+mod metadata;
 mod paginate;
+mod query;
+mod signing;
 mod transport;
+mod waiter;
 
 pub use build_error::BuildError;
-pub use config::{BoxFuture, Config, Interceptor, Retry, Token};
+pub use cancellation::CancellationToken;
+pub use config::{
+    BasicCredentials, BoxFuture, CallOptions, Config, Identity, Interceptor, Retry, Token,
+};
+pub use credentials::AwsCredentials;
 pub use crucible_wire::blob::Blob;
 pub use crucible_wire::error::ModelledError;
 pub use crucible_wire::field::Field;
 pub use crucible_wire::open::UnknownUnion;
 pub use crucible_wire::operation::{Operation, OperationInfo};
-pub use crucible_wire::{blob, error, operation, time, validate};
+pub use crucible_wire::{blob, codec, error, number, operation, time, validate};
 pub use crucible_wire::{field, open};
+pub use metadata::{OperationMetadata, ServiceMetadata};
 pub use paginate::Paginator;
-pub use transport::{Error, OperationErrors, Transport, UnknownError, by_status, decode_modelled};
+pub use transport::{
+    Error, OperationErrors, ResponseMetadata, ServiceError, Transport, UnknownError, by_status,
+    decode_modelled, decode_modelled_at,
+};
+pub use waiter::{WaiterError, WaiterFailure, WaiterOptions, WaiterResult};
 
 /// A fresh idempotency token, for an input member that carries one.
 pub fn idempotency_token() -> String {
@@ -57,3 +74,9 @@ pub mod __private {
     pub use serde;
     pub use serde_json;
 }
+
+/// Owned streaming body and chunk stream used by generated payload members.
+pub use crucible_wire::stream::{ByteStream, ChunkStream};
+
+/// Exact numbers for Smithy arbitrary-precision numeric shapes.
+pub use crucible_wire::number::{BigDecimal, BigInteger};

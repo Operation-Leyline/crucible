@@ -11,6 +11,8 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
         let builtin = match service.shape(target) {
             Some(Shape::Unit) => Some("Unit"),
             Some(Shape::Simple(simple)) => Some(match simple.kind {
+                SimpleKind::BigInteger => "bigint",
+                SimpleKind::BigDecimal => "Decimal",
                 SimpleKind::Boolean => "boolean",
                 SimpleKind::String => "string",
                 SimpleKind::Byte
@@ -104,7 +106,7 @@ pub(crate) fn property(name: &str) -> String {
 /// An `import type` of the runtime's `Document` and `Unit` where `code` uses
 /// them, plus `always`: a file imports nothing it does not use.
 pub(crate) fn runtime_types(code: &str, always: &[&str]) -> String {
-    let mut names: Vec<&str> = ["Document", "Unit"]
+    let mut names: Vec<&str> = ["Document", "Unit", "UnknownUnion", "ByteStream", "Decimal"]
         .into_iter()
         .filter(|name| mentions(code, name))
         .collect();

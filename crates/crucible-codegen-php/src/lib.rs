@@ -57,7 +57,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     for (id, shape) in &service.shapes {
         let name = service.name_of(id);
         match shape {
-            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_)
+            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_)
                 if !identifier(name)
                     || reserved(name)
                     || !names.insert(name.to_ascii_lowercase()) =>
@@ -85,10 +85,15 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                     }
                 }
             }
-            Shape::Enum(e) => {
+            Shape::Enum(_) | Shape::IntEnum(_) => {
                 let mut constants = BTreeSet::new();
-                for value in &e.values {
-                    let name = names::constant(&value.name);
+                let names = match shape {
+                    Shape::Enum(e) => e.values.iter().map(|value| &value.name).collect::<Vec<_>>(),
+                    Shape::IntEnum(e) => e.values.iter().map(|value| &value.name).collect(),
+                    _ => unreachable!(),
+                };
+                for value in names {
+                    let name = names::constant(value);
                     if !identifier(&name) || !constants.insert(name) {
                         result.push(id, "invalid PHP enum constant name");
                     }
@@ -132,7 +137,31 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     result
 }
 
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -166,6 +195,23 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let namespace = &options.namespace;
     files.push(File {path:"src/Schema.php".into(), contents:format!("<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\nfinal class Schema\n{{\n    public static function codec(): Runtime\\WireCodec\n    {{\n        static $codec = null;\n        return $codec ??= new Runtime\\WireCodec(Runtime\\WireCodec::object(Runtime\\ExactJson::decode(file_get_contents(__DIR__ . '/schema.json'))), Decoder::model(...));\n    }}\n}}\n")});
     for (name, source) in [
+        (
+            "Authentication",
+            include_str!("../runtime/Authentication.php"),
+        ),
+        (
+            "AwsCredentials",
+            include_str!("../runtime/AwsCredentials.php"),
+        ),
+        (
+            "BasicCredentials",
+            include_str!("../runtime/BasicCredentials.php"),
+        ),
+        (
+            "CachedCredentials",
+            include_str!("../runtime/CachedCredentials.php"),
+        ),
+        ("Credentials", include_str!("../runtime/Credentials.php")),
         ("CallScope", include_str!("../runtime/CallScope.php")),
         (
             "CancellationToken",
@@ -197,6 +243,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/HttpTransport.php"),
         ),
         ("JsonNumber", include_str!("../runtime/JsonNumber.php")),
+        ("BigInteger", include_str!("../runtime/BigInteger.php")),
+        ("BigDecimal", include_str!("../runtime/BigDecimal.php")),
         ("JsonObject", include_str!("../runtime/JsonObject.php")),
         ("JsonValue", include_str!("../runtime/JsonValue.php")),
         (

@@ -27,7 +27,7 @@ test("generated operation and paginator names remain callable without collisions
 });
 
 test("collection-only scalar schemas compile and preserve their values", () => {
-  const value = { texts: ['x'], flags: [true], numbers: [1.5], documents: [null, { a: 1 }], textsMap: { a: 'x' }, flagsMap: { a: false }, numbersMap: { a: 2.5 }, documentsMap: { a: null } };
+  const value = { texts: ['x'], flags: [true], numbers: [1.5], documents: [{ nil: null }, { a: 1 }], textsMap: { a: 'x' }, flagsMap: { a: false }, numbersMap: { a: 2.5 }, documentsMap: { a: { nil: null } } };
   assert.deepEqual(fromWire(S_Collections, toWire(S_Collections, value)), value);
 });
 
@@ -37,8 +37,8 @@ test("clientOptional and input defaults stay absent while ordinary defaults appl
   assert.deepEqual(fromWire(S_Defaults, parseJson('{"optional":null}')), { ordinary: 7, optional: null });
 });
 
-test("dense list and map values reject null and missing entries, except document null", () => {
-  for (const scalar of [string, integer(32), list(string), map(string)]) {
+test("dense list and map values reject null and missing entries, including document elements", () => {
+  for (const scalar of [string, document, integer(32), list(string), map(string)]) {
     for (const convert of [toWire, fromWire]) {
       for (const value of [null, undefined]) {
         rejects(() => convert(list(scalar), [value]));
@@ -48,8 +48,8 @@ test("dense list and map values reject null and missing entries, except document
     }
   }
   for (const convert of [toWire, fromWire]) {
-    assert.deepEqual(convert(list(document), [null]), [null]);
-    assert.deepEqual(convert(map(document), { a: null }), { a: null });
+    assert.deepEqual(convert(list(document), [{ nil: null }]), [{ nil: null }]);
+    assert.deepEqual(convert(map(document), { a: { nil: null } }), { a: { nil: null } });
     rejects(() => convert(list(document), [undefined]));
   }
 });

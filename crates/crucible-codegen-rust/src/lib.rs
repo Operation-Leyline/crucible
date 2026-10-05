@@ -57,7 +57,39 @@ pub struct Options {
 }
 
 /// The generated file's contents.
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::Streaming,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+    ])
+}
+
+/// Constructs supported by the generated client and its bundled runtime.
+pub fn client_capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new(capabilities().iter().chain([
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::EndpointHostPrefix,
+        Feature::EndpointRules,
+        Feature::Waiters,
+        Feature::SigV4,
+    ]))
+}
+
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let mut diagnostics = Diagnostics::default();
     let strict = models::strict_shapes(service, options.strict_inputs);
     let model = models::emit(service, &strict, false, &mut diagnostics);
@@ -120,6 +152,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
 
 /// The generated client file's contents, for `crucible_client::include_client!()`.
 pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
+    service.require_capabilities(&client_capabilities())?;
     let mut diagnostics = Diagnostics::default();
     // A client reads what a newer service sends: never strict.
     let model = models::emit(service, &Default::default(), true, &mut diagnostics);

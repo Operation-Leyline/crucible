@@ -155,6 +155,8 @@ pub fn ty(service: &Service, id: &ShapeId, namespace: &str, docs: bool) -> Strin
     match service.shape(id).expect("shape") {
         Shape::Unit => runtime("Unit"),
         Shape::Simple(s) => match s.kind {
+            SimpleKind::BigInteger => runtime("BigInteger"),
+            SimpleKind::BigDecimal => runtime("BigDecimal"),
             SimpleKind::String | SimpleKind::Blob => "string".into(),
             SimpleKind::Boolean => "bool".into(),
             SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long => {
@@ -165,12 +167,14 @@ pub fn ty(service: &Service, id: &ShapeId, namespace: &str, docs: bool) -> Strin
             SimpleKind::Document => runtime("JsonValue"),
         },
         Shape::List(list) if docs => format!(
-            "list<{}>",
-            ty(service, &list.member.target, namespace, true)
+            "list<{}{}>",
+            ty(service, &list.member.target, namespace, true),
+            if list.sparse { "|null" } else { "" }
         ),
         Shape::Map(map) if docs => format!(
-            "array<string|int, {}>",
-            ty(service, &map.value.target, namespace, true)
+            "array<string|int, {}{}>",
+            ty(service, &map.value.target, namespace, true),
+            if map.sparse { "|null" } else { "" }
         ),
         Shape::List(_) | Shape::Map(_) => "array".into(),
         _ => format!("\\{namespace}\\{}", service.name_of(id)),

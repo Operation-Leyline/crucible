@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "service": "example.weather#Weather",
+  "model": "../../crates/crucible-smithy/tests/fixtures/weather.json",
+  "generator": ["cargo", "run", "--locked", "--manifest-path", "{source}/../../Cargo.toml", "-q", "-p", "crucible-cli", "--"],
+  "targets": {
+    "python": {
+      "arguments": ["--package-name", "crucible-weather-example", "--module-name", "weather_client"],
+      "build": [["{python}", "-m", "build", "--wheel", "--no-isolation", "."]],
+      "test": [["{python}", "{source}/../sdk_consumer.py", "python", "weather_client", "WeatherClient", "AsyncWeatherClient", "CreateCityInput"]],
+      "artifacts": ["dist/*.whl"],
+      "publish": [["{python}", "-m", "twine", "upload", "--non-interactive", "{artifact}"]]
+    },
+    "ts": {
+      "arguments": ["--package-name", "@crucible-example/weather"],
+      "prepare": [["npm", "install", "--ignore-scripts", "--no-audit", "--no-fund"]],
+      "build": [["npm", "run", "build"], ["npm", "pack", "--ignore-scripts"]],
+      "test": [["{python}", "{source}/../sdk_consumer.py", "ts", "@crucible-example/weather", "WeatherClient", "ServiceError"]],
+      "artifacts": ["*.tgz"],
+      "publish": [["npm", "publish", "{artifact}", "--access", "public", "--ignore-scripts"]]
+    }
+  }
+}

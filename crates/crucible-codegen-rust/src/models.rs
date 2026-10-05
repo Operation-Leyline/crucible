@@ -8,7 +8,7 @@ use crucible_smithy::{Diagnostics, ShapeId};
 use serde_json::Value;
 
 use crate::names::{doc, field, function, literal, variant};
-use crate::types::{boxed_members, builtin, field_type, rust_type, timestamp_module};
+use crate::types::{boxed_members, builtin, field_type, rust_type};
 
 /// The body of `pub mod model { ... }`.
 /// The structures that refuse unknown members: those marked
@@ -52,35 +52,41 @@ pub(crate) fn emit(
         let name = service.name_of(id);
         out.push('\n');
         match shape {
+            Shape::IntEnum(values) => crate::open::int_enumeration(&mut out, name, values, client),
             Shape::Unit => {}
             Shape::Simple(simple) => {
                 doc(&mut out, "", simple.docs.as_deref());
-                out.push_str(&format!("pub type {name} = {};\n", builtin(simple.kind)));
+                out.push_str(&format!(
+                    "pub type {name} = {};\n",
+                    if simple.streaming {
+                        "::crucible::ByteStream"
+                    } else {
+                        builtin(simple.kind)
+                    }
+                ));
             }
             Shape::List(list) => {
                 doc(&mut out, "", list.docs.as_deref());
                 let item = rust_type(service, &list.member.target, "");
+                let item = if list.sparse {
+                    format!("::std::option::Option<{item}>")
+                } else {
+                    item
+                };
                 out.push_str(&format!("pub type {name} = ::std::vec::Vec<{item}>;\n"));
-                if timestamp_module(service, &list.member).is_some() {
-                    diagnostics.push(
-                        id,
-                        "a list of epoch-seconds or http-date timestamps is not generated yet",
-                    );
-                }
             }
             Shape::Map(map) => {
                 doc(&mut out, "", map.docs.as_deref());
                 let key = rust_type(service, &map.key.target, "");
                 let value = rust_type(service, &map.value.target, "");
+                let value = if map.sparse {
+                    format!("::std::option::Option<{value}>")
+                } else {
+                    value
+                };
                 out.push_str(&format!(
                     "pub type {name} = ::std::collections::BTreeMap<{key}, {value}>;\n"
                 ));
-                if timestamp_module(service, &map.value).is_some() {
-                    diagnostics.push(
-                        id,
-                        "a map of epoch-seconds or http-date timestamps is not generated yet",
-                    );
-                }
             }
             Shape::Enum(values) => enumeration(&mut out, id, name, values, client, diagnostics),
             Shape::Structure(structure) => {
@@ -130,9 +136,17 @@ pub(crate) fn emit(
                     if boxed.contains(&id.with_member(&member.name)) {
                         ty = format!("::std::boxed::Box<{ty}>");
                     }
+                    let adapter = if let Some(mut codec) = crate::types::codec(service, member) {
+                        if boxed.contains(&id.with_member(&member.name)) {
+                            codec = format!("::crucible::codec::Boxed<{codec}>");
+                        }
+                        format!("#[serde(with = \"::crucible::codec::Adapter::<{codec}>\")] ")
+                    } else {
+                        String::new()
+                    };
                     out.push_str(&format!(
-                        "    #[serde(rename = {})]\n    {}({ty}),\n",
-                        literal(&member.name),
+                        "    #[serde(rename = {})]\n    {}({adapter}{ty}),\n",
+                        literal(&member.wire_name),
                         variant(&member.name)
                     ));
                 }
@@ -243,7 +257,7 @@ pub(crate) fn member_field(
     diagnostics: &mut Diagnostics,
 ) {
     doc(out, "    ", member.docs.as_deref());
-    let mut serde = vec![format!("rename = {}", literal(&member.name))];
+    let mut serde = vec![format!("rename = {}", literal(&member.wire_name))];
     let optional = if client {
         member.optional_on_client()
     } else {
@@ -299,13 +313,17 @@ pub(crate) fn member_field(
     {
         serde.push("deserialize_with = \"::crucible::field::required\"".to_owned());
     }
-    if let Some(module) = timestamp_module(service, member) {
-        let module = if optional {
-            format!("{module}::{}", if client { "field" } else { "option" })
-        } else {
-            module.to_owned()
-        };
-        serde.push(format!("with = \"{module}\""));
+    if let Some(mut codec) = crate::types::codec(service, member) {
+        if boxed {
+            codec = format!("::crucible::codec::Boxed<{codec}>");
+        }
+        if optional {
+            codec = format!(
+                "::crucible::codec::{}<{codec}>",
+                if client { "Field" } else { "Optional" }
+            );
+        }
+        serde.push(format!("with = \"::crucible::codec::Adapter::<{codec}>\""));
     }
     out.push_str(&format!("    #[serde({})]\n", serde.join(", ")));
     out.push_str(&format!(
@@ -319,6 +337,17 @@ pub(crate) fn member_field(
 /// with `prefix`.
 fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str) -> Option<String> {
     match (service.shape(&member.target)?, value) {
+        (Shape::IntEnum(values), Value::Number(number)) => {
+            let value = values
+                .values
+                .iter()
+                .find(|v| Some(i64::from(v.value)) == number.as_i64())?;
+            Some(format!(
+                "{prefix}{}::{}",
+                service.name_of(&member.target),
+                variant(&value.name)
+            ))
+        }
         (Shape::Enum(values), Value::String(text)) => {
             let value = values.values.iter().find(|v| v.value == *text)?;
             Some(format!(
@@ -342,6 +371,12 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
                 SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long,
                 Value::Number(n),
             ) => Some(n.to_string()),
+            (SimpleKind::BigInteger | SimpleKind::BigDecimal, Value::Number(number)) => {
+                Some(format!(
+                    "{}.parse().expect(\"validated numeric default\")",
+                    literal(&number.to_string())
+                ))
+            }
             (SimpleKind::Document, value) => {
                 Some(format!("::crucible::__private::serde_json::json!({value})"))
             }
@@ -510,11 +545,15 @@ fn value_checks(
             // A blob's length is its byte count.
             if simple.kind == SimpleKind::Blob {
                 if let Some(length) = &c.length {
-                    out.push_str(&format!(
-                        "{pad}validator.length({value}.len(), {}, {});\n",
-                        opt(length.min),
-                        opt(length.max)
-                    ));
+                    if simple.streaming {
+                        out.push_str(&format!("{pad}if let Some(length) = {value}.length() {{ validator.length(length, {}, {}); }}\n", opt(length.min), opt(length.max)));
+                    } else {
+                        out.push_str(&format!(
+                            "{pad}validator.length({value}.len(), {}, {});\n",
+                            opt(length.min),
+                            opt(length.max)
+                        ));
+                    }
                 }
             }
             if let Some(range) = &c.range {
@@ -529,10 +568,15 @@ fn value_checks(
                     opt(length.max)
                 ));
             }
-            if c.unique_items {
+            if list.is_set || c.unique_items {
                 out.push_str(&format!("{pad}validator.unique({value});\n"));
             }
             let item = value_checks(service, &list.member, "item", patterns, depth + 2);
+            let item = if list.sparse && !item.is_empty() {
+                format!("{pad}        if let Some(item) = item {{\n{item}{pad}        }}\n")
+            } else {
+                item
+            };
             if !item.is_empty() {
                 out.push_str(&format!(
                     "{pad}for (index, item) in {value}.iter().enumerate() {{\n{pad}    validator.at(index, |validator| {{\n{item}{pad}    }});\n{pad}}}\n"
@@ -549,6 +593,11 @@ fn value_checks(
             }
             let key = value_checks(service, &map.key, "key", patterns, depth + 2);
             let item = value_checks(service, &map.value, "item", patterns, depth + 2);
+            let item = if map.sparse && !item.is_empty() {
+                format!("{pad}        if let Some(item) = item {{\n{item}{pad}        }}\n")
+            } else {
+                item
+            };
             if !key.is_empty() || !item.is_empty() {
                 let item_binding = if item.is_empty() { "_item" } else { "item" };
                 // The path names the key; an enum key spells itself as on the wire.
@@ -575,6 +624,25 @@ fn range_check(
     range: &crucible_smithy::ir::Bounds<serde_json::Number>,
     pad: &str,
 ) -> String {
+    if matches!(kind, SimpleKind::BigInteger | SimpleKind::BigDecimal) {
+        let bound = |name: &str, number: &Option<serde_json::Number>| {
+            number.as_ref().map_or_else(
+                || "None".to_owned(),
+                |number| {
+                    format!(
+                        "Some({name}.get_or_init(|| {}.parse().expect(\"validated range bound\")))",
+                        literal(&number.to_string())
+                    )
+                },
+            )
+        };
+        let statics = [("MIN", &range.min), ("MAX", &range.max)].into_iter().filter(|(_, value)| value.is_some()).map(|(name, _)| format!("{pad}    static {name}: ::std::sync::OnceLock<::crucible::number::DecimalValue> = ::std::sync::OnceLock::new();\n")).collect::<String>();
+        return format!(
+            "{pad}{{\n{statics}{pad}    validator.range_decimal(&{value}.as_decimal(), {}, {});\n{pad}}}\n",
+            bound("MIN", &range.min),
+            bound("MAX", &range.max)
+        );
+    }
     let float = matches!(kind, SimpleKind::Float | SimpleKind::Double);
     let integral = |n: &serde_json::Number| {
         n.as_i64()

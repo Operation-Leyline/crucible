@@ -66,8 +66,11 @@ pub fn ty(service: &Service, id: &ShapeId, prefix: &str) -> String {
         return format!("{prefix}{}", service.name_of(id));
     }
     match service.shape(id).expect("lowered target") {
+        Shape::IntEnum(_) => unreachable!("integer enums are capability-gated"),
         Shape::Unit => "None".into(),
         Shape::Simple(s) => match s.kind {
+            SimpleKind::BigInteger => "int",
+            SimpleKind::BigDecimal => "Decimal",
             SimpleKind::String => "str",
             SimpleKind::Boolean => "bool",
             SimpleKind::Float | SimpleKind::Double => "float",

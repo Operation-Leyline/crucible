@@ -1048,6 +1048,7 @@ const weather_shape weather_shape_2 = {
     .id = {"example.weather#CitySummaries", 29}, .kind = weather_kind_list, .size = sizeof(weather_models_city_summaries), .format = weather_date_time,
     .members = weather_shape_2_members, .member_count = 1,
     .length_offset = offsetof(weather_models_city_summaries, length), .items_offset = offsetof(weather_models_city_summaries, items), .item_size = sizeof(const weather_models_city_summary *),
+    .sparse = false, .unique = false,
 };
 static const weather_member weather_shape_3_members[] = {
     {{"id", 2}, &weather_shape_0, offsetof(weather_models_city_summary, id.state), offsetof(weather_models_city_summary, id.value), false, weather_date_time, {NULL, 0}},
@@ -1103,6 +1104,7 @@ const weather_shape weather_shape_9 = {
     .id = {"example.weather#Forecast", 24}, .kind = weather_kind_map, .size = sizeof(weather_models_forecast), .format = weather_date_time,
     .members = weather_shape_9_members, .member_count = 2,
     .length_offset = offsetof(weather_models_forecast, length), .items_offset = offsetof(weather_models_forecast, items), .item_size = sizeof(weather_models_forecast_entry),
+    .sparse = false,
 };
 static const weather_member weather_shape_10_members[] = {
     {{"cityId", 6}, &weather_shape_0, offsetof(weather_models_get_city_input, city_id.state), offsetof(weather_models_get_city_input, city_id.value), true, weather_date_time, {NULL, 0}},
@@ -1214,6 +1216,7 @@ const weather_shape weather_shape_25 = {
     .id = {"example.weather#Tags", 20}, .kind = weather_kind_list, .size = sizeof(weather_models_tags), .format = weather_date_time,
     .members = weather_shape_25_members, .member_count = 1,
     .length_offset = offsetof(weather_models_tags, length), .items_offset = offsetof(weather_models_tags, items), .item_size = sizeof(weather_string),
+    .sparse = false, .unique = false,
 };
 static const weather_member weather_shape_26_members[] = {
     {{"message", 7}, &weather_shape_36, offsetof(weather_models_throttling_error, message.state), offsetof(weather_models_throttling_error, message.value), false, weather_date_time, {NULL, 0}},
@@ -1251,6 +1254,7 @@ const weather_shape weather_shape_30 = {
     .id = {"example.weather#ValidationFieldList", 35}, .kind = weather_kind_list, .size = sizeof(weather_models_validation_field_list), .format = weather_date_time,
     .members = weather_shape_30_members, .member_count = 1,
     .length_offset = offsetof(weather_models_validation_field_list, length), .items_offset = offsetof(weather_models_validation_field_list, items), .item_size = sizeof(const weather_models_validation_field *),
+    .sparse = false, .unique = false,
 };
 const weather_shape weather_shape_31 = {
     .id = {"example.weather#ValidationReason", 32}, .kind = weather_kind_enum, .size = sizeof(weather_models_validation_reason), .format = weather_date_time,

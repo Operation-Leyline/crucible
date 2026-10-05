@@ -68,6 +68,9 @@ fn reserved_module(text: &str) -> bool {
         "WireError",
         "JSONReader",
         "WireNumber",
+        "ExactNumber",
+        "BigInteger",
+        "BigDecimal",
         "OptionalValue",
         "WireCodable",
         "WireContext",
@@ -344,6 +347,8 @@ fn ty(service: &Service, id: &ShapeId, _module: &str) -> String {
     match service.shape(id).expect("lowered shape") {
         Shape::Unit => "Unit".into(),
         Shape::Simple(s) => match s.kind {
+            SimpleKind::BigInteger => "BigInteger".into(),
+            SimpleKind::BigDecimal => "BigDecimal".into(),
             SimpleKind::String => "Swift.String".into(),
             SimpleKind::Boolean => "Swift.Bool".into(),
             SimpleKind::Byte => "Swift.Int8".into(),
@@ -359,7 +364,27 @@ fn ty(service: &Service, id: &ShapeId, _module: &str) -> String {
         _ => format!("`{}`", model_name(service.name_of(id))),
     }
 }
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let mut diagnostics = Diagnostics::default();
     for (name, value) in [
         ("package name", &options.package_name),
@@ -410,12 +435,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
             }
         }
-        if let Shape::Enum(e) = shape {
+        if matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
             let mut values = BTreeSet::from_iter(
                 ["rawValue", "fromWire", "toWire", "init", "self"].map(str::to_string),
             );
-            for value in &e.values {
-                let name = enum_constant(&value.name);
+            let constants = match shape {
+                Shape::Enum(e) => e.values.iter().map(|value| &value.name).collect::<Vec<_>>(),
+                Shape::IntEnum(e) => e.values.iter().map(|value| &value.name).collect(),
+                _ => unreachable!(),
+            };
+            for value in constants {
+                let name = enum_constant(value);
                 if !identifier(&name) || !values.insert(name) {
                     diagnostics.push(id, "invalid or colliding Swift enum constant name");
                 }
@@ -469,6 +499,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     for (name, contents) in [
         ("JSONValue", include_str!("../runtime/JSONValue.swift")),
         ("WireCodec", include_str!("../runtime/WireCodec.swift")),
+        ("BigNumbers", include_str!("../runtime/BigNumbers.swift")),
         ("Timestamp", include_str!("../runtime/Timestamp.swift")),
         (
             "ClientConfig",

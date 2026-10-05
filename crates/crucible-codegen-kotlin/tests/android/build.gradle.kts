@@ -17,7 +17,7 @@ android {
     }
     lint { checkDependencies = true }
 }
-kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8) } }
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8); optIn.add("kotlin.time.ExperimentalTime") } }
 dependencies {
     implementation("example:weather-kotlin-android:0.0.0-test")
     androidTestImplementation("androidx.test:runner:1.6.2")

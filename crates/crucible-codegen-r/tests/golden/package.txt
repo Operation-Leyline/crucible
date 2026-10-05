@@ -39,6 +39,8 @@ export("ValidationError")
 export("ValidationField")
 export("ValidationReason")
 export("WeatherClient")
+export("big_decimal")
+export("big_integer")
 export("cancellation_token")
 export("client_config")
 export("json_encode")
@@ -201,6 +203,8 @@ export("timestamp")
 \alias{ValidationField}
 \alias{ValidationReason}
 \alias{WeatherClient}
+\alias{big_decimal}
+\alias{big_integer}
 \alias{cancellation_token}
 \alias{client_config}
 \alias{json_encode}

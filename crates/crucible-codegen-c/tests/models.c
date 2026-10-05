@@ -66,12 +66,15 @@ int main(void) {
     assert(photo_copy->thumbnail.value.length == 3 && memcmp(photo_copy->thumbnail.value.data, bytes, 3) == 0);
     { weather_models_forecast_entry entries[1]; weather_models_forecast forecast;
       const weather_models_forecast *copy;
-      entries[0].key = weather_models_sky_known_clear(); entries[0].value = parse(source, "null", &error);
+      entries[0].key = weather_models_sky_known_clear(); entries[0].value = parse(source, "{\"nil\":null}", &error);
       forecast.length = 1; forecast.items = entries;
       good(weather_models_forecast_encode(encoded, &forecast, &wire, &error), &error);
       good(weather_models_forecast_decode(decoded, wire, &copy, &error), &error);
       assert(copy->length == 1 && weather_string_equal(copy->items[0].key, entries[0].key));
-      assert(weather_json_type(copy->items[0].value) == weather_json_null); }
+      assert(weather_json_type(weather_json_get(copy->items[0].value, weather_string_view("nil"))) == weather_json_null);
+      entries[0].value = parse(source, "null", &error);
+      assert(weather_models_forecast_encode(encoded, &forecast, &wire, &error) == weather_invalid);
+      assert(weather_models_forecast_decode(decoded, parse(source, "{\"clear\":null}", &error), &copy, &error) == weather_invalid); }
     { const weather_shape *type = weather_shape_lookup(weather_string_view("smithy.api#Long"));
       const void *value; int64_t number = INT64_MIN;
       assert(type);

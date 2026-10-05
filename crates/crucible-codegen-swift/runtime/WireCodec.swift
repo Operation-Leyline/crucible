@@ -39,6 +39,37 @@ internal struct WireCodec: Sendable {
     func decode<T: WireCodable>(_ target: String, _ value: JSONValue, as: T.Type) throws -> T {
         try T.fromWire(value, context(target))
     }
+    // Native models retain Smithy member names; only document boundaries rename them.
+    func document(_ target: String, _ value: JSONValue, encode: Bool) throws -> JSONValue {
+        if value == .null { return value }
+        let shape = try shape(target)
+        switch shape["kind"]?.text {
+        case "structure", "union":
+            let object = try value.object
+            let members = try shape["members"]!.object
+            var result: [String: JSONValue] = [:]
+            for (name, member) in members {
+                let wire = member["jsonName"]?.text ?? name
+                if let item = object[encode ? name : wire] {
+                    result[encode ? wire : name] = try document(member["target"]!.string, item, encode: encode)
+                }
+            }
+            if shape["kind"]?.text == "union" {
+                for (name, item) in object where !members.contains(where: { encode ? $0.key == name : ($0.value["jsonName"]?.text ?? $0.key) == name }) {
+                    if encode && members.contains(where: { ($0.value["jsonName"]?.text ?? $0.key) == name }) { throw WireError("Unknown variant name is declared") }
+                    result[name] = item
+                }
+            }
+            return .object(result)
+        case "list":
+            return .array(try value.array.map { try document(shape["member"]!["target"]!.string, $0, encode: encode) })
+        case "map":
+            var result: [String: JSONValue] = [:]
+            for (name, item) in try value.object { result[name] = try document(shape["value"]!["target"]!.string, item, encode: encode) }
+            return .object(result)
+        default: return value
+        }
+    }
     func member(_ target: String, _ name: String) throws -> JSONValue {
         guard let member = try shape(target)["members"]?[name] else { throw WireError("Unknown member: \(name)") }
         return member
@@ -85,7 +116,7 @@ internal struct WireCodec: Sendable {
             guard !quoted else { throw WireError("Unterminated quoted header") }
             try append(part)
             return .array(values)
-        case "byte", "short", "integer", "long", "float", "double", "boolean": return try JSONValue(data: Data(text.utf8))
+        case "byte", "short", "integer", "long", "intEnum", "bigInteger", "bigDecimal", "float", "double", "boolean": return try JSONValue(data: Data(text.utf8))
         case "timestamp" where member["format"]?.text == "epoch-seconds": return try JSONValue(data: Data(text.utf8))
         default: return .string(text)
         }
@@ -155,11 +186,15 @@ extension JSONValue: WireCodable {
 extension Array: WireCodable where Element: WireCodable {
     internal static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self {
         let child = try context.child(context.shape["member"]!)
-        return try value.array.map { try Element.fromWire($0, child) }
+        let values = try value.array
+        try context.codec.collection(values, shape: context.shape)
+        return try values.map { try Element.fromWire($0, child) }
     }
     internal func toWire(_ context: WireContext) throws -> JSONValue {
         let child = try context.child(context.shape["member"]!)
-        return .array(try map { try $0.toWire(child) })
+        let values = try map { try $0.toWire(child) }
+        try context.codec.collection(values, shape: context.shape)
+        return .array(values)
     }
 }
 extension Dictionary: WireCodable where Key: WireCodable, Value: WireCodable {
@@ -167,14 +202,39 @@ extension Dictionary: WireCodable where Key: WireCodable, Value: WireCodable {
         let shape = try context.shape
         let key = try context.child(shape["key"]!); let item = try context.child(shape["value"]!)
         var result: Self = [:]
-        for (name, value) in try value.object { result[try Key.fromWire(.string(name), key)] = try Value.fromWire(value, item) }
+        for (name, value) in try value.object {
+            if value == .null && shape["sparse"]?.flag != true { throw WireError("Null in dense map") }
+            result.updateValue(try Value.fromWire(value, item), forKey: try Key.fromWire(.string(name), key))
+        }
         return result
     }
     internal func toWire(_ context: WireContext) throws -> JSONValue {
         let shape = try context.shape
         let key = try context.child(shape["key"]!); let item = try context.child(shape["value"]!)
         var result: [String: JSONValue] = [:]
-        for (name, value) in self { result[try name.toWire(key).string] = try value.toWire(item) }
+        for (name, value) in self {
+            let encoded = try value.toWire(item)
+            if encoded == .null && shape["sparse"]?.flag != true { throw WireError("Null in dense map") }
+            result[try name.toWire(key).string] = encoded
+        }
         return .object(result)
+    }
+}
+extension Optional: WireCodable where Wrapped: WireCodable {
+    internal static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self {
+        value == .null ? nil : try Wrapped.fromWire(value, context)
+    }
+    internal func toWire(_ context: WireContext) throws -> JSONValue {
+        try map { try $0.toWire(context) } ?? .null
+    }
+}
+extension WireCodec {
+    func collection(_ values: [JSONValue], shape: JSONValue) throws {
+        if shape["sparse"]?.flag != true && values.contains(.null) { throw WireError("Null in dense list") }
+        if shape["set"]?.flag == true {
+            for index in values.indices {
+                if try values[..<index].contains(where: { try $0.equivalent(to: values[index]) }) { throw WireError("Duplicate set member") }
+            }
+        }
     }
 }

@@ -203,6 +203,33 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - run: python tools/test-kotlin.py
+  kotlin-multiplatform:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            flags: ''
+          - os: macos-14
+            flags: '--native'
+          - os: windows-latest
+            flags: '--native'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.13' }
+      - uses: android-actions/setup-android@v3
+      - name: Consume published JVM, JavaScript, and host-native artifacts
+        run: python tools/test-kotlin-multiplatform.py ${{ matrix.flags }}
   kotlin-android:
     runs-on: ubuntu-latest
     steps:
@@ -264,7 +291,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
-      - run: python -m pip install 'httpx>=0.28,<1' mypy build
+      - run: python -m pip install 'httpx>=0.28,<1' 'jmespath==1.0.1' mypy build
       - run: python tools/test-python.py
   rust:
     runs-on: ubuntu-latest

@@ -24,6 +24,8 @@ pub enum BoundValue<'a> {
     Text(Cow<'a, str>),
     Integer(i64),
     Float(f64),
+    Number(serde_json::Number),
+    Json(serde_json::Value),
     Boolean(bool),
     List(Vec<BoundValue<'a>>),
     /// A payload member: the whole body.
@@ -37,11 +39,27 @@ impl<'a> BoundValue<'a> {
     pub fn parse(text: Cow<'a, str>, scalar: Scalar) -> Result<Self, String> {
         match scalar {
             Scalar::String | Scalar::Json => Ok(Self::Text(text)),
+            Scalar::BigInteger | Scalar::BigDecimal => {
+                if scalar == Scalar::BigInteger {
+                    text.parse::<crate::number::BigInteger>()
+                        .map_err(|e| e.to_string())?;
+                }
+                text.parse()
+                    .map(Self::Number)
+                    .map_err(|error: serde_json::Error| error.to_string())
+            }
             Scalar::Integer => text
                 .parse::<i64>()
                 .map(Self::Integer)
                 .map_err(|_| format!("must be an integer (`{text}` is not)")),
-            Scalar::Float | Scalar::EpochSeconds => text
+            Scalar::EpochSeconds => {
+                time::epoch_seconds::parse(&text)
+                    .ok_or_else(|| "must be epoch seconds with nanosecond precision".to_owned())?;
+                text.parse()
+                    .map(Self::Number)
+                    .map_err(|error: serde_json::Error| error.to_string())
+            }
+            Scalar::Float => text
                 .parse::<f64>()
                 .ok()
                 .filter(|n| n.is_finite())
@@ -277,6 +295,8 @@ impl<'de, E: de::Error> Deserializer<'de> for Bound<'de, E> {
             BoundValue::Text(Cow::Owned(text)) => visitor.visit_string(text),
             BoundValue::Integer(n) => visitor.visit_i64(n),
             BoundValue::Float(n) => visitor.visit_f64(n),
+            BoundValue::Number(n) => n.deserialize_any(visitor).map_err(de::Error::custom),
+            BoundValue::Json(value) => value.deserialize_any(visitor).map_err(de::Error::custom),
             BoundValue::Boolean(b) => visitor.visit_bool(b),
             BoundValue::List(items) => visitor.visit_seq(Items {
                 items: items.into_iter(),

@@ -126,7 +126,7 @@ fn media_type_header_strings_are_diagnosed_including_list_items() {
         assert!(
             messages
                 .iter()
-                .any(|m| m.contains("StatusInput$media") && m.contains("base64 encoding")),
+                .any(|m| m.contains("StatusInput$media") && m.contains("media-type-headers")),
             "{messages:?}"
         );
     }
@@ -402,8 +402,18 @@ fn refuses_streaming_blobs() {
         shape(model, "Coordinates")["members"]["raw"] =
             json!({ "target": "example.weather#Blobby" });
     });
-    assert_eq!(messages.len(), 1, "{messages:?}");
-    assert!(messages[0].contains("@streaming"), "{messages:?}");
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("requires streaming")),
+        "{messages:?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("top-level operation")),
+        "{messages:?}"
+    );
 }
 
 fn operation<'s>(
@@ -424,6 +434,9 @@ fn a_blob_payload_is_the_whole_body() {
     assert_eq!(
         put.request.payload,
         Some(Payload {
+            kind: crucible_smithy::ir::PayloadKind::Blob,
+            streaming: false,
+            requires_length: false,
             member: "photo".into(),
             media_type: "image/jpeg".into()
         })
@@ -474,12 +487,11 @@ fn refuses_payloads_it_does_not_carry() {
     assert_eq!(messages.len(), 2, "{messages:?}");
     assert!(
         messages[0].contains("GetCityPhotoOutput$photo")
-            && messages[0].contains("a string payload is not supported"),
+            && messages[0].contains("non-blob-payload"),
         "{messages:?}"
     );
     assert!(
-        messages[1].contains("PutCityPhotoInput$photo")
-            && messages[1].contains("a structure payload is not supported"),
+        messages[1].contains("PutCityPhotoInput$photo") && messages[1].contains("non-blob-payload"),
         "{messages:?}"
     );
 }
@@ -499,7 +511,7 @@ fn refuses_a_payload_beside_body_members() {
 }
 
 #[test]
-fn refuses_payloads_on_errors_and_nested_structures() {
+fn error_payloads_require_capability_and_nested_payload_traits_are_ignored() {
     let messages = refused(|model| {
         shape(model, "NotFoundError")["members"]["raw"] = json!({
             "target": "example.weather#Thumbnail",
@@ -511,13 +523,13 @@ fn refuses_payloads_on_errors_and_nested_structures() {
     assert!(
         messages
             .iter()
-            .any(|m| m.contains("NotFoundError$raw") && m.contains("not supported on an error")),
+            .any(|m| m.contains("NotFoundError$raw") && m.contains("error-payload")),
         "{messages:?}"
     );
     assert!(
         messages
             .iter()
-            .any(|m| m.contains("PhotoSummary$thumbnail") && m.contains("binds only")),
+            .all(|m| !m.contains("PhotoSummary$thumbnail")),
         "{messages:?}"
     );
 }
@@ -565,7 +577,7 @@ fn refuses_greedy_labels_and_structured_headers() {
 }
 
 #[test]
-fn requires_its_own_protocol_and_bearer_auth() {
+fn requires_explicit_capabilities_for_other_protocols_and_auth() {
     let messages = refused(|model| {
         let traits = &mut shape(model, "Weather")["traits"];
         traits["smithy.api#httpBasicAuth"] = json!({});
@@ -576,10 +588,7 @@ fn requires_its_own_protocol_and_bearer_auth() {
             .remove("crucible.protocols#json");
     });
     assert_eq!(messages.len(), 2, "{messages:?}");
-    assert!(
-        messages[0].contains("crucible.protocols#json"),
-        "{messages:?}"
-    );
+    assert!(messages[0].contains("aws-rest-json-1"), "{messages:?}");
     assert!(messages[1].contains("httpBasicAuth"), "{messages:?}");
 }
 

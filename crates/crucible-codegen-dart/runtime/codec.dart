@@ -95,6 +95,60 @@ final class WireCodec {
   final Map<String, Object?> schema;
   final ModelDecoder models;
   WireCodec(this.schema, this.models);
+  Map<String, Object?> mapping(Object? value, Map<String, Object?> shape) {
+    final map = wireObject(value);
+    if (shape['sparse'] != true && map.values.contains(null)) throw const FormatException('Null in dense map');
+    return map;
+  }
+  List<Object?> collection(Object? value, Map<String, Object?> shape) {
+    final values = wireArray(value);
+    if (shape['sparse'] != true && values.contains(null)) throw const FormatException('Null in dense list');
+    if (shape['set'] == true) {
+      for (var i = 0; i < values.length; i++) {
+        if (values.take(i).any((item) => jsonEquivalent(item, values[i]))) throw const FormatException('Duplicate set member');
+      }
+    }
+    return values;
+  }
+  int intEnumValue(Object? value) {
+    if (value is! JsonNumber) throw const FormatException('Expected integer enum');
+    return value.integer(min: BigInt.from(-2147483648), max: BigInt.from(2147483647)).toInt();
+  }
+  Object? document(String target, Object? value, {required bool encode}) {
+    if (value == null) return null;
+    final info = shape(target);
+    switch (info['kind']) {
+      case 'structure':
+      case 'union':
+        final object = wireObject(value);
+        final members = wireObject(info['members']);
+        final result = <String, Object?>{};
+        final known = <String>{};
+        final wireNames = <String>{};
+        for (final entry in members.entries) {
+          final member = wireObject(entry.value);
+          final wireName = member['jsonName'] as String? ?? entry.key;
+          final source = encode ? entry.key : wireName;
+          known.add(source);
+          wireNames.add(wireName);
+          if (object.containsKey(source)) result[encode ? wireName : entry.key] = document(wireString(member['target']), object[source], encode: encode);
+        }
+        if (info['kind'] == 'union') {
+          for (final entry in object.entries) {
+            if (!known.contains(entry.key)) {
+              if (encode && wireNames.contains(entry.key)) throw const FormatException('Unknown variant name is declared');
+              result[entry.key] = entry.value;
+            }
+          }
+        }
+        return result;
+      case 'list':
+        return wireArray(value).map((item) => document(wireString(wireObject(info['member'])['target']), item, encode: encode)).toList();
+      case 'map':
+        return wireObject(value).map((name, item) => MapEntry(name, document(wireString(wireObject(info['value'])['target']), item, encode: encode)));
+      default: return value;
+    }
+  }
   Map<String, Object?> shape(String target) =>
       wireObject(wireObject(schema['shapes'])[target]);
   WireContext context(String target, {String? format, int depth = 0}) =>
@@ -123,6 +177,15 @@ final class WireCodec {
       return kind == 'long' ? number : number.toInt();
     }
     switch (kind) {
+      case 'bigInteger':
+        if (value is! JsonNumber) throw const FormatException('Expected JSON number');
+        final (coefficient, exponent) = value.canonical;
+        if (exponent.isNegative) throw const FormatException('Expected integer');
+        if (exponent > BigInt.from(1000000)) throw const FormatException('Integer exceeds allocation limit');
+        return BigInt.parse(coefficient) * BigInt.from(10).pow(exponent.toInt());
+      case 'bigDecimal':
+        if (value is! JsonNumber) throw const FormatException('Expected JSON number');
+        return BigDecimal(value.text);
       case 'string':
         return wireString(value);
       case 'boolean':
@@ -178,6 +241,12 @@ final class WireCodec {
       return number;
     }
     switch (kind) {
+      case 'bigInteger':
+        if (value is! BigInt) throw const FormatException('Expected BigInt');
+        return JsonNumber(value.toString());
+      case 'bigDecimal':
+        if (value is! BigDecimal) throw const FormatException('Expected BigDecimal');
+        return value.number;
       case 'string':
         return wireString(value);
       case 'boolean':
@@ -210,15 +279,18 @@ final class WireCodec {
       case 'list':
         if (value is! List) throw const FormatException('Expected List');
         final child = context.child(shape['member']);
-        return value.map((item) => encode(item, child)).toList();
+        final result = value.map((item) => item == null && shape['sparse'] == true ? null : encode(item, child)).toList();
+        collection(result, shape);
+        return result;
       case 'map':
         if (value is! Map) throw const FormatException('Expected Map');
         final key = context.child(shape['key']);
         final child = context.child(shape['value']);
-        return value.map(
+        final result = value.map<String, Object?>(
           (name, item) =>
-              MapEntry(wireString(encode(name, key)), encode(item, child)),
+              MapEntry(wireString(encode(name, key)), item == null && shape['sparse'] == true ? null : encode(item, child)),
         );
+        return mapping(result, shape);
       default:
         if (value is! WireModel)
           throw const FormatException('Expected generated model');
@@ -268,6 +340,9 @@ final class WireCodec {
       case 'byte':
       case 'short':
       case 'integer':
+      case 'intEnum':
+      case 'bigInteger':
+      case 'bigDecimal':
       case 'long':
       case 'float':
       case 'double':

@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"unicode/utf8"
 	"bytes"
 	"context"
 	"crypto/rand"
@@ -18,6 +19,8 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +39,78 @@ func Null[T any]() Optional[T]        { return Optional[T]{Set: true, Null: true
 
 type optionalField interface{ isOptional() }
 type Unit struct{}
+
+// Decimal is an exact JSON decimal. Its zero value denotes zero. ParseDecimal
+// validates text; casting directly is also checked before sending a request.
+type Decimal string
+
+func (d Decimal) String() string { if d == "" { return "0" }; return string(d) }
+func (d Decimal) MarshalJSON() ([]byte, error) {
+	text := d.String()
+	if strings.TrimSpace(text) != text || !json.Valid([]byte(text)) || !(text[0] == '-' || text[0] >= '0' && text[0] <= '9') {
+		return nil, errors.New("invalid JSON decimal")
+	}
+	return []byte(text), nil
+}
+func ParseDecimal(text string) (Decimal, error) {
+	if text == "" { return "", errors.New("empty decimal") }
+	value := Decimal(text)
+	_, err := value.MarshalJSON()
+	return value, err
+}
+func (d *Decimal) UnmarshalJSON(data []byte) error {
+	value, err := ParseDecimal(string(data))
+	if err == nil { *d = value }
+	return err
+}
+
+func decimalParts(text string) (string, string) {
+	exponent := new(big.Int)
+	if index := strings.IndexAny(text, "eE"); index >= 0 {
+		exponent.SetString(text[index+1:], 10)
+		text = text[:index]
+	}
+	if index := strings.IndexByte(text, '.'); index >= 0 {
+		exponent.Sub(exponent, big.NewInt(int64(len(text)-index-1)))
+		text = text[:index] + text[index+1:]
+	}
+	negative := strings.HasPrefix(text, "-")
+	text = strings.TrimLeft(strings.TrimPrefix(text, "-"), "0")
+	if text == "" { return "0", "0" }
+	coefficient := strings.TrimRight(text, "0")
+	exponent.Add(exponent, big.NewInt(int64(len(text)-len(coefficient))))
+	if negative { coefficient = "-" + coefficient }
+	return coefficient, exponent.String()
+}
+
+// Equal compares decimal values without expanding a large exponent.
+func (d Decimal) Equal(other Decimal) bool {
+	if _, err := d.MarshalJSON(); err != nil { return false }
+	if _, err := other.MarshalJSON(); err != nil { return false }
+	a, ae := decimalParts(d.String()); b, be := decimalParts(other.String())
+	return a == b && ae == be
+}
+
+func wireEqual(left, right any) bool {
+	switch a := left.(type) {
+	case json.Number:
+		b, ok := right.(json.Number)
+		if !ok { return false }
+		return Decimal(a).Equal(Decimal(b))
+	case []any:
+		b, ok := right.([]any)
+		if !ok || len(a) != len(b) { return false }
+		for i := range a { if !wireEqual(a[i], b[i]) { return false } }
+		return true
+	case map[string]any:
+		b, ok := right.(map[string]any)
+		if !ok || len(a) != len(b) { return false }
+		for key, value := range a { other, present := b[key]; if !present || !wireEqual(value, other) { return false } }
+		return true
+	default:
+		return reflect.DeepEqual(left, right)
+	}
+}
 type UnknownUnion struct {
 	Name  string
 	Value any
@@ -66,6 +141,16 @@ type HTTPClient interface {
 	Do(*http.Request) (*http.Response, error)
 }
 type Config struct {
+	RequestChecksumCalculation ChecksumPolicy
+	ResponseChecksumValidation ChecksumPolicy
+	ChecksumValidated func(operation, algorithm string)
+	EndpointParameters map[string]any
+	EndpointBuiltIns map[string]any
+	DisableHostPrefix bool
+	BasicCredentials func(context.Context) (*BasicCredentials, error)
+	APIKey func(context.Context) (string, error)
+	Credentials CredentialsProvider
+	Region string
 	Endpoint    string
 	HTTPClient  HTTPClient
 	Token       func(context.Context) (string, error)
@@ -82,6 +167,7 @@ type clientRuntime struct {
 	digest bool
 }
 type memberDescription struct {
+	JSONName  string
 	Target    string
 	Attribute string
 	Format    string
@@ -89,12 +175,21 @@ type memberDescription struct {
 	Default   any
 }
 type errorDescription struct {
+	WireCode string
+	HeaderEncodings map[string]string
+	Payload []string
+	PayloadKind string
+	TimestampFormats map[string]string
+	PrefixHeaders [][2]string
+	ResponseCode string
 	Status     int
 	Retryable  bool
 	Throttling bool
 	Headers    [][2]string
 }
 type shapeDescription struct {
+	Sparse bool
+	Set bool
 	Name    string
 	Kind    string
 	Format  string
@@ -104,7 +199,16 @@ type shapeDescription struct {
 	Members map[string]memberDescription
 	Error   *errorDescription
 }
+func (s shapeDescription) errorCode() string {
+	if s.Error != nil && s.Error.WireCode != "" { return s.Error.WireCode }; return s.Name
+}
 type bindings struct {
+	HeaderEncodings map[string]string
+	PayloadKind string
+	TimestampFormats map[string]string
+	QueryParams string
+	PrefixHeaders [][2]string
+	ResponseCode string
 	Labels  []string
 	Query   [][2]string
 	Headers [][2]string
@@ -113,6 +217,15 @@ type bindings struct {
 	Payload []string
 }
 type operationDescription struct {
+	Checksum *checksumDescription
+	Endpoint map[string]any
+	EndpointParameters map[string][]map[string]any
+	ResolvedEndpoint *resolvedEndpoint `json:"-"`
+	Waiters map[string]map[string]any
+	Auth []string
+	OptionalAuth bool
+	UnsignedPayload bool
+	GreedyLabels []string
 	Bearer   bool
 	Method   string
 	URI      string
@@ -124,7 +237,26 @@ type operationDescription struct {
 	Safe     bool
 	Token    string
 }
+
+func (s shapeDescription) wireName(name string) string {
+	if value := s.Members[name].JSONName; value != "" { return value }
+	return name
+}
+
+func (s shapeDescription) knownWire(name string) bool {
+	for key := range s.Members { if s.wireName(key) == name { return true } }
+	return false
+}
 type schemaDescription struct {
+	Service string
+	Protocol string
+	ProtocolSettings struct {
+		OmitNullStructureMembers bool
+		IgnoreUnknownUnionType bool
+		NonFiniteFloatStrings bool
+	}
+	EndpointRules map[string]any
+	AuthSchemes map[string]authScheme
 	Shapes     map[string]shapeDescription
 	Operations map[string]operationDescription
 	Bearer     bool
@@ -140,8 +272,11 @@ func mustSchema(text string) *schemaDescription {
 	return &schema
 }
 func newClient(config Config, schema *schemaDescription, digest bool) (*clientRuntime, error) {
+	for _,policy := range []ChecksumPolicy{config.RequestChecksumCalculation,config.ResponseChecksumValidation} {
+		if policy != "" && policy != ChecksumWhenSupported && policy != ChecksumWhenRequired { return nil,errors.New("checksum policy must be WHEN_SUPPORTED or WHEN_REQUIRED") }
+	}
 	endpoint, err := url.Parse(config.Endpoint)
-	if err != nil || endpoint.Host == "" || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.User != nil {
+	if !(config.Endpoint == "" && schema.EndpointRules != nil) && (err != nil || endpoint.Host == "" || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.User != nil) {
 		return nil, errors.New("an absolute HTTP(S) endpoint without credentials, query, or fragment is required")
 	}
 	config.Endpoint = strings.TrimRight(config.Endpoint, "/")
@@ -165,6 +300,8 @@ func newClient(config Config, schema *schemaDescription, digest bool) (*clientRu
 	}
 	config.Headers = config.Headers.Clone()
 	config.Middleware = append([]func(context.Context, *http.Request) error(nil), config.Middleware...)
+	config.EndpointParameters, err = copyEndpointParameters(config.EndpointParameters); if err != nil { return nil,err }
+	config.EndpointBuiltIns, err = copyEndpointParameters(config.EndpointBuiltIns); if err != nil { return nil,err }
 	return &clientRuntime{config: config, schema: schema, digest: digest}, nil
 }
 
@@ -219,6 +356,23 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 		return nil, nil
 	}
 	switch shape.Kind {
+	case "enum", "string": return value.String(), nil
+	case "float", "double":
+		if schema.ProtocolSettings.NonFiniteFloatStrings {
+			n := value.Float()
+			if math.IsNaN(n) { return "NaN", nil }
+			if math.IsInf(n, 1) { return "Infinity", nil }
+			if math.IsInf(n, -1) { return "-Infinity", nil }
+		}
+		return value.Interface(), nil
+	case "bigInteger":
+		number, ok := value.Interface().(big.Int)
+		if !ok { return nil, errors.New("expected *big.Int") }
+		return json.Number(number.String()), nil
+	case "bigDecimal":
+		number := Decimal(value.String())
+		if _, err := number.MarshalJSON(); err != nil { return nil, err }
+		return json.Number(number.String()), nil
 	case "timestamp":
 		if format == "" {
 			format = shape.Format
@@ -241,7 +395,8 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 		return data, nil
 	case "structure", "union":
 		result := map[string]any{}
-		for wire, member := range shape.Members {
+		for key, member := range shape.Members {
+			wire := shape.wireName(key)
 			field := value.FieldByName(member.Attribute)
 			if field.IsValid() && field.CanInterface() {
 				if _, optional := field.Interface().(optionalField); optional {
@@ -249,6 +404,7 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 						continue
 					}
 					if field.FieldByName("Null").Bool() {
+						if shape.Kind == "structure" && schema.ProtocolSettings.OmitNullStructureMembers && schema.Shapes[member.Target].Kind != "document" { continue }
 						result[wire] = nil
 						continue
 					}
@@ -258,14 +414,14 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 				if err != nil {
 					return nil, fmt.Errorf("%s: %w", wire, err)
 				}
-				result[wire] = encoded
+				if !(encoded == nil && shape.Kind == "structure" && schema.ProtocolSettings.OmitNullStructureMembers && schema.Shapes[member.Target].Kind != "document") { result[wire] = encoded }
 			}
 		}
 		if shape.Kind == "union" {
 			unknown := value.FieldByName("UnknownVariant")
 			if unknown.IsValid() && !unknown.IsNil() {
 				arm := unknown.Interface().(*UnknownUnion)
-				if _, known := shape.Members[arm.Name]; known {
+				if shape.knownWire(arm.Name) {
 					return nil, errors.New("unknown union name collides with a declared member")
 				}
 				result[arm.Name] = arm.Value
@@ -278,7 +434,7 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 	case "list":
 		result := make([]any, value.Len())
 		for i := range result {
-			if !unwrap(value.Index(i)).IsValid() && schema.Shapes[shape.Member.Target].Kind != "document" {
+			if !shape.Sparse && !unwrap(value.Index(i)).IsValid() {
 				return nil, errors.New("null element in non-sparse list")
 			}
 			var err error
@@ -286,13 +442,14 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 			if err != nil {
 				return nil, err
 			}
+			if shape.Set { for _, earlier := range result[:i] { if wireEqual(earlier, result[i]) { return nil, errors.New("duplicate element in set") } } }
 		}
 		return result, nil
 	case "map":
 		result := map[string]any{}
 		iter := value.MapRange()
 		for iter.Next() {
-			if !unwrap(iter.Value()).IsValid() && schema.Shapes[shape.Value.Target].Kind != "document" {
+			if !shape.Sparse && !unwrap(iter.Value()).IsValid() {
 				return nil, errors.New("null value in non-sparse map")
 			}
 			item, err := encodeValue(schema, shape.Value.Target, iter.Value(), shape.Value.Format)
@@ -325,6 +482,18 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		out = out.Elem()
 	}
 	switch shape.Kind {
+	case "bigInteger":
+		number, ok := value.(json.Number)
+		if !ok { return errors.New("expected arbitrary precision integer") }
+		integer, ok := new(big.Int).SetString(string(number), 10)
+		if !ok { return errors.New("invalid arbitrary precision integer") }
+		out.Set(reflect.ValueOf(*integer))
+	case "bigDecimal":
+		number, ok := value.(json.Number)
+		if !ok { return errors.New("expected arbitrary precision decimal") }
+		decimal := Decimal(number)
+		if _, err := decimal.MarshalJSON(); err != nil { return err }
+		out.SetString(string(decimal))
 	case "unit":
 		if object, ok := value.(map[string]any); !ok || len(object) != 0 {
 			return errors.New("unit requires an empty object")
@@ -358,18 +527,25 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 			return fmt.Errorf("%s requires an object", shape.Name)
 		}
 		if shape.Kind == "union" {
+			if schema.ProtocolSettings.IgnoreUnknownUnionType && !shape.knownWire("__type") {
+				clean := make(map[string]any, len(object))
+				for key, value := range object { if key != "__type" { clean[key] = value } }
+				object = clean
+			}
 			if len(object) != 1 {
 				return errors.New("a union must contain exactly one member")
 			}
 			for key, v := range object {
-				if _, known := shape.Members[key]; !known {
+				if !shape.knownWire(key) {
 					out.FieldByName("UnknownVariant").Set(reflect.ValueOf(&UnknownUnion{Name: key, Value: v}))
 					return nil
 				}
 			}
 		}
-		for wire, member := range shape.Members {
+		for key, member := range shape.Members {
+			wire := shape.wireName(key)
 			item, present := object[wire]
+			if shape.Kind == "structure" && item == nil && schema.ProtocolSettings.OmitNullStructureMembers && schema.Shapes[member.Target].Kind != "document" { present = false }
 			if !present && member.Default != nil {
 				item = member.Default
 				present = true
@@ -399,12 +575,13 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		}
 		out.Set(reflect.MakeSlice(out.Type(), len(items), len(items)))
 		for i, item := range items {
-			if item == nil && schema.Shapes[shape.Member.Target].Kind != "document" {
+			if !shape.Sparse && item == nil {
 				return errors.New("null element in non-sparse list")
 			}
 			if err := decodeValue(schema, shape.Member.Target, item, out.Index(i), shape.Member.Format); err != nil {
 				return err
 			}
+			if shape.Set { for _, earlier := range items[:i] { if wireEqual(earlier, item) { return errors.New("duplicate element in set") } } }
 		}
 	case "map":
 		items, ok := value.(map[string]any)
@@ -413,7 +590,7 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		}
 		out.Set(reflect.MakeMap(out.Type()))
 		for key, item := range items {
-			if item == nil && schema.Shapes[shape.Value.Target].Kind != "document" {
+			if !shape.Sparse && item == nil {
 				return errors.New("null value in non-sparse map")
 			}
 			k := reflect.New(out.Type().Key()).Elem()
@@ -436,7 +613,7 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 			return errors.New("expected boolean")
 		}
 		out.SetBool(b)
-	case "byte", "short", "integer", "long":
+	case "byte", "short", "integer", "long", "intEnum":
 		number, ok := value.(json.Number)
 		if !ok {
 			return errors.New("expected integer")
@@ -447,6 +624,16 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		}
 		out.SetInt(n)
 	case "float", "double":
+		if schema.ProtocolSettings.NonFiniteFloatStrings {
+			if text, ok := value.(string); ok {
+				switch text {
+				case "NaN": out.SetFloat(math.NaN()); return nil
+				case "Infinity": out.SetFloat(math.Inf(1)); return nil
+				case "-Infinity": out.SetFloat(math.Inf(-1)); return nil
+				default: return errors.New("invalid floating point string")
+				}
+			}
+		}
 		number, ok := value.(json.Number)
 		if !ok {
 			return errors.New("expected number")
@@ -535,7 +722,51 @@ func boundValue(value any) (string, error) {
 		return string(data), err
 	}
 }
-func headerValue(schema *schemaDescription, member memberDescription, text string) (any, error) {
+func mediaValue(value any, decode bool) (any, error) {
+	if values, ok := value.([]any); ok {
+		result := make([]any, len(values))
+		for i, item := range values { var err error; result[i], err = mediaValue(item, decode); if err != nil { return nil, err } }
+		return result, nil
+	}
+	text, ok := value.(string)
+	if !ok { return nil, errors.New("media header requires a string") }
+	if !decode { return base64.StdEncoding.EncodeToString([]byte(text)), nil }
+	data, err := base64.StdEncoding.Strict().DecodeString(text)
+	if err != nil { return nil, err }
+	if !utf8.Valid(data) { return nil, errors.New("media header is not UTF-8") }
+	return string(data), nil
+}
+func payloadValue(kind string, data []byte) (any, error) {
+	switch kind {
+	case "string":
+		if !utf8.Valid(data) { return nil, errors.New("text payload is not UTF-8") }
+		return string(data), nil
+	case "document":
+		if len(data) == 0 { return nil, nil }
+		return parseJSON(data)
+	default:
+		if data == nil { data = []byte{} }
+		return data, nil
+	}
+}
+func boundMember(schema *schemaDescription, member memberDescription, value any, format string) (any, error) {
+	if format == "" || value == nil { return value, nil }
+	shape := schema.Shapes[member.Target]
+	if shape.Kind == "timestamp" {
+		parsed, err := readTime(value, member.Format)
+		if err != nil { return nil, err }
+		return writeTime(parsed, format), nil
+	}
+	if shape.Kind == "list" {
+		values := value.([]any); result := make([]any, len(values))
+		for i, item := range values { var err error; result[i], err = boundMember(schema, shape.Member, item, format); if err != nil { return nil, err } }
+		return result, nil
+	}
+	return value, nil
+}
+func headerValue(schema *schemaDescription, member memberDescription, text string, formats ...string) (any, error) {
+	format := ""
+	if len(formats) > 0 { format = formats[0] }
 	shape := schema.Shapes[member.Target]
 	switch shape.Kind {
 	case "list":
@@ -571,13 +802,13 @@ func headerValue(schema *schemaDescription, member memberDescription, text strin
 				}
 			}
 			var err error
-			values[i], err = headerValue(schema, shape.Member, p)
+			values[i], err = headerValue(schema, shape.Member, p, format)
 			if err != nil {
 				return nil, err
 			}
 		}
 		return values, nil
-	case "byte", "short", "integer", "long", "float", "double":
+	case "byte", "short", "integer", "long", "float", "double", "intEnum", "bigInteger", "bigDecimal":
 		return parseJSON([]byte(text))
 	case "boolean":
 		if text != "true" && text != "false" {
@@ -585,10 +816,12 @@ func headerValue(schema *schemaDescription, member memberDescription, text strin
 		}
 		return text == "true", nil
 	case "timestamp":
-		if member.Format == "epoch-seconds" {
-			return parseJSON([]byte(text))
-		}
-		return text, nil
+		if format == "" { format = member.Format }
+		var raw any = text
+		if format == "epoch-seconds" { var err error; raw, err = parseJSON([]byte(text)); if err != nil { return nil, err } }
+		parsed, err := readTime(raw, format)
+		if err != nil { return nil, err }
+		return writeTime(parsed, member.Format), nil
 	default:
 		return text, nil
 	}
@@ -605,7 +838,22 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
 	defer cancel()
 	op := c.schema.Operations[name]
-	if op.Token != "" && values[op.Token] == nil {
+	inputShape := c.schema.Shapes[op.Input]
+	checksum,err := prepareChecksum(op.Checksum,inputShape,values,c.config.RequestChecksumCalculation,c.config.ResponseChecksumValidation)
+	if err != nil { return nil,err }
+	endpoint := c.config.Endpoint
+	if c.schema.EndpointRules != nil || op.Endpoint != nil {
+		input,err := c.queryModel(op.Input,values,""); if err != nil { return nil,err }
+		if c.schema.EndpointRules != nil {
+			builtins,_ := copyEndpointParameters(c.config.EndpointBuiltIns)
+			if _,present := builtins["AWS::Region"]; !present && c.config.Region != "" { builtins["AWS::Region"] = c.config.Region }
+			if _,present := builtins["SDK::Endpoint"]; !present && endpoint != "" { builtins["SDK::Endpoint"] = endpoint }
+			resolved,err := resolveEndpoint(c.schema.EndpointRules,op.EndpointParameters,input,c.config.EndpointParameters,builtins); if err != nil { return nil,err }
+			op.ResolvedEndpoint = resolved; endpoint = resolved.URL
+		}
+		if op.Endpoint != nil && !c.config.DisableHostPrefix { endpoint,err = prefixEndpoint(endpoint,op.Endpoint,input); if err != nil { return nil,err } }
+	}
+	if op.Token != "" && values[inputShape.wireName(op.Token)] == nil {
 		id := make([]byte, 16)
 		if _, err := rand.Read(id); err != nil {
 			return nil, err
@@ -613,22 +861,36 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		id[6] = (id[6] & 15) | 64
 		id[8] = (id[8] & 63) | 128
 		text := hex.EncodeToString(id)
-		values[op.Token] = text[:8] + "-" + text[8:12] + "-" + text[12:16] + "-" + text[16:20] + "-" + text[20:]
+		values[inputShape.wireName(op.Token)] = text[:8] + "-" + text[8:12] + "-" + text[12:16] + "-" + text[16:20] + "-" + text[20:]
+	}
+	boundValues := map[string]any{}
+	for key, value := range values { boundValues[key] = value }
+	for name, format := range op.Request.TimestampFormats {
+		key := inputShape.wireName(name)
+		var err error
+		boundValues[key], err = boundMember(c.schema, inputShape.Members[name], values[key], format)
+		if err != nil { return nil, err }
 	}
 	uri := op.URI
 	for _, key := range op.Request.Labels {
-		text, err := boundValue(values[key])
+		text, err := boundValue(boundValues[inputShape.wireName(key)])
 		if err != nil || text == "" {
 			return nil, fmt.Errorf("%s is required", key)
 		}
-		if text == "." || text == ".." {
-			return nil, fmt.Errorf("%s cannot be a dot segment", key)
+		greedy := slices.Contains(op.GreedyLabels, key)
+		parts := []string{text}
+		if greedy { parts = strings.Split(text, "/") }
+		for i, part := range parts {
+			if part == "." || part == ".." { return nil, fmt.Errorf("%s cannot be a dot segment", key) }
+			parts[i] = escape(part)
 		}
-		uri = strings.ReplaceAll(uri, "{"+key+"}", escape(text))
+		placeholder := key
+		if greedy { placeholder += "+" }
+		uri = strings.ReplaceAll(uri, "{"+placeholder+"}", strings.Join(parts, "/"))
 	}
 	query := []string{}
 	for _, binding := range op.Request.Query {
-		value := values[binding[0]]
+		value := boundValues[inputShape.wireName(binding[0])]
 		if value == nil {
 			continue
 		}
@@ -644,6 +906,27 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 			query = append(query, escape(binding[1])+"="+escape(text))
 		}
 	}
+	if key := op.Request.QueryParams; key != "" {
+		if entries, ok := values[inputShape.wireName(key)].(map[string]any); ok {
+			reserved := map[string]bool{}
+			for _, binding := range op.Request.Query { reserved[binding[1]] = true }
+			parsed, _ := url.Parse(uri)
+			for name := range parsed.Query() { reserved[name] = true }
+			keys := make([]string, 0, len(entries))
+			for name := range entries { keys = append(keys, name) }
+			sort.Strings(keys)
+			for _, name := range keys {
+				if reserved[name] { continue }
+				items, ok := entries[name].([]any)
+				if !ok { items = []any{entries[name]} }
+				for _, item := range items {
+					text, err := boundValue(item)
+					if err != nil { return nil, err }
+					query = append(query, escape(name)+"="+escape(text))
+				}
+			}
+		}
+	}
 	if len(query) > 0 {
 		if strings.Contains(uri, "?") {
 			uri += "&"
@@ -656,10 +939,28 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 	if headers == nil {
 		headers = http.Header{}
 	}
+	if op.ResolvedEndpoint != nil { for name,values := range op.ResolvedEndpoint.Headers { headers.Del(name); for _,value := range values { headers.Add(name,value) } } }
+	reservedHeaders := map[string]bool{}
+	for _, binding := range op.Request.Headers { reservedHeaders[strings.ToLower(binding[1])] = true }
+	for _, binding := range op.Request.PrefixHeaders {
+		if entries, ok := values[inputShape.wireName(binding[0])].(map[string]any); ok {
+			for suffix, item := range entries {
+				name := binding[1] + suffix
+				if reservedHeaders[strings.ToLower(name)] { continue }
+				if op.Request.HeaderEncodings[binding[0]] == "base64" { var err error; item,err = mediaValue(item,false); if err != nil { return nil,err } }
+				text, err := boundValue(item)
+				if err != nil { return nil, err }
+				headers.Set(name, text)
+			}
+		}
+	}
 	for _, binding := range op.Request.Headers {
-		value := values[binding[0]]
+		value := boundValues[inputShape.wireName(binding[0])]
 		if value == nil {
 			continue
+		}
+		if op.Request.HeaderEncodings[binding[0]] == "base64" {
+			var err error; value, err = mediaValue(value, false); if err != nil { return nil, err }
 		}
 		text, err := boundValue(value)
 		if err != nil {
@@ -671,6 +972,7 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 	if len(op.Request.Body) > 0 {
 		object := map[string]any{}
 		for _, key := range op.Request.Body {
+			key = inputShape.wireName(key)
 			if value, present := values[key]; present {
 				object[key] = value
 			}
@@ -683,34 +985,40 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		headers.Set("Content-Type", "application/json")
 	}
 	if len(op.Request.Payload) == 2 {
-		// The bytes go as they are: a body digest covers exactly these.
-		if payload, ok := values[op.Request.Payload[0]].([]byte); ok && len(payload) > 0 {
-			body = payload
+		if payload, present := values[inputShape.wireName(op.Request.Payload[0])]; present && payload != nil {
+			switch op.Request.PayloadKind {
+			case "string": body = []byte(payload.(string))
+			case "document": var err error; body, err = json.Marshal(payload); if err != nil { return nil, err }
+			default: body = payload.([]byte)
+			}
 			headers.Set("Content-Type", op.Request.Payload[1])
 		}
+	}
+	if c.schema.Protocol == "awsJson1_0" || c.schema.Protocol == "awsJson1_1" {
+		if body == nil { body = []byte("{}") }
+		version := "1.1"; if c.schema.Protocol == "awsJson1_0" { version = "1.0" }
+		headers.Set("Content-Type", "application/x-amz-json-" + version)
+		service := strings.Split(c.schema.Service, "#")
+		headers.Set("X-Amz-Target", service[len(service)-1] + "." + name)
 	}
 	for attempt := 1; attempt <= c.config.MaxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		request, err := http.NewRequestWithContext(ctx, op.Method, c.config.Endpoint+uri, bytes.NewReader(body))
+		request, err := http.NewRequestWithContext(ctx, op.Method, strings.TrimRight(endpoint,"/")+uri, bytes.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
 		request.Header = headers.Clone()
-		if c.config.Token != nil && op.Bearer {
-			token, err := c.config.Token(ctx)
-			if err != nil {
-				return nil, err
-			}
-			request.Header.Set("Authorization", "Bearer "+token)
-		}
+		credentials, sign, err := c.authenticate(ctx, request, op)
+		if err != nil { return nil, err }
 		for _, middleware := range c.config.Middleware {
 			if err := middleware(ctx, request); err != nil {
 				return nil, err
 			}
 		}
-		if request.Header.Get("Authorization") != "" && request.URL.Scheme != "https" {
+		if request.URL == nil || request.URL.Host == "" || request.URL.User != nil || (request.URL.Scheme != "http" && request.URL.Scheme != "https") { return nil,errors.New("middleware must supply an absolute HTTP(S) URL without credentials") }
+		if (credentials || request.Header.Get("Authorization") != "") && request.URL.Scheme != "https" {
 			host := request.URL.Hostname()
 			address := net.ParseIP(host)
 			if host != "localhost" && (address == nil || !address.IsLoopback()) {
@@ -740,10 +1048,13 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 				request.Header.Set("x-amz-content-sha256", hex.EncodeToString(sum[:]))
 			}
 		}
+		if err := checksum.request(request); err != nil { return nil,err }
+		if sign != nil { if err := sign(); err != nil { return nil, err } }
+		if err := ctx.Err(); err != nil { return nil, err }
 		response, transportErr := c.config.HTTPClient.Do(request)
 		var data []byte
 		if response != nil {
-			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0 || len(op.Response.Payload) > 0) {
+			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0 || len(op.Response.Payload) > 0 || len(checksum.Response)>0) {
 				data, transportErr = io.ReadAll(response.Body)
 			}
 			response.Body.Close()
@@ -758,6 +1069,10 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 				return nil, &NetworkError{Cause: transportErr}
 			}
 		} else {
+			if response.StatusCode >= 200 && response.StatusCode < 300 {
+				algorithm,err := checksum.response(response.Header,data); if err != nil { return nil,err }
+				if algorithm != "" && c.config.ChecksumValidated != nil { c.config.ChecksumValidated(name,algorithm) }
+			}
 			result, err := c.decode(op, response, data)
 			if err == nil {
 				return result, nil
@@ -805,15 +1120,38 @@ func retryDelay(attempt int, response *http.Response, base, max time.Duration) t
 	ceiling = math.Min(ceiling, float64(max))
 	return time.Duration(mathrand.Float64() * ceiling)
 }
+func (c *clientRuntime) responseBindings(target string, binding bindings, response *http.Response, values map[string]any) error {
+	shape := c.schema.Shapes[target]
+	for _, prefix := range binding.PrefixHeaders {
+		entries := map[string]any{}
+		for key, value := range response.Header {
+			if strings.HasPrefix(strings.ToLower(key), strings.ToLower(prefix[1])) {
+				var item any = strings.Join(value, ", ")
+				if binding.HeaderEncodings[prefix[0]] == "base64" { var err error; item,err = mediaValue(item,true); if err != nil { return err } }
+				entries[key[len(prefix[1]):]] = item
+			}
+		}
+		values[shape.wireName(prefix[0])] = entries
+	}
+	if binding.ResponseCode != "" { values[shape.wireName(binding.ResponseCode)] = json.Number(strconv.Itoa(response.StatusCode)) }
+	for _, entry := range binding.Headers {
+		if text, present := response.Header[http.CanonicalHeaderKey(entry[1])]; present {
+			value, err := headerValue(c.schema, shape.Members[entry[0]], strings.Join(text, ", "), binding.TimestampFormats[entry[0]])
+			if err != nil { return err }
+			if binding.HeaderEncodings[entry[0]] == "base64" { value, err = mediaValue(value, true); if err != nil { return err } }
+			values[shape.wireName(entry[0])] = value
+		}
+	}
+	return nil
+}
+
 func (c *clientRuntime) decode(op operationDescription, response *http.Response, data []byte) (map[string]any, error) {
 	values := map[string]any{}
 	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		if len(op.Response.Payload) == 2 {
-			// A payload is the body as received, whatever it holds.
-			if data == nil {
-				data = []byte{}
-			}
-			values[op.Response.Payload[0]] = data
+			value, err := payloadValue(op.Response.PayloadKind, data)
+			if err != nil { return nil, err }
+			values[c.schema.Shapes[op.Output].wireName(op.Response.Payload[0])] = value
 		} else if len(data) > 0 {
 			value, err := parseJSON(data)
 			if err != nil {
@@ -825,16 +1163,7 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 				return nil, errors.New("operation response requires an object")
 			}
 		}
-		for _, binding := range op.Response.Headers {
-			if text, present := response.Header[http.CanonicalHeaderKey(binding[1])]; present {
-				member := c.schema.Shapes[op.Output].Members[binding[0]]
-				value, err := headerValue(c.schema, member, strings.Join(text, ", "))
-				if err != nil {
-					return nil, err
-				}
-				values[binding[0]] = value
-			}
-		}
+		if err := c.responseBindings(op.Output, op.Response, response, values); err != nil { return nil, err }
 		return values, nil
 	}
 	if value, err := parseJSON(data); err == nil {
@@ -843,10 +1172,18 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		}
 	}
 	name, _ := values["__type"].(string)
+	if header := response.Header.Get("X-Crucible-Error"); header != "" { name = header }
+	awsJSON := c.schema.Protocol == "awsRestJson1" || c.schema.Protocol == "awsJson1_0" || c.schema.Protocol == "awsJson1_1"
+	if awsJSON {
+		if code, ok := values["code"].(string); ok { name = code }
+		if header := response.Header.Get("X-Amzn-Errortype"); header != "" { name = header }
+		name = strings.SplitN(name, ":", 2)[0]
+		if index := strings.LastIndex(name, "#"); index >= 0 { name = name[index+1:] }
+	}
 	target := ""
-	if _, named := values["__type"].(string); named {
+	if name != "" {
 		for _, id := range op.Errors {
-			if c.schema.Shapes[id].Name == name {
+			if c.schema.Shapes[id].errorCode() == name {
 				target = id
 				break
 			}
@@ -860,17 +1197,21 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		}
 		if len(matches) == 1 {
 			target = matches[0]
-			name = c.schema.Shapes[target].Name
+			name = c.schema.Shapes[target].errorCode()
 		}
 	}
 	if name == "" {
 		name = "UnknownError"
 	}
 	message, ok := values["message"].(string)
+	if !ok && awsJSON { message, ok = values["Message"].(string) }
 	if !ok {
 		message = fmt.Sprintf("HTTP %d", response.StatusCode)
 	}
 	metadata := &ServiceError{Name: name, Message: message, Metadata: ResponseMetadata{Status: response.StatusCode, RequestID: response.Header.Get("x-request-id"), Headers: response.Header.Clone(), Body: bytes.Clone(data)}}
+	if awsJSON {
+		if id := response.Header.Get("X-Amzn-Requestid"); id != "" { metadata.Metadata.RequestID = id } else if id := response.Header.Get("X-Amz-Request-Id"); id != "" { metadata.Metadata.RequestID = id }
+	}
 	if metadata.Metadata.RequestID == "" {
 		metadata.Metadata.RequestID, _ = values["requestId"].(string)
 	}
@@ -878,15 +1219,14 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		shape := c.schema.Shapes[target]
 		metadata.Retryable = shape.Error.Retryable
 		metadata.Throttling = shape.Error.Throttling
-		for _, binding := range shape.Error.Headers {
-			if text, present := response.Header[http.CanonicalHeaderKey(binding[1])]; present {
-				value, err := headerValue(c.schema, shape.Members[binding[0]], strings.Join(text, ", "))
-				if err != nil {
-					// Preserve the wire failure and retry traits when a modeled header is malformed.
-					return nil, metadata
-				}
-				values[binding[0]] = value
-			}
+		if len(shape.Error.Payload) == 2 {
+			value, err := payloadValue(shape.Error.PayloadKind, data)
+			if err != nil { return nil, metadata }
+			values = map[string]any{shape.wireName(shape.Error.Payload[0]): value}
+		}
+		if err := c.responseBindings(target, bindings{Headers:shape.Error.Headers, PrefixHeaders:shape.Error.PrefixHeaders, ResponseCode:shape.Error.ResponseCode, TimestampFormats:shape.Error.TimestampFormats, HeaderEncodings:shape.Error.HeaderEncodings}, response, values); err != nil {
+			// Preserve wire failure metadata if a modeled binding is malformed.
+			return nil, metadata
 		}
 		return nil, modeledError(target, values, metadata)
 	}

@@ -23,6 +23,53 @@ final readonly class WireCodec
     }
     public function shape(string $target): JsonObject { return self::object(self::object($this->schema->get('shapes'))->get($target)); }
     public function context(string $target): WireContext { return new WireContext($this, $target); }
+    public function equivalent(mixed $left, mixed $right): bool
+    {
+        if ($left instanceof JsonNumber && $right instanceof JsonNumber) return $left->canonical() === $right->canonical();
+        if ($left instanceof JsonObject && $right instanceof JsonObject) {
+            if (count($left->members) !== count($right->members)) return false;
+            foreach ($left->members as $name => $value) if (!$right->has((string)$name) || !$this->equivalent($value, $right->get((string)$name))) return false;
+            return true;
+        }
+        if (is_array($left) && is_array($right)) {
+            if (count($left) !== count($right)) return false;
+            foreach ($left as $i => $value) if (!$this->equivalent($value, $right[$i])) return false;
+            return true;
+        }
+        return $left === $right;
+    }
+    private function collection(array $values, JsonObject $shape): array
+    {
+        if ($shape->get('sparse') !== true && in_array(null, $values, true)) throw new \UnexpectedValueException('Null in dense list');
+        if ($shape->get('set') === true) foreach ($values as $index => $value) {
+            for ($i = 0; $i < $index; $i++) if ($this->equivalent($value, $values[$i])) throw new \UnexpectedValueException('Duplicate set member');
+        }
+        return $values;
+    }
+    public function document(string $target, mixed $value, bool $encode): mixed
+    {
+        if ($value === null) return null;
+        $shape = $this->shape($target);
+        switch ($shape->get('kind')) {
+            case 'structure': case 'union':
+                $object = self::object($value); $result = []; $known = []; $wireNames = [];
+                foreach (self::object($shape->get('members'))->members as $name => $member) {
+                    $wire = $member->get('jsonName') ?? $name;
+                    $source = $encode ? $name : $wire;
+                    $known[$source] = true; $wireNames[$wire] = true;
+                    if ($object->has($source)) $result[$encode ? $wire : $name] = $this->document($member->get('target'), $object->get($source), $encode);
+                }
+                if ($shape->get('kind') === 'union') foreach ($object->members as $name => $item) {
+                    if (isset($known[$name])) continue;
+                    if ($encode && isset($wireNames[$name])) throw new \UnexpectedValueException('Unknown variant name is declared');
+                    $result[$name] = $item;
+                }
+                return new JsonObject($result);
+            case 'list': return array_map(fn($item) => $this->document($shape->get('member')->get('target'), $item, $encode), self::items($value));
+            case 'map': return new JsonObject(array_map(fn($item) => $this->document($shape->get('value')->get('target'), $item, $encode), self::object($value)->members));
+            default: return $value;
+        }
+    }
     private function number(mixed $value): JsonNumber
     {
         if (!$value instanceof JsonNumber) throw new \UnexpectedValueException('Expected number');
@@ -45,6 +92,8 @@ final readonly class WireCodec
             case 'short': return $this->number($value)->integer(-32768, 32767);
             case 'integer': return $this->number($value)->integer(-2147483648, 2147483647);
             case 'long': return $this->number($value)->integer();
+            case 'bigInteger': return new BigInteger($this->number($value)->text);
+            case 'bigDecimal': return new BigDecimal($this->number($value)->text);
             case 'float':
             case 'double':
                 $number = $this->number($value)->floating();
@@ -65,7 +114,7 @@ final readonly class WireCodec
             case 'document': return new JsonValue($value);
             case 'list':
                 $child = $context->child(self::object($shape->get('member')));
-                return array_map(fn($item) => $this->decode($item, $child), self::items($value));
+                return array_map(fn($item) => $item === null && $shape->get('sparse') === true ? null : $this->decode($item, $child), $this->collection(self::items($value), $shape));
             case 'map':
                 $child = $context->child(self::object($shape->get('value')));
                 $key = $context->child(self::object($shape->get('key')));
@@ -73,7 +122,8 @@ final readonly class WireCodec
                 foreach (self::object($value)->members as $name => $item) {
                     // PHP array keys use wire strings, including enum wire values.
                     $this->decode((string)$name, $key);
-                    $result[$name] = $this->decode($item, $child);
+                    if ($item === null && $shape->get('sparse') !== true) throw new \UnexpectedValueException('Null in dense map');
+                    $result[$name] = $item === null ? null : $this->decode($item, $child);
                 }
                 return $result;
             default: return ($this->models)($context->target, $value, $context);
@@ -83,13 +133,17 @@ final readonly class WireCodec
     {
         $shape = $context->shape();
         $kind = $shape->get('kind');
-        if (in_array($kind, ['unit', 'structure', 'union', 'enum'], true)) {
+        if (in_array($kind, ['unit', 'structure', 'union', 'enum', 'intEnum'], true)) {
             if (!$value instanceof WireModel) throw new \UnexpectedValueException('Expected modeled value');
             return $value->toWire($context);
         }
         if ($kind === 'document') {
             if (!$value instanceof JsonValue) throw new \UnexpectedValueException('Expected JsonValue');
             return $value->value();
+        }
+        if ($kind === 'bigInteger' || $kind === 'bigDecimal') {
+            if ($kind === 'bigInteger' ? !$value instanceof BigInteger : !$value instanceof BigDecimal) throw new \UnexpectedValueException('Expected exact number');
+            return $value->number;
         }
         if ($kind === 'timestamp') {
             if (!$value instanceof Timestamp) throw new \UnexpectedValueException('Expected Timestamp');
@@ -101,7 +155,7 @@ final readonly class WireCodec
         if ($kind === 'blob') return base64_encode(self::string($value));
         if ($kind === 'list') {
             $child = $context->child(self::object($shape->get('member')));
-            return array_map(fn($item) => $this->encode($item, $child), self::items($value));
+            return $this->collection(array_map(fn($item) => $item === null && $shape->get('sparse') === true ? null : $this->encode($item, $child), self::items($value)), $shape);
         }
         if ($kind === 'map') {
             if (!is_array($value)) throw new \UnexpectedValueException('Expected map');
@@ -110,7 +164,9 @@ final readonly class WireCodec
             $result = [];
             foreach ($value as $name => $item) {
                 $this->decode((string)$name, $key);
-                $result[$name] = $this->encode($item, $child);
+                $encoded = $item === null && $shape->get('sparse') === true ? null : $this->encode($item, $child);
+                if ($encoded === null && $shape->get('sparse') !== true) throw new \UnexpectedValueException('Null in dense map');
+                $result[$name] = $encoded;
             }
             return new JsonObject($result);
         }
@@ -155,7 +211,7 @@ final readonly class WireCodec
             $append();
             return $parts;
         }
-        if (in_array($kind, ['byte', 'short', 'integer', 'long', 'float', 'double', 'boolean'], true) || ($kind === 'timestamp' && $member->get('format') === 'epoch-seconds')) {
+        if (in_array($kind, ['byte', 'short', 'integer', 'long', 'intEnum', 'bigInteger', 'bigDecimal', 'float', 'double', 'boolean'], true) || ($kind === 'timestamp' && $member->get('format') === 'epoch-seconds')) {
             return ExactJson::decode($text);
         }
         return $text;

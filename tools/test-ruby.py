@@ -64,7 +64,24 @@ def qualify(output):
             script += "; input = Weather::CreateCityInput.new(class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'class'=>'x','toWire'=>'y'}"
             script += "; begin; Weather::Runtime::WireCodec.string(7); raise 'Expected native argument error'; rescue ::ArgumentError; end"
         run(RUBY, "-I", str(generated / "lib"), "-r", "weather_client", "-e", script)
-    print("Ruby empty, void, and renamed packages passed")
+    for name, fixture_name, package_name, module in [
+        ("dynamic", "dynamic-bindings", "dynamic_client", "Dynamic"),
+        ("extended", "extended-types", "types_client", "Types"),
+    ]:
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
+            "--package-name", package_name, "--module-name", module)
+    run(RUBY, "-I", str(output / "dynamic/lib"), "-I", str(output / "extended/lib"),
+        str(ROOT / "crates/crucible-codegen-ruby/tests/extensions.rb"))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
+        "--package-name", "wire_client", "--module-name", "WireSdk")
+    run(RUBY, "-I", str(output / "wire/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/wire.rb"))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+        str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
+        "--package-name", "auth_client", "--module-name", "AuthSdk")
+    run(RUBY, "-I", str(output / "auth/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/auth.rb"))
+    print("Ruby empty, void, renamed, dynamic-binding and extended-type packages passed")
 
 
 if __name__ == "__main__":

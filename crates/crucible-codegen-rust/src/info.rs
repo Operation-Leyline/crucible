@@ -21,19 +21,25 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
                 format!("Query({})", literal(&b.name))
             } else if let Some(b) = find(&bindings.headers, &member.name) {
                 format!("Header({})", literal(&b.name.to_ascii_lowercase()))
+            } else if bindings.query_params.as_deref() == Some(&member.name) {
+                "QueryParams".to_owned()
+            } else if let Some(b) = find(&bindings.prefix_headers, &member.name) {
+                format!("PrefixHeaders({})", literal(&b.name.to_ascii_lowercase()))
+            } else if bindings.response_code.as_deref() == Some(&member.name) {
+                "ResponseCode".to_owned()
             } else if let Some(p) = bindings.payload.as_ref().filter(|p| p.member == member.name) {
-                format!("Payload({})", literal(&p.media_type))
+                if p.streaming { format!("StreamingPayload {{ media_type: {}, requires_length: {}, minimum: {:?}, maximum: {:?} }}", literal(&p.media_type), p.requires_length, member.constraints.length.as_ref().and_then(|b| b.min), member.constraints.length.as_ref().and_then(|b| b.max)) } else { format!("Payload({})", literal(&p.media_type)) }
             } else {
                 "Body".to_owned()
             };
-            let scalar = if location == "Body" || location.starts_with("Payload") {
+            let scalar = if location == "Body" || location.starts_with("Payload") || location.starts_with("StreamingPayload") {
                 "Json".to_owned()
             } else {
                 scalar(service, member)
             };
             format!(
                 "::crucible::operation::MemberInfo {{ name: {}, location: ::crucible::operation::Location::{location}, scalar: ::crucible::operation::Scalar::{scalar}, redaction: {}, traits: {} }}",
-                literal(&member.name),
+                literal(&member.wire_name),
                 if structure.sensitive() {
                     "&::crucible::operation::Redaction::Sensitive".to_owned()
                 } else { redaction_member(service, member, "__redaction::") },
@@ -49,9 +55,11 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
 }
 
 /// Error structures bind only headers.
-pub(crate) fn error_bindings(headers: &[Binding]) -> Bindings {
+pub(crate) fn error_bindings(error: &crucible_smithy::ir::ErrorInfo) -> Bindings {
     Bindings {
-        headers: headers.to_vec(),
+        headers: error.headers.clone(),
+        prefix_headers: error.prefix_headers.clone(),
+        response_code: error.response_code.clone(),
         ..Bindings::default()
     }
 }
@@ -63,11 +71,15 @@ fn find<'b>(bindings: &'b [Binding], member: &str) -> Option<&'b Binding> {
 /// How a bound member's text reads: the `Scalar` variant.
 fn scalar(service: &Service, member: &Member) -> String {
     match service.shape(&member.target) {
+        Some(Shape::Map(map)) => scalar(service, &map.value),
+        Some(Shape::IntEnum(_)) => "Integer".to_owned(),
         Some(Shape::List(list)) => format!(
             "List(&::crucible::operation::Scalar::{})",
             scalar(service, &list.member)
         ),
         Some(Shape::Simple(simple)) => match simple.kind {
+            SimpleKind::BigInteger => "BigInteger",
+            SimpleKind::BigDecimal => "BigDecimal",
             SimpleKind::Boolean => "Boolean",
             SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long => {
                 "Integer"
@@ -103,7 +115,7 @@ fn redaction_member(service: &Service, member: &Member, prefix: &str) -> String 
 /// A graph of static references also represents recursive model shapes.
 pub(crate) fn redactions(service: &Service) -> String {
     let mut out = String::from(
-        "#[allow(dead_code)]\nmod __redaction {\n    use ::crucible::operation::Redaction;\n",
+        "#[allow(dead_code, unused_imports)]\nmod __redaction {\n    use ::crucible::operation::Redaction;\n",
     );
     for (index, shape) in service.shapes.values().enumerate() {
         let policy = if shape.sensitive() {
@@ -117,7 +129,7 @@ pub(crate) fn redactions(service: &Service) -> String {
                         .map(|m| {
                             format!(
                                 "({}, {})",
-                                literal(&m.name),
+                                literal(&m.wire_name),
                                 redaction_member(service, m, "")
                             )
                         })

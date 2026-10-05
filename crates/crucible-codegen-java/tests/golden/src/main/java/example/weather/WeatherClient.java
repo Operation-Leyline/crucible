@@ -68,6 +68,13 @@ public final class WeatherClient {
     public java.util.Iterator<example.weather.model.ListCitiesOutput> listCitiesPages(example.weather.model.ListCitiesInput input) {
         return runtime.pages("ListCities", input, example.weather.model.ListCitiesOutput.class);
     }
+    public java.util.concurrent.Flow.Publisher<example.weather.model.ListCitiesOutput> listCitiesPagesAsync(example.weather.model.ListCitiesInput input) {
+        return runtime.pagesAsync("ListCities", input, example.weather.model.ListCitiesOutput.class);
+    }
+    public java.util.concurrent.Flow.Publisher<example.weather.model.ListCitiesOutput> listCitiesPagesAsync(java.util.function.Consumer<example.weather.model.ListCitiesInput.Builder> configure) {
+        var builder = example.weather.model.ListCitiesInput.builder(); configure.accept(builder); return listCitiesPagesAsync(builder.build());
+    }
+    public java.util.concurrent.Flow.Publisher<example.weather.model.ListCitiesOutput> listCitiesPagesAsync() { return listCitiesPagesAsync(example.weather.model.ListCitiesInput.builder().build()); }
     public java.util.concurrent.CompletableFuture<example.weather.model.Unit> pingAsync() {
         return runtime.call("Ping", null, example.weather.model.Unit.class);
     }

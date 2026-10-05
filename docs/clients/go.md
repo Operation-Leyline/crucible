@@ -110,6 +110,15 @@ used by one goroutine at a time.
 
 ## Updating generated code
 
+Extended Smithy models use `*big.Int` for arbitrary integers and `Decimal` for
+exact JSON decimals. Use `ParseDecimal("12345678901234567890.000000001")` to
+validate a value before assignment. Decimal's zero value denotes zero. Integer
+enums are named `int32` types and retain unknown values. Sparse collections use
+nullable pointers; legacy sets and `uniqueItems` lists remain slices and reject
+duplicate values. JSON field renames do not change Go member names. Greedy
+labels, query maps, prefix headers, and response-status members follow the
+lowered model, including binding-specific timestamp formats.
+
 The public client type and constructor now use the Smithy service name:
 `WeatherClient` / `NewWeatherClient` for `Weather`, and `LeylineClient` /
 `NewLeylineClient` for `Leyline`. Replace old `Client` type references and
@@ -119,7 +128,58 @@ the transport runtime stays internal.
 Setters and getters are additive. Existing struct literals and `Optional[T]`
 code remain compatible; regenerate the module to use the helpers. Keep the
 previous generated module and consumer revision together for rollback. Native
-collections, explicit presence, wire serialization, and retry policy are unchanged.
+collections and explicit presence remain available. Dense collection entries now
+reject null, including document entries; null inside a document remains valid.
+
+## Authentication, waiters, and endpoints
+
+For services that declare additional authentication schemes, `Config` accepts
+`BasicCredentials`, `APIKey`, and `Credentials` provider functions. Providers take
+a `context.Context`; credentials are selected in modeled order for each attempt.
+An operation with `@auth([])` skips providers, and `@optionalAuth` permits anonymous
+requests. SigV4 signs the final request after middleware using `Region` and the
+modeled signing name. `CredentialChain`, `EnvironmentCredentials`, and
+`ProfileCredentials` support ordered static identity sources.
+`NewCachedCredentials(provider, refreshBefore)` provides concurrent refresh and
+returns an object whose `Retrieve` method can be assigned to `Config.Credentials`.
+Profile loading never executes commands or contacts metadata services.
+
+Modeled waiters generate `WaitUntil<Name>(ctx, input, timeout, options...)`.
+The caller supplies a total timeout; optional `WaiterOptions` overrides polling
+delays. Acceptors evaluate model names, including when JSON names differ, and
+epoch timestamps. Successful error acceptors return a nil response with no error.
+`WaiterError` retains the last response, cause, and attempt count;
+`WaiterTimeoutError` also matches `context.DeadlineExceeded` through `errors.Is`.
+
+Endpoint rules accept `EndpointParameters` and `EndpointBuiltIns` maps on `Config`.
+`Region` supplies `AWS::Region`; `Endpoint` supplies `SDK::Endpoint`. Rules resolve
+per operation before host-prefix expansion and signing. `DisableHostPrefix`
+disables modeled host prefixes. Rules may provide endpoint headers and signing
+overrides. An explicit endpoint is optional when the model contains rules that
+can resolve one.
+
+String and structured HTTP payloads occupy the entire request/response body.
+Media-type strings in direct or prefixed headers are base64 encoded on the wire
+and exposed as native strings. Error payloads use the Crucible error discriminator
+header while retaining the HTTP failure metadata.
+
+## Protocols and checksums
+
+Select a declared protocol with `--protocol aws.protocols#restJson1`,
+`aws.protocols#awsJson1_0`, or `aws.protocols#awsJson1_1`. Protocol selection controls
+wire names, timestamp defaults, HTTP bindings, and AWS error decoding. Ordinary
+null structure members are omitted for AWS JSON; explicit document nulls survive.
+Renamed public error types retain their original modeled wire codes.
+
+Modeled checksums support CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512
+over buffered payloads. Middleware runs before checksum calculation. Explicit
+checksum headers are preserved. Flexible request checksums default to CRC32 and
+response validation defaults to enabled, using a private input copy. Set
+`RequestChecksumCalculation` or `ResponseChecksumValidation` to
+`ChecksumWhenRequired` to opt out of the corresponding implicit default.
+`ChecksumValidated(operation, algorithm)` reports successful verification;
+`*ChecksumError` identifies a mismatch through `errors.As`. Explicit unsupported
+algorithms fail before dispatch.
 
 ## Qualification
 

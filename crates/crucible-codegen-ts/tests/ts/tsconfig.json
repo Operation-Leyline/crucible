@@ -11,5 +11,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["*.test.ts", "generated/src", "node.d.ts"]
+  "include": ["*.test.ts", "generated/src", "generated-protocol/src", "node.d.ts"]
 }

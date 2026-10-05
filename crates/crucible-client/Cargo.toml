@@ -11,16 +11,22 @@ repository.workspace = true
 crucible-wire.workspace = true
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
 regex = "1"
+jmespath = { version = "=0.5.0", features = ["sync"] }
 serde = { version = "1", features = ["derive"] }
 serde_json.workspace = true
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "sync", "macros"] }
 uuid = { version = "1", features = ["v4", "fast-rng"] }
 bytes = "1"
+futures-util = "0.3"
+sha2 = "0.10"
 http = "1.5.0"
-reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "stream"] }
 # One crypto provider for rustls, with no C toolchain to build: rustls picks it
 # as the process default when it is the only one enabled.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros", "net", "io-util", "test-util"] }
 
 [lints]
 workspace = true

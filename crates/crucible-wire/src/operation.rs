@@ -18,6 +18,20 @@ pub trait Operation: Send + Sync + 'static {
     /// Regenerate clients with this runtime; older generated markers omit this flag.
     /// Handwritten operations must opt in explicitly when bearer auth is supported.
     const AUTH_BEARER: bool = false;
+    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = None;
+    const OPTIONAL_AUTH: bool = false;
+    const UNSIGNED_PAYLOAD: bool = false;
+    fn output_status(_output: &Self::Output) -> Option<u16> {
+        None
+    }
+    fn input_stream(_input: &Self::Input) -> Option<crate::stream::ByteStream> {
+        None
+    }
+    fn output_stream(_output: &Self::Output) -> Option<crate::stream::ByteStream> {
+        None
+    }
+    fn set_input_stream(_input: &mut Self::Input, _stream: crate::stream::ByteStream) {}
+    fn set_output_stream(_output: &mut Self::Output, _stream: crate::stream::ByteStream) {}
     type Input: DeserializeOwned + Serialize + Validate + Send + Sync + 'static;
     type Output: Serialize + Send + Sync + 'static;
 }
@@ -108,6 +122,7 @@ impl OperationInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Segment {
+    GreedyLabel(&'static str),
     Literal(&'static str),
     Label(&'static str),
 }
@@ -206,19 +221,30 @@ fn trait_value(traits: &[(&str, &str)], id: &str) -> Option<Value> {
 pub enum Location {
     Label,
     Query(&'static str),
+    QueryParams,
+    PrefixHeaders(&'static str),
+    ResponseCode,
     Header(&'static str),
     Body,
     /// The whole HTTP body, raw (`@httpPayload` on a blob), with the media
     /// type a sender gives it. A structure with a payload member has no
     /// other body members.
     Payload(&'static str),
+    StreamingPayload {
+        media_type: &'static str,
+        requires_length: bool,
+        minimum: Option<u64>,
+        maximum: Option<u64>,
+    },
 }
 
 impl Location {
     /// The payload member of `members`, if it has one, and its media type.
     pub fn payload(members: &[MemberInfo]) -> Option<(&MemberInfo, &'static str)> {
         members.iter().find_map(|member| match member.location {
-            Self::Payload(media_type) => Some((member, media_type)),
+            Self::Payload(media_type) | Self::StreamingPayload { media_type, .. } => {
+                Some((member, media_type))
+            }
             _ => None,
         })
     }
@@ -227,6 +253,8 @@ impl Location {
 /// How a bound member's text reads as JSON. Body members are `Json`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scalar {
+    BigInteger,
+    BigDecimal,
     String,
     Integer,
     Float,
@@ -290,8 +318,21 @@ impl<T: Serialize + Any + Send + Sync> Input for T {
     }
 }
 
+/// HTTP bindings removed from a serialized response body.
+#[derive(Debug, Default)]
+pub struct ResponseBindings {
+    pub headers: Vec<(String, String)>,
+    pub status: Option<u16>,
+}
+
 /// An operation's output, seen by handlers without knowing its type.
 pub trait Output: Any + Send + Sync {
+    fn response_status(&self) -> Option<u16> {
+        None
+    }
+    fn stream(&self) -> Option<crate::stream::ByteStream> {
+        None
+    }
     fn to_json(&self) -> Value;
     /// Serializes into `out`. Every serializable output writes straight to
     /// bytes; this default, for other implementors, goes through `to_json`.
@@ -308,6 +349,13 @@ pub trait Output: Any + Send + Sync {
         out: &mut Vec<u8>,
     ) -> serde_json::Result<Vec<(&'static str, String)>> {
         crate::split::write(&self.to_json(), members, out)
+    }
+    fn write_http(
+        &self,
+        members: &[MemberInfo],
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<ResponseBindings> {
+        crate::split::write_http(&self.to_json(), members, None, out)
     }
     fn as_any(&self) -> &dyn Any;
 }
@@ -329,7 +377,38 @@ impl<T: Serialize + Any + Send + Sync> Output for T {
         crate::split::write(self, members, out)
     }
 
+    fn write_http(
+        &self,
+        members: &[MemberInfo],
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<ResponseBindings> {
+        crate::split::write_http(self, members, None, out)
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
+}
+
+/// Invalid modeled response codes become the same 500 that serialization emits.
+pub fn response_status(value: i64) -> u16 {
+    u16::try_from(value)
+        .ok()
+        .filter(|value| (100..=599).contains(value))
+        .unwrap_or(500)
+}
+
+/// Effective authentication options in modeled priority order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthScheme {
+    Bearer,
+    Basic,
+    ApiKey {
+        name: &'static str,
+        query: bool,
+        scheme: Option<&'static str>,
+    },
+    SigV4 {
+        signing_name: &'static str,
+    },
 }

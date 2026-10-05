@@ -22,6 +22,39 @@ Context Context::child(const Json& member) const {
     return Context(*schema_, schema_->shape(member.at("target").string()), format && !format->is_null() ? format->string() : std::string_view{}, depth_ + 1);
 }
 Context Context::member(std::string_view name) const { return child(shape_->at("members").at(name)); }
+Json document(const Schema& schema, std::string_view target, const Json& value, bool encode) {
+    if (value.is_null()) return value;
+    const auto& shape = schema.shape(target);
+    const auto& kind = shape.at("kind").string();
+    if (kind == "structure" || kind == "union") {
+        Json::Object result;
+        std::vector<std::string> known, wire_names;
+        for (const auto& [name, member] : shape.at("members").object()) {
+            const auto* renamed = member.find("jsonName");
+            const auto& wire = renamed ? renamed->string() : name;
+            const auto& source = encode ? name : wire;
+            known.push_back(source); wire_names.push_back(wire);
+            if (const auto* item = value.find(source)) result.emplace(encode ? wire : name, document(schema, member.at("target").string(), *item, encode));
+        }
+        if (kind == "union") for (const auto& [name, item] : value.object()) {
+            if (std::find(known.begin(), known.end(), name) != known.end()) continue;
+            if (encode && std::find(wire_names.begin(), wire_names.end(), name) != wire_names.end()) throw std::invalid_argument("Unknown variant name is declared");
+            result.emplace(name, item);
+        }
+        return Json(std::move(result));
+    }
+    if (kind == "list") {
+        Json::Array result;
+        for (const auto& item : value.array()) result.push_back(document(schema, shape.at("member").at("target").string(), item, encode));
+        return Json(std::move(result));
+    }
+    if (kind == "map") {
+        Json::Object result;
+        for (const auto& [name, item] : value.object()) result.emplace(name, document(schema, shape.at("value").at("target").string(), item, encode));
+        return Json(std::move(result));
+    }
+    return value;
+}
 std::string base64(const Blob& bytes) {
     constexpr std::string_view alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string result;
@@ -80,7 +113,7 @@ Json header(const Schema& schema, const Json& member, std::string_view text) {
         append(text.size());
         return Json(std::move(result));
     }
-    if (kind == "byte" || kind == "short" || kind == "integer" || kind == "long" || kind == "float" || kind == "double" || kind == "boolean" || (kind == "timestamp" && member.at("format").string() == "epoch-seconds")) return Json::parse(text);
+    if (kind == "byte" || kind == "short" || kind == "integer" || kind == "long" || kind == "intEnum" || kind == "bigInteger" || kind == "bigDecimal" || kind == "float" || kind == "double" || kind == "boolean" || (kind == "timestamp" && member.at("format").string() == "epoch-seconds")) return Json::parse(text);
     return Json(std::string(text));
 }
 std::string bound(const Json& value) {

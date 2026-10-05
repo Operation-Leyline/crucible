@@ -134,6 +134,22 @@ void main() {
 }
 """, encoding="utf-8")
             dart("run", "main.dart", cwd=generated)
+    for name, fixture_name in [("dynamic", "dynamic-bindings"), ("extended", "extended-types"), ("wire", "error-payloads")]:
+        generated = output / name
+        package_name = {"dynamic": "dynamic_client", "extended": "types_client", "wire": "wire_client"}[name]
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
+            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"),
+            "--out", str(generated), "--package-name", package_name)
+        manifest = json.loads((generated / "pubspec.yaml").read_text())
+        manifest["dev_dependencies"] = {"test": "^1.25.15"}
+        (generated / "pubspec.yaml").write_text(json.dumps(manifest), encoding="utf-8")
+        tests = generated / "test"
+        tests.mkdir(exist_ok=True)
+        shutil.copyfile(ROOT / "crates/crucible-codegen-dart/tests" / f"{name}_test.dart.template", tests / f"{name}_test.dart")
+        dart("pub", "get", cwd=generated)
+        dart("analyze", cwd=generated)
+        dart("test", cwd=generated)
+        dart("test", "--platform", "chrome", cwd=generated)
     print("Dart fresh consumer, native and JS compilation, empty and renamed packages passed")
 
 

@@ -164,11 +164,13 @@ fn recursive_aliases_are_diagnosed_but_nominal_recursion_is_supported() {
     model["shapes"]["example.weather#CitySummaries"]["member"]["target"] =
         json!("example.weather#CitySummaries");
     assert!(
-        emit(&lower(&model), &options())
+        Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
             .err()
             .unwrap()
-            .iter()
-            .any(|d| d.message.contains("recursive collection"))
+            .to_string()
+            .contains("recursive collection")
     );
     let mut model = weather();
     model["shapes"]["example.weather#Coordinates"]["members"]["nested"] =

@@ -145,7 +145,7 @@ static status execute(client *value, arena *prepared_arena, const yyjson_val *op
     const yyjson_val *tokenized;
     TRY(crucible_generated_binding_token(prepared_arena, op, input, &tokenized, issue));
     crucible_generated_request prepared;
-    TRY(crucible_generated_binding_prepare(prepared_arena, op, tokenized, value->config.endpoint, value->config.headers, &prepared, issue));
+    TRY(crucible_generated_binding_prepare(prepared_arena, value->schema, op, tokenized, value->config.endpoint, value->config.headers, &prepared, issue));
     const bool safe = yyjson_get_bool((yyjson_val *)get(op, "safe"));
     const yyjson_val *bindings = get(op, "response");
     const bool read_body = yyjson_arr_size((yyjson_val *)get(bindings, "body")) || yyjson_is_arr(get(bindings, "payload"));

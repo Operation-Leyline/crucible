@@ -20,7 +20,17 @@ fn options() -> Options {
 fn weather_matches_goldens() {
     let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
     for file in emit(&service, &options()).unwrap() {
-        if file.path.ends_with("runtime.py") {
+        if [
+            "runtime.py",
+            "auth.py",
+            "query.py",
+            "waiters.py",
+            "endpoints.py",
+            "checksums.py",
+        ]
+        .iter()
+        .any(|name| file.path.ends_with(name))
+        {
             continue;
         }
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))

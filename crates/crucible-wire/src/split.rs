@@ -9,7 +9,7 @@ use serde_json::Value;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
-use crate::operation::{Location, MemberInfo};
+use crate::operation::{Location, MemberInfo, ResponseBindings};
 
 /// Writes `value` (a structure) into `out` as a JSON object without the
 /// members `members` binds to headers, and returns those as (header, text).
@@ -30,6 +30,16 @@ pub fn write_typed<T: Serialize + ?Sized>(
     type_name: Option<&'static str>,
     out: &mut Vec<u8>,
 ) -> serde_json::Result<Vec<(&'static str, String)>> {
+    if members.iter().any(|m| {
+        matches!(
+            m.location,
+            Location::PrefixHeaders(_) | Location::ResponseCode
+        )
+    }) {
+        return Err(<serde_json::Error as ser::Error>::custom(
+            "dynamic response bindings require write_http",
+        ));
+    }
     let mut taken = Vec::new();
     value.serialize(Split {
         members,
@@ -46,6 +56,59 @@ pub fn write_typed<T: Serialize + ?Sized>(
             _ => None,
         })
         .collect())
+}
+
+/// Serializes a response once, collecting dynamic headers and its status.
+pub fn write_http<T: Serialize + ?Sized>(
+    value: &T,
+    members: &[MemberInfo],
+    type_name: Option<&'static str>,
+    out: &mut Vec<u8>,
+) -> serde_json::Result<ResponseBindings> {
+    let mut taken = Vec::new();
+    value.serialize(Split {
+        members,
+        take: Take::Headers,
+        type_name,
+        payload: Location::payload(members).is_some(),
+        out,
+        taken: &mut taken,
+    })?;
+    let mut result = ResponseBindings::default();
+    for (member, value) in taken {
+        match member.location {
+            Location::Header(name) => result.headers.push((name.to_owned(), text(&value))),
+            Location::PrefixHeaders(prefix) => {
+                let values = value.as_object().ok_or_else(|| {
+                    <serde_json::Error as ser::Error>::custom("prefix headers must be a map")
+                })?;
+                for (key, value) in values {
+                    let name = format!("{prefix}{key}").to_ascii_lowercase();
+                    if members.iter().any(|m| matches!(m.location, Location::Header(explicit) if explicit.eq_ignore_ascii_case(&name))) { continue; }
+                    let value = value.as_str().ok_or_else(|| {
+                        <serde_json::Error as ser::Error>::custom(
+                            "prefix header values must be strings",
+                        )
+                    })?;
+                    result.headers.push((name, value.to_owned()));
+                }
+            }
+            Location::ResponseCode => {
+                result.status = Some(
+                    value
+                        .as_u64()
+                        .filter(|v| (100..=599).contains(v))
+                        .ok_or_else(|| {
+                            <serde_json::Error as ser::Error>::custom(
+                                "response status must be an integer from 100 through 599",
+                            )
+                        })? as u16,
+                )
+            }
+            _ => {}
+        }
+    }
+    Ok(result)
 }
 
 /// Writes `value` (an input) into `out` as a JSON object of its body
@@ -110,7 +173,12 @@ impl SerializeStruct for Fields<'_> {
     ) -> serde_json::Result<()> {
         if self.split.payload {
             let member = self.split.members.iter().find(|member| member.name == key);
-            if member.is_some_and(|member| matches!(member.location, Location::Payload(_))) {
+            if member.is_some_and(|member| {
+                matches!(
+                    member.location,
+                    Location::Payload(_) | Location::StreamingPayload { .. }
+                )
+            }) {
                 return value.serialize(Raw {
                     out: &mut *self.split.out,
                 });
@@ -121,7 +189,13 @@ impl SerializeStruct for Fields<'_> {
             member.name == key
                 && matches!(
                     (take, member.location),
-                    (_, Location::Header(_)) | (Take::Bound, Location::Label | Location::Query(_))
+                    (
+                        _,
+                        Location::Header(_) | Location::PrefixHeaders(_) | Location::ResponseCode
+                    ) | (
+                        Take::Bound,
+                        Location::Label | Location::Query(_) | Location::QueryParams
+                    )
                 )
         });
         if let Some(member) = taken {

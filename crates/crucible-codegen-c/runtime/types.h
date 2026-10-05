@@ -19,6 +19,9 @@ typedef enum {
 } crucible_generated_status;
 
 typedef struct { const char *data; size_t length; } crucible_generated_string;
+/* Exact JSON-number views. Construction is allocation-free; codecs validate the token. */
+typedef crucible_generated_string crucible_generated_big_integer;
+typedef crucible_generated_string crucible_generated_big_decimal;
 typedef struct { const unsigned char *data; size_t length; } crucible_generated_blob;
 typedef struct { int64_t seconds; uint32_t nanoseconds; } crucible_generated_timestamp;
 typedef struct { unsigned char unused; } crucible_generated_unit;

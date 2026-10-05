@@ -39,6 +39,8 @@ fn exported(value: &str) -> String {
 
 fn simple(kind: SimpleKind) -> &'static str {
     match kind {
+        SimpleKind::BigInteger => "*big.Int",
+        SimpleKind::BigDecimal => "Decimal",
         SimpleKind::String => "string",
         SimpleKind::Boolean => "bool",
         SimpleKind::Byte => "int8",
@@ -58,6 +60,7 @@ fn ty(service: &Service, id: &ShapeId) -> String {
     if id.is_prelude() {
         return match shape {
             Shape::Simple(s) => simple(s.kind).into(),
+            Shape::IntEnum(_) => unreachable!("integer enums are capability-gated"),
             Shape::Unit => "Unit".into(),
             _ => unreachable!("prelude shape"),
         };
@@ -70,7 +73,47 @@ fn ty(service: &Service, id: &ShapeId) -> String {
     }
 }
 
+fn nullable_ty(service: &Service, id: &ShapeId, sparse: bool) -> String {
+    let value = ty(service, id);
+    if sparse && !value.starts_with('*') {
+        format!("*{value}")
+    } else {
+        value
+    }
+}
+
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let mut errors = Diagnostics::default();
     let client_name = format!("{}Client", exported(service.id.name()));
     if options.package_name.is_empty()
@@ -136,6 +179,25 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "ResponseMetadata",
         "UnknownUnion",
         "NetworkError",
+        "Decimal",
+        "ParseDecimal",
+        "BasicCredentials",
+        "AWSCredentials",
+        "CredentialsProvider",
+        "CredentialChain",
+        "EnvironmentCredentials",
+        "ProfileCredentials",
+        "CachedCredentials",
+        "NewCachedCredentials",
+        "SigningOptions",
+        "SignV4",
+        "WaiterOptions",
+        "WaiterError",
+        "WaiterTimeoutError",
+        "ChecksumPolicy",
+        "ChecksumWhenSupported",
+        "ChecksumWhenRequired",
+        "ChecksumError",
     ]
     .into_iter()
     .map(str::to_string)
@@ -159,6 +221,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
             }
         }
+        if let Shape::IntEnum(e) = shape {
+            for v in &e.values {
+                let symbol = format!("{name}{}", exported(&v.name));
+                if !names.insert(symbol.clone()) {
+                    errors.push(id, format!("Go integer enum name `{symbol}` collides"));
+                }
+            }
+        }
         if let Shape::Structure(s) | Shape::Union(s) = shape {
             let mut members = BTreeSet::new();
             for m in &s.members {
@@ -177,6 +247,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     for op in &service.operations {
+        for waiter in op.waiters.keys() {
+            if !methods.insert(format!("WaitUntil{}", exported(waiter))) {
+                errors.push(&op.id, "Go waiter method name collision");
+            }
+        }
         let name = exported(op.name());
         if !methods.insert(name.clone()) {
             errors.push(&op.id, "Go operation method name collision");
@@ -199,6 +274,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     if service
         .shapes
         .values()
+        .any(|s| matches!(s, Shape::Simple(s) if s.kind == SimpleKind::BigInteger))
+    {
+        models.push_str("import \"math/big\"\n\n");
+    }
+    if service
+        .shapes
+        .values()
         .any(|s| matches!(s,Shape::Simple(s) if s.kind == SimpleKind::Timestamp))
     {
         models.push_str("import \"time\"\n\n");
@@ -206,16 +288,29 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
         let name = exported(service.name_of(id));
         match shape {
+            Shape::IntEnum(e) => {
+                models.push_str(&format!(
+                    "// {name} preserves unrecognized integer values.\ntype {name} int32\nconst (\n"
+                ));
+                for v in &e.values {
+                    models.push_str(&format!(
+                        "    {name}{} {name} = {}\n",
+                        exported(&v.name),
+                        v.value
+                    ));
+                }
+                models.push_str(")\n\n");
+            }
             Shape::Unit => models.push_str(&format!("type {name} = Unit\n\n")),
             Shape::Simple(s) => models.push_str(&format!("type {name} = {}\n\n", simple(s.kind))),
             Shape::List(l) => models.push_str(&format!(
                 "type {name} []{}\n\n",
-                ty(service, &l.member.target)
+                nullable_ty(service, &l.member.target, l.sparse)
             )),
             Shape::Map(m) => models.push_str(&format!(
                 "type {name} map[{}]{}\n\n",
                 ty(service, &m.key.target),
-                ty(service, &m.value.target)
+                nullable_ty(service, &m.value.target, m.sparse)
             )),
             Shape::Enum(e) => {
                 models.push_str(&format!(
@@ -298,6 +393,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     if !service.operations.is_empty() {
         client.push_str("import \"context\"\n\n");
     }
+    if service.operations.iter().any(|op| !op.waiters.is_empty()) {
+        client.push_str("import (\"time\"; \"fmt\")\n\n");
+    }
     let schema = serde_json::to_string(&crucible_codegen_common::schema(service, exported))
         .expect("schema serializes");
     client.push_str(&format!(
@@ -328,8 +426,21 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .as_ref()
             .map_or(String::new(), ToString::to_string);
         client.push_str(&format!("func (c *{client_name}) {name}(ctx context.Context, input {input}) ({output}, error) {{\n var output {output}\n values, err := c.call(ctx, {}, input)\n if err != nil {{ return output, err }}\n err = decodeModel(c.schema, {}, values, &output)\n return output, err\n}}\n\n",literal(op.name()),literal(&target)));
+        for waiter in op.waiters.keys() {
+            client.push_str(&format!("func (c *{client_name}) WaitUntil{}(ctx context.Context, input {input}, timeout time.Duration, options ...WaiterOptions) ({output}, error) {{\n var result {output}; var config WaiterOptions\n if len(options) > 1 {{ return result, fmt.Errorf(\"only one waiter options value is accepted\") }}\n if len(options) == 1 {{ config = options[0] }}\n value, err := c.wait(ctx, {}, {}, input, timeout, config, func(values map[string]any) (any, error) {{ var output {output}; err := decodeModel(c.schema, {}, values, &output); return output, err }})\n if err != nil || value == nil {{ return result, err }}\n return value.({output}), nil\n}}\n\n",exported(waiter),literal(op.name()),literal(waiter),literal(&target)));
+        }
         if let Some(p) = &op.paginated {
-            client.push_str(&format!("type {name}Paginator struct {{ client *{client_name}; input map[string]any; seen map[string]bool; done bool }}\nfunc (c *{client_name}) {name}Pages(input {input}) (*{name}Paginator, error) {{\n values, err := encodeModel(c.schema, {}, input)\n if err != nil {{ return nil, err }}\n seen := map[string]bool{{}}\n if token, ok := values[{}].(string); ok && token != \"\" {{ seen[token] = true }}\n return &{name}Paginator{{client:c, input:values, seen:seen}}, nil\n}}\nfunc (p *{name}Paginator) HasMorePages() bool {{ return !p.done }}\nfunc (p *{name}Paginator) NextPage(ctx context.Context) ({output}, error) {{\n var result {output}\n if p.done {{ return result, errNoMorePages }}\n values, err := p.client.callValues(ctx, {}, p.input)\n if err != nil {{ return result, err }}\n if err = decodeModel(p.client.schema, {}, values, &result); err != nil {{ return result, err }}\n token, err := pageToken(values, {})\n if err != nil {{ return result, err }}\n if token == \"\" {{ p.done = true }} else if p.seen[token] {{ p.done = true; return result, errRepeatedToken }} else {{ p.seen[token] = true; p.input[{}] = token }}\n return result, nil\n}}\n\n",literal(&op.input.as_ref().expect("paginated input").to_string()),literal(&p.input_token),literal(op.name()),literal(&target),literal(&p.output_token),literal(&p.input_token)));
+            let input_token = wire_path(
+                service,
+                op.input.as_ref().expect("paginated input"),
+                &p.input_token,
+            );
+            let output_token = wire_path(
+                service,
+                op.output.as_ref().expect("paginated output"),
+                &p.output_token,
+            );
+            client.push_str(&format!("type {name}Paginator struct {{ client *{client_name}; input map[string]any; seen map[string]bool; done bool }}\nfunc (c *{client_name}) {name}Pages(input {input}) (*{name}Paginator, error) {{\n values, err := encodeModel(c.schema, {}, input)\n if err != nil {{ return nil, err }}\n seen := map[string]bool{{}}\n if token, ok := values[{}].(string); ok && token != \"\" {{ seen[token] = true }}\n return &{name}Paginator{{client:c, input:values, seen:seen}}, nil\n}}\nfunc (p *{name}Paginator) HasMorePages() bool {{ return !p.done }}\nfunc (p *{name}Paginator) NextPage(ctx context.Context) ({output}, error) {{\n var result {output}\n if p.done {{ return result, errNoMorePages }}\n values, err := p.client.callValues(ctx, {}, p.input)\n if err != nil {{ return result, err }}\n if err = decodeModel(p.client.schema, {}, values, &result); err != nil {{ return result, err }}\n token, err := pageToken(values, {})\n if err != nil {{ return result, err }}\n if token == \"\" {{ p.done = true }} else if p.seen[token] {{ p.done = true; return result, errRepeatedToken }} else {{ p.seen[token] = true; p.input[{}] = token }}\n return result, nil\n}}\n\n",literal(&op.input.as_ref().expect("paginated input").to_string()),literal(&input_token),literal(op.name()),literal(&target),literal(&output_token),literal(&input_token)));
         }
     }
     let provenance = serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
@@ -356,8 +467,67 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             ),
         },
         File {
+            path: "auth.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/auth.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
+            path: "checksums.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/checksums.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
+            path: "query.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/query.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
+            path: "endpoints.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/endpoints.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
+            path: "waiters.go".into(),
+            contents: format!(
+                "{header}{}",
+                include_str!("../runtime/waiters.go")
+                    .replace("\r\n", "\n")
+                    .replacen("package sdk\n", "", 1)
+            ),
+        },
+        File {
             path: "crucible.json".into(),
             contents: provenance,
         },
     ])
+}
+
+fn wire_path(service: &Service, root: &crucible_smithy::ShapeId, path: &str) -> String {
+    let mut target = root;
+    let mut result = Vec::new();
+    for component in path.split('.') {
+        let Shape::Structure(shape) = &service.shapes[target] else {
+            unreachable!("lowered pagination path")
+        };
+        let member = shape.member(component).expect("lowered pagination member");
+        result.push(member.wire_name.as_str());
+        target = &member.target;
+    }
+    result.join(".")
 }

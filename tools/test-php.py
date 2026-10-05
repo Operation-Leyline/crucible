@@ -79,6 +79,20 @@ $client = new $class(new Example\\Weather\\Runtime\\ClientConfig(endpoint:'http:
 $client->close();
 """.replace("PLACEHOLDER_CLIENT", {"empty":"EmptyClient", "void":"ServiceClient", "renamed":"WeatherClient"}[name]), encoding="utf-8")
         run(PHP, str(generated / "check.php"))
+    for name, fixture_name, namespace in [("dynamic", "dynamic-bindings", "Dynamic"), ("extended", "extended-types", "Types")]:
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
+            "--package-name", "example/" + name, "--namespace", namespace)
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/extensions.php"), env=dict(os.environ,
+        PHP_DYNAMIC_PACKAGE=str(output / "dynamic"), PHP_EXTENDED_PACKAGE=str(output / "extended")))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
+        "--package-name", "example/wire", "--namespace", "WireSdk")
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/wire.php"), env=dict(os.environ, PHP_WIRE_PACKAGE=str(output / "wire")))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
+        "--package-name", "example/auth", "--namespace", "AuthSdk")
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/auth.php"), env=dict(os.environ, PHP_AUTH_PACKAGE=str(output / "auth")))
     print("PHP generated models, shared retry, native HTTP, Composer archive, empty and renamed packages passed")
 
 if __name__ == "__main__":

@@ -90,8 +90,11 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   for (name in bindings$labels) {
     value <- .crucible_bound(values[[name]])
     if (value == '') stop('Empty HTTP label: ', name, call. = FALSE)
-    if (value %in% c('.', '..')) stop('Dot-segment HTTP label: ', name, call. = FALSE)
-    path <- gsub(paste0('{', name, '}'), curl::curl_escape(value), path, fixed = TRUE)
+    greedy <- name %in% unlist(op$greedyLabels)
+    # Appending a sentinel preserves trailing empty segments in base strsplit.
+    parts <- if (greedy) head(strsplit(paste0(value, '/sentinel'), '/', fixed = TRUE)[[1L]], -1L) else value
+    if (any(parts %in% c('.', '..'))) stop('Dot-segment HTTP label: ', name, call. = FALSE)
+    path <- gsub(paste0('{', name, if (greedy) '+' else '', '}'), paste(vapply(parts, curl::curl_escape, character(1L)), collapse = '/'), path, fixed = TRUE)
   }
   query <- character()
   for (binding in bindings$query) {
@@ -100,42 +103,71 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
     if (!is.list(value)) value <- list(value)
     for (item in value) query <- c(query, paste0(curl::curl_escape(binding[[2L]]), '=', curl::curl_escape(.crucible_bound(item))))
   }
+  if (!is.null(bindings$queryParams) && !is.null(values[[bindings$queryParams]])) {
+    reserved <- vapply(bindings$query, function(pair) pair[[2L]], character(1L))
+    if (grepl('?', path, fixed = TRUE)) {
+      literal <- strsplit(strsplit(path, '?', fixed = TRUE)[[1L]][2L], '&', fixed = TRUE)[[1L]]
+      reserved <- c(reserved, vapply(literal, function(pair) curl::curl_unescape(strsplit(pair, '=', fixed = TRUE)[[1L]][1L]), character(1L)))
+    }
+    map <- values[[bindings$queryParams]]
+    for (key in sort(setdiff(names(map), reserved), method = 'radix')) {
+      value <- map[[key]]; if (!is.list(value)) value <- list(value)
+      for (item in value) if (!is.null(item)) query <- c(query, paste0(curl::curl_escape(key), '=', curl::curl_escape(.crucible_bound(item))))
+    }
+  }
   if (length(query)) path <- paste0(path, if (grepl('?', path, fixed = TRUE)) '&' else '?', paste(query, collapse = '&'))
   headers <- config$headers
-  for (binding in bindings$headers) if (!is.null(values[[binding[[1L]]]])) headers[[tolower(binding[[2L]])]] <- .crucible_bound(values[[binding[[1L]]]])
+  for (binding in bindings$headers) if (!is.null(values[[binding[[1L]]]])) headers[[tolower(binding[[2L]])]] <- .crucible_bound(.crucible_media(values[[binding[[1L]]]], bindings, binding[[1L]], TRUE))
   body <- NULL
+  explicit <- tolower(vapply(bindings$headers, function(pair) pair[[2L]], character(1L)))
+  for (binding in bindings$prefixHeaders) {
+    value <- values[[binding[[1L]]]]
+    for (key in sort(as.character(names(value)), method = 'radix')) {
+      name <- tolower(paste0(binding[[2L]], key))
+      if (!name %in% explicit) headers[[name]] <- .crucible_bound(.crucible_media(value[[key]], bindings, binding[[1L]], TRUE))
+    }
+  }
   if (length(bindings$body)) {
     object <- json_object()
     for (name in bindings$body) if (name %in% names(values)) object[name] <- values[name]
-    body <- charToRaw(enc2utf8(json_encode(object))); headers[['content-type']] <- 'application/json'
+    body <- charToRaw(enc2utf8(json_encode(.crucible_document(object, op$input, TRUE)))); headers[['content-type']] <- 'application/json'
   }
   payload <- bindings$payload
   if (!is.null(payload) && !is.null(values[[payload[[1L]]]])) {
-    bytes <- openssl::base64_decode(values[[payload[[1L]]]])
-    if (length(bytes)) { body <- bytes; headers[['content-type']] <- payload[[2L]] }
+    value <- values[[payload[[1L]]]]; kind <- bindings$payloadKind
+    body <- if (identical(kind, 'string')) charToRaw(enc2utf8(.crucible_string(value))) else if (identical(kind, 'document')) charToRaw(enc2utf8(json_encode(.crucible_document(value, .crucible_shape(op$input)$members[[payload[[1L]]]]$target, TRUE)))) else openssl::base64_decode(value)
+    headers[['content-type']] <- payload[[2L]]
   }
   .crucible_request(list(url = paste0(endpoint, path), method = op$method, headers = headers, body = body))
 }
 .crucible_apply_headers <- function(target, bindings, response, body) {
-  for (binding in bindings) {
+  for (binding in bindings$headers) {
     value <- response$headers[[tolower(binding[[2L]])]]
-    if (!is.null(value)) body[binding[[1L]]] <- list(.crucible_header(.crucible_shape(target)$members[[binding[[1L]]]], value))
+    if (!is.null(value)) body[binding[[1L]]] <- list(.crucible_media(.crucible_header(.crucible_shape(target)$members[[binding[[1L]]]], value), bindings, binding[[1L]], FALSE))
   }
+  explicit <- tolower(vapply(bindings$headers, function(pair) pair[[2L]], character(1L)))
+  for (binding in bindings$prefixHeaders) {
+    prefix <- tolower(binding[[2L]]); map <- json_object()
+    for (name in names(response$headers)) if (startsWith(name, prefix) && !name %in% explicit) map[substring(name, nchar(prefix) + 1L)] <- list(.crucible_media(response$headers[[name]], bindings, binding[[1L]], FALSE))
+    body[binding[[1L]]] <- list(map)
+  }
+  if (!is.null(bindings$responseCode)) body[bindings$responseCode] <- list(json_number(as.character(response$status)))
   body
 }
 .crucible_success <- function(op, response) {
   payload <- op$response$payload
-  if (!is.null(payload)) { body <- json_object(); body[[payload[[1L]]]] <- as.character(openssl::base64_encode(response$body)) }
+  if (!is.null(payload)) { body <- json_object(); body[payload[[1L]]] <- list(.crucible_payload(op$output, op$response, response$body)) }
   else if (!length(op$response$body) || !length(response$body)) body <- json_object()
-  else { body <- json_parse(response$body); if (!.crucible_is_object(body)) stop('Expected response object', call. = FALSE) }
-  if (!is.null(op$output)) body <- .crucible_apply_headers(op$output, op$response$headers, response, body)
+  else { body <- .crucible_document(json_parse(response$body), op$output); if (!.crucible_is_object(body)) stop('Expected response object', call. = FALSE) }
+  if (!is.null(op$output)) body <- .crucible_apply_headers(op$output, op$response, response, body)
   body
 }
 .crucible_failure <- function(op, response) {
   body <- tryCatch(json_parse(response$body), error = function(e) json_object())
   if (!.crucible_is_object(body)) body <- json_object()
   name <- body[['__type']]; if (!is.character(name) || inherits(name, 'crucible_number')) name <- NULL
-  matches <- Filter(function(target) { shape <- .crucible_shape(target); if (!is.null(name)) shape$name == name else as.numeric(shape$error$status) == response$status }, op$errors)
+  if (!is.null(response$headers[['x-crucible-error']])) name <- response$headers[['x-crucible-error']]
+  matches <- Filter(function(target) { shape <- .crucible_shape(target); if (!is.null(name)) (if (!is.null(shape$error$wireCode)) shape$error$wireCode else shape$name) == name else as.numeric(shape$error$status) == response$status }, op$errors)
   target <- if (length(matches) == 1L) matches[[1L]] else NULL
   shape <- if (!is.null(target)) .crucible_shape(target) else NULL; traits <- shape$error
   if (is.null(name)) name <- if (!is.null(shape)) shape$name else 'UnknownError'
@@ -143,9 +175,29 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   request_id <- response$headers[['x-request-id']]
   if (is.null(request_id) && is.character(body[['requestId']]) && !inherits(body[['requestId']],'crucible_number')) request_id <- body[['requestId']]
   metadata <- list(name = name, message = message, status = response$status, request_id = request_id, headers = response$headers, retryable = isTRUE(traits$retryable), throttling = isTRUE(traits$throttling))
-  model <- if (is.null(target)) NULL else tryCatch(.crucible_codec(.crucible_apply_headers(target, traits$headers, response, body), target), error = function(e) NULL)
+  model <- if (is.null(target)) NULL else tryCatch({
+    object <- if (is.null(traits$payload)) .crucible_document(body, target) else { value <- json_object(); value[traits$payload[[1L]]] <- list(.crucible_payload(target, traits, response$body)); value }
+    .crucible_codec(.crucible_apply_headers(target, traits, response, object), target)
+  }, error = function(e) NULL)
   error <- .crucible_condition(c(if (!is.null(model)) shape$name, 'crucible_service_error'), message, metadata = metadata, model = model)
   error
+}
+.crucible_media <- function(value, bindings, member, encode) {
+  if (!identical(bindings$headerEncodings[[member]], 'base64')) return(value)
+  if (is.list(value)) return(lapply(value, .crucible_media, bindings = bindings, member = member, encode = encode))
+  text <- .crucible_string(value)
+  if (encode) return(as.character(openssl::base64_encode(charToRaw(enc2utf8(text)))))
+  bytes <- openssl::base64_decode(text)
+  if (!identical(as.character(openssl::base64_encode(bytes)), text)) stop('Invalid media-type header base64', call. = FALSE)
+  .crucible_string(rawToChar(bytes))
+}
+.crucible_payload <- function(target, bindings, bytes) {
+  if (identical(bindings$payloadKind, 'string')) return(.crucible_string(rawToChar(bytes)))
+  if (identical(bindings$payloadKind, 'document')) {
+    if (!length(bytes)) return(NULL)
+    return(.crucible_document(json_parse(bytes), .crucible_shape(target)$members[[bindings$payload[[1L]]]]$target))
+  }
+  as.character(openssl::base64_encode(bytes))
 }
 .crucible_retry_delay <- function(config, attempt, header) {
   if (!is.null(header)) {

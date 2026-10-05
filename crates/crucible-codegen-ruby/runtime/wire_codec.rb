@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 require 'base64'
+require 'bigdecimal'
 module CrucibleGenerated
   module Runtime
     class WireCodec
@@ -9,6 +10,51 @@ module CrucibleGenerated
       end
       def shape(target) = @schema.fetch('shapes').fetch(target)
       def context(target) = WireContext.new(self, target)
+      def document(target, value, encode:)
+        return nil if value.nil?
+        info = shape(target)
+        case info['kind']
+        when 'structure', 'union'
+          object, result, known, wire_names = self.class.object(value), {}, [], []
+          info.fetch('members').each do |name, member|
+            wire = member.fetch('jsonName', name)
+            source = encode ? name : wire
+            known << source
+            wire_names << wire
+            result[encode ? wire : name] = document(member.fetch('target'), object[source], encode: encode) if object.key?(source)
+          end
+          if info['kind'] == 'union'
+            object.each do |name, item|
+              next if known.include?(name)
+              raise ::ArgumentError, 'Unknown variant name is declared' if encode && wire_names.include?(name)
+              result[name] = item
+            end
+          end
+          result
+        when 'list' then self.class.items(value).map { |item| document(info.fetch('member').fetch('target'), item, encode: encode) }
+        when 'map' then self.class.object(value).transform_values { |item| document(info.fetch('value').fetch('target'), item, encode: encode) }
+        else value
+        end
+      end
+      def equivalent(left, right)
+        if (left.is_a?(JsonNumber) || left.is_a?(::Numeric)) && (right.is_a?(JsonNumber) || right.is_a?(::Numeric))
+          return ::Kernel.BigDecimal(number(left).text) == ::Kernel.BigDecimal(number(right).text)
+        end
+        if left.is_a?(::Array) && right.is_a?(::Array)
+          return left.size == right.size && left.zip(right).all? { |a, b| equivalent(a, b) }
+        end
+        if left.is_a?(::Hash) && right.is_a?(::Hash)
+          return left.size == right.size && left.all? { |key, item| right.key?(key) && equivalent(item, right[key]) }
+        end
+        left == right
+      end
+      def collection(values, shape)
+        raise ::ArgumentError, 'Null in dense list' if !shape['sparse'] && values.any?(&:nil?)
+        if shape['set']
+          values.each_with_index { |value, index| raise ::ArgumentError, 'Duplicate set member' if values.take(index).any? { |other| equivalent(value, other) } }
+        end
+        values
+      end
       def error(target, value, metadata) = @models.fetch(target).from_wire(value, context(target), metadata)
       def self.object(value)
         raise ::ArgumentError, 'Expected object' unless value.is_a?(::Hash) && value.keys.all? { |key| key.is_a?(::String) }
@@ -43,6 +89,14 @@ module CrucibleGenerated
         when 'short' then number(value).integer(-32768, 32767)
         when 'integer' then number(value).integer(-(2**31), 2**31 - 1)
         when 'long' then number(value).integer
+        when 'bigInteger'
+          rational = number(value).rational
+          raise ::ArgumentError, 'Expected integer' unless rational.denominator == 1
+          rational.to_i
+        when 'bigDecimal'
+          decimal = ::Kernel.BigDecimal(number(value).text)
+          raise ::ArgumentError, 'Decimal outside representable range' unless decimal.finite?
+          decimal
         when 'float', 'double'
           result = number(value).floating
           result = [result].pack('f').unpack1('f') if kind == 'float'
@@ -62,10 +116,11 @@ module CrucibleGenerated
         when 'document' then JsonValue.new(value)
         when 'list'
           child = context.child(shape.fetch('member'))
-          self.class.items(value).map { |item| decode(item, child) }
+          collection(self.class.items(value), shape).map { |item| item.nil? && shape['sparse'] ? nil : decode(item, child) }
         when 'map'
           child, key = context.child(shape.fetch('value')), context.child(shape.fetch('key'))
-          self.class.object(value).to_h { |name, item| [decode(name, key), decode(item, child)] }
+          raise ::ArgumentError, 'Null in dense map' if !shape['sparse'] && self.class.object(value).values.any?(&:nil?)
+          self.class.object(value).to_h { |name, item| [decode(name, key), item.nil? && shape['sparse'] ? nil : decode(item, child)] }
         else @models.fetch(context.target).from_wire(value, context)
         end
       end
@@ -76,7 +131,7 @@ module CrucibleGenerated
         when 'unit'
           raise ::ArgumentError, 'Expected Unit' unless value.is_a?(Unit)
           {}
-        when 'structure', 'union', 'enum'
+        when 'structure', 'union', 'enum', 'intEnum'
           raise ::ArgumentError, 'Wrong model type' unless value.is_a?(@models.fetch(context.target))
           value.to_wire(context)
         when 'document'
@@ -94,11 +149,19 @@ module CrucibleGenerated
           ::Base64.strict_encode64(value)
         when 'list'
           child = context.child(shape.fetch('member'))
-          self.class.items(value).map { |item| encode(item, child) }
+          collection(self.class.items(value).map { |item| item.nil? && shape['sparse'] ? nil : encode(item, child) }, shape)
         when 'map'
           raise ::ArgumentError, 'Expected Hash' unless value.is_a?(::Hash)
           child, key = context.child(shape.fetch('value')), context.child(shape.fetch('key'))
-          value.to_h { |name, item| [encode(name, key), encode(item, child)] }
+          result = value.to_h { |name, item| [encode(name, key), item.nil? && shape['sparse'] ? nil : encode(item, child)] }
+          raise ::ArgumentError, 'Null in dense map' if !shape['sparse'] && result.values.any?(&:nil?)
+          result
+        when 'bigDecimal'
+          raise ::ArgumentError, 'Expected BigDecimal' unless value.is_a?(::BigDecimal) && value.finite?
+          JsonNumber.new(value.to_s)
+        when 'bigInteger'
+          raise ::ArgumentError, 'Expected Integer' unless value.is_a?(::Integer)
+          value
         when 'byte', 'short', 'integer', 'long'
           raise ::ArgumentError, 'Expected Integer' unless value.is_a?(::Integer)
           decode(value, context)
@@ -132,7 +195,7 @@ module CrucibleGenerated
           append.call
           return parts
         end
-        if %w[byte short integer long float double boolean].include?(kind) || (kind == 'timestamp' && member['format'] == 'epoch-seconds')
+        if %w[byte short integer long intEnum bigInteger bigDecimal float double boolean].include?(kind) || (kind == 'timestamp' && member['format'] == 'epoch-seconds')
           ExactJson.decode(text)
         else text
         end

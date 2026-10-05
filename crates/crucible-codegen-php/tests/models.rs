@@ -121,11 +121,13 @@ fn recursive_aliases_are_diagnosed_before_doc_type_expansion() {
     model["shapes"]["example.weather#CitySummaries"]["member"]["target"] =
         serde_json::json!("example.weather#CitySummaries");
     assert!(
-        emit(&lower(&model), &options())
+        Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
             .err()
             .unwrap()
-            .iter()
-            .any(|d| d.message.contains("recursive collection"))
+            .to_string()
+            .contains("recursive collection")
     );
 }
 #[test]

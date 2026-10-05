@@ -2,9 +2,9 @@
 use crucible_client::__private::serde::{Serialize, de::DeserializeOwned};
 use crucible_client::Field;
 use serde_json::Value;
-use weather_client::model::{CitySummary, Forecast, Location, Photo, Sky};
+use weather_client::model::{CitySummary, GetCityOutput, Location, Photo, Sky};
 
-const PROFILE: &str = "rust-chrono-epoch-ms";
+const PROFILE: &str = "rust-chrono-ns";
 
 fn cases() -> Vec<Value> {
     serde_json::from_str(include_str!(
@@ -112,7 +112,25 @@ fn run(row: &Value) {
         }),
         "example.weather#Sky" => round_trip::<Sky>(row, |_, _| {}),
         "example.weather#Location" => round_trip::<Location>(row, |_, _| {}),
-        "example.weather#Forecast" => round_trip::<Forecast>(row, |_, _| {}),
+        "example.weather#Forecast" => {
+            // A collection alias is a native BTreeMap; its generated member
+            // codec carries Smithy nullability and enum-key semantics.
+            let mut envelope = row.clone();
+            let wrap = |wire: &str| {
+                format!(
+                    "{{\"city\":{{\"id\":\"c-test\",\"name\":\"test\",\"population\":0}},\"forecast\":{wire}}}"
+                )
+            };
+            envelope["wire"] = wrap(row["wire"].as_str().unwrap()).into();
+            if row["reject"] != true {
+                let expected = row["expectByProfile"]
+                    .get(PROFILE)
+                    .unwrap_or(&row["expect"]);
+                envelope["expect"]["json"] = wrap(expected["json"].as_str().unwrap()).into();
+                envelope.as_object_mut().unwrap().remove("expectByProfile");
+            }
+            round_trip::<GetCityOutput>(&envelope, |_, _| {});
+        }
         target => panic!("unknown corpus target: {target}"),
     }
 }
@@ -126,9 +144,9 @@ fn state<T>(value: &Field<T>) -> &'static str {
 }
 
 #[test]
-fn shared_serialization_all_15_cases() {
+fn shared_serialization_all_16_cases() {
     let rows = cases();
-    assert_eq!(rows.len(), 15, "Update corpus coverage when extending it");
+    assert_eq!(rows.len(), 16, "Update corpus coverage when extending it");
     for row in &rows {
         run(row);
     }

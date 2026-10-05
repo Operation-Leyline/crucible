@@ -7,13 +7,124 @@ import tempfile
 from sdk_test_support import ROOT, run, weather
 
 
-def generate(model, output, namespace="Example.Weather", package="Example.Weather"):
+def generate(model, output, namespace="Example.Weather", package="Example.Weather", protocol=None):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "csharp",
         str(model), "--out", str(output), "--namespace", namespace, "--package-id", package,
-        "--package-version", "0.0.0-test", "--content-sha256")
+        "--package-version", "0.0.0-test", "--content-sha256", *(["--protocol", protocol] if protocol else []))
 
 
 def qualify(output):
+    checksum = output / "checksum"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", checksum, "Example.Checksum", "Example.Checksum")
+    checksum_feed = output / "checksum-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(checksum_feed), cwd=checksum)
+    checksum_consumer = output / "checksum-consumer"
+    checksum_consumer.mkdir()
+    (checksum_consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Checksum" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Checksums.cs", checksum_consumer / "Program.cs")
+    shutil.copyfile(ROOT / "tests/conformance/checksums.json", checksum_consumer / "checksums.json")
+    run("dotnet", "restore", "--source", str(checksum_feed), "--packages", str(output / "checksum-installed"), cwd=checksum_consumer)
+    run("dotnet", "run", "--no-restore", "--project", str(checksum_consumer), cwd=checksum_consumer)
+    protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
+    protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
+    protocol_path = output / "protocol.json"
+    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
+    for protocol in ("restJson1", "awsJson1_0", "awsJson1_1"):
+        package = output / protocol
+        generate(protocol_path, package,
+                 "Example.Protocol", "Example.Protocol", "aws.protocols#" + protocol)
+        feed = output / (protocol + "-feed")
+        run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(feed), cwd=package)
+        consumer = output / (protocol + "-consumer")
+        consumer.mkdir()
+        (consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+          <ItemGroup><PackageReference Include="Example.Protocol" Version="0.0.0-test"/></ItemGroup>
+        </Project>''', encoding="utf-8")
+        shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Protocols.cs", consumer / "Program.cs")
+        run("dotnet", "restore", "--source", str(feed), "--packages", str(output / (protocol + "-installed")), cwd=consumer)
+        run("dotnet", "run", "--no-restore", "--project", str(consumer), cwd=consumer)
+    behavior = output / "behavior"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json", behavior, "Example.Behavior", "Example.Behavior")
+    behavior_feed = output / "behavior-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(behavior_feed), cwd=behavior)
+    behavior_consumer = output / "behavior-consumer"
+    behavior_consumer.mkdir()
+    (behavior_consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Behavior" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Endpoints.cs", behavior_consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(behavior_feed), "--packages", str(output / "behavior-installed"), cwd=behavior_consumer)
+    run("dotnet", "run", "--no-restore", "--project", str(behavior_consumer), cwd=behavior_consumer)
+    jobs = output / "jobs"
+    generate(ROOT / "crates/crucible-codegen-java/tests/waiters.json", jobs, "Example.Jobs", "Example.Jobs")
+    jobs_feed = output / "jobs-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(jobs_feed), cwd=jobs)
+    jobs_consumer = output / "jobs-consumer"
+    jobs_consumer.mkdir()
+    (jobs_consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Jobs" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Waiters.cs", jobs_consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(jobs_feed), "--packages", str(output / "jobs-installed"), cwd=jobs_consumer)
+    run("dotnet", "run", "--no-restore", "--project", str(jobs_consumer), cwd=jobs_consumer)
+    auth = output / "auth"
+    generate(ROOT / "crates/crucible-codegen-python/tests/auth.json", auth, "Example.Auth", "Example.Auth")
+    auth_feed = output / "auth-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(auth_feed), cwd=auth)
+    auth_consumer = output / "auth-consumer"
+    auth_consumer.mkdir()
+    (auth_consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Auth" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Auth.cs", auth_consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(auth_feed), "--packages", str(output / "auth-installed"), cwd=auth_consumer)
+    run("dotnet", "run", "--no-restore", "--project", str(auth_consumer), cwd=auth_consumer)
+    wire = output / "wire"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", wire, "Example.Wire", "Example.Wire")
+    wire_feed = output / "wire-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(wire_feed), cwd=wire)
+    wire_consumer = output / "wire-consumer"
+    wire_consumer.mkdir()
+    (wire_consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Wire" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Payloads.cs", wire_consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(wire_feed), "--packages", str(output / "wire-installed"), cwd=wire_consumer)
+    run("dotnet", "run", "--no-restore", "--project", str(wire_consumer), cwd=wire_consumer)
+    extended = output / "types"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json", extended, "Example.Types", "Example.Types")
+    types_feed = output / "types-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(types_feed), cwd=extended)
+    types_consumer = output / "types-consumer"
+    types_consumer.mkdir()
+    (types_consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Types" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Types.cs", types_consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(types_feed), "--packages", str(output / "types-installed"), cwd=types_consumer)
+    run("dotnet", "run", "--no-restore", "--project", str(types_consumer), cwd=types_consumer)
+    dynamic = output / "dynamic"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json", dynamic, "Example.Dynamic", "Example.Dynamic")
+    dynamic_feed = output / "dynamic-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(dynamic_feed), cwd=dynamic)
+    dynamic_consumer = output / "dynamic-consumer"
+    dynamic_consumer.mkdir()
+    (dynamic_consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Dynamic" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Dynamic.cs", dynamic_consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(dynamic_feed), "--packages", str(output / "dynamic-installed"), cwd=dynamic_consumer)
+    run("dotnet", "run", "--no-restore", "--project", str(dynamic_consumer), cwd=dynamic_consumer)
     package = output / "sdk"
     feed = output / "feed"
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/weather.json", package)
@@ -45,9 +156,10 @@ def qualify(output):
     renamed_path.write_text(json.dumps(renamed), encoding="utf-8")
     recursive = json.loads(json.dumps(renamed))
     recursive["shapes"].update({
-        "example.weather#RecursiveList": {"type": "list", "member": {"target": "example.weather#RecursiveList"}},
+        "example.weather#RecursiveNode": {"type": "structure", "members": {"children": {"target": "example.weather#RecursiveList"}, "mapping": {"target": "example.weather#RecursiveMap"}}},
+        "example.weather#RecursiveList": {"type": "list", "member": {"target": "example.weather#RecursiveNode"}},
         "example.weather#RecursiveMap": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.weather#RecursiveListMap"}},
-        "example.weather#RecursiveListMap": {"type": "list", "member": {"target": "example.weather#RecursiveMap"}},
+        "example.weather#RecursiveListMap": {"type": "list", "member": {"target": "example.weather#RecursiveNode"}},
     })
     for name in ["RecursiveList", "RecursiveMap"]:
         recursive["shapes"]["example.weather#CreateCityInput"]["members"][name] = {"target": "example.weather#" + name}

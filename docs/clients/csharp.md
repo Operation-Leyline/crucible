@@ -91,11 +91,63 @@ cycles.
 
 ## Migrating existing callers
 
+Smithy `bigInteger` maps to `System.Numerics.BigInteger`. `BigDecimal` preserves
+arbitrary JSON decimal text and compares numeric values, so `1.0` equals `1`.
+Construct it from a decimal string; it never passes through `double` or .NET
+`decimal`. Integer enums are open records with an `int Value`. Sparse lists and
+maps use nullable elements; legacy sets and `uniqueItems` lists retain native
+collections and reject duplicates. JSON names, greedy labels, query maps,
+prefix headers, and response-status members are supported.
+
 Read `member` directly instead of `member.Value`; move state checks and explicit
 presence assignments to `memberPresence` (PascalCase in C#). Replace generated
 collection subclasses with the corresponding native generic collection. Keep
 model namespace imports; `Models` is an ordinary namespace, not a container class.
 Regenerate and rebuild the package and its consumers together.
+
+## Authentication, waiters, and endpoints
+
+Additional modeled authentication uses `ClientConfig.BasicCredentials`, `ApiKey`,
+and `Credentials` async provider delegates. `Region` configures SigV4; endpoint
+rules can override its signing region and name. Signing runs after middleware.
+`CredentialProviders.Chain`, `.Environment`, and `.Profile` provide ordered static
+credential sources. `CachedCredentials.RetrieveAsync` shares refresh work; a
+cancelled caller stops waiting without starting a competing refresh. Profile
+loading never executes commands or contacts metadata services.
+
+Modeled waiters generate `WaitUntil<Name>Async(input, timeout, options, token)`
+and synchronous equivalents. The timeout covers every poll and delay. Set
+`WaiterOptions.MinDelay` and `.MaxDelay` to override the modeled delays. A waiter
+may succeed because an error indicates a resource is gone; its nullable return
+value is then null. `WaiterException` retains attempts, the last response, and
+the underlying error; deadline expiry uses `WaiterTimeoutException`.
+
+`EndpointParameters` and `EndpointBuiltIns` supply typed JSON values to modeled
+endpoint rules. `Region` supplies `AWS::Region`; `Endpoint` supplies `SDK::Endpoint`.
+Rules resolve per operation and may supply headers and signing overrides.
+`DisableHostPrefix` turns off modeled host prefixes. Services with endpoint rules
+can omit the explicit endpoint when their configured parameters resolve one.
+
+String and structured payloads occupy the whole body. Media-type strings in
+direct and prefixed headers are encoded on the wire and exposed as strings.
+Modeled error payloads use the Crucible error discriminator header.
+
+## Protocols and checksums
+
+Use `--protocol aws.protocols#restJson1`, `aws.protocols#awsJson1_0`, or
+`aws.protocols#awsJson1_1` to select a protocol declared by the service. Its JSON
+names, timestamp formats, HTTP bindings, and error discriminator are resolved
+consistently. AWS JSON omits ordinary null structure members and preserves
+explicit document nulls. Public error type renaming leaves wire codes intact.
+
+Buffered checksums support CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512.
+Calculation follows middleware and preserves explicitly supplied checksum headers.
+Flexible operations default to CRC32 and enabled response validation using a
+private input copy. Set `RequestChecksumCalculation` or `ResponseChecksumValidation`
+to `ChecksumPolicy.WhenRequired` to opt out of those implicit defaults. Explicit
+input choices remain effective. `ChecksumValidated(operation, algorithm)` reports
+successful validation; `ChecksumException.Algorithm` identifies a mismatch.
+Unsupported requested algorithms fail before dispatch.
 
 ## Qualification
 

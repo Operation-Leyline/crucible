@@ -78,7 +78,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             "  constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {{\n    \
              super({}, typeof fields.message === \"string\" ? fields.message : \"\", metadata, \"{fault}\", {retryable});\n\
              {assignments}  }}\n}}\n",
-            crate::names::literal(name)
+            crate::names::literal(&error.wire_code)
         ));
     }
     let mut header = String::from(crate::HEADER);

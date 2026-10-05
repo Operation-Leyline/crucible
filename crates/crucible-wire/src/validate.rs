@@ -204,6 +204,20 @@ impl Validator {
         }
     }
 
+    pub fn range_decimal(
+        &mut self,
+        value: &crate::number::DecimalValue,
+        min: Option<&crate::number::DecimalValue>,
+        max: Option<&crate::number::DecimalValue>,
+    ) {
+        if min.is_some_and(|min| value < min) || max.is_some_and(|max| value > max) {
+            self.fail(range_message(
+                min.map(ToString::to_string),
+                max.map(ToString::to_string),
+            ));
+        }
+    }
+
     pub fn range_float(&mut self, value: f64, min: Option<f64>, max: Option<f64>) {
         if min.is_some_and(|min| value < min) || max.is_some_and(|max| value > max) {
             self.fail(range_message(
@@ -222,7 +236,7 @@ impl Validator {
     pub fn unique<T: Serialize>(&mut self, items: &[T]) {
         let mut seen = BTreeSet::new();
         for item in items {
-            if !seen.insert(serde_json::to_string(item).unwrap_or_default()) {
+            if !seen.insert(crate::codec::key(item).unwrap_or_default()) {
                 self.fail("items must be unique");
                 return;
             }

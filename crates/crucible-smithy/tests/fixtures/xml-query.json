@@ -1,0 +1,109 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.xml#Xml": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "aws.protocols#restXml": {
+          "noErrorWrapping": true
+        },
+        "aws.protocols#awsQuery": {},
+        "aws.protocols#ec2Query": {},
+        "smithy.api#xmlNamespace": {
+          "uri": "https://example.com/xml"
+        }
+      },
+      "operations": [
+        {
+          "target": "example.xml#Read"
+        }
+      ]
+    },
+    "example.xml#Read": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/read",
+          "code": 200
+        }
+      },
+      "input": {
+        "target": "example.xml#Input"
+      },
+      "output": {
+        "target": "example.xml#Output"
+      },
+      "errors": [
+        {
+          "target": "example.xml#Problem"
+        }
+      ]
+    },
+    "example.xml#Input": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlName": "customName",
+            "aws.protocols#ec2QueryName": "EC2Specific"
+          }
+        },
+        "values": {
+          "target": "example.xml#Values",
+          "traits": {
+            "smithy.api#xmlFlattened": {},
+            "smithy.api#xmlName": "item"
+          }
+        },
+        "enabled": {
+          "target": "smithy.api#Boolean",
+          "traits": {
+            "smithy.api#xmlAttribute": {}
+          }
+        }
+      }
+    },
+    "example.xml#Values": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "element"
+        }
+      }
+    },
+    "example.xml#Output": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#xmlName": "Result"
+      },
+      "members": {
+        "value": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlName": "v:item",
+            "smithy.api#xmlNamespace": {
+              "uri": "https://example.com/value",
+              "prefix": "v"
+            }
+          }
+        }
+      }
+    },
+    "example.xml#Problem": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 409,
+        "aws.protocols#awsQueryError": {
+          "code": "CustomProblem",
+          "httpResponseCode": 422
+        }
+      },
+      "members": {}
+    }
+  }
+}

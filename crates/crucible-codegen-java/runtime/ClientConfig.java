@@ -11,6 +11,17 @@ public final class ClientConfig {
   public String endpoint;
   public HttpClient httpClient;
   public Supplier<String> token;
+  public Supplier<BasicCredentials> basicAuth;
+  public Supplier<String> apiKey;
+  public Supplier<AwsCredentials> credentials;
+  public String region;
+  public Map<String,Object> endpointParameters = new LinkedHashMap<>();
+  public Map<String,Object> endpointBuiltins = new LinkedHashMap<>();
+  public boolean disableHostPrefix;
+  public java.time.Clock clock = java.time.Clock.systemUTC();
+  public ChecksumPolicy requestChecksumCalculation = ChecksumPolicy.WHEN_SUPPORTED;
+  public ChecksumPolicy responseChecksumValidation = ChecksumPolicy.WHEN_SUPPORTED;
+  public java.util.function.BiConsumer<String,String> checksumValidated;
   public int maxAttempts = 3;
   public Duration timeout = Duration.ofSeconds(30);
   public Duration baseDelay = Duration.ofMillis(100);
@@ -25,7 +36,7 @@ public final class ClientConfig {
 
   /** Middleware may replace body bytes; the digest is computed afterwards. */
   public static final class Request {
-    public final java.net.URI uri;
+    public java.net.URI uri;
     public final String method;
     public final Map<String, String> headers;
     public byte[] body;

@@ -18,6 +18,93 @@ The generator owns and replaces its output directory. Set `--package-version`
 to the Maven artifact version. The jar includes the lowered wire description
 and `crucible.json` with generator/service versions and a wire-schema SHA-256.
 The runtime uses JDK HTTP and Gson; Maven declares the dependency.
+Arbitrary precision numbers use `java.math.BigInteger` and `BigDecimal`.
+Integer enums are open records with an `int value()` and named constants.
+Sets use `Set<T>` and reject duplicate wire values; sparse lists and maps
+preserve null elements or values. JSON member renames, greedy path labels,
+query maps, prefix headers, and response-code members use the modeled bindings.
+Whole-body payloads support bytes, strings, and JSON structures/unions/documents,
+including modeled errors. Media-type string headers are base64 encoded on the wire.
+
+## AWS JSON protocols and checksums
+
+The generator accepts `aws.protocols#restJson1`, `aws.protocols#awsJson1_0`, and
+`aws.protocols#awsJson1_1`. Use `--protocol aws.protocols#restJson1` to choose
+among multiple protocol traits declared by one service. RPC protocols send the
+modeled operation through `X-Amz-Target` and serialize an empty input as `{}`.
+REST JSON applies the lowered HTTP bindings and timestamp formats. AWS JSON
+omits null ordinary structure members, retains explicit document nulls, and
+supports the protocol's string representations of nonfinite floating-point values.
+
+Buffered payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`.
+The supported algorithms are CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and
+SHA512. Selecting an unsupported XXHASH algorithm raises an error before sending.
+Required legacy checksums use `Content-MD5`; flexible requests default to CRC32
+and response validation defaults to `ENABLED` when the model supplies those input
+members. These defaults change only the private request copy. Explicit checksum
+headers take precedence. Request checksums cover the final middleware body and
+are included in authentication signing. Response verification runs before decoding;
+a mismatch raises `ChecksumMismatch` and returns no model.
+
+`requestChecksumCalculation` and `responseChecksumValidation` default to
+`ChecksumPolicy.WHEN_SUPPORTED`. Set either to `WHEN_REQUIRED` to disable its
+automatic opt-in while retaining required request checksums and explicit input
+choices. The `checksumValidated` callback receives the operation name and the
+single algorithm actually verified. It is invoked only after successful validation;
+absence of a callback means no checksum was verified for that response.
+
+## Authentication and credentials
+
+Authentication follows each operation's effective ordered scheme list. Set
+`config.basicAuth = () -> new BasicCredentials(user, password)` for Basic auth,
+`config.apiKey = () -> key` for a modeled API key, or `config.credentials` and
+`config.region` for AWS Signature V4. API keys use the modeled header or query
+location. An operation with `auth: []` never calls these providers; optional
+authentication permits an absent identity. Providers are called per attempt,
+after middleware, and SigV4 signs the final request bytes and headers.
+
+```java
+config.region = "us-east-1";
+config.credentials = new CachedCredentials(CredentialProviders.chain(
+    CredentialProviders::environment,
+    CredentialProviders.profile(java.nio.file.Path.of("/path/to/credentials"), "development")));
+```
+
+Provider chains stop at the first identity. `CachedCredentials` serializes
+refreshes and refreshes expiring credentials one minute before expiry by default.
+Environment and profile lookup happen only when explicitly configured. Credential
+objects redact secrets from `toString()`. All authentication schemes require
+HTTPS except for loopback test endpoints.
+
+## Endpoints and waiters
+
+When the model declares endpoint rules, an explicit endpoint is optional. Rules
+consume `region`, `endpointBuiltins`, `endpointParameters`, and modeled input
+sources in the precedence resolved by Smithy. Endpoint headers and signing
+properties apply to the prepared request. Host-prefix labels are validated before
+transport; set `disableHostPrefix = true` to opt out of prefix expansion.
+An explicit endpoint is available to the rules as `SDK::Endpoint`; the rules
+determine whether it overrides other resolution logic.
+
+Each modeled waiter generates `waitUntilName(input, options)` and
+`waitUntilNameAsync(input, options)`, with default-options and builder overloads.
+For a service declaring a `Ready` waiter:
+
+```java
+var options = new WaiterOptions(java.time.Duration.ofMinutes(2));
+var response = client.waitUntilReady(options, b -> b.names(java.util.List.of("job")));
+var future = client.waitUntilReadyAsync(options, b -> b.names(java.util.List.of("job")));
+future.cancel(true);
+```
+
+A waiter returns the final operation result, or `null` when an error acceptor
+represents success, such as a deleted resource. `WaiterError` retains the attempt
+count, last response/error, and modeled failure message; `WaiterTimeout` marks an
+expired overall deadline. The default deadline is five minutes. The deadline
+includes every operation and retry; cancelling the future stops the active
+operation and further polls. Delay overrides are optional; otherwise the waiter
+uses its modeled minimum/maximum delay and jitter. Compiled query expressions
+operate on modeled member names, including renamed wire fields and timestamps.
 
 ## Calling operations
 
@@ -43,6 +130,46 @@ while (pages.hasNext()) {
     for (var row : pages.next().cities()) System.out.println(row.name());
 }
 ```
+
+## Asynchronous pagination
+
+Every paginator also exposes a cold `Flow.Publisher<Output>` through
+`operationPagesAsync(input)`, its builder overload, and a no-argument overload
+when every input member can be omitted. Creating or subscribing to a publisher
+does not send a request until the subscriber requests positive demand.
+
+```java
+import java.util.concurrent.Flow;
+import example.weather.model.ListCitiesOutput;
+
+client.listCitiesPagesAsync(b -> b.maxResults(20)).subscribe(
+    new Flow.Subscriber<ListCitiesOutput>() {
+        private Flow.Subscription subscription;
+        public void onSubscribe(Flow.Subscription value) {
+            subscription = value;
+            subscription.request(1);
+        }
+        public void onNext(ListCitiesOutput page) {
+            page.cities().forEach(city -> System.out.println(city.name()));
+            subscription.request(1);
+        }
+        public void onError(Throwable error) { error.printStackTrace(); }
+        public void onComplete() { System.out.println("Complete"); }
+    });
+```
+
+Demand counts pages. At most one page request is active per subscriber; callbacks
+are serialized. Each subscriber owns an independent cursor and receives a snapshot
+of the input captured when the publisher was created. Cancelling the subscription
+cancels the active operation, including credential-provider work and pending
+retries. Cancellation suppresses signals from the cancelled exchange and stops
+new page requests; a subscriber callback already running may finish.
+Nonpositive demand signals `IllegalArgumentException`; repeated pagination tokens
+signal an error. The existing synchronous iterator remains available.
+
+The native consumer suite exercises demand, independent subscribers, cancellation,
+invalid demand, and repeated tokens against a loopback HTTP server. These tests do
+not establish deployed service or application executor behavior.
 
 ## Models and errors
 

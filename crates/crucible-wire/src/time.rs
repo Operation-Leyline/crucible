@@ -20,26 +20,78 @@ pub mod epoch_seconds {
     use chrono::{DateTime, Utc};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn to_f64(time: &DateTime<Utc>) -> f64 {
-        time.timestamp_millis() as f64 / 1000.0
+    /// Exact decimal epoch seconds, including all nine fractional digits.
+    pub fn format(time: &DateTime<Utc>) -> String {
+        let nanos = i128::from(time.timestamp()) * 1_000_000_000
+            + i128::from(time.timestamp_subsec_nanos());
+        let magnitude = nanos.abs();
+        let sign = if nanos < 0 { "-" } else { "" };
+        let fraction = magnitude % 1_000_000_000;
+        if fraction == 0 {
+            format!("{sign}{}", magnitude / 1_000_000_000)
+        } else {
+            format!("{sign}{}.{fraction:09}", magnitude / 1_000_000_000)
+                .trim_end_matches('0')
+                .to_owned()
+        }
     }
 
-    pub fn from_f64(seconds: f64) -> Option<DateTime<Utc>> {
-        DateTime::from_timestamp_millis((seconds * 1000.0).round() as i64)
+    /// Parses JSON numeric syntax without passing through a floating-point value.
+    /// Values outside chrono's range or finer than a nanosecond are rejected.
+    pub fn parse(text: &str) -> Option<DateTime<Utc>> {
+        let number: serde_json::Number = text.parse().ok()?;
+        let text = number.to_string();
+        let (mantissa, exponent) = text.split_once(['e', 'E']).unwrap_or((&text, "0"));
+        let exponent: i32 = exponent.parse().ok()?;
+        let negative = mantissa.starts_with('-');
+        let mantissa = mantissa.trim_start_matches('-');
+        let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+        let digits = format!("{whole}{fraction}");
+        let digits = digits.trim_start_matches('0');
+        if digits.is_empty() {
+            return DateTime::from_timestamp(0, 0);
+        }
+        let scale = exponent
+            .checked_add(9)?
+            .checked_sub(i32::try_from(fraction.len()).ok()?)?;
+        let nanos = if scale < 0 {
+            let removed = usize::try_from(scale.checked_neg()?).ok()?;
+            let kept = digits.len().checked_sub(removed)?;
+            if !digits[kept..].bytes().all(|c| c == b'0') {
+                return None;
+            }
+            digits[..kept].parse::<i128>().ok()?
+        } else {
+            digits
+                .parse::<i128>()
+                .ok()?
+                .checked_mul(10i128.checked_pow(scale.try_into().ok()?)?)?
+        };
+        let nanos = if negative { -nanos } else { nanos };
+        DateTime::from_timestamp(
+            nanos.div_euclid(1_000_000_000).try_into().ok()?,
+            nanos.rem_euclid(1_000_000_000).try_into().ok()?,
+        )
     }
 
     pub fn serialize<S: Serializer>(
         time: &DateTime<Utc>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        serializer.serialize_f64(to_f64(time))
+        use serde::Serialize;
+        format(time)
+            .parse::<serde_json::Number>()
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<DateTime<Utc>, D::Error> {
-        from_f64(f64::deserialize(deserializer)?)
-            .ok_or_else(|| serde::de::Error::custom("timestamp out of range"))
+        let value = serde_json::Number::deserialize(deserializer)?;
+        parse(&value.to_string()).ok_or_else(|| {
+            serde::de::Error::custom("timestamp out of range or finer than nanoseconds")
+        })
     }
 
     /// Presence-aware adapter used by generated optional client timestamps.
@@ -81,8 +133,8 @@ pub mod epoch_seconds {
         pub fn deserialize<'de, D: Deserializer<'de>>(
             deserializer: D,
         ) -> Result<Option<DateTime<Utc>>, D::Error> {
-            match Option::<f64>::deserialize(deserializer)? {
-                Some(seconds) => super::from_f64(seconds)
+            match Option::<serde_json::Number>::deserialize(deserializer)? {
+                Some(seconds) => super::parse(&seconds.to_string())
                     .map(Some)
                     .ok_or_else(|| serde::de::Error::custom("timestamp out of range")),
                 None => Ok(None),

@@ -81,6 +81,9 @@ impl std::error::Error for Internal {}
 /// An error shape from the model. Generated for every `@error` structure.
 pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     fn info(&self) -> &'static ErrorInfo;
+    fn response_status(&self) -> u16 {
+        self.info().status
+    }
     /// Every member, as on the wire; the protocol moves header members out.
     fn to_json(&self) -> Value;
 
@@ -91,6 +94,13 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<Vec<(&'static str, String)>> {
         let info = self.info();
         crate::split::write_typed(&self.to_json(), info.members, Some(info.name), out)
+    }
+    fn write_http(
+        &self,
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<crate::operation::ResponseBindings> {
+        let info = self.info();
+        crate::split::write_http(&self.to_json(), info.members, Some(info.name), out)
     }
 }
 
@@ -143,3 +153,12 @@ impl fmt::Display for FrameworkError {
 }
 
 impl std::error::Error for FrameworkError {}
+
+/// Serializes a generated error's body and dynamic HTTP bindings in one pass.
+pub fn write_error_http<E: ModelledError + serde::Serialize>(
+    error: &E,
+    out: &mut Vec<u8>,
+) -> serde_json::Result<crate::operation::ResponseBindings> {
+    let info = error.info();
+    crate::split::write_http(error, info.members, Some(info.name), out)
+}

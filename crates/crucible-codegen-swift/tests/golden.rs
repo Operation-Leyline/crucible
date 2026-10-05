@@ -380,7 +380,7 @@ fn imported_type_module_names_are_diagnosed() {
     }
 }
 
-fn recursive_service(shapes: Value) -> Service {
+fn recursive_model(shapes: Value) -> Value {
     let mut model = json!({
         "smithy": "2.0",
         "shapes": {
@@ -402,13 +402,26 @@ fn recursive_service(shapes: Value) -> Service {
         .as_object_mut()
         .unwrap()
         .extend(shapes.as_object().unwrap().clone());
-    lower(&model)
+    model
+}
+
+fn recursive_service(shapes: Value) -> Service {
+    lower(&recursive_model(shapes))
 }
 
 fn assert_recursive_diagnostics(shapes: Value, expected: &[&str], message: &str) {
-    let service = recursive_service(shapes);
-    let diagnostics = emit(&service, &options()).err().unwrap();
-    assert_eq!(diagnostics, emit(&service, &options()).err().unwrap());
+    let lowered = Model::from_json(&recursive_model(shapes).to_string())
+        .unwrap()
+        .lower(None);
+    let diagnostics = match lowered {
+        Ok(service) => {
+            let diagnostics = emit(&service, &options()).err().unwrap();
+            assert_eq!(diagnostics, emit(&service, &options()).err().unwrap());
+            diagnostics
+        }
+        Err(crucible_smithy::Error::Unsupported(diagnostics)) => diagnostics,
+        Err(other) => panic!("unexpected lowering error: {other}"),
+    };
     assert_eq!(
         diagnostics
             .iter()
@@ -448,7 +461,7 @@ fn required_structure_cycles_are_diagnosed_once_per_involved_shape() {
 
 #[test]
 fn recursive_collection_aliases_are_diagnosed_once_per_involved_shape() {
-    let message = "Swift cannot represent a cycle of list/map type aliases";
+    let message = "recursive collections must pass through a structure or union; a collection-only cycle is invalid Smithy";
     assert_recursive_diagnostics(
         json!({
             "example.recursive#A": {"type": "list", "member": {"target": "example.recursive#A"}}

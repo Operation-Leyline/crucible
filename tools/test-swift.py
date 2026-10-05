@@ -178,6 +178,36 @@ struct Fake: VoidSDK.HTTPTransport {
         generated = output / name
         generate(model, generated, name)
         swift("build", generated, scratch)
+    dynamic = output / "dynamic"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json", dynamic, "Dynamic")
+    manifest = dynamic / "Package.swift"
+    manifest.write_text(manifest.read_text().replace(
+        'resources: [.process("Resources")])]',
+        'resources: [.process("Resources")]), .testTarget(name: "DynamicTests", dependencies: ["Dynamic"])]'))
+    tests = dynamic / "Tests/DynamicTests"
+    tests.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/DynamicTests.swift", tests / "DynamicTests.swift")
+    swift("test", dynamic, scratch)
+    extended = output / "extended"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json", extended, "Types")
+    manifest = extended / "Package.swift"
+    manifest.write_text(manifest.read_text().replace(
+        'resources: [.process("Resources")])]',
+        'resources: [.process("Resources")]), .testTarget(name: "ExtendedTests", dependencies: ["Types"])]'))
+    tests = extended / "Tests/ExtendedTests"
+    tests.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/ExtendedTests.swift", tests / "ExtendedTests.swift")
+    swift("test", extended, scratch)
+    wire = output / "wire"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", wire, "Wire")
+    manifest = wire / "Package.swift"
+    manifest.write_text(manifest.read_text().replace(
+        'resources: [.process("Resources")])]',
+        'resources: [.process("Resources")]), .testTarget(name: "WireTests", dependencies: ["Wire"])]'))
+    tests = wire / "Tests/WireTests"
+    tests.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/WireTests.swift", tests / "WireTests.swift")
+    swift("test", wire, scratch)
     print("Swift native package, fresh consumer, conformance, and weather HTTP passed")
 
 

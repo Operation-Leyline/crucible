@@ -57,7 +57,7 @@ def qualify(output):
     run(MAVEN, "-q", REPO, "install", "dependency:copy-dependencies", cwd=package)
     consumer = output / "consumer"
     source = consumer / "src/main/kotlin/example/weather"
-    source.mkdir(parents=True)
+    source.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / "crates/crucible-codegen-kotlin/tests/Main.kt", source / "Main.kt")
     ns = "{http://maven.apache.org/POM/4.0.0}"
     ET.register_namespace("", ns[1:-1])
@@ -66,7 +66,8 @@ def qualify(output):
     # The test HTTP server uses JDK APIs; the distributable itself targets Java 8 APIs.
     configuration = pom.getroot().find(".//" + ns + "configuration")
     configuration.find(ns + "jvmTarget").text = "17"
-    configuration.remove(configuration.find(ns + "args"))
+    configuration.find(ns + "args").remove(configuration.find(ns + "args").find(ns + "arg"))
+    pom.getroot().find(ns + "build").find(ns + "sourceDirectory").text = "src/main/kotlin"
     dependency = ET.SubElement(pom.getroot().find(ns + "dependencies"), ns + "dependency")
     for name, value in [("groupId", "example"), ("artifactId", "weather-kotlin"), ("version", "0.0.0-test")]:
         ET.SubElement(dependency, ns + name).text = value

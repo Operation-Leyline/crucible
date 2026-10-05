@@ -635,8 +635,11 @@ func TestHardeningAuthEmptyDigestDotLabelsAndDenseCollections(t *testing.T) {
 		t.Fatal("dense map null encoded")
 	}
 	var documents []any
-	if err := decodeValue(schema, "docs", []any{nil}, reflect.ValueOf(&documents).Elem(), ""); err != nil || len(documents) != 1 || documents[0] != nil {
-		t.Fatalf("document null: %v", err)
+	if err := decodeValue(schema, "docs", []any{nil}, reflect.ValueOf(&documents).Elem(), ""); err == nil {
+		t.Fatal("dense document null accepted")
+	}
+	if err := decodeValue(schema, "docs", []any{map[string]any{"nested":nil}}, reflect.ValueOf(&documents).Elem(), ""); err != nil {
+		t.Fatalf("nested document null: %v", err)
 	}
 	if _, err := encodeValue(schema, "docs", reflect.ValueOf(documents), ""); err != nil {
 		t.Fatal(err)

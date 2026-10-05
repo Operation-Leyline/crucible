@@ -6,11 +6,14 @@
 
 pub mod blob;
 pub mod bound;
+pub mod codec;
 pub mod error;
 pub mod field;
+pub mod number;
 pub mod open;
 pub mod operation;
 pub mod split;
+pub mod stream;
 pub mod text;
 pub mod time;
 pub mod validate;

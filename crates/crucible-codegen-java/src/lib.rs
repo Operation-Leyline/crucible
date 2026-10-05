@@ -136,11 +136,14 @@ fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
             SimpleKind::Timestamp => "java.time.Instant",
             SimpleKind::Document => "com.google.gson.JsonElement",
             SimpleKind::Blob => "byte[]",
+            SimpleKind::BigInteger => "java.math.BigInteger",
+            SimpleKind::BigDecimal => "java.math.BigDecimal",
         }
         .into(),
         Shape::List(list) if !recursive_collection(service, id, id, &mut BTreeSet::new()) => {
             format!(
-                "java.util.List<{}>",
+                "java.util.{}<{}>",
+                if list.is_set { "Set" } else { "List" },
                 ty(service, &list.member.target, package)
             )
         }
@@ -198,6 +201,9 @@ fn default_expression(
                     format!("{native}.valueOf({})", literal(&value.to_string()))
                 }
             }
+            SimpleKind::BigInteger | SimpleKind::BigDecimal => {
+                format!("new {native}({})", literal(&value.to_string()))
+            }
             SimpleKind::Document => format!(
                 "com.google.gson.JsonParser.parseString({})",
                 literal(&value.to_string())
@@ -220,11 +226,16 @@ fn default_expression(
             }
         },
         Shape::Enum(_) => format!("new {native}({})", literal(value.as_str()?)),
-        Shape::List(_) if value.as_array()?.is_empty() => {
+        Shape::IntEnum(_) => format!("new {native}({})", value.as_i64()?),
+        Shape::List(list) if value.as_array()?.is_empty() => {
             if recursive_collection(service, id, id, &mut BTreeSet::new()) {
                 format!("new {native}()")
             } else {
-                "new java.util.ArrayList<>()".into()
+                if list.is_set {
+                    "new java.util.LinkedHashSet<>()".into()
+                } else {
+                    "new java.util.ArrayList<>()".into()
+                }
             }
         }
         Shape::Map(_) if value.as_object()?.is_empty() => {
@@ -238,7 +249,38 @@ fn default_expression(
     })
 }
 
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+        Feature::NonBlobPayload,
+        Feature::ErrorPayload,
+        Feature::MediaTypeHeaders,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::HttpChecksum,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let client_name = format!("{}Client", service.id.name());
     let mut diagnostics = Diagnostics::default();
     if !options.package_name.split('.').all(identifier) {
@@ -333,10 +375,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
             }
         }
-        if let Shape::Enum(e) = shape {
+        let enum_names: Vec<_> = match shape {
+            Shape::Enum(e) => e.values.iter().map(|v| &v.name).collect(),
+            Shape::IntEnum(e) => e.values.iter().map(|v| &v.name).collect(),
+            _ => Vec::new(),
+        };
+        {
             let mut values = BTreeSet::new();
-            for v in &e.values {
-                if !values.insert(field(&v.name).to_uppercase()) {
+            for name in enum_names {
+                if !values.insert(field(name).to_uppercase()) {
                     diagnostics.push(id, "Java enum constant name collision");
                 }
             }
@@ -359,9 +406,23 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         for suffix in ["", "Async"]
             .into_iter()
             .chain(op.paginated.is_some().then_some("Pages"))
+            .chain(op.paginated.is_some().then_some("PagesAsync"))
         {
             if !methods.insert(format!("{name}{suffix}")) {
                 diagnostics.push(&op.id, "Java client method name collision");
+            }
+        }
+    }
+    for op in &service.operations {
+        for waiter in op.waiters.keys() {
+            for suffix in ["", "Async"] {
+                let name = format!("waitUntil{waiter}{suffix}");
+                if !identifier(&name) || !methods.insert(name) {
+                    diagnostics.push(
+                        &op.id,
+                        "Java waiter method name collision or invalid identifier",
+                    );
+                }
             }
         }
     }
@@ -389,8 +450,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         let name = service.name_of(id);
         let native = ty(service, id, package);
         let class = match shape {
-            Shape::List(_) if !recursive_collection(service, id, id, &mut BTreeSet::new()) => {
-                "java.util.ArrayList".to_string()
+            Shape::List(list) if !recursive_collection(service, id, id, &mut BTreeSet::new()) => {
+                if list.is_set {
+                    "java.util.LinkedHashSet".to_string()
+                } else {
+                    "java.util.ArrayList".to_string()
+                }
             }
             Shape::Map(_) if !recursive_collection(service, id, id, &mut BTreeSet::new()) => {
                 "java.util.LinkedHashMap".to_string()
@@ -409,11 +474,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         let mut models =
             format!("// Generated by Crucible. DO NOT EDIT.\npackage {package}.model;\n\n");
         match shape {
-            Shape::List(l)=>models.push_str(&format!("    public final class {name} extends java.util.ArrayList<{}> {{\n        private static final long serialVersionUID = 1L;\n    }}\n",ty(service,&l.member.target,package))),
+            Shape::List(l)=>models.push_str(&format!("    public final class {name} extends java.util.{}<{}> {{\n        private static final long serialVersionUID = 1L;\n    }}\n",if l.is_set { "LinkedHashSet" } else { "ArrayList" },ty(service,&l.member.target,package))),
             Shape::Map(m)=>models.push_str(&format!("    public final class {name} extends java.util.LinkedHashMap<{}, {}> {{\n        private static final long serialVersionUID = 1L;\n    }}\n",ty(service,&m.key.target,package),ty(service,&m.value.target,package))),
             Shape::Enum(e)=>{
                 models.push_str(&format!("    public record {name}(java.lang.String value) {{\n        public {name} {{ java.util.Objects.requireNonNull(value); }}\n        @Override public java.lang.String toString() {{ return value; }}\n"));
                 for v in &e.values {models.push_str(&format!("        public static final {name} {} = new {name}({});\n",field(&v.name).to_uppercase(),literal(&v.value)));}
+                models.push_str("    }\n");
+            }
+            Shape::IntEnum(e)=>{
+                models.push_str(&format!("    public record {name}(int value) {{\n        @Override public java.lang.String toString() {{ return java.lang.Integer.toString(value); }}\n"));
+                for v in &e.values {models.push_str(&format!("        public static final {name} {} = new {name}({});\n",field(&v.name).to_uppercase(),v.value));}
                 models.push_str("    }\n");
             }
             Shape::Structure(s) | Shape::Union(s)=>{
@@ -497,11 +567,40 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
             client.push_str(&format!("    public {output} {name}(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}(builder.build());\n    }}\n    public java.util.concurrent.CompletableFuture<{output}> {name}Async(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}Async(builder.build());\n    }}\n"));
         }
+        for waiter in op.waiters.keys() {
+            let method_name = format!("waitUntil{waiter}");
+            let params = if input.is_some() {
+                format!("{parameter}, WaiterOptions options")
+            } else {
+                "WaiterOptions options".into()
+            };
+            let args = if input.is_some() {
+                "input, options"
+            } else {
+                "options"
+            };
+            let default_args = if input.is_some() {
+                "input, new WaiterOptions()"
+            } else {
+                "new WaiterOptions()"
+            };
+            client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {method_name}Async({params}) {{ return runtime.waitUntil({}, {}, {argument}, {output}.class, options); }}\n    public {output} {method_name}({params}) {{ return ClientRuntime.await({method_name}Async({args})); }}\n    public java.util.concurrent.CompletableFuture<{output}> {method_name}Async({parameter}) {{ return {method_name}Async({default_args}); }}\n    public {output} {method_name}({parameter}) {{ return {method_name}({default_args}); }}\n", literal(op.name()), literal(waiter)));
+            if let Some(input) = &input {
+                client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {method_name}Async(WaiterOptions options, java.util.function.Consumer<{input}.Builder> configure) {{ var builder={input}.builder(); configure.accept(builder); return {method_name}Async(builder.build(), options); }}\n    public {output} {method_name}(WaiterOptions options, java.util.function.Consumer<{input}.Builder> configure) {{ return ClientRuntime.await({method_name}Async(options, configure)); }}\n    public java.util.concurrent.CompletableFuture<{output}> {method_name}Async(java.util.function.Consumer<{input}.Builder> configure) {{ return {method_name}Async(new WaiterOptions(), configure); }}\n    public {output} {method_name}(java.util.function.Consumer<{input}.Builder> configure) {{ return {method_name}(new WaiterOptions(), configure); }}\n"));
+            }
+        }
         if op.paginated.is_some() {
             if let Some(input) = &input {
                 client.push_str(&format!("    public java.util.Iterator<{output}> {name}Pages(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}Pages(builder.build());\n    }}\n"));
             }
             client.push_str(&format!("    public java.util.Iterator<{output}> {name}Pages({parameter}) {{\n        return runtime.pages({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));
+            client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {name}PagesAsync({parameter}) {{\n        return runtime.pagesAsync({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));
+            if let Some(input) = &input {
+                client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {name}PagesAsync(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}PagesAsync(builder.build());\n    }}\n"));
+                if op.input.as_ref().is_some_and(|id| matches!(service.shape(id), Some(Shape::Structure(s)) if s.members.iter().all(|m| m.optional_on_client()))) {
+                    client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {name}PagesAsync() {{ return {name}PagesAsync({input}.builder().build()); }}\n"));
+                }
+            }
         }
     }
     client.push_str("}\n");
@@ -526,6 +625,43 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/ClientRuntime.java"),
         ),
         ("ClientConfig", include_str!("../runtime/ClientConfig.java")),
+        ("Auth", include_str!("../runtime/Auth.java")),
+        ("Checksums", include_str!("../runtime/Checksums.java")),
+        (
+            "ChecksumPolicy",
+            include_str!("../runtime/ChecksumPolicy.java"),
+        ),
+        (
+            "ChecksumMismatch",
+            include_str!("../runtime/ChecksumMismatch.java"),
+        ),
+        ("Query", include_str!("../runtime/Query.java")),
+        ("Endpoints", include_str!("../runtime/Endpoints.java")),
+        (
+            "WaiterOptions",
+            include_str!("../runtime/WaiterOptions.java"),
+        ),
+        ("WaiterError", include_str!("../runtime/WaiterError.java")),
+        (
+            "WaiterTimeout",
+            include_str!("../runtime/WaiterTimeout.java"),
+        ),
+        (
+            "BasicCredentials",
+            include_str!("../runtime/BasicCredentials.java"),
+        ),
+        (
+            "AwsCredentials",
+            include_str!("../runtime/AwsCredentials.java"),
+        ),
+        (
+            "CachedCredentials",
+            include_str!("../runtime/CachedCredentials.java"),
+        ),
+        (
+            "CredentialProviders",
+            include_str!("../runtime/CredentialProviders.java"),
+        ),
         (
             "OptionalValue",
             include_str!("../runtime/OptionalValue.java"),

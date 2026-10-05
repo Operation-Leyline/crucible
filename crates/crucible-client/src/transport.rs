@@ -2,6 +2,8 @@
 //! description, attempts retried by the rules in `docs/framework.md`, and
 //! the response decoded into the output or the operation's error.
 
+use crucible_wire::stream::{ByteStream, ChunkStream};
+use futures_util::StreamExt;
 use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
@@ -15,7 +17,8 @@ use http::{HeaderMap, HeaderName, HeaderValue, Method};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::config::Config;
+use crate::config::{CallOptions, Config};
+use sha2::{Digest, Sha256};
 
 /// The errors one operation can return, as a generated enum.
 pub trait OperationErrors: Sized + fmt::Debug {
@@ -40,7 +43,7 @@ pub trait OperationErrors: Sized + fmt::Debug {
 #[derive(Debug)]
 pub enum Error<E> {
     /// A modelled error the operation declares.
-    Service(E),
+    Service(ServiceError<E>),
     /// An error response the client cannot name: an unmodelled one, or a
     /// newer service's.
     Unknown(UnknownError),
@@ -50,14 +53,41 @@ pub enum Error<E> {
     Invalid(String),
     /// A response the client could not read as the model says.
     Decode(String),
+    /// The total call budget expired. No further attempts are made.
+    Timeout,
+    /// The caller cancelled the operation.
+    Cancelled,
+}
+
+/// HTTP metadata retained for every service error, including unknown shapes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResponseMetadata {
+    pub status: u16,
+    pub request_id: Option<String>,
+    pub headers: HeaderMap,
+}
+
+#[derive(Debug)]
+pub struct ServiceError<E> {
+    pub error: E,
+    pub metadata: Box<ResponseMetadata>,
+}
+
+impl<E> Error<E> {
+    pub fn metadata(&self) -> Option<&ResponseMetadata> {
+        match self {
+            Self::Service(error) => Some(&error.metadata),
+            Self::Unknown(error) => Some(&error.metadata),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownError {
-    pub status: u16,
+    pub metadata: Box<ResponseMetadata>,
     pub type_name: Option<String>,
     pub message: Option<String>,
-    pub request_id: Option<String>,
     /// Retained even when a known error's fields cannot be decoded.
     pub retryable: bool,
     pub throttling: bool,
@@ -70,13 +100,15 @@ impl<E: fmt::Debug> fmt::Display for Error<E> {
             Self::Unknown(error) => write!(
                 f,
                 "HTTP {} {}: {}",
-                error.status,
+                error.metadata.status,
                 error.type_name.as_deref().unwrap_or("error"),
                 error.message.as_deref().unwrap_or("")
             ),
             Self::Transport(error) => write!(f, "transport: {error}"),
             Self::Invalid(message) => write!(f, "invalid request: {message}"),
             Self::Decode(message) => write!(f, "unreadable response: {message}"),
+            Self::Timeout => f.write_str("call deadline exceeded"),
+            Self::Cancelled => f.write_str("call cancelled"),
         }
     }
 }
@@ -90,6 +122,9 @@ pub struct Transport {
 }
 
 impl Transport {
+    pub(crate) fn call_timeout(&self) -> Option<Duration> {
+        self.config.timeout
+    }
     pub fn new(config: Config) -> Self {
         Self {
             config: Arc::new(config),
@@ -102,8 +137,136 @@ impl Transport {
         O::Output: DeserializeOwned,
         E: OperationErrors,
     {
+        self.send_with_options::<O, E>(input, &CallOptions::default())
+            .await
+    }
+
+    pub async fn send_with_options<O, E>(
+        &self,
+        input: &O::Input,
+        options: &CallOptions,
+    ) -> Result<O::Output, Error<E>>
+    where
+        O: Operation,
+        O::Output: DeserializeOwned,
+        E: OperationErrors,
+    {
+        self.send_described::<O, E>(input, options, None).await
+    }
+
+    pub async fn send_with_metadata<O, E>(
+        &self,
+        input: &O::Input,
+        options: &CallOptions,
+        metadata: &crate::OperationMetadata,
+    ) -> Result<O::Output, Error<E>>
+    where
+        O: Operation,
+        O::Output: DeserializeOwned,
+        E: OperationErrors,
+    {
+        self.send_described::<O, E>(input, options, Some(metadata))
+            .await
+    }
+
+    async fn send_described<O, E>(
+        &self,
+        input: &O::Input,
+        options: &CallOptions,
+        metadata: Option<&crate::OperationMetadata>,
+    ) -> Result<O::Output, Error<E>>
+    where
+        O: Operation,
+        O::Output: DeserializeOwned,
+        E: OperationErrors,
+    {
+        let deadline = options
+            .timeout
+            .or(self.config.timeout)
+            .map(|timeout| {
+                tokio::time::Instant::now()
+                    .checked_add(timeout)
+                    .ok_or_else(|| Error::Invalid("call timeout out of range".into()))
+            })
+            .transpose()?;
+        let cancelled = async {
+            match &options.cancellation {
+                Some(token) => token.cancelled().await,
+                None => std::future::pending().await,
+            }
+        };
+        let expired = async {
+            match deadline {
+                Some(deadline) => tokio::time::sleep_until(deadline).await,
+                None => std::future::pending().await,
+            }
+        };
+        tokio::select! {
+            biased;
+            () = cancelled => Err(Error::Cancelled),
+            () = expired => Err(Error::Timeout),
+            result = self.send_inner::<O, E>(input, deadline, options.cancellation.clone(), metadata) => result,
+        }
+    }
+
+    async fn send_inner<O, E>(
+        &self,
+        input: &O::Input,
+        deadline: Option<tokio::time::Instant>,
+        cancellation: Option<crate::CancellationToken>,
+        metadata: Option<&crate::OperationMetadata>,
+    ) -> Result<O::Output, Error<E>>
+    where
+        O: Operation,
+        O::Output: DeserializeOwned,
+        E: OperationErrors,
+    {
         let info = O::INFO;
-        let (url, headers, body) = self.prepare(info, input)?;
+        let endpoint = metadata
+            .map(|metadata| metadata.endpoint(input, &self.config))
+            .transpose()
+            .map_err(Error::Invalid)?;
+        let (url, bound_headers, body) = self.prepare_at(
+            info,
+            input,
+            endpoint
+                .as_ref()
+                .map_or(&self.config.endpoint, |endpoint| &endpoint.url),
+        )?;
+        let mut headers = endpoint
+            .as_ref()
+            .map_or_else(HeaderMap::new, |endpoint| endpoint.headers.clone());
+        headers.extend(self.config.headers.clone());
+        headers.extend(bound_headers);
+        let stream = O::input_stream(input).map(|stream| {
+            match Location::payload(info.input).map(|(member, _)| member.location) {
+                Some(Location::StreamingPayload {
+                    minimum, maximum, ..
+                }) => stream.with_bounds(minimum, maximum),
+                _ => stream,
+            }
+        });
+        if let Some(stream) = &stream {
+            if let Some((member, media_type)) = Location::payload(info.input) {
+                if matches!(
+                    member.location,
+                    Location::StreamingPayload {
+                        requires_length: true,
+                        ..
+                    }
+                ) && stream.length().is_none()
+                {
+                    return Err(Error::Invalid(
+                        "streaming payload requires a known length".into(),
+                    ));
+                }
+                headers.insert(
+                    http::header::CONTENT_TYPE,
+                    HeaderValue::from_str(media_type).map_err(|e| Error::Invalid(e.to_string()))?,
+                );
+            }
+        }
+        let replayable = stream.as_ref().is_none_or(ByteStream::replayable);
         let method = Method::from_bytes(info.method.as_bytes())
             .map_err(|e| Error::Invalid(e.to_string()))?;
         let retry_safe = info.readonly || info.idempotent || info.idempotency_token.is_some();
@@ -111,12 +274,20 @@ impl Transport {
         let mut attempt = 1;
         loop {
             let request = self
-                .request(method.clone(), &url, &headers, body.clone(), O::AUTH_BEARER)
+                .request(
+                    method.clone(),
+                    &url,
+                    &headers,
+                    body.clone(),
+                    crate::auth::OperationAuth::of::<O>()
+                        .with_properties(endpoint.as_ref().map(|endpoint| &endpoint.properties)),
+                    stream.as_ref(),
+                )
                 .await?;
             let response = match self.config.http.execute(request).await {
                 Ok(response) => response,
                 Err(error) => {
-                    if retry_safe && attempt < retry.max_attempts {
+                    if replayable && retry_safe && attempt < retry.max_attempts {
                         tokio::time::sleep(backoff(attempt, &retry)).await;
                         attempt += 1;
                         continue;
@@ -126,12 +297,42 @@ impl Transport {
             };
             let status = response.status().as_u16();
             let response_headers = response.headers().clone();
+            if (200..300).contains(&status)
+                && info
+                    .output
+                    .iter()
+                    .any(|m| matches!(m.location, Location::StreamingPayload { .. }))
+            {
+                let mut body = ByteStream::new(response.bytes_stream());
+                if let Some((member, _)) = Location::payload(info.output) {
+                    if let Location::StreamingPayload {
+                        minimum, maximum, ..
+                    } = member.location
+                    {
+                        body = body.with_bounds(minimum, maximum);
+                    }
+                }
+                let stream = guarded_stream(
+                    body.open().map_err(|e| Error::Decode(e.to_string()))?,
+                    deadline,
+                    cancellation,
+                );
+                let mut bound = header_members(status, info.output, &response_headers)
+                    .map_err(Error::Decode)?;
+                if let Some((member, _)) = Location::payload(info.output) {
+                    bound.push((member.name, BoundValue::Json(Value::Null)));
+                }
+                let mut output =
+                    bound::read(&[], bound).map_err(|e| Error::Decode(e.to_string()))?;
+                O::set_output_stream(&mut output, stream);
+                return Ok(output);
+            }
             // A connection lost mid-body is the same fault as one lost before
             // the response: retried under the same rule.
             let bytes = match response.bytes().await {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    if retry_safe && attempt < retry.max_attempts {
+                    if replayable && retry_safe && attempt < retry.max_attempts {
                         tokio::time::sleep(backoff(attempt, &retry)).await;
                         attempt += 1;
                         continue;
@@ -140,12 +341,12 @@ impl Transport {
                 }
             };
             if (200..300).contains(&status) {
-                return decode_output::<O, E>(info.output, &response_headers, &bytes);
+                return decode_output::<O, E>(status, info.output, &response_headers, &bytes);
             }
             let error = decode_error::<E>(status, &response_headers, &bytes);
             let (throttling, transient) = match &error {
                 Error::Service(error) => {
-                    let info = error.info();
+                    let info = error.error.info();
                     (info.throttling, info.retryable || retryable_status(status))
                 }
                 Error::Unknown(error) => (
@@ -154,7 +355,10 @@ impl Transport {
                 ),
                 _ => (false, retryable_status(status)),
             };
-            if (throttling || (retry_safe && transient)) && attempt < retry.max_attempts {
+            if replayable
+                && (throttling || (retry_safe && transient))
+                && attempt < retry.max_attempts
+            {
                 let delay =
                     retry_after(&response_headers).unwrap_or_else(|| backoff(attempt, &retry));
                 tokio::time::sleep(delay).await;
@@ -167,20 +371,21 @@ impl Transport {
 
     /// URL, bound headers and body (with its content type), once: every
     /// attempt resends them.
-    fn prepare<E, I: serde::Serialize>(
+    fn prepare_at<E, I: serde::Serialize>(
         &self,
         info: &'static crucible_wire::operation::OperationInfo,
         input: &I,
+        endpoint: &str,
     ) -> Result<(String, HeaderMap, Option<Body>), Error<E>> {
         let mut body = Vec::with_capacity(128);
         let bound = split::write_bound(input, info.input, &mut body)
             .map_err(|error| Error::Invalid(error.to_string()))?;
-        let mut url = self.config.endpoint.clone();
+        let mut url = endpoint.trim_end_matches('/').to_owned();
         for segment in info.path {
             url.push('/');
             match segment {
                 Segment::Literal(text) => url.push_str(text),
-                Segment::Label(name) => {
+                Segment::Label(name) | Segment::GreedyLabel(name) => {
                     let value = bound
                         .iter()
                         .find(|(member, _)| member.name == *name)
@@ -189,12 +394,24 @@ impl Transport {
                     if value.is_empty() {
                         return Err(Error::Invalid(format!("`{name}` is required")));
                     }
-                    if matches!(value.as_str(), "." | "..") {
+                    let greedy = matches!(segment, Segment::GreedyLabel(_));
+                    if (greedy && value.split('/').any(|s| matches!(s, "." | "..")))
+                        || matches!(value.as_str(), "." | "..")
+                    {
                         return Err(Error::Invalid(format!(
                             "`{name}` cannot be a dot-only path segment"
                         )));
                     }
-                    encode(&mut url, &value);
+                    if greedy {
+                        for (index, part) in value.split('/').enumerate() {
+                            if index > 0 {
+                                url.push('/');
+                            }
+                            encode(&mut url, part);
+                        }
+                    } else {
+                        encode(&mut url, &value);
+                    }
                 }
             }
         }
@@ -234,7 +451,52 @@ impl Transport {
                         .map_err(|e| Error::Invalid(e.to_string()))?;
                     headers.insert(name, value);
                 }
-                Location::Label | Location::Body | Location::Payload(_) => {}
+                Location::QueryParams => {
+                    let entries = value.as_object().ok_or_else(|| {
+                        Error::Invalid("query parameters must be a map".to_owned())
+                    })?;
+                    for (name, value) in entries {
+                        if info.literal_query.iter().any(|(key, _)| key == name)
+                            || info
+                                .input
+                                .iter()
+                                .any(|m| matches!(m.location, Location::Query(key) if key == name))
+                        {
+                            continue;
+                        }
+                        let items = match value {
+                            Value::Array(items) => items.as_slice(),
+                            value => std::slice::from_ref(value),
+                        };
+                        for value in items {
+                            url.push(separator);
+                            separator = '&';
+                            encode(&mut url, name);
+                            url.push('=');
+                            encode(&mut url, &split::text(value));
+                        }
+                    }
+                }
+                Location::PrefixHeaders(prefix) => {
+                    let entries = value
+                        .as_object()
+                        .ok_or_else(|| Error::Invalid("prefix headers must be a map".to_owned()))?;
+                    for (key, value) in entries {
+                        let name = format!("{prefix}{key}");
+                        if info.input.iter().any(|m| matches!(m.location, Location::Header(explicit) if explicit.eq_ignore_ascii_case(&name))) { continue; }
+                        headers.insert(
+                            HeaderName::from_bytes(name.as_bytes())
+                                .map_err(|e| Error::Invalid(e.to_string()))?,
+                            HeaderValue::from_str(&split::text(value))
+                                .map_err(|e| Error::Invalid(e.to_string()))?,
+                        );
+                    }
+                }
+                Location::Label
+                | Location::Body
+                | Location::Payload(_)
+                | Location::ResponseCode
+                | Location::StreamingPayload { .. } => {}
             }
         }
         // A payload is sent raw under its media type; an absent one sends
@@ -256,7 +518,8 @@ impl Transport {
         url: &str,
         bound_headers: &HeaderMap,
         body: Option<Body>,
-        bearer: bool,
+        auth: crate::auth::OperationAuth<'_>,
+        stream: Option<&ByteStream>,
     ) -> Result<reqwest::Request, Error<E>> {
         let url = reqwest::Url::parse(url).map_err(|error| Error::Invalid(error.to_string()))?;
         let mut request = reqwest::Request::new(method, url);
@@ -272,24 +535,92 @@ impl Transport {
             headers.insert(http::header::CONTENT_TYPE, content_type);
             *request.body_mut() = Some(reqwest::Body::from(body));
         }
-        if let Some(token) = &self.config.token
-            && bearer
-        {
-            if let Some(token) = token.get().await {
-                let value = HeaderValue::from_str(&format!("Bearer {token}"))
-                    .map_err(|error| Error::Invalid(error.to_string()))?;
-                request
-                    .headers_mut()
-                    .insert(http::header::AUTHORIZATION, value);
+        if let Some(stream) = stream {
+            if self.config.content_sha256
+                && stream.sha256().is_none()
+                && !request.headers().contains_key("x-amz-content-sha256")
+            {
+                return Err(Error::Invalid(
+                    "streaming content_sha256 requires a precomputed ByteStream sha256".into(),
+                ));
             }
+            if let Some(length) = stream.length() {
+                request.headers_mut().insert(
+                    http::header::CONTENT_LENGTH,
+                    HeaderValue::from_str(&length.to_string()).expect("integer header"),
+                );
+            }
+            if let Some(digest) = stream.sha256() {
+                request.headers_mut().insert(
+                    "x-amz-content-sha256",
+                    HeaderValue::from_str(digest).expect("validated hex digest"),
+                );
+            }
+            *request.body_mut() = Some(reqwest::Body::wrap_stream(
+                stream.open().map_err(|e| Error::Invalid(e.to_string()))?,
+            ));
+        }
+        let signing = crate::auth::authenticate(&self.config, &mut request, auth).await?;
+        if self.config.content_sha256
+            && stream.is_none()
+            && (request.body().is_some()
+                || matches!(
+                    *request.method(),
+                    Method::POST | Method::PUT | Method::PATCH
+                ))
+        {
+            let bytes = request
+                .body()
+                .and_then(reqwest::Body::as_bytes)
+                .unwrap_or_default();
+            let digest = format!("{:x}", Sha256::digest(bytes));
+            request.headers_mut().insert(
+                "x-amz-content-sha256",
+                HeaderValue::from_str(&digest).expect("hex digest is a valid header"),
+            );
         }
         for interceptor in &self.config.interceptors {
             interceptor
                 .intercept(&mut request)
                 .map_err(Error::Invalid)?;
         }
+        if let Some(signing) = signing {
+            signing.apply(&mut request).map_err(Error::Invalid)?;
+        }
         Ok(request)
     }
+}
+
+/// Dropping this body drops the HTTP reader; every read keeps the original call budget.
+fn guarded_stream(
+    stream: ChunkStream,
+    deadline: Option<tokio::time::Instant>,
+    cancellation: Option<crate::CancellationToken>,
+) -> ByteStream {
+    ByteStream::new(futures_util::stream::unfold(Some(stream), move |state| {
+        let cancellation = cancellation.clone();
+        async move {
+            let mut stream = state?;
+            let cancelled = async {
+                match cancellation {
+                    Some(token) => token.cancelled().await,
+                    None => std::future::pending().await,
+                }
+            };
+            let expired = async {
+                match deadline {
+                    Some(deadline) => tokio::time::sleep_until(deadline).await,
+                    None => std::future::pending().await,
+                }
+            };
+            tokio::select! {
+                biased;
+                () = cancelled => Some((Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "call cancelled")), None)),
+                () = expired => Some((Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "call deadline exceeded")), None)),
+                next = stream.next() => next.map(|item| (item, Some(stream))),
+            }
+        }
+    }))
 }
 
 /// A request body: its content type and bytes.
@@ -298,6 +629,7 @@ type Body = (&'static str, Bytes);
 const JSON: &str = "application/json";
 
 fn decode_output<O, E>(
+    status: u16,
     members: &'static [MemberInfo],
     headers: &HeaderMap,
     body: &Bytes,
@@ -306,7 +638,7 @@ where
     O: Operation,
     O::Output: DeserializeOwned,
 {
-    let mut bound = header_members(members, headers).map_err(Error::Decode)?;
+    let mut bound = header_members(status, members, headers).map_err(Error::Decode)?;
     if let Some((member, _)) = Location::payload(members) {
         // The body is the payload, whatever it holds; it shares the
         // response's buffer.
@@ -324,11 +656,27 @@ where
 
 /// Header members of a response, read as their kinds.
 fn header_members<'h>(
+    status: u16,
     members: &[MemberInfo],
     headers: &'h HeaderMap,
 ) -> Result<Vec<(&'static str, BoundValue<'h>)>, String> {
     let mut bound = Vec::new();
     for member in members {
+        if member.location == Location::ResponseCode {
+            bound.push((member.name, BoundValue::Integer(i64::from(status))));
+        }
+        if let Location::PrefixHeaders(prefix) = member.location {
+            let mut values = serde_json::Map::new();
+            for (name, value) in headers {
+                if let Some(key) = name.as_str().strip_prefix(prefix) {
+                    values.insert(
+                        key.to_owned(),
+                        Value::String(value.to_str().map_err(|e| e.to_string())?.to_owned()),
+                    );
+                }
+            }
+            bound.push((member.name, BoundValue::Json(Value::Object(values))));
+        }
         if let Location::Header(name) = member.location {
             if let Some(value) = headers.get(name).and_then(|value| value.to_str().ok()) {
                 let value = BoundValue::parse(Cow::Borrowed(value), member.scalar)
@@ -347,7 +695,17 @@ pub fn decode_modelled<T: DeserializeOwned>(
     headers: &HeaderMap,
     body: &[u8],
 ) -> Option<T> {
-    let bound = header_members(info.members, headers).ok()?;
+    decode_modelled_at(info.status, info, headers, body)
+}
+
+/// Decodes bound response members using the actual HTTP status.
+pub fn decode_modelled_at<T: DeserializeOwned>(
+    status: u16,
+    info: &'static ErrorInfo,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> Option<T> {
+    let bound = header_members(status, info.members, headers).ok()?;
     bound::read(body, bound).ok()
 }
 
@@ -369,10 +727,18 @@ fn decode_error<E: OperationErrors>(status: u16, headers: &HeaderMap, body: &[u8
         .and_then(Value::as_str)
         .map(|name| name.rsplit('#').next().unwrap_or(name));
     let info = E::classify(status, type_name);
+    let metadata = Box::new(ResponseMetadata {
+        status,
+        headers: headers.clone(),
+        request_id: headers
+            .get("x-request-id")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned),
+    });
     match E::decode(status, type_name, headers, body) {
-        Some(error) => Error::Service(error),
+        Some(error) => Error::Service(ServiceError { error, metadata }),
         None => Error::Unknown(UnknownError {
-            status,
+            metadata,
             type_name: type_name
                 .or_else(|| info.map(|i| i.name))
                 .map(str::to_owned),
@@ -383,10 +749,6 @@ fn decode_error<E: OperationErrors>(status: u16, headers: &HeaderMap, body: &[u8
                 .map(str::to_owned),
             retryable: info.is_some_and(|i| i.retryable),
             throttling: info.is_some_and(|i| i.throttling),
-            request_id: headers
-                .get("x-request-id")
-                .and_then(|value| value.to_str().ok())
-                .map(str::to_owned),
         }),
     }
 }
@@ -426,7 +788,7 @@ fn retry_after_at(headers: &HeaderMap, now: chrono::DateTime<chrono::Utc>) -> Op
 }
 
 /// Percent-encodes everything but the unreserved characters.
-fn encode(out: &mut String, text: &str) {
+pub(crate) fn encode(out: &mut String, text: &str) {
     for byte in text.bytes() {
         match byte {
             b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
@@ -577,3 +939,7 @@ mod tests {
         assert!(!error.retryable && !error.throttling);
     }
 }
+
+#[cfg(test)]
+#[path = "transport_tests.rs"]
+mod expansion_tests;

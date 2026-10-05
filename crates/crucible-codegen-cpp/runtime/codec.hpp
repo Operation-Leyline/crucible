@@ -27,7 +27,29 @@ public:
     [[nodiscard]] Context context(std::string_view target) const { return Context(*this, shape(target)); }
 };
 
+[[nodiscard]] Json document(const Schema& schema, std::string_view target, const Json& value, bool encode);
+inline bool sparse(const Context& context) { const auto* value = context.shape().find("sparse"); return value && value->boolean(); }
+inline void collection(const Json::Array& values, const Context& context) {
+    const auto* unique = context.shape().find("set");
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        if (values[i].is_null() && !sparse(context)) throw std::invalid_argument("Null in dense list");
+        if (unique && unique->boolean()) for (std::size_t j = 0; j < i; ++j) if (equivalent(values[i], values[j])) throw std::invalid_argument("Duplicate set member");
+    }
+}
+
 template<class T> struct Codec;
+template<> struct Codec<BigInteger> {
+    static BigInteger decode(const Json& value, const Context&) { return BigInteger(value.number().text()); }
+    static Json encode(const BigInteger& value, const Context&) { return Json(value.number()); }
+};
+template<> struct Codec<BigDecimal> {
+    static BigDecimal decode(const Json& value, const Context&) { return BigDecimal(value.number().text()); }
+    static Json encode(const BigDecimal& value, const Context&) { return Json(value.number()); }
+};
+template<class T> struct Codec<std::optional<T>> {
+    static std::optional<T> decode(const Json& value, const Context& context) { return value.is_null() ? std::nullopt : std::optional<T>(Codec<T>::decode(value, context)); }
+    static Json encode(const std::optional<T>& value, const Context& context) { return value ? Codec<T>::encode(*value, context) : Json(); }
+};
 template<std::signed_integral T> struct Codec<T> {
     static T decode(const Json& value, const Context&) { return static_cast<T>(value.number().integer((std::numeric_limits<T>::min)(), (std::numeric_limits<T>::max)())); }
     static Json encode(T value, const Context&) { return Json(static_cast<std::int64_t>(value)); }
@@ -68,6 +90,7 @@ template<class T> struct Codec<std::vector<T>> {
     static std::vector<T> decode(const Json& value, const Context& context) {
         const auto child = context.child(context.shape().at("member"));
         std::vector<T> result;
+        collection(value.array(), context);
         result.reserve(value.array().size());
         for (const auto& item : value.array()) result.push_back(Codec<T>::decode(item, child));
         return result;
@@ -77,6 +100,7 @@ template<class T> struct Codec<std::vector<T>> {
         Json::Array result;
         result.reserve(value.size());
         for (const auto& item : value) result.push_back(Codec<T>::encode(item, child));
+        collection(result, context);
         return Json(std::move(result));
     }
 };
@@ -85,14 +109,21 @@ template<class K, class V> struct Codec<std::map<K, V>> {
         const auto key = context.child(context.shape().at("key"));
         const auto child = context.child(context.shape().at("value"));
         std::map<K, V> result;
-        for (const auto& [name, item] : value.object()) result.emplace(Codec<K>::decode(Json(name), key), Codec<V>::decode(item, child));
+        for (const auto& [name, item] : value.object()) {
+            if (item.is_null() && !sparse(context)) throw std::invalid_argument("Null in dense map");
+            result.emplace(Codec<K>::decode(Json(name), key), Codec<V>::decode(item, child));
+        }
         return result;
     }
     static Json encode(const std::map<K, V>& value, const Context& context) {
         const auto key = context.child(context.shape().at("key"));
         const auto child = context.child(context.shape().at("value"));
         Json::Object result;
-        for (const auto& [name, item] : value) result.emplace(Codec<K>::encode(name, key).string(), Codec<V>::encode(item, child));
+        for (const auto& [name, item] : value) {
+            auto encoded = Codec<V>::encode(item, child);
+            if (encoded.is_null() && !sparse(context)) throw std::invalid_argument("Null in dense map");
+            result.emplace(Codec<K>::encode(name, key).string(), std::move(encoded));
+        }
         return Json(std::move(result));
     }
 };

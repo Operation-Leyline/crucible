@@ -116,7 +116,10 @@ fn weather_matches_goldens() {
     )
     .unwrap();
     for file in files {
-        if file.path == "runtime.go" {
+        if matches!(
+            file.path.as_str(),
+            "runtime.go" | "auth.go" | "query.go" | "waiters.go" | "endpoints.go" | "checksums.go"
+        ) {
             continue;
         }
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))

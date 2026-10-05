@@ -15,14 +15,27 @@ pub fn emit(service: &Service, module: &str) -> String {
         let name = model_name(service.name_of(id));
         match shape {
             Shape::List(list) => out.push_str(&format!(
-                "    public typealias `{name}` = Swift.Array<{}>\n",
-                ty(service, &list.member.target, module)
+                "    public typealias `{name}` = Swift.Array<{}{}>\n",
+                ty(service, &list.member.target, module),
+                if list.sparse { "?" } else { "" }
             )),
             Shape::Map(map) => out.push_str(&format!(
-                "    public typealias `{name}` = Swift.Dictionary<{}, {}>\n",
+                "    public typealias `{name}` = Swift.Dictionary<{}, {}{}>\n",
                 ty(service, &map.key.target, module),
-                ty(service, &map.value.target, module)
+                ty(service, &map.value.target, module),
+                if map.sparse { "?" } else { "" }
             )),
+            Shape::IntEnum(enumeration) => {
+                out.push_str(&format!("    public struct `{name}`: Swift.RawRepresentable, Swift.Hashable, Swift.Sendable, WireCodable {{\n        public let rawValue: Swift.Int32\n        public init(rawValue: Swift.Int32) {{ self.rawValue = rawValue }}\n"));
+                for value in &enumeration.values {
+                    out.push_str(&format!(
+                        "        public static let `{}` = Self(rawValue: {})\n",
+                        enum_constant(&value.name),
+                        value.value
+                    ));
+                }
+                out.push_str("        static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self { Self(rawValue: try Swift.Int32.fromWire(value, context)) }\n        func toWire(_ context: WireContext) throws -> JSONValue { .number(Swift.String(rawValue)) }\n    }\n");
+            }
             Shape::Enum(enumeration) => {
                 out.push_str(&format!("    public struct `{name}`: Swift.RawRepresentable, Swift.Hashable, Swift.Sendable, WireCodable {{\n        public let rawValue: Swift.String\n        public init(rawValue: Swift.String) {{ self.rawValue = rawValue }}\n"));
                 for value in &enumeration.values {

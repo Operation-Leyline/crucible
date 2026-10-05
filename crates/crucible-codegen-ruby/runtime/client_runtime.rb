@@ -73,26 +73,49 @@ module CrucibleGenerated
         bindings.fetch('labels').each do |name|
           text = @codec.bound(values.fetch(name))
           raise ::ArgumentError, 'Empty label: ' + name if text.empty?
-          raise ::ArgumentError, 'Dot-segment HTTP label: ' + name if text == '.' || text == '..'
-          path = path.gsub('{' + name + '}', escape(text))
+          greedy = op.fetch('greedyLabels', []).include?(name)
+          parts = greedy ? text.split('/', -1) : [text]
+          raise ::ArgumentError, 'Dot-segment HTTP label: ' + name if parts.any? { |part| ['.', '..'].include?(part) }
+          path = path.gsub('{' + name + (greedy ? '+' : '') + '}', parts.map { |part| escape(part) }.join('/'))
         end
         query = []
         bindings.fetch('query').each do |member, name|
           next if values[member].nil?
           (values[member].is_a?(::Array) ? values[member] : [values[member]]).each { |item| query << escape(name) + '=' + escape(@codec.bound(item)) }
         end
+        if (member = bindings['queryParams']) && values[member]
+          reserved = bindings.fetch('query').map(&:last)
+          reserved += path.split('?', 2).last.split('&').map { |pair| ::URI::DEFAULT_PARSER.unescape(pair.split('=', 2).first) } if path.include?('?')
+          WireCodec.object(values[member]).sort.each do |key, value|
+            next if reserved.include?(key)
+            (value.is_a?(::Array) ? value : [value]).each { |item| query << escape(key) + '=' + escape(@codec.bound(item)) unless item.nil? }
+          end
+        end
         path += (path.include?('?') ? '&' : '?') + query.join('&') unless query.empty?
         headers = @config.headers.to_h { |key, value| [key.downcase, value] }
-        bindings.fetch('headers').each { |member, name| headers[name.downcase] = @codec.bound(values[member]) unless values[member].nil? }
+        bindings.fetch('headers').each { |member, name| headers[name.downcase] = @codec.bound(media(values[member], bindings, member, true)) unless values[member].nil? }
+        explicit = bindings.fetch('headers').map { |_, name| name.downcase }
+        bindings.fetch('prefixHeaders', []).each do |member, prefix|
+          next if values[member].nil?
+          WireCodec.object(values[member]).sort.each do |key, value|
+            name = (prefix + key).downcase
+            headers[name] = @codec.bound(media(value, bindings, member, true)) unless explicit.include?(name)
+          end
+        end
         body = nil
         unless bindings.fetch('body').empty?
           object = bindings.fetch('body').filter_map { |member| [member, values[member]] if values.key?(member) }.to_h
-          body, headers['content-type'] = ExactJson.encode(object), 'application/json'
+          body, headers['content-type'] = ExactJson.encode(@codec.document(op.fetch('input'), object, encode: true)), 'application/json'
         end
         payload = bindings['payload']
         if payload && values[payload[0]]
-          bytes = ::Base64.strict_decode64(values[payload[0]])
-          body, headers['content-type'] = bytes, payload[1] unless bytes.empty?
+          value = values[payload[0]]
+          body = case bindings.fetch('payloadKind', 'blob')
+          when 'string' then WireCodec.string(value).encode(::Encoding::UTF_8)
+          when 'document' then ExactJson.encode(@codec.document(payload_target(op.fetch('input'), payload), value, encode: true))
+          else ::Base64.strict_decode64(value)
+          end
+          headers['content-type'] = payload[1]
         end
         HttpRequest.new(url: @endpoint + path, method: op.fetch('method'), headers: headers, body: body)
       end
@@ -102,11 +125,6 @@ module CrucibleGenerated
         (1..@config.max_attempts).each do |attempt|
           scope.check
           request = prepared
-          if op.fetch('bearer', false) && @config.token
-            token = @config.token.call
-            scope.check
-            request = request.with(headers: request.headers.merge('authorization' => 'Bearer ' + WireCodec.string(token))) unless token.nil?
-          end
           @config.middleware.each do |middleware|
             scope.check
             request = middleware.call(request)
@@ -122,6 +140,7 @@ module CrucibleGenerated
             headers['x-amz-content-sha256'] = ::Digest::SHA256.hexdigest(request.body || '') if request.body || %w[POST PUT PATCH].include?(request.method)
             request = request.with(headers: headers)
           end
+          request = Authentication.apply(request, op, @codec.schema, @config, scope)
           bindings = op.fetch('response')
           begin
             response = @transport.send_request(request, read_body: !bindings.fetch('body').empty? || !bindings['payload'].nil?, scope: scope)
@@ -144,19 +163,25 @@ module CrucibleGenerated
         bindings = op.fetch('response')
         payload = bindings['payload']
         body = if payload
-          {payload[0] => ::Base64.strict_encode64(response.body)}
+          {payload[0] => payload_value(op.fetch('output'), bindings, response.body)}
         elsif bindings.fetch('body').empty? || response.body.empty?
           {}
-        else WireCodec.object(ExactJson.decode(response.body))
+        else WireCodec.object(@codec.document(op.fetch('output'), ExactJson.decode(response.body), encode: false))
         end
-        op['output'] ? apply_headers(op['output'], bindings.fetch('headers'), response, body) : body
+        op['output'] ? apply_headers(op['output'], bindings, response, body) : body
       end
       def apply_headers(target, bindings, response, body)
         object = body.dup
         members = @codec.shape(target).fetch('members')
-        bindings.each do |member, name|
-          object[member] = @codec.header(members.fetch(member), response.headers[name.downcase]) if response.headers.key?(name.downcase)
+        bindings.fetch('headers').each do |member, name|
+          object[member] = media(@codec.header(members.fetch(member), response.headers[name.downcase]), bindings, member, false) if response.headers.key?(name.downcase)
         end
+        explicit = bindings.fetch('headers').map { |_, name| name.downcase }
+        bindings.fetch('prefixHeaders', []).each do |member, prefix|
+          prefix = prefix.downcase
+          object[member] = response.headers.filter_map { |name, text| [name.delete_prefix(prefix), media(text, bindings, member, false)] if name.start_with?(prefix) && !explicit.include?(name) }.to_h
+        end
+        object[bindings['responseCode']] = response.status if bindings['responseCode']
         object
       end
       def failure(op, response)
@@ -165,10 +190,10 @@ module CrucibleGenerated
         rescue ::ArgumentError
           body = {}
         end
-        name = body['__type'].is_a?(::String) ? body['__type'] : nil
+        name = response.headers['x-crucible-error'] || (body['__type'].is_a?(::String) ? body['__type'] : nil)
         matches = op.fetch('errors').select do |target|
           shape = @codec.shape(target)
-          name ? shape.fetch('name') == name : shape.fetch('error').fetch('status') == response.status
+          name ? (shape.fetch('error')['wireCode'] || shape.fetch('name')) == name : shape.fetch('error').fetch('status') == response.status
         end
         target = matches.size == 1 ? matches.first : nil
         shape = target && @codec.shape(target)
@@ -179,13 +204,32 @@ module CrucibleGenerated
           headers: response.headers, retryable: traits&.fetch('retryable', false) == true, throttling: traits&.fetch('throttling', false) == true)
         if target
           begin
-            object = apply_headers(target, traits.fetch('headers'), response, body)
+            payload = traits['payload']
+            body = payload ? {payload[0] => payload_value(target, traits, response.body)} : @codec.document(target, body, encode: false)
+            object = apply_headers(target, traits, response, body)
             return @codec.error(target, object, metadata)
           rescue ::ArgumentError, ::TypeError
             # Keep wire metadata when modeled members cannot be decoded.
           end
         end
         ServiceError.new(metadata)
+      end
+      def payload_target(target, payload) = @codec.shape(target).fetch('members').fetch(payload[0]).fetch('target')
+      def payload_value(target, bindings, body)
+        case bindings.fetch('payloadKind', 'blob')
+        when 'string' then WireCodec.string(body.dup.force_encoding(::Encoding::UTF_8))
+        when 'document' then body.empty? ? nil : @codec.document(payload_target(target, bindings.fetch('payload')), ExactJson.decode(body), encode: false)
+        else ::Base64.strict_encode64(body)
+        end
+      end
+      def media(value, bindings, member, encode)
+        return value unless bindings.fetch('headerEncodings', {})[member] == 'base64'
+        return value.map { |item| media(item, bindings, member, encode) } if value.is_a?(::Array)
+        text = WireCodec.string(value)
+        return ::Base64.strict_encode64(text.encode(::Encoding::UTF_8)) if encode
+        bytes = ::Base64.strict_decode64(text)
+        raise ::ArgumentError, 'Invalid media-type header base64' unless ::Base64.strict_encode64(bytes) == text
+        WireCodec.string(bytes.force_encoding(::Encoding::UTF_8))
       end
       def retry_delay(attempt, header)
         if header

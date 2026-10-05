@@ -1,0 +1,186 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.wire#Wire": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.wire#Text"
+        },
+        {
+          "target": "example.wire#Document"
+        }
+      ]
+    },
+    "example.wire#TextInput": {
+      "type": "structure",
+      "members": {
+        "text": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        },
+        "meta": {
+          "target": "example.wire#MediaList",
+          "traits": {
+            "smithy.api#httpHeader": "x-meta"
+          }
+        },
+        "extras": {
+          "target": "example.wire#MediaMap",
+          "traits": {
+            "smithy.api#httpPrefixHeaders": "x-extra-"
+          }
+        }
+      }
+    },
+    "example.wire#Text": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/text",
+          "code": 200
+        }
+      },
+      "input": {
+        "target": "example.wire#TextInput"
+      },
+      "output": {
+        "target": "example.wire#TextOutput"
+      },
+      "errors": [
+        {
+          "target": "example.wire#TextError"
+        }
+      ]
+    },
+    "example.wire#Media": {
+      "type": "string",
+      "traits": {
+        "smithy.api#mediaType": "application/json"
+      }
+    },
+    "example.wire#MediaList": {
+      "type": "list",
+      "member": {
+        "target": "example.wire#Media"
+      }
+    },
+    "example.wire#Record": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.wire#DocumentInput": {
+      "type": "structure",
+      "members": {
+        "document": {
+          "target": "example.wire#Record",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      }
+    },
+    "example.wire#Document": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/document",
+          "code": 200
+        }
+      },
+      "input": {
+        "target": "example.wire#DocumentInput"
+      },
+      "output": {
+        "target": "example.wire#DocumentOutput"
+      }
+    },
+    "example.wire#TextOutput": {
+      "type": "structure",
+      "members": {
+        "text": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        },
+        "meta": {
+          "target": "example.wire#MediaList",
+          "traits": {
+            "smithy.api#httpHeader": "x-meta"
+          }
+        },
+        "extras": {
+          "target": "example.wire#MediaMap",
+          "traits": {
+            "smithy.api#httpPrefixHeaders": "x-extra-"
+          }
+        }
+      }
+    },
+    "example.wire#DocumentOutput": {
+      "type": "structure",
+      "members": {
+        "document": {
+          "target": "example.wire#Record",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      }
+    },
+    "example.wire#TextError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 422,
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "CrucibleStringErrorPayload",
+            "protocol": "crucible.protocols#json",
+            "appliesTo": "client",
+            "code": 422,
+            "headers": {
+              "content-type": "text/plain",
+              "x-crucible-error": "TextError"
+            },
+            "body": "invalid text",
+            "bodyMediaType": "text/plain",
+            "params": {
+              "details": "invalid text"
+            }
+          }
+        ]
+      },
+      "members": {
+        "details": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      }
+    },
+    "example.wire#MediaMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "example.wire#Media"
+      }
+    }
+  }
+}

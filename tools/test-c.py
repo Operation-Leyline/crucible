@@ -47,6 +47,8 @@ def generate(model, output, package="weather_client", prefix="weather"):
 
 
 def models(output):
+    for name, fixture_name, prefix in [("dynamic", "dynamic-bindings", "dynamic"), ("extended", "extended-types", "types"), ("wire", "error-payloads", "wire")]:
+        generate(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json", output / name, f"{prefix}_client", prefix)
     source = qualification_model(output)
     model = json.loads(source.read_text(encoding="utf-8"))
     shapes = model["shapes"]
@@ -73,7 +75,7 @@ def models(output):
         "test#Node": {"type": "structure", "members": {"next": {"target": "test#Node"}, "children": {"target": "test#Nodes"}, "lookup": {"target": "test#NodeMap"}}},
         "test#Nodes": {"type": "list", "member": {"target": "test#Node"}},
         "test#NodeMap": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "test#Node"}},
-        "test#Loop": {"type": "list", "member": {"target": "test#Loop"}},
+        "test#Loop": {"type": "list", "member": {"target": "test#Node"}},
         "test#Choice": {"type": "union", "members": {"node": {"target": "test#Node"}, "choice": {"target": "test#Choice"}, "none": {"target": "smithy.api#Unit"}}},
     }}
     path = output / "recursive.json"
@@ -111,6 +113,13 @@ find_package(weather_client CONFIG REQUIRED)
 add_subdirectory("{(output / 'edge').as_posix()}" edge-sdk)
 add_subdirectory("{(output / 'empty').as_posix()}" empty-sdk)
 add_subdirectory("{(output / 'recursive').as_posix()}" recursive-sdk)
+add_subdirectory("{(output / 'dynamic').as_posix()}" dynamic-sdk)
+add_subdirectory("{(output / 'extended').as_posix()}" extended-sdk)
+add_subdirectory("{(output / 'wire').as_posix()}" wire-sdk)
+add_executable(wire_test "{tests.as_posix()}/wire.c")
+target_link_libraries(wire_test PRIVATE wire_client)
+add_executable(extensions "{tests.as_posix()}/extensions.c")
+target_link_libraries(extensions PRIVATE dynamic_client types_client)
 add_executable(edge edge.c)
 target_link_libraries(edge PRIVATE edge_client empty_client)
 add_executable(recursive recursive.c)
@@ -124,7 +133,7 @@ foreach(name core models runtime proxy serialization)
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
   target_include_directories(${{name}} PRIVATE "{install.as_posix()}/include/weather_client/runtime")
 endforeach()
-foreach(name core models runtime proxy serialization edge recursive)
+foreach(name core models runtime proxy serialization edge recursive extensions wire_test)
   target_compile_features(${{name}} PRIVATE c_std_17)
   set_target_properties(${{name}} PROPERTIES C_EXTENSIONS OFF)
   if(MSVC)
@@ -141,7 +150,7 @@ endforeach()
     if os.name == "nt" and os.environ.get("VCPKG_INSTALLED_DIR"):
         dependencies = Path(os.environ["VCPKG_INSTALLED_DIR"]) / "x64-windows"
         runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
-    for name in ["core", "models", "recursive", "edge"]:
+    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test"]:
         run(str(executable(consumer_build, name)), env=runtime_env)
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))

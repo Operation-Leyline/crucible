@@ -546,13 +546,13 @@ final class ValidationReason implements wire.WireModel {
 }
 core.Object decodeModel(core.String target, core.Object? value, wire.WireContext context) {
   switch (target) {
-    case "example.weather#CitySummaries": return wire.wireArray(value).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as CitySummary).toList();
+    case "example.weather#CitySummaries": return context.codec.collection(value, context.shape).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as CitySummary).toList();
     case "example.weather#CitySummary": return CitySummary.fromWire(value, context);
     case "example.weather#ConflictError": return ConflictError.fromWire(value, context);
     case "example.weather#Coordinates": return Coordinates.fromWire(value, context);
     case "example.weather#CreateCityInput": return CreateCityInput.fromWire(value, context);
     case "example.weather#CreateCityOutput": return CreateCityOutput.fromWire(value, context);
-    case "example.weather#Forecast": return wire.wireObject(value).map((key, item) => core.MapEntry(context.codec.decode(key, context.child(context.shape['key'])) as Sky, context.codec.decode(item, context.child(context.shape['value'])) as json.JsonValue));
+    case "example.weather#Forecast": return context.codec.mapping(value, context.shape).map((key, item) => core.MapEntry(context.codec.decode(key, context.child(context.shape['key'])) as Sky, context.codec.decode(item, context.child(context.shape['value'])) as json.JsonValue));
     case "example.weather#GetCityInput": return GetCityInput.fromWire(value, context);
     case "example.weather#GetCityOutput": return GetCityOutput.fromWire(value, context);
     case "example.weather#GetCityPhotoInput": return GetCityPhotoInput.fromWire(value, context);
@@ -567,11 +567,11 @@ core.Object decodeModel(core.String target, core.Object? value, wire.WireContext
     case "example.weather#Sky": return Sky(wire.wireString(value));
     case "example.weather#StatusInput": return StatusInput.fromWire(value, context);
     case "example.weather#StatusOutput": return StatusOutput.fromWire(value, context);
-    case "example.weather#Tags": return wire.wireArray(value).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as core.String).toList();
+    case "example.weather#Tags": return context.codec.collection(value, context.shape).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as core.String).toList();
     case "example.weather#ThrottlingError": return ThrottlingError.fromWire(value, context);
     case "example.weather#ValidationError": return ValidationError.fromWire(value, context);
     case "example.weather#ValidationField": return ValidationField.fromWire(value, context);
-    case "example.weather#ValidationFieldList": return wire.wireArray(value).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as ValidationField).toList();
+    case "example.weather#ValidationFieldList": return context.codec.collection(value, context.shape).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as ValidationField).toList();
     case "example.weather#ValidationReason": return ValidationReason(wire.wireString(value));
     case "smithy.api#Unit":
       if (wire.wireObject(value).isNotEmpty) { throw const core.FormatException('Unit requires an empty object'); }

@@ -24,7 +24,15 @@ fn weather_client_matches_golden_files() {
     let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
     let mut stale = Vec::new();
     for file in emit(&service, &options).unwrap() {
-        if file.path == "src/runtime.ts" {
+        if [
+            "src/runtime.ts",
+            "src/query.ts",
+            "src/endpoints.ts",
+            "src/waiters.ts",
+            "src/credentials.ts",
+        ]
+        .contains(&file.path.as_str())
+        {
             continue;
         }
         let path = golden.join(&file.path);
@@ -169,7 +177,8 @@ fn prototype_named_members_defaults_and_errors_are_own_metadata() {
         .contents;
     assert!(schemas.contains("[\"__proto__\"]: integer(64)"));
     assert!(schemas.contains("[\"__proto__\"]: parseJson(\"3\")"));
-    assert!(schemas.contains("[\"__proto__\"]: { status: 409"));
+    assert!(schemas.contains("ConflictError: { status: 409"));
+    assert!(schemas.contains("new e.__proto__(fields, metadata)"));
 }
 
 #[test]
@@ -261,4 +270,60 @@ fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
     ] {
         assert!(reversed_client.contains(&format!("  {method}(")));
     }
+}
+
+#[test]
+fn packaged_provenance_tracks_the_shared_wire_schema() {
+    use sha2::{Digest, Sha256};
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let options = Options {
+        package_name: "weather".into(),
+        package_version: "1".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+    };
+    let files = emit(&service, &options).unwrap();
+    let manifest: serde_json::Value = serde_json::from_str(
+        &files
+            .iter()
+            .find(|f| f.path == "crucible.json")
+            .unwrap()
+            .contents,
+    )
+    .unwrap();
+    let schema =
+        serde_json::to_string(&crucible_codegen_common::schema(&service, str::to_owned)).unwrap();
+    assert_eq!(
+        manifest["schemaSha256"],
+        format!("{:x}", Sha256::digest(schema.as_bytes()))
+    );
+    let package: serde_json::Value = serde_json::from_str(
+        &files
+            .iter()
+            .find(|f| f.path == "package.json")
+            .unwrap()
+            .contents,
+    )
+    .unwrap();
+    assert!(
+        package["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f == "crucible.json")
+    );
+    let mut changed = service.clone();
+    changed.version.push_str("-next");
+    let updated = emit(&changed, &options).unwrap();
+    assert_ne!(
+        files.iter().find(|f| f.path == "crucible.json"),
+        updated.iter().find(|f| f.path == "crucible.json")
+    );
 }

@@ -88,3 +88,22 @@ pub fn deserialize_union<'de, T: Union, D: Deserializer<'de>>(
     }
     deserializer.deserialize_map(UnionVisitor(PhantomData))
 }
+
+/// Static value mapping emitted for integer enums, including open client values.
+pub trait IntEnum: Sized {
+    fn as_i32(&self) -> i32;
+    fn from_i32(value: i32) -> Option<Self>;
+}
+pub fn serialize_int_enum<T: IntEnum, S: serde::Serializer>(
+    value: &T,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.serialize_i32(value.as_i32())
+}
+pub fn deserialize_int_enum<'de, T: IntEnum, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<T, D::Error> {
+    let value = <i32 as serde::Deserialize>::deserialize(deserializer)?;
+    T::from_i32(value)
+        .ok_or_else(|| serde::de::Error::custom(format!("unknown integer enum value {value}")))
+}

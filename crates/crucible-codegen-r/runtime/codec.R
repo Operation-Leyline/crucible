@@ -3,6 +3,29 @@
   if (is.null(shape)) stop('Unknown model shape: ', target, call. = FALSE)
   shape
 }
+.crucible_document <- function(value, target, encode = FALSE) {
+  if (is.null(value)) return(NULL)
+  shape <- .crucible_shape(target)
+  if (shape$kind %in% c('structure', 'union')) {
+    if (!.crucible_is_object(value)) stop('Expected document object', call. = FALSE)
+    result <- json_object(); known <- character(); wire_names <- character()
+    for (name in names(shape$members)) {
+      member <- shape$members[[name]]; wire <- member$jsonName
+      if (is.null(wire)) wire <- name
+      source <- if (encode) name else wire
+      known <- c(known, source); wire_names <- c(wire_names, wire)
+      if (source %in% names(value)) result[if (encode) wire else name] <- list(.crucible_document(value[[source]], member$target, encode))
+    }
+    if (shape$kind == 'union') for (name in setdiff(names(value), known)) {
+      if (encode && name %in% wire_names) stop('Unknown variant name is declared', call. = FALSE)
+      result[name] <- value[name]
+    }
+    return(result)
+  }
+  if (shape$kind == 'list') return(lapply(value, .crucible_document, target = shape$member$target, encode = encode))
+  if (shape$kind == 'map') return(.crucible_object(lapply(value, .crucible_document, target = shape$value$target, encode = encode)))
+  value
+}
 .crucible_model <- function(target, members) structure(members, class = c(.crucible_shape(target)$name, 'crucible_model', 'list'), crucible_target = target)
 .crucible_union <- function(target, member, value) {
   member <- .crucible_string(member)
@@ -13,6 +36,56 @@
   if (is.numeric(value) && length(value) == 1L && is.finite(value)) return(json_number(sprintf('%.17g', value)))
   stop('Expected a finite number', call. = FALSE)
 }
+.crucible_canonical_number <- function(value) {
+  text <- as.character(.crucible_number_value(value)); parts <- strsplit(tolower(text), 'e', fixed = TRUE)[[1L]]
+  exponent <- if (length(parts) == 2L) parts[2L] else '0'
+  negative <- startsWith(parts[1L], '-'); coefficient <- sub('^-', '', parts[1L])
+  fraction <- if (grepl('.', coefficient, fixed = TRUE)) nchar(sub('^[^.]*[.]', '', coefficient)) else 0L
+  coefficient <- sub('^0+', '', gsub('.', '', coefficient, fixed = TRUE))
+  if (coefficient == '') return(c('0', '0'))
+  trimmed <- sub('0+$', '', coefficient); adjustment <- nchar(coefficient) - nchar(trimmed) - fraction
+  coefficient <- paste0(if (negative) '-' else '', trimmed)
+  normalize <- function(x) { sign <- startsWith(x, '-'); digits <- sub('^0+', '', sub('^[+-]', '', x)); if (digits == '') '0' else paste0(if (sign) '-' else '', digits) }
+  exponent <- normalize(exponent)
+  step <- function(x, up) {
+    negative <- startsWith(x, '-'); digits <- strsplit(sub('^-', '', x), '', fixed = TRUE)[[1L]]
+    add <- up != negative
+    if (!add && x == '0') return('-1')
+    carry <- 1L; index <- length(digits)
+    while (index > 0L && carry != 0L) {
+      digit <- as.integer(digits[index]) + if (add) carry else -carry
+      carry <- if (digit > 9L || digit < 0L) 1L else 0L
+      digits[index] <- as.character((digit + 10L) %% 10L); index <- index - 1L
+    }
+    if (carry != 0L) digits <- c('1', digits)
+    normalize(paste0(if (negative) '-' else '', paste0(digits, collapse = '')))
+  }
+  if (adjustment != 0L) for (ignored in seq_len(abs(adjustment))) exponent <- step(exponent, adjustment > 0L)
+  c(coefficient, exponent)
+}
+big_integer <- function(value) {
+  number <- json_number(as.character(value)); canonical <- .crucible_canonical_number(number)
+  if (startsWith(canonical[2L], '-')) stop('Expected integral arbitrary precision number', call. = FALSE)
+  structure(as.character(number), class = c('crucible_big_integer', 'crucible_number', 'character'))
+}
+big_decimal <- function(value) {
+  number <- json_number(as.character(value))
+  structure(as.character(number), class = c('crucible_big_decimal', 'crucible_number', 'character'))
+}
+.crucible_int_enum <- function(value, name) {
+  value <- as.numeric(as.character(long(.crucible_number_value(value))))
+  if (value < -2147483648 || value > 2147483647) stop('IntEnum value out of range', call. = FALSE)
+  structure(value, class = c(name, 'crucible_int_enum', 'numeric'))
+}
+.crucible_value_key <- function(value) {
+  if (inherits(value, 'crucible_number') || is.numeric(value)) return(paste0('n', json_encode(as.list(.crucible_canonical_number(value)))))
+  if (.crucible_is_object(value)) {
+    keys <- sort(as.character(names(value)), method = 'radix')
+    return(paste0('o', json_encode(lapply(keys, function(key) list(key, .crucible_value_key(value[[key]]))))))
+  }
+  if (is.list(value)) return(paste0('a', json_encode(lapply(value, .crucible_value_key))))
+  paste0('v', json_encode(value))
+}
 .crucible_codec <- function(value, target, encode = FALSE, format = NULL, depth = 0L) {
   if (depth > 255L) stop('Model nesting exceeds 255 levels', call. = FALSE)
   shape <- .crucible_shape(target); kind <- shape$kind
@@ -22,6 +95,17 @@
   if (kind == 'unit') { if (!.crucible_is_object(value) || length(value)) stop('Expected unit object', call. = FALSE); return(json_object()) }
   if (kind == 'string') { if (inherits(value,'crucible_number') || inherits(value,'crucible_long')) stop('Expected string, not number', call. = FALSE); return(.crucible_string(value)) }
   if (kind == 'boolean') { if (!is.logical(value) || length(value) != 1L || is.na(value)) stop('Expected boolean', call. = FALSE); return(value) }
+  if (kind %in% c('bigInteger', 'bigDecimal')) {
+    expected <- if (kind == 'bigInteger') 'crucible_big_integer' else 'crucible_big_decimal'
+    if (encode && !inherits(value, expected)) stop('Expected exact arbitrary precision wrapper', call. = FALSE)
+    result <- if (kind == 'bigInteger') big_integer(.crucible_number_value(value)) else big_decimal(.crucible_number_value(value))
+    return(if (encode) json_number(as.character(result)) else result)
+  }
+  if (kind == 'intEnum') {
+    if (encode && !inherits(value, shape$name)) stop('Wrong intEnum type', call. = FALSE)
+    result <- .crucible_int_enum(value, shape$name)
+    return(if (encode) unclass(result) else result)
+  }
   if (kind %in% c('byte', 'short', 'integer', 'long')) {
     if (encode && kind == 'long' && !inherits(value, 'crucible_long') && (!is.numeric(value) || abs(value) > 9007199254740991)) stop('Expected long() or exactly representable integer', call. = FALSE)
     result <- long(.crucible_number_value(value))
@@ -55,13 +139,24 @@
   }
   if (kind == 'list') {
     if (!is.list(value) || .crucible_is_object(value)) stop('Expected list array', call. = FALSE)
-    return(lapply(value, child, description = shape$member))
+    result <- lapply(value, function(item) {
+      if (is.null(item)) { if (!isTRUE(shape$sparse)) stop('Dense list cannot contain null', call. = FALSE); return(NULL) }
+      child(item, shape$member)
+    })
+    if (isTRUE(shape$set)) {
+      wire <- if (encode) result else lapply(result, function(item) .crucible_codec(item, shape$member$target, TRUE, shape$member$format))
+      if (anyDuplicated(vapply(wire, .crucible_value_key, ''))) stop('Set members must be unique', call. = FALSE)
+    }
+    return(result)
   }
   if (kind == 'map') {
     if (!.crucible_is_object(value)) stop('Expected named list map', call. = FALSE)
     if (anyDuplicated(names(value))) stop('Map keys must be unique', call. = FALSE)
     for (key in names(value)) .crucible_string(key)
-    return(.crucible_object(lapply(value, child, description = shape$value)))
+    return(.crucible_object(lapply(value, function(item) {
+      if (is.null(item)) { if (!isTRUE(shape$sparse)) stop('Dense map cannot contain null', call. = FALSE); return(NULL) }
+      child(item, shape$value)
+    })))
   }
   if (kind == 'union') {
     if (encode) {
@@ -121,6 +216,6 @@
     if (quoted) stop('Unterminated quoted header', call. = FALSE)
     append(); return(parts)
   }
-  if (shape$kind %in% c('byte','short','integer','long','float','double','boolean') || (shape$kind == 'timestamp' && description$format == 'epoch-seconds')) return(json_parse(text))
+  if (shape$kind %in% c('byte','short','integer','long','float','double','boolean','intEnum','bigInteger','bigDecimal') || (shape$kind == 'timestamp' && description$format == 'epoch-seconds')) return(json_parse(text))
   text
 }

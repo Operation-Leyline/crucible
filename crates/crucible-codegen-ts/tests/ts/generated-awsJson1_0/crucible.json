@@ -1,0 +1,6 @@
+{
+  "generatorVersion": "0.1.0",
+  "service": "example.json#JsonService",
+  "serviceVersion": "1",
+  "schemaSha256": "02339df906fe47a985e407f0083562f06ee01d75bc491eaae00ec9d3712e0d5e"
+}

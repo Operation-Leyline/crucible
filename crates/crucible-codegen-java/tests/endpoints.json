@@ -1,0 +1,264 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.behavior#Service": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#httpBearerAuth": {},
+        "smithy.api#httpBasicAuth": {},
+        "smithy.api#httpApiKeyAuth": {
+          "name": "x-api-key",
+          "in": "header",
+          "scheme": "ApiKey"
+        },
+        "aws.auth#sigv4": {
+          "name": "original"
+        },
+        "smithy.api#auth": [
+          "smithy.api#httpBearerAuth",
+          "smithy.api#httpBasicAuth",
+          "smithy.api#httpApiKeyAuth",
+          "aws.auth#sigv4"
+        ],
+        "smithy.rules#endpointRuleSet": {
+          "version": "1.0",
+          "parameters": {
+            "Region": {
+              "type": "String",
+              "builtIn": "AWS::Region",
+              "required": false,
+              "documentation": "Region"
+            },
+            "Endpoint": {
+              "type": "String",
+              "builtIn": "SDK::Endpoint"
+            }
+          },
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "fn": "isSet",
+                  "argv": [
+                    {
+                      "ref": "Endpoint"
+                    }
+                  ]
+                }
+              ],
+              "type": "endpoint",
+              "endpoint": {
+                "url": {
+                  "ref": "Endpoint"
+                }
+              }
+            },
+            {
+              "conditions": [
+                {
+                  "fn": "stringEquals",
+                  "argv": [
+                    {
+                      "ref": "Region"
+                    },
+                    "local"
+                  ]
+                },
+                {
+                  "fn": "parseURL",
+                  "argv": [
+                    "https://[::1]:8443/a"
+                  ],
+                  "assign": "Parsed"
+                },
+                {
+                  "fn": "stringEquals",
+                  "argv": [
+                    {
+                      "fn": "getAttr",
+                      "argv": [
+                        {
+                          "ref": "Parsed"
+                        },
+                        "authority"
+                      ]
+                    },
+                    "[::1]:8443"
+                  ]
+                },
+                {
+                  "fn": "booleanEquals",
+                  "argv": [
+                    {
+                      "fn": "not",
+                      "argv": [
+                        false
+                      ]
+                    },
+                    true
+                  ]
+                },
+                {
+                  "fn": "isValidHostLabel",
+                  "argv": [
+                    "a.b",
+                    true
+                  ]
+                },
+                {
+                  "fn": "stringEquals",
+                  "argv": [
+                    {
+                      "fn": "substring",
+                      "argv": [
+                        "abcdef",
+                        1,
+                        3,
+                        true
+                      ]
+                    },
+                    "de"
+                  ]
+                },
+                {
+                  "fn": "stringEquals",
+                  "argv": [
+                    {
+                      "fn": "uriEncode",
+                      "argv": [
+                        "a/b +é"
+                      ]
+                    },
+                    "a%2Fb%20%2B%C3%A9"
+                  ]
+                }
+              ],
+              "type": "endpoint",
+              "endpoint": {
+                "url": "https://{Region}.example.test",
+                "headers": {
+                  "x-region": [
+                    {
+                      "ref": "Region"
+                    }
+                  ]
+                },
+                "properties": {
+                  "authSchemes": [
+                    {
+                      "name": "sigv4",
+                      "signingName": "example",
+                      "signingRegion": "{Region}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "conditions": [],
+              "type": "error",
+              "error": "Unknown region {Region}"
+            }
+          ]
+        }
+      },
+      "operations": [
+        {
+          "target": "example.behavior#Read"
+        },
+        {
+          "target": "example.behavior#Public"
+        }
+      ]
+    },
+    "example.behavior#Read": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/resource",
+          "code": 200
+        },
+        "smithy.api#endpoint": {
+          "hostPrefix": "{account}."
+        },
+        "smithy.waiters#waitable": {
+          "Ready": {
+            "minDelay": 1,
+            "maxDelay": 4,
+            "acceptors": [
+              {
+                "state": "success",
+                "matcher": {
+                  "output": {
+                    "path": "status",
+                    "comparator": "stringEquals",
+                    "expected": "READY"
+                  }
+                }
+              },
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "example.behavior#Missing"
+                }
+              },
+              {
+                "state": "failure",
+                "matcher": {
+                  "success": false
+                }
+              }
+            ]
+          }
+        },
+        "aws.auth#unsignedPayload": {}
+      },
+      "input": {
+        "target": "example.behavior#Input"
+      },
+      "output": {
+        "target": "example.behavior#Output"
+      }
+    },
+    "example.behavior#Public": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/public"
+        },
+        "smithy.api#auth": [],
+        "smithy.api#optionalAuth": {}
+      }
+    },
+    "example.behavior#Input": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "account": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#hostLabel": {}
+          }
+        }
+      }
+    },
+    "example.behavior#Output": {
+      "type": "structure",
+      "members": {
+        "status": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#jsonName": "wire-status"
+          }
+        }
+      }
+    }
+  }
+}

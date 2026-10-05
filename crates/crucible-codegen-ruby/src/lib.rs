@@ -53,7 +53,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     for (id, shape) in &service.shapes {
         if !matches!(
             shape,
-            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_)
+            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_)
         ) {
             continue;
         }
@@ -84,10 +84,15 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                     }
                 }
             }
-            Shape::Enum(enumeration) => {
+            Shape::Enum(_) | Shape::IntEnum(_) => {
                 let mut values = BTreeSet::new();
-                for value in &enumeration.values {
-                    let name = models::enum_constant(&value.name);
+                let constants = match shape {
+                    Shape::Enum(e) => e.values.iter().map(|value| &value.name).collect::<Vec<_>>(),
+                    Shape::IntEnum(e) => e.values.iter().map(|value| &value.name).collect(),
+                    _ => unreachable!(),
+                };
+                for value in constants {
+                    let name = models::enum_constant(value);
                     if !constant(&name) || !values.insert(name) {
                         diagnostics.push(id, "Ruby enum constant name collision");
                     }
@@ -109,7 +114,31 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     diagnostics
 }
 
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::BasicAuth,
+        Feature::ApiKeyAuth,
+        Feature::OptionalAuth,
+        Feature::SigV4,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -133,7 +162,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }))
         .expect("provenance"),
     });
-    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
+    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
     let mut entry = String::from("# frozen_string_literal: true\n");
     for (name, source) in [
         ("unit", include_str!("../runtime/unit.rb")),
@@ -153,6 +182,23 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/cancellation_token.rb"),
         ),
         ("call_scope", include_str!("../runtime/call_scope.rb")),
+        (
+            "basic_credentials",
+            include_str!("../runtime/basic_credentials.rb"),
+        ),
+        (
+            "aws_credentials",
+            include_str!("../runtime/aws_credentials.rb"),
+        ),
+        (
+            "cached_credentials",
+            include_str!("../runtime/cached_credentials.rb"),
+        ),
+        ("credentials", include_str!("../runtime/credentials.rb")),
+        (
+            "authentication",
+            include_str!("../runtime/authentication.rb"),
+        ),
         ("client_config", include_str!("../runtime/client_config.rb")),
         ("http_request", include_str!("../runtime/http_request.rb")),
         ("http_response", include_str!("../runtime/http_response.rb")),

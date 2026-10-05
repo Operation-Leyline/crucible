@@ -34,3 +34,6 @@ from .models import (
     ValidationReason,
 )
 from .runtime import UNSET, ServiceError, NetworkError, ResponseMetadata
+from .auth import BasicCredentials, AwsCredentials, CachedCredentials, AsyncCachedCredentials, credential_chain, async_credential_chain, environment_credentials, profile_credentials
+from .waiters import WaiterError, WaiterTimeout
+from .checksums import ChecksumError

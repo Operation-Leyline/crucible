@@ -21,7 +21,8 @@ pub fn emit(service: &Service) -> String {
     }
     if service.shapes.values().any(|shape| {
         matches!(shape, Shape::Union(_))
-            || matches!(shape, Shape::Simple(s) if s.kind == SimpleKind::Document)
+            || matches!(shape, Shape::IntEnum(_))
+            || matches!(shape, Shape::Simple(s) if matches!(s.kind, SimpleKind::Document | SimpleKind::BigDecimal))
     }) {
         out.push_str("import 'runtime/json.dart' as json;\n");
     }
@@ -36,18 +37,28 @@ pub fn emit(service: &Service) -> String {
         let name = service.name_of(id);
         let target = literal(&id.to_string());
         match shape {
+            Shape::IntEnum(enumeration) => {
+                out.push_str(&format!("final class {name} implements wire.WireModel {{\n  final core.int value;\n  const {name}(this.value);\n"));
+                for value in &enumeration.values {
+                    out.push_str(&format!("  static const {} = {name}({});\n", enum_constant(&value.name), value.value));
+                }
+                out.push_str(&format!("  @core.override\n  core.Object toWire(wire.WireContext context) {{ final number = json.JsonNumber(value.toString()); context.codec.intEnumValue(number); return number; }}\n  @core.override\n  core.bool operator ==(core.Object other) => other is {name} && value == other.value;\n  @core.override\n  core.int get hashCode => value.hashCode;\n}}\n"));
+                decode.push_str(&format!("    case {target}: return {name}(context.codec.intEnumValue(value));\n"));
+            },
             Shape::Unit => decode.push_str(&format!("    case {target}:\n      if (wire.wireObject(value).isNotEmpty) {{ throw const core.FormatException('Unit requires an empty object'); }}\n      return const Unit();\n")),
             Shape::Simple(_) => {},
             Shape::List(list) => {
-                let item = ty(service, &list.member.target);
+                let item = format!("{}{}", ty(service, &list.member.target), if list.sparse { "?" } else { "" });
+                let decode_item = if list.sparse { "item == null ? null : " } else { "" };
                 out.push_str(&format!("typedef {name} = core.List<{item}>;\n"));
-                decode.push_str(&format!("    case {target}: return wire.wireArray(value).map((item) => context.codec.decode(item, context.child(context.shape['member'])) as {item}).toList();\n"));
+                decode.push_str(&format!("    case {target}: return context.codec.collection(value, context.shape).map((item) => {decode_item}context.codec.decode(item, context.child(context.shape['member'])) as {item}).toList();\n"));
             },
             Shape::Map(map) => {
                 let key = ty(service, &map.key.target);
-                let item = ty(service, &map.value.target);
+                let item = format!("{}{}", ty(service, &map.value.target), if map.sparse { "?" } else { "" });
+                let decode_item = if map.sparse { "item == null ? null : " } else { "" };
                 out.push_str(&format!("typedef {name} = core.Map<{key}, {item}>;\n"));
-                decode.push_str(&format!("    case {target}: return wire.wireObject(value).map((key, item) => core.MapEntry(context.codec.decode(key, context.child(context.shape['key'])) as {key}, context.codec.decode(item, context.child(context.shape['value'])) as {item}));\n"));
+                decode.push_str(&format!("    case {target}: return context.codec.mapping(value, context.shape).map((key, item) => core.MapEntry(context.codec.decode(key, context.child(context.shape['key'])) as {key}, {decode_item}context.codec.decode(item, context.child(context.shape['value'])) as {item}));\n"));
             },
             Shape::Enum(enumeration) => {
                 out.push_str(&format!("final class {name} implements wire.WireModel {{\n  final core.String value;\n  const {name}(this.value);\n"));

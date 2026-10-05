@@ -145,8 +145,12 @@ impl Codegen {
         let json = std::fs::read_to_string(&self.model)
             .map_err(|error| format!("cannot read {}: {error}", self.model.display()))?;
         let model = Model::from_json(&json).map_err(|error| error.to_string())?;
+        let capabilities = match self.side {
+            Side::Server => crucible_codegen_rust::capabilities(),
+            Side::Client => crucible_codegen_rust::client_capabilities(),
+        };
         let service = model
-            .lower(self.service.as_ref())
+            .lower_with_capabilities(self.service.as_ref(), &capabilities)
             .map_err(|error| error.to_string())?;
         let generated = match self.side {
             Side::Server => crucible_codegen_rust::generate(&service, &self.options),

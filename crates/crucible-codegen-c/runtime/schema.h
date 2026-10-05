@@ -15,7 +15,8 @@ typedef enum {
     crucible_generated_kind_timestamp, crucible_generated_kind_document,
     crucible_generated_kind_enum, crucible_generated_kind_structure,
     crucible_generated_kind_union, crucible_generated_kind_list,
-    crucible_generated_kind_map
+    crucible_generated_kind_map, crucible_generated_kind_big_integer,
+    crucible_generated_kind_big_decimal, crucible_generated_kind_int_enum
 } crucible_generated_shape_kind;
 typedef enum {
     crucible_generated_date_time, crucible_generated_epoch_seconds,
@@ -43,6 +44,7 @@ struct crucible_generated_shape {
     size_t length_offset, items_offset, item_size;
     /* Union tag: 0 = unknown; declared members use their index plus one. */
     size_t tag_offset, state_offset, unknown_name_offset, unknown_value_offset;
+    bool sparse, unique;
 };
 
 /* Root native points at scalar storage or directly at a complex struct.

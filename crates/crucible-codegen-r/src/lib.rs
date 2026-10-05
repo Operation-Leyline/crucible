@@ -59,7 +59,27 @@ fn contains_nul(value: &serde_json::Value) -> bool {
     }
 }
 
+pub fn capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new([
+        Feature::NonBlobPayload,
+        Feature::MediaTypeHeaders,
+        Feature::ErrorPayload,
+        Feature::JsonName,
+        Feature::GreedyLabels,
+        Feature::QueryParams,
+        Feature::PrefixHeaders,
+        Feature::ResponseCode,
+        Feature::IntEnum,
+        Feature::BigInteger,
+        Feature::BigDecimal,
+        Feature::Sparse,
+        Feature::Sets,
+    ])
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    service.require_capabilities(&capabilities())?;
     let mut diagnostics = Diagnostics::default();
     let client_name = format!("{}Client", service.id.name());
     if service.version.contains('\0')
@@ -99,6 +119,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "client_config",
         "cancellation_token",
         "long",
+        "big_integer",
+        "big_decimal",
         "timestamp",
         "json_number",
         "json_parse",
@@ -132,7 +154,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         let name = service.name_of(id);
         if !matches!(
             shape,
-            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_)
+            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_)
         ) {
             continue;
         }
@@ -243,6 +265,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 out.push_str(&format!("{} <- function({}) .crucible_model({}, list({}))\n", function(name),args.join(", "),literal(&id.to_string()),values.join(", ")));
             }
             Shape::Enum(_) => out.push_str(&format!("{} <- function(value) structure(.crucible_string(value), class = c({}, 'crucible_enum', 'character'))\n",function(name),literal(name))),
+            Shape::IntEnum(_) => out.push_str(&format!("{} <- function(value) .crucible_int_enum(value, {})\n", function(name), literal(name))),
             Shape::Union(_) => out.push_str(&format!("{} <- function(member, value = NULL) .crucible_union({}, member, value)\n",function(name),literal(&id.to_string()))),
             _ => unreachable!(),
         }
