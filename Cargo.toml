@@ -21,6 +21,9 @@ crucible-build = { path = "crates/crucible-build" }
 crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
 crucible-smithy = { path = "crates/crucible-smithy" }
 crucible-codegen-ts = { path = "crates/crucible-codegen-ts" }
+crucible-codegen-infra = { path = "crates/crucible-codegen-infra" }
+crucible-codegen-cdk = { path = "crates/crucible-codegen-cdk" }
+crucible-codegen-terraform = { path = "crates/crucible-codegen-terraform" }
 crucible-codegen-python = { path = "crates/crucible-codegen-python" }
 crucible-codegen-common = { path = "crates/crucible-codegen-common" }
 crucible-codegen-go = { path = "crates/crucible-codegen-go" }

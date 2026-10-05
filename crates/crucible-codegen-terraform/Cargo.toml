@@ -1,0 +1,15 @@
+[package]
+name = "crucible-codegen-terraform"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+crucible-smithy.workspace = true
+crucible-codegen-go.workspace = true
+crucible-codegen-infra = { path = "../crucible-codegen-infra" }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[lints]
+workspace = true

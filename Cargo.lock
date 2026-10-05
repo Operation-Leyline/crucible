@@ -397,11 +397,13 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "crucible-codegen-c",
+ "crucible-codegen-cdk",
  "crucible-codegen-cli",
  "crucible-codegen-cpp",
  "crucible-codegen-csharp",
  "crucible-codegen-dart",
  "crucible-codegen-go",
+ "crucible-codegen-infra",
  "crucible-codegen-java",
  "crucible-codegen-kotlin",
  "crucible-codegen-php",
@@ -410,8 +412,10 @@ dependencies = [
  "crucible-codegen-ruby",
  "crucible-codegen-rust",
  "crucible-codegen-swift",
+ "crucible-codegen-terraform",
  "crucible-codegen-ts",
  "crucible-smithy",
+ "serde",
  "serde_json",
 ]
 
@@ -452,6 +456,16 @@ dependencies = [
  "crucible-smithy",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "crucible-codegen-cdk"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-infra",
+ "crucible-smithy",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -510,6 +524,15 @@ dependencies = [
  "crucible-smithy",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "crucible-codegen-infra"
+version = "0.1.0"
+dependencies = [
+ "crucible-smithy",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -589,6 +612,17 @@ dependencies = [
  "crucible-smithy",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "crucible-codegen-terraform"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-go",
+ "crucible-codegen-infra",
+ "crucible-smithy",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

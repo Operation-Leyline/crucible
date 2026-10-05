@@ -1,0 +1,62 @@
+{
+  "name": "@example/weather-cdk",
+  "version": "0.0.0",
+  "description": "CDK resources for example#Weather",
+  "author": {
+    "name": "Crucible contributors"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Operation-Leyline/crucible.git"
+  },
+  "license": "MIT",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    ".jsii"
+  ],
+  "scripts": {
+    "build": "jsii --strict",
+    "package": "jsii-pacmak"
+  },
+  "peerDependencies": {
+    "aws-cdk-lib": "^2.272.0",
+    "constructs": "^10.8.1"
+  },
+  "devDependencies": {
+    "aws-cdk-lib": "2.272.0",
+    "constructs": "10.8.1",
+    "jsii": "~5.9.0",
+    "jsii-pacmak": "^1.0.0",
+    "@types/node": "^22.0.0"
+  },
+  "jsii": {
+    "outdir": "dist",
+    "targets": {
+      "python": {
+        "distName": "example-weather-cdk",
+        "module": "example_weather_cdk"
+      },
+      "java": {
+        "package": "com.example.weather",
+        "maven": {
+          "groupId": "com.example",
+          "artifactId": "weather-cdk"
+        }
+      },
+      "dotnet": {
+        "namespace": "Example.Weather",
+        "packageId": "Example.Weather"
+      },
+      "go": {
+        "moduleName": "example.com/weather-cdk",
+        "packageName": "weathercdk"
+      }
+    },
+    "tsc": {
+      "rootDir": "src",
+      "outDir": "lib"
+    }
+  }
+}

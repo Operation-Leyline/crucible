@@ -9,6 +9,7 @@ mod ast;
 mod diagnostics;
 pub mod ir;
 mod lower;
+mod resources;
 mod shape_id;
 mod timestamp_default;
 
@@ -68,8 +69,23 @@ impl Model {
             .collect()
     }
 
-    /// Lower `service`, or the model's only service when `None`.
+    /// Lower the operation contract for SDKs and servers. Resource-only shapes
+    /// and provisioning diagnostics are excluded. `None` selects the only service.
     pub fn lower(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
+        self.lower_service(service, false)
+    }
+
+    /// Lower the operation contract plus resource metadata and resource-only
+    /// shapes for infrastructure generators. Includes provisioning diagnostics.
+    pub fn lower_infrastructure(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
+        self.lower_service(service, true)
+    }
+
+    fn lower_service(
+        &self,
+        service: Option<&ShapeId>,
+        infrastructure: bool,
+    ) -> Result<ir::Service, Error> {
         let id = match service {
             Some(id) if self.services().contains(id) => id.clone(),
             Some(id) => return Err(Error::UnknownService(id.clone())),
@@ -79,7 +95,7 @@ impl Model {
                 many => return Err(Error::AmbiguousService(many.to_vec())),
             },
         };
-        lower::lower(&self.shapes, &id).map_err(Error::Unsupported)
+        lower::lower(&self.shapes, &id, infrastructure).map_err(Error::Unsupported)
     }
 }
 
