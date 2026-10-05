@@ -68,7 +68,8 @@ and read `output.Caption` directly. A property left untouched is absent; assigni
 `NamePresence` property uses `Optional<T>`: default is absent, `Optional<T>.Null`
 is explicit null, and `Optional<T>.Of(value)` supplies a value. Inspect `IsSet`
 and `IsNull` there, or assign `default` to restore absence. Lists and maps use
-`List<T>` and `Dictionary<TKey, TValue>` directly, without generated subclasses. Missing response members receive modeled defaults; explicit null does
+`List<T>` and `Dictionary<TKey, TValue>` directly. Recursive collection cycles
+retain named subclasses because C# cannot express recursive type aliases. Missing response members receive modeled defaults; explicit null does
 not become a default and is rejected for nonnullable value properties.
 
 String enums are records accepting unknown strings. Unions expose one present
