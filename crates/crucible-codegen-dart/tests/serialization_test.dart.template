@@ -1,0 +1,59 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:weather_client/weather_client.dart';
+import 'package:weather_client/src/runtime/codec.dart';
+import 'package:weather_client/src/runtime/json.dart';
+import 'package:weather_client/src/models.dart' show decodeModel;
+import 'package:weather_client/src/schema.dart';
+import 'fixtures.dart';
+
+// Compare decimal values without routing either side through a double. The
+// corpus uses at most nine fractional places and signed 64-bit whole values.
+Object? exactTree(Object? value) {
+  if (value is JsonNumber) return value.scaled(9);
+  if (value is List) return value.map(exactTree).toList();
+  if (value is Map<String, Object?>) {
+    return value.map((key, item) => MapEntry(key, exactTree(item)));
+  }
+  return value;
+}
+
+void main() {
+  final codec = WireCodec(wireObject(exactJsonDecode(schemaSource)), decodeModel);
+  for (final row in jsonDecode(serializationCases) as List) {
+    test('shared serialization ${row['id']}', () {
+      final context = codec.context(row['target'] as String);
+      Object? decode() => codec.decode(exactJsonDecode(row['wire'] as String), context);
+      if (row['reject'] == true) {
+        expect(decode, throwsFormatException);
+        return;
+      }
+      final native = decode();
+      final expected = row['expect'] as Map<String, dynamic>;
+      final actual = exactJsonDecode(exactJsonEncode(codec.encode(native, context)));
+      expect(exactTree(actual), exactTree(exactJsonDecode(expected['json'] as String)));
+      for (final entry in (expected['states'] as Map<String, dynamic>? ?? {}).entries) {
+        final city = native as CitySummary;
+        final Object field = switch (entry.key) {
+          'population' => city.population,
+          'updatedAt' => city.updatedAt,
+          'createdAt' => city.createdAt,
+          _ => throw StateError('Unmapped native member ${entry.key}'),
+        };
+        final state = field is Field ? (!field.isSet ? 'absent' : field.value == null ? 'null' : 'value') : 'value';
+        expect(state, entry.value);
+      }
+      if (expected['blobHex'] != null) {
+        expect((native as Uint8List).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(), expected['blobHex']);
+      }
+      if (expected['instant'] != null) {
+        final instant = expected['instant'] as Map<String, dynamic>;
+        final city = native as CitySummary;
+        final stamp = (instant['member'] == 'updatedAt' ? city.updatedAt : city.createdAt).value!;
+        expect(stamp.seconds.toString(), instant['seconds']);
+        expect(stamp.nanoseconds, instant['nanoseconds']);
+      }
+    });
+  }
+}

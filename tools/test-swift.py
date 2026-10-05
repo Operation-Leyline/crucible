@@ -117,10 +117,12 @@ def qualify(output):
     tests = package / "Tests/RuntimeTests"
     tests.mkdir(parents=True)
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/RuntimeTests.swift", tests / "RuntimeTests.swift")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/SerializationTests.swift", tests / "SerializationTests.swift")
     with weather() as endpoint, fixture() as fixture_url:
         swift("test", package, scratch, env=dict(os.environ, WEATHER_URL=endpoint,
             FIXTURE_URL=fixture_url, RETRY_CASES=str(ROOT / "tests/conformance/retry.json"),
-            HEADER_CASES=str(ROOT / "tests/conformance/header-lists.json")))
+            HEADER_CASES=str(ROOT / "tests/conformance/header-lists.json"),
+            SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))
     void_model = {"smithy": "2.0", "shapes": {
         "example.void#Service": {"type": "service", "version": "1",
             "traits": {"crucible.protocols#json": {}}, "operations": [{"target": "example.void#Ping"}]},

@@ -1,10 +1,14 @@
 # Kotlin clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate kotlin` emits native Kotlin models, coroutine operations,
 and a Maven jar for JVM and Android applications. The generated source uses
 Kotlin 2.2.20, Java 8 APIs, OkHttp, Gson, and kotlinx.coroutines. Android
 consumers need API 26 or later. Kotlin/Native and Kotlin/JS are separate future
 targets.
+
+## Generating and installing
 
 ```sh
 cargo run -p crucible-cli -- generate kotlin model.json \
@@ -20,6 +24,8 @@ one data class per variant, and string enums accept unknown string values.
 Unknown union variants preserve their name and JSON value. Generated codecs
 dispatch directly to constructors without model reflection.
 
+## Calling operations
+
 ```kotlin
 Client(ClientConfig(endpoint = "https://weather.example", token = { accessToken() })).use { client ->
     val city = client.createCity(Models.CreateCityInput(name = OptionalValue.of("London")))
@@ -28,6 +34,8 @@ Client(ClientConfig(endpoint = "https://weather.example", token = { accessToken(
     }
 }
 ```
+
+## Transport and cancellation
 
 Operations are suspending functions; paginators return a cold `Flow`. Each
 collection has its own pagination state, preserves caller input, and detects
@@ -43,6 +51,8 @@ Close the generated client to release its owned transport. Credentials require
 HTTPS except on loopback. Middleware runs before the optional SHA-256 digest,
 which covers exactly the buffered bytes sent. Successful responses without
 modeled body members do not read the response body.
+
+## Models and errors
 
 Optional members use `OptionalValue<T>`: `unset()` is absent, `of(null)` is
 explicit null, and `of(value)` is present. Required members are constructor
@@ -62,10 +72,12 @@ model, accessor, union variant, and operation naming collisions are diagnostics.
 OkHttp cannot send GET or HEAD request bodies, so the generator diagnoses these
 bindings explicitly.
 
-Retry eligibility follows [the shared contract](clients.md). A valid
+Retry eligibility follows [the shared contract](../clients.md). A valid
 `Retry-After` overrides jitter, including zero. Idempotency tokens are generated
 once per call. Transport failures retry only safe operations; malformed
 successful JSON and cancellation do not retry.
+
+## Qualification
 
 `python tools/test-kotlin.py` installs a Maven jar and compiles a separate
 consumer, runs shared retry/header cases and weather-service HTTP tests, and

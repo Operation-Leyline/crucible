@@ -26,7 +26,7 @@ def qualify(output):
     tests = package / "test"
     tests.mkdir()
     source = ROOT / "crates/crucible-codegen-dart/tests"
-    for name in ["runtime", "native", "http"]:
+    for name in ["runtime", "native", "http", "serialization"]:
         shutil.copyfile(source / f"{name}_test.dart.template", tests / f"{name}_test.dart")
     for name in ["json", "timestamp", "codec"]:
         checks = (source / f"{name}_test.dart").read_text().replace(
@@ -46,13 +46,14 @@ void main() {
     with weather() as endpoint, fixture() as fixture_url:
         fixtures = {"weatherUrl": endpoint, "fixtureUrl": fixture_url,
             "retryCases": (ROOT / "tests/conformance/retry.json").read_text(),
-            "headerCases": (ROOT / "tests/conformance/header-lists.json").read_text()}
+            "headerCases": (ROOT / "tests/conformance/header-lists.json").read_text(),
+            "serializationCases": (ROOT / "tests/conformance/serialization.json").read_text()}
         (tests / "fixtures.dart").write_text("\n".join(
             f"const {name} = {json.dumps(value, ensure_ascii=True).replace('$', chr(92) + '$')};"
             for name, value in fixtures.items()), encoding="utf-8")
         dart("analyze", cwd=package)
         dart("test", "--reporter", "expanded", cwd=package)
-        dart("test", "--platform", "chrome", "--reporter", "expanded", "test/runtime_test.dart", "test/http_test.dart", "test/exact_test.dart", cwd=package)
+        dart("test", "--platform", "chrome", "--reporter", "expanded", "test/runtime_test.dart", "test/http_test.dart", "test/exact_test.dart", "test/serialization_test.dart", cwd=package)
     qualify_packages(output, package)
     print("Dart VM, Chrome conformance, and real weather HTTP passed")
 

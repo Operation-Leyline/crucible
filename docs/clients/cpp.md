@@ -1,5 +1,7 @@
 # C++ clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate cpp` emits a C++20 static library, native models, synchronous
 client methods, and lazy paginators. The generated CMake package depends on
 libcurl 7.68 or later with asynchronous DNS and OpenSSL 1.1.1 or later. Qualification uses GCC 11 on
@@ -89,7 +91,7 @@ the wire status, error name, request ID, headers, and retry traits, including
 when malformed members require a generic `ServiceError` fallback.
 
 `ClientConfig` controls the whole-call timeout, attempt limit, base delay, and
-maximum jitter delay. The [shared retry contract](clients.md#http-retry-contract)
+maximum jitter delay. The [shared retry contract](../clients.md#http-retry-contract)
 applies. Generated idempotency tokens and prepared body bytes remain stable
 across attempts; credentials and middleware run again for each attempt.
 HTTP header maps use case-insensitive keys, including middleware assignments.

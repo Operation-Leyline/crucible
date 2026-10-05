@@ -1,13 +1,17 @@
 # Swift clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate swift` emits a Swift 6 package with typed models, async
 operations, and `AsyncSequence` pagination. The package uses Foundation's
 `URLSession` and Swift Crypto for SHA-256. Its Apple deployment targets are
 macOS 12 and iOS 15; the same package builds on Linux.
 
+## Generating and installing
+
 ```sh
 cargo run -p crucible-cli -- generate swift model.json \
-  --out generated/client --package-name LeylineClient --module-name LeylineClient \
+  --out generated/client --package-name WeatherClient --module-name Weather \
   --package-version 0.1.0 --endpoint https://api.example --content-sha256
 swift build --package-path generated/client
 ```
@@ -16,6 +20,8 @@ Add the generated directory as a Swift Package Manager dependency and depend
 on its library product. Package versions are recorded in provenance; publish
 the package in a Git repository with a matching version tag for remote SwiftPM
 consumers. Generation does not publish a package.
+
+## Calling operations
 
 ```swift
 import Weather
@@ -29,6 +35,8 @@ func readCities(accessToken: @escaping @Sendable () async throws -> String?) asy
     }
 }
 ```
+
+## Models and precision
 
 Models live under `Models`. Structures are mutable value types, unions are
 indirect enums, and string enums retain unknown values through `rawValue`.
@@ -50,6 +58,8 @@ to a nonempty request payload. An empty raw response remains a present empty
 `Data` value. The optional SHA-256 digest covers exactly the bytes sent after
 middleware runs.
 
+## Transport and errors
+
 Each operation has one overall timeout, including token providers, middleware,
 network I/O, and retry delays. Cancellation cancels the active URLSession task
 and returns promptly even if a hook ignores cancellation. Hooks should still
@@ -66,7 +76,7 @@ task cancellation and the `readBody` contract.
 Modeled errors conform to `ServiceError`. Their metadata retains the actual
 status, error name, request ID, response headers, and retry traits. Malformed
 modeled error members fall back to `UnknownServiceError` with that metadata.
-Retry decisions follow [the shared contract](clients.md). A valid `Retry-After`
+Retry decisions follow [the shared contract](../clients.md). A valid `Retry-After`
 overrides jitter, including zero; cancellation and malformed successful JSON
 do not retry.
 
@@ -74,6 +84,8 @@ Generation diagnoses naming collisions, GET/HEAD bodies unsupported by
 URLSession, recursive collection aliases, and cycles made entirely of required
 structure fields. Recursion through optional members, unions, or collections
 containing a nominal structure remains representable.
+
+## Qualification
 
 `python tools/test-swift.py` compiles the native package and a separate consumer,
 runs shared retry and header fixtures, exercises URLSession and the real weather

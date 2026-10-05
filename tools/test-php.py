@@ -25,6 +25,7 @@ def qualify(output):
     composer("validate", "--no-check-publish", cwd=package)
     composer("install", cwd=package)
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/models.php"), env=dict(os.environ, PHP_PACKAGE=str(package)))
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/serialization.php"), env=dict(os.environ, PHP_PACKAGE=str(package)))
     with weather() as endpoint, fixture() as fixture_url:
         run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/runtime.php"),
             env=dict(os.environ, PHP_PACKAGE=str(package), WEATHER_URL=endpoint, FIXTURE_URL=fixture_url, RETRY_CASES=str(ROOT / "tests/conformance/retry.json")))

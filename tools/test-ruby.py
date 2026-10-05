@@ -22,6 +22,7 @@ def qualify(output):
         "--module-name", "Weather", "--content-sha256")
     for source in sorted(package.rglob("*.rb")):
         run(RUBY, "-c", str(source))
+    run(RUBY, "-I", str(package / "lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/serialization.rb"))
     with weather() as endpoint, fixture() as fixture_url:
         run(RUBY, "-I", str(package / "lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/runtime.rb"),
             env=dict(os.environ, WEATHER_URL=endpoint, FIXTURE_URL=fixture_url,

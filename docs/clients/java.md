@@ -1,6 +1,10 @@
 # Java clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 Generate a Java 17+ Maven package:
+
+## Generating and installing
 
 ```sh
 cargo run -p crucible-cli -- generate java model.json \
@@ -15,6 +19,8 @@ to the Maven artifact version. The jar includes the lowered wire description
 and `crucible.json` with generator/service versions and a wire-schema SHA-256.
 The runtime uses JDK HTTP and Gson; Maven declares the dependency.
 
+## Calling operations
+
 ```java
 var config = new ClientConfig();
 config.token = () -> credentials.currentToken();
@@ -24,6 +30,8 @@ input.name = OptionalValue.of("Oslo");
 var city = client.createCity(input);
 CompletableFuture<Models.CreateCityOutput> future = client.createCityAsync(input);
 ```
+
+## Models and errors
 
 Models are public nested types under `Models`. Structures have typed fields;
 lists and maps retain named collection classes. Smithy primitive aliases use
@@ -44,6 +52,8 @@ Modeled exceptions extend `ServiceError`. Catch the generated type or inspect
 `errorName()`, `status()`, `requestId()`, `headers()`, `retryable()`, and
 `throttling()`. Transport failures use `NetworkError`. Successful JSON decoding
 failures are surfaced directly and are not retried.
+
+## Transport and cancellation
 
 Each operation has synchronous and `CompletableFuture` methods. Cancelling the
 returned future cancels active transport and pending retries. Interrupting a
@@ -66,9 +76,12 @@ wire representation of input, follows nested continuation paths, and rejects
 repeated tokens. Use each iterator from one thread. Ordinary async methods
 remain available for applications managing pagination themselves.
 
+## Qualification
+
 Run `python tools/test-java.py` with Maven, a JDK, and Rust available. Set
 `MAVEN` to an executable path if necessary. The harness builds the jar and
 tests it through a separate consumer, shared retry/header cases, and the
-weather service over HTTP. The adapted full local Leyline projection also
-compiles and packages (116 operations). Published Maven artifacts and
-authenticated deployed Leyline traffic are separate qualification steps.
+weather service over HTTP. Generate and package the current full Leyline
+projection separately, recording its model fingerprint and operation coverage.
+Published Maven artifacts and authenticated deployed Leyline traffic are
+separate qualification steps.

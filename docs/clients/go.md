@@ -1,6 +1,10 @@
 # Go clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 Generate a Go 1.24+ module from the Smithy JSON projection:
+
+## Generating and installing
 
 ```sh
 cargo run -p crucible-cli -- generate go model.json \
@@ -17,6 +21,8 @@ third-party dependencies. Publish it using ordinary Go module tags; its
 lowered wire description. The module path is explicit and independent of the
 service name.
 
+## Calling operations
+
 ```go
 client, err := weather.NewClient(weather.Config{
     Endpoint: "https://api.example.com",
@@ -30,6 +36,8 @@ city, err := client.CreateCity(ctx, &weather.CreateCityInput{
     Name: weather.Some[weather.CityName]("Oslo"),
 })
 ```
+
+## Models and errors
 
 Every operation takes a context. A payload-free operation uses `Unit{}`.
 Optional fields use `Optional[T]`: its zero value omits a member, `Some(value)`
@@ -53,13 +61,15 @@ Modeled errors support `errors.As(err, &typedError)`. Their `Metadata` is a
 request ID, headers, and retry traits. Transport failures use `*NetworkError`;
 context cancellation and deadlines retain their context errors.
 
+## Transport and pagination
+
 `Config.HTTPClient` accepts an injected `Do(*http.Request)` transport and remains
 caller-owned. The default client does not follow redirects. Token providers
 and middleware run per attempt. Credentials require HTTPS except on loopback.
 The optional digest covers the bytes after middleware. Tokens are generated
 once per call and retries reuse them without changing the input model.
 
-Retries follow the [shared client policy](clients.md). `MaxAttempts` includes
+Retries follow the [shared client policy](../clients.md). `MaxAttempts` includes
 the first attempt (default 3); `Timeout` is an overall context deadline
 (default 30 seconds). `BaseDelay` and `MaxDelay` default to 100 milliseconds
 and 20 seconds; nonzero values override them. Retry-After takes precedence.
@@ -71,9 +81,11 @@ input. Call `NextPage(ctx)` while `HasMorePages()` is true. Repeated continuatio
 tokens stop pagination with an error. Paginators are stateful and should be
 used by one goroutine at a time.
 
+## Qualification
+
 `python tools/test-go.py` generates the package, checks it with `go vet`, runs
 shared cases and real weather-service HTTP tests, and consumes the SDK from a
 separate Go module. Set `GO` to a compiler path when it is not on PATH.
-The full adapted local Leyline projection also generates and compiles: 116
-operations, 30 paginators, and 34 token-bearing operations. This qualification
-does not cover a published module or authenticated deployed Leyline traffic.
+Generate and compile the current full Leyline projection separately, recording
+its model fingerprint and operation coverage. Local tests do not cover a
+published module or authenticated deployed Leyline traffic.

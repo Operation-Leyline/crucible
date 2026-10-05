@@ -1,13 +1,17 @@
 # Dart clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate dart` emits typed models, asynchronous operations, and
 `Stream` pagination. Generated packages require Dart 3.6.2 or later within
 Dart 3.x, `package:http` 1.6, and `package:crypto` 3.x. They use the same
 runtime on the native VM and in browsers, with no Flutter dependency.
 
+## Generating and installing
+
 ```sh
 cargo run -p crucible-cli -- generate dart model.json \
-  --out generated/client --package-name leyline_client \
+  --out generated/client --package-name weather_client \
   --package-version 0.1.0 --endpoint https://api.example --content-sha256
 cd generated/client
 dart pub get
@@ -18,6 +22,8 @@ Add the generated directory as a path dependency, or distribute it through
 your package repository. Generation writes a pubspec and provenance manifest;
 it does not publish the package. The package owner supplies repository metadata,
 license, and release documentation before publishing.
+
+## Calling operations
 
 ```dart
 import 'package:weather_client/weather_client.dart';
@@ -34,6 +40,8 @@ Future<void> readCities(TokenProvider accessToken) async {
   } finally { client.close(); }
 }
 ```
+
+## Models and precision
 
 Models expose final fields and const constructors where possible. Collections
 remain ordinary Dart collections. Each call snapshots its input before
@@ -58,6 +66,8 @@ Raw blob payloads use bytes directly. An empty response payload remains present;
 an empty request payload sends no body or content type. Optional SHA-256 covers
 the final bytes after middleware.
 
+## Transport and errors
+
 Calls return `Future<Output>` and accept a `CancellationToken`. One deadline
 covers hooks, network I/O, decoding, and retry delays. Token providers and
 middleware run for every attempt; generated idempotency tokens remain stable.
@@ -79,12 +89,16 @@ the default HTTP client. Credentials require HTTPS except on loopback.
 Successful responses with no modeled body are discarded without draining them.
 Modeled errors implement `ServiceError`; metadata retains wire status, name,
 request ID, headers, and retry traits even if modeled members are malformed.
-Retries follow [the shared contract](clients.md), with bounded attempts and
+Retries follow [the shared contract](../clients.md), with bounded attempts and
 cancellable Retry-After or jitter delays.
 
 Generation diagnoses naming collisions, recursive collection aliases, and
 GET/HEAD bodies unsupported by browser Fetch. Nominal recursive structures are
-supported. `python tools/test-dart.py` checks shared retry and header cases,
+supported.
+
+## Qualification
+
+`python tools/test-dart.py` checks shared retry and header cases,
 real HTTP, minimum-version analysis, native and JavaScript consumer compilation,
 and empty and renamed packages. Set `DART` to select the SDK executable and
 `CHROME_EXECUTABLE` if Chrome is not on its usual path. These checks do not

@@ -72,7 +72,7 @@ add_subdirectory("{(output / 'edge').as_posix()}" edge)
 add_subdirectory("{(output / 'empty').as_posix()}" empty)
 add_executable(edge_models "{tests.as_posix()}/edge_models.cpp")
 target_link_libraries(edge_models PRIVATE edge_client empty_client)
-foreach(name core runtime proxy)
+foreach(name core runtime proxy serialization)
   add_executable(${{name}} "{tests.as_posix()}/${{name}}.cpp")
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
   target_include_directories(${{name}} PRIVATE "{install.as_posix()}/include/weather_client/runtime")
@@ -92,6 +92,8 @@ endforeach()
         runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
     run(str(executable(consumer_build, "core")), env=runtime_env)
     run(str(executable(consumer_build, "edge_models")), env=runtime_env)
+    run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
+        SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))
     with weather() as endpoint, fixture() as fixture_url:
         run(str(executable(consumer_build, "runtime")), env=dict(runtime_env, WEATHER_URL=endpoint,
             FIXTURE_URL=fixture_url, RETRY_CASES=str(ROOT / "tests/conformance/retry.json"),

@@ -407,6 +407,9 @@ host, so they move with the service; `into_router()` gives an
 
 ## Clients
 
+For package setup, calls, and runtime limits, see the [Rust client guide](clients/rust.md).
+The [client index](clients.md) links every other language.
+
 `crucible_build::client("<links>")` generates a client from the same model
 package, into `crucible_client::include_client!()`. The model and error code
 is the server's, generated against `crucible-client`, which re-exports the

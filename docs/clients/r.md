@@ -1,5 +1,7 @@
 # R client
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate r` emits an installable R package with native model
 constructors, operation methods, error conditions, and lazy paginators. It uses
 the shared lowered IR for bindings, defaults, nullability, timestamp formats,
@@ -95,7 +97,8 @@ Polling bounds cancellation checks during stalled network reads. Successful
 operations with no modeled response body stop reading after response headers;
 error bodies remain available for decoding.
 
-Retries follow the shared contract: safe operations retry transport failures
+Retries follow the [shared contract](../clients.md#http-retry-contract):
+safe operations retry transport failures
 and eligible server or modeled retryable errors; modeled throttling can retry
 unsafe operations. `Retry-After` supports a nonnegative delay or HTTP date.
 A delay beyond the remaining call budget waits cancellably until the deadline.

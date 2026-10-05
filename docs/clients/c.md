@@ -1,10 +1,14 @@
 # C clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate c` emits a C17 CMake package with native model structs,
 typed operation functions, a libcurl transport, and lazy page iterators.
 Generation reads the shared Smithy IR. The package bundles its runtime and
 records the generator, service, package version, and schema digest in
 `crucible.json`.
+
+## Generating and installing
 
 ```sh
 crucible generate c model.json --out sdk \
@@ -94,7 +98,7 @@ change the request. Use `weather_header_set` for case-insensitive replacement.
 When enabled, the SHA-256 header is computed after middleware over the final
 body bytes. Credentials require HTTPS, except on loopback HTTP.
 
-The runtime follows the [shared retry contract](clients.md#http-retry-contract).
+The runtime follows the [shared retry contract](../clients.md#http-retry-contract).
 One idempotency token is generated before the first attempt. Retries use a
 fresh credential callback, bounded jitter, and Retry-After when valid. One
 monotonic deadline covers preparation, callbacks, transport, retries, and
@@ -124,6 +128,12 @@ older than 7.84. On Linux, owned network work blocks SIGPIPE only in the calling
 thread and restores its previous signal mask. No process-wide signal handler
 is installed.
 
+## Qualification
+
+Run `python tools/test-c.py` for generated CMake installation, a separate
+consumer, shared fixtures, and native weather-service HTTP tests. CI covers
+GCC with sanitizers and MSVC.
+
 Native package tests and full-model compilation are separate from authenticated
-Leyline qualification and package publication. See [client coverage](clients.md)
+Leyline qualification and package publication. See [client coverage](../clients.md)
 for the remaining acceptance requirements.

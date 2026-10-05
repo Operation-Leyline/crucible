@@ -107,6 +107,34 @@ static class Program
         var runtime = Runtime(new() { Endpoint = "https://example.invalid" });
         try
         {
+            foreach (var row in J(File.ReadAllText(Path.Combine(Path.GetDirectoryName(path)!, "serialization.json"))).AsArray())
+            {
+                var test = row!; var id = test["id"]!.GetValue<string>(); var target = test["target"]!.GetValue<string>();
+                object value;
+                try { value = Decode(runtime, target, test["wire"]!.GetValue<string>()); }
+                catch (Exception e) when (e is JsonException or FormatException or OverflowException or ArgumentException)
+                { if (test["reject"]?.GetValue<bool>() == true) continue; throw new Exception(id, e); }
+                Check(test["reject"]?.GetValue<bool>() != true, id + " accepted invalid wire");
+                var expect = test["expectByProfile"]?["dotnet-ticks"] ?? test["expect"]!;
+                var sharedEncoded = Encode(runtime, target, value);
+                Check(ExactJsonEquals(sharedEncoded, J(expect["json"]!.GetValue<string>())), id + ": " + sharedEncoded);
+                if (expect["states"] is JsonObject states) foreach (var (member, state) in states)
+                {
+                    var optional = value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..])!.GetValue(value)!;
+                    var set = (bool?)optional.GetType().GetProperty("IsSet")?.GetValue(optional) ?? true;
+                    var isNull = (bool?)optional.GetType().GetProperty("IsNull")?.GetValue(optional) ?? false;
+                    Check((!set ? "absent" : isNull ? "null" : "value") == state!.GetValue<string>(), id + " native presence");
+                }
+                if (expect["blobHex"] is JsonNode blobHex) Check(Convert.ToHexString((byte[])value).ToLowerInvariant() == blobHex.GetValue<string>(), id + " bytes");
+                if (expect["instant"] is JsonNode instant)
+                {
+                    var member = instant["member"]!.GetValue<string>();
+                    var optional = value.GetType().GetProperty(char.ToUpperInvariant(member[0]) + member[1..])!.GetValue(value)!;
+                    var time = (DateTimeOffset)optional.GetType().GetProperty("Value")!.GetValue(optional)!;
+                    long seconds = time.ToUnixTimeSeconds(), nanos = (time - DateTimeOffset.FromUnixTimeSeconds(seconds)).Ticks * 100;
+                    Check(seconds.ToString(System.Globalization.CultureInfo.InvariantCulture) == instant["seconds"]!.GetValue<string>() && nanos == instant["nanoseconds"]!.GetValue<int>(), id + " instant");
+                }
+            }
             byte[] blob = [0xff, 0, 0x80, 0x01];
             Check(Encode(runtime, "example.weather#Thumbnail", blob).GetValue<string>() == "/wCAAQ==", "blob base64 encoding");
             Check(((byte[])Decode(runtime, "example.weather#Thumbnail", "\"/wCAAQ==\"")).SequenceEqual(blob), "blob base64 decoding");
@@ -141,6 +169,13 @@ static class Program
         }
         finally { ((IDisposable)runtime).Dispose(); }
     }
+    static bool ExactJsonEquals(JsonNode? a, JsonNode? b)
+    {
+        if (a is JsonObject x) return b is JsonObject y && x.Count == y.Count && x.All(pair => y.ContainsKey(pair.Key) && ExactJsonEquals(pair.Value, y[pair.Key]));
+        if (a is JsonArray list) return b is JsonArray other && list.Count == other.Count && list.Select((item, i) => ExactJsonEquals(item, other[i])).All(ok => ok);
+        if (a?.GetValueKind() == JsonValueKind.Number) return b?.GetValueKind() == JsonValueKind.Number && decimal.Parse(a.ToJsonString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture) == decimal.Parse(b.ToJsonString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture);
+        return JsonNode.DeepEquals(a, b);
+    }
     static async Task HttpBehavior()
     {
         var sent = new List<byte[]>(); int credentials = 0;
@@ -167,7 +202,7 @@ static class Program
             var city = await client.GetCityAsync(new() { CityId = "a/b *?#é" });
             Check(city.RequestIdValue.Value == "r1", "response header");
         }
-        await using (var server = new Server(_ => new(400, """{"__type":"ValidationError","message":"bad","requestId":"body"}""", new() { ["x-request-id"] = "wire" })))
+        await using (var server = new Server(_ => new(400, """{"__type":"ValidationError","message":"bad","reason":"other","requestId":"body"}""", new() { ["x-request-id"] = "wire" })))
         {
             using var client = new Client(new() { Endpoint = server.Endpoint });
             try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("typed error missing"); }

@@ -129,7 +129,86 @@ public final class ClientTest {
     }
   }
 
+  static void sharedSerialization(Path path) throws Exception {
+    var config = new ClientConfig();
+    config.endpoint = "https://example.invalid";
+    var runtime = new ClientRuntime(config, "", false, Models.classes());
+    for (var row : JsonParser.parseString(Files.readString(path)).getAsJsonArray()) {
+      var test = row.getAsJsonObject();
+      String id = test.get("id").getAsString(), target = test.get("target").getAsString();
+      Object nativeValue;
+      try {
+        nativeValue =
+            runtime.decode(target, JsonParser.parseString(test.get("wire").getAsString()), null);
+      } catch (IllegalArgumentException | ArithmeticException e) {
+        if (test.has("reject") && test.get("reject").getAsBoolean()) continue;
+        throw new AssertionError(id, e);
+      }
+      check(
+          !test.has("reject") || !test.get("reject").getAsBoolean(), id + " accepted invalid wire");
+      var expected = test.getAsJsonObject("expect");
+      var actual = runtime.encode(target, nativeValue, null);
+      // Gson's numeric equals compares through double for lazily parsed numbers.
+      check(
+          exactJsonEquals(actual, JsonParser.parseString(expected.get("json").getAsString())),
+          id + ": " + actual);
+      if (expected.has("states"))
+        for (var state : expected.getAsJsonObject("states").entrySet()) {
+          var field = nativeValue.getClass().getField(state.getKey()).get(nativeValue);
+          String value =
+              field instanceof OptionalValue<?> optional
+                  ? (!optional.present() ? "absent" : optional.value() == null ? "null" : "value")
+                  : "value";
+          check(value.equals(state.getValue().getAsString()), id + " native presence");
+        }
+      if (expected.has("blobHex"))
+        check(
+            HexFormat.of()
+                .formatHex((byte[]) nativeValue)
+                .equals(expected.get("blobHex").getAsString()),
+            id + " bytes");
+      if (expected.has("instant")) {
+        var instant = expected.getAsJsonObject("instant");
+        var optional =
+            (OptionalValue<?>)
+                nativeValue
+                    .getClass()
+                    .getField(instant.get("member").getAsString())
+                    .get(nativeValue);
+        var value = (Instant) optional.value();
+        check(
+            Long.toString(value.getEpochSecond()).equals(instant.get("seconds").getAsString())
+                && value.getNano() == instant.get("nanoseconds").getAsInt(),
+            id + " instant");
+      }
+    }
+  }
+
+  static boolean exactJsonEquals(com.google.gson.JsonElement a, com.google.gson.JsonElement b) {
+    if (a.isJsonPrimitive() && a.getAsJsonPrimitive().isNumber())
+      return b.isJsonPrimitive()
+          && b.getAsJsonPrimitive().isNumber()
+          && a.getAsBigDecimal().compareTo(b.getAsBigDecimal()) == 0;
+    if (a.isJsonObject()) {
+      if (!b.isJsonObject() || a.getAsJsonObject().size() != b.getAsJsonObject().size())
+        return false;
+      for (var entry : a.getAsJsonObject().entrySet())
+        if (!b.getAsJsonObject().has(entry.getKey())
+            || !exactJsonEquals(entry.getValue(), b.getAsJsonObject().get(entry.getKey())))
+          return false;
+      return true;
+    }
+    if (a.isJsonArray()) {
+      if (!b.isJsonArray() || a.getAsJsonArray().size() != b.getAsJsonArray().size()) return false;
+      for (int i = 0; i < a.getAsJsonArray().size(); i++)
+        if (!exactJsonEquals(a.getAsJsonArray().get(i), b.getAsJsonArray().get(i))) return false;
+      return true;
+    }
+    return a.equals(b);
+  }
+
   static void serialization(Path headers) throws Exception {
+    sharedSerialization(headers.resolveSibling("serialization.json"));
     ClientConfig config = new ClientConfig();
     config.endpoint = "https://example.invalid";
     var runtime = new ClientRuntime(config, "", false, Models.classes());

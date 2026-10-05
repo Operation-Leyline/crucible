@@ -22,6 +22,8 @@ def qualify(output):
         "--module-path", "example.com/weather", "--package-name", "weather",
         "--endpoint", "https://weather.example", "--content-sha256")
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/runtime_test.go", package / "runtime_test.go")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/serialization_test.go", package / "serialization_test.go")
+    shutil.copyfile(ROOT / "tests/conformance/serialization.json", package / "serialization.json")
     shutil.copyfile(ROOT / "tests/conformance/retry.json", package / "retry.json")
     shutil.copyfile(ROOT / "tests/conformance/header-lists.json", package / "header-lists.json")
     shutil.copyfile(ROOT / "tests/conformance/malformed-errors.json", package / "malformed-errors.json")
