@@ -87,6 +87,18 @@ impl<'m> Lowerer<'m> {
             })
             .collect();
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
+        let resources = crate::resources::lower(self.model, shape, &mut self.diagnostics);
+        for resource in resources.values() {
+            for target in resource
+                .identifiers
+                .values()
+                .chain(resource.properties.values())
+            {
+                self.visit(target);
+            }
+        }
+        let resource_references =
+            crate::resources::references(self.model, self.shapes.keys(), &mut self.diagnostics);
         self.check_stray_payloads(&operations);
         Service {
             id: id.clone(),
@@ -95,6 +107,9 @@ impl<'m> Lowerer<'m> {
             docs: string_trait(&shape.traits, "documentation"),
             auth,
             operations,
+            resources,
+            resource_roots: crate::resources::sorted_refs(&shape.resources),
+            resource_references,
             shapes: std::mem::take(&mut self.shapes),
             traits: shape.traits.clone(),
             renames: shape.rename.clone(),

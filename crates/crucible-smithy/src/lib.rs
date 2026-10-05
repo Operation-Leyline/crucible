@@ -9,6 +9,7 @@ mod ast;
 mod diagnostics;
 pub mod ir;
 mod lower;
+mod resources;
 mod shape_id;
 
 use std::collections::BTreeMap;

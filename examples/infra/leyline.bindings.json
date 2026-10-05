@@ -1,0 +1,299 @@
+{
+  "resources": {
+    "dev.leyline#Graph": {
+      "name": "Graph",
+      "properties": {
+        "organizationId": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphInput",
+            "path": [
+              "organizationId"
+            ]
+          },
+          "required": true
+        },
+        "graphId": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphInput",
+            "path": [
+              "graphId"
+            ]
+          },
+          "required": false
+        },
+        "name": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphInput",
+            "path": [
+              "name"
+            ]
+          },
+          "required": false
+        },
+        "description": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphInput",
+            "path": [
+              "description"
+            ]
+          },
+          "required": false
+        },
+        "keySpec": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphInput",
+            "path": [
+              "keySpec"
+            ]
+          },
+          "required": false
+        }
+      },
+      "attributes": {
+        "graphId": {
+          "source": {
+            "shape": "dev.leyline#GraphData",
+            "path": [
+              "id"
+            ]
+          }
+        },
+        "createdAt": {
+          "source": {
+            "shape": "dev.leyline#GraphData",
+            "path": [
+              "createdAt"
+            ]
+          }
+        }
+      },
+      "cdk": {
+        "resource_type": "Custom::LeylineGraph",
+        "class_name": "CfnGraph",
+        "context": {
+          "secretArn": {
+            "target": "smithy.api#String",
+            "required": true,
+            "length": {
+              "min": 1
+            }
+          }
+        }
+      }
+    },
+    "dev.leyline#Index": {
+      "name": "Index",
+      "properties": {
+        "organizationId": {
+          "source": {
+            "shape": "dev.leyline#CreateIndexInput",
+            "path": [
+              "organizationId"
+            ]
+          },
+          "required": true
+        },
+        "graphId": {
+          "source": {
+            "shape": "dev.leyline#CreateIndexInput",
+            "path": [
+              "graphId"
+            ]
+          },
+          "required": true
+        },
+        "indexId": {
+          "source": {
+            "shape": "dev.leyline#CreateIndexInput",
+            "path": [
+              "indexId"
+            ]
+          },
+          "required": false
+        },
+        "property": {
+          "source": {
+            "shape": "dev.leyline#CreateIndexInput",
+            "path": [
+              "property"
+            ]
+          },
+          "required": true
+        },
+        "indexType": {
+          "source": {
+            "shape": "dev.leyline#CreateIndexInput",
+            "path": [
+              "indexType"
+            ]
+          },
+          "required": false
+        },
+        "label": {
+          "source": {
+            "shape": "dev.leyline#CreateIndexInput",
+            "path": [
+              "label"
+            ]
+          },
+          "required": false
+        },
+        "order": {
+          "source": {
+            "shape": "dev.leyline#CreateIndexInput",
+            "path": [
+              "order"
+            ]
+          },
+          "required": false
+        }
+      },
+      "attributes": {
+        "indexId": {
+          "source": {
+            "shape": "dev.leyline#IndexData",
+            "path": [
+              "id"
+            ]
+          }
+        },
+        "createdAt": {
+          "source": {
+            "shape": "dev.leyline#IndexData",
+            "path": [
+              "createdAt"
+            ]
+          }
+        }
+      },
+      "cdk": {
+        "resource_type": "Custom::LeylineIndex",
+        "class_name": "CfnIndex",
+        "context": {
+          "secretArn": {
+            "target": "smithy.api#String",
+            "required": true,
+            "length": {
+              "min": 1
+            }
+          },
+          "graphCreatedAt": {
+            "source": {
+              "shape": "dev.leyline#GraphData",
+              "path": [
+                "createdAt"
+              ]
+            },
+            "required": true,
+            "timestamp_format": "date-time"
+          }
+        }
+      }
+    },
+    "dev.leyline#GraphBackupSchedule": {
+      "name": "GraphBackupSchedule",
+      "properties": {
+        "organizationId": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphBackupScheduleInput",
+            "path": [
+              "organizationId"
+            ]
+          },
+          "required": true
+        },
+        "graphId": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphBackupScheduleInput",
+            "path": [
+              "sourceGraphId"
+            ]
+          },
+          "required": true
+        },
+        "graphCreatedAt": {
+          "source": {
+            "shape": "dev.leyline#GraphBackupScheduleData",
+            "path": [
+              "sourceGraphCreatedAt"
+            ]
+          },
+          "required": true,
+          "timestamp_format": "date-time"
+        },
+        "name": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphBackupScheduleInput",
+            "path": [
+              "name"
+            ]
+          },
+          "required": false
+        },
+        "frequency": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphBackupScheduleInput",
+            "path": [
+              "frequency"
+            ]
+          },
+          "required": true
+        },
+        "retentionSeconds": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphBackupScheduleInput",
+            "path": [
+              "retentionSeconds"
+            ]
+          },
+          "required": true,
+          "integer": true
+        },
+        "status": {
+          "source": {
+            "shape": "dev.leyline#CreateGraphBackupScheduleInput",
+            "path": [
+              "status"
+            ]
+          },
+          "required": true,
+          "enum_values": [
+            "ENABLED",
+            "DISABLED"
+          ]
+        }
+      },
+      "attributes": {
+        "scheduleId": {
+          "source": {
+            "shape": "dev.leyline#GraphBackupScheduleData",
+            "path": [
+              "id"
+            ]
+          }
+        },
+        "createdAt": {
+          "source": {
+            "shape": "dev.leyline#GraphBackupScheduleData",
+            "path": [
+              "createdAt"
+            ]
+          }
+        }
+      },
+      "cdk": {
+        "resource_type": "Custom::LeylineBackupSchedule",
+        "class_name": "CfnGraphBackupSchedule",
+        "context": {
+          "secretArn": {
+            "target": "smithy.api#String",
+            "required": true,
+            "length": {
+              "min": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
