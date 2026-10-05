@@ -10,29 +10,29 @@
 #define JOIN(a, b) JOIN_(a, b)
 #define P(name) JOIN(JOIN(PREFIX, _), name)
 
-static void check(bool condition, const char *message) {
+static inline void check(bool condition, const char *message) {
     if (!condition) { fprintf(stderr, "C feature check failed: %s\n", message); exit(1); }
 }
-static void good(P(status) status, const P(error) *error, const char *context) {
+static inline void good(P(status) status, const P(error) *error, const char *context) {
     if (status != JOIN(PREFIX, _ok)) { fprintf(stderr, "C feature call failed (%s): %d %s\n", context, (int)status, error->message); exit(1); }
 }
-static bool equal(P(string) value, const char *expected) { return P(string_equal)(value, P(string_view)(expected)); }
-static bool contains(P(string) value, const char *part) {
+static inline bool equal(P(string) value, const char *expected) { return P(string_equal)(value, P(string_view)(expected)); }
+static inline bool contains(P(string) value, const char *part) {
     size_t length = strlen(part);
     if (length > value.length) return false;
     for (size_t i = 0; i + length <= value.length; ++i) if (memcmp(value.data + i, part, length) == 0) return true;
     return false;
 }
-static bool message_contains(const P(error) *error, const char *part) { return contains(P(string_view)(error->message), part); }
-static const char *environment(const char *name) { const char *value = getenv(name); check(value != NULL, name); return value; }
-static int base64_value(char c) {
+static inline bool message_contains(const P(error) *error, const char *part) { return contains(P(string_view)(error->message), part); }
+static inline const char *environment(const char *name) { const char *value = getenv(name); check(value != NULL, name); return value; }
+static inline int base64_value(char c) {
     if (c >= 'A' && c <= 'Z') return c - 'A';
     if (c >= 'a' && c <= 'z') return c - 'a' + 26;
     if (c >= '0' && c <= '9') return c - '0' + 52;
     return c == '+' ? 62 : c == '/' ? 63 : -1;
 }
 /* The echoed request as JSON {method, path, body, headers}; lives in arena. */
-static const P(json) *echo(P(arena) *arena, const P(response) *response) {
+static inline const P(json) *echo(P(arena) *arena, const P(response) *response) {
     P(string) encoded = {0};
     check(P(header_get)(response->headers, P(string_view)("x-echo"), &encoded), "x-echo header");
     char *decoded = P(arena_alloc)(arena, encoded.length + 1, NULL);
@@ -47,7 +47,7 @@ static const P(json) *echo(P(arena) *arena, const P(response) *response) {
     good(P(json_parse)(arena, (P(string)){decoded, written}, &value, &error), &error, "echo JSON");
     return value;
 }
-static P(string) echo_text(const P(json) *value, const char *name) {
+static inline P(string) echo_text(const P(json) *value, const char *name) {
     P(string) text = {0}; P(error) error = {0};
     const P(json) *item = P(json_get)(value, P(string_view)(name));
     if (!item) return text;
@@ -55,7 +55,7 @@ static P(string) echo_text(const P(json) *value, const char *name) {
     return text;
 }
 /* A request header as received by the server; absent headers have a NULL data pointer. */
-static P(string) echo_header(P(arena) *arena, const P(response) *response, const char *name) {
+static inline P(string) echo_header(P(arena) *arena, const P(response) *response, const char *name) {
     return echo_text(P(json_get)(echo(arena, response), P(string_view)("headers")), name);
 }
 #endif

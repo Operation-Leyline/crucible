@@ -3,7 +3,7 @@ import { createHash, createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { test } from "node:test";
-import { EventStream, EventStreamError, EventsClient, NetworkError, ThrottledError, TimeoutError, UnavailableError } from "./generated-events/src/index.js";
+import { ChecksumError, EventStream, EventStreamError, EventsClient, NetworkError, ThrottledError, TimeoutError, UnavailableError } from "./generated-events/src/index.js";
 import type { ClientEvents, ServerEvents } from "./generated-events/src/index.js";
 import { EventMessageDecoder, EventSigner, crc32, decodeEventMessage, encodeEventMessage, encodeHeaders, type EventHeaderValue, type EventMessage } from "./generated-events/src/events.js";
 import { EventStream as RpcEventStream, EventsClient as RpcClient } from "./generated-events-rpc/src/index.js";
@@ -126,6 +126,34 @@ function start(response: ServerResponse, headers: Record<string, string> = {}): 
   response.flushHeaders();
 }
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+test("event response checksums cover framed bytes and reject a mismatching HTTP checksum", async () => {
+  for (const mismatch of [false, true]) {
+    const bytes = event("structured", '{"text":"checksum","itemCount":1}');
+    const value = crc32(bytes);
+    const encoded = btoa(String.fromCharCode(value >>> 24, (value >>> 16) & 255, (value >>> 8) & 255, value & 255));
+    const verified: string[] = [];
+    const server = await serve(async (request, response) => {
+      assert.equal(request.headers["x-amz-checksum-mode"], "ENABLED");
+      start(response, { "x-amz-checksum-crc32": mismatch ? "AAAAAA==" : encoded });
+      await write(response, bytes.subarray(0, 7));
+      await write(response, bytes.subarray(7));
+      response.end();
+    });
+    try {
+      const client = new EventsClient({ endpoint: server.endpoint, checksumValidated: (operation, algorithm) => verified.push(`${operation}:${algorithm}`) });
+      const output = await client.subscribeChecksums({ channel: "news", checksumMode: "ENABLED" });
+      const consume = async () => { for await (const item of output.events) assert.deepEqual(item, { structured: { text: "checksum", count: 1 } }); };
+      if (mismatch) {
+        await assert.rejects(consume(), (error: unknown) => error instanceof ChecksumError);
+        assert.deepEqual(verified, []);
+      } else {
+        await consume();
+        assert.deepEqual(verified, ["SubscribeChecksums:CRC32"]);
+      }
+    } finally { await server.close(); }
+  }
+});
 async function write(response: ServerResponse, bytes: Uint8Array): Promise<boolean> {
   if (response.destroyed) return false;
   if (!response.write(bytes)) {

@@ -326,15 +326,24 @@ impl Transport {
             let status = response.status().as_u16();
             let response_headers = response.headers().clone();
             if let (true, Some(events)) = ((200..300).contains(&status), O::OUTPUT_EVENTS) {
-                let chunks = guarded_stream(
+                let mut stream = guarded_stream(
                     ByteStream::new(response.bytes_stream())
                         .open()
                         .map_err(|e| Error::Decode(e.to_string()))?,
                     deadline,
                     cancellation,
-                )
-                .open()
-                .map_err(|e| Error::Decode(e.to_string()))?;
+                );
+                if let Some((algorithm, expected)) = response_checksum(&plan, &response_headers) {
+                    stream = verified_stream(
+                        stream,
+                        algorithm,
+                        expected,
+                        info.name,
+                        self.config.checksum_validated.clone(),
+                    )
+                    .map_err(|e| Error::Decode(e.to_string()))?;
+                }
+                let chunks = stream.open().map_err(|e| Error::Decode(e.to_string()))?;
                 let mut reader = crate::events::Reader::new(events, chunks);
                 // Without HTTP bindings the other output members arrive
                 // first, as an `initial-response` event.

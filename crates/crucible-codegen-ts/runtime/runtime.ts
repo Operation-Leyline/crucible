@@ -731,7 +731,7 @@ export class Transport {
         await sleep(delay ?? backoff(attempt, retry), options.signal);
         continue;
       }
-      if (response.ok && operation.output?.events) return this.#receiveEvents<O>(operation, operation.output.events, response, options.signal);
+      if (response.ok && operation.output?.events) return this.#receiveEvents<O>(operation, operation.output.events, response, checksum, options.signal);
       if (response.ok) {
         // A streamed body is verified as it is read. A corrupted response is
         // not retried: the request may have taken effect.
@@ -751,11 +751,13 @@ export class Transport {
     }
   }
 
-  async #receiveEvents<O>(operation: OperationSpec, spec: EventStreamSpec, response: Response, signal: AbortSignal | undefined): Promise<O> {
+  async #receiveEvents<O>(operation: OperationSpec, spec: EventStreamSpec, response: Response, checksum: ChecksumPlan, signal: AbortSignal | undefined): Promise<O> {
     const output = operation.output!;
     const settled = new Settlement();
-    const source = lifetimeStream(response.body ?? new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } }), signal, () => settled.settle());
-    const reader = new EventMessageReader(source);
+    let source = response.body ?? new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } });
+    const expected = responseChecksum(checksum, response.headers);
+    if (expected !== undefined) source = verifyingStream(source, expected.algorithm, expected.expected, () => this.#config.checksumValidated?.(operation.name, expected.algorithm));
+    const reader = new EventMessageReader(lifetimeStream(source, signal, () => settled.settle()));
     try {
       // Without HTTP bindings the output's other members arrive first, as an initial-response event.
       let document: unknown = {};

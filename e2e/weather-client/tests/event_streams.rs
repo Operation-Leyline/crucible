@@ -7,6 +7,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use crucible_client::event_stream::{Header, HeaderValue, Message, MessageDecoder, encode_headers};
 use crucible_client::{
     Blob, CallOptions, CancellationToken, Config, EventStream, EventStreamError, Field, Identity,
@@ -225,6 +227,63 @@ async fn listen() -> (TcpListener, String) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     (listener, endpoint)
+}
+
+#[tokio::test]
+async fn event_response_checksums_verify_framed_bytes_at_eof() {
+    for mismatch in [false, true] {
+        let bytes = event(
+            "structured",
+            Vec::new(),
+            "application/json",
+            br#"{"text":"checksum","itemCount":1}"#,
+        );
+        let checksum = if mismatch {
+            "AAAAAA==".to_owned()
+        } else {
+            STANDARD.encode(crucible_client::event_stream::crc32(&bytes).to_be_bytes())
+        };
+        let (listener, endpoint) = listen().await;
+        let server = tokio::spawn(async move {
+            let mut exchange = Exchange::accept(&listener).await;
+            assert_eq!(exchange.header("x-amz-checksum-mode"), Some("ENABLED"));
+            exchange.start(&[("x-amz-checksum-crc32", &checksum)]).await;
+            exchange.send(&bytes[..7]).await.unwrap();
+            exchange.send(&bytes[7..]).await.unwrap();
+            exchange.finish().await;
+        });
+        let verified = Arc::new(AtomicUsize::new(0));
+        let observed = verified.clone();
+        let client = rest::EventsClient::new(Config::new(endpoint).on_checksum_validated(
+            move |operation, algorithm| {
+                assert_eq!(operation, "SubscribeChecksums");
+                assert_eq!(algorithm, crucible_client::ChecksumAlgorithm::Crc32);
+                observed.fetch_add(1, Ordering::SeqCst);
+            },
+        ));
+        let output = client
+            .subscribe_checksums(
+                rest::model::SubscribeChecksumsInput::builder()
+                    .channel("news")
+                    .build()
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let mut events = output.events.open().unwrap();
+        assert!(events.recv().await.unwrap().is_some());
+        let eof = events.recv().await;
+        if mismatch {
+            assert!(
+                matches!(eof, Err(EventStreamError::Io(error)) if error.kind() == io::ErrorKind::InvalidData)
+            );
+            assert_eq!(verified.load(Ordering::SeqCst), 0);
+        } else {
+            assert!(eof.unwrap().is_none());
+            assert_eq!(verified.load(Ordering::SeqCst), 1);
+        }
+        server.await.unwrap();
+    }
 }
 
 fn timestamp(millis: i64) -> chrono::DateTime<chrono::Utc> {

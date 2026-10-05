@@ -35,7 +35,12 @@ check(inherits(output$choice, 'Choice') && output$choice$member == 'text' && out
 check(inherits(output$nullable, 'crucible_unset') && is.null(output$document), 'Null members decode as unset')
 check(is.nan(output$float_value) && identical(output$double_value, Inf), 'Nonfinite floats decode')
 check(identical(output$when, instant) && identical(output$iso, instant), 'Timestamps round trip')
-if (version == '') check(identical(output$date, instant) && length(output$dates) == 2L && identical(output$dates[[2L]], timestamp('0')), 'REST JSON header timestamps decode')
+if (version == '') {
+  # HTTP-date headers retain whole seconds, while document timestamps keep the fraction.
+  check(identical(output$date, timestamp('-1')) && length(output$dates) == 2L &&
+    identical(output$dates[[1L]], timestamp('-1')) && identical(output$dates[[2L]], timestamp('0')),
+    'REST JSON header timestamps decode')
+}
 check(length(seen) == 1L, 'One request')
 client$close()
 

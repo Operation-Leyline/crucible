@@ -73,6 +73,10 @@ public final class ProtocolAdapter {
     String host = text(testCase, "host");
     config.endpoint = "https://" + (host == null ? "example.test" : host);
     config.maxAttempts = 1;
+    // Official protocol fixtures declare SigV4; wire tests use inert credentials
+    // so preparation never consults environment or instance metadata providers.
+    config.credentials = () -> new AwsCredentials("AKIDEXAMPLE", "fixture-secret");
+    config.region = "us-east-1";
     JsonObject snapshot = new JsonObject();
     config.middleware.add(request -> {
       snapshot.addProperty("method", request.method);

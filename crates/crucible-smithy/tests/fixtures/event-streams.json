@@ -15,6 +15,9 @@
           "target": "example.events#Subscribe"
         },
         {
+          "target": "example.events#SubscribeChecksums"
+        },
+        {
           "target": "example.events#Chat"
         }
       ]
@@ -92,6 +95,30 @@
           "target": "example.events#UnavailableError"
         }
       ]
+    },
+    "example.events#SubscribeChecksums": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": { "method": "POST", "uri": "/channels/{channel}/checksums", "code": 200 },
+        "smithy.api#readonly": {},
+        "aws.protocols#httpChecksum": {
+          "requestValidationModeMember": "checksumMode",
+          "responseAlgorithms": ["CRC32"]
+        }
+      },
+      "input": { "target": "example.events#SubscribeChecksumsInput" },
+      "output": { "target": "example.events#SubscribeOutput" }
+    },
+    "example.events#ChecksumMode": {
+      "type": "enum",
+      "members": { "ENABLED": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": "ENABLED" } } }
+    },
+    "example.events#SubscribeChecksumsInput": {
+      "type": "structure",
+      "members": {
+        "channel": { "target": "smithy.api#String", "traits": { "smithy.api#httpLabel": {}, "smithy.api#required": {} } },
+        "checksumMode": { "target": "example.events#ChecksumMode", "traits": { "smithy.api#httpHeader": "x-amz-checksum-mode" } }
+      }
     },
     "example.events#SubscribeInput": {
       "type": "structure",
