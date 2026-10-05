@@ -1,6 +1,6 @@
 # Python clients
 
-[All clients](../clients.md) · [Repository overview](../../README.md)
+[All clients](../clients.md) Â· [Repository overview](../../README.md)
 
 Generate a typed Python 3.11+ package from a prepared Smithy JSON AST:
 
@@ -113,9 +113,10 @@ full-jitter backoff; valid numeric and HTTP-date Retry-After values take
 precedence. The retry policy is [shared across clients](../clients.md).
 `timeout` defaults to 30 seconds and can be overridden per call. The sync
 client budgets retries and sets each HTTPX I/O timeout from the remaining
-budget; it cannot interrupt a blocking custom transport or enforce a total
-streaming wall-clock deadline. The async client additionally uses an overall
-asyncio timeout. Cancellation and malformed successful JSON are not retried.
+budget; it cannot interrupt a blocking custom transport. The async client
+additionally uses an overall asyncio timeout. Both keep the deadline while a
+streamed response body is read (see [Streaming blobs](#streaming-blobs)).
+Cancellation and malformed successful JSON are not retried.
 
 Paginators yield typed pages, copy their input, and reject repeated continuation
 tokens. Use ordinary methods when managing continuation tokens yourself.
@@ -159,7 +160,83 @@ without changing the input object. Set `request_checksum_calculation` or
 implicit default. An explicit algorithm or enabled validation still takes effect.
 `checksum_validated(operation, algorithm)` reports successful verification;
 `ChecksumError` reports a mismatch. Unsupported requested algorithms fail before
-dispatch. Checksum support currently covers buffered payloads.
+dispatch. Streamed bodies follow the rules under [Streaming blobs](#streaming-blobs).
+
+## Streaming blobs
+
+A `@streaming` blob member is a `ByteStream`, sent or received as the whole
+HTTP body without holding it in memory. Requests choose a source:
+
+| Source | Replay | Length |
+|---|---|---|
+| `ByteStream.from_bytes(data)` (or plain `bytes`) | replayable, an ordinary buffered body | known |
+| `ByteStream.from_file(path)` | replayable, reopened per attempt | file size |
+| `ByteStream.from_factory(factory, length=None)` | replayable, one factory call per attempt | optional |
+| `ByteStream.from_iterable(chunks, length=None)` (iterable or async iterable of `bytes`) | one-shot | optional |
+| `ByteStream.from_reader(reader, length=None)` (anything with `read(size)`) | one-shot | optional |
+
+A factory may return bytes, a binary reader, or a sync or async iterable of
+chunks, and must produce the same bytes every time. A one-shot source is opened
+once, so its call is never retried, and passing it to a second call raises
+`RuntimeError`. The client closes every source it opens at the end of the body,
+on failure, or on cancellation. The async client reads blocking sources such as
+files and sync iterables off the event loop; the sync client rejects async
+sources. A known length is sent as `Content-Length` and the stream must produce
+exactly that many bytes; otherwise the body is chunked. `@requiresLength`
+rejects a stream without a length before sending, and modeled `@length` bounds
+are checked before sending when the length is known and as the bytes flow
+otherwise. A stream that breaks its declared or modeled length raises
+`StreamLengthError`, and a failing source raises its own error; neither is
+retried or reported as `NetworkError`.
+
+```python
+from example_sdk import ByteStream, PutObjectInput, GetObjectInput
+
+client.put_object(PutObjectInput(key="photo.jpg", body=ByteStream.from_file(path)))
+client.put_object(PutObjectInput(key="log", body=ByteStream.from_iterable(lines())))
+
+with client.get_object(GetObjectInput(key="photo.jpg")).body as body:
+    with open(target, "wb") as out:
+        body.write_to(out)
+
+async with (await async_client.get_object(GetObjectInput(key="log"))).body as body:
+    async for chunk in body:
+        consume(chunk)
+```
+
+A streaming response is returned as soon as its headers are decoded. Its body is
+read once, a received chunk at a time and only when asked for: iterate it,
+call `read(size=-1)` or `write_to(writer)`, or with the async client use
+`async for`, `aread()`, and `aclose()`. The call's `timeout` stays in force while
+the body is read: an expired deadline fails the read with `TimeoutError` (the
+sync client checks it between chunks, and a stalled read waits at most the
+budget that remained when the request was sent). A transport failure while
+reading raises `NetworkError` and is not retried. Close the body, or use it as a
+context manager, to release an unread or partly read response's connection;
+closing from another thread ends a blocked sync read. Cancelling an async task
+stops an upload or a read in progress and closes both the source and the
+response. A waiter closes the body of every response it does not return.
+
+Streams are never buffered to compute a digest or checksum. With
+`--content-sha256` or SigV4 signing, declare the hex SHA-256 with
+`stream.with_sha256(hex)`; without it the call fails before the stream is
+opened. SigV4 signs an operation modeled with an unsigned payload as
+`UNSIGNED-PAYLOAD` instead. A streamed request receives no implicit flexible
+checksum; a required or explicitly selected algorithm needs its header supplied
+by the caller (for example a modeled `x-amz-checksum-crc32` member), or the call
+fails before the stream is opened. `from_bytes` bodies are in memory and are
+hashed and checksummed like any buffered payload. A streaming response checksum
+is computed incrementally; a mismatch fails the final read with
+`ChecksumError`, and `checksum_validated` runs only after the last byte is
+verified. Middleware sees a streamed body as the HTTPX `request.stream`;
+`request.content` is unavailable for it.
+
+The native suite uploads one-shot, replayed, file, reader, and async sources;
+checks `requiresLength`, declared and modeled lengths, and replay rules;
+transfers 256 MiB each way with the sync and async clients against a loopback
+HTTP server while sampling resident memory; and covers returning at headers,
+deadlines after return, cancellation and connection release, waiters, streaming
+checksums, declared digests, and SigV4. Event streams are not supported.
 
 ## Qualification
 

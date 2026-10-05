@@ -1,4 +1,4 @@
-"""Buffered HTTP checksums; the caller supplies the final transmitted bytes."""
+"""HTTP checksums over buffered bytes, or incrementally over a streamed body."""
 from __future__ import annotations
 
 import base64
@@ -29,26 +29,52 @@ _CRC32C = _table(0x82F63B78)
 _CRC64NVME = _table(0x9A6C9329AC4BC9B5)
 
 
+class Hasher:
+    """One checksum computed over chunks as they are sent or received."""
+    def __init__(self, algorithm: str) -> None:
+        if algorithm not in SUPPORTED:
+            raise ValueError("unsupported checksum algorithm: " + algorithm)
+        self.algorithm = algorithm
+        self._crc = 0
+        if algorithm in ("CRC32C", "CRC64NVME"):
+            self._size = 4 if algorithm == "CRC32C" else 8
+            self._table = _CRC32C if self._size == 4 else _CRC64NVME
+            self._mask = (1 << (self._size * 8)) - 1
+            self._crc = self._mask
+        self._hash = None if algorithm.startswith("CRC") else hashlib.new(algorithm.lower(), usedforsecurity=False)
+
+    def update(self, data: bytes) -> None:
+        if self._hash is not None:
+            self._hash.update(data)
+        elif self.algorithm == "CRC32":
+            self._crc = binascii.crc32(data, self._crc)
+        else:
+            value, table = self._crc, self._table
+            for byte in data:
+                value = table[(value ^ byte) & 255] ^ (value >> 8)
+            self._crc = value
+
+    def base64(self) -> str:
+        if self._hash is not None:
+            raw = self._hash.digest()
+        elif self.algorithm == "CRC32":
+            raw = self._crc.to_bytes(4, "big")
+        else:
+            raw = (self._crc ^ self._mask).to_bytes(self._size, "big")
+        return base64.b64encode(raw).decode("ascii")
+
+
 def digest(algorithm: str, data: bytes) -> str:
-    if algorithm == "CRC32":
-        raw = binascii.crc32(data).to_bytes(4, "big")
-    elif algorithm in ("CRC32C", "CRC64NVME"):
-        size = 4 if algorithm == "CRC32C" else 8
-        table = _CRC32C if size == 4 else _CRC64NVME
-        mask = (1 << (size * 8)) - 1
-        value = mask
-        for byte in data:
-            value = table[(value ^ byte) & 255] ^ (value >> 8)
-        raw = (value ^ mask).to_bytes(size, "big")
-    elif algorithm in SUPPORTED:
-        raw = hashlib.new(algorithm.lower(), data, usedforsecurity=False).digest()
-    else:
-        raise ValueError("unsupported checksum algorithm: " + algorithm)
-    return base64.b64encode(raw).decode("ascii")
+    hasher = Hasher(algorithm)
+    hasher.update(data)
+    return hasher.base64()
 
 
 def prepare(config: dict[str, Any] | None, values: dict[str, Any], names: dict[str, str],
-            request_policy: str, response_policy: str) -> tuple[dict[str, Any], dict[str, Any]]:
+            request_policy: str, response_policy: str, streaming: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Settle the algorithms for one call. A streamed body is never read twice to
+    compute a checksum, so it gets no implicit algorithm; a required or chosen one
+    must arrive as a caller-supplied header (see `require_header`)."""
     if config is None:
         return {}, {}
     if config["kind"] == "md5":
@@ -59,13 +85,15 @@ def prepare(config: dict[str, Any] | None, values: dict[str, Any], names: dict[s
     header = None
     if member:
         algorithm = values.get(names[member])
-        if algorithm is None and (config.get("requestRequired") or request_policy == "WHEN_SUPPORTED"):
+        if algorithm is None and not streaming and (config.get("requestRequired") or request_policy == "WHEN_SUPPORTED"):
             algorithm = "CRC32"
             values[names[member]] = algorithm
             injected[member] = algorithm
         if algorithm is not None and algorithm not in SUPPORTED:
             raise ValueError("unsupported checksum algorithm: " + str(algorithm))
         header = "x-amz-checksum-" + algorithm.lower() if algorithm is not None else None
+        if algorithm is None and streaming and config.get("requestRequired"):
+            header = "x-amz-checksum-*"
     elif config.get("requestRequired"):
         algorithm, header = "MD5", "content-md5"
     mode = config.get("validationModeMember")
@@ -87,12 +115,34 @@ def request(settings: dict[str, Any], headers: Any, data: bytes) -> None:
         headers[name] = digest(settings["algorithm"], data)
 
 
-def response(settings: dict[str, Any], headers: Any, data: bytes) -> str | None:
+def require_header(settings: dict[str, Any], headers: Any) -> None:
+    """A streamed request body carries only a checksum the caller supplied."""
+    name = settings.get("header")
+    if not name:
+        return
+    present = any(key.lower().startswith("x-amz-checksum-") for key in headers) if name == "x-amz-checksum-*" else name in headers
+    if not present:
+        raise ValueError("a streaming request needs its precomputed " + (settings.get("algorithm") or "checksum")
+                         + " header; the stream is not buffered to compute one")
+
+
+def expected(settings: dict[str, Any], headers: Any) -> tuple[str, str] | None:
+    """The first modeled response algorithm whose header is present."""
     for algorithm in settings.get("response", []):
-        expected = headers.get("x-amz-checksum-" + algorithm.lower())
-        if expected is not None:
-            actual = digest(algorithm, data)
-            if not hmac.compare_digest(expected.encode("utf-8"), actual.encode("ascii")):
-                raise ChecksumError("response " + algorithm + " checksum mismatch")
-            return str(algorithm)
+        value = headers.get("x-amz-checksum-" + algorithm.lower())
+        if value is not None:
+            return str(algorithm), value
     return None
+
+
+def verify(algorithm: str, expected_value: str, actual: str) -> None:
+    if not hmac.compare_digest(expected_value.encode("utf-8"), actual.encode("ascii")):
+        raise ChecksumError("response " + algorithm + " checksum mismatch")
+
+
+def response(settings: dict[str, Any], headers: Any, data: bytes) -> str | None:
+    found = expected(settings, headers)
+    if found is None:
+        return None
+    verify(found[0], found[1], digest(found[0], data))
+    return found[0]

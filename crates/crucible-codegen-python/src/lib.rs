@@ -46,6 +46,7 @@ pub fn capabilities() -> Capabilities {
         Feature::AwsJson10,
         Feature::AwsJson11,
         Feature::HttpChecksum,
+        Feature::Streaming,
     ])
 }
 
@@ -83,6 +84,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "WaiterError",
         "WaiterTimeout",
         "ChecksumError",
+        "ByteStream",
+        "StreamLengthError",
         "datetime",
         "dataclass",
         "field",
@@ -205,6 +208,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     {
         models.push_str("from .runtime import OpenIntEnum\n\n");
     }
+    let streaming = |shape: &Shape| matches!(shape, Shape::Simple(s) if s.streaming);
+    if service.shapes.values().any(streaming) {
+        models.push_str("from .streams import ByteStream\n\n");
+    }
     // Aliases use forward references so model-file ordering cannot affect imports.
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
         let name = service.name_of(id);
@@ -221,6 +228,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push('\n');
             }
             Shape::Unit => models.push_str(&format!("{name}: TypeAlias = None\n\n")),
+            // A streaming blob is sent from a source and read from the response
+            // without ever being held whole in memory.
+            Shape::Simple(_) if streaming(shape) => {
+                models.push_str(&format!("{name}: TypeAlias = ByteStream\n\n"));
+            }
             Shape::Simple(s) => {
                 let prelude = ShapeId::new(
                     "smithy.api",
@@ -475,12 +487,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             format!("src/{module}/endpoints.py"),
             include_str!("../runtime/endpoints.py").replace("\r\n", "\n"),
         ),
+        file(
+            format!("src/{module}/streams.py"),
+            include_str!("../runtime/streams.py").replace("\r\n", "\n"),
+        ),
         file(format!("src/{module}/py.typed"), String::new()),
         file(format!("src/{module}/crucible.json"), provenance),
         file(
             format!("src/{module}/__init__.py"),
             format!(
-                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, NetworkError, ResponseMetadata\nfrom .auth import BasicCredentials, AwsCredentials, CachedCredentials, AsyncCachedCredentials, credential_chain, async_credential_chain, environment_credentials, profile_credentials\nfrom .waiters import WaiterError, WaiterTimeout\nfrom .checksums import ChecksumError\n"
+                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, NetworkError, ResponseMetadata\nfrom .auth import BasicCredentials, AwsCredentials, CachedCredentials, AsyncCachedCredentials, credential_chain, async_credential_chain, environment_credentials, profile_credentials\nfrom .waiters import WaiterError, WaiterTimeout\nfrom .checksums import ChecksumError\nfrom .streams import ByteStream, StreamLengthError\n"
             ),
         ),
     ])

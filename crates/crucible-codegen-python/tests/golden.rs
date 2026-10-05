@@ -27,6 +27,7 @@ fn weather_matches_goldens() {
             "waiters.py",
             "endpoints.py",
             "checksums.py",
+            "streams.py",
         ]
         .iter()
         .any(|name| file.path.ends_with(name))

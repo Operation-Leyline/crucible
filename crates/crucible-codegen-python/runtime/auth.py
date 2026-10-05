@@ -160,7 +160,7 @@ class AsyncCachedCredentials(CachedCredentials):
 def sign_v4(request: httpx.Request, credentials: AwsCredentials, *, service: str,
             region: str, now: datetime | None = None, unsigned_payload: bool = False,
             disable_double_encoding: bool | None = None, disable_normalize_path: bool | None = None) -> None:
-    """Sign the final buffered HTTP request using AWS Signature Version 4."""
+    """Sign the final HTTP request using AWS Signature Version 4."""
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         raise ValueError("signing time must be timezone aware")
@@ -175,7 +175,20 @@ def sign_v4(request: httpx.Request, credentials: AwsCredentials, *, service: str
         request.headers["x-amz-security-token"] = credentials.session_token
     else:
         request.headers.pop("x-amz-security-token", None)
-    digest = "UNSIGNED-PAYLOAD" if unsigned_payload else hashlib.sha256(request.content).hexdigest()
+    try:
+        content: bytes | None = request.content
+    except httpx.RequestNotRead:
+        content = None  # A streamed body, which is never read here to hash it.
+    if unsigned_payload:
+        digest = "UNSIGNED-PAYLOAD"
+    elif content is not None:
+        digest = hashlib.sha256(content).hexdigest()
+    else:
+        declared = request.extensions.get("crucible.sha256")
+        if not isinstance(declared, str):
+            raise ValueError("SigV4 needs the SHA-256 of a streaming body: declare it with "
+                             "ByteStream.with_sha256, or model the operation with an unsigned payload")
+        digest = declared
     request.headers["x-amz-content-sha256"] = digest
     # S3 preserves repeated slashes and already escaped path bytes. Other AWS
     # services normalize the path and URI-encode its percent escapes again.

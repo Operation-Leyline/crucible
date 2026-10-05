@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from email.utils import format_datetime, parsedate_to_datetime
 from enum import IntEnum, StrEnum
-from typing import Any, Callable, Self
+from typing import Any, Callable, Iterator, AsyncIterator, Self
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit
 
 import httpx
@@ -27,6 +27,7 @@ from .auth import apply_auth, preset_auth
 from . import checksums
 from .waiters import Waiter, WaiterError, WaiterTimeout
 from .endpoints import resolve as resolve_endpoint, host_prefix, parse_url
+from .streams import ByteStream, StreamLengthError, Upload
 
 
 class Unset:
@@ -178,6 +179,8 @@ class _Codec:
         if value is None or isinstance(value, Unset):
             return value
         kind = shape["kind"]
+        if shape.get("streaming"):
+            return value  # A ByteStream, or bytes for one; never base64.
         if kind == "timestamp":
             return _timestamp(value, fmt or shape["format"], decode)
         if kind == "blob":
@@ -383,7 +386,7 @@ class _Base:
             delta = value.astimezone(timezone.utc) - datetime(1970, 1, 1, tzinfo=timezone.utc)
             return Decimal(delta.days * 86400 + delta.seconds) + Decimal(delta.microseconds) / 1_000_000
         if kind == "blob":
-            return base64.b64encode(value).decode("ascii")
+            return None if shape.get("streaming") else base64.b64encode(value).decode("ascii")
         if kind == "enum":
             return str(value)
         if kind == "intEnum":
@@ -412,7 +415,7 @@ class _Base:
         if any(name != "smithy.api#httpBearerAuth" for name in op.get("auth", [])) and not op.get("optionalAuth", False):
             raise ValueError("no credentials available for the operation's authentication schemes")
 
-    def _prepare(self, name: str, input: Any) -> tuple[dict[str, Any], str, bytes | None, dict[str, str]]:
+    def _prepare(self, name: str, input: Any) -> tuple[dict[str, Any], str, bytes | ByteStream | None, dict[str, str]]:
         op = self._codec.schema["operations"][name]
         endpoint: dict[str, Any] = {"url": self._endpoint, "headers": {}, "properties": {}}
         if "endpointRules" in self._codec.schema:
@@ -429,8 +432,20 @@ class _Base:
         formats = op["request"].get("timestampFormats", {})
         def json_name(key: str) -> str:
             return str(members[key].get("jsonName", key))
+        payload = op["request"].get("payload")
+        stream: ByteStream | None = None
+        if op["request"].get("streaming") and payload is not None:
+            value = values.get(json_name(payload[0]))
+            if isinstance(value, (bytes, bytearray, memoryview)):
+                value = ByteStream.from_bytes(value)
+            if value is not None and not isinstance(value, ByteStream):
+                raise TypeError(f"{payload[0]} must be a ByteStream or bytes")
+            stream = value
+            if stream is not None and not stream.replayable and stream._opened:
+                raise RuntimeError("a one-shot stream was already opened")
         checksum, injected = checksums.prepare(op.get("checksum"), values,
-            {key: json_name(key) for key in members}, self._request_checksum_calculation, self._response_checksum_validation)
+            {key: json_name(key) for key in members}, self._request_checksum_calculation, self._response_checksum_validation,
+            streaming=stream is not None and stream._data is None)
         op["resolvedChecksum"] = checksum
         if token is not None and values.get(json_name(token)) is None:
             values[json_name(token)] = str(uuid.uuid4())
@@ -500,12 +515,25 @@ class _Base:
             if value is not None and not isinstance(value, Unset):
                 headers[wire.lower()] = self._codec.bound(members[key], value, header=True,
                     encoding=op["request"].get("headerEncodings", {}).get(key), fmt=formats.get(key))
-        body = None
+        body: bytes | ByteStream | None = None
         if op["request"]["body"]:
             body = _json({json_name(k): values[json_name(k)] for k in op["request"]["body"] if json_name(k) in values}).encode()
             headers["content-type"] = "application/json"
-        payload = op["request"].get("payload")
-        if payload is not None:
+        if stream is not None:
+            bounds = members[payload[0]].get("length") or {}
+            minimum, maximum = bounds.get("min"), bounds.get("max")
+            if stream.length is None and op["request"].get("requiresLength"):
+                raise ValueError(f"{payload[0]} requires a stream with a known length")
+            if stream.length is not None and (minimum is not None and stream.length < minimum
+                                              or maximum is not None and stream.length > maximum):
+                raise StreamLengthError(f"{payload[0]} length {stream.length} is outside the modeled bounds")
+            op["streamLimits"] = (minimum, maximum)
+            # In-memory bytes are an ordinary buffered body; anything else streams.
+            body = stream._data if stream._data is not None else stream
+            if stream._data is None and stream.length is not None:
+                headers["content-length"] = str(stream.length)
+            headers["content-type"] = payload[1]
+        elif payload is not None:
             # The bytes go as they are: a body digest covers exactly these.
             value = original(payload[0])
             if value is not None and not isinstance(value, Unset):
@@ -637,6 +665,45 @@ class _Base:
     def _can_retry(self, op: dict[str, Any], error: ServiceError) -> bool:
         return error.throttling or op["safe"] and (error.retryable or error.metadata.status in (500, 502, 503, 504))
 
+    def _body_checks(self, op: dict[str, Any], request: httpx.Request, body: bytes | ByteStream | None) -> None:
+        """Checksums and the content digest over the final body, after middleware.
+        A streamed body is never read to compute them: they must be declared."""
+        if not isinstance(body, ByteStream):
+            checksums.request(op["resolvedChecksum"], request.headers, request.content)
+            if self._digest and (request.content or request.method in ("POST", "PUT", "PATCH")):
+                request.headers["x-amz-content-sha256"] = hashlib.sha256(request.content).hexdigest()
+            return
+        checksums.require_header(op["resolvedChecksum"], request.headers)
+        if body.sha256 is not None:
+            request.extensions["crucible.sha256"] = body.sha256
+        if self._digest:
+            if body.sha256 is not None:
+                request.headers["x-amz-content-sha256"] = body.sha256
+            elif "x-amz-content-sha256" not in request.headers:
+                raise ValueError("a streaming body needs a precomputed SHA-256 for the content digest; use ByteStream.with_sha256")
+
+    def _streamed_output(self, op: dict[str, Any], response: httpx.Response, body: ByteStream) -> Any:
+        """Decode a successful response at its headers; the payload is read later."""
+        target = op["output"]
+        payload = op["response"]["payload"]
+        values: dict[str, Any] = {self._codec.shapes[target]["members"][payload[0]].get("jsonName", payload[0]): body}
+        self._response_bindings(target, op["response"], response, values)
+        return self._codec.convert(target, values, decode=True)
+
+    @staticmethod
+    def _response_length(response: httpx.Response) -> int | None:
+        value = response.headers.get("content-length")
+        if value is None or "content-encoding" in response.headers or not value.isdigit():
+            return None
+        return int(value)
+
+    def _output_stream(self, op: dict[str, Any], output: Any) -> ByteStream | None:
+        if output is None or not op["response"].get("streaming") or op["response"].get("payload") is None:
+            return None
+        member = self._codec.shapes[op["output"]]["members"][op["response"]["payload"][0]]
+        value = getattr(output, member["attribute"], None)
+        return value if isinstance(value, ByteStream) else None
+
     def _next_page(self, name: str, page: Any, seen: set[str]) -> Any:
         op = self._codec.schema["operations"][name]
         value = page
@@ -674,11 +741,15 @@ class SyncClient(_Base):
     def _call(self, name: str, input: Any = None, *, timeout: float | None = None) -> Any:
         op, url, body, headers = self._prepare(name, input)
         deadline = time.monotonic() + (self._timeout if timeout is None else timeout)
+        # A one-shot stream is sent at most once, whatever the retry policy.
+        replayable = not isinstance(body, ByteStream) or body.replayable
         for attempt in range(1, self._attempts + 1):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("request deadline exceeded")
-            request = self._http.build_request(op["method"], url, content=body, headers=headers, timeout=remaining)
+            upload = Upload(body, *op["streamLimits"]) if isinstance(body, ByteStream) else None
+            request = self._http.build_request(op["method"], url, content=upload.sync() if upload else body,
+                                               headers=headers, timeout=remaining)
             authentication = None
             preset = False
             for scheme, provider in self._auth_options(op):
@@ -697,9 +768,7 @@ class SyncClient(_Base):
                 self._auth_required(op)
             for middleware in self._middleware:
                 middleware(request)
-            checksums.request(op["resolvedChecksum"], request.headers, request.content)
-            if self._digest and (request.content or request.method in ("POST", "PUT", "PATCH")):
-                request.headers["x-amz-content-sha256"] = hashlib.sha256(request.content).hexdigest()
+            self._body_checks(op, request, body)
             if authentication is not None:
                 apply_auth(request, *authentication, region=self._region, unsigned_payload=op.get("unsignedPayload", False))
             _check_credentials(request)
@@ -710,12 +779,18 @@ class SyncClient(_Base):
             response = None
             try:
                 response = self._http.send(request, stream=True)
+                if response.is_success and op["response"].get("streaming"):
+                    try:
+                        return self._streamed_output(op, response, self._sync_body(name, op, response, deadline))
+                    except BaseException:
+                        response.close()
+                        raise
                 try:
                     data = b"" if response.is_success and not _has_body(op) else response.read()
                 finally:
                     response.close()
             except httpx.TransportError as error:
-                if not op["safe"] or attempt == self._attempts:
+                if not op["safe"] or attempt == self._attempts or not replayable:
                     raise NetworkError(str(error)) from error
             else:
                 if time.monotonic() >= deadline:
@@ -727,13 +802,46 @@ class SyncClient(_Base):
                 try:
                     return self._decode(op, response, data)
                 except ServiceError as error:
-                    if not self._can_retry(op, error) or attempt == self._attempts:
+                    if not self._can_retry(op, error) or attempt == self._attempts or not replayable:
                         raise
+            finally:
+                if upload is not None:
+                    upload.close()
             delay = self._delay(attempt, response)
             if delay >= deadline - time.monotonic():
                 raise TimeoutError("retry delay exceeds request deadline")
             time.sleep(delay)
         raise AssertionError("unreachable")
+
+    def _sync_body(self, name: str, op: dict[str, Any], response: httpx.Response, deadline: float) -> ByteStream:
+        """The response payload, pulled a received chunk at a time within the call's deadline."""
+        found = checksums.expected(op["resolvedChecksum"], response.headers)
+        hasher = checksums.Hasher(found[0]) if found is not None else None
+
+        def chunks() -> Iterator[bytes]:
+            try:
+                iterator = response.iter_bytes()
+                while True:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("request deadline exceeded while reading the response body")
+                    try:
+                        chunk = next(iterator, None)
+                    except httpx.TimeoutException as error:
+                        raise TimeoutError("request deadline exceeded while reading the response body") from error
+                    except httpx.TransportError as error:
+                        raise NetworkError(str(error)) from error
+                    if chunk is None:
+                        break
+                    if hasher is not None:
+                        hasher.update(chunk)
+                    yield chunk
+                if found is not None and hasher is not None:
+                    checksums.verify(found[0], found[1], hasher.base64())
+                    if self._checksum_validated is not None:
+                        self._checksum_validated(name, found[0])
+            finally:
+                response.close()
+        return ByteStream(chunks, length=self._response_length(response), replayable=False, closer=response.close)
 
     def _pages(self, name: str, input: Any = None, **options: Any) -> Any:
         op = self._codec.schema["operations"][name]
@@ -775,10 +883,17 @@ class SyncClient(_Base):
                 output, error = None, caught
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                stream = self._output_stream(op, output)
+                if stream is not None:
+                    stream.close()
                 raise WaiterTimeout(name, attempts, response=output, error=error)
             state = waiter.state(query_input, self._query_value(op["output"], output), error)
             if state == "success":
                 return output
+            # A response the waiter does not return releases its connection.
+            stream = self._output_stream(op, output)
+            if stream is not None:
+                stream.close()
             if state == "failure":
                 raise WaiterError(name, attempts, response=output, error=error, message=waiter.message) from error
             time.sleep(waiter.delay(attempts, remaining))
@@ -801,8 +916,10 @@ class AsyncClientBase(_Base):
         await self.aclose()
 
     async def _call(self, name: str, input: Any = None, *, timeout: float | None = None) -> Any:
-        async with asyncio.timeout(self._timeout if timeout is None else timeout):
-            return await self._send(name, input, timeout)
+        # The same deadline bounds a streamed response body read after the call returns.
+        deadline = asyncio.get_running_loop().time() + (self._timeout if timeout is None else timeout)
+        async with asyncio.timeout_at(deadline):
+            return await self._send(name, input, timeout, deadline)
 
     async def _wait(self, operation: str, name: str, input: Any, *, timeout: float,
                     min_delay: float | None = None, max_delay: float | None = None) -> Any:
@@ -824,22 +941,28 @@ class AsyncClientBase(_Base):
                         error = None
                     except Exception as caught:
                         output, error = None, caught
-                    if time.monotonic() >= deadline:
-                        raise WaiterTimeout(name, attempts, response=output, error=error)
-                    state = waiter.state(query_input, self._query_value(op["output"], output), error)
+                    state = "timeout" if time.monotonic() >= deadline else waiter.state(
+                        query_input, self._query_value(op["output"], output), error)
                     if state == "success":
                         return output
+                    stream = self._output_stream(op, output)
+                    if stream is not None:
+                        await stream.aclose()
+                    if state == "timeout":
+                        raise WaiterTimeout(name, attempts, response=output, error=error)
                     if state == "failure":
                         raise WaiterError(name, attempts, response=output, error=error, message=waiter.message) from error
                     await asyncio.sleep(waiter.delay(attempts, deadline - time.monotonic()))
         except TimeoutError as caught:
             raise WaiterTimeout(name, attempts, response=output, error=error) from caught
 
-    async def _send(self, name: str, input: Any, timeout: float | None) -> Any:
+    async def _send(self, name: str, input: Any, timeout: float | None, deadline: float) -> Any:
         op, url, body, headers = self._prepare(name, input)
+        replayable = not isinstance(body, ByteStream) or body.replayable
         for attempt in range(1, self._attempts + 1):
-            request = self._http.build_request(op["method"], url, content=body, headers=headers,
-                                               timeout=self._timeout if timeout is None else timeout)
+            upload = Upload(body, *op["streamLimits"]) if isinstance(body, ByteStream) else None
+            request = self._http.build_request(op["method"], url, content=upload.asynchronous() if upload else body,
+                                               headers=headers, timeout=self._timeout if timeout is None else timeout)
             authentication = None
             preset = False
             for scheme, provider in self._auth_options(op):
@@ -858,21 +981,25 @@ class AsyncClientBase(_Base):
                 result = middleware(request)
                 if inspect.isawaitable(result):
                     await result
-            checksums.request(op["resolvedChecksum"], request.headers, request.content)
-            if self._digest and (request.content or request.method in ("POST", "PUT", "PATCH")):
-                request.headers["x-amz-content-sha256"] = hashlib.sha256(request.content).hexdigest()
+            self._body_checks(op, request, body)
             if authentication is not None:
                 apply_auth(request, *authentication, region=self._region, unsigned_payload=op.get("unsignedPayload", False))
             _check_credentials(request)
             response = None
             try:
                 response = await self._http.send(request, stream=True)
+                if response.is_success and op["response"].get("streaming"):
+                    try:
+                        return self._streamed_output(op, response, self._async_body(name, op, response, deadline))
+                    except BaseException:
+                        await response.aclose()
+                        raise
                 try:
                     data = b"" if response.is_success and not _has_body(op) else await response.aread()
                 finally:
                     await response.aclose()
             except httpx.TransportError as error:
-                if not op["safe"] or attempt == self._attempts:
+                if not op["safe"] or attempt == self._attempts or not replayable:
                     raise NetworkError(str(error)) from error
             else:
                 if response.is_success:
@@ -882,10 +1009,43 @@ class AsyncClientBase(_Base):
                 try:
                     return self._decode(op, response, data)
                 except ServiceError as error:
-                    if not self._can_retry(op, error) or attempt == self._attempts:
+                    if not self._can_retry(op, error) or attempt == self._attempts or not replayable:
                         raise
+            finally:
+                # Also runs on cancellation, so the caller's source is closed.
+                if upload is not None:
+                    await upload.aclose()
             await asyncio.sleep(self._delay(attempt, response))
         raise AssertionError("unreachable")
+
+    def _async_body(self, name: str, op: dict[str, Any], response: httpx.Response, deadline: float) -> ByteStream:
+        """The response payload, read on demand; the call's deadline still bounds every read."""
+        found = checksums.expected(op["resolvedChecksum"], response.headers)
+        hasher = checksums.Hasher(found[0]) if found is not None else None
+
+        async def chunks() -> AsyncIterator[bytes]:
+            try:
+                iterator = response.aiter_bytes()
+                while True:
+                    try:
+                        async with asyncio.timeout_at(deadline):
+                            chunk = await anext(iterator, None)
+                    except httpx.TimeoutException as error:
+                        raise TimeoutError("request deadline exceeded while reading the response body") from error
+                    except httpx.TransportError as error:
+                        raise NetworkError(str(error)) from error
+                    if chunk is None:
+                        break
+                    if hasher is not None:
+                        hasher.update(chunk)
+                    yield chunk
+                if found is not None and hasher is not None:
+                    checksums.verify(found[0], found[1], hasher.base64())
+                    if self._checksum_validated is not None:
+                        self._checksum_validated(name, found[0])
+            finally:
+                await response.aclose()
+        return ByteStream(chunks, length=self._response_length(response), replayable=False, closer=response.aclose)
 
     async def _pages(self, name: str, input: Any = None, **options: Any) -> Any:
         op = self._codec.schema["operations"][name]
