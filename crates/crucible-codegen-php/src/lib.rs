@@ -133,6 +133,15 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 result.push(&op.id, "PHP operation name collision");
             }
         }
+        for waiter in op.waiters.keys() {
+            let name = names::waiter(waiter);
+            if !identifier(&name) || !methods.insert(name.to_ascii_lowercase()) {
+                result.push(
+                    &op.id,
+                    format!("PHP waiter method {name} is invalid or collides"),
+                );
+            }
+        }
     }
     result
 }
@@ -157,6 +166,14 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::BigDecimal,
         Feature::Sparse,
         Feature::Sets,
+        Feature::Waiters,
+        Feature::EndpointRules,
+        Feature::EndpointHostPrefix,
+        Feature::AwsRestJson1,
+        Feature::AwsJson10,
+        Feature::AwsJson11,
+        Feature::HttpChecksum,
+        Feature::Streaming,
     ])
 }
 
@@ -222,6 +239,44 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/CancelledException.php"),
         ),
         ("ClientConfig", include_str!("../runtime/ClientConfig.php")),
+        ("Checksums", include_str!("../runtime/Checksums.php")),
+        (
+            "ChecksumHasher",
+            include_str!("../runtime/ChecksumHasher.php"),
+        ),
+        ("ByteStream", include_str!("../runtime/ByteStream.php")),
+        ("StreamBody", include_str!("../runtime/StreamBody.php")),
+        (
+            "StreamException",
+            include_str!("../runtime/StreamException.php"),
+        ),
+        (
+            "ResponseStream",
+            include_str!("../runtime/ResponseStream.php"),
+        ),
+        (
+            "ChecksumException",
+            include_str!("../runtime/ChecksumException.php"),
+        ),
+        ("Endpoints", include_str!("../runtime/Endpoints.php")),
+        (
+            "EndpointException",
+            include_str!("../runtime/EndpointException.php"),
+        ),
+        ("Query", include_str!("../runtime/Query.php")),
+        (
+            "QueryException",
+            include_str!("../runtime/QueryException.php"),
+        ),
+        ("Waiter", include_str!("../runtime/Waiter.php")),
+        (
+            "WaiterException",
+            include_str!("../runtime/WaiterException.php"),
+        ),
+        (
+            "WaiterTimeoutException",
+            include_str!("../runtime/WaiterTimeoutException.php"),
+        ),
         (
             "ClientRuntime",
             include_str!("../runtime/ClientRuntime.php"),

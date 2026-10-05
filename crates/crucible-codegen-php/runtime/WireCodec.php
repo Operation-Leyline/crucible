@@ -4,7 +4,17 @@ namespace CrucibleGenerated\Runtime;
 
 final readonly class WireCodec
 {
-    public function __construct(public JsonObject $schema, private \Closure $models) {}
+    private bool $omitNulls;
+    private bool $ignoreUnionType;
+    private bool $nonFinite;
+    public function __construct(public JsonObject $schema, private \Closure $models)
+    {
+        $settings = $schema->get('protocolSettings');
+        $setting = static fn(string $name): bool => $settings instanceof JsonObject && $settings->get($name) === true;
+        $this->omitNulls = $setting('omitNullStructureMembers');
+        $this->ignoreUnionType = $setting('ignoreUnknownUnionType');
+        $this->nonFinite = $setting('nonFiniteFloatStrings');
+    }
     public static function object(mixed $value): JsonObject
     {
         if (!$value instanceof JsonObject) throw new \UnexpectedValueException('Expected object');
@@ -53,14 +63,20 @@ final readonly class WireCodec
         switch ($shape->get('kind')) {
             case 'structure': case 'union':
                 $object = self::object($value); $result = []; $known = []; $wireNames = [];
+                $structure = $shape->get('kind') === 'structure';
                 foreach (self::object($shape->get('members'))->members as $name => $member) {
                     $wire = $member->get('jsonName') ?? $name;
                     $source = $encode ? $name : $wire;
                     $known[$source] = true; $wireNames[$wire] = true;
-                    if ($object->has($source)) $result[$encode ? $wire : $name] = $this->document($member->get('target'), $object->get($source), $encode);
+                    if (!$object->has($source)) continue;
+                    $item = $object->get($source);
+                    // JSON protocols treat a structure member's null as absence, except in documents.
+                    if ($item === null && $structure && $this->omitNulls && $this->shape($member->get('target'))->get('kind') !== 'document') continue;
+                    $result[$encode ? $wire : $name] = $this->document($member->get('target'), $item, $encode);
                 }
                 if ($shape->get('kind') === 'union') foreach ($object->members as $name => $item) {
                     if (isset($known[$name])) continue;
+                    if (!$encode && $name === '__type' && $this->ignoreUnionType) continue;
                     if ($encode && isset($wireNames[$name])) throw new \UnexpectedValueException('Unknown variant name is declared');
                     $result[$name] = $item;
                 }
@@ -96,11 +112,18 @@ final readonly class WireCodec
             case 'bigDecimal': return new BigDecimal($this->number($value)->text);
             case 'float':
             case 'double':
+                if ($this->nonFinite && is_string($value)) {
+                    return match ($value) { 'NaN' => NAN, 'Infinity' => INF, '-Infinity' => -INF, default => throw new \UnexpectedValueException('Invalid floating point string') };
+                }
                 $number = $this->number($value)->floating();
                 if ($kind === 'float') $number = unpack('f', pack('f', $number))[1];
                 if (!is_finite($number)) throw new \UnexpectedValueException('Float out of range');
                 return $number;
             case 'blob':
+                if ($shape->get('streaming') === true) {
+                    if (!$value instanceof ByteStream) throw new \UnexpectedValueException('Expected ByteStream');
+                    return $value;
+                }
                 $text = self::string($value);
                 $bytes = base64_decode($text, true);
                 if ($bytes === false || base64_encode($bytes) !== $text) throw new \UnexpectedValueException('Expected padded standard base64');
@@ -152,6 +175,11 @@ final readonly class WireCodec
                 default => $value->toDateTimeString(),
             };
         }
+        if ($kind === 'blob' && $shape->get('streaming') === true) {
+            // A stream is the raw HTTP body; it never passes through JSON.
+            if (!$value instanceof ByteStream) throw new \UnexpectedValueException('Expected ByteStream');
+            return $value;
+        }
         if ($kind === 'blob') return base64_encode(self::string($value));
         if ($kind === 'list') {
             $child = $context->child(self::object($shape->get('member')));
@@ -178,13 +206,19 @@ final readonly class WireCodec
         }
         if ($kind === 'float' || $kind === 'double') {
             if (!is_int($value) && !is_float($value)) throw new \UnexpectedValueException('Expected number');
+            if (is_float($value) && !is_finite($value)) {
+                if (!$this->nonFinite) throw new \UnexpectedValueException('Non-finite number');
+                return is_nan($value) ? 'NaN' : ($value > 0 ? 'Infinity' : '-Infinity');
+            }
             return new JsonNumber(ExactJson::encode($this->decode(new JsonNumber(ExactJson::encode($value)), $context)));
         }
         $this->decode($value, $context);
         return $value;
     }
-    public function header(JsonObject $member, string $text): mixed
+    /** @param ?string $format a binding timestamp format that replaces the member's document format */
+    public function header(JsonObject $member, string $text, ?string $format = null): mixed
     {
+        $format ??= $member->get('format');
         $shape = $this->shape(self::string($member->get('target')));
         $kind = $shape->get('kind');
         if ($kind === 'list') {
@@ -193,10 +227,10 @@ final readonly class WireCodec
             $part = '';
             $quoted = false;
             $escaped = false;
-            $append = function () use (&$parts, &$part, $shape): void {
+            $append = function () use (&$parts, &$part, $shape, $format): void {
                 $value = trim($part);
                 if (str_starts_with($value, '"')) $value = self::string(ExactJson::decode($value));
-                $parts[] = $this->header(self::object($shape->get('member')), $value);
+                $parts[] = $this->header(self::object($shape->get('member')), $value, $format);
                 $part = '';
             };
             for ($index = 0; $index < strlen($text); $index++) {
@@ -211,7 +245,7 @@ final readonly class WireCodec
             $append();
             return $parts;
         }
-        if (in_array($kind, ['byte', 'short', 'integer', 'long', 'intEnum', 'bigInteger', 'bigDecimal', 'float', 'double', 'boolean'], true) || ($kind === 'timestamp' && $member->get('format') === 'epoch-seconds')) {
+        if (in_array($kind, ['byte', 'short', 'integer', 'long', 'intEnum', 'bigInteger', 'bigDecimal', 'float', 'double', 'boolean'], true) || ($kind === 'timestamp' && $format === 'epoch-seconds')) {
             return ExactJson::decode($text);
         }
         return $text;
@@ -229,5 +263,33 @@ final readonly class WireCodec
         }
         throw new \UnexpectedValueException('Expected bound scalar');
     }
-
+    /**
+     * Converts encoded wire values to the query view used by waiters and endpoint rules:
+     * member names as keys, and timestamps as exact epoch seconds.
+     */
+    public function queryValue(?string $target, mixed $value, ?string $format = null): mixed
+    {
+        if ($target === null || $value === null) return null;
+        $shape = $this->shape($target);
+        switch ($shape->get('kind')) {
+            case 'structure': case 'union':
+                $object = self::object($value); $members = self::object($shape->get('members')); $result = [];
+                foreach ($object->members as $name => $item) {
+                    $member = $members->get((string)$name);
+                    $result[$name] = $member instanceof JsonObject ? $this->queryValue($member->get('target'), $item, $member->get('format')) : $item;
+                }
+                return new JsonObject($result);
+            case 'list':
+                $member = self::object($shape->get('member'));
+                return array_map(fn($item) => $this->queryValue($member->get('target'), $item, $member->get('format')), self::items($value));
+            case 'map':
+                $member = self::object($shape->get('value'));
+                return new JsonObject(array_map(fn($item) => $this->queryValue($member->get('target'), $item, $member->get('format')), self::object($value)->members));
+            case 'timestamp':
+                return $this->decode($value, new WireContext($this, $target, $format))->toEpoch();
+            case 'blob':
+                return $value instanceof ByteStream ? null : $value;
+            default: return $value;
+        }
+    }
 }

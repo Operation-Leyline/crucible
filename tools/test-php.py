@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
@@ -93,7 +94,39 @@ $client->close();
         str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
         "--package-name", "example/auth", "--namespace", "AuthSdk")
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/auth.php"), env=dict(os.environ, PHP_AUTH_PACKAGE=str(output / "auth")))
-    print("PHP generated models, shared retry, native HTTP, Composer archive, empty and renamed packages passed")
+    for name, model, namespace, test, variable, extra in [
+        ("jobs", "crates/crucible-codegen-java/tests/waiters.json", "JobsSdk", "waiters.php", "PHP_JOBS_PACKAGE", {}),
+        ("behavior", "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "BehaviorSdk", "endpoints.php", "PHP_BEHAVIOR_PACKAGE", {}),
+        ("checksum", "crates/crucible-smithy/tests/fixtures/checksums.json", "ChecksumSdk", "checksums.php", "PHP_CHECKSUM_PACKAGE",
+         {"CHECKSUM_VECTORS": str(ROOT / "tests/conformance/checksums.json")}),
+    ]:
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php", str(ROOT / model),
+            "--out", str(output / name), "--package-name", "example/" + name, "--namespace", namespace)
+        run(PHP, str(ROOT / "crates/crucible-codegen-php/tests" / test), env=dict(os.environ, **{variable: str(output / name)}, **extra))
+    protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
+    protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
+    protocol_path = output / "protocol.json"
+    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
+    for protocol in ("restJson1", "awsJson1_0", "awsJson1_1"):
+        package = output / protocol
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php", str(protocol_path),
+            "--protocol", "aws.protocols#" + protocol, "--out", str(package), "--package-name", "example/protocol",
+            "--namespace", "ProtocolSdk")
+        for path in sorted(package.rglob("*.php")):
+            run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+        run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/protocols.php"),
+            env=dict(os.environ, PHP_PROTOCOL_PACKAGE=str(package), PROTOCOL=protocol))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-codegen-java/tests/streaming.json"), "--out", str(output / "stream"),
+        "--package-name", "example/stream", "--namespace", "StreamSdk")
+    for path in sorted((output / "stream").rglob("*.php")):
+        run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+    streams = dict(os.environ, PHP_STREAM_PACKAGE=str(output / "stream"), PHP_JOBS_PACKAGE=str(output / "jobs"),
+                   PHP_CHECKSUM_PACKAGE=str(output / "checksum"), CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json"))
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/streaming.php"), env=streams)
+    # Real cURL against a loopback server: 256 MiB each way under a 64 MiB PHP memory limit.
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/loopback.php"), env=streams)
+    print("PHP generated models, shared retry, native HTTP, waiters, endpoint rules, checksums, AWS JSON protocols, streaming blobs, Composer archive, empty and renamed packages passed")
 
 if __name__ == "__main__":
     explicit = os.environ.get("PHP_TEST_OUTPUT")

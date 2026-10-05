@@ -129,6 +129,16 @@ pub fn constant(value: &str) -> String {
         value.into()
     }
 }
+/// `waitUntilReady` for a waiter named `Ready`, as AWS SDKs name waiter methods.
+pub fn waiter(value: &str) -> String {
+    let mut chars = value.chars();
+    let first = chars.next().map(|c| c.to_ascii_uppercase());
+    format!(
+        "waitUntil{}{}",
+        first.map(String::from).unwrap_or_default(),
+        chars.as_str()
+    )
+}
 pub fn method(value: &str) -> String {
     let mut chars = value.chars();
     let result = format!(
@@ -157,6 +167,8 @@ pub fn ty(service: &Service, id: &ShapeId, namespace: &str, docs: bool) -> Strin
         Shape::Simple(s) => match s.kind {
             SimpleKind::BigInteger => runtime("BigInteger"),
             SimpleKind::BigDecimal => runtime("BigDecimal"),
+            // A streaming blob is the whole HTTP body, never held as a string.
+            SimpleKind::Blob if s.streaming => runtime("ByteStream"),
             SimpleKind::String | SimpleKind::Blob => "string".into(),
             SimpleKind::Boolean => "bool".into(),
             SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long => {
