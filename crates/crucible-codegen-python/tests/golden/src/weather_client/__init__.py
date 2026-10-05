@@ -38,3 +38,5 @@ from .auth import BasicCredentials, AwsCredentials, CachedCredentials, AsyncCach
 from .waiters import WaiterError, WaiterTimeout
 from .checksums import ChecksumError
 from .streams import ByteStream, StreamLengthError
+from .discovery import EndpointDiscoveryError
+from .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished

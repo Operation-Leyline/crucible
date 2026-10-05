@@ -110,7 +110,9 @@ stable through retries without changing the caller's input.
 
 `max_attempts` includes the first attempt. `base_delay` and `max_delay` control
 full-jitter backoff; valid numeric and HTTP-date Retry-After values take
-precedence. The retry policy is [shared across clients](../clients.md).
+precedence. The retry policy is [shared across clients](../clients.md);
+`retry_mode` adds a retry quota or adaptive rate limiting (see
+[Runtime policy](#runtime-policy)).
 `timeout` defaults to 30 seconds and can be overridden per call. The sync
 client budgets retries and sets each HTTPX I/O timeout from the remaining
 budget; it cannot interrupt a blocking custom transport. The async client
@@ -238,11 +240,70 @@ HTTP server while sampling resident memory; and covers returning at headers,
 deadlines after return, cancellation and connection release, waiters, streaming
 checksums, declared digests, and SigV4. Event streams are not supported.
 
+## Runtime policy
+
+These follow the cross-language [SDK runtime policy](../sdk-runtime-policy.md);
+its shared vectors run in `tests/test_policy.py`.
+
+`retry_mode` selects how much a client may retry. `"legacy"` (the default) is
+the behavior above with no further limit. `"standard"` adds a retry quota
+shared by every call of the client: 500 tokens, a retry costs 5 (10 after a
+transport timeout), a successful call refunds its last retry's cost or adds 1,
+so a client stops retrying during a sustained outage and recovers as calls
+succeed again. `"adaptive"` is standard plus client-side rate limiting: after
+the first modeled throttling error the client measures its response rate and
+paces sends with CUBIC, sleeping before an attempt when it is ahead of the
+allowed rate. Neither mode changes which failures are eligible for a retry.
+Legacy stays the default because it never stops retrying on its own; opt in:
+
+```python
+client = WeatherClient(retry_mode="adaptive", max_attempts=5, base_delay=1)
+```
+
+Services with `@aws.api#clientEndpointDiscovery` discover endpoints. An
+operation marked `@aws.api#clientDiscoveredEndpoint(required: true)` calls the
+discovery operation on the configured endpoint, caches the first returned
+address for its `CachePeriodInMinutes` per operation and identifier values,
+and sends there; concurrent calls (threads or tasks) share one discovery. An
+HTTP 421 or the modeled invalid-endpoint error evicts the entry and resends,
+even a write, within `max_attempts`. Optional operations use the configured
+endpoint unless `endpoint_discovery=True`; then a failed discovery falls back to
+the configured endpoint for 60 seconds. `endpoint_discovery=False` disables
+discovery, and a required operation then raises `EndpointDiscoveryError`
+before sending, as it does when discovery returns no usable address.
+
+`telemetry=` takes a `TelemetryHook` subclass. It receives `OperationStarted`,
+then an `AttemptStarted`/`AttemptFinished` pair per attempt (status, error name,
+request ID, latency, bytes, endpoint and its source, and the retry reason and
+delay when another attempt follows), then `OperationFinished`. Discovery calls
+appear as their own operations. Events never carry bodies, inputs, outputs or
+error messages; credentials, API keys and values bound from `@sensitive`
+members are shown as `***` in headers and the request target. A hook that
+raises is logged on the `<module>.telemetry` logger and never changes the call.
+`OpenTelemetryHook(tracer)` records one span per operation on any
+OpenTelemetry-compatible tracer without adding a dependency:
+
+```python
+from opentelemetry import trace
+from example_sdk import OpenTelemetryHook, TelemetryHook
+
+client = WeatherClient(telemetry=OpenTelemetryHook(trace.get_tracer("weather")))
+
+class Log(TelemetryHook):
+    def attempt_finished(self, event):
+        print(event.operation, event.attempt, event.status, event.retry_reason)
+```
+
+`clock=` replaces the time source used by the retry policy, discovery expiry,
+backoff sleeps and telemetry with any object providing `now()`, `sleep(s)` and
+`async asleep(s)`; tests use it to run deterministically. Call deadlines keep
+using the real monotonic clock.
+
 ## Qualification
 
 Run `python tools/test-python.py` after installing `httpx`, `jmespath==1.0.1`,
 `mypy`, and `build`.
-It checks generated types, shared retry decisions, wire behavior, real HTTP,
+It checks generated types, shared retry decisions, the runtime policy vectors, wire behavior, real HTTP,
 wheel construction, and clean installation. Generate, import, and type-check
 Leyline separately from its current public-service projection. Record its model
 fingerprint and operation coverage using the [shared qualification levels](../clients.md#qualification).

@@ -21,6 +21,13 @@ support in a generated client.
 | Conformance | Smithy protocol vectors, deterministic generated/property tests, live workflow runner | Every target executes applicable vectors; live results recorded separately |
 | Leyline rollout | Current model, authenticated workflow qualification, consumer migration | Model revision and coverage, deployed results, release and rollback records |
 
+Status, runtime policy and endpoint discovery: the contract is
+[`sdk-runtime-policy.md`](sdk-runtime-policy.md) with shared vectors in
+`tests/conformance/{retry-quota,adaptive-retry,endpoint-discovery,telemetry}.json`.
+Python implements retry modes, endpoint discovery (declares
+`endpoint-discovery`) and telemetry and passes the vectors; no other runtime
+does yet. Credential chains and caching are tracked per language guide.
+
 ## Integration rules
 
 Semantics are resolved in `crucible-smithy`; emitters never inspect the AST.

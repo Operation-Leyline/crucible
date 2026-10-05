@@ -47,6 +47,7 @@ pub fn capabilities() -> Capabilities {
         Feature::AwsJson11,
         Feature::HttpChecksum,
         Feature::Streaming,
+        Feature::EndpointDiscovery,
     ])
 }
 
@@ -86,6 +87,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "ChecksumError",
         "ByteStream",
         "StreamLengthError",
+        "EndpointDiscoveryError",
+        "TelemetryHook",
+        "OpenTelemetryHook",
+        "OperationStarted",
+        "AttemptStarted",
+        "AttemptFinished",
+        "OperationFinished",
         "datetime",
         "dataclass",
         "field",
@@ -491,12 +499,24 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             format!("src/{module}/streams.py"),
             include_str!("../runtime/streams.py").replace("\r\n", "\n"),
         ),
+        file(
+            format!("src/{module}/policy.py"),
+            include_str!("../runtime/policy.py").replace("\r\n", "\n"),
+        ),
+        file(
+            format!("src/{module}/discovery.py"),
+            include_str!("../runtime/discovery.py").replace("\r\n", "\n"),
+        ),
+        file(
+            format!("src/{module}/telemetry.py"),
+            include_str!("../runtime/telemetry.py").replace("\r\n", "\n"),
+        ),
         file(format!("src/{module}/py.typed"), String::new()),
         file(format!("src/{module}/crucible.json"), provenance),
         file(
             format!("src/{module}/__init__.py"),
             format!(
-                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, NetworkError, ResponseMetadata\nfrom .auth import BasicCredentials, AwsCredentials, CachedCredentials, AsyncCachedCredentials, credential_chain, async_credential_chain, environment_credentials, profile_credentials\nfrom .waiters import WaiterError, WaiterTimeout\nfrom .checksums import ChecksumError\nfrom .streams import ByteStream, StreamLengthError\n"
+                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, NetworkError, ResponseMetadata\nfrom .auth import BasicCredentials, AwsCredentials, CachedCredentials, AsyncCachedCredentials, credential_chain, async_credential_chain, environment_credentials, profile_credentials\nfrom .waiters import WaiterError, WaiterTimeout\nfrom .checksums import ChecksumError\nfrom .streams import ByteStream, StreamLengthError\nfrom .discovery import EndpointDiscoveryError\nfrom .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished\n"
             ),
         ),
     ])

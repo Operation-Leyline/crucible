@@ -45,6 +45,10 @@ def qualify(package):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "--out", str(behavior),
         "--package-name", "behavior-client", "--module-name", "behavior_client")
+    policy = package.parent / "policy"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
+        "crates/crucible-smithy/tests/fixtures/runtime-policy.json", "--out", str(policy),
+        "--package-name", "policy-client", "--module-name", "policy_client")
     stream = package.parent / "stream"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-codegen-python/tests/streaming.json", "--out", str(stream),
@@ -69,7 +73,7 @@ def qualify(package):
             "--out", str(output), "--package-name", module.replace("_", "-"), "--module-name", module)
         protocols.append(output)
         run(sys.executable, "-m", "mypy", str(output / "src"))
-    env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, dynamic, extended, payload, auth, jobs, behavior, stream, *protocols)))
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, dynamic, extended, payload, auth, jobs, behavior, stream, policy, *protocols)))
     run(sys.executable, "-m", "mypy", str(package / "src"))
     run(sys.executable, "-m", "mypy", str(dynamic / "src"))
     run(sys.executable, "-m", "mypy", str(extended / "src"))
@@ -78,6 +82,7 @@ def qualify(package):
     run(sys.executable, "-m", "mypy", str(jobs / "src"))
     run(sys.executable, "-m", "mypy", str(behavior / "src"))
     run(sys.executable, "-m", "mypy", str(stream / "src"))
+    run(sys.executable, "-m", "mypy", str(policy / "src"))
     vectors = package.parent / "protocol-tests"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance",
         "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json", "--target", "python", "--out", str(vectors))

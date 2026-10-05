@@ -170,7 +170,8 @@ a status can identify exactly one declared error. HTTP 402 alone never retries;
 501 and other unrecognized 5xx statuses need explicit model retryability.
 
 Backoff, `Retry-After`, deadlines, cancellation, middleware ordering, and transport
-ownership are documented per language. A per-attempt transport timeout does not
+ownership are documented per language. Retry quotas, adaptive rate limiting,
+endpoint discovery and telemetry follow the [SDK runtime policy](sdk-runtime-policy.md). A per-attempt transport timeout does not
 establish an overall call deadline.
 
 ## Public API conventions
