@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -92,6 +93,63 @@ func TestHeaderLists(t *testing.T) {
 		value, err := headerValue(wireSchema, memberDescription{Target: "example.weather#Tags"}, test.Wire)
 		if err != nil || !reflect.DeepEqual(value, test.Values) {
 			t.Fatalf("%q => %#v, %v", test.Wire, value, err)
+		}
+	}
+}
+func TestMalformedErrorMetadataAndRetry(t *testing.T) {
+	data, err := os.ReadFile("malformed-errors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name, Body, Error, Message, RequestID string
+		Status                                int
+		Headers                               map[string]string
+		Retryable, Throttling                 bool
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range cases {
+		for _, limit := range []int{1, 2} {
+			t.Run(fmt.Sprintf("%s/%d", test.Name, limit), func(t *testing.T) {
+				attempts := 0
+				client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
+					attempts++
+					if attempts > 1 {
+						w.WriteHeader(200)
+						return
+					}
+					for name, value := range test.Headers {
+						w.Header().Set(name, value)
+					}
+					w.WriteHeader(test.Status)
+					io.WriteString(w, test.Body)
+				})
+				client.config.MaxAttempts = limit
+				_, err := client.Ping(context.Background(), Unit{})
+				if attempts != limit {
+					t.Fatalf("attempts=%d want %d", attempts, limit)
+				}
+				if limit == 2 {
+					if err != nil {
+						t.Fatal(err)
+					}
+					return
+				}
+				var service *ServiceError
+				if !errors.As(err, &service) {
+					t.Fatalf("expected service error, got %T: %v", err, err)
+				}
+				if service.Name != test.Error || service.Message != test.Message || service.Metadata.Status != test.Status || service.Metadata.RequestID != test.RequestID || string(service.Metadata.Body) != test.Body || service.Retryable != test.Retryable || service.Throttling != test.Throttling {
+					t.Fatalf("lost wire metadata: %#v %#v", service, service.Metadata)
+				}
+				for name, value := range test.Headers {
+					if service.Metadata.Headers.Get(name) != value {
+						t.Fatalf("lost header %s", name)
+					}
+				}
+			})
 		}
 	}
 }

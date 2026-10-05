@@ -45,6 +45,7 @@ type ResponseMetadata struct {
 	Status    int
 	RequestID string
 	Headers   http.Header
+	Body      []byte
 }
 type ServiceError struct {
 	Name       string
@@ -844,7 +845,7 @@ func (c *Client) decode(op operationDescription, response *http.Response, data [
 	if !ok {
 		message = fmt.Sprintf("HTTP %d", response.StatusCode)
 	}
-	metadata := &ServiceError{Name: name, Message: message, Metadata: ResponseMetadata{Status: response.StatusCode, RequestID: response.Header.Get("x-request-id"), Headers: response.Header.Clone()}}
+	metadata := &ServiceError{Name: name, Message: message, Metadata: ResponseMetadata{Status: response.StatusCode, RequestID: response.Header.Get("x-request-id"), Headers: response.Header.Clone(), Body: bytes.Clone(data)}}
 	if metadata.Metadata.RequestID == "" {
 		metadata.Metadata.RequestID, _ = values["requestId"].(string)
 	}
@@ -856,7 +857,8 @@ func (c *Client) decode(op operationDescription, response *http.Response, data [
 			if text, present := response.Header[http.CanonicalHeaderKey(binding[1])]; present {
 				value, err := headerValue(c.schema, shape.Members[binding[0]], strings.Join(text, ", "))
 				if err != nil {
-					return nil, err
+					// Preserve the wire failure and retry traits when a modeled header is malformed.
+					return nil, metadata
 				}
 				values[binding[0]] = value
 			}

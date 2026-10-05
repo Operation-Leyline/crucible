@@ -522,8 +522,64 @@ public final class ClientTest {
     }
   }
 
+  static void malformedErrorMetadataAndRetry(Path fixtures) throws Exception {
+    for (var entry : JsonParser.parseString(Files.readString(fixtures)).getAsJsonArray()) {
+      var test = entry.getAsJsonObject();
+      for (int limit : new int[] {1, 2}) {
+        var attempts = new AtomicInteger();
+        try (var server =
+            new Server(
+                exchange -> {
+                  int count = attempts.incrementAndGet();
+                  if (count == 1) {
+                    for (var header : test.getAsJsonObject("headers").entrySet())
+                      exchange
+                          .getResponseHeaders()
+                          .set(header.getKey(), header.getValue().getAsString());
+                  }
+                  response(
+                      exchange,
+                      count == 1 ? test.get("status").getAsInt() : 200,
+                      count == 1 ? test.get("body").getAsString() : "{}");
+                })) {
+          var config = server.config();
+          config.maxAttempts = limit;
+          try {
+            new Client(config).ping();
+            check(limit == 2, "terminal malformed error must fail");
+          } catch (ServiceError error) {
+            check(limit == 1, "malformed error prevented retry");
+            check(error.errorName().equals(test.get("error").getAsString()), "error name");
+            check(error.getMessage().equals(test.get("message").getAsString()), "error message");
+            check(error.status() == test.get("status").getAsInt(), "wire status");
+            check(error.requestId().equals(test.get("requestId").getAsString()), "request ID");
+            check(
+                new String(error.body(), StandardCharsets.UTF_8)
+                    .equals(test.get("body").getAsString()),
+                "raw body");
+            var copy = error.body();
+            copy[0] = 0;
+            check(error.body()[0] != 0, "body getter must return a copy");
+            check(error.retryable() == test.get("retryable").getAsBoolean(), "retryable trait");
+            check(error.throttling() == test.get("throttling").getAsBoolean(), "throttling trait");
+            for (var header : test.getAsJsonObject("headers").entrySet())
+              check(
+                  error
+                      .headers()
+                      .firstValue(header.getKey())
+                      .orElseThrow()
+                      .equals(header.getValue().getAsString()),
+                  "header " + header.getKey());
+          }
+          check(attempts.get() == limit, "malformed error attempt count");
+        }
+      }
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     retries(Path.of(args[0]));
+    malformedErrorMetadataAndRetry(Path.of(args[0]).resolveSibling("malformed-errors.json"));
     serialization(Path.of(args[1]));
     httpBehavior();
     payloads();

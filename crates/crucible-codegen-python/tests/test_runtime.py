@@ -13,6 +13,19 @@ from weather_client.runtime import _Codec, SyncClient, AsyncClientBase, NetworkE
 
 ROOT = Path(__file__).resolve().parents[3]
 CASES = json.loads((ROOT / "tests/conformance/retry.json").read_text())
+MALFORMED_ERRORS = json.loads((ROOT / "tests/conformance/malformed-errors.json").read_text())
+
+
+def assert_error_metadata(test, error, case):
+    test.assertEqual(error.name, case["error"])
+    test.assertEqual(error.message, case["message"])
+    test.assertEqual(error.metadata.status, case["status"])
+    test.assertEqual(error.metadata.request_id, case["requestId"])
+    test.assertEqual(error.metadata.body, case["body"].encode())
+    test.assertEqual(error.retryable, case["retryable"])
+    test.assertEqual(error.throttling, case["throttling"])
+    for name, value in case["headers"].items():
+        test.assertEqual(error.metadata.headers[name], value)
 
 
 def retry_schema(safe):
@@ -31,6 +44,25 @@ CLASSES = {name: ServiceError for name in ("Ordinary", "Transient", "Throttled")
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_malformed_error_metadata_and_retry(self):
+        for case in MALFORMED_ERRORS:
+            for attempts in (1, 2):
+                with self.subTest(case=case["name"], attempts=attempts):
+                    sent = []
+                    def respond(request):
+                        sent.append(request)
+                        return (httpx.Response(case["status"], headers=case["headers"], content=case["body"].encode())
+                                if len(sent) == 1 else httpx.Response(200))
+                    with httpx.Client(transport=httpx.MockTransport(respond)) as http:
+                        client = Client("https://example.invalid", http=http, max_attempts=attempts, base_delay=0)
+                        if attempts == 1:
+                            with self.assertRaises(ServiceError) as caught:
+                                client.ping()
+                            assert_error_metadata(self, caught.exception, case)
+                        else:
+                            client.ping()
+                    self.assertEqual(len(sent), attempts)
+
     def test_header_lists(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
         member = {"target": "example.weather#Tags"}
@@ -201,6 +233,25 @@ class RuntimeTests(unittest.TestCase):
 
 
 class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_malformed_error_metadata_and_retry(self):
+        for case in MALFORMED_ERRORS:
+            for attempts in (1, 2):
+                with self.subTest(case=case["name"], attempts=attempts):
+                    sent = []
+                    def respond(request):
+                        sent.append(request)
+                        return (httpx.Response(case["status"], headers=case["headers"], content=case["body"].encode())
+                                if len(sent) == 1 else httpx.Response(200))
+                    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as http:
+                        client = AsyncClient("https://example.invalid", http=http, max_attempts=attempts, base_delay=0)
+                        if attempts == 1:
+                            with self.assertRaises(ServiceError) as caught:
+                                await client.ping()
+                            assert_error_metadata(self, caught.exception, case)
+                        else:
+                            await client.ping()
+                    self.assertEqual(len(sent), attempts)
+
     async def test_cleartext_credentials_are_rejected_before_send(self):
         async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:
             with self.assertRaisesRegex(ValueError, "plaintext"):

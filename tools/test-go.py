@@ -24,6 +24,7 @@ def qualify(output):
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/runtime_test.go", package / "runtime_test.go")
     shutil.copyfile(ROOT / "tests/conformance/retry.json", package / "retry.json")
     shutil.copyfile(ROOT / "tests/conformance/header-lists.json", package / "header-lists.json")
+    shutil.copyfile(ROOT / "tests/conformance/malformed-errors.json", package / "malformed-errors.json")
     run(GO, "fmt", "./...", cwd=package)
     run(GO, "vet", "./...", cwd=package)
     run("cargo", "build", "--locked", "-q", "--manifest-path", "e2e/Cargo.toml", "-p", "weather-service")

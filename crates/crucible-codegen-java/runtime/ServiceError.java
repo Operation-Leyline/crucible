@@ -5,6 +5,7 @@ public class ServiceError extends RuntimeException {
   private int status;
   private String requestId;
   private java.net.http.HttpHeaders headers;
+  private byte[] body;
   private boolean retryable;
   private boolean throttling;
 
@@ -14,6 +15,7 @@ public class ServiceError extends RuntimeException {
       int status,
       String requestId,
       java.net.http.HttpHeaders headers,
+      byte[] body,
       boolean retryable,
       boolean throttling) {
     this.errorName = name;
@@ -21,6 +23,7 @@ public class ServiceError extends RuntimeException {
     this.status = status;
     this.requestId = requestId;
     this.headers = headers;
+    this.body = body.clone();
     this.retryable = retryable;
     this.throttling = throttling;
   }
@@ -44,6 +47,10 @@ public class ServiceError extends RuntimeException {
 
   public java.net.http.HttpHeaders headers() {
     return headers;
+  }
+
+  public byte[] body() {
+    return body.clone();
   }
 
   public boolean retryable() {
