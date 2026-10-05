@@ -138,19 +138,24 @@ The service builder takes handlers in order. Each request:
    operation is unknown, and the chain still runs, so it is logged.
 2. **Before**, in chain order. A handler sees the `Job`: operation, context,
    the raw request, and (after the protocol handler) the typed input as a
-   `&dyn Input` (JSON view, downcast).
+   `&dyn Input` (JSON view, downcast). The body is read when the selected
+   protocol is reached, so authentication, admission checks and relays can
+   finish without waiting for a client to send its body. Other protocols'
+   hooks are skipped.
 3. **The implementation**, if every `before` passed.
 4. **After**, in reverse order. A handler sees the outcome (output, modelled
    error or internal failure) and the response being built.
 
 A failing `before` stops the chain going forward. The `after` of every
-handler that already ran still runs, in reverse, so logging and exception
+handler whose `before` succeeded still runs, in reverse, so logging and exception
 translation see failures too. The protocol that routed the request writes
 the response after every `after`. Then `Handler::complete(&Job, &Response)`
 runs in reverse order for the same handlers, observing the serialized status.
 Completion observers cannot change the response. An answered response has been
 moved out of the job by then; read its status from the response. Tower layers
 outside the chain and transport streaming happen later.
+If reading the body fails, only handlers already entered are unwound;
+handlers beyond the selected protocol have no cleanup or completion hooks.
 
 ```rust
 pub trait Handler: Send + Sync + 'static {
@@ -183,6 +188,13 @@ the exception translator and both protocols. Handlers placed before the
 protocols see the raw request. Handlers placed after them see the typed
 input.
 
+`Job::body()` is empty until the body has been read. A handler placed before
+the protocol that needs buffered bytes must first await
+`job.read_body().await?`. Reading again reuses the buffered result or the
+original rejection. For HTTP streaming payloads, this prepares the bounded
+stream instead of buffering it. Existing middleware that inspected
+`job.body()` before the protocol must add this call in an asynchronous hook.
+
 ## Extension points
 
 Everything around an operation is a `Handler`, and the built-in ones are
@@ -190,7 +202,8 @@ ordinary handlers with nothing private. On top of the trait:
 
 - **Scoping** (`HandlerExt`): `.only(&["GetCity"])`, `.except(..)`,
   `.when(|op| ..)` over `OperationInfo`, and `.when_trait("acme#audited")` for
-  a trait in the model. The handler is skipped elsewhere.
+  a trait in the model. The handler is skipped elsewhere. A scoped protocol
+  can claim only operations allowed by its scope.
 - **Closures**: `before_fn(|job| ..)` and `after_fn(|job| ..)` for synchronous
   checks. Anything that awaits implements `Handler`.
 - **Typed per-operation handlers**: `OperationHandler<GetCity>` sees
@@ -199,7 +212,9 @@ ordinary handlers with nothing private. On top of the trait:
 - **Bundles**: a library ships `Vec<Box<dyn Handler>>`; `Builder::handlers`
   appends it in order.
 - **Protocols**: implement `Protocol` (route, write) and `Handler` (read the
-  input) for a new wire format.
+  input) for a new wire format. A router with overlapping candidates should
+  override `Protocol::route_scoped` to filter candidates before ranking them.
+  Its default checks only the selected route; `JsonProtocol` filters first.
 - **Sinks and recorders**: `LogSink` takes service-log records, `Recorder`
   takes metrics records.
 - **Exception rules**: `ExceptionTranslator::translate::<E>` by type, or
@@ -246,7 +261,9 @@ claim a request serves it.
   blob in JSON. Lambda's direct invokes arrive this way,
   and `Crucible::invoke(name, input)` calls it in process. The request is
   marked by an extension only the framework sets, so no HTTP client can
-  forge one.
+  forge one. Operations with streaming input or output payloads are refused
+  before their implementation runs; invoke envelopes cannot carry these
+  streams. Call those operations through HTTP.
 
 ## Errors
 
@@ -287,7 +304,9 @@ request from a broken constraint.
 A required member that is missing (a payload sent as an empty body, say)
 is a broken constraint naming the member.
 
-A request body over the limit is refused unread, as the validation error.
+A buffered request body over the limit is refused during reading, as the
+validation error. Other body transport failures report a malformed request
+without exposing the underlying I/O error.
 `Builder::body_limit` sets the service-wide limit (10 MiB by default);
 `operation_body_limit::<GetCity>(bytes)` overrides it for one operation and
 `body_limits(|op| ..)` for any rule over `OperationInfo`, such as a trait in
@@ -371,8 +390,12 @@ Regenerate Rust services and clients with the matching Crucible runtime.
 `&serde_json::Value` to `&LogRecord<'_>`. If constructing `LogPolicy` directly,
 set `client_error_level`; its constructors default to INFO. Move custom
 post-serialization observers to `Handler::complete` when appropriate.
+Before-protocol middleware that inspects `Job::body()` must await
+`Job::read_body()` first. Keep admission handlers that need only headers
+before that read. Move streaming direct-invoke callers to HTTP. Test both
+hosts and early rejection paths before upgrading a service.
 
-Deploy generated code and runtime together. Roll back both together using
+Deploy generated code, middleware and runtime together. Roll back together using
 the previous dependency revision. This change does not require stored-data
 migration. Consumers should release and bump their pinned Crucible revision
 deliberately; changing this repository does not deploy Leyline or Pigeon.
@@ -381,8 +404,12 @@ deliberately; changing this repository does not deploy Leyline or Pigeon.
 
 The `Metrics` handler builds a `RequestRecord` per request (operation,
 latency, status, class, error) and hands it to a `Recorder` the service
-supplies. Place it early in the chain so its `after` runs for requests a
-later handler refuses. There are no built-in metric names yet: this is
+supplies. Place it early in the chain so its completion hook runs for requests a
+later handler refuses. It records in `complete`, using the serialized
+response's status and including serialization in latency. A serialization
+failure therefore records an internal failure even if the operation
+succeeded. Tower layers and delivery of streaming bytes happen afterward.
+There are no built-in metric names yet: this is
 plumbing.
 
 ## Hosting

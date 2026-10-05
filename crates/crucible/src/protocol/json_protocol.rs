@@ -23,19 +23,31 @@ pub struct JsonProtocol;
 
 impl Protocol for JsonProtocol {
     fn route(&self, request: &Parts, operations: &Operations) -> Option<Route> {
+        self.route_scoped(request, operations, &|_| true)
+    }
+
+    fn route_scoped(
+        &self,
+        request: &Parts,
+        operations: &Operations,
+        applies: &dyn Fn(&OperationInfo) -> bool,
+    ) -> Option<Route> {
+        if request.extensions.get::<Invocation>().is_some() {
+            return None;
+        }
         let rest = request.uri.path().strip_prefix('/')?;
         let path: Vec<&str> = if rest.is_empty() {
             Vec::new()
         } else {
             rest.split('/').collect()
         };
-        let mut best: Option<((usize, usize, usize), Route)> = None;
+        let mut best: Option<(&OperationInfo, Route)> = None;
         for &op in operations
             .routes(path.len())
             .iter()
             .chain(operations.greedy_routes())
         {
-            if op.method != request.method.as_str() {
+            if !applies(op) || op.method != request.method.as_str() {
                 continue;
             }
             let query = request.uri.query().unwrap_or("");
@@ -46,7 +58,6 @@ impl Protocol for JsonProtocol {
                 continue;
             }
             let mut labels = Vec::new();
-            let mut literals = 0;
             if path.len() < op.path.len() {
                 continue;
             }
@@ -57,10 +68,7 @@ impl Protocol for JsonProtocol {
                 };
                 cursor += 1;
                 match segment {
-                    Segment::Literal(text) => {
-                        literals += 1;
-                        text == part
-                    }
+                    Segment::Literal(text) => text == part,
                     Segment::Label(name) => {
                         if part.is_empty() {
                             return false;
@@ -80,18 +88,13 @@ impl Protocol for JsonProtocol {
                     }
                 }
             }) && cursor == path.len();
-            // A literal beats a label in the same place: `cities/search`
-            // over `cities/{cityId}`. With equal query constraint counts,
-            // an exact value beats a constraint that only requires the key.
-            let exact_query_values = op
-                .literal_query
-                .iter()
-                .filter(|(_, expected)| expected.is_some())
-                .count();
-            let specificity = (literals, op.literal_query.len(), exact_query_values);
-            if matched && best.as_ref().is_none_or(|(most, _)| specificity > *most) {
+            if matched
+                && best
+                    .as_ref()
+                    .is_none_or(|(most, _)| more_specific(op, most))
+            {
                 best = Some((
-                    specificity,
+                    op,
                     Route {
                         operation: op.name,
                         labels,
@@ -204,6 +207,38 @@ impl Protocol for JsonProtocol {
             }
         }
     }
+}
+
+/// Path segments decide specificity before query constraints. A later
+/// literal must not outweigh an earlier literal or non-greedy label.
+fn more_specific(candidate: &OperationInfo, previous: &OperationInfo) -> bool {
+    let rank = |segment: &Segment| match segment {
+        Segment::Literal(_) => 2,
+        Segment::Label(_) => 1,
+        Segment::GreedyLabel(_) => 0,
+    };
+    candidate
+        .path
+        .iter()
+        .map(rank)
+        .cmp(previous.path.iter().map(rank))
+        .then_with(|| {
+            candidate
+                .literal_query
+                .len()
+                .cmp(&previous.literal_query.len())
+        })
+        .then_with(|| {
+            let exact = |operation: &OperationInfo| {
+                operation
+                    .literal_query
+                    .iter()
+                    .filter(|(_, value)| value.is_some())
+                    .count()
+            };
+            exact(candidate).cmp(&exact(previous))
+        })
+        .is_gt()
 }
 
 impl Handler for JsonProtocol {
@@ -345,6 +380,26 @@ fn bound_members<'a>(
                 Some(text) => BoundValue::parse(text, scalar),
                 None => continue,
             },
+            (Location::Header(name), scalar @ Scalar::List(_)) => {
+                let mut fields = job.request().headers.get_all(name).iter().peekable();
+                if fields.peek().is_none() {
+                    continue;
+                }
+                let mut items = Vec::new();
+                let result = fields.try_for_each(|value| {
+                    let text = value
+                        .to_str()
+                        .map_err(|_| "is not visible ASCII".to_owned())?;
+                    let BoundValue::List(field_items) =
+                        BoundValue::parse(Cow::Borrowed(text), scalar)?
+                    else {
+                        unreachable!("list scalar parses as a list");
+                    };
+                    items.extend(field_items);
+                    Ok::<_, String>(())
+                });
+                result.map(|()| BoundValue::List(items))
+            }
             (Location::Header(name), scalar) => {
                 let Some(value) = job.request().headers.get(name) else {
                     continue;

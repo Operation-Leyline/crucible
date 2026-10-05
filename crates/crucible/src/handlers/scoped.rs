@@ -6,7 +6,8 @@ use std::sync::Arc;
 use crate::error::Result;
 use crate::handler::{Handler, Hook, Job, Prepare};
 use crate::operation::OperationInfo;
-use crate::protocol::Protocol;
+use crate::operations::Operations;
+use crate::protocol::{Answers, Protocol, Route};
 
 /// Scoping for every handler.
 pub trait HandlerExt: Handler + Sized {
@@ -84,7 +85,7 @@ impl<H: Handler> Handler for Scoped<H> {
     }
 
     fn as_protocol(&self) -> Option<&dyn Protocol> {
-        self.inner.as_protocol()
+        self.inner.as_protocol().map(|_| self as &dyn Protocol)
     }
 
     /// The inner handler prepares for the operations this scope (and any
@@ -92,5 +93,45 @@ impl<H: Handler> Handler for Scoped<H> {
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         let scope: &dyn Fn(&OperationInfo) -> bool = &*self.applies;
         self.inner.prepare(&prepare.within(scope))
+    }
+}
+
+impl<H: Handler> Protocol for Scoped<H> {
+    fn route(
+        &self,
+        request: &axum::http::request::Parts,
+        operations: &Operations,
+    ) -> Option<Route> {
+        self.inner
+            .as_protocol()?
+            .route_scoped(request, operations, &*self.applies)
+    }
+
+    fn route_scoped(
+        &self,
+        request: &axum::http::request::Parts,
+        operations: &Operations,
+        applies: &dyn Fn(&OperationInfo) -> bool,
+    ) -> Option<Route> {
+        self.inner
+            .as_protocol()?
+            .route_scoped(request, operations, &|operation| {
+                applies(operation) && (self.applies)(operation)
+            })
+    }
+
+    fn owns(&self, request: &axum::http::request::Parts) -> bool {
+        self.inner
+            .as_protocol()
+            .is_some_and(|protocol| protocol.owns(request))
+    }
+
+    fn write(&self, job: &Job, answers: &Answers<'_>) -> axum::response::Response {
+        // Routing has already applied the scope. For unknown operations the
+        // format's fallback writer still supplies the ordinary rejection.
+        self.inner
+            .as_protocol()
+            .expect("scoped protocol")
+            .write(job, answers)
     }
 }

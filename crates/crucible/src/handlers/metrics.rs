@@ -1,10 +1,12 @@
 //! Metrics plumbing: a record per request, handed to a recorder the service
-//! supplies. Place the handler early in the chain, so its `after` runs for
-//! requests a later handler refuses.
+//! supplies. Place the handler early in the chain, so its completion hook
+//! observes requests a later handler refuses. Records include serialization,
+//! before outer tower layers or response-body delivery.
 
+use axum::response::Response;
 use std::time::Duration;
 
-use crate::handler::{Handler, Hook, Job};
+use crate::handler::{Handler, Job};
 use crate::operation::OperationInfo;
 
 #[derive(Debug, Clone)]
@@ -34,19 +36,30 @@ impl<R: Recorder> Metrics<R> {
 }
 
 impl<R: Recorder> Handler for Metrics<R> {
-    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
-        let Some(resolution) = job.resolution() else {
-            return Hook::Ready(());
-        };
+    fn complete(&self, job: &Job, response: &Response) {
         let operation = job.operation();
+        let status = response.status().as_u16();
+        let error = if response
+            .extensions()
+            .get::<crate::protocol::SerializationFailure>()
+            .is_some()
+        {
+            Some("InternalFailure")
+        } else {
+            job.resolution()
+                .and_then(|resolution| resolution.error_name())
+        };
         self.recorder.record(&RequestRecord {
             request_id: job.context().request_id(),
             operation,
-            status: resolution.status(operation),
-            class: resolution.class(operation),
-            error: resolution.error_name(),
+            status,
+            class: match status {
+                0..400 => "success",
+                400..500 => "error",
+                _ => "fault",
+            },
+            error,
             latency: job.context().received().elapsed(),
         });
-        Hook::Ready(())
     }
 }

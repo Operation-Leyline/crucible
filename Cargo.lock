@@ -399,6 +399,7 @@ dependencies = [
  "axum",
  "chrono",
  "crucible-wire",
+ "http-body-util",
  "lambda_http",
  "lambda_runtime",
  "regex",

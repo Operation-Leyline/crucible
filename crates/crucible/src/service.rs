@@ -46,7 +46,7 @@ fn request_id() -> HeaderValue {
     HeaderValue::from_str(text).expect("a UUID is visible ASCII")
 }
 
-/// Bodies above this are refused unread, unless the builder says otherwise.
+/// Buffered bodies above this are refused during reading, unless the builder says otherwise.
 pub const DEFAULT_BODY_LIMIT: usize = 10 * 1024 * 1024;
 
 /// A service: its operations, its handler chain, and the protocols in it.
@@ -190,47 +190,15 @@ impl Crucible {
             .and_then(|entry| inner.body_limits.get(entry.info.id))
             .copied()
             .unwrap_or(inner.body_limit);
-        let streaming = entry.is_some_and(|entry| {
-            entry.info.input.iter().any(|member| {
-                matches!(
-                    member.location,
-                    crucible_wire::operation::Location::StreamingPayload { .. }
-                )
-            })
-        });
-        let (body, body_stream) = if streaming {
-            let mut stream =
-                crucible_wire::stream::ByteStream::new(body.into_data_stream()).with_maximum(limit);
-            if let Some((member, _)) = entry
-                .and_then(|entry| crucible_wire::operation::Location::payload(entry.info.input))
-            {
-                if let crucible_wire::operation::Location::StreamingPayload {
-                    minimum,
-                    maximum,
-                    ..
-                } = member.location
-                {
-                    stream = stream.with_bounds(minimum, maximum);
-                }
-            }
-            if let Some(length) = parts
-                .headers
-                .get("content-length")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse().ok())
-            {
-                stream = stream.with_length(length);
-            }
-            (Ok(Bytes::new()), Some(stream))
-        } else {
-            (axum::body::to_bytes(body, limit).await, None)
-        };
         let mut job = Job {
             service: inner.operations.service,
             context: context.clone(),
             request: parts,
-            body: body.as_ref().cloned().unwrap_or_default(),
-            body_stream,
+            body: Bytes::new(),
+            raw_body: Some(body),
+            body_limit: limit,
+            body_read_error: None,
+            body_stream: None,
             labels: route.map(|Route { labels, .. }| labels).unwrap_or_default(),
             decode: entry.map(|entry| entry.decode),
             decode_json: entry.map(|entry| entry.decode_json),
@@ -241,72 +209,69 @@ impl Crucible {
             wants_snapshot: false,
             input_snapshot: None,
         };
-        if body.is_err() {
-            job.outcome = Some(Outcome::Failed(
-                Rejection::malformed("", format!("the body is larger than {limit} bytes")).into(),
-            ));
-        }
 
         context
             .clone()
             .scope(async move {
                 let ran = self
-                    .run(&mut job, entry.map(|entry| entry.invoke.clone()))
+                    .run(&mut job, entry.map(|entry| entry.invoke.clone()), protocol)
                     .await;
                 let answers = Answers {
                     reject: &*inner.reject,
                     internal: inner.operations.service.internal,
                     unknown: inner.operations.service.unknown,
                 };
-                let protocol = inner.handlers[protocol]
+                let writer = inner.handlers[protocol]
                     .as_protocol()
                     .expect("indexed as a protocol");
                 let mut response = match job.outcome.take() {
                     Some(Outcome::Answered(response)) => response,
                     outcome => {
                         job.outcome = outcome;
-                        protocol.write(&job, &answers)
+                        writer.write(&job, &answers)
                     }
                 };
-                for (name, value) in job.response_headers.drain() {
-                    if let Some(name) = name {
-                        response.headers_mut().insert(name, value);
-                    }
-                }
+                response.headers_mut().extend(job.response_headers.drain());
                 // An operation that models its own `x-request-id` member keeps it.
                 if !response.headers().contains_key("x-request-id") {
                     response
                         .headers_mut()
                         .insert("x-request-id", job.context.request_id_header().clone());
                 }
-                for handler in inner.handlers[..ran].iter().rev() {
-                    handler.complete(&job, &response);
+                for (index, handler) in inner.handlers[..ran].iter().enumerate().rev() {
+                    if index == protocol || handler.as_protocol().is_none() {
+                        handler.complete(&job, &response);
+                    }
                 }
                 response
             })
             .await
     }
 
-    /// `before` in order, the operation, then `after` in reverse for every
-    /// handler whose `before` succeeded. A request refused before the chain
-    /// starts (an oversized body) runs no `before` but every `after`, so the
-    /// service log and metrics still see it.
-    async fn run(&self, job: &mut Job, invoke: Option<Invoke>) -> usize {
+    /// `before` in order, the operation, then `after` in reverse for the
+    /// handlers whose `before` succeeded. Only the selected protocol enters;
+    /// it reads the body after preceding admission handlers have passed.
+    async fn run(&self, job: &mut Job, invoke: Option<Invoke>, protocol: usize) -> usize {
         let handlers = &self.inner.handlers;
-        let refused_early = job.outcome.is_some();
-        let mut ran = if refused_early { handlers.len() } else { 0 };
-        if !refused_early {
-            for handler in handlers {
-                if let Err(error) = handler.before(job).resolve().await {
-                    job.outcome = Some(Outcome::Failed(error));
-                    break;
-                }
-                ran += 1;
-                // A handler that answered ends the `before` hooks; its own
-                // `after` still runs.
-                if job.outcome.is_some() {
-                    break;
-                }
+        let mut ran = 0;
+        for (index, handler) in handlers.iter().enumerate() {
+            if index != protocol && handler.as_protocol().is_some() {
+                continue;
+            }
+            if index == protocol
+                && let Err(error) = job.read_body().await
+            {
+                job.outcome = Some(Outcome::Failed(error));
+                break;
+            }
+            if let Err(error) = handler.before(job).resolve().await {
+                job.outcome = Some(Outcome::Failed(error));
+                break;
+            }
+            ran = index + 1;
+            // An answering handler is entered, but the rest of the chain is not.
+            if job.outcome.is_some() {
+                break;
             }
         }
         if job.outcome.is_none() {
@@ -324,8 +289,10 @@ impl Crucible {
                 (_, None) => Outcome::Failed(FrameworkError::UnknownOperation.into()),
             });
         }
-        for handler in handlers[..ran].iter().rev() {
-            handler.after(job).resolve().await;
+        for (index, handler) in handlers[..ran].iter().enumerate().rev() {
+            if index == protocol || handler.as_protocol().is_none() {
+                handler.after(job).resolve().await;
+            }
         }
         ran
     }
@@ -415,8 +382,9 @@ impl Builder {
         self
     }
 
-    /// The largest request body any operation reads; larger ones are refused
-    /// unread as a validation error.
+    /// The largest request body any operation reads. Admission handlers run
+    /// before buffering; the selected protocol rejects larger buffered bodies
+    /// as a validation error. Streaming bodies enforce the limit while read.
     pub fn body_limit(mut self, bytes: usize) -> Self {
         self.body_limit = bytes;
         self
