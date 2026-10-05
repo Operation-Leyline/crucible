@@ -9,7 +9,7 @@ use serde_json::Value;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 
-use crate::operation::{Location, MemberInfo};
+use crate::operation::{Location, MemberInfo, ResponseBindings};
 
 /// Writes `value` (a structure) into `out` as a JSON object without the
 /// members `members` binds to headers, and returns those as (header, text).
@@ -30,6 +30,16 @@ pub fn write_typed<T: Serialize + ?Sized>(
     type_name: Option<&'static str>,
     out: &mut Vec<u8>,
 ) -> serde_json::Result<Vec<(&'static str, String)>> {
+    if members.iter().any(|m| {
+        matches!(
+            m.location,
+            Location::PrefixHeaders(_) | Location::ResponseCode
+        )
+    }) {
+        return Err(<serde_json::Error as ser::Error>::custom(
+            "dynamic response bindings require write_http",
+        ));
+    }
     let mut taken = Vec::new();
     value.serialize(Split {
         members,
@@ -46,6 +56,59 @@ pub fn write_typed<T: Serialize + ?Sized>(
             _ => None,
         })
         .collect())
+}
+
+/// Serializes a response once, collecting dynamic headers and its status.
+pub fn write_http<T: Serialize + ?Sized>(
+    value: &T,
+    members: &[MemberInfo],
+    type_name: Option<&'static str>,
+    out: &mut Vec<u8>,
+) -> serde_json::Result<ResponseBindings> {
+    let mut taken = Vec::new();
+    value.serialize(Split {
+        members,
+        take: Take::Headers,
+        type_name,
+        payload: Location::payload(members).is_some(),
+        out,
+        taken: &mut taken,
+    })?;
+    let mut result = ResponseBindings::default();
+    for (member, value) in taken {
+        match member.location {
+            Location::Header(name) => result.headers.push((name.to_owned(), text(&value))),
+            Location::PrefixHeaders(prefix) => {
+                let values = value.as_object().ok_or_else(|| {
+                    <serde_json::Error as ser::Error>::custom("prefix headers must be a map")
+                })?;
+                for (key, value) in values {
+                    let name = format!("{prefix}{key}").to_ascii_lowercase();
+                    if members.iter().any(|m| matches!(m.location, Location::Header(explicit) if explicit.eq_ignore_ascii_case(&name))) { continue; }
+                    let value = value.as_str().ok_or_else(|| {
+                        <serde_json::Error as ser::Error>::custom(
+                            "prefix header values must be strings",
+                        )
+                    })?;
+                    result.headers.push((name, value.to_owned()));
+                }
+            }
+            Location::ResponseCode => {
+                result.status = Some(
+                    value
+                        .as_u64()
+                        .filter(|v| (100..=599).contains(v))
+                        .ok_or_else(|| {
+                            <serde_json::Error as ser::Error>::custom(
+                                "response status must be an integer from 100 through 599",
+                            )
+                        })? as u16,
+                )
+            }
+            _ => {}
+        }
+    }
+    Ok(result)
 }
 
 /// Writes `value` (an input) into `out` as a JSON object of its body
@@ -108,12 +171,43 @@ impl SerializeStruct for Fields<'_> {
         key: &'static str,
         value: &T,
     ) -> serde_json::Result<()> {
+        // An event stream is the body itself; it never enters the document.
+        if self
+            .split
+            .members
+            .iter()
+            .any(|member| member.name == key && member.location == Location::EventStream)
+        {
+            return Ok(());
+        }
         if self.split.payload {
             let member = self.split.members.iter().find(|member| member.name == key);
-            if member.is_some_and(|member| matches!(member.location, Location::Payload(_))) {
-                return value.serialize(Raw {
-                    out: &mut *self.split.out,
-                });
+            match member.map(|member| member.location) {
+                Some(Location::Payload(_) | Location::StreamingPayload { .. }) => {
+                    return value.serialize(Raw {
+                        out: &mut *self.split.out,
+                    });
+                }
+                Some(Location::TextPayload(_)) => {
+                    return match serde_json::to_value(value)? {
+                        Value::String(text) => {
+                            self.split.out.extend_from_slice(text.as_bytes());
+                            Ok(())
+                        }
+                        Value::Null => Ok(()),
+                        _ => Err(ser::Error::custom("a text payload member is a string")),
+                    };
+                }
+                Some(Location::DocumentPayload(_)) => {
+                    // Straight to bytes; an explicit null sends no body.
+                    let start = self.split.out.len();
+                    serde_json::to_writer(&mut *self.split.out, value)?;
+                    if &self.split.out[start..] == b"null" {
+                        self.split.out.truncate(start);
+                    }
+                    return Ok(());
+                }
+                _ => {}
             }
         }
         let take = self.split.take;
@@ -121,7 +215,13 @@ impl SerializeStruct for Fields<'_> {
             member.name == key
                 && matches!(
                     (take, member.location),
-                    (_, Location::Header(_)) | (Take::Bound, Location::Label | Location::Query(_))
+                    (
+                        _,
+                        Location::Header(_) | Location::PrefixHeaders(_) | Location::ResponseCode
+                    ) | (
+                        Take::Bound,
+                        Location::Label | Location::Query(_) | Location::QueryParams
+                    )
                 )
         });
         if let Some(member) = taken {
@@ -644,6 +744,56 @@ mod tests {
         assert_eq!(body, bytes);
         assert_eq!(bound.len(), 1);
         assert_eq!(bound[0].0.name, "caption");
+    }
+
+    #[derive(Serialize)]
+    struct Kinds {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        text: Option<&'static str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        record: Option<serde_json::Value>,
+    }
+
+    fn kind(location: Location, name: &'static str) -> MemberInfo {
+        MemberInfo {
+            name,
+            location,
+            scalar: Scalar::Json,
+            redaction: &crate::operation::Redaction::Public,
+            traits: &[],
+        }
+    }
+
+    #[test]
+    fn text_and_document_payloads_are_the_body() {
+        let text = [
+            kind(Location::TextPayload("text/plain"), "text"),
+            kind(Location::Body, "record"),
+        ];
+        let mut body = Vec::new();
+        let value = Kinds {
+            text: Some("h\u{e9}llo"),
+            record: None,
+        };
+        write(&value, &text, &mut body).unwrap();
+        assert_eq!(body, "h\u{e9}llo".as_bytes());
+
+        let document = [
+            kind(Location::Body, "text"),
+            kind(Location::DocumentPayload("application/json"), "record"),
+        ];
+        for (record, expected) in [
+            (serde_json::json!({"a":[1,null]}), &br#"{"a":[1,null]}"#[..]),
+            (serde_json::Value::Null, &b""[..]),
+        ] {
+            let mut body = Vec::new();
+            let value = Kinds {
+                text: None,
+                record: Some(record),
+            };
+            write(&value, &document, &mut body).unwrap();
+            assert_eq!(body, expected);
+        }
     }
 
     #[test]

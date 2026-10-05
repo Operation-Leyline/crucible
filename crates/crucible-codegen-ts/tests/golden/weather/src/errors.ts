@@ -5,7 +5,7 @@ import type { ResponseMetadata } from "./runtime.js";
 import type * as m from "./models.js";
 
 export class ConflictError extends ServiceError {
-  constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
+  constructor(fields: globalThis.Record<string, unknown>, metadata: ResponseMetadata) {
     super("ConflictError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
   }
 }
@@ -13,18 +13,18 @@ export class ConflictError extends ServiceError {
 export class NotFoundError extends ServiceError {
   declare readonly resourceId?: string;
 
-  constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
+  constructor(fields: globalThis.Record<string, unknown>, metadata: ResponseMetadata) {
     super("NotFoundError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
-    if (Object.hasOwn(fields, "resourceId")) Object.defineProperty(this, "resourceId", { value: fields["resourceId"], enumerable: true });
+    if (globalThis.Object.hasOwn(fields, "resourceId")) globalThis.Object.defineProperty(this, "resourceId", { value: fields["resourceId"], enumerable: true });
   }
 }
 
 export class ThrottlingError extends ServiceError {
   declare readonly retryAfter?: number;
 
-  constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
+  constructor(fields: globalThis.Record<string, unknown>, metadata: ResponseMetadata) {
     super("ThrottlingError", typeof fields.message === "string" ? fields.message : "", metadata, "client", { throttling: true });
-    if (Object.hasOwn(fields, "retryAfter")) Object.defineProperty(this, "retryAfter", { value: fields["retryAfter"], enumerable: true });
+    if (globalThis.Object.hasOwn(fields, "retryAfter")) globalThis.Object.defineProperty(this, "retryAfter", { value: fields["retryAfter"], enumerable: true });
   }
 }
 
@@ -33,10 +33,10 @@ export class ValidationError extends ServiceError {
   declare readonly fieldList?: m.ValidationFieldList;
   declare readonly requestId?: string;
 
-  constructor(fields: Record<string, unknown>, metadata: ResponseMetadata) {
+  constructor(fields: globalThis.Record<string, unknown>, metadata: ResponseMetadata) {
     super("ValidationError", typeof fields.message === "string" ? fields.message : "", metadata, "client", undefined);
-    if (Object.hasOwn(fields, "reason")) Object.defineProperty(this, "reason", { value: fields["reason"], enumerable: true });
-    if (Object.hasOwn(fields, "fieldList")) Object.defineProperty(this, "fieldList", { value: fields["fieldList"], enumerable: true });
-    if (Object.hasOwn(fields, "requestId")) Object.defineProperty(this, "requestId", { value: fields["requestId"], enumerable: true });
+    if (globalThis.Object.hasOwn(fields, "reason")) globalThis.Object.defineProperty(this, "reason", { value: fields["reason"], enumerable: true });
+    if (globalThis.Object.hasOwn(fields, "fieldList")) globalThis.Object.defineProperty(this, "fieldList", { value: fields["fieldList"], enumerable: true });
+    if (globalThis.Object.hasOwn(fields, "requestId")) globalThis.Object.defineProperty(this, "requestId", { value: fields["requestId"], enumerable: true });
   }
 }

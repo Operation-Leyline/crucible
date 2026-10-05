@@ -2,8 +2,8 @@ $version: "2"
 
 // crucible's protocol. A model depends on the crucible-traits jar (released
 // from this file; see README.md) and puts `@crucible.protocols#json` on the
-// service. crucible generates only this protocol; a model may carry another
-// beside it for other tools.
+// service. This is the default when declared beside other protocols;
+// generation of another protocol requires explicit target support.
 
 namespace crucible.protocols
 
@@ -11,11 +11,13 @@ namespace crucible.protocols
 ///
 /// - Members bind to the URI path (`@httpLabel`), the query string
 ///   (`@httpQuery`) and headers (`@httpHeader`). Every other input or output
-///   member goes in a JSON object body, named as in the model. A request or
+///   member goes in a JSON object body, using @jsonName when present. A request or
 ///   response with no body members has no body.
-/// - An `@httpPayload` member, which targets a blob, is the whole body
-///   instead: its bytes, raw, sent with the blob's `@mediaType` as the
-///   content type (`application/octet-stream` without one). A receiver
+/// - An `@httpPayload` member is the whole body instead. Blob bytes and
+///   UTF-8 strings are raw; structures, unions and documents use JSON.
+///   The target's `@mediaType` sets the content type, otherwise it is
+///   application/octet-stream, text/plain, or application/json respectively.
+///   A receiver
 ///   takes the bytes whatever content type they arrive with. The structure's
 ///   other members bind to the URI and headers. An empty body is an absent
 ///   payload.
@@ -25,10 +27,14 @@ namespace crucible.protocols
 /// - Timestamps are RFC 3339 `date-time` strings everywhere, unless
 ///   `@timestampFormat` says otherwise.
 /// - A successful response has the operation's `@http` code. An error
-///   response has its error's `@httpError` code, and its body is the error
+///   response has its error's `@httpError` code. An ordinary JSON body is the error
 ///   structure plus `"__type"`: the error shape's name, without namespace.
-///   Clients identify the error by `__type`, else by the status code when only
-///   one of the operation's errors has it.
+///   X-Crucible-Error contains the error shape's name and takes precedence
+///   over __type. Ordinary errors retain __type for existing clients. An
+///   error with @httpPayload uses its payload as the body and MUST send
+///   X-Crucible-Error. Browser services MUST expose this header through CORS.
+///   Without a discriminator, clients use the status code when only one
+///   of the operation's errors has it.
 /// - A member left out of a response takes its `@default`, if it has one.
 /// - The service may send `x-request-id`; clients surface it on errors.
 @trait(selector: "service")
@@ -40,6 +46,11 @@ namespace crucible.protocols
         smithy.api#httpLabel
         smithy.api#httpPayload
         smithy.api#httpQuery
+        smithy.api#httpQueryParams
+        smithy.api#httpPrefixHeaders
+        smithy.api#httpResponseCode
+        smithy.api#jsonName
+        smithy.api#mediaType
         smithy.api#timestampFormat
     ]
 )

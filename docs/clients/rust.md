@@ -120,9 +120,10 @@ for an optional member. Query and header bindings omit absent and null values.
 Supply all required labels and the values the operation needs before sending.
 
 Timestamps are `chrono::DateTime<Utc>`. RFC 3339 date-time preserves supported
-subsecond precision; HTTP-date has second precision. The epoch-seconds codec
-currently converts through `f64` and milliseconds, so it does not preserve
-nanosecond values or guarantee precision at extreme dates. Named string enums
+subsecond precision; HTTP-date has second precision. Epoch seconds preserve all
+nine nanosecond digits, including negative values and exponent notation, without
+floating-point conversion. Out-of-range and subnanosecond values are rejected.
+Named string enums
 retain unmodeled strings in `UnknownValue(String)`, including enum map keys.
 They implement `Clone`, but no longer `Copy`; `as_str()` borrows from the enum.
 Unions retain an unmodeled arm in
@@ -135,12 +136,17 @@ arm cannot be serialized under a declared arm's name.
 These representations apply to generated clients. Rust service models keep
 their server nullability, `Option<T>` fields, and closed enums and unions.
 
-Each method returns `Result<Output, Error<OperationError>>`. Match
-`Error::Service(CreateCityError::ConflictError(error))` for a modeled exception.
-Other variants are `Unknown`, `Transport`, `Invalid`, and `Decode`.
-Unknown errors retain status, type name, message, and request ID. Modeled error
-fields follow their Smithy definitions; the Rust API does not attach a uniform
-HTTP metadata object to every modeled error.
+Each method returns `Result<Output, Error<OperationError>>`. A modeled exception
+is `Error::Service(ServiceError { error, metadata })`; `error` is the generated
+operation error enum. `Error::metadata()` provides the same `ResponseMetadata`
+for modeled and unknown service errors: HTTP status, request ID, and headers.
+Unknown errors also retain their type name, message, and retry classification.
+Other variants are `Transport`, `Invalid`, `Decode`, `Timeout`, and `Cancelled`.
+
+When upgrading, regenerate clients and change patterns such as
+`Error::Service(CreateCityError::ConflictError(error))` to
+`Error::Service(ServiceError { error: CreateCityError::ConflictError(error), .. })`.
+Read unknown status and request ID through `error.metadata` or the shared accessor.
 
 ## Transport and retries
 
@@ -158,53 +164,49 @@ set the constant to `true` when the operation requires it. Public operations
 bypass the token provider.
 
 Use `Config::http_client(reqwest::Client)` for connection pools, proxies,
-redirect policy, and per-attempt timeout settings. For an overall deadline,
-wrap the operation future in `tokio::time::timeout`; dropping the future cancels
-the active call and subsequent retries. There is no generated call-scope object.
-The default reqwest configuration governs redirects and transport timeouts.
+redirect policy, and per-attempt timeout settings. `Config::timeout(Duration)`
+sets one total budget covering credential lookup, all attempts, body reads, and
+retry delays. There is no total-call timeout unless configured. Dropping a call
+future still cancels its active work.
 
-`Config::header` supplies default headers. `Config::interceptor` accepts an
-`Interceptor` implementation that receives a mutable reqwest request after
-credentials and headers, on every attempt. Interceptors run in registration
-order. Rust has no `--content-sha256` generation option: an application that
-needs the header supplies an interceptor. With `sha2 = "0.10"` and
-`reqwest = { version = "0.13.5", default-features = false }` dependencies:
+Generated operations also expose `*_with_options(input, CallOptions)` (omit
+`input` for a Unit operation). `CallOptions.timeout` overrides the client budget;
+`CallOptions.cancellation` accepts a clonable `CancellationToken`. Calling
+`cancel()` ends all calls sharing that token with `Error::Cancelled`. Deadline
+expiry returns `Error::Timeout`; neither condition retries. A generated helper
+receives a deterministic numeric suffix if its name collides with an operation.
 
 ```rust
-use sha2::{Digest, Sha256};
+use std::time::Duration;
+use crucible_client::{CallOptions, CancellationToken};
 
-struct BodyDigest;
-impl crucible_client::Interceptor for BodyDigest {
-    fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String> {
-        let write = matches!(*request.method(),
-            reqwest::Method::POST | reqwest::Method::PUT | reqwest::Method::PATCH);
-        if request.body().is_some() || write {
-            let bytes = match request.body() {
-                Some(body) => body.as_bytes().ok_or("body must be buffered")?,
-                None => &[],
-            };
-            let digest = format!("{:x}", Sha256::digest(bytes));
-            request.headers_mut().insert(
-                "x-amz-content-sha256",
-                digest.parse().map_err(|error| format!("{error}"))?,
-            );
-        }
-        Ok(())
-    }
-}
+let cancellation = CancellationToken::new();
+let options = CallOptions {
+    timeout: Some(Duration::from_secs(15)),
+    cancellation: Some(cancellation.clone()),
+};
+let result = client.get_city_with_options(input, options).await;
 ```
 
-Register `BodyDigest` last, after any interceptor that changes the body:
-`Config::new(endpoint).interceptor(BodyDigest)`.
-
-Paginators send only when `next_page().await` is called. They stop after the
-last page, an error, or a token repeated immediately by the service; they do not
-retain a set of all earlier tokens. `collect().await` buffers all pages.
+`Config::header` supplies default headers. `Config::interceptor` receives a
+mutable reqwest request after credentials and headers on every attempt, in
+registration order. `Config::content_sha256(true)` adds `x-amz-content-sha256`
+before these interceptors, allowing a signing interceptor to consume it. The
+hash covers the buffered body, including zero bytes for empty POST/PUT/PATCH
+requests. An interceptor that changes the body must recompute the digest after
+its change. Other bodyless requests receive no generated digest.
 
 ## Qualification
 
 Run `cargo test -p crucible-codegen-rust -p crucible-client -p crucible-wire`,
 then `bash tools/test-e2e.sh` for the generated client over the weather service.
+The E2E client tests also drive generated clients for the shared
+`error-payloads`, `checksums` (with its vectors), and `protocol-json` fixtures
+(once per AWS JSON protocol) against loopback HTTP servers, since the server
+framework serves only `crucible.protocols#json`. The `event-streams` fixture runs
+the same way under `restJson1`, `awsJson1_0`, and SigV4 (`tests/event_streams.rs`),
+and `crucible-wire` decodes the published framing vectors in
+`tests/conformance/event-streams.json`.
 The real loopback retry runner consumes the shared retry fixture. The E2E
 workspace is a separate Cargo workspace and uses a generated model package.
 
@@ -280,3 +282,257 @@ Regenerate Rust clients and services with the matching runtime. Handwritten
 operation descriptions must supply this field. Unmodeled 501 and other unknown
 5xx responses are not automatically retried. Roll back the generator, runtime,
 and generated code together if reverting this change.
+
+### Dynamic HTTP bindings
+
+Generated clients support `@jsonName`, greedy path labels, `@httpQueryParams`,
+`@httpPrefixHeaders`, and `@httpResponseCode`. Public member names stay unchanged;
+JSON names affect only the wire. Explicit query/header bindings take precedence
+when a map supplies the same name. Greedy labels preserve slash separators and
+reject dot-only segments before dispatch. Response-code members read the actual
+HTTP status, including modeled errors. Nested pagination token paths continue to
+use the public model names.
+
+### Streaming payloads
+
+An `@streaming` blob uses `ByteStream` on clients and servers. `ByteStream::new`
+owns a one-shot stream of `Result<Bytes, E>` chunks. `ByteStream::replay` takes a
+factory that must reproduce the same bytes on every attempt; `from_bytes` is a
+replayable in-memory convenience. A cloned one-shot value shares its consumption
+state. The transport never automatically retries a one-shot upload.
+
+Call `open()` and consume the returned chunk stream with `StreamExt::next`.
+Dropping that stream releases its HTTP reader. Call `close()` to release an
+unopened response. The original call deadline and cancellation token remain
+active during response reads. Streaming errors are `std::io::Error`, with
+`TimedOut` and `Interrupted` distinguishing deadline and cancellation failures.
+
+`with_length` supplies a known length for `@requiresLength`; declared and modeled
+length bounds are enforced while reading. With `Config::content_sha256(true)`,
+streaming inputs require `with_sha256` or an explicit digest header. The runtime
+does not collect a streaming body to calculate a hash. Generated servers also
+stream request and response bodies, and enforce configured request-body limits
+as chunks arrive.
+
+### Event streams
+
+A member targeting an `@streaming` union is an `EventStream<Union>`. To send
+events, build one from a `Stream` of union values with `EventStream::new`, from
+a fallible source with `EventStream::try_new`, or from a collection with
+`EventStream::from_events`. The transport pulls an event only when the
+connection accepts more bytes, so a slow service slows the source. A source
+error aborts the request, and the call fails with `Error::Transport`. A call
+that sends events is never retried, because its events cannot be replayed.
+
+```rust
+let events = EventStream::new(futures_util::stream::iter(vec![
+    ClientEvents::Ping(Ping {}),
+]));
+client.publish(PublishInput { channel: "general".into(), events }).await?;
+
+let output = client.subscribe(SubscribeInput { channel: "news".into(), limit: Field::Absent }).await?;
+let mut events = output.events.open()?;
+while let Some(event) = events.recv().await? {
+    // ServerEvents::Message(..), ServerEvents::UnknownValue(..) for a newer event
+}
+```
+
+A received stream is read once: `open()` returns an `EventReceiver`, which is
+also a `Stream`. `recv()` yields events in order, `Ok(None)` at the end, or one
+`EventStreamError`, after which the stream has ended:
+
+- `Exception(union)`: a modeled error, as the union's error member, for example
+  `ServerEvents::Throttled(errors::ThrottledError)`.
+- `Error { code, message }`: an `error` message, or an exception type the client
+  does not know.
+- `Decode(message)`: invalid framing, a checksum mismatch, or an event that does
+  not match the model.
+- `Io(error)`: the connection failed, or the call deadline (`TimedOut`) or
+  cancellation (`Interrupted`) ended it.
+
+An event type the client does not know is the union's unknown member. Dropping
+the receiver releases the connection; `close()` releases an unopened stream.
+The call's total timeout and cancellation token stay active until the stream
+ends, so a configured timeout also bounds a long-lived subscription. Override it
+per call with `CallOptions`. An HTTP error response is decoded as the
+operation's error, as for any call.
+
+Each event is one AWS event stream message (`application/vnd.amazon.eventstream`)
+with `:message-type`, `:event-type`, and `:content-type` headers. `@eventHeader`
+members are typed headers: booleans, byte, short, integer, long, blob, string
+(and enum), and timestamps in milliseconds. An `@eventPayload` blob or string
+is the raw payload, and a structure is its JSON document. Without an
+`@eventPayload`, the remaining members form a JSON document. Prelude and message
+CRC32s are verified; headers are limited to 128 KiB and payloads to 16 MiB.
+With `restJson1` and `crucible.protocols#json`, the operation's other members
+use HTTP bindings. With `awsJson1_0` and `awsJson1_1`, they are sent as an
+`initial-request` message before the first event. An `initial-response`
+message, when the service sends one, fills the output's other members before
+the call returns.
+
+With SigV4 authentication the request declares
+`x-amz-content-sha256: STREAMING-AWS4-HMAC-SHA256-EVENTS`. Each message is
+wrapped in an envelope whose `:chunk-signature` chains from the previous
+signature, starting from the request's, and the stream ends with an empty
+signed message. The string to sign is checked against the published smithy-rs
+vector. Responses are not signed.
+
+Bidirectional operations work over HTTP/1.1. The response is returned when the
+service sends its headers, and both directions then proceed independently; the
+tests exchange events interactively on one connection. `crucible-client` builds
+reqwest without its `http2` feature, so services that accept event streams only
+over HTTP/2 (for example, Amazon Transcribe streaming) are not reachable with
+the default client. An application can enable that feature and pass its own
+client to `Config::http_client`; that path is untested. Sent events are not checked against model constraints, timestamps in
+headers keep millisecond precision, and `Config::content_sha256` adds no digest
+to an unsigned event stream. Generation refuses a modeled error in an input event
+stream. The server framework does not serve event streams; server generation
+reports `event-streams` as unsupported.
+
+This adds `Location::EventStream` and the defaulted `Operation::INPUT_EVENTS`,
+`OUTPUT_EVENTS`, `input_events`, and `set_output_events` items to
+`crucible-wire`. Add the new variant to exhaustive matches on `Location`.
+
+### Exact numbers and collections
+
+`bigInteger` and `bigDecimal` use `BigInteger` and `BigDecimal`. Parse decimal
+text with `str::parse`; both serialize as JSON numbers without floating-point
+conversion. Their public inner values and `Deref` expose the native `num_bigint`
+and `bigdecimal` APIs. Numeric defaults and range validation retain the same
+precision, including HTTP headers. Integer enums provide `as_i32()` and client
+`UnknownValue(i32)` variants for values introduced by newer servers.
+
+Sparse lists use `Vec<Option<T>>`, and sparse maps use
+`BTreeMap<String, Option<T>>`. Sets and `@uniqueItems` lists remain `Vec<T>`;
+generated member codecs reject duplicates during encoding and decoding using
+structural value equality. Object member order and equivalent numeric spellings
+do not distinguish elements. Dense document collections reject null elements but preserve null nested inside documents.
+Nested timestamp collections use their modeled timestamp formats.
+
+### Authentication options
+
+`Config::basic_credentials(Identity::fixed(BasicCredentials::new(user, password)))`
+configures Basic authentication; `Config::api_key(Token::fixed(key))` supplies the
+modeled API-key header or query parameter. `Identity::provider` accepts an async
+provider returning `Option<T>`. The runtime selects identities in modeled order
+on each attempt, and preserves explicit matching credential headers without
+calling unrelated providers. `@auth([])` bypasses identity providers and
+`@optionalAuth` permits anonymous calls. Required Basic/API-key combinations fail
+before dispatch when no identity is available. Bearer-only services retain the
+existing behavior of accepting a call without a configured token and deciding
+its authorization at the service. Credential resolution uses the total call
+budget and cancellation token.
+
+### Endpoints and waiters
+
+Models with endpoint rules can use `Config::default().region("us-east-1")`;
+`Config::new(endpoint)` supplies the `SDK::Endpoint` built-in. Custom parameters
+use `endpoint_parameter` and `endpoint_builtin`. The generated metadata resolves
+rules, headers, and operation host prefixes. `disable_host_prefix(true)` disables
+prefix expansion. Invalid labels and rule errors fail before dispatch.
+
+Waiters generate `wait_until_<name>(input, WaiterOptions::new(max_wait_time))`.
+The result is `WaiterResult::Response { output, attempts }` or
+`WaiterResult::Error { error, attempts }`: an error-type acceptor can legitimately
+mean success. `WaiterError` retains the last response or underlying error and
+distinguishes failure, timeout, cancellation, and invalid configuration. Optional
+delay overrides and `options.call` configure polling and cancellation. One budget
+covers calls, their retries, and jittered delays. Discarded streaming responses
+are closed before polling again.
+
+Retained `WaiterError.response` and `.cause` values are boxed, keeping the error
+size independent of generated output/error model sizes. Use `.as_deref()` when
+matching the underlying cause, or dereference an owned box to recover its value.
+Regenerate and upgrade the runtime and consumers together; rollback keeps both
+at the earlier generator revision.
+
+Endpoint paths and waiter expressions use model member names even with
+`@jsonName`; timestamps are normalized to exact epoch seconds. Compiled JMESPath
+metadata is adapted once, and comparisons and numeric functions preserve exact
+decimal values rather than converting to floating point.
+
+### Payloads and media-type headers
+
+An `@httpPayload` member is the whole HTTP body. A blob is raw bytes. A string
+or enum is UTF-8 text; an empty body reads as an empty string. A structure,
+union, or document is one JSON value; an absent or explicitly null value sends
+no body, and an empty response body reads as absent. Each payload is sent under
+its target's `@mediaType`, or the protocol default. Modeled errors may also
+bind a payload: the error is named by the `x-crucible-error` header
+(`X-Amzn-Errortype` for AWS protocols) because the body is no longer a JSON
+envelope, and header members still decode beside it.
+
+Header strings whose target has `@mediaType`, including list elements and
+`@httpPrefixHeaders` values, travel base64-encoded. The public model holds the
+decoded text. A response header that is not base64 of UTF-8 text is
+`Error::Decode`.
+
+### AWS JSON protocols
+
+A model can be generated for `aws.protocols#restJson1`, `awsJson1_0`, or
+`awsJson1_1`; a service that declares several needs one selected at generation.
+`restJson1` uses HTTP bindings like `crucible.protocols#json`, but body
+timestamps default to epoch seconds, header timestamps to HTTP dates (lists are
+sent unquoted), and query and label timestamps to RFC 3339. The two RPC
+protocols POST every member as a JSON body (`{}` for an empty input) to `/`
+with `X-Amz-Target: {Service}.{Operation}` and
+`application/x-amz-json-1.0` or `-1.1`.
+
+All three omit an explicit `Field::Null` structure member when sending and read
+a null member as `Field::Absent`; document members keep their nulls. `NaN`,
+`Infinity`, and `-Infinity` floats are sent and read as those strings. A
+`__type` key beside a union member is ignored. Errors are named by
+`X-Amzn-Errortype`, then the body's `__type` or `code`; namespaces and `:`
+suffixes are dropped, and renamed errors still match their wire name. A
+capitalized `Message` fills a modeled `message` member and
+`UnknownError::message`. Request IDs come from `x-request-id`,
+`x-amzn-requestid`, or `x-amz-request-id`.
+
+### HTTP checksums
+
+`@httpChecksumRequired` and `@aws.protocols#httpChecksum` compute request
+checksums over the bytes actually sent: after interceptors and before SigV4
+signing. CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512 are supported;
+choosing another algorithm is `Error::Invalid` before dispatch. A checksum
+header the caller supplies, through a bound member or an interceptor, is sent
+unchanged.
+
+By default (`ChecksumPolicy::WhenSupported`) an absent algorithm member is sent
+as `CRC32` and an absent validation-mode member as `ENABLED`, without changing
+the caller's input. `Config::request_checksum_calculation(ChecksumPolicy::WhenRequired)`
+computes a checksum only when the model requires one or the caller chose an
+algorithm; `response_checksum_validation(ChecksumPolicy::WhenRequired)` verifies
+responses only when the caller enabled validation. A required checksum without
+an algorithm member is `Content-MD5`.
+
+When validation is enabled, the first modeled, supported response algorithm
+that the response carries is verified. A mismatch is
+`Error::ChecksumMismatch(algorithm)` and is not retried.
+`Config::on_checksum_validated(|operation, algorithm| ..)` reports each verified
+response. A streamed response is verified as it is read: a mismatch ends the
+stream with an `InvalidData` error, and the callback runs at its end. A streamed
+upload cannot be hashed before it is sent, so an optional checksum is skipped
+and a required or chosen one needs a caller-supplied header.
+
+These additions change `crucible-wire` descriptions (`Location::TextPayload`,
+`Location::DocumentPayload`, `Scalar::Base64`, `Scalar::Timestamp`, and the
+`Operation::PROTOCOL` and `Operation::CHECKSUM` constants) and add
+`Error::ChecksumMismatch`. Regenerate clients with the matching runtime, and
+add the new variant to exhaustive matches on `Error`.
+
+### AWS signing and credential providers
+
+`Config::aws_credentials(Identity::fixed(AwsCredentials::new(access, secret)))`
+enables modeled SigV4 authentication. Temporary credentials may include
+`session_token` and `expiration`. Configure `region`; `signing_name` optionally
+overrides the modeled name. Endpoint auth properties can override the signing
+region, name, double encoding, and path normalization. Signing runs after caller
+interceptors, and identities are resolved again for each attempt. Streaming
+uploads require a precomputed SHA-256 digest unless the model permits unsigned
+payloads; signing never buffers a stream.
+
+`AwsCredentials::from_environment`, `from_environment_map`, `from_profile`, and
+`from_profile_file` load explicit credential sources. `Identity::chain` tries
+providers in order. `.cached(refresh_before)` coalesces concurrent refreshes and
+refreshes expiring credentials before they expire. No implicit environment,
+profile, or metadata-service lookup runs unless the application selects it.

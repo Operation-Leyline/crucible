@@ -190,12 +190,47 @@ impl Crucible {
             .and_then(|entry| inner.body_limits.get(entry.info.id))
             .copied()
             .unwrap_or(inner.body_limit);
-        let body = axum::body::to_bytes(body, limit).await;
+        let streaming = entry.is_some_and(|entry| {
+            entry.info.input.iter().any(|member| {
+                matches!(
+                    member.location,
+                    crucible_wire::operation::Location::StreamingPayload { .. }
+                )
+            })
+        });
+        let (body, body_stream) = if streaming {
+            let mut stream =
+                crucible_wire::stream::ByteStream::new(body.into_data_stream()).with_maximum(limit);
+            if let Some((member, _)) = entry
+                .and_then(|entry| crucible_wire::operation::Location::payload(entry.info.input))
+            {
+                if let crucible_wire::operation::Location::StreamingPayload {
+                    minimum,
+                    maximum,
+                    ..
+                } = member.location
+                {
+                    stream = stream.with_bounds(minimum, maximum);
+                }
+            }
+            if let Some(length) = parts
+                .headers
+                .get("content-length")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse().ok())
+            {
+                stream = stream.with_length(length);
+            }
+            (Ok(Bytes::new()), Some(stream))
+        } else {
+            (axum::body::to_bytes(body, limit).await, None)
+        };
         let mut job = Job {
             service: inner.operations.service,
             context: context.clone(),
             request: parts,
             body: body.as_ref().cloned().unwrap_or_default(),
+            body_stream,
             labels: route.map(|Route { labels, .. }| labels).unwrap_or_default(),
             decode: entry.map(|entry| entry.decode),
             decode_json: entry.map(|entry| entry.decode_json),

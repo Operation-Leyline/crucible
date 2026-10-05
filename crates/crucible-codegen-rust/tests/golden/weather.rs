@@ -21,7 +21,7 @@ pub mod model {
         pub population: i64,
         #[serde(rename = "updatedAt", default, skip_serializing_if = "::std::option::Option::is_none")]
         pub updated_at: ::std::option::Option<::crucible::time::Timestamp>,
-        #[serde(rename = "createdAt", default, skip_serializing_if = "::std::option::Option::is_none", with = "::crucible::time::epoch_seconds::option")]
+        #[serde(rename = "createdAt", default, skip_serializing_if = "::std::option::Option::is_none", with = "::crucible::codec::Adapter::<::crucible::codec::Optional<::crucible::codec::EpochSeconds>>")]
         pub created_at: ::std::option::Option<::crucible::time::Timestamp>,
     }
 
@@ -73,7 +73,7 @@ pub mod model {
     pub struct GetCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
-        #[serde(rename = "forecast", default, skip_serializing_if = "::std::option::Option::is_none")]
+        #[serde(rename = "forecast", default, skip_serializing_if = "::std::option::Option::is_none", with = "::crucible::codec::Adapter::<::crucible::codec::Optional<::crucible::codec::Map<::crucible::codec::Document>>>")]
         pub forecast: ::std::option::Option<Forecast>,
         #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
         pub request_id: ::std::option::Option<::std::string::String>,
@@ -367,6 +367,10 @@ pub mod errors {
         fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
             ::crucible::error::write_error(self, out)
         }
+
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
+            ::crucible::error::write_error_http(self, out)
+        }
     }
 
     impl ::std::fmt::Display for ConflictError {
@@ -410,6 +414,10 @@ pub mod errors {
         fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
             ::crucible::error::write_error(self, out)
         }
+
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
+            ::crucible::error::write_error_http(self, out)
+        }
     }
 
     impl ::std::fmt::Display for NotFoundError {
@@ -452,6 +460,10 @@ pub mod errors {
 
         fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
             ::crucible::error::write_error(self, out)
+        }
+
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
+            ::crucible::error::write_error_http(self, out)
         }
     }
 
@@ -502,6 +514,10 @@ pub mod errors {
         fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
             ::crucible::error::write_error(self, out)
         }
+
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
+            ::crucible::error::write_error_http(self, out)
+        }
     }
 
     impl ::std::fmt::Display for ValidationError {
@@ -512,7 +528,7 @@ pub mod errors {
 
     impl ::std::error::Error for ValidationError {}
 }
-#[allow(dead_code)]
+#[allow(dead_code, unused_imports)]
 mod __redaction {
     use ::crucible::operation::Redaction;
     pub(super) static R_0: Redaction = Redaction::Public;
@@ -585,6 +601,8 @@ static CREATE_CITY_OPERATION: ::crucible::OperationInfo = ::crucible::OperationI
 
 impl ::crucible::Operation for CreateCity {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[::crucible::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible::OperationInfo = &CREATE_CITY_OPERATION;
     type Input = model::CreateCityInput;
     type Output = model::CreateCityOutput;
@@ -622,6 +640,8 @@ static GET_CITY_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo
 
 impl ::crucible::Operation for GetCity {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[::crucible::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible::OperationInfo = &GET_CITY_OPERATION;
     type Input = model::GetCityInput;
     type Output = model::GetCityOutput;
@@ -657,6 +677,8 @@ static GET_CITY_PHOTO_OPERATION: ::crucible::OperationInfo = ::crucible::Operati
 
 impl ::crucible::Operation for GetCityPhoto {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[::crucible::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible::OperationInfo = &GET_CITY_PHOTO_OPERATION;
     type Input = model::GetCityPhotoInput;
     type Output = model::GetCityPhotoOutput;
@@ -694,6 +716,8 @@ static LIST_CITIES_OPERATION: ::crucible::OperationInfo = ::crucible::OperationI
 
 impl ::crucible::Operation for ListCities {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[::crucible::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible::OperationInfo = &LIST_CITIES_OPERATION;
     type Input = model::ListCitiesInput;
     type Output = model::ListCitiesOutput;
@@ -724,6 +748,8 @@ static PING_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo {
 
 impl ::crucible::Operation for Ping {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[::crucible::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible::OperationInfo = &PING_OPERATION;
     type Input = ::crucible::operation::Unit;
     type Output = ();
@@ -761,6 +787,8 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible::OperationInfo = ::crucible::Operati
 
 impl ::crucible::Operation for PutCityPhoto {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[::crucible::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
     type Input = model::PutCityPhotoInput;
     type Output = model::PutCityPhotoOutput;
@@ -792,6 +820,8 @@ static STATUS_OPERATION: ::crucible::OperationInfo = ::crucible::OperationInfo {
 
 impl ::crucible::Operation for Status {
     const AUTH_BEARER: bool = true;
+    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[::crucible::operation::AuthScheme::Bearer]);
+    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible::OperationInfo = &STATUS_OPERATION;
     type Input = model::StatusInput;
     type Output = model::StatusOutput;

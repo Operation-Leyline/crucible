@@ -209,8 +209,10 @@ impl Resolution<'_> {
     /// The response status this resolution gets.
     pub fn status(&self, operation: Option<&OperationInfo>) -> u16 {
         match self {
-            Self::Success(_) => operation.map_or(200, |op| op.status),
-            Self::Modelled(error) => error.info().status,
+            Self::Success(output) => output
+                .response_status()
+                .unwrap_or_else(|| operation.map_or(200, |op| op.status)),
+            Self::Modelled(error) => error.response_status(),
             Self::Rejected(_) => 400,
             Self::Framework(error) => error.status(),
             Self::Internal(_) => 500,
@@ -247,6 +249,7 @@ pub struct Job {
     pub(crate) context: Arc<Context>,
     pub(crate) request: Arc<Parts>,
     pub(crate) body: Bytes,
+    pub(crate) body_stream: Option<crucible_wire::stream::ByteStream>,
     pub(crate) labels: Vec<(&'static str, String)>,
     pub(crate) decode: Option<Decode>,
     pub(crate) decode_json: Option<DecodeJson>,
@@ -347,7 +350,7 @@ impl Job {
         bound: Vec<(&'static str, crate::protocol::BoundValue<'a>)>,
     ) -> std::result::Result<Box<dyn Input>, Rejection> {
         match self.decode_bound {
-            Some(decode) => decode(body, bound),
+            Some(decode) => decode(body, bound, self.body_stream.clone()),
             None => Err(Rejection::malformed("", "no operation serves this request")),
         }
     }

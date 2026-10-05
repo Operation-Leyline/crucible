@@ -95,9 +95,14 @@ fn describe(service: &Service, shape: &Shape) -> Value {
             SimpleKind::Timestamp => "timestamp",
             SimpleKind::Document => "document",
             SimpleKind::Blob => "blob",
+            // Lowering diagnoses these: the CLI generator declares no big-number capability.
+            SimpleKind::BigInteger | SimpleKind::BigDecimal => {
+                unreachable!("big numbers require a target capability")
+            }
         }}),
         // Like the SDK, accept values introduced by a newer service model.
         Shape::Enum(_) => json!({"kind": "string"}),
+        Shape::IntEnum(_) => json!({"kind": "integer"}),
         Shape::List(list) => json!({"kind": "list", "target": list.member.target.to_string()}),
         Shape::Map(map) => json!({"kind": "map", "target": map.value.target.to_string()}),
         Shape::Structure(structure) | Shape::Union(structure) => json!({

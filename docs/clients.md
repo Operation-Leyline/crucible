@@ -32,6 +32,25 @@ listed in its guide. The CLI can also be installed from this checkout with
 `cargo install --path crates/crucible-cli --locked`; examples using `crucible`
 assume that executable is on `PATH`.
 
+## Checking target support
+
+Extended Smithy support is tracked per generator. Inspect the current build and
+validate a model for its intended language before generation:
+
+```sh
+crucible capabilities
+crucible check model.json --target python
+```
+
+Each emitter also checks capabilities when called as a library. A feature accepted
+by another target never silently changes this target's wire behavior. For a service
+declaring multiple protocols, `--protocol aws.protocols#restJson1` selects that
+protocol explicitly; the selected target must implement it. The default prefers
+Crucible JSON when declared, otherwise requires an unambiguous supported protocol.
+
+See [SDK releases](sdk-releases.md) for generation, native package builds,
+installed-consumer checks, artifact manifests, and publication recipes.
+
 ## Preparing a model
 
 Use the `crucible.protocols#json` service trait and bearer authentication where
@@ -111,20 +130,22 @@ An explicit null remains distinct from an absent value. Dense collections reject
 null elements, except that a `document` element may itself contain JSON null.
 
 Path labels equal to `.` or `..` are rejected before sending, since HTTP URL
-normalization can change the resource they address. Media-type strings bound to
-headers, including string list elements, are currently diagnosed as unsupported.
-Media types on blob payloads remain supported.
+normalization can change the resource they address. Targets advertising
+`media-type-headers` encode media-type strings, including list elements, as
+base64 in headers. Other targets diagnose that binding until their native
+qualification passes. Media types on blob payloads remain supported.
 
 When enabled, bundled body-digest middleware adds `x-amz-content-sha256` to
 requests with a body and to every `POST`, `PUT`, and `PATCH`. A write without a
 body uses the SHA-256 of zero bytes:
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 The middleware does not add a digest to bodiless `GET` or `DELETE` requests.
-Rust applications provide their own [digest interceptor](clients/rust.md#transport-and-retries).
+See each language's transport configuration for digest and streaming-body options.
 
-All modeled operations remain directly available. Database helpers such as
-waiting for a job or carrying a read-consistency generation belong above the
-client runtime.
+All modeled operations remain directly available. Targets advertising `waiters`
+generate polling helpers from Smithy acceptors, with an explicit caller deadline.
+Service-specific helpers such as carrying a read-consistency generation belong
+above the client runtime.
 
 ## HTTP retry contract
 
@@ -149,7 +170,8 @@ a status can identify exactly one declared error. HTTP 402 alone never retries;
 501 and other unrecognized 5xx statuses need explicit model retryability.
 
 Backoff, `Retry-After`, deadlines, cancellation, middleware ordering, and transport
-ownership are documented per language. A per-attempt transport timeout does not
+ownership are documented per language. Retry quotas, adaptive rate limiting,
+endpoint discovery and telemetry follow the [SDK runtime policy](sdk-runtime-policy.md). A per-attempt transport timeout does not
 establish an overall call deadline.
 
 ## Public API conventions
@@ -191,7 +213,7 @@ timestamp or numeric representations.
 | Targets | Cases exercised | Representation notes |
 |---|---|---|
 | Python, Go, Java, C#, Kotlin, Swift, Dart, PHP, Ruby, C++, C, R | 15 / 15 | See each guide for native precision limits |
-| Rust | 15 / 15 | Epoch-seconds timestamps currently use millisecond precision |
+| Rust | 15 / 15 | Epoch-seconds timestamps preserve nanosecond precision |
 | TypeScript / JavaScript | 15 / 15 | Signed 64-bit fields use `bigint`; document numbers use JavaScript `number`, and dates have millisecond precision |
 
 The [Rust model migration](clients/rust.md#migrating-client-models) and

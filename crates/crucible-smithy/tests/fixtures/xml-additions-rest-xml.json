@@ -1,0 +1,2743 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "aws.protocoltests.restxml#BooleanList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#Boolean"
+      }
+    },
+    "aws.protocoltests.restxml#ComplexError": {
+      "type": "structure",
+      "members": {
+        "Header": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "X-Header"
+          }
+        },
+        "TopLevel": {
+          "target": "smithy.api#String"
+        },
+        "Nested": {
+          "target": "aws.protocoltests.restxml#ComplexNestedErrorData"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 403,
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "ComplexError",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "Header": "Header",
+              "TopLevel": "Top level",
+              "Nested": {
+                "Foo": "bar"
+              }
+            },
+            "body": "<ErrorResponse><Error><Type>Sender</Type><Code>ComplexError</Code><Message>Hi</Message><TopLevel>Top level</TopLevel><Nested><Foo>bar</Foo></Nested></Error><RequestId>foo-id</RequestId></ErrorResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 403,
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Header": "Header"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.restxml#ComplexNestedErrorData": {
+      "type": "structure",
+      "members": {
+        "Foo": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#DateTime": {
+      "type": "timestamp",
+      "traits": {
+        "smithy.api#timestampFormat": "date-time"
+      }
+    },
+    "aws.protocoltests.restxml#EpochSeconds": {
+      "type": "timestamp",
+      "traits": {
+        "smithy.api#timestampFormat": "epoch-seconds"
+      }
+    },
+    "aws.protocoltests.restxml#FlattenedXmlMap": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/FlattenedXmlMap",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "FlattenedXmlMap",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "myMap": {
+                "foo": "Foo",
+                "baz": "Baz"
+              }
+            },
+            "body": "<FlattenedXmlMapRequest><myMap><key>foo</key><value>Foo</value></myMap><myMap><key>baz</key><value>Baz</value></myMap></FlattenedXmlMapRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/FlattenedXmlMap",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "FlattenedXmlMap",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "myMap": {
+                "foo": "Foo",
+                "baz": "Baz"
+              }
+            },
+            "body": "<FlattenedXmlMapResponse><myMap><key>foo</key><value>Foo</value></myMap><myMap><key>baz</key><value>Baz</value></myMap></FlattenedXmlMapResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#FlattenedXmlMapRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#FlattenedXmlMapResponse"
+      }
+    },
+    "aws.protocoltests.restxml#FlattenedXmlMapRequest": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.restxml#FooEnumMap",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#FlattenedXmlMapResponse": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.restxml#FooEnumMap",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#FlattenedXmlMapWithXmlName": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/FlattenedXmlMapWithXmlName",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "FlattenedXmlMapWithXmlName",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "myMap": {
+                "a": "A",
+                "b": "B"
+              }
+            },
+            "body": "<FlattenedXmlMapWithXmlNameRequest><KVP><K>a</K><V>A</V></KVP><KVP><K>b</K><V>B</V></KVP></FlattenedXmlMapWithXmlNameRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/FlattenedXmlMapWithXmlName",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "FlattenedXmlMapWithXmlName",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "myMap": {
+                "a": "A",
+                "b": "B"
+              }
+            },
+            "body": "<FlattenedXmlMapWithXmlNameResponse><KVP><K>a</K><V>A</V></KVP><KVP><K>b</K><V>B</V></KVP></FlattenedXmlMapWithXmlNameResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#FlattenedXmlMapWithXmlNameRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#FlattenedXmlMapWithXmlNameResponse"
+      }
+    },
+    "aws.protocoltests.restxml#FlattenedXmlMapWithXmlNameRequest": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.restxml#KvpMap",
+          "traits": {
+            "smithy.api#xmlFlattened": {},
+            "smithy.api#xmlName": "KVP"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#FlattenedXmlMapWithXmlNameResponse": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.restxml#KvpMap",
+          "traits": {
+            "smithy.api#xmlFlattened": {},
+            "smithy.api#xmlName": "KVP"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#FooEnum": {
+      "type": "enum",
+      "members": {
+        "FOO": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "Foo"
+          }
+        },
+        "BAZ": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "Baz"
+          }
+        },
+        "BAR": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "Bar"
+          }
+        },
+        "ONE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "1"
+          }
+        },
+        "ZERO": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "0"
+          }
+        }
+      }
+    },
+    "aws.protocoltests.restxml#FooEnumList": {
+      "type": "list",
+      "member": {
+        "target": "aws.protocoltests.restxml#FooEnum"
+      }
+    },
+    "aws.protocoltests.restxml#FooEnumMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "aws.protocoltests.restxml#FooEnum"
+      }
+    },
+    "aws.protocoltests.restxml#GreetingMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "aws.protocoltests.restxml#GreetingStruct"
+      }
+    },
+    "aws.protocoltests.restxml#GreetingStruct": {
+      "type": "structure",
+      "members": {
+        "hi": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#GreetingWithErrors": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/GreetingWithErrors",
+          "code": 200
+        },
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "GreetingWithErrors",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "greeting": "Hello"
+            },
+            "body": "",
+            "code": 200,
+            "headers": {
+              "X-Greeting": "Hello"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#GreetingWithErrorsResponse"
+      },
+      "errors": [
+        {
+          "target": "aws.protocoltests.restxml#InvalidGreeting"
+        },
+        {
+          "target": "aws.protocoltests.restxml#ComplexError"
+        }
+      ]
+    },
+    "aws.protocoltests.restxml#GreetingWithErrorsResponse": {
+      "type": "structure",
+      "members": {
+        "greeting": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "X-Greeting"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpDate": {
+      "type": "timestamp",
+      "traits": {
+        "smithy.api#timestampFormat": "http-date"
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadTraits": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/HttpPayloadTraits",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "HttpPayloadTraitsWithBlob",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "blob": "blobby blob blob"
+            },
+            "body": "blobby blob blob",
+            "method": "POST",
+            "uri": "/HttpPayloadTraits",
+            "headers": {
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "HttpPayloadTraitsWithBlob",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "blob": "blobby blob blob"
+            },
+            "body": "blobby blob blob",
+            "code": 200,
+            "headers": {
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#HttpPayloadTraitsRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#HttpPayloadTraitsResponse"
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadTraitsRequest": {
+      "type": "structure",
+      "members": {
+        "foo": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "X-Foo"
+          }
+        },
+        "blob": {
+          "target": "smithy.api#Blob",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadTraitsResponse": {
+      "type": "structure",
+      "members": {
+        "foo": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "X-Foo"
+          }
+        },
+        "blob": {
+          "target": "smithy.api#Blob",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithMemberXmlName": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/HttpPayloadWithMemberXmlName",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "HttpPayloadWithMemberXmlName",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "name": "Phreddy"
+              }
+            },
+            "body": "<Hola><name>Phreddy</name></Hola>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/HttpPayloadWithMemberXmlName",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "HttpPayloadWithMemberXmlName",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "name": "Phreddy"
+              }
+            },
+            "body": "<Hola><name>Phreddy</name></Hola>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#HttpPayloadWithMemberXmlNameRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#HttpPayloadWithMemberXmlNameResponse"
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithMemberXmlNameRequest": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#PayloadWithXmlName",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#xmlName": "Hola"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithMemberXmlNameResponse": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#PayloadWithXmlName",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#xmlName": "Hola"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithStructure": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/HttpPayloadWithStructure",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "HttpPayloadWithStructure",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "greeting": "hello",
+                "name": "Phreddy"
+              }
+            },
+            "body": "<NestedPayload><greeting>hello</greeting><name>Phreddy</name></NestedPayload>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/HttpPayloadWithStructure",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "HttpPayloadWithStructure",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "greeting": "hello",
+                "name": "Phreddy"
+              }
+            },
+            "body": "<NestedPayload><greeting>hello</greeting><name>Phreddy</name></NestedPayload>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#HttpPayloadWithStructureRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#HttpPayloadWithStructureResponse"
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithStructureRequest": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#NestedPayload",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithStructureResponse": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#NestedPayload",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithXmlName": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/HttpPayloadWithXmlName",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "HttpPayloadWithXmlName",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "name": "Phreddy"
+              }
+            },
+            "body": "<Hello><name>Phreddy</name></Hello>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/HttpPayloadWithXmlName",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "HttpPayloadWithXmlName",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "name": "Phreddy"
+              }
+            },
+            "body": "<Hello><name>Phreddy</name></Hello>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#HttpPayloadWithXmlNameRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#HttpPayloadWithXmlNameResponse"
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithXmlNameRequest": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#PayloadWithXmlName",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithXmlNameResponse": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#PayloadWithXmlName",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithXmlNamespaceAndPrefix": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/HttpPayloadWithXmlNamespaceAndPrefix",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "HttpPayloadWithXmlNamespaceAndPrefix",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "name": "Phreddy"
+              }
+            },
+            "body": "<PayloadWithXmlNamespaceAndPrefix xmlns:baz=\"http://foo.com\"><name>Phreddy</name></PayloadWithXmlNamespaceAndPrefix>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/HttpPayloadWithXmlNamespaceAndPrefix",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "HttpPayloadWithXmlNamespaceAndPrefix",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "name": "Phreddy"
+              }
+            },
+            "body": "<PayloadWithXmlNamespaceAndPrefix xmlns:baz=\"http://foo.com\"><name>Phreddy</name></PayloadWithXmlNamespaceAndPrefix>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#HttpPayloadWithXmlNamespaceAndPrefixRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#HttpPayloadWithXmlNamespaceAndPrefixResponse"
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithXmlNamespaceAndPrefixRequest": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#PayloadWithXmlNamespaceAndPrefix",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#HttpPayloadWithXmlNamespaceAndPrefixResponse": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#PayloadWithXmlNamespaceAndPrefix",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#IntegerEnum": {
+      "type": "intEnum",
+      "members": {
+        "A": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 1
+          }
+        },
+        "B": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 2
+          }
+        },
+        "C": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 3
+          }
+        }
+      }
+    },
+    "aws.protocoltests.restxml#IntegerList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#Integer"
+      }
+    },
+    "aws.protocoltests.restxml#InvalidGreeting": {
+      "type": "structure",
+      "members": {
+        "Message": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400,
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "InvalidGreetingError",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "Message": "Hi"
+            },
+            "body": "<ErrorResponse><Error><Type>Sender</Type><Code>InvalidGreeting</Code><Message>Hi</Message><AnotherSetting>setting</AnotherSetting></Error><RequestId>foo-id</RequestId></ErrorResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 400,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.restxml#KvpMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "K"
+        }
+      },
+      "value": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "V"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#ListWithMemberNamespace": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlNamespace": {
+            "uri": "https://xml-member.example.com"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#xmlNamespace": {
+          "uri": "https://xml-list.example.com"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#ListWithNamespace": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      },
+      "traits": {
+        "smithy.api#xmlNamespace": {
+          "uri": "https://xml-list.example.com"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#NestedPayload": {
+      "type": "structure",
+      "members": {
+        "greeting": {
+          "target": "smithy.api#String"
+        },
+        "name": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#NestedStringList": {
+      "type": "list",
+      "member": {
+        "target": "aws.protocoltests.restxml#StringList"
+      }
+    },
+    "aws.protocoltests.restxml#NoInputAndOutput": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/NoInputAndOutputOutput",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "NoInputAndOutput",
+            "protocol": "aws.protocols#restXml",
+            "params": {},
+            "body": "",
+            "method": "POST",
+            "uri": "/NoInputAndOutputOutput",
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "NoInputAndOutput",
+            "protocol": "aws.protocols#restXml",
+            "params": {},
+            "body": "",
+            "code": 200,
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#NoInputAndOutputRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#NoInputAndOutputResponse"
+      }
+    },
+    "aws.protocoltests.restxml#NoInputAndOutputRequest": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#NoInputAndOutputResponse": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#PayloadWithXmlName": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#xmlName": "Hello"
+      }
+    },
+    "aws.protocoltests.restxml#PayloadWithXmlNamespaceAndPrefix": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#xmlNamespace": {
+          "uri": "http://foo.com",
+          "prefix": "baz"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#RenamedGreetingMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "Attribute"
+        }
+      },
+      "value": {
+        "target": "aws.protocoltests.restxml#GreetingStruct",
+        "traits": {
+          "smithy.api#xmlName": "Setting"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#RenamedListMembers": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "item"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#RestXml": {
+      "type": "service",
+      "version": "2019-12-16",
+      "traits": {
+        "aws.protocols#restXml": {}
+      },
+      "operations": [
+        {
+          "target": "aws.protocoltests.restxml#FlattenedXmlMap"
+        },
+        {
+          "target": "aws.protocoltests.restxml#FlattenedXmlMapWithXmlName"
+        },
+        {
+          "target": "aws.protocoltests.restxml#GreetingWithErrors"
+        },
+        {
+          "target": "aws.protocoltests.restxml#HttpPayloadTraits"
+        },
+        {
+          "target": "aws.protocoltests.restxml#HttpPayloadWithMemberXmlName"
+        },
+        {
+          "target": "aws.protocoltests.restxml#HttpPayloadWithStructure"
+        },
+        {
+          "target": "aws.protocoltests.restxml#HttpPayloadWithXmlName"
+        },
+        {
+          "target": "aws.protocoltests.restxml#HttpPayloadWithXmlNamespaceAndPrefix"
+        },
+        {
+          "target": "aws.protocoltests.restxml#NoInputAndOutput"
+        },
+        {
+          "target": "aws.protocoltests.restxml#SimpleScalarProperties"
+        },
+        {
+          "target": "aws.protocoltests.restxml#XmlAttributes"
+        },
+        {
+          "target": "aws.protocoltests.restxml#XmlBlobs"
+        },
+        {
+          "target": "aws.protocoltests.restxml#XmlEnums"
+        },
+        {
+          "target": "aws.protocoltests.restxml#XmlLists"
+        },
+        {
+          "target": "aws.protocoltests.restxml#XmlMaps"
+        },
+        {
+          "target": "aws.protocoltests.restxml#XmlMapsXmlName"
+        },
+        {
+          "target": "aws.protocoltests.restxml#XmlNamespaces"
+        },
+        {
+          "target": "aws.protocoltests.restxml#XmlTimestamps"
+        }
+      ]
+    },
+    "aws.protocoltests.restxml#SimpleScalarProperties": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/SimpleScalarProperties",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "SimpleScalarProperties",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "string",
+              "trueBooleanValue": true,
+              "falseBooleanValue": false,
+              "byteValue": 1,
+              "shortValue": 2,
+              "integerValue": 3,
+              "longValue": 4,
+              "floatValue": 5.5,
+              "doubleValue": 6.5
+            },
+            "body": "<SimpleScalarPropertiesRequest><stringValue>string</stringValue><trueBooleanValue>true</trueBooleanValue><falseBooleanValue>false</falseBooleanValue><byteValue>1</byteValue><shortValue>2</shortValue><integerValue>3</integerValue><longValue>4</longValue><floatValue>5.5</floatValue><DoubleDribble>6.5</DoubleDribble></SimpleScalarPropertiesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/SimpleScalarProperties",
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "SimpleScalarPropertiesWithEscapedCharacter",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "<string>"
+            },
+            "body": "<SimpleScalarPropertiesRequest><stringValue>&lt;string&gt;</stringValue></SimpleScalarPropertiesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/SimpleScalarProperties",
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "SimpleScalarPropertiesWithWhiteSpace",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "  string with white    space  "
+            },
+            "body": "<SimpleScalarPropertiesRequest><stringValue>  string with white    space  </stringValue></SimpleScalarPropertiesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/SimpleScalarProperties",
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "RestXmlSupportsNaNFloatInputs",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "floatValue": "NaN",
+              "doubleValue": "NaN"
+            },
+            "body": "<SimpleScalarPropertiesRequest><floatValue>NaN</floatValue><DoubleDribble>NaN</DoubleDribble></SimpleScalarPropertiesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/SimpleScalarProperties",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "RestXmlSupportsInfinityFloatInputs",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "floatValue": "Infinity",
+              "doubleValue": "Infinity"
+            },
+            "body": "<SimpleScalarPropertiesRequest><floatValue>Infinity</floatValue><DoubleDribble>Infinity</DoubleDribble></SimpleScalarPropertiesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/SimpleScalarProperties",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "RestXmlSupportsNegativeInfinityFloatInputs",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "floatValue": "-Infinity",
+              "doubleValue": "-Infinity"
+            },
+            "body": "<SimpleScalarPropertiesRequest><floatValue>-Infinity</floatValue><DoubleDribble>-Infinity</DoubleDribble></SimpleScalarPropertiesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/SimpleScalarProperties",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "SimpleScalarProperties",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "string",
+              "trueBooleanValue": true,
+              "falseBooleanValue": false,
+              "byteValue": 1,
+              "shortValue": 2,
+              "integerValue": 3,
+              "longValue": 4,
+              "floatValue": 5.5,
+              "doubleValue": 6.5
+            },
+            "body": "<SimpleScalarPropertiesResponse><stringValue>string</stringValue><trueBooleanValue>true</trueBooleanValue><falseBooleanValue>false</falseBooleanValue><byteValue>1</byteValue><shortValue>2</shortValue><integerValue>3</integerValue><longValue>4</longValue><floatValue>5.5</floatValue><DoubleDribble>6.5</DoubleDribble></SimpleScalarPropertiesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "SimpleScalarPropertiesComplexEscapes",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "escaped data: &lt;\r\n"
+            },
+            "body": "<SimpleScalarPropertiesResponse><stringValue>escaped data: &amp;lt;&#xD;&#10;</stringValue></SimpleScalarPropertiesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "SimpleScalarPropertiesWithEscapedCharacter",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "<string>"
+            },
+            "body": "<SimpleScalarPropertiesResponse><stringValue>&lt;string&gt;</stringValue></SimpleScalarPropertiesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "SimpleScalarPropertiesWithXMLPreamble",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "string"
+            },
+            "body": "<?xml version = \"1.0\" encoding = \"UTF-8\"?>\n<SimpleScalarPropertiesResponse>\n    <stringValue>string</stringValue>\n</SimpleScalarPropertiesResponse>\n",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "SimpleScalarPropertiesWithWhiteSpace",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "  string with white    space  "
+            },
+            "body": "<?xml version = \"1.0\" encoding = \"UTF-8\"?>\n<SimpleScalarPropertiesResponse>\n    <stringValue>  string with white    space  </stringValue>\n</SimpleScalarPropertiesResponse>\n",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "SimpleScalarPropertiesPureWhiteSpace",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "Foo",
+              "stringValue": "   "
+            },
+            "body": "<?xml version = \"1.0\" encoding = \"UTF-8\"?>\n<SimpleScalarPropertiesResponse>\n    <stringValue>   </stringValue>\n</SimpleScalarPropertiesResponse>\n",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Foo": "Foo"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "RestXmlSupportsNaNFloatOutputs",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "floatValue": "NaN",
+              "doubleValue": "NaN"
+            },
+            "body": "<SimpleScalarPropertiesResponse><floatValue>NaN</floatValue><DoubleDribble>NaN</DoubleDribble></SimpleScalarPropertiesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "RestXmlSupportsNegativeInfinityFloatOutputs",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "floatValue": "-Infinity",
+              "doubleValue": "-Infinity"
+            },
+            "body": "<SimpleScalarPropertiesResponse><floatValue>-Infinity</floatValue><DoubleDribble>-Infinity</DoubleDribble></SimpleScalarPropertiesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#SimpleScalarPropertiesRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#SimpleScalarPropertiesResponse"
+      }
+    },
+    "aws.protocoltests.restxml#SimpleScalarPropertiesRequest": {
+      "type": "structure",
+      "members": {
+        "foo": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "X-Foo"
+          }
+        },
+        "stringValue": {
+          "target": "smithy.api#String"
+        },
+        "trueBooleanValue": {
+          "target": "smithy.api#Boolean"
+        },
+        "falseBooleanValue": {
+          "target": "smithy.api#Boolean"
+        },
+        "byteValue": {
+          "target": "smithy.api#Byte"
+        },
+        "shortValue": {
+          "target": "smithy.api#Short"
+        },
+        "integerValue": {
+          "target": "smithy.api#Integer"
+        },
+        "longValue": {
+          "target": "smithy.api#Long"
+        },
+        "floatValue": {
+          "target": "smithy.api#Float"
+        },
+        "doubleValue": {
+          "target": "smithy.api#Double",
+          "traits": {
+            "smithy.api#xmlName": "DoubleDribble"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#SimpleScalarPropertiesResponse": {
+      "type": "structure",
+      "members": {
+        "foo": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "X-Foo"
+          }
+        },
+        "stringValue": {
+          "target": "smithy.api#String"
+        },
+        "trueBooleanValue": {
+          "target": "smithy.api#Boolean"
+        },
+        "falseBooleanValue": {
+          "target": "smithy.api#Boolean"
+        },
+        "byteValue": {
+          "target": "smithy.api#Byte"
+        },
+        "shortValue": {
+          "target": "smithy.api#Short"
+        },
+        "integerValue": {
+          "target": "smithy.api#Integer"
+        },
+        "longValue": {
+          "target": "smithy.api#Long"
+        },
+        "floatValue": {
+          "target": "smithy.api#Float"
+        },
+        "doubleValue": {
+          "target": "smithy.api#Double",
+          "traits": {
+            "smithy.api#xmlName": "DoubleDribble"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#StringList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      }
+    },
+    "aws.protocoltests.restxml#StringSet": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      },
+      "traits": {
+        "smithy.api#uniqueItems": {}
+      }
+    },
+    "aws.protocoltests.restxml#StructureList": {
+      "type": "list",
+      "member": {
+        "target": "aws.protocoltests.restxml#StructureListMember",
+        "traits": {
+          "smithy.api#xmlName": "item"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#StructureListMember": {
+      "type": "structure",
+      "members": {
+        "a": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlName": "value"
+          }
+        },
+        "b": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlName": "other"
+          }
+        }
+      }
+    },
+    "aws.protocoltests.restxml#TimestampList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#Timestamp"
+      }
+    },
+    "aws.protocoltests.restxml#XmlAttributes": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/XmlAttributes",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "XmlAttributes",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "hi",
+              "attr": "test"
+            },
+            "body": "<XmlAttributesRequest test=\"test\"><foo>hi</foo></XmlAttributesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/XmlAttributes",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlAttributesWithEscaping",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "hi",
+              "attr": "<test&mock>"
+            },
+            "body": "<XmlAttributesRequest test=\"&lt;test&amp;mock&gt;\"><foo>hi</foo></XmlAttributesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/XmlAttributes",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "XmlAttributes",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "foo": "hi",
+              "attr": "test"
+            },
+            "body": "<XmlAttributesResponse test=\"test\"><foo>hi</foo></XmlAttributesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#XmlAttributesRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#XmlAttributesResponse"
+      }
+    },
+    "aws.protocoltests.restxml#XmlAttributesRequest": {
+      "type": "structure",
+      "members": {
+        "foo": {
+          "target": "smithy.api#String"
+        },
+        "attr": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlAttribute": {},
+            "smithy.api#xmlName": "test"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlAttributesResponse": {
+      "type": "structure",
+      "members": {
+        "foo": {
+          "target": "smithy.api#String"
+        },
+        "attr": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlAttribute": {},
+            "smithy.api#xmlName": "test"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlBlobs": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/XmlBlobs",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "XmlBlobs",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "data": "value"
+            },
+            "body": "<XmlBlobsRequest><data>dmFsdWU=</data></XmlBlobsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlBlobs",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "XmlBlobs",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "data": "value"
+            },
+            "body": "<XmlBlobsResponse><data>dmFsdWU=</data></XmlBlobsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#XmlBlobsRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#XmlBlobsResponse"
+      }
+    },
+    "aws.protocoltests.restxml#XmlBlobsRequest": {
+      "type": "structure",
+      "members": {
+        "data": {
+          "target": "smithy.api#Blob"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlBlobsResponse": {
+      "type": "structure",
+      "members": {
+        "data": {
+          "target": "smithy.api#Blob"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlEnums": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/XmlEnums",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "XmlEnums",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "fooEnum1": "Foo",
+              "fooEnum2": "0",
+              "fooEnumList": [
+                "Foo",
+                "0"
+              ],
+              "intEnum": 1
+            },
+            "body": "<XmlEnumsRequest><fooEnum1>Foo</fooEnum1><fooEnum2>0</fooEnum2><fooEnumList><member>Foo</member><member>0</member></fooEnumList><intEnum>1</intEnum></XmlEnumsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/XmlEnums",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "XmlEnums",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "fooEnum1": "Foo",
+              "fooEnum2": "0",
+              "fooEnumList": [
+                "Foo",
+                "0"
+              ],
+              "intEnum": 1
+            },
+            "body": "<XmlEnumsResponse><fooEnum1>Foo</fooEnum1><fooEnum2>0</fooEnum2><fooEnumList><member>Foo</member><member>0</member></fooEnumList><intEnum>1</intEnum></XmlEnumsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#XmlEnumsRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#XmlEnumsResponse"
+      }
+    },
+    "aws.protocoltests.restxml#XmlEnumsRequest": {
+      "type": "structure",
+      "members": {
+        "fooEnum1": {
+          "target": "aws.protocoltests.restxml#FooEnum"
+        },
+        "fooEnum2": {
+          "target": "aws.protocoltests.restxml#FooEnum"
+        },
+        "fooEnumList": {
+          "target": "aws.protocoltests.restxml#FooEnumList"
+        },
+        "intEnum": {
+          "target": "aws.protocoltests.restxml#IntegerEnum"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlEnumsResponse": {
+      "type": "structure",
+      "members": {
+        "fooEnum1": {
+          "target": "aws.protocoltests.restxml#FooEnum"
+        },
+        "fooEnum2": {
+          "target": "aws.protocoltests.restxml#FooEnum"
+        },
+        "fooEnumList": {
+          "target": "aws.protocoltests.restxml#FooEnumList"
+        },
+        "intEnum": {
+          "target": "aws.protocoltests.restxml#IntegerEnum"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlLists": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/XmlLists",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "XmlLists",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "stringList": [
+                "foo",
+                "bar"
+              ],
+              "stringSet": [
+                "foo",
+                "bar"
+              ],
+              "integerList": [
+                1,
+                2
+              ],
+              "booleanList": [
+                true,
+                false
+              ],
+              "timestampList": [
+                1398796238,
+                1398796238
+              ],
+              "enumList": [
+                "Foo",
+                "0"
+              ],
+              "nestedStringList": [
+                [
+                  "foo",
+                  "bar"
+                ],
+                [
+                  "baz",
+                  "qux"
+                ]
+              ],
+              "renamedListMembers": [
+                "foo",
+                "bar"
+              ],
+              "flattenedList": [
+                "hi",
+                "bye"
+              ],
+              "flattenedList2": [
+                "yep",
+                "nope"
+              ],
+              "structureList": [
+                {
+                  "a": "1",
+                  "b": "2"
+                },
+                {
+                  "a": "3",
+                  "b": "4"
+                }
+              ],
+              "flattenedStructureList": [
+                {
+                  "a": "5",
+                  "b": "6"
+                },
+                {
+                  "a": "7",
+                  "b": "8"
+                }
+              ]
+            },
+            "body": "<XmlListsRequest><stringList><member>foo</member><member>bar</member></stringList><stringSet><member>foo</member><member>bar</member></stringSet><integerList><member>1</member><member>2</member></integerList><booleanList><member>true</member><member>false</member></booleanList><timestampList><member>2014-04-29T18:30:38Z</member><member>2014-04-29T18:30:38Z</member></timestampList><enumList><member>Foo</member><member>0</member></enumList><nestedStringList><member><member>foo</member><member>bar</member></member><member><member>baz</member><member>qux</member></member></nestedStringList><renamed><item>foo</item><item>bar</item></renamed><flattenedList>hi</flattenedList><flattenedList>bye</flattenedList><customName>yep</customName><customName>nope</customName><myStructureList><item><value>1</value><other>2</other></item><item><value>3</value><other>4</other></item></myStructureList><flattenedStructureList><value>5</value><other>6</other></flattenedStructureList><flattenedStructureList><value>7</value><other>8</other></flattenedStructureList></XmlListsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/XmlLists",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlEmptyLists",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "stringList": [],
+              "stringSet": []
+            },
+            "body": "<XmlListsRequest><stringList></stringList><stringSet></stringSet></XmlListsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "PUT",
+            "uri": "/XmlLists",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "XmlLists",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "stringList": [
+                "foo",
+                "bar"
+              ],
+              "stringSet": [
+                "foo",
+                "bar"
+              ],
+              "integerList": [
+                1,
+                2
+              ],
+              "booleanList": [
+                true,
+                false
+              ],
+              "timestampList": [
+                1398796238,
+                1398796238
+              ],
+              "enumList": [
+                "Foo",
+                "0"
+              ],
+              "nestedStringList": [
+                [
+                  "foo",
+                  "bar"
+                ],
+                [
+                  "baz",
+                  "qux"
+                ]
+              ],
+              "renamedListMembers": [
+                "foo",
+                "bar"
+              ],
+              "flattenedList": [
+                "hi",
+                "bye"
+              ],
+              "flattenedList2": [
+                "yep",
+                "nope"
+              ],
+              "structureList": [
+                {
+                  "a": "1",
+                  "b": "2"
+                },
+                {
+                  "a": "3",
+                  "b": "4"
+                }
+              ],
+              "flattenedStructureList": [
+                {
+                  "a": "5",
+                  "b": "6"
+                },
+                {
+                  "a": "7",
+                  "b": "8"
+                }
+              ],
+              "flattenedListWithMemberNamespace": [
+                "a",
+                "b"
+              ],
+              "flattenedListWithNamespace": [
+                "a",
+                "b"
+              ]
+            },
+            "body": "<XmlListsResponse><stringList><member>foo</member><member>bar</member></stringList><stringSet><member>foo</member><member>bar</member></stringSet><integerList><member>1</member><member>2</member></integerList><booleanList><member>true</member><member>false</member></booleanList><timestampList><member>2014-04-29T18:30:38Z</member><member>2014-04-29T18:30:38Z</member></timestampList><enumList><member>Foo</member><member>0</member></enumList><nestedStringList><member><member>foo</member><member>bar</member></member><member><member>baz</member><member>qux</member></member></nestedStringList><renamed><item>foo</item><item>bar</item></renamed><flattenedList>hi</flattenedList><flattenedList>bye</flattenedList><customName>yep</customName><customName>nope</customName><myStructureList><item><value>1</value><other>2</other></item><item><value>3</value><other>4</other></item></myStructureList><flattenedStructureList><value>5</value><other>6</other></flattenedStructureList><flattenedStructureList><value>7</value><other>8</other></flattenedStructureList><flattenedListWithMemberNamespace xmlns=\"https://xml-member.example.com\">a</flattenedListWithMemberNamespace><flattenedListWithMemberNamespace xmlns=\"https://xml-member.example.com\">b</flattenedListWithMemberNamespace><flattenedListWithNamespace>a</flattenedListWithNamespace><flattenedListWithNamespace>b</flattenedListWithNamespace></XmlListsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlEmptyLists",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "stringList": [],
+              "stringSet": []
+            },
+            "body": "<XmlListsResponse><stringList/><stringSet></stringSet></XmlListsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#XmlListsRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#XmlListsResponse"
+      }
+    },
+    "aws.protocoltests.restxml#XmlListsRequest": {
+      "type": "structure",
+      "members": {
+        "stringList": {
+          "target": "aws.protocoltests.restxml#StringList"
+        },
+        "stringSet": {
+          "target": "aws.protocoltests.restxml#StringSet"
+        },
+        "integerList": {
+          "target": "aws.protocoltests.restxml#IntegerList"
+        },
+        "booleanList": {
+          "target": "aws.protocoltests.restxml#BooleanList"
+        },
+        "timestampList": {
+          "target": "aws.protocoltests.restxml#TimestampList"
+        },
+        "enumList": {
+          "target": "aws.protocoltests.restxml#FooEnumList"
+        },
+        "nestedStringList": {
+          "target": "aws.protocoltests.restxml#NestedStringList"
+        },
+        "renamedListMembers": {
+          "target": "aws.protocoltests.restxml#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlName": "renamed"
+          }
+        },
+        "flattenedList": {
+          "target": "aws.protocoltests.restxml#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "flattenedList2": {
+          "target": "aws.protocoltests.restxml#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlFlattened": {},
+            "smithy.api#xmlName": "customName"
+          }
+        },
+        "flattenedListWithMemberNamespace": {
+          "target": "aws.protocoltests.restxml#ListWithMemberNamespace",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "flattenedListWithNamespace": {
+          "target": "aws.protocoltests.restxml#ListWithNamespace",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "structureList": {
+          "target": "aws.protocoltests.restxml#StructureList",
+          "traits": {
+            "smithy.api#xmlName": "myStructureList"
+          }
+        },
+        "flattenedStructureList": {
+          "target": "aws.protocoltests.restxml#StructureList",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlListsResponse": {
+      "type": "structure",
+      "members": {
+        "stringList": {
+          "target": "aws.protocoltests.restxml#StringList"
+        },
+        "stringSet": {
+          "target": "aws.protocoltests.restxml#StringSet"
+        },
+        "integerList": {
+          "target": "aws.protocoltests.restxml#IntegerList"
+        },
+        "booleanList": {
+          "target": "aws.protocoltests.restxml#BooleanList"
+        },
+        "timestampList": {
+          "target": "aws.protocoltests.restxml#TimestampList"
+        },
+        "enumList": {
+          "target": "aws.protocoltests.restxml#FooEnumList"
+        },
+        "nestedStringList": {
+          "target": "aws.protocoltests.restxml#NestedStringList"
+        },
+        "renamedListMembers": {
+          "target": "aws.protocoltests.restxml#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlName": "renamed"
+          }
+        },
+        "flattenedList": {
+          "target": "aws.protocoltests.restxml#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "flattenedList2": {
+          "target": "aws.protocoltests.restxml#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlFlattened": {},
+            "smithy.api#xmlName": "customName"
+          }
+        },
+        "flattenedListWithMemberNamespace": {
+          "target": "aws.protocoltests.restxml#ListWithMemberNamespace",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "flattenedListWithNamespace": {
+          "target": "aws.protocoltests.restxml#ListWithNamespace",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "structureList": {
+          "target": "aws.protocoltests.restxml#StructureList",
+          "traits": {
+            "smithy.api#xmlName": "myStructureList"
+          }
+        },
+        "flattenedStructureList": {
+          "target": "aws.protocoltests.restxml#StructureList",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlMaps": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/XmlMaps",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "XmlMaps",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "myMap": {
+                "foo": {
+                  "hi": "there"
+                },
+                "baz": {
+                  "hi": "bye"
+                }
+              }
+            },
+            "body": "<XmlMapsRequest><myMap><entry><key>foo</key><value><hi>there</hi></value></entry><entry><key>baz</key><value><hi>bye</hi></value></entry></myMap></XmlMapsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlMaps",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "XmlMaps",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "myMap": {
+                "foo": {
+                  "hi": "there"
+                },
+                "baz": {
+                  "hi": "bye"
+                }
+              }
+            },
+            "body": "<XmlMapsResponse><myMap><entry><key>foo</key><value><hi>there</hi></value></entry><entry><key>baz</key><value><hi>bye</hi></value></entry></myMap></XmlMapsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#XmlMapsRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#XmlMapsResponse"
+      }
+    },
+    "aws.protocoltests.restxml#XmlMapsRequest": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.restxml#GreetingMap"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlMapsResponse": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.restxml#GreetingMap"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlMapsXmlName": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/XmlMapsXmlName",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "XmlMapsXmlName",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "myMap": {
+                "foo": {
+                  "hi": "there"
+                },
+                "baz": {
+                  "hi": "bye"
+                }
+              }
+            },
+            "body": "<XmlMapsXmlNameRequest><myMap><entry><Attribute>foo</Attribute><Setting><hi>there</hi></Setting></entry><entry><Attribute>baz</Attribute><Setting><hi>bye</hi></Setting></entry></myMap></XmlMapsXmlNameRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlMapsXmlName",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "XmlMapsXmlName",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "myMap": {
+                "foo": {
+                  "hi": "there"
+                },
+                "baz": {
+                  "hi": "bye"
+                }
+              }
+            },
+            "body": "<XmlMapsXmlNameResponse><myMap><entry><Attribute>foo</Attribute><Setting><hi>there</hi></Setting></entry><entry><Attribute>baz</Attribute><Setting><hi>bye</hi></Setting></entry></myMap></XmlMapsXmlNameResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#XmlMapsXmlNameRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#XmlMapsXmlNameResponse"
+      }
+    },
+    "aws.protocoltests.restxml#XmlMapsXmlNameRequest": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.restxml#RenamedGreetingMap"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlMapsXmlNameResponse": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.restxml#RenamedGreetingMap"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlNamespaceNested": {
+      "type": "structure",
+      "members": {
+        "foo": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlNamespace": {
+              "uri": "http://baz.com",
+              "prefix": "baz"
+            }
+          }
+        },
+        "values": {
+          "target": "aws.protocoltests.restxml#XmlNamespacedList",
+          "traits": {
+            "smithy.api#xmlNamespace": {
+              "uri": "http://qux.com"
+            }
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#xmlNamespace": {
+          "uri": "http://foo.com"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#XmlNamespacedList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlNamespace": {
+            "uri": "http://bux.com"
+          }
+        }
+      }
+    },
+    "aws.protocoltests.restxml#XmlNamespaces": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/XmlNamespaces",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "XmlNamespaces",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "foo": "Foo",
+                "values": [
+                  "Bar",
+                  "Baz"
+                ]
+              }
+            },
+            "body": "<XmlNamespacesRequest xmlns=\"http://foo.com\"><nested><foo xmlns:baz=\"http://baz.com\">Foo</foo><values xmlns=\"http://qux.com\"><member xmlns=\"http://bux.com\">Bar</member><member xmlns=\"http://bux.com\">Baz</member></values></nested></XmlNamespacesRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlNamespaces",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "XmlNamespaces",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "nested": {
+                "foo": "Foo",
+                "values": [
+                  "Bar",
+                  "Baz"
+                ]
+              }
+            },
+            "body": "<XmlNamespacesResponse xmlns=\"http://foo.com\"><nested><foo xmlns:baz=\"http://baz.com\">Foo</foo><values xmlns=\"http://qux.com\"><member xmlns=\"http://bux.com\">Bar</member><member xmlns=\"http://bux.com\">Baz</member></values></nested></XmlNamespacesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#XmlNamespacesRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#XmlNamespacesResponse"
+      }
+    },
+    "aws.protocoltests.restxml#XmlNamespacesRequest": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#XmlNamespaceNested"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {},
+        "smithy.api#xmlNamespace": {
+          "uri": "http://foo.com"
+        }
+      }
+    },
+    "aws.protocoltests.restxml#XmlNamespacesResponse": {
+      "type": "structure",
+      "members": {
+        "nested": {
+          "target": "aws.protocoltests.restxml#XmlNamespaceNested"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlTimestamps": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/XmlTimestamps",
+          "code": 200
+        },
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "XmlTimestamps",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "normal": 1398796238
+            },
+            "body": "<XmlTimestampsRequest><normal>2014-04-29T18:30:38Z</normal></XmlTimestampsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlTimestamps",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlTimestampsWithDateTimeFormat",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "dateTime": 1398796238
+            },
+            "body": "<XmlTimestampsRequest><dateTime>2014-04-29T18:30:38Z</dateTime></XmlTimestampsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlTimestamps",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlTimestampsWithDateTimeOnTargetFormat",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "dateTimeOnTarget": 1398796238
+            },
+            "body": "<XmlTimestampsRequest><dateTimeOnTarget>2014-04-29T18:30:38Z</dateTimeOnTarget></XmlTimestampsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlTimestamps",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlTimestampsWithEpochSecondsFormat",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "epochSeconds": 1398796238
+            },
+            "body": "<XmlTimestampsRequest><epochSeconds>1398796238</epochSeconds></XmlTimestampsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlTimestamps",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlTimestampsWithEpochSecondsOnTargetFormat",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "epochSecondsOnTarget": 1398796238
+            },
+            "body": "<XmlTimestampsRequest><epochSecondsOnTarget>1398796238</epochSecondsOnTarget></XmlTimestampsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlTimestamps",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlTimestampsWithHttpDateFormat",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "httpDate": 1398796238
+            },
+            "body": "<XmlTimestampsRequest><httpDate>Tue, 29 Apr 2014 18:30:38 GMT</httpDate></XmlTimestampsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlTimestamps",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlTimestampsWithHttpDateOnTargetFormat",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "httpDateOnTarget": 1398796238
+            },
+            "body": "<XmlTimestampsRequest><httpDateOnTarget>Tue, 29 Apr 2014 18:30:38 GMT</httpDateOnTarget></XmlTimestampsRequest>",
+            "bodyMediaType": "application/xml",
+            "method": "POST",
+            "uri": "/XmlTimestamps",
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ],
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "XmlTimestamps",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "normal": 1398796238
+            },
+            "body": "<XmlTimestampsResponse><normal>2014-04-29T18:30:38Z</normal></XmlTimestampsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlTimestampsWithEpochSecondsFormat",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "epochSeconds": 1398796238
+            },
+            "body": "<XmlTimestampsResponse><epochSeconds>1398796238</epochSeconds></XmlTimestampsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "XmlTimestampsWithHttpDateOnTargetFormat",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "httpDateOnTarget": 1398796238
+            },
+            "body": "<XmlTimestampsResponse><httpDateOnTarget>Tue, 29 Apr 2014 18:30:38 GMT</httpDateOnTarget></XmlTimestampsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "input": {
+        "target": "aws.protocoltests.restxml#XmlTimestampsRequest"
+      },
+      "output": {
+        "target": "aws.protocoltests.restxml#XmlTimestampsResponse"
+      }
+    },
+    "aws.protocoltests.restxml#XmlTimestampsRequest": {
+      "type": "structure",
+      "members": {
+        "normal": {
+          "target": "smithy.api#Timestamp"
+        },
+        "dateTime": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "date-time"
+          }
+        },
+        "dateTimeOnTarget": {
+          "target": "aws.protocoltests.restxml#DateTime"
+        },
+        "epochSeconds": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "epoch-seconds"
+          }
+        },
+        "epochSecondsOnTarget": {
+          "target": "aws.protocoltests.restxml#EpochSeconds"
+        },
+        "httpDate": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "http-date"
+          }
+        },
+        "httpDateOnTarget": {
+          "target": "aws.protocoltests.restxml#HttpDate"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.restxml#XmlTimestampsResponse": {
+      "type": "structure",
+      "members": {
+        "normal": {
+          "target": "smithy.api#Timestamp"
+        },
+        "dateTime": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "date-time"
+          }
+        },
+        "dateTimeOnTarget": {
+          "target": "aws.protocoltests.restxml#DateTime"
+        },
+        "epochSeconds": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "epoch-seconds"
+          }
+        },
+        "epochSecondsOnTarget": {
+          "target": "aws.protocoltests.restxml#EpochSeconds"
+        },
+        "httpDate": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "http-date"
+          }
+        },
+        "httpDateOnTarget": {
+          "target": "aws.protocoltests.restxml#HttpDate"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.restxml.nowrap#ComplexError": {
+      "type": "structure",
+      "members": {
+        "Header": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "X-Header"
+          }
+        },
+        "TopLevel": {
+          "target": "smithy.api#String"
+        },
+        "Nested": {
+          "target": "aws.protocoltests.restxml.nowrap#ComplexNestedErrorData"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 403,
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "RestXmlNoErrorWrappingComplexError",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "Header": "Header",
+              "TopLevel": "Top level",
+              "Nested": {
+                "Foo": "bar"
+              }
+            },
+            "body": "<Error><Type>Sender</Type><Code>ComplexError</Code><Message>Hi</Message><TopLevel>Top level</TopLevel><Nested><Foo>bar</Foo></Nested><RequestId>foo-id</RequestId></Error>",
+            "bodyMediaType": "application/xml",
+            "code": 403,
+            "headers": {
+              "Content-Type": "application/xml",
+              "X-Header": "Header"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.restxml.nowrap#ComplexNestedErrorData": {
+      "type": "structure",
+      "members": {
+        "Foo": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "aws.protocoltests.restxml.nowrap#GreetingWithErrors": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/GreetingWithErrors",
+          "code": 200
+        }
+      },
+      "errors": [
+        {
+          "target": "aws.protocoltests.restxml.nowrap#InvalidGreeting"
+        },
+        {
+          "target": "aws.protocoltests.restxml.nowrap#ComplexError"
+        }
+      ]
+    },
+    "aws.protocoltests.restxml.nowrap#InvalidGreeting": {
+      "type": "structure",
+      "members": {
+        "Message": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400,
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "RestXmlNoErrorWrappingInvalidGreetingError",
+            "protocol": "aws.protocols#restXml",
+            "params": {
+              "Message": "Hi"
+            },
+            "body": "<Error><Type>Sender</Type><Code>InvalidGreeting</Code><Message>Hi</Message><AnotherSetting>setting</AnotherSetting><RequestId>foo-id</RequestId></Error>",
+            "bodyMediaType": "application/xml",
+            "code": 400,
+            "headers": {
+              "Content-Type": "application/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.restxml.nowrap#RestXmlNoErrorWrapping": {
+      "type": "service",
+      "version": "2019-12-16",
+      "traits": {
+        "aws.protocols#restXml": {
+          "noErrorWrapping": true
+        }
+      },
+      "operations": [
+        {
+          "target": "aws.protocoltests.restxml.nowrap#GreetingWithErrors"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "crucibleFixtureOrigin": "Handwritten regression additions; not official protocol qualification"
+  }
+}

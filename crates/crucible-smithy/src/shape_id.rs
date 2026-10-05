@@ -101,6 +101,12 @@ impl<'de> Deserialize<'de> for ShapeId {
     }
 }
 
+impl serde::Serialize for ShapeId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

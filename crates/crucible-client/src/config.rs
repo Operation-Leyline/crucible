@@ -12,25 +12,42 @@ pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 /// A bearer token: fixed, or asked for on every attempt so a refreshed one
 /// is picked up.
 #[derive(Clone)]
-pub enum Token {
-    Fixed(String),
-    Provider(Arc<dyn Fn() -> BoxFuture<Option<String>> + Send + Sync>),
+pub enum Identity<T> {
+    Fixed(T),
+    Provider(Arc<dyn Fn() -> BoxFuture<Option<T>> + Send + Sync>),
 }
 
-impl Token {
-    pub fn fixed(token: impl Into<String>) -> Self {
+pub type Token = Identity<String>;
+
+#[derive(Clone)]
+pub struct BasicCredentials {
+    pub username: String,
+    pub password: String,
+}
+
+impl BasicCredentials {
+    pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
+        Self {
+            username: username.into(),
+            password: password.into(),
+        }
+    }
+}
+
+impl<T: Clone> Identity<T> {
+    pub fn fixed(token: impl Into<T>) -> Self {
         Self::Fixed(token.into())
     }
 
     pub fn provider<F, Fut>(provider: F) -> Self
     where
         F: Fn() -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Option<String>> + Send + 'static,
+        Fut: Future<Output = Option<T>> + Send + 'static,
     {
         Self::Provider(Arc::new(move || Box::pin(provider())))
     }
 
-    pub(crate) async fn get(&self) -> Option<String> {
+    pub(crate) async fn get(&self) -> Option<T> {
         match self {
             Self::Fixed(token) => Some(token.clone()),
             Self::Provider(provider) => provider().await,
@@ -77,12 +94,29 @@ pub trait Interceptor: Send + Sync + 'static {
 #[derive(Clone)]
 pub struct Config {
     pub(crate) endpoint: String,
+    pub(crate) region: Option<String>,
+    pub(crate) endpoint_parameters: std::collections::BTreeMap<String, serde_json::Value>,
+    pub(crate) endpoint_builtins: std::collections::BTreeMap<String, serde_json::Value>,
+    pub(crate) disable_host_prefix: bool,
     pub(crate) token: Option<Token>,
+    pub(crate) basic_credentials: Option<Identity<BasicCredentials>>,
+    pub(crate) api_key: Option<Token>,
+    pub(crate) aws_credentials: Option<Identity<crate::AwsCredentials>>,
+    pub(crate) signing_name: Option<String>,
     pub(crate) retry: Retry,
     pub(crate) interceptors: Vec<Arc<dyn Interceptor>>,
     pub(crate) headers: HeaderMap,
     pub(crate) http: reqwest::Client,
+    pub(crate) timeout: Option<Duration>,
+    pub(crate) content_sha256: bool,
+    pub(crate) request_checksum_calculation: crate::ChecksumPolicy,
+    pub(crate) response_checksum_validation: crate::ChecksumPolicy,
+    pub(crate) checksum_validated: Option<ChecksumValidated>,
 }
+
+/// Told which operation's response checksum was verified, and with which algorithm.
+pub type ChecksumValidated =
+    Arc<dyn Fn(&'static str, crucible_wire::operation::ChecksumAlgorithm) + Send + Sync>;
 
 impl Config {
     pub fn new(endpoint: impl Into<String>) -> Self {
@@ -91,16 +125,115 @@ impl Config {
         let _ = rustls::crypto::ring::default_provider().install_default();
         Self {
             endpoint: endpoint.into().trim_end_matches('/').to_owned(),
+            region: None,
+            endpoint_parameters: Default::default(),
+            endpoint_builtins: Default::default(),
+            disable_host_prefix: false,
             token: None,
+            basic_credentials: None,
+            api_key: None,
+            aws_credentials: None,
+            signing_name: None,
             retry: Retry::default(),
             interceptors: Vec::new(),
             headers: HeaderMap::new(),
             http: reqwest::Client::new(),
+            timeout: None,
+            content_sha256: false,
+            request_checksum_calculation: crate::ChecksumPolicy::WhenSupported,
+            response_checksum_validation: crate::ChecksumPolicy::WhenSupported,
+            checksum_validated: None,
         }
+    }
+
+    pub fn region(mut self, region: impl Into<String>) -> Self {
+        self.region = Some(region.into());
+        self
+    }
+    pub fn endpoint_parameter(
+        mut self,
+        name: impl Into<String>,
+        value: impl Into<serde_json::Value>,
+    ) -> Self {
+        self.endpoint_parameters.insert(name.into(), value.into());
+        self
+    }
+    pub fn endpoint_builtin(
+        mut self,
+        name: impl Into<String>,
+        value: impl Into<serde_json::Value>,
+    ) -> Self {
+        self.endpoint_builtins.insert(name.into(), value.into());
+        self
+    }
+    pub fn disable_host_prefix(mut self, disabled: bool) -> Self {
+        self.disable_host_prefix = disabled;
+        self
+    }
+
+    /// A total budget for one call, including credentials, retries and body reads.
+    /// No total-call deadline is imposed unless configured.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Hashes the replayed body before caller interceptors (including empty writes).
+    pub fn content_sha256(mut self, enabled: bool) -> Self {
+        self.content_sha256 = enabled;
+        self
+    }
+
+    /// When modeled request checksums are computed: `WhenSupported` (the
+    /// default) fills an absent algorithm member with CRC32; `WhenRequired`
+    /// computes one only when the model requires it or the caller chose one.
+    pub fn request_checksum_calculation(mut self, policy: crate::ChecksumPolicy) -> Self {
+        self.request_checksum_calculation = policy;
+        self
+    }
+
+    /// When modeled response checksums are verified: `WhenSupported` (the
+    /// default) enables an absent validation-mode member; `WhenRequired`
+    /// verifies only when the caller enabled it.
+    pub fn response_checksum_validation(mut self, policy: crate::ChecksumPolicy) -> Self {
+        self.response_checksum_validation = policy;
+        self
+    }
+
+    /// Called with the operation name and algorithm whenever a response
+    /// checksum is verified. A streamed body is verified when it ends.
+    pub fn on_checksum_validated(
+        mut self,
+        callback: impl Fn(&'static str, crucible_wire::operation::ChecksumAlgorithm)
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.checksum_validated = Some(Arc::new(callback));
+        self
     }
 
     pub fn token(mut self, token: Token) -> Self {
         self.token = Some(token);
+        self
+    }
+
+    pub fn basic_credentials(mut self, credentials: Identity<BasicCredentials>) -> Self {
+        self.basic_credentials = Some(credentials);
+        self
+    }
+
+    pub fn api_key(mut self, key: Token) -> Self {
+        self.api_key = Some(key);
+        self
+    }
+
+    pub fn aws_credentials(mut self, credentials: Identity<crate::AwsCredentials>) -> Self {
+        self.aws_credentials = Some(credentials);
+        self
+    }
+    pub fn signing_name(mut self, name: impl Into<String>) -> Self {
+        self.signing_name = Some(name.into());
         self
     }
 
@@ -127,4 +260,17 @@ impl Config {
         self.http = http;
         self
     }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self::new("")
+    }
+}
+
+/// Per-call settings; an explicit timeout overrides the client default.
+#[derive(Clone, Debug, Default)]
+pub struct CallOptions {
+    pub timeout: Option<Duration>,
+    pub cancellation: Option<crate::CancellationToken>,
 }

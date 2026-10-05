@@ -18,6 +18,34 @@ pub trait Operation: Send + Sync + 'static {
     /// Regenerate clients with this runtime; older generated markers omit this flag.
     /// Handwritten operations must opt in explicitly when bearer auth is supported.
     const AUTH_BEARER: bool = false;
+    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = None;
+    const OPTIONAL_AUTH: bool = false;
+    const UNSIGNED_PAYLOAD: bool = false;
+    /// The wire protocol a client speaks. Servers serve `crucible.protocols#json`.
+    const PROTOCOL: Protocol = Protocol::CrucibleJson;
+    /// The operation's modeled HTTP checksum behavior, for clients.
+    const CHECKSUM: Option<Checksum> = None;
+    fn output_status(_output: &Self::Output) -> Option<u16> {
+        None
+    }
+    fn input_stream(_input: &Self::Input) -> Option<crate::stream::ByteStream> {
+        None
+    }
+    fn output_stream(_output: &Self::Output) -> Option<crate::stream::ByteStream> {
+        None
+    }
+    fn set_input_stream(_input: &mut Self::Input, _stream: crate::stream::ByteStream) {}
+    fn set_output_stream(_output: &mut Self::Output, _stream: crate::stream::ByteStream) {}
+    /// The event stream the input sends, when it has one (clients only).
+    const INPUT_EVENTS: Option<&'static crate::event_stream::EventStreamInfo> = None;
+    /// The event stream the output receives, when it has one (clients only).
+    const OUTPUT_EVENTS: Option<&'static crate::event_stream::EventStreamInfo> = None;
+    fn input_events(
+        _input: &Self::Input,
+    ) -> Option<std::io::Result<crate::event_stream::Outgoing>> {
+        None
+    }
+    fn set_output_events(_output: &mut Self::Output, _events: crate::event_stream::Incoming) {}
     type Input: DeserializeOwned + Serialize + Validate + Send + Sync + 'static;
     type Output: Serialize + Send + Sync + 'static;
 }
@@ -108,6 +136,7 @@ impl OperationInfo {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Segment {
+    GreedyLabel(&'static str),
     Literal(&'static str),
     Label(&'static str),
 }
@@ -206,19 +235,41 @@ fn trait_value(traits: &[(&str, &str)], id: &str) -> Option<Value> {
 pub enum Location {
     Label,
     Query(&'static str),
+    QueryParams,
+    PrefixHeaders(&'static str),
+    ResponseCode,
     Header(&'static str),
     Body,
     /// The whole HTTP body, raw (`@httpPayload` on a blob), with the media
     /// type a sender gives it. A structure with a payload member has no
     /// other body members.
     Payload(&'static str),
+    /// The whole HTTP body as UTF-8 text (`@httpPayload` on a string or enum).
+    TextPayload(&'static str),
+    /// The whole HTTP body as one JSON value (`@httpPayload` on a structure,
+    /// union or document). An absent or null value sends no body.
+    DocumentPayload(&'static str),
+    StreamingPayload {
+        media_type: &'static str,
+        requires_length: bool,
+        minimum: Option<u64>,
+        maximum: Option<u64>,
+    },
+    /// An event stream (`@streaming` union): the whole body, as
+    /// `application/vnd.amazon.eventstream` messages. It is never part of a
+    /// JSON document; the operation's `INPUT_EVENTS` / `OUTPUT_EVENTS`
+    /// describe its events.
+    EventStream,
 }
 
 impl Location {
     /// The payload member of `members`, if it has one, and its media type.
     pub fn payload(members: &[MemberInfo]) -> Option<(&MemberInfo, &'static str)> {
         members.iter().find_map(|member| match member.location {
-            Self::Payload(media_type) => Some((member, media_type)),
+            Self::Payload(media_type)
+            | Self::TextPayload(media_type)
+            | Self::DocumentPayload(media_type)
+            | Self::StreamingPayload { media_type, .. } => Some((member, media_type)),
             _ => None,
         })
     }
@@ -227,6 +278,8 @@ impl Location {
 /// How a bound member's text reads as JSON. Body members are `Json`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scalar {
+    BigInteger,
+    BigDecimal,
     String,
     Integer,
     Float,
@@ -234,8 +287,147 @@ pub enum Scalar {
     DateTime,
     EpochSeconds,
     HttpDate,
+    /// A timestamp whose bound text uses a different format than its JSON
+    /// value: a REST protocol's HTTP-date header for an epoch-seconds member.
+    Timestamp {
+        text: TimestampFormat,
+        json: TimestampFormat,
+    },
+    /// A `@mediaType` string bound to a header: base64 of its UTF-8 text.
+    Base64,
     List(&'static Scalar),
     Json,
+}
+
+impl Scalar {
+    /// HTTP-date text, whose own commas a header list does not quote.
+    pub fn http_date(self) -> bool {
+        matches!(
+            self,
+            Self::HttpDate
+                | Self::Timestamp {
+                    text: TimestampFormat::HttpDate,
+                    ..
+                }
+        )
+    }
+}
+
+/// A timestamp's wire format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimestampFormat {
+    DateTime,
+    EpochSeconds,
+    HttpDate,
+}
+
+/// The protocol a generated client speaks, chosen once from the model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Protocol {
+    /// `crucible.protocols#json`: HTTP bindings, `__type` or
+    /// `x-crucible-error` naming errors.
+    CrucibleJson,
+    /// `aws.protocols#restJson1`: HTTP bindings, `X-Amzn-Errortype`.
+    AwsRestJson1,
+    /// `aws.protocols#awsJson1_0`: every member in a JSON body POSTed to `/`
+    /// with `X-Amz-Target: {service}.{operation}`.
+    AwsJson10 { service: &'static str },
+    /// `aws.protocols#awsJson1_1`, as `AwsJson10` with its own content type.
+    AwsJson11 { service: &'static str },
+}
+
+impl Protocol {
+    /// Whether errors and messages follow the AWS JSON conventions.
+    pub fn aws(self) -> bool {
+        !matches!(self, Self::CrucibleJson)
+    }
+}
+
+/// An operation's modeled HTTP checksum behavior.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Checksum {
+    /// `@httpChecksumRequired`: `Content-MD5` over the complete body.
+    Md5,
+    /// `@aws.protocols#httpChecksum`. Member names are wire names.
+    Flexible {
+        request_required: bool,
+        request_algorithm_member: Option<&'static str>,
+        validation_mode_member: Option<&'static str>,
+        response_algorithms: &'static [ChecksumAlgorithm],
+    },
+}
+
+/// A checksum algorithm a model may name. A client computes only those
+/// `supported` reports; the others are recognized so a model can name them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ChecksumAlgorithm {
+    Crc32,
+    Crc32c,
+    Crc64Nvme,
+    Md5,
+    Sha1,
+    Sha256,
+    Sha512,
+    Xxhash64,
+    Xxhash3,
+    Xxhash128,
+}
+
+impl ChecksumAlgorithm {
+    pub const ALL: &'static [Self] = &[
+        Self::Crc32,
+        Self::Crc32c,
+        Self::Crc64Nvme,
+        Self::Md5,
+        Self::Sha1,
+        Self::Sha256,
+        Self::Sha512,
+        Self::Xxhash64,
+        Self::Xxhash3,
+        Self::Xxhash128,
+    ];
+
+    /// The model's spelling: `CRC32`, `SHA256`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Crc32 => "CRC32",
+            Self::Crc32c => "CRC32C",
+            Self::Crc64Nvme => "CRC64NVME",
+            Self::Md5 => "MD5",
+            Self::Sha1 => "SHA1",
+            Self::Sha256 => "SHA256",
+            Self::Sha512 => "SHA512",
+            Self::Xxhash64 => "XXHASH64",
+            Self::Xxhash3 => "XXHASH3",
+            Self::Xxhash128 => "XXHASH128",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|value| value.name() == name)
+    }
+
+    /// The `x-amz-checksum-*` header that carries this checksum.
+    pub fn header(self) -> &'static str {
+        match self {
+            Self::Crc32 => "x-amz-checksum-crc32",
+            Self::Crc32c => "x-amz-checksum-crc32c",
+            Self::Crc64Nvme => "x-amz-checksum-crc64nvme",
+            Self::Md5 => "x-amz-checksum-md5",
+            Self::Sha1 => "x-amz-checksum-sha1",
+            Self::Sha256 => "x-amz-checksum-sha256",
+            Self::Sha512 => "x-amz-checksum-sha512",
+            Self::Xxhash64 => "x-amz-checksum-xxhash64",
+            Self::Xxhash3 => "x-amz-checksum-xxhash3",
+            Self::Xxhash128 => "x-amz-checksum-xxhash128",
+        }
+    }
+}
+
+impl std::fmt::Display for ChecksumAlgorithm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
 }
 
 #[derive(Debug)]
@@ -290,8 +482,21 @@ impl<T: Serialize + Any + Send + Sync> Input for T {
     }
 }
 
+/// HTTP bindings removed from a serialized response body.
+#[derive(Debug, Default)]
+pub struct ResponseBindings {
+    pub headers: Vec<(String, String)>,
+    pub status: Option<u16>,
+}
+
 /// An operation's output, seen by handlers without knowing its type.
 pub trait Output: Any + Send + Sync {
+    fn response_status(&self) -> Option<u16> {
+        None
+    }
+    fn stream(&self) -> Option<crate::stream::ByteStream> {
+        None
+    }
     fn to_json(&self) -> Value;
     /// Serializes into `out`. Every serializable output writes straight to
     /// bytes; this default, for other implementors, goes through `to_json`.
@@ -308,6 +513,13 @@ pub trait Output: Any + Send + Sync {
         out: &mut Vec<u8>,
     ) -> serde_json::Result<Vec<(&'static str, String)>> {
         crate::split::write(&self.to_json(), members, out)
+    }
+    fn write_http(
+        &self,
+        members: &[MemberInfo],
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<ResponseBindings> {
+        crate::split::write_http(&self.to_json(), members, None, out)
     }
     fn as_any(&self) -> &dyn Any;
 }
@@ -329,7 +541,38 @@ impl<T: Serialize + Any + Send + Sync> Output for T {
         crate::split::write(self, members, out)
     }
 
+    fn write_http(
+        &self,
+        members: &[MemberInfo],
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<ResponseBindings> {
+        crate::split::write_http(self, members, None, out)
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
+}
+
+/// Invalid modeled response codes become the same 500 that serialization emits.
+pub fn response_status(value: i64) -> u16 {
+    u16::try_from(value)
+        .ok()
+        .filter(|value| (100..=599).contains(value))
+        .unwrap_or(500)
+}
+
+/// Effective authentication options in modeled priority order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthScheme {
+    Bearer,
+    Basic,
+    ApiKey {
+        name: &'static str,
+        query: bool,
+        scheme: Option<&'static str>,
+    },
+    SigV4 {
+        signing_name: &'static str,
+    },
 }
