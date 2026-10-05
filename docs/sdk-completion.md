@@ -33,6 +33,10 @@ Status: Smithy RPC v2 CBOR and JSON, HTTP Digest, and SigV4a are lowered in
 implemented in PHP, which runs those vectors, RFC 7616 and AWS SigV4a vectors,
 and a verifying loopback server. Other targets do not declare them yet.
 
+## Status
+
+- AWS XML protocols: Java and Ruby implement `restXml` (including `noErrorWrapping`), `awsQuery`, and `ec2Query`; 141 request, response, and error vectors adapted from Smithy's AWS protocol tests pass in both, beside loopback HTTP consumer suites. Other targets still refuse these protocols.
+
 ## Integration rules
 
 Semantics are resolved in `crucible-smithy`; emitters never inspect the AST.

@@ -1,0 +1,1687 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "aws.protocoltests.query#AwsQuery": {
+      "type": "service",
+      "version": "2020-01-08",
+      "traits": {
+        "aws.protocols#awsQuery": {},
+        "smithy.api#xmlNamespace": {
+          "uri": "https://example.com/"
+        }
+      },
+      "operations": [
+        {
+          "target": "aws.protocoltests.query#FlattenedXmlMap"
+        },
+        {
+          "target": "aws.protocoltests.query#GreetingWithErrors"
+        },
+        {
+          "target": "aws.protocoltests.query#NestedStructures"
+        },
+        {
+          "target": "aws.protocoltests.query#NoInputAndOutput"
+        },
+        {
+          "target": "aws.protocoltests.query#QueryLists"
+        },
+        {
+          "target": "aws.protocoltests.query#QueryMaps"
+        },
+        {
+          "target": "aws.protocoltests.query#QueryTimestamps"
+        },
+        {
+          "target": "aws.protocoltests.query#SimpleInputParams"
+        },
+        {
+          "target": "aws.protocoltests.query#SimpleScalarXmlProperties"
+        },
+        {
+          "target": "aws.protocoltests.query#XmlBlobs"
+        },
+        {
+          "target": "aws.protocoltests.query#XmlEnums"
+        },
+        {
+          "target": "aws.protocoltests.query#XmlLists"
+        },
+        {
+          "target": "aws.protocoltests.query#XmlMaps"
+        },
+        {
+          "target": "aws.protocoltests.query#XmlTimestamps"
+        }
+      ]
+    },
+    "aws.protocoltests.query#BooleanList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#Boolean"
+      }
+    },
+    "aws.protocoltests.query#ComplexError": {
+      "type": "structure",
+      "members": {
+        "TopLevel": {
+          "target": "smithy.api#String"
+        },
+        "Nested": {
+          "target": "aws.protocoltests.query#ComplexNestedErrorData"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryComplexErrorError",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "TopLevel": "Top level",
+              "Nested": {
+                "Foo": "bar"
+              }
+            },
+            "body": "<ErrorResponse><Error><Type>Sender</Type><Code>ComplexError</Code><Message>Hi</Message><TopLevel>Top level</TopLevel><Nested><Foo>bar</Foo></Nested></Error><RequestId>foo-id</RequestId></ErrorResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 400,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#ComplexNestedErrorData": {
+      "type": "structure",
+      "members": {
+        "Foo": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "aws.protocoltests.query#CustomCodeError": {
+      "type": "structure",
+      "members": {
+        "Message": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "aws.protocols#awsQueryError": {
+          "code": "Customized",
+          "httpResponseCode": 402
+        },
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryCustomCodeErrorError",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Message": "Hi"
+            },
+            "body": "<ErrorResponse><Error><Type>Sender</Type><Code>Customized</Code><Message>Hi</Message></Error><RequestId>foo-id</RequestId></ErrorResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 402,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#DateTime": {
+      "type": "timestamp",
+      "traits": {
+        "smithy.api#timestampFormat": "date-time"
+      }
+    },
+    "aws.protocoltests.query#EpochSeconds": {
+      "type": "timestamp",
+      "traits": {
+        "smithy.api#timestampFormat": "epoch-seconds"
+      }
+    },
+    "aws.protocoltests.query#FlattenedXmlMap": {
+      "type": "operation",
+      "output": {
+        "target": "aws.protocoltests.query#FlattenedXmlMapOutput"
+      },
+      "traits": {
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryQueryFlattenedXmlMap",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "myMap": {
+                "foo": "Foo",
+                "baz": "Baz"
+              }
+            },
+            "body": "<FlattenedXmlMapResponse xmlns=\"https://example.com/\"><FlattenedXmlMapResult><myMap><key>foo</key><value>Foo</value></myMap><myMap><key>baz</key><value>Baz</value></myMap></FlattenedXmlMapResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></FlattenedXmlMapResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#FlattenedXmlMapOutput": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.query#FooEnumMap",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.query#FooEnum": {
+      "type": "enum",
+      "members": {
+        "FOO": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "Foo"
+          }
+        },
+        "BAZ": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "Baz"
+          }
+        },
+        "BAR": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "Bar"
+          }
+        },
+        "ONE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "1"
+          }
+        },
+        "ZERO": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "0"
+          }
+        }
+      }
+    },
+    "aws.protocoltests.query#FooEnumList": {
+      "type": "list",
+      "member": {
+        "target": "aws.protocoltests.query#FooEnum"
+      }
+    },
+    "aws.protocoltests.query#FooEnumMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "aws.protocoltests.query#FooEnum"
+      }
+    },
+    "aws.protocoltests.query#GreetingList": {
+      "type": "list",
+      "member": {
+        "target": "aws.protocoltests.query#GreetingStruct"
+      }
+    },
+    "aws.protocoltests.query#GreetingMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "aws.protocoltests.query#GreetingStruct"
+      }
+    },
+    "aws.protocoltests.query#GreetingStruct": {
+      "type": "structure",
+      "members": {
+        "hi": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "aws.protocoltests.query#GreetingWithErrors": {
+      "type": "operation",
+      "output": {
+        "target": "aws.protocoltests.query#GreetingWithErrorsOutput"
+      },
+      "traits": {
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryGreetingWithErrors",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "greeting": "Hello"
+            },
+            "body": "<GreetingWithErrorsResponse xmlns=\"https://example.com/\"><GreetingWithErrorsResult><greeting>Hello</greeting></GreetingWithErrorsResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></GreetingWithErrorsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      },
+      "errors": [
+        {
+          "target": "aws.protocoltests.query#InvalidGreeting"
+        },
+        {
+          "target": "aws.protocoltests.query#ComplexError"
+        },
+        {
+          "target": "aws.protocoltests.query#CustomCodeError"
+        }
+      ]
+    },
+    "aws.protocoltests.query#GreetingWithErrorsOutput": {
+      "type": "structure",
+      "members": {
+        "greeting": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.query#HttpDate": {
+      "type": "timestamp",
+      "traits": {
+        "smithy.api#timestampFormat": "http-date"
+      }
+    },
+    "aws.protocoltests.query#IntegerEnum": {
+      "type": "intEnum",
+      "members": {
+        "A": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 1
+          }
+        },
+        "B": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 2
+          }
+        },
+        "C": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 3
+          }
+        }
+      }
+    },
+    "aws.protocoltests.query#IntegerList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#Integer"
+      }
+    },
+    "aws.protocoltests.query#InvalidGreeting": {
+      "type": "structure",
+      "members": {
+        "Message": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryInvalidGreetingError",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Message": "Hi"
+            },
+            "body": "<ErrorResponse><Error><Type>Sender</Type><Code>InvalidGreeting</Code><Message>Hi</Message></Error><RequestId>foo-id</RequestId></ErrorResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 400,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#KvpMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "K"
+        }
+      },
+      "value": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "V"
+        }
+      }
+    },
+    "aws.protocoltests.query#ListWithXmlName": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "item"
+        }
+      }
+    },
+    "aws.protocoltests.query#MapOfLists": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "aws.protocoltests.query#StringList"
+      }
+    },
+    "aws.protocoltests.query#NestedStringList": {
+      "type": "list",
+      "member": {
+        "target": "aws.protocoltests.query#StringList"
+      }
+    },
+    "aws.protocoltests.query#NestedStructWithList": {
+      "type": "structure",
+      "members": {
+        "ListArg": {
+          "target": "aws.protocoltests.query#StringList"
+        }
+      }
+    },
+    "aws.protocoltests.query#NestedStructWithMap": {
+      "type": "structure",
+      "members": {
+        "MapArg": {
+          "target": "aws.protocoltests.query#StringMap"
+        }
+      }
+    },
+    "aws.protocoltests.query#NestedStructures": {
+      "type": "operation",
+      "input": {
+        "target": "aws.protocoltests.query#NestedStructuresInput"
+      },
+      "traits": {
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "QueryNestedStructures",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Nested": {
+                "StringArg": "foo",
+                "OtherArg": true,
+                "RecursiveArg": {
+                  "StringArg": "baz"
+                }
+              }
+            },
+            "body": "Action=NestedStructures&Version=2020-01-08&Nested.StringArg=foo&Nested.OtherArg=true&Nested.RecursiveArg.StringArg=baz",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#NestedStructuresInput": {
+      "type": "structure",
+      "members": {
+        "Nested": {
+          "target": "aws.protocoltests.query#StructArg"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.query#NoInputAndOutput": {
+      "type": "operation",
+      "traits": {
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "QueryNoInputAndOutput",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {},
+            "body": "Action=NoInputAndOutput&Version=2020-01-08",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#QueryLists": {
+      "type": "operation",
+      "input": {
+        "target": "aws.protocoltests.query#QueryListsInput"
+      },
+      "traits": {
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "QueryLists",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "ListArg": [
+                "foo",
+                "bar",
+                "baz"
+              ],
+              "ComplexListArg": [
+                {
+                  "hi": "hello"
+                },
+                {
+                  "hi": "hola"
+                }
+              ]
+            },
+            "body": "Action=QueryLists&Version=2020-01-08&ListArg.member.1=foo&ListArg.member.2=bar&ListArg.member.3=baz&ComplexListArg.member.1.hi=hello&ComplexListArg.member.2.hi=hola",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "EmptyQueryLists",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "ListArg": []
+            },
+            "body": "Action=QueryLists&Version=2020-01-08&ListArg=",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "FlattenedQueryLists",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "FlattenedListArg": [
+                "A",
+                "B"
+              ]
+            },
+            "body": "Action=QueryLists&Version=2020-01-08&FlattenedListArg.1=A&FlattenedListArg.2=B",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryListArgWithXmlNameMember",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "ListArgWithXmlNameMember": [
+                "A",
+                "B"
+              ]
+            },
+            "body": "Action=QueryLists&Version=2020-01-08&ListArgWithXmlNameMember.item.1=A&ListArgWithXmlNameMember.item.2=B",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryFlattenedListArgWithXmlName",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "FlattenedListArgWithXmlName": [
+                "A",
+                "B"
+              ]
+            },
+            "body": "Action=QueryLists&Version=2020-01-08&Hi.1=A&Hi.2=B",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryNestedStructWithList",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "NestedWithList": {
+                "ListArg": [
+                  "A",
+                  "B"
+                ]
+              }
+            },
+            "body": "Action=QueryLists&Version=2020-01-08&NestedWithList.ListArg.member.1=A&NestedWithList.ListArg.member.2=B",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#QueryListsInput": {
+      "type": "structure",
+      "members": {
+        "ListArg": {
+          "target": "aws.protocoltests.query#StringList"
+        },
+        "ComplexListArg": {
+          "target": "aws.protocoltests.query#GreetingList"
+        },
+        "ListArgWithXmlNameMember": {
+          "target": "aws.protocoltests.query#ListWithXmlName"
+        },
+        "NestedWithList": {
+          "target": "aws.protocoltests.query#NestedStructWithList"
+        },
+        "FlattenedListArg": {
+          "target": "aws.protocoltests.query#StringList",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "FlattenedListArgWithXmlName": {
+          "target": "aws.protocoltests.query#ListWithXmlName",
+          "traits": {
+            "smithy.api#xmlFlattened": {},
+            "smithy.api#xmlName": "Hi"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.query#QueryMaps": {
+      "type": "operation",
+      "input": {
+        "target": "aws.protocoltests.query#QueryMapsInput"
+      },
+      "traits": {
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "QuerySimpleQueryMaps",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "MapArg": {
+                "bar": "Bar",
+                "foo": "Foo"
+              }
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08&MapArg.entry.1.key=bar&MapArg.entry.1.value=Bar&MapArg.entry.2.key=foo&MapArg.entry.2.value=Foo",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QuerySimpleQueryMapsWithXmlName",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "RenamedMapArg": {
+                "foo": "Foo"
+              }
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08&Foo.entry.1.key=foo&Foo.entry.1.value=Foo",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryComplexQueryMaps",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "ComplexMapArg": {
+                "bar": {
+                  "hi": "Bar"
+                },
+                "foo": {
+                  "hi": "Foo"
+                }
+              }
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08&ComplexMapArg.entry.1.key=bar&ComplexMapArg.entry.1.value.hi=Bar&ComplexMapArg.entry.2.key=foo&ComplexMapArg.entry.2.value.hi=Foo",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryEmptyQueryMaps",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "MapArg": {}
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryQueryMapWithMemberXmlName",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "MapWithXmlMemberName": {
+                "bar": "Bar",
+                "foo": "Foo"
+              }
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08&MapWithXmlMemberName.entry.1.K=bar&MapWithXmlMemberName.entry.1.V=Bar&MapWithXmlMemberName.entry.2.K=foo&MapWithXmlMemberName.entry.2.V=Foo",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryFlattenedQueryMaps",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "FlattenedMap": {
+                "bar": "Bar",
+                "foo": "Foo"
+              }
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08&FlattenedMap.1.key=bar&FlattenedMap.1.value=Bar&FlattenedMap.2.key=foo&FlattenedMap.2.value=Foo",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryFlattenedQueryMapsWithXmlName",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "FlattenedMapWithXmlName": {
+                "a": "A",
+                "b": "B"
+              }
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08&Hi.1.K=a&Hi.1.V=A&Hi.2.K=b&Hi.2.V=B",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryQueryMapOfLists",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "MapOfLists": {
+                "bar": [
+                  "C",
+                  "D"
+                ],
+                "foo": [
+                  "A",
+                  "B"
+                ]
+              }
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08&MapOfLists.entry.1.key=bar&MapOfLists.entry.1.value.member.1=C&MapOfLists.entry.1.value.member.2=D&MapOfLists.entry.2.key=foo&MapOfLists.entry.2.value.member.1=A&MapOfLists.entry.2.value.member.2=B",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryNestedStructWithMap",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "NestedStructWithMap": {
+                "MapArg": {
+                  "bar": "Bar",
+                  "foo": "Foo"
+                }
+              }
+            },
+            "body": "Action=QueryMaps&Version=2020-01-08&NestedStructWithMap.MapArg.entry.1.key=bar&NestedStructWithMap.MapArg.entry.1.value=Bar&NestedStructWithMap.MapArg.entry.2.key=foo&NestedStructWithMap.MapArg.entry.2.value=Foo",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#QueryMapsInput": {
+      "type": "structure",
+      "members": {
+        "MapArg": {
+          "target": "aws.protocoltests.query#StringMap"
+        },
+        "RenamedMapArg": {
+          "target": "aws.protocoltests.query#StringMap",
+          "traits": {
+            "smithy.api#xmlName": "Foo"
+          }
+        },
+        "ComplexMapArg": {
+          "target": "aws.protocoltests.query#GreetingMap"
+        },
+        "MapWithXmlMemberName": {
+          "target": "aws.protocoltests.query#KvpMap"
+        },
+        "FlattenedMap": {
+          "target": "aws.protocoltests.query#StringMap",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "FlattenedMapWithXmlName": {
+          "target": "aws.protocoltests.query#KvpMap",
+          "traits": {
+            "smithy.api#xmlFlattened": {},
+            "smithy.api#xmlName": "Hi"
+          }
+        },
+        "MapOfLists": {
+          "target": "aws.protocoltests.query#MapOfLists"
+        },
+        "NestedStructWithMap": {
+          "target": "aws.protocoltests.query#NestedStructWithMap"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.query#QueryTimestamps": {
+      "type": "operation",
+      "input": {
+        "target": "aws.protocoltests.query#QueryTimestampsInput"
+      },
+      "traits": {
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "QueryTimestampsInput",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "normalFormat": 1422172800,
+              "epochMember": 1422172800,
+              "epochTarget": 1422172800
+            },
+            "body": "Action=QueryTimestamps&Version=2020-01-08&normalFormat=2015-01-25T08%3A00%3A00Z&epochMember=1422172800&epochTarget=1422172800",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#QueryTimestampsInput": {
+      "type": "structure",
+      "members": {
+        "normalFormat": {
+          "target": "smithy.api#Timestamp"
+        },
+        "epochMember": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "epoch-seconds"
+          }
+        },
+        "epochTarget": {
+          "target": "aws.protocoltests.query#EpochSeconds"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.query#RenamedGreetingMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "Attribute"
+        }
+      },
+      "value": {
+        "target": "aws.protocoltests.query#GreetingStruct",
+        "traits": {
+          "smithy.api#xmlName": "Setting"
+        }
+      }
+    },
+    "aws.protocoltests.query#RenamedListMembers": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#xmlName": "item"
+        }
+      }
+    },
+    "aws.protocoltests.query#SimpleInputParams": {
+      "type": "operation",
+      "input": {
+        "target": "aws.protocoltests.query#SimpleInputParamsInput"
+      },
+      "traits": {
+        "smithy.test#httpRequestTests": [
+          {
+            "id": "QuerySimpleInputParamsStrings",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Foo": "val1",
+              "Bar": "val2"
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&Foo=val1&Bar=val2",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QuerySimpleInputParamsStringAndBooleanTrue",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Foo": "val1",
+              "Baz": true
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&Foo=val1&Baz=true",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QuerySimpleInputParamsStringsAndBooleanFalse",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Baz": false
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&Baz=false",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QuerySimpleInputParamsInteger",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Bam": 10
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&Bam=10",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QuerySimpleInputParamsFloat",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Boo": 10.8
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&Boo=10.8",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QuerySimpleInputParamsBlob",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Qux": "value"
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&Qux=dmFsdWU%3D",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryEnums",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "FooEnum": "Foo"
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&FooEnum=Foo",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryIntEnums",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "IntegerEnum": 1
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&IntegerEnum=1",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryEscapedStrings",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "Foo": "a b&c=d+e~f/g"
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&Foo=a%20b%26c%3Dd%2Be~f%2Fg",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "AwsQuerySupportsNaNFloatInputs",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "FloatValue": "NaN",
+              "Boo": "NaN"
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&FloatValue=NaN&Boo=NaN",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "AwsQuerySupportsInfinityFloatInputs",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "FloatValue": "Infinity",
+              "Boo": "Infinity"
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&FloatValue=Infinity&Boo=Infinity",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "AwsQuerySupportsNegativeInfinityFloatInputs",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "FloatValue": "-Infinity",
+              "Boo": "-Infinity"
+            },
+            "body": "Action=SimpleInputParams&Version=2020-01-08&FloatValue=-Infinity&Boo=-Infinity",
+            "bodyMediaType": "application/x-www-form-urlencoded",
+            "method": "POST",
+            "uri": "/",
+            "headers": {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#SimpleInputParamsInput": {
+      "type": "structure",
+      "members": {
+        "Foo": {
+          "target": "smithy.api#String"
+        },
+        "Bar": {
+          "target": "smithy.api#String"
+        },
+        "Baz": {
+          "target": "smithy.api#Boolean"
+        },
+        "Bam": {
+          "target": "smithy.api#Integer"
+        },
+        "FloatValue": {
+          "target": "smithy.api#Float"
+        },
+        "Boo": {
+          "target": "smithy.api#Double"
+        },
+        "Qux": {
+          "target": "smithy.api#Blob"
+        },
+        "FooEnum": {
+          "target": "aws.protocoltests.query#FooEnum"
+        },
+        "IntegerEnum": {
+          "target": "aws.protocoltests.query#IntegerEnum"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "aws.protocoltests.query#SimpleScalarXmlProperties": {
+      "type": "operation",
+      "output": {
+        "target": "aws.protocoltests.query#SimpleScalarXmlPropertiesOutput"
+      },
+      "traits": {
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QuerySimpleScalarProperties",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "stringValue": "string",
+              "trueBooleanValue": true,
+              "falseBooleanValue": false,
+              "byteValue": 1,
+              "shortValue": 2,
+              "integerValue": 3,
+              "longValue": 4,
+              "floatValue": 5.5,
+              "doubleValue": 6.5,
+              "emptyStringValue": ""
+            },
+            "body": "<SimpleScalarXmlPropertiesResponse xmlns=\"https://example.com/\"><SimpleScalarXmlPropertiesResult><stringValue>string</stringValue><emptyStringValue/><trueBooleanValue>true</trueBooleanValue><falseBooleanValue>false</falseBooleanValue><byteValue>1</byteValue><shortValue>2</shortValue><integerValue>3</integerValue><longValue>4</longValue><floatValue>5.5</floatValue><DoubleDribble>6.5</DoubleDribble></SimpleScalarXmlPropertiesResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></SimpleScalarXmlPropertiesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "AwsQuerySupportsNaNFloatOutputs",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "floatValue": "NaN",
+              "doubleValue": "NaN"
+            },
+            "body": "<SimpleScalarXmlPropertiesResponse xmlns=\"https://example.com/\"><SimpleScalarXmlPropertiesResult><floatValue>NaN</floatValue><DoubleDribble>NaN</DoubleDribble></SimpleScalarXmlPropertiesResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></SimpleScalarXmlPropertiesResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#SimpleScalarXmlPropertiesOutput": {
+      "type": "structure",
+      "members": {
+        "stringValue": {
+          "target": "smithy.api#String"
+        },
+        "trueBooleanValue": {
+          "target": "smithy.api#Boolean"
+        },
+        "falseBooleanValue": {
+          "target": "smithy.api#Boolean"
+        },
+        "byteValue": {
+          "target": "smithy.api#Byte"
+        },
+        "shortValue": {
+          "target": "smithy.api#Short"
+        },
+        "integerValue": {
+          "target": "smithy.api#Integer"
+        },
+        "longValue": {
+          "target": "smithy.api#Long"
+        },
+        "floatValue": {
+          "target": "smithy.api#Float"
+        },
+        "doubleValue": {
+          "target": "smithy.api#Double",
+          "traits": {
+            "smithy.api#xmlName": "DoubleDribble"
+          }
+        },
+        "emptyStringValue": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.query#StringList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      }
+    },
+    "aws.protocoltests.query#StringMap": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "smithy.api#String"
+      }
+    },
+    "aws.protocoltests.query#StringSet": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      },
+      "traits": {
+        "smithy.api#uniqueItems": {}
+      }
+    },
+    "aws.protocoltests.query#StructArg": {
+      "type": "structure",
+      "members": {
+        "StringArg": {
+          "target": "smithy.api#String"
+        },
+        "OtherArg": {
+          "target": "smithy.api#Boolean"
+        },
+        "RecursiveArg": {
+          "target": "aws.protocoltests.query#StructArg"
+        }
+      }
+    },
+    "aws.protocoltests.query#StructureList": {
+      "type": "list",
+      "member": {
+        "target": "aws.protocoltests.query#StructureListMember",
+        "traits": {
+          "smithy.api#xmlName": "item"
+        }
+      }
+    },
+    "aws.protocoltests.query#StructureListMember": {
+      "type": "structure",
+      "members": {
+        "a": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlName": "value"
+          }
+        },
+        "b": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#xmlName": "other"
+          }
+        }
+      }
+    },
+    "aws.protocoltests.query#TimestampList": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#Timestamp"
+      }
+    },
+    "aws.protocoltests.query#XmlBlobs": {
+      "type": "operation",
+      "output": {
+        "target": "aws.protocoltests.query#XmlBlobsOutput"
+      },
+      "traits": {
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryXmlBlobs",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "data": "value"
+            },
+            "body": "<XmlBlobsResponse xmlns=\"https://example.com/\"><XmlBlobsResult><data>dmFsdWU=</data></XmlBlobsResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></XmlBlobsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#XmlBlobsOutput": {
+      "type": "structure",
+      "members": {
+        "data": {
+          "target": "smithy.api#Blob"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.query#XmlEnums": {
+      "type": "operation",
+      "output": {
+        "target": "aws.protocoltests.query#XmlEnumsOutput"
+      },
+      "traits": {
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryXmlEnums",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "fooEnum1": "Foo",
+              "fooEnumList": [
+                "Foo",
+                "0"
+              ]
+            },
+            "body": "<XmlEnumsResponse xmlns=\"https://example.com/\"><XmlEnumsResult><fooEnum1>Foo</fooEnum1><fooEnumList><member>Foo</member><member>0</member></fooEnumList></XmlEnumsResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></XmlEnumsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#XmlEnumsOutput": {
+      "type": "structure",
+      "members": {
+        "fooEnum1": {
+          "target": "aws.protocoltests.query#FooEnum"
+        },
+        "fooEnumList": {
+          "target": "aws.protocoltests.query#FooEnumList"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.query#XmlLists": {
+      "type": "operation",
+      "output": {
+        "target": "aws.protocoltests.query#XmlListsOutput"
+      },
+      "traits": {
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryXmlLists",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "stringList": [
+                "foo",
+                "bar"
+              ],
+              "stringSet": [
+                "foo",
+                "bar"
+              ],
+              "integerList": [
+                1,
+                2
+              ],
+              "booleanList": [
+                true,
+                false
+              ],
+              "timestampList": [
+                1398796238,
+                1398796238
+              ],
+              "enumList": [
+                "Foo",
+                "0"
+              ],
+              "nestedStringList": [
+                [
+                  "foo",
+                  "bar"
+                ],
+                [
+                  "baz",
+                  "qux"
+                ]
+              ],
+              "renamedListMembers": [
+                "foo",
+                "bar"
+              ],
+              "flattenedList": [
+                "hi",
+                "bye"
+              ],
+              "flattenedList2": [
+                "yep",
+                "nope"
+              ],
+              "structureList": [
+                {
+                  "a": "1",
+                  "b": "2"
+                },
+                {
+                  "a": "3",
+                  "b": "4"
+                }
+              ],
+              "flattenedStructureList": [
+                {
+                  "a": "5",
+                  "b": "6"
+                },
+                {
+                  "a": "7",
+                  "b": "8"
+                }
+              ]
+            },
+            "body": "<XmlListsResponse xmlns=\"https://example.com/\"><XmlListsResult><stringList><member>foo</member><member>bar</member></stringList><stringSet><member>foo</member><member>bar</member></stringSet><integerList><member>1</member><member>2</member></integerList><booleanList><member>true</member><member>false</member></booleanList><timestampList><member>2014-04-29T18:30:38Z</member><member>2014-04-29T18:30:38Z</member></timestampList><enumList><member>Foo</member><member>0</member></enumList><nestedStringList><member><member>foo</member><member>bar</member></member><member><member>baz</member><member>qux</member></member></nestedStringList><renamed><item>foo</item><item>bar</item></renamed><flattenedList>hi</flattenedList><flattenedList>bye</flattenedList><customName>yep</customName><customName>nope</customName><myStructureList><item><value>1</value><other>2</other></item><item><value>3</value><other>4</other></item></myStructureList><flattenedStructureList><value>5</value><other>6</other></flattenedStructureList><flattenedStructureList><value>7</value><other>8</other></flattenedStructureList></XmlListsResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></XmlListsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#XmlListsOutput": {
+      "type": "structure",
+      "members": {
+        "stringList": {
+          "target": "aws.protocoltests.query#StringList"
+        },
+        "stringSet": {
+          "target": "aws.protocoltests.query#StringSet"
+        },
+        "integerList": {
+          "target": "aws.protocoltests.query#IntegerList"
+        },
+        "booleanList": {
+          "target": "aws.protocoltests.query#BooleanList"
+        },
+        "timestampList": {
+          "target": "aws.protocoltests.query#TimestampList"
+        },
+        "enumList": {
+          "target": "aws.protocoltests.query#FooEnumList"
+        },
+        "nestedStringList": {
+          "target": "aws.protocoltests.query#NestedStringList"
+        },
+        "renamedListMembers": {
+          "target": "aws.protocoltests.query#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlName": "renamed"
+          }
+        },
+        "flattenedList": {
+          "target": "aws.protocoltests.query#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        },
+        "flattenedList2": {
+          "target": "aws.protocoltests.query#RenamedListMembers",
+          "traits": {
+            "smithy.api#xmlFlattened": {},
+            "smithy.api#xmlName": "customName"
+          }
+        },
+        "structureList": {
+          "target": "aws.protocoltests.query#StructureList",
+          "traits": {
+            "smithy.api#xmlName": "myStructureList"
+          }
+        },
+        "flattenedStructureList": {
+          "target": "aws.protocoltests.query#StructureList",
+          "traits": {
+            "smithy.api#xmlFlattened": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.query#XmlMaps": {
+      "type": "operation",
+      "output": {
+        "target": "aws.protocoltests.query#XmlMapsOutput"
+      },
+      "traits": {
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryXmlMaps",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "myMap": {
+                "foo": {
+                  "hi": "there"
+                },
+                "baz": {
+                  "hi": "bye"
+                }
+              }
+            },
+            "body": "<XmlMapsResponse xmlns=\"https://example.com/\"><XmlMapsResult><myMap><entry><key>foo</key><value><hi>there</hi></value></entry><entry><key>baz</key><value><hi>bye</hi></value></entry></myMap></XmlMapsResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></XmlMapsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#XmlMapsOutput": {
+      "type": "structure",
+      "members": {
+        "myMap": {
+          "target": "aws.protocoltests.query#GreetingMap"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "aws.protocoltests.query#XmlTimestamps": {
+      "type": "operation",
+      "output": {
+        "target": "aws.protocoltests.query#XmlTimestampsOutput"
+      },
+      "traits": {
+        "smithy.test#httpResponseTests": [
+          {
+            "id": "QueryXmlTimestamps",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "normal": 1398796238
+            },
+            "body": "<XmlTimestampsResponse xmlns=\"https://example.com/\"><XmlTimestampsResult><normal>2014-04-29T18:30:38Z</normal></XmlTimestampsResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></XmlTimestampsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryXmlTimestampsWithEpochSecondsFormat",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "epochSeconds": 1398796238
+            },
+            "body": "<XmlTimestampsResponse xmlns=\"https://example.com/\"><XmlTimestampsResult><epochSeconds>1398796238</epochSeconds></XmlTimestampsResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></XmlTimestampsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          },
+          {
+            "id": "QueryXmlTimestampsWithHttpDateFormat",
+            "protocol": "aws.protocols#awsQuery",
+            "params": {
+              "httpDate": 1398796238
+            },
+            "body": "<XmlTimestampsResponse xmlns=\"https://example.com/\"><XmlTimestampsResult><httpDate>Tue, 29 Apr 2014 18:30:38 GMT</httpDate></XmlTimestampsResult><ResponseMetadata><RequestId>requestid</RequestId></ResponseMetadata></XmlTimestampsResponse>",
+            "bodyMediaType": "application/xml",
+            "code": 200,
+            "headers": {
+              "Content-Type": "text/xml"
+            },
+            "appliesTo": "client"
+          }
+        ]
+      }
+    },
+    "aws.protocoltests.query#XmlTimestampsOutput": {
+      "type": "structure",
+      "members": {
+        "normal": {
+          "target": "smithy.api#Timestamp"
+        },
+        "dateTime": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "date-time"
+          }
+        },
+        "dateTimeOnTarget": {
+          "target": "aws.protocoltests.query#DateTime"
+        },
+        "epochSeconds": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "epoch-seconds"
+          }
+        },
+        "epochSecondsOnTarget": {
+          "target": "aws.protocoltests.query#EpochSeconds"
+        },
+        "httpDate": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#timestampFormat": "http-date"
+          }
+        },
+        "httpDateOnTarget": {
+          "target": "aws.protocoltests.query#HttpDate"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    }
+  }
+}

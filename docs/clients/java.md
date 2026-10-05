@@ -54,6 +54,43 @@ choices. The `checksumValidated` callback receives the operation name and the
 single algorithm actually verified. It is invoked only after successful validation;
 absence of a callback means no checksum was verified for that response.
 
+## AWS XML protocols
+
+The generator also accepts `aws.protocols#restXml`, `aws.protocols#awsQuery`, and
+`aws.protocols#ec2Query`, again chosen with `--protocol` when a service declares
+several. The runtime uses only the JDK's StAX parser (`javax.xml.stream`) with DTD
+support and external entities disabled; it adds no dependency.
+Element and query names, flattening, attributes, and namespaces come from the
+lowered IR (`@xmlName`, `@xmlFlattened`, `@xmlAttribute`, `@xmlNamespace`,
+`aws.protocols#ec2QueryName`). restXml applies the HTTP bindings and writes the
+remaining members under the input's root element, in the input's namespace or
+else the service's; a structure `@httpPayload` is named by the member's
+`@xmlName`, else the target's name. Lists wrap `<member>` (or the list member's
+`@xmlName`) elements, maps wrap `<entry><key>...</key><value>...</value></entry>`,
+and flattened collections repeat the member's own element. awsQuery and ec2Query
+POST `application/x-www-form-urlencoded` forms that start with `Action` and the
+service `Version`: awsQuery lists are `Name.member.N` (`Name.N` when flattened, a
+bare `Name=` when empty) and maps `Name.entry.N.key`/`.value`; ec2Query always
+flattens, leaves empty lists out, and names members by `ec2QueryName` or the
+capitalized XML name. Timestamps default to date-time; non-finite floats are
+`NaN`, `Infinity`, and `-Infinity`; blobs are base64.
+
+Responses are read by local element name, so namespace prefixes do not matter.
+awsQuery reads the `<OperationResult>` element and ignores `<ResponseMetadata>`;
+ec2Query reads the root element. Errors are found in `<ErrorResponse><Error>`,
+restXml's unwrapped `<Error>` (`noErrorWrapping`, as S3 sends), or ec2Query's
+`<Response><Errors><Error>`: `Code` selects the modeled error (an
+`aws.protocols#awsQueryError` code under awsQuery), `Message` becomes the
+error message, and `RequestId`/`RequestID` is the request ID unless an
+`x-amzn-requestid` or `x-amz-request-id` header supplies one. A success
+response's request ID is not exposed. The parser accepts no document type
+declaration, so no external entity or entity expansion is ever processed;
+nesting is limited to 256 elements, and malformed XML fails the call.
+A restXml body with text XML 1.0 cannot carry (most control characters) is
+rejected before sending. Sparse collections are refused for these protocols at
+generation time, because XML has no null element; document shapes and raw restXml error payloads are refused as
+well, and `awsQueryCompatible` is not supported.
+
 ## Authentication and credentials
 
 Authentication follows each operation's effective ordered scheme list. Set
@@ -303,7 +340,12 @@ Run `python tools/test-java.py` with Maven, a JDK, and Rust available. Set
 `MAVEN` to an executable path if necessary. The harness builds the jar and
 tests it through a separate consumer, shared retry/header cases, the
 weather service over HTTP, and generated feature packages (payloads, streaming,
-authentication, waiters, endpoints, checksums, and the AWS JSON protocols). Generate and package the current full Leyline
+authentication, waiters, endpoints, checksums, and the AWS JSON protocols). The
+XML-family fixtures (`protocol-rest-xml.json`, `protocol-aws-query.json`,
+`protocol-ec2-query.json`, with request, response and error vectors adapted from
+Smithy's AWS protocol tests) run through `tests/ProtocolAdapter.java` and
+`tools/protocol_conformance.py`, then `XmlProtocolTest` and `QueryProtocolTest`
+exercise the generated clients over loopback HTTP, including hostile XML. Generate and package the current full Leyline
 projection separately, recording its model fingerprint and operation coverage.
 Published Maven artifacts and authenticated deployed Leyline traffic are
 separate qualification steps.

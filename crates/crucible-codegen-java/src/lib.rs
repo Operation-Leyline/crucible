@@ -282,6 +282,9 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsRestJson1,
         Feature::AwsJson10,
         Feature::AwsJson11,
+        Feature::AwsRestXml,
+        Feature::AwsQuery,
+        Feature::Ec2Query,
     ])
 }
 
@@ -668,6 +671,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/ChecksumMismatch.java"),
         ),
         ("Query", include_str!("../runtime/Query.java")),
+        ("XmlProtocol", include_str!("../runtime/XmlProtocol.java")),
         ("Endpoints", include_str!("../runtime/Endpoints.java")),
         (
             "WaiterOptions",

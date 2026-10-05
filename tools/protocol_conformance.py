@@ -62,6 +62,10 @@ def compare_body(expected, actual, media):
         return
     if media and (media.split(";", 1)[0].endswith("json") or "+json" in media):
         require(equal(read_json(expected), read_json(actual)), "JSON body differs")
+    elif media and media.split(";", 1)[0].strip() == "application/x-www-form-urlencoded":
+        # Form parameters are compared as a multiset: their order carries no meaning.
+        require(Counter(parse_qsl(expected, keep_blank_values=True)) == Counter(parse_qsl(actual, keep_blank_values=True)),
+                "form body differs")
     elif media and (media.split(";", 1)[0].endswith("xml") or "+xml" in media):
         require(xml_value(ET.fromstring(expected)) == xml_value(ET.fromstring(actual)), "XML body differs")
     else:

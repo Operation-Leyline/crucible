@@ -10,6 +10,8 @@ pub struct ProtocolSettings {
     /// JSON protocol structure null handling; document contents and sparse entries are unaffected.
     pub omit_null_structure_members: bool,
     pub ignore_unknown_union_type: bool,
+    /// Non-finite floats travel as the strings NaN, Infinity and -Infinity
+    /// (AWS JSON and all XML-family protocols).
     pub non_finite_float_strings: bool,
     /// `bigInteger` and `bigDecimal` travel as JSON strings (RPC v2 JSON).
     #[serde(skip_serializing_if = "std::ops::Not::not")]

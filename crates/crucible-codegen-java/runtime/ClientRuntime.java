@@ -73,6 +73,8 @@ final class ClientRuntime {
   private final JsonObject endpointBuiltins;
   private final Map<String, Class<?>> classes;
   private final boolean digest;
+  // The XML family's codec, or null for the JSON protocols.
+  private final XmlProtocol xml;
 
   private void checkCollectionValue(JsonObject container, JsonObject member, Object value) {
     if (!flag(container, "sparse") && (value == null || value instanceof JsonElement item && item.isJsonNull()))
@@ -144,6 +146,7 @@ final class ClientRuntime {
     this.schema = schema;
     this.classes = classes;
     this.digest = digest;
+    this.xml = XmlProtocol.handles(text(schema, "protocol")) ? new XmlProtocol(schema) : null;
   }
 
   private static JsonObject loadSchema() {
@@ -579,7 +582,7 @@ final class ClientRuntime {
   }
 
   private record Prepared(
-      JsonObject operation, URI uri, Map<String, String> headers, byte[] body, Checksums.Plan checksum,
+      String name, JsonObject operation, URI uri, Map<String, String> headers, byte[] body, Checksums.Plan checksum,
       ByteStream stream) {}
 
   /** The streaming payload of {@code input}, which encoding leaves out of the JSON values. */
@@ -690,7 +693,18 @@ final class ClientRuntime {
         headers.put(binding.get(1).getAsString(), headerText(shape(text(op,"input")).getAsJsonObject("members").getAsJsonObject(binding.get(0).getAsString()),headerEncoding(request, binding.get(0).getAsString(), value, true),text(formats,binding.get(0).getAsString())));
     }
     byte[] body = null;
-    if (!request.getAsJsonArray("body").isEmpty()) {
+    String protocol=text(schema,"protocol");
+    List<String> bodyMembers = new ArrayList<>();
+    for (var member : request.getAsJsonArray("body")) bodyMembers.add(member.getAsString());
+    if (xml != null && xml.query()) {
+      // awsQuery and ec2Query always send a form naming the action and API version.
+      body = xml.form(name, text(op, "input"), values);
+      headers.keySet().removeIf(key -> key.equalsIgnoreCase("content-type"));
+      headers.put("content-type", "application/x-www-form-urlencoded");
+    } else if (xml != null && !bodyMembers.isEmpty()) {
+      body = xml.document(text(op, "input"), bodyMembers, values);
+      headers.put("content-type", "application/xml");
+    } else if (!request.getAsJsonArray("body").isEmpty()) {
       JsonObject object = new JsonObject();
       for (var member : request.getAsJsonArray("body")) {
         String key = member.getAsString();
@@ -706,7 +720,7 @@ final class ClientRuntime {
       if (value != null && (!value.isJsonNull() || "document".equals(text(request, "payloadKind")))) {
         String kind = text(request, "payloadKind");
         byte[] bytes = "string".equals(kind) ? value.getAsString().getBytes(StandardCharsets.UTF_8)
-            : "document".equals(kind) ? JSON.toJson(value).getBytes(StandardCharsets.UTF_8)
+            : "document".equals(kind) ? (xml != null ? xml.payload(text(op, "input"), payload.getAsJsonArray().get(0).getAsString(), value) : JSON.toJson(value).getBytes(StandardCharsets.UTF_8))
             : Base64.getDecoder().decode(value.getAsString());
         if (bytes.length > 0 || "string".equals(kind)) {
           body = bytes;
@@ -720,14 +734,13 @@ final class ClientRuntime {
       headers.put("content-type", payload.getAsJsonArray().get(1).getAsString());
       stream.sha256().ifPresent(digest -> headers.put("x-amz-content-sha256", digest));
     }
-    String protocol=text(schema,"protocol");
     if("awsJson1_0".equals(protocol) || "awsJson1_1".equals(protocol)) {
       if(body==null) body="{}".getBytes(StandardCharsets.UTF_8);
       headers.keySet().removeIf(key->key.equalsIgnoreCase("content-type") || key.equalsIgnoreCase("x-amz-target"));
       headers.put("content-type","awsJson1_0".equals(protocol) ? "application/x-amz-json-1.0" : "application/x-amz-json-1.1");
       String service=text(schema,"service"); headers.put("x-amz-target",service.substring(service.indexOf('#')+1)+"."+name);
     } else if("awsRestJson1".equals(protocol) && payloadMember(request)==null && headers.keySet().stream().noneMatch(key->key.equalsIgnoreCase("content-type"))) headers.put("content-type","application/json");
-    return new Prepared(resolvedOp, URI.create(endpoint + uri), headers, body,checksum,stream);
+    return new Prepared(name, resolvedOp, URI.create(endpoint + uri), headers, body,checksum,stream);
   }
 
   <T> CompletableFuture<T> call(String name, Object input, Class<T> output) {
@@ -1006,7 +1019,7 @@ final class ClientRuntime {
                 }
                 byte[] bytes = (byte[]) response.body();
                 if(response.statusCode()>=200 && response.statusCode()<300) Checksums.validate(prepared.checksum(),response.headers(),bytes,config);
-                JsonObject decoded = response(prepared.operation(), response, bytes);
+                JsonObject decoded = response(prepared.name(), prepared.operation(), response, bytes);
                 result.complete(
                     output.cast(decode(text(prepared.operation(), "output"), decoded, null)));
                 return;
@@ -1134,14 +1147,19 @@ final class ClientRuntime {
     return (long) (ThreadLocalRandom.current().nextDouble() * ceiling);
   }
 
-  private JsonObject response(JsonObject op, HttpResponse<?> response, byte[] bytes) {
+  private JsonObject response(String operation, JsonObject op, HttpResponse<?> response, byte[] bytes) {
     int status = response.statusCode();
     JsonObject values = new JsonObject();
     String body = new String(bytes, StandardCharsets.UTF_8);
     if (status >= 200 && status < 300) {
       String payload = payloadMember(op.getAsJsonObject("response"));
+      if (xml != null && (payload == null || "document".equals(text(op.getAsJsonObject("response"), "payloadKind")))) {
+        List<String> members = new ArrayList<>();
+        for (var member : op.getAsJsonObject("response").getAsJsonArray("body")) members.add(member.getAsString());
+        values = xml.output(operation, text(op, "output"), members, payload, bytes);
+      }
       // A payload is the body as received, whatever it holds.
-      if (payload != null)
+      else if (payload != null)
         values.add(wireName(text(op, "output"), payload), payloadValue(op.getAsJsonObject("response"), bytes));
       else if (!body.isEmpty()) values = JSON.fromJson(body, JsonObject.class);
       if (values == null) throw new IllegalArgumentException("response requires object");
@@ -1152,13 +1170,18 @@ final class ClientRuntime {
           response);
       return values;
     }
-    try {
+    XmlProtocol.ErrorEnvelope envelope = xml == null ? null : XmlProtocol.error(bytes);
+    if (xml == null) try {
       JsonElement parsed = JSON.fromJson(body, JsonElement.class);
       if (parsed != null && parsed.isJsonObject()) values = parsed.getAsJsonObject();
     } catch (RuntimeException ignored) {
     }
     JsonElement named = values.get("__type");
-    if(awsJson()) {
+    if (envelope != null) {
+      named = envelope.code() == null ? null : new JsonPrimitive(envelope.code());
+      if (envelope.message() != null) values.addProperty("Message", envelope.message());
+      if (envelope.requestId() != null) values.addProperty("requestId", envelope.requestId());
+    } else if(awsJson()) {
       String errorHeader=response.headers().firstValue("x-amzn-errortype").orElse(null);
       if(errorHeader!=null) named=new JsonPrimitive(errorHeader);
       if(named==null) named=values.get("code");
@@ -1184,7 +1207,9 @@ final class ClientRuntime {
     ServiceError error = new ServiceError();
     if (target != null) {
       try {
-        JsonObject typedValues = values.deepCopy();
+        JsonObject typedValues = envelope != null
+            ? (envelope.error() == null ? new JsonObject() : xml.members(envelope.error(), target, shape(target).getAsJsonObject("members").keySet()))
+            : values.deepCopy();
         String payload = payloadMember(traits);
         if (payload != null) typedValues.add(wireName(target, payload), payloadValue(traits, bytes));
         applyHeaders(typedValues, target, traits, response);

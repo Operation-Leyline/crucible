@@ -16,6 +16,8 @@ module CrucibleGenerated
         end
         @builtins = {'AWS::Region' => config.region, 'SDK::Endpoint' => @endpoint}.merge(config.endpoint_builtins)
         @transport, @closed = config.transport || NetHttpTransport.new, false
+        # The XML family's codec, or nil for the JSON protocols.
+        @xml = XmlProtocol.handles?(protocol) ? XmlProtocol.new(codec.schema) : nil
       end
       def close
         @transport.close unless @closed || @config.transport
@@ -209,7 +211,12 @@ module CrucibleGenerated
           end
         end
         body = nil
-        unless bindings.fetch('body').empty?
+        if @xml&.query?
+          # awsQuery and ec2Query always send a form naming the action and API version.
+          body, headers['content-type'] = @xml.form(name, op['input'], values), 'application/x-www-form-urlencoded'
+        elsif @xml && !bindings.fetch('body').empty?
+          body, headers['content-type'] = @xml.document(op.fetch('input'), bindings.fetch('body'), values), 'application/xml'
+        elsif !bindings.fetch('body').empty?
           object = bindings.fetch('body').filter_map { |member| [member, values[member]] if values.key?(member) }.to_h
           body, headers['content-type'] = ExactJson.encode(@codec.document(op.fetch('input'), object, encode: true)), 'application/json'
         end
@@ -218,7 +225,8 @@ module CrucibleGenerated
           value = values[payload[0]]
           body = case bindings.fetch('payloadKind', 'blob')
           when 'string' then WireCodec.string(value).encode(::Encoding::UTF_8)
-          when 'document' then ExactJson.encode(@codec.document(payload_target(op.fetch('input'), payload), value, encode: true))
+          when 'document'
+            @xml ? @xml.payload(op.fetch('input'), payload[0], value) : ExactJson.encode(@codec.document(payload_target(op.fetch('input'), payload), value, encode: true))
           else bindings['streaming'] ? stream_payload(op, bindings, payload, value) : ::Base64.strict_decode64(value)
           end
           headers['content-type'] = payload[1]
@@ -299,7 +307,7 @@ module CrucibleGenerated
           if (200...300).cover?(response.status)
             algorithm = Checksums.response(checksum, response.headers, response.body, hashers: sink&.hashers)
             @config.checksum_validated&.call(name, algorithm) if algorithm
-            return success(op, response, sink)
+            return success(name, op, response, sink)
           end
           error = failure(op, response)
           eligible = error.metadata.throttling || (safe && (error.metadata.retryable || [500,502,503,504].include?(response.status)))
@@ -308,11 +316,13 @@ module CrucibleGenerated
         end
         raise 'No request attempt'
       end
-      def success(op, response, sink = nil)
+      def success(name, op, response, sink = nil)
         bindings = op.fetch('response')
         payload = bindings['payload']
         body = if sink
           {payload[0] => sink.body}
+        elsif @xml && (payload.nil? || bindings['payloadKind'] == 'document')
+          @xml.output(name, op['output'], bindings.fetch('body'), payload&.first, response.body)
         elsif payload
           {payload[0] => payload_value(op.fetch('output'), bindings, response.body)}
         elsif bindings.fetch('body').empty? || response.body.empty?
@@ -353,14 +363,18 @@ module CrucibleGenerated
         object
       end
       def failure(op, response)
+        envelope = @xml && XmlProtocol.error(response.body)
         begin
-          body = WireCodec.object(ExactJson.decode(response.body))
+          body = envelope ? {} : WireCodec.object(ExactJson.decode(response.body))
         rescue ::ArgumentError
           body = {}
         end
         text = ->(value) { value.is_a?(::String) ? value : nil }
         aws = AWS_PROTOCOLS.include?(protocol)
-        if aws
+        if envelope
+          name, message = envelope.code, envelope.message
+          request_id = response.headers['x-amzn-requestid'] || response.headers['x-amz-request-id'] || envelope.request_id
+        elsif aws
           # AWS JSON names errors in a header or body, possibly with a namespace and a ':' suffix.
           name = response.headers['x-amzn-errortype'] || text.(body['code']) || text.(body['__type'])
           name = name&.split(':', 2)&.first&.split('#')&.last
@@ -385,7 +399,10 @@ module CrucibleGenerated
         if target
           begin
             payload = traits['payload']
-            body = payload ? {payload[0] => payload_value(target, traits, response.body)} : @codec.document(target, body, encode: false)
+            body = if payload then {payload[0] => payload_value(target, traits, response.body)}
+            elsif envelope then envelope.error ? @xml.read_members(envelope.error, target, shape.fetch('members').keys) : {}
+            else @codec.document(target, body, encode: false)
+            end
             object = apply_headers(target, traits, response, body)
             return @codec.error(target, object, metadata)
           rescue ::ArgumentError, ::TypeError
