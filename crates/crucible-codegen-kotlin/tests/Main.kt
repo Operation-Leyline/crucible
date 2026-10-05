@@ -382,7 +382,9 @@ private suspend fun hardening() {
     Server { exchange ->
         sent.incrementAndGet()
         check(exchange.requestHeaders.getFirst("Authorization") == null)
-        val hash = MessageDigest.getInstance("SHA-256").digest(byteArrayOf()).joinToString("") { "%02x".format(it.toInt() and 255) }
+        check(exchange.requestBody.readBytes().isEmpty())
+        val hash = if (exchange.requestMethod in listOf("GET", "DELETE")) null else
+            MessageDigest.getInstance("SHA-256").digest(byteArrayOf()).joinToString("") { "%02x".format(it.toInt() and 255) }
         check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash)
         exchange.sendResponseHeaders(200, -1)
     }.use { server ->
@@ -393,14 +395,14 @@ private suspend fun hardening() {
             val schema = schemaField.get(runtime) as JsonObject
             val ping = schema.getAsJsonObject("operations").getAsJsonObject("Ping")
             ping.addProperty("bearer", false)
-            for (method in listOf("POST", "PUT", "PATCH")) { ping.addProperty("method", method); client.ping() }
+            for (method in listOf("POST", "PUT", "PATCH", "GET", "DELETE")) { ping.addProperty("method", method); client.ping() }
             for (label in listOf(".", "..")) {
                 try { client.getCity { cityId = label }; error("Dot label accepted") }
                 catch (e: IllegalArgumentException) { check(e.message!!.contains("dot segment")) }
             }
         }
     }
-    check(sent.get() == 3)
+    check(sent.get() == 5)
     val codec = Codec()
     try { codec.decode("example.weather#Tags", "[null]"); error("Dense null accepted") } catch (_: IllegalArgumentException) {}
     try { codec.encode("example.weather#Tags", listOf(null)); error("Dense null encoded") } catch (_: IllegalArgumentException) {}

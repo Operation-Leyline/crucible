@@ -63,10 +63,15 @@ static weather_status send_fake(void *user, const weather_request *request, bool
         respond(arena, response, 204, VIEW(""), error);
         break;
     }
-    case empty_digest:
-        check(equal(header(request, "x-amz-content-sha256"), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"), "Empty write digest");
+    case empty_digest: {
+        check(!request->has_body, "Bodiless request");
+        if (equal(request->method, "GET") || equal(request->method, "DELETE")) {
+            weather_string ignored;
+            check(!weather_header_get(request->headers, VIEW("x-amz-content-sha256"), &ignored), "Bodiless read has no digest");
+        } else check(equal(header(request, "x-amz-content-sha256"), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"), "Empty write digest");
         respond(arena, response, 200, VIEW("{}"), error);
         break;
+    }
     case retry_case: {
         char body[256] = "{}"; const weather_json *name = get(state->row, "error");
         if (weather_json_type(name) != weather_json_null) {
@@ -201,6 +206,11 @@ static weather_status override_headers(void *user, const weather_scope *scope, w
     good(weather_header_set(arena, &request->headers, VIEW("Authorization"), VIEW("Bearer middleware"), error), error);
     return weather_header_set(arena, &request->headers, VIEW("Content-Type"), VIEW("custom/type"), error);
 }
+static weather_status change_method(void *user, const weather_scope *scope, weather_arena *arena, weather_request *request, weather_error *error) {
+    (void)scope; (void)arena; (void)error;
+    request->method = *(const weather_string *)user;
+    return weather_ok;
+}
 static weather_status change_body(void *user, const weather_scope *scope, weather_arena *arena, weather_request *request, weather_error *error) {
     (void)user; (void)scope;
     if (request->has_body) {
@@ -221,10 +231,17 @@ static void runtime_cases(void) {
         good(weather_operations_public_ping(public_client, NULL, NULL, &public_result, &error), &error);
         check(count == 0 && state.attempts == 1, "Public operation bypasses token provider");
         weather_operations_public_ping_result_free(&public_result); weather_client_free(public_client);
-        state = (fake){empty_digest, NULL, 0, false}; public_client = client_new(config(&state));
-        weather_operations_retry_safe_result empty_result = {0};
-        good(weather_operations_retry_safe(public_client, NULL, NULL, &empty_result, &error), &error);
-        weather_operations_retry_safe_result_free(&empty_result); weather_client_free(public_client);
+        const char *methods[] = {"POST", "PUT", "PATCH", "GET", "DELETE"};
+        for (size_t i = 0; i < 5; ++i) {
+            state = (fake){empty_digest, NULL, 0, false};
+            weather_string method = VIEW(methods[i]); weather_middleware middleware = {change_method, &method};
+            settings = config(&state); settings.middleware = &middleware; settings.middleware_count = 1;
+            public_client = client_new(settings);
+            weather_operations_retry_safe_result empty_result = {0};
+            good(weather_operations_retry_safe(public_client, NULL, NULL, &empty_result, &error), &error);
+            check(state.attempts == 1, "One bodiless request");
+            weather_operations_retry_safe_result_free(&empty_result); weather_client_free(public_client);
+        }
         const char *labels[] = {".", ".."};
         for (size_t i = 0; i < 2; ++i) {
             state = (fake){binding_case, NULL, 0, false}; public_client = client_new(config(&state));
