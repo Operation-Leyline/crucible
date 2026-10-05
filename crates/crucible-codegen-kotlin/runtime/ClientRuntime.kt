@@ -69,7 +69,9 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         binding.getAsJsonArray("labels").forEach {
             val key = it.asString; val value = values.get(key)
             require(value != null && !value.isJsonNull && codec.bound(value).isNotEmpty()) { "$key is required" }
-            uri = uri.replace("{$key}", escape(codec.bound(value)))
+            val label = codec.bound(value)
+            require(label != "." && label != "..") { "$key cannot be a dot segment" }
+            uri = uri.replace("{$key}", escape(label))
         }
         val query = mutableListOf<String>()
         binding.getAsJsonArray("query").forEach {
@@ -111,14 +113,14 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             currentCoroutineContext().ensureActive()
             attempt++
             val headers = TreeMap<String, String>(String.CASE_INSENSITIVE_ORDER).also { it.putAll(prepared.headers) }
-            if (schema.flag("bearer")) config.token?.invoke()?.let { headers["Authorization"] = "Bearer $it" }
+            if (op.flag("bearer")) config.token?.invoke()?.let { headers["Authorization"] = "Bearer $it" }
             val request = Request(prepared.uri, op.text("method")!!, headers, prepared.body?.clone())
             config.middleware.forEach { it(request) }
             require(request.uri.scheme in setOf("http", "https") && request.uri.host != null && request.uri.userInfo == null) { "Invalid middleware URI" }
             require(!request.headers.containsKey("Authorization") || secure(request.uri)) { "Credentials require HTTPS or loopback HTTP" }
             val body = request.body?.clone()
-            if (digest && body != null && body.isNotEmpty()) headers["x-amz-content-sha256"] =
-                MessageDigest.getInstance("SHA-256").digest(body).joinToString("") { "%02x".format(it.toInt() and 255) }
+            if (digest && (body?.isNotEmpty() == true || request.method in setOf("POST", "PUT", "PATCH"))) headers["x-amz-content-sha256"] =
+                MessageDigest.getInstance("SHA-256").digest(body ?: byteArrayOf()).joinToString("") { "%02x".format(it.toInt() and 255) }
             val builder = okhttp3.Request.Builder().url(request.uri.toString())
             request.headers.forEach { (name, value) -> builder.header(name, value) }
             val requiresBody = request.method in setOf("POST", "PUT", "PATCH", "PROPPATCH", "REPORT")

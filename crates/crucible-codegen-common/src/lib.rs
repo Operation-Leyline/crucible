@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 fn member(service: &Service, m: &Member, field: &impl Fn(&str) -> String) -> Value {
     json!({"target": m.target.to_string(), "attribute": field(&m.name),
-        "required": m.required, "default": m.default,
+        "required": m.required, "default": m.client_wire_default(), "optional": m.optional_on_client(),
         "format": format(service.timestamp_format(m))})
 }
 
@@ -53,8 +53,52 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
         let pagination = op.paginated.as_ref().map(|p|json!({"input":p.input_token,"output":p.output_token.split('.').collect::<Vec<_>>(),"items":p.items,"pageSize":p.page_size}));
         (op.name().into(),json!({"method":op.method,"uri":op.uri.to_string(),"input":op.input.as_ref().map(ToString::to_string),"output":op.output.as_ref().map(ToString::to_string),
             "request":bindings(&op.request),"response":bindings(&op.response),"errors":op.errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
-            "safe":op.readonly || op.idempotent || op.idempotency_token.is_some(),"token":op.idempotency_token,"pagination":pagination}))
+            "safe":op.readonly || op.idempotent || op.idempotency_token.is_some(),"token":op.idempotency_token,"pagination":pagination,
+            "bearer":op.auth.iter().any(|id|id.to_string()=="smithy.api#httpBearerAuth")}))
     }).collect();
     json!({"service":service.id.to_string(),"version":service.version,"shapes":shapes,"operations":operations,
         "bearer":service.auth.iter().any(|id|id.to_string()=="smithy.api#httpBearerAuth")})
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn timestamp_defaults_match_the_member_wire_format() {
+        let service = crucible_smithy::Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/timestamp-defaults.json"
+        ))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+        let schema = super::schema(&service, str::to_owned);
+        let members = &schema["shapes"]["example.timestamps#Output"]["members"];
+        for member in ["protocol", "header", "member"] {
+            assert_eq!(members[member]["default"], "1969-12-31T23:59:59.750Z");
+            assert_eq!(members[member]["format"], "date-time");
+        }
+        assert_eq!(
+            members["target"]["default"],
+            "Wed, 31 Dec 1969 23:59:59 GMT"
+        );
+        assert_eq!(members["target"]["format"], "http-date");
+        assert_eq!(members["epoch"]["default"], serde_json::json!(-0.25));
+        assert_eq!(members["epoch"]["format"], "epoch-seconds");
+        assert_eq!(members["precise"]["default"].to_string(), "-0.250000001");
+    }
+
+    #[test]
+    fn runtime_schema_preserves_effective_client_semantics() {
+        let service = crucible_smithy::Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/review-hardening.json"
+        ))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+        let schema = super::schema(&service, str::to_owned);
+        assert_eq!(schema["operations"]["PublicPing"]["bearer"], false);
+        assert_eq!(schema["operations"]["ReadValues"]["bearer"], true);
+        let member = &schema["shapes"]["example.hardening#Values"]["members"]["optionalDefault"];
+        assert!(member["default"].is_null());
+        assert_eq!(member["optional"], true);
+    }
 }

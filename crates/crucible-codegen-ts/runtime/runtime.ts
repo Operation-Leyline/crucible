@@ -116,8 +116,8 @@ export function toWire(schema: Schema | undefined, value: unknown): unknown {
     case "blob": return toBase64(value as Uint8Array);
     case "list":
       if (!Array.isArray(value)) throw new TypeError("expected array");
-      return value.map(item => toWire(schema.member, item));
-    case "map": return mapValues(object(value), item => toWire(schema.value, item));
+      return Array.from(value, item => collectionValue(schema.member, item, toWire));
+    case "map": return mapValues(object(value), item => collectionValue(schema.value, item, toWire));
     case "structure": case "union": return convertMembers(schema, object(value), toWire);
     default: return value;
   }
@@ -142,10 +142,17 @@ export function fromWire(schema: Schema | undefined, value: unknown): unknown {
     case "blob": return fromBase64(value as string);
     case "list":
       if (!Array.isArray(value)) throw new TypeError("expected array");
-      return value.map(item => fromWire(schema.member, item));
-    case "map": return mapValues(object(value), item => fromWire(schema.value, item));
+      return Array.from(value, item => collectionValue(schema.member, item, fromWire));
+    case "map": return mapValues(object(value), item => collectionValue(schema.value, item, fromWire));
     case "structure": case "union": return convertMembers(schema, object(value), fromWire);
   }
+}
+
+function collectionValue(schema: Schema, value: unknown, convert: typeof toWire): unknown {
+  if (value === undefined || (value === null && schema.kind !== "document")) {
+    throw new TypeError("dense collection members cannot be null or undefined");
+  }
+  return convert(schema, value);
 }
 
 function convertMembers(
@@ -277,6 +284,8 @@ export function parseTimestamp(value: string | number): Date {
 /** Where each member of an operation's input and output travels. */
 export interface OperationSpec {
   readonly name: string;
+  /** Effective operation authentication; omitted only by older hand-written specs. */
+  readonly bearer?: boolean;
   readonly method: string;
   /** Literal path segments and `{ label: member }` placeholders. */
   readonly path: readonly (string | { readonly label: string; readonly schema?: Schema })[];
@@ -382,6 +391,7 @@ export class Transport {
   readonly #config: ClientConfig;
   readonly #endpoint: string;
   readonly #middleware: readonly Middleware[];
+  readonly #bearer: boolean;
   readonly #errors: Readonly<Record<string, ErrorSpec>>;
 
   constructor(
@@ -394,12 +404,14 @@ export class Transport {
     this.#config = config;
     this.#endpoint = endpoint.replace(/\/+$/, "");
     this.#errors = errors;
-    const auth = defaults.bearer && config.token !== undefined ? [bearer(config.token)] : [];
-    this.#middleware = [...auth, ...defaults.middleware, ...(config.middleware ?? [])];
+    this.#bearer = defaults.bearer;
+    this.#middleware = [...defaults.middleware, ...(config.middleware ?? [])];
   }
 
   async send<O>(operation: OperationSpec, input: object, options: RequestOptions = {}): Promise<O> {
-    const values = withIdempotencyToken(operation, input) as Record<string, unknown>;
+    // Preserve write-back of generated tokens, but replay one logical input even
+    // when the caller changes its mutable objects while a request is in flight.
+    const values = structuredClone(withIdempotencyToken(operation, input)) as Record<string, unknown>;
     const retry = this.#config.retry === false ? { maxAttempts: 1 } : (this.#config.retry ?? {});
     const maxAttempts = Math.max(1, retry.maxAttempts ?? 3);
     for (let attempt = 1; ; attempt++) {
@@ -409,7 +421,7 @@ export class Transport {
       let text = "";
       let bytes: Uint8Array | undefined;
       try {
-        response = await this.#dispatch(request);
+        response = await this.#dispatch(request, operation.bearer ?? this.#bearer);
         // Fetch resolves at the headers; required bodies can still fail.
         // A successful operation without a modeled body needs only headers;
         // a payload is read as the bytes sent, never as text.
@@ -435,10 +447,12 @@ export class Transport {
     }
   }
 
-  #dispatch(request: Request): Promise<Response> {
+  #dispatch(request: Request, authenticated: boolean): Promise<Response> {
     const send = this.#config.fetch ?? ((request: Request) => fetch(request));
     const chain = this.#middleware.reduceRight<Next>((next, middleware) => request => middleware(request, next), send);
-    return chain(request);
+    return authenticated && this.#config.token !== undefined
+      ? bearer(this.#config.token)(request, chain)
+      : chain(request);
   }
 
   #request(operation: OperationSpec, values: Record<string, unknown>, options: RequestOptions): Request {
@@ -450,7 +464,11 @@ export class Transport {
         if (value === undefined || value === null || value === "") {
           throw new TypeError(`${operation.name}: \`${segment.label}\` is required`);
         }
-        return encodeURIComponent(scalar(value, segment.schema));
+        const text = scalar(value, segment.schema);
+        // URL and Fetch normalize even percent-encoded dot segments. Never
+        // silently change the requested resource when it cannot be preserved.
+        if (text === "." || text === "..") throw new TypeError(`${operation.name}: dot-segment label \`${segment.label}\` is unsupported`);
+        return encodeURIComponent(text);
       })
       .join("/");
     const url = new URL(`${this.#endpoint}/${path}`);
@@ -664,11 +682,28 @@ function backoff(attempt: number, retry: RetryConfig): number {
 }
 
 function retryAfter(response: Response): number | undefined {
-  const seconds = Number(response.headers.get("retry-after"));
-  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
+  const header = response.headers.get("retry-after")?.trim();
+  if (!header) return undefined;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return seconds >= 0 ? Math.min(Number.MAX_SAFE_INTEGER, seconds * 1000) : undefined;
+  // Numeric overflows are still delays, not dates or a request to retry now.
+  if (/^\+?\d+(?:\.\d+)?(?:e\+?\d+)?$/i.test(header)) return Number.MAX_SAFE_INTEGER;
+  const date = Date.parse(header);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
 }
 
-function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+async function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  // Browsers and Node clamp overflowing timer delays to approximately 1 ms.
+  // Chunk long server delays while keeping every chunk abortable.
+  const maximum = 2_147_483_647;
+  do {
+    const delay = Math.min(maximum, ms);
+    await sleepChunk(delay, signal);
+    ms -= delay;
+  } while (ms > 0);
+}
+
+function sleepChunk(ms: number, signal: AbortSignal | undefined): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason);
     const timer = setTimeout(done, ms);

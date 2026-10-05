@@ -69,6 +69,9 @@ reach, keyed by shape id. Lowering settles, once:
 - **Nullability** (Smithy 2.0): a member is non-null on the server when it is
   `@required` or has a non-null `@default`. A client may also omit
   `@clientOptional` members and every member of an `@input` structure.
+  Client defaults on those members are ignored; server defaults remain intact.
+- **Authentication**: effective schemes inherit from the service, with operation
+  `@auth` overrides resolved here. An empty override disables bearer credentials.
 - **Constraints**: the target's `@length`/`@range`/`@pattern`/`@uniqueItems`
   with the member's own laid over them.
 - **Sensitivity**: member and target annotations resolve through the IR; generated
@@ -80,6 +83,8 @@ reach, keyed by shape id. Lowering settles, once:
   is settled here too. Labels are checked against the URI in both
   directions. Literal query parameters are preserved
   in both clients and participate in server route matching.
+  Media-type strings in headers (including list elements) are rejected until
+  their base64 binding can be supported consistently across targets.
 - **Errors**: the operation's own, then the service's, each with fault,
   status and retryability.
 - **Pagination**: the operation's `@paginated` merged over the service's.

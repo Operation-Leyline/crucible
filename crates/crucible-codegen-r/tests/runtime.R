@@ -13,6 +13,21 @@ fake <- function(handler) {
   state
 }
 sdk <- function(fake, ...) WeatherClient(client_config(endpoint = 'https://example.invalid', transport = fake$send, base_delay = 0, ...))
+test <- fake(function(attempt, request) {
+  check(is.null(request$headers$authorization), 'Public operation has no bearer header')
+  response(204L, '')
+})
+sdk(test, token=function() stop('Public operation requested credentials'))$public_ping()
+test <- fake(function(attempt, request) {
+  check(request$headers[['x-amz-content-sha256']] == as.character(openssl::sha256(raw())), 'Empty write digest')
+  response()
+})
+sdk(test)$retry_safe()
+for (label in c('.', '..')) {
+  test <- fake(function(...) stop('Dot label reached transport'))
+  rejects(sdk(test)$get_city(GetCityInput(city_id=label)))
+  check(length(test$requests) == 0L, 'Dot label rejected before dispatch')
+}
 
 native_input <- CreateCityInput(name='Oslo', location=NULL, expected_revision=long('7'))
 check(native_input$name == 'Oslo' && is.null(native_input$location) && identical(native_input$client_token, UNSET), 'Native arguments and three-state properties')
@@ -47,6 +62,10 @@ recursive <- ExactValues(document=NULL,default_long=long('1'),next_value=decoded
 check(identical(codec(codec(recursive,'example.weather#ExactValues',TRUE),'example.weather#ExactValues'),recursive),'Recursive native model')
 rejects(codec(setNames(list(NULL,NULL),c('clear','clear')),'example.weather#Forecast',TRUE))
 check(json_encode(codec(json_object(future=NULL),'example.weather#Forecast',TRUE))=='{"future":null}','Open enum map keys and document null')
+rejects(codec(list(NULL),'example.weather#Tags',TRUE))
+rejects(codec(json_parse('[null]'),'example.weather#Tags'))
+document_null_map <- codec(json_parse('{"future":null}'),'example.weather#Forecast')
+check('future' %in% names(document_null_map) && is.null(document_null_map$future),'Dense document map preserves document null')
 rejects(internal('request')(list(url='https://example.invalid',method="GET\r\nx:y",headers=list(),body=NULL)))
 rejects(client_config(headers=list(x="y\r\nz")))
 

@@ -36,6 +36,21 @@ def sdk(fake, **config)
 end
 
 codec = Weather.codec
+fake = Fake.new do |_, request|
+  check(!request.headers.key?('authorization'), 'Public operation has no bearer header')
+  HttpResponse.new(204, headers: {}, body: '')
+end
+sdk(fake, token: -> { raise 'Public operation requested credentials' }).public_ping
+fake = Fake.new do |_, request|
+  check(request.headers['x-amz-content-sha256'] == Digest::SHA256.hexdigest(''), 'Empty write digest')
+  HttpResponse.new(200, headers: {}, body: '{}')
+end
+sdk(fake).retry_safe
+['.', '..'].each do |label|
+  fake = Fake.new { raise 'Dot label reached transport' }
+  rejects { sdk(fake).get_city(GetCityInput.new(city_id: label)) }
+  check(fake.requests.empty?, 'Dot label rejected before dispatch')
+end
 rejects { HttpRequest.new(url: 'https://example.invalid', method: "GET\r\nX: y") }
 rejects { HttpRequest.new(url: 'https://example.invalid', method: 'GET', headers: {"x\r\nInjected" => 'y'}) }
 rejects { HttpRequest.new(url: 'https://example.invalid', method: 'GET', headers: {'x' => "y\r\nz"}) }

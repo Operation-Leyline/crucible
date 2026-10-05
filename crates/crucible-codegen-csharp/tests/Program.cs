@@ -395,7 +395,31 @@ static class Program
     }
     static async Task Main(string[] args)
     {
+        await Hardening();
         await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await Payloads(); await MalformedModeledErrors(); await NumericListErrors(); await FailureBehavior(); await Weather();
         Console.WriteLine("C# client conformance and weather HTTP passed");
+    }
+    static async Task Hardening()
+    {
+        await using var server = new Server(request => {
+            Check(!request.Headers.ContainsKey("Authorization"), "Public operation has no bearer header");
+            return new(204, "");
+        });
+        var schema = J("""{"bearer":true,"shapes":{},"operations":{"Retry":{"bearer":false,"safe":true,"method":"GET","uri":"/public","input":null,"output":null,"token":null,"request":{"labels":[],"query":[],"headers":[],"body":[]},"response":{"headers":[],"body":[]},"errors":[]}}}""").AsObject();
+        var runtime = Runtime(new() { Endpoint = server.Endpoint, Token = _ => throw new Exception("Public operation requested credentials") }, schema, new());
+        try { await Call(runtime); } finally { ((IDisposable)runtime).Dispose(); }
+        using var client = new WeatherClient(new() { Endpoint = server.Endpoint });
+        foreach (var label in new[] { ".", ".." })
+        {
+            try { await client.GetCityAsync(new() { CityId = label }); throw new Exception("Dot label accepted"); }
+            catch (ArgumentException) { }
+        }
+        Check(server.Attempts == 1, "Dot labels rejected before dispatch");
+        var codec = Runtime(new() { Endpoint = server.Endpoint });
+        try {
+            try { Decode(codec, "example.weather#Tags", "[null]"); throw new Exception("Dense null accepted"); }
+            catch (JsonException) { }
+            Check(((Forecast)Decode(codec, "example.weather#Forecast", "{\"future\":null}")).ContainsKey(new Sky("future")), "Document null remains valid");
+        } finally { ((IDisposable)codec).Dispose(); }
     }
 }

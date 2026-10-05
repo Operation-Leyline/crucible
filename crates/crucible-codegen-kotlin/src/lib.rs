@@ -196,7 +196,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
             for m in &s.members {
                 if !m.optional_on_client()
-                    && m.default.as_ref().is_some_and(|value| {
+                    && m.client_default().is_some_and(|value| {
                         models::default_expr(service, &m.target, value, &options.package_name)
                             .is_none()
                     })

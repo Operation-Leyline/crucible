@@ -24,6 +24,25 @@ struct Fake : Transport {
 ClientConfig config(const std::shared_ptr<Transport>& transport = {}) { ClientConfig result; result.endpoint = "https://example.invalid"; result.transport = transport; result.base_delay = 0; return result; }
 std::string bytes(const Blob& value) { std::string result; for (const auto byte : value) result += static_cast<char>(byte); return result; }
 int main() {
+    {
+        auto fake = std::make_shared<Fake>([](unsigned, const HttpRequest& request) {
+            check(!request.headers.contains("authorization"), "Public operation has no bearer header");
+            return HttpResponse{204, {}, ""};
+        });
+        auto settings = config(fake);
+        settings.token = []() -> std::optional<std::string> { throw std::runtime_error("Public operation requested credentials"); };
+        (void)WeatherClient(settings).public_ping();
+        fake = std::make_shared<Fake>([](unsigned, const HttpRequest& request) {
+            check(request.headers.at("x-amz-content-sha256") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "Empty write digest");
+            return HttpResponse{200, {}, "{}"};
+        });
+        (void)WeatherClient(config(fake)).retry_safe();
+        for (const auto* label : {".", ".."}) {
+            fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) -> HttpResponse { throw std::runtime_error("Dot label reached transport"); });
+            (void)rejects([&] { (void)WeatherClient(config(fake)).get_city(GetCityInput(label)); });
+            check(fake->requests.empty(), "Dot label rejected before dispatch");
+        }
+    }
     for (auto original : {Field<bool>{}, Field<bool>::null(), Field<bool>(false), Field<bool>(true)}) {
         Field<bool> copied(original), assigned; assigned = original;
         check(copied.is_set() == original.is_set() && copied.is_null() == original.is_null(), "Bool copy preserves presence");

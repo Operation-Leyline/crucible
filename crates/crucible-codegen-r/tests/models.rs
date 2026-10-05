@@ -123,8 +123,16 @@ fn runtime_names_and_static_nul_are_diagnosed() {
         .unwrap()
         .lower(None)
         .unwrap();
+    // Client readers ignore input defaults, so the NUL is never emitted.
+    assert!(emit(&service, &options()).is_ok());
+    model["shapes"]["example.weather#CitySummary"]["members"]["staticNul"] =
+        model["shapes"]["example.weather#CreateCityInput"]["members"]["staticNul"].clone();
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
     let diagnostic = emit(&service, &options()).err().unwrap().to_string();
-    assert!(diagnostic.contains("CreateCityInput$staticNul"));
+    assert!(diagnostic.contains("CitySummary$staticNul"));
     assert!(diagnostic.contains("NUL"));
     let service = Model::from_json(&weather().to_string())
         .unwrap()

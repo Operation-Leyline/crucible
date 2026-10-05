@@ -14,6 +14,10 @@ use crate::validate::{Rejection, Validate};
 /// One operation, as the generated marker type `GetGraph` describes it.
 pub trait Operation: Send + Sync + 'static {
     const INFO: &'static OperationInfo;
+    /// Whether the operation's effective authentication schemes include bearer auth.
+    /// Regenerate clients with this runtime; older generated markers omit this flag.
+    /// Handwritten operations must opt in explicitly when bearer auth is supported.
+    const AUTH_BEARER: bool = false;
     type Input: DeserializeOwned + Serialize + Validate + Send + Sync + 'static;
     type Output: Serialize + Send + Sync + 'static;
 }

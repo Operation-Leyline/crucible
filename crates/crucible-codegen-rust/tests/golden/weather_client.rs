@@ -1077,6 +1077,7 @@ static CREATE_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_clie
 };
 
 impl ::crucible_client::Operation for CreateCity {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible_client::OperationInfo = &CREATE_CITY_OPERATION;
     type Input = model::CreateCityInput;
     type Output = model::CreateCityOutput;
@@ -1111,6 +1112,10 @@ impl ::crucible_client::OperationErrors for CreateCityError {
             Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
             Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
         }
+    }
+
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::CONFLICT_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ConflictError" => Some(&errors::CONFLICT_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1153,6 +1158,7 @@ static GET_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_client:
 };
 
 impl ::crucible_client::Operation for GetCity {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible_client::OperationInfo = &GET_CITY_OPERATION;
     type Input = model::GetCityInput;
     type Output = model::GetCityOutput;
@@ -1187,6 +1193,10 @@ impl ::crucible_client::OperationErrors for GetCityError {
             Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
             Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
         }
+    }
+
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1227,6 +1237,7 @@ static GET_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_c
 };
 
 impl ::crucible_client::Operation for GetCityPhoto {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible_client::OperationInfo = &GET_CITY_PHOTO_OPERATION;
     type Input = model::GetCityPhotoInput;
     type Output = model::GetCityPhotoOutput;
@@ -1261,6 +1272,10 @@ impl ::crucible_client::OperationErrors for GetCityPhotoError {
             Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
             Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
         }
+    }
+
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1303,6 +1318,7 @@ static LIST_CITIES_OPERATION: ::crucible_client::OperationInfo = ::crucible_clie
 };
 
 impl ::crucible_client::Operation for ListCities {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible_client::OperationInfo = &LIST_CITIES_OPERATION;
     type Input = model::ListCitiesInput;
     type Output = model::ListCitiesOutput;
@@ -1334,6 +1350,10 @@ impl ::crucible_client::OperationErrors for ListCitiesError {
             Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
             Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
         }
+    }
+
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1368,6 +1388,7 @@ static PING_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::Ope
 };
 
 impl ::crucible_client::Operation for Ping {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible_client::OperationInfo = &PING_OPERATION;
     type Input = ::crucible_client::operation::Unit;
     type Output = ::crucible_client::operation::Unit;
@@ -1399,6 +1420,10 @@ impl ::crucible_client::OperationErrors for PingError {
             Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
             Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
         }
+    }
+
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1440,6 +1465,7 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_c
 };
 
 impl ::crucible_client::Operation for PutCityPhoto {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible_client::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
     type Input = model::PutCityPhotoInput;
     type Output = model::PutCityPhotoOutput;
@@ -1475,6 +1501,10 @@ impl ::crucible_client::OperationErrors for PutCityPhotoError {
             Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
         }
     }
+
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
+    }
 }
 
 impl ::std::fmt::Display for PutCityPhotoError {
@@ -1509,6 +1539,7 @@ static STATUS_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::O
 };
 
 impl ::crucible_client::Operation for Status {
+    const AUTH_BEARER: bool = true;
     const INFO: &'static ::crucible_client::OperationInfo = &STATUS_OPERATION;
     type Input = model::StatusInput;
     type Output = model::StatusOutput;
@@ -1540,6 +1571,10 @@ impl ::crucible_client::OperationErrors for StatusError {
             Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
             Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
         }
+    }
+
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 

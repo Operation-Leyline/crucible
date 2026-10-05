@@ -77,6 +77,7 @@ final class ClientRuntime
             if (!isset($values[$name])) throw new \UnexpectedValueException('Missing label: ' . $name);
             $text = $this->codec->bound($values[$name]);
             if ($text === '') throw new \UnexpectedValueException('Empty label: ' . $name);
+            if ($text === '.' || $text === '..') throw new \UnexpectedValueException('Dot-segment HTTP label: ' . $name);
             $path = str_replace('{' . $name . '}', rawurlencode($text), $path);
         }
         $query = [];
@@ -112,7 +113,7 @@ final class ClientRuntime
         for ($attempt = 1; $attempt <= $this->config->maxAttempts; $attempt++) {
             $scope->check();
             $request = $prepared;
-            if ($this->codec->schema->get('bearer') === true && $this->config->token !== null) {
+            if ($op->get('bearer') === true && $this->config->token !== null) {
                 $token = ($this->config->token)();
                 $scope->check();
                 if ($token !== null) $request = $request->withHeaders([...$request->headers,'authorization'=>'Bearer ' . WireCodec::string($token)]);
@@ -130,7 +131,7 @@ final class ClientRuntime
             }
             if ($this->digest) {
                 unset($headers['x-amz-content-sha256']);
-                if ($request->body !== null && $request->body !== '') $headers['x-amz-content-sha256'] = hash('sha256',$request->body);
+                if ($request->body !== null || in_array($request->method,['POST','PUT','PATCH'],true)) $headers['x-amz-content-sha256'] = hash('sha256',$request->body ?? '');
             }
             $request = $request->withHeaders($headers);
             $bindings = WireCodec::object($op->get('response'));

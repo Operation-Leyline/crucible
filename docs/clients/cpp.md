@@ -103,7 +103,8 @@ maximum jitter delay. The [shared retry contract](../clients.md#http-retry-contr
 applies. Generated idempotency tokens and prepared body bytes remain stable
 across attempts; credentials and middleware run again for each attempt.
 HTTP header maps use case-insensitive keys, including middleware assignments.
-`--content-sha256` hashes the final nonempty body after middleware. A Retry-After
+`--content-sha256` hashes the final body after middleware, including zero bytes
+for an empty `POST`, `PUT`, or `PATCH`. A Retry-After
 delay beyond the remaining deadline ends with `DeadlineError`.
 
 Every operation and paginator accepts `std::stop_token`. Deadlines cover

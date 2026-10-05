@@ -1,7 +1,10 @@
 args <- commandArgs(trailingOnly=TRUE)
 suppressPackageStartupMessages(library(weather.client,lib.loc=args[1L]))
 client <- WeatherClient(client_config(endpoint=Sys.getenv('EDGE_URL')))
-stopifnot(client$get_city(GetCityInput(city_id='..'))$city$name=='dot')
+for (label in c('.', '..')) {
+  error <- tryCatch({ client$get_city(GetCityInput(city_id=label)); NULL },error=identity)
+  stopifnot(inherits(error,'error'),grepl('Dot-segment HTTP label',conditionMessage(error),fixed=TRUE))
+}
 client$close()
 client <- WeatherClient(client_config(endpoint=Sys.getenv('EDGE_URL'),timeout=.5,max_attempts=1,middleware=list(function(request){ request$method <- 'HEAD'; request })))
 error <- tryCatch({ client$ping(); NULL },error=identity)
@@ -11,4 +14,4 @@ client <- WeatherClient(client_config(endpoint=Sys.getenv('EDGE_URL'),middleware
 error <- tryCatch({client$ping();NULL},error=identity)
 stopifnot(inherits(error,'error'),conditionMessage(error)=='HEAD requests cannot have a body')
 client$close()
-cat('R opaque dot labels and HEAD framing qualification passed\n')
+cat('R dot-label rejection and HEAD framing qualification passed\n')

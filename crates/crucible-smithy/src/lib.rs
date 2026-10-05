@@ -10,6 +10,7 @@ mod diagnostics;
 pub mod ir;
 mod lower;
 mod shape_id;
+mod timestamp_default;
 
 use std::collections::BTreeMap;
 

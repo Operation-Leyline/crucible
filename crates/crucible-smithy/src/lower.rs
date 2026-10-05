@@ -77,13 +77,21 @@ impl<'m> Lowerer<'m> {
         let shape = &self.model[id];
         self.check_protocol(id, shape);
         let auth = self.auth(id, shape);
+        let default_auth = self.effective_auth(id, &shape.traits, &auth);
         let service_errors: Vec<ShapeId> = shape.errors.iter().map(|r| r.target.clone()).collect();
         let default_pagination = shape.traits.get(&smithy("paginated"));
         let mut operations: Vec<Operation> = self
             .operation_ids(shape)
             .into_iter()
             .filter_map(|(op, resource)| {
-                self.operation(&op, resource, &service_errors, default_pagination)
+                self.operation(
+                    &op,
+                    resource,
+                    &service_errors,
+                    default_pagination,
+                    &default_auth,
+                    &auth,
+                )
             })
             .collect();
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
@@ -194,12 +202,19 @@ impl<'m> Lowerer<'m> {
         resource: Option<ShapeId>,
         service_errors: &[ShapeId],
         default_pagination: Option<&Value>,
+        default_auth: &[ShapeId],
+        supported_auth: &[ShapeId],
     ) -> Option<Operation> {
         let Some(shape) = self.model.get(id) else {
             self.diagnostics.push(id, "operation is not defined");
             return None;
         };
         self.check_traits(id, &shape.traits);
+        let auth = if shape.traits.contains_key(&smithy("auth")) {
+            self.effective_auth(id, &shape.traits, supported_auth)
+        } else {
+            default_auth.to_vec()
+        };
         let Some(http) = shape.traits.get(&smithy("http")) else {
             self.diagnostics.push(id, "operation has no @http trait");
             return None;
@@ -254,6 +269,7 @@ impl<'m> Lowerer<'m> {
 
         Some(Operation {
             id: id.clone(),
+            auth,
             resource,
             docs: string_trait(&shape.traits, "documentation"),
             method,
@@ -483,6 +499,22 @@ impl<'m> Lowerer<'m> {
         let Some(shape) = self.model.get(target) else {
             return;
         };
+        let header_target = if shape.kind == Kind::List {
+            shape
+                .member
+                .as_ref()
+                .and_then(|m| self.model.get(&m.target))
+        } else {
+            Some(shape)
+        };
+        if binding == "@httpHeader"
+            && header_target.is_some_and(|s| {
+                matches!(s.kind, Kind::String | Kind::Enum)
+                    && s.traits.contains_key(&smithy("mediaType"))
+            })
+        {
+            self.diagnostics.push(member, "@httpHeader strings with @mediaType require base64 encoding, which is not supported");
+        }
         let scalar = |kind: Kind| {
             !matches!(
                 kind,
@@ -545,6 +577,38 @@ impl<'m> Lowerer<'m> {
                     .push(id, format!("@{name} is not supported"));
             }
         }
+    }
+
+    fn effective_auth(
+        &mut self,
+        id: &ShapeId,
+        traits: &Traits,
+        supported: &[ShapeId],
+    ) -> Vec<ShapeId> {
+        let Some(value) = traits.get(&smithy("auth")) else {
+            return supported.to_vec();
+        };
+        let Some(values) = value.as_array() else {
+            self.diagnostics
+                .push(id, "@auth must be a list of authentication scheme IDs");
+            return Vec::new();
+        };
+        values
+            .iter()
+            .filter_map(|value| {
+                let scheme = value.as_str().and_then(|s| s.parse::<ShapeId>().ok());
+                match scheme {
+                    Some(scheme) if supported.contains(&scheme) => Some(scheme),
+                    _ => {
+                        self.diagnostics.push(
+                            id,
+                            format!("@auth scheme {value} is not declared on the service"),
+                        );
+                        None
+                    }
+                }
+            })
+            .collect()
     }
 
     fn visit(&mut self, id: &ShapeId) {
@@ -709,11 +773,33 @@ impl<'m> Lowerer<'m> {
             .or_else(|| target_traits.and_then(|t| t.get(&smithy("default"))))
             .filter(|value| !value.is_null())
             .cloned();
+        let format = timestamp_format(&member.traits)
+            .or_else(|| target_traits.and_then(timestamp_format))
+            .unwrap_or(TimestampFormat::DateTime);
+        let wire_default = if self
+            .model
+            .get(&member.target)
+            .is_some_and(|target| target.kind == Kind::Timestamp)
+        {
+            default.as_ref().and_then(|value| {
+                let converted = crate::timestamp_default::wire_value(value, format);
+                if converted.is_none() {
+                    self.diagnostics.push(
+                        member_id,
+                        "timestamp default is invalid or outside the supported range",
+                    );
+                }
+                converted
+            })
+        } else {
+            default.clone()
+        };
         Member {
             name: name.to_owned(),
             target: member.target.clone(),
             required: member.traits.contains_key(&smithy("required")),
             default,
+            wire_default,
             client_optional: in_input || member.traits.contains_key(&smithy("clientOptional")),
             constraints: effective,
             timestamp_format: timestamp_format(&member.traits),

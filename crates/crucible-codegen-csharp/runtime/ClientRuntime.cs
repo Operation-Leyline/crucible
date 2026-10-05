@@ -54,6 +54,11 @@ internal sealed class ClientRuntime : IDisposable
         return presence?.PropertyType.IsGenericType == true && presence.PropertyType.GetGenericTypeDefinition() == typeof(Optional<>) ? presence : type.GetProperty(name)!;
     }
     private static object New(Type type) => Activator.CreateInstance(type)!;
+    private void CheckElement(JsonNode member, object? value)
+    {
+        if (value is null && Text(Shape(Text(member["target"])!)["kind"]) != "document")
+            throw new JsonException("Dense collections cannot contain null elements");
+    }
 
     internal JsonNode? Encode(string? target, object? value, string? format = null)
     {
@@ -69,12 +74,12 @@ internal sealed class ClientRuntime : IDisposable
             case "document": return ((JsonNode)value).DeepClone();
             case "list":
                 var array = new JsonArray(); var item = shape["member"]!;
-                foreach (var element in (IEnumerable)value) array.Add(Encode(Text(item["target"]), element, Text(item["format"])));
+                foreach (var element in (IEnumerable)value) { CheckElement(item, element); array.Add(Encode(Text(item["target"]), element, Text(item["format"]))); }
                 return array;
             case "map":
                 var map = new JsonObject(); var member = shape["value"]!;
                 foreach (DictionaryEntry entry in (IDictionary)value)
-                    map.Add(entry.Key.ToString()!, Encode(Text(member["target"]), entry.Value, Text(member["format"])));
+                { CheckElement(member, entry.Value); map.Add(entry.Key.ToString()!, Encode(Text(member["target"]), entry.Value, Text(member["format"]))); }
                 return map;
             case "structure":
             case "union":
@@ -122,12 +127,12 @@ internal sealed class ClientRuntime : IDisposable
             case "enum": return Activator.CreateInstance(types[target], value.GetValue<string>());
             case "list":
                 var list = (IList)New(types[target]); var member = shape["member"]!;
-                foreach (var item in value.AsArray()) list.Add(Decode(Text(member["target"]), item, Text(member["format"])));
+                foreach (var item in value.AsArray()) { CheckElement(member, item); list.Add(Decode(Text(member["target"]), item, Text(member["format"]))); }
                 return list;
             case "map":
                 var map = (IDictionary)New(types[target]); var val = shape["value"]!; var key = shape["key"]!;
                 foreach (var (name, item) in value.AsObject())
-                    map.Add(Decode(Text(key["target"]), JsonValue.Create(name))!, Decode(Text(val["target"]), item, Text(val["format"])));
+                { CheckElement(val, item); map.Add(Decode(Text(key["target"]), JsonValue.Create(name))!, Decode(Text(val["target"]), item, Text(val["format"]))); }
                 return map;
             case "structure":
             case "union":
@@ -223,7 +228,9 @@ internal sealed class ClientRuntime : IDisposable
         {
             var key = Text(label)!; var value = values[key];
             if (value is null || Bound(value).Length == 0) throw new ArgumentException($"{key} is required");
-            path = path.Replace("{" + key + "}", Uri.EscapeDataString(Bound(value)), StringComparison.Ordinal);
+            var labelText = Bound(value);
+            if (labelText is "." or "..") throw new ArgumentException("Dot-segment HTTP label: " + key);
+            path = path.Replace("{" + key + "}", Uri.EscapeDataString(labelText), StringComparison.Ordinal);
         }
         var query = new List<string>();
         foreach (var binding in request["query"]!.AsArray())
@@ -283,7 +290,7 @@ internal sealed class ClientRuntime : IDisposable
             using var request = new HttpRequestMessage(new HttpMethod(Text(op["method"])!), prepared.Uri);
             if (prepared.Body is not null) request.Content = new ByteArrayContent(prepared.Body);
             foreach (var (key, value) in prepared.Headers) SetHeader(request, key, value);
-            if (Flag(schema["bearer"]) && config.Token is not null)
+            if (Flag(op["bearer"]) && config.Token is not null)
             {
                 var token = await config.Token(ct).AsTask().WaitAsync(ct).ConfigureAwait(false);
                 if (token is not null) SetHeader(request, "Authorization", "Bearer " + token);

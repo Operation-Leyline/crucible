@@ -153,8 +153,10 @@ token for replays involving them.
 
 Middleware is `(request, next) => Promise<Response>` and runs on every attempt.
 The order is bearer authentication, generated middleware, then caller
-middleware. `--middleware content-sha256` adds a SHA-256 body digest. It skips
-requests without a body or with an existing digest header.
+middleware. Public operations bypass the bearer-token provider.
+`--middleware content-sha256` adds a SHA-256 body digest. Empty `POST`, `PUT`, and
+`PATCH` requests use the digest of zero bytes. It skips other bodyless requests
+and requests with an existing digest header.
 
 If middleware changes a request body, compute its digest after that change.
 Generate without the digest option and place exported `contentSha256` last in

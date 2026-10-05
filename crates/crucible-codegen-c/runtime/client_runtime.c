@@ -116,9 +116,9 @@ static double retry_delay(client *value, arena *storage, unsigned attempt, cruci
     unsigned exponent = attempt - 1 < 30 ? attempt - 1 : 30;
     return fmin(value->config.max_delay, ldexp(value->config.base_delay, (int)exponent)) * fraction;
 }
-static status attempt_request(client *value, arena *storage, const crucible_generated_request *prepared, const crucible_generated_scope *scope, crucible_generated_request *out, error *issue) {
+static status attempt_request(client *value, const yyjson_val *op, arena *storage, const crucible_generated_request *prepared, const crucible_generated_scope *scope, crucible_generated_request *out, error *issue) {
     *out = *prepared;
-    if (yyjson_get_bool((yyjson_val *)get(value->schema, "bearer")) && value->config.token) {
+    if (yyjson_get_bool((yyjson_val *)get(op, "bearer")) && value->config.token) {
         bool present = false; string token = {0};
         TRY(value->config.token(value->config.token_user, scope, storage, &present, &token, issue));
         TRY(crucible_generated_scope_check(scope, issue));
@@ -155,7 +155,7 @@ static status execute(client *value, arena *prepared_arena, const yyjson_val *op
         result.arena = crucible_generated_arena_new();
         if (!result.arena) return crucible_generated_fail(issue, OOM, "Response arena allocation failed");
         crucible_generated_request request;
-        status code = attempt_request(value, result.arena, &prepared, scope, &request, issue);
+        status code = attempt_request(value, op, result.arena, &prepared, scope, &request, issue);
         bool retry = false;
         if (!code) {
             code = value->config.send(value->config.transport_user, &request, read_body, scope, result.arena, &result.response, issue);

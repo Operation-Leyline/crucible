@@ -87,7 +87,7 @@ Smithy source tree. Provenance fields differ by target; see its package output.
 
 ## Shared model and wire behavior
 
-Lowering resolves nullability, defaults, effective constraints, HTTP bindings,
+Lowering resolves nullability, defaults, authentication, effective constraints, HTTP bindings,
 errors, pagination, and timestamp formats once. Emitters handle native syntax
 and naming. Unsupported constructs produce diagnostics rather than disappearing
 from generated code. See [design and protocol](design.md) for ownership and wire rules.
@@ -97,6 +97,25 @@ bytes when used as an `@httpPayload`. Body digests must cover the final bytes se
 Timestamp and integer precision depend on the native representation: consult the
 language guide before using nanosecond timestamps or the entire signed 64-bit range.
 Absent, null, unknown enum, and unknown union handling also vary by target.
+
+Operations inherit service authentication unless they declare an `@auth` override.
+An operation with `@auth([])` does not invoke the configured bearer-token provider.
+Regenerate clients when upgrading the generator and runtime together; older
+generated metadata does not carry these operation-level authentication decisions.
+
+Clients ignore defaults on `@clientOptional` members and members of `@input`
+structures. Other modeled defaults apply when decoding an absent member.
+An explicit null remains distinct from an absent value. Dense collections reject
+null elements, except that a `document` element may itself contain JSON null.
+
+Path labels equal to `.` or `..` are rejected before sending, since HTTP URL
+normalization can change the resource they address. Media-type strings bound to
+headers, including string list elements, are currently diagnosed as unsupported.
+Media types on blob payloads remain supported.
+
+When enabled, bundled body-digest middleware hashes empty `POST`, `PUT`, and
+`PATCH` requests as the SHA-256 of zero bytes. Rust applications provide their
+own [digest interceptor](clients/rust.md#transport-and-retries).
 
 All modeled operations remain directly available. Database helpers such as
 waiting for a job or carrying a read-consistency generation belong above the

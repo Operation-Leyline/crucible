@@ -284,7 +284,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             let mut accessors = BTreeSet::new();
             for m in &s.members {
                 if !m.optional_on_client()
-                    && let Some(value) = &m.default
+                    && let Some(value) = m.client_default()
                     && default_expression(service, &m.target, value, &options.package_name)
                         .is_none()
                 {
@@ -423,7 +423,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     let t=ty(service,&m.target,package); let f=field(&m.name);
                     if m.optional_on_client() || matches!(shape,Shape::Union(_)) {models.push_str(&format!("        public {package}.OptionalValue<{t}> {f} = {package}.OptionalValue.unset();\n"));}
                     else {
-                        let initial = m.default.as_ref().map(|value| format!(" = {}", default_expression(service, &m.target, value, package).expect("validated default"))).unwrap_or_default();
+                        let initial = m.client_default().map(|value| format!(" = {}", default_expression(service, &m.target, value, package).expect("validated default"))).unwrap_or_default();
                         models.push_str(&format!("        public {t} {f}{initial};\n"));
                     }
                 }
@@ -435,7 +435,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     let optional = m.optional_on_client() || matches!(shape,Shape::Union(_));
                     // '$' cannot occur in a lowered Smithy member name, keeping
                     // these private flags independent of modeled identifiers.
-                    let set_default = if !optional && m.default.is_some() {
+                    let set_default = if !optional && m.client_default().is_some() {
                         builder.push_str(&format!("            private boolean $defaultSet{index};\n"));
                         format!("$defaultSet{index} = true; ")
                     } else { String::new() };
@@ -451,7 +451,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 builder.push_str(&format!("            public {name} build() {{\n                {name} result = new {name}();\n"));
                 for (index, m) in s.members.iter().enumerate() {
                     let f=field(&m.name);
-                    let assigned = if !m.optional_on_client() && m.default.is_some() && !matches!(shape, Shape::Union(_)) {
+                    let assigned = if !m.optional_on_client() && m.client_default().is_some() && !matches!(shape, Shape::Union(_)) {
                         format!("if ($defaultSet{index}) ")
                     } else { String::new() };
                     builder.push_str(&format!("                {assigned}result.{f} = value.{f};\n"));

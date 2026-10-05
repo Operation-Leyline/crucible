@@ -171,3 +171,94 @@ fn prototype_named_members_defaults_and_errors_are_own_metadata() {
     assert!(schemas.contains("[\"__proto__\"]: parseJson(\"3\")"));
     assert!(schemas.contains("[\"__proto__\"]: { status: 409"));
 }
+
+#[test]
+fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
+    let service = Model::from_json(include_str!("fixtures/hardening.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(
+        &service,
+        &Options {
+            package_name: "hardening".into(),
+            package_version: "0.0.0".into(),
+            client_name: None,
+            endpoint: None,
+            middleware: vec![],
+            package_json: None,
+        },
+    )
+    .unwrap();
+    let source = |path| {
+        &files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap()
+            .contents
+    };
+    let client = source("src/client.ts");
+    for method in [
+        "constructor_3",
+        "constructor_2",
+        "get",
+        "get_2",
+        "paginateListThings",
+        "paginateListThings_2",
+    ] {
+        assert!(client.contains(&format!("  {method}(")), "{client}");
+    }
+    assert!(client.contains("return paginate(page => this.listThings(page, options)"));
+    let schemas = source("src/schemas.ts");
+    let imports = schemas
+        .lines()
+        .find(|line| line.starts_with("import {"))
+        .unwrap();
+    for helper in ["boolean", "document", "number", "string"] {
+        assert!(imports.contains(helper), "{imports}");
+    }
+    assert!(schemas.contains("name: \"Public\",\n  method: \"GET\",\n  bearer: false"));
+    assert!(schemas.contains("name: \"Protected\",\n  method: \"GET\",\n  bearer: true"));
+    let defaults = schemas
+        .lines()
+        .find(|line| line.starts_with("export const S_Defaults:"))
+        .unwrap();
+    assert!(defaults.contains("ordinary: parseJson(\"7\")"));
+    assert!(!defaults.contains("optional: parseJson"));
+    let input = schemas
+        .lines()
+        .find(|line| line.starts_with("export const S_DefaultInput:"))
+        .unwrap();
+    assert!(!input.contains("parseJson"));
+
+    // Generated method allocation must not depend on an input model's order.
+    let mut reordered = service.clone();
+    reordered.operations.reverse();
+    let reordered_files = emit(
+        &reordered,
+        &Options {
+            package_name: "hardening".into(),
+            package_version: "0.0.0".into(),
+            client_name: None,
+            endpoint: None,
+            middleware: vec![],
+            package_json: None,
+        },
+    )
+    .unwrap();
+    let reversed_client = &reordered_files
+        .iter()
+        .find(|file| file.path == "src/client.ts")
+        .unwrap()
+        .contents;
+    for method in [
+        "constructor_3",
+        "constructor_2",
+        "get",
+        "get_2",
+        "paginateListThings",
+        "paginateListThings_2",
+    ] {
+        assert!(reversed_client.contains(&format!("  {method}(")));
+    }
+}

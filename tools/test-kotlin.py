@@ -23,6 +23,8 @@ def qualify(output):
     model_path = qualification_model(output)
     model = json.loads(model_path.read_text())
     defaults = {
+        "builder": ("smithy.api#String", "builder-value"),
+        "block": ("smithy.api#String", "block-value"),
         "flag": ("smithy.api#Boolean", True),
         "small": ("smithy.api#Byte", -7),
         "medium": ("smithy.api#Short", 300),
@@ -37,7 +39,7 @@ def qualify(output):
         "forecast": ("example.weather#Forecast", {}),
         "document": ("smithy.api#Document", {"count": 9223372036854775807}),
         "blob": ("smithy.api#Blob", "AQI="),
-        "date": ("smithy.api#Timestamp", "2024-01-01T00:00:00Z"),
+        "date": ("smithy.api#Timestamp", -0.25),
         "epoch": ("smithy.api#Timestamp", -1.5),
     }
     members = {name: {"target": target, "traits": {"smithy.api#default": value}}

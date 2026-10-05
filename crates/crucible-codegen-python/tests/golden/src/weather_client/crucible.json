@@ -2,5 +2,5 @@
   "generatorVersion": "0.1.0",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
-  "schemaSha256": "cbbe4042bcaafa1520c02c5c421e3214f6edf00603d566f76726ec34e10aff67"
+  "schemaSha256": "0f64e79f2655db33a3d76ca9f89139ba16cb4a7c6c1fd840cd77bddde269f930"
 }
