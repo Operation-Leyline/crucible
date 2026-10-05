@@ -22,7 +22,17 @@ def model_json(value):
     return json.dumps(value)
 
 
+def gradle_executable():
+    command = os.environ.get("GRADLE", "gradle")
+    executable = shutil.which(command)
+    if executable is None:
+        raise RuntimeError(f"Gradle executable not found: {command!r}; install Gradle or set GRADLE to its executable path")
+    # Windows CreateProcess can skip the pinned .bat in favor of a later .exe shim.
+    return str(Path(executable).resolve())
+
+
 def qualify(output, native=False):
+    executable = gradle_executable()
     sdk = output / "sdk"
     repository = output / "repository"
     model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
@@ -106,7 +116,7 @@ def qualify(output, native=False):
         str(model_path), "--out", str(sdk),
         "--group-id", "example", "--artifact-id", "weather-kotlin-mpp", "--package-name", "example.weather",
         "--package-version", "0.0.0-test", "--content-sha256")
-    gradle = [os.environ.get("GRADLE", "gradle"), "--no-daemon", "--console=plain", "--max-workers=2"]
+    gradle = [executable, "--no-daemon", "--console=plain", "--max-workers=2"]
     if not native:
         gradle.append("-Pcrucible.native=false")
     targets = ["Jvm", "Js", "KotlinMultiplatform"]
@@ -197,4 +207,3 @@ if __name__ == "__main__":
     else:
         with tempfile.TemporaryDirectory(prefix="crucible-kotlin-mpp-") as directory:
             qualify(Path(directory), args.native)
-

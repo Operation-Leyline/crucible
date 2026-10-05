@@ -293,6 +293,9 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Check pinned Gradle launcher precedence
+        if: runner.os == 'Windows'
+        run: python -m unittest discover -s tools -p "test_kotlin_tools.py"
       - name: Consume published JVM, JavaScript, and host-native artifacts
         run: python tools/test-kotlin-multiplatform.py ${{ matrix.flags }}
   kotlin-android:
