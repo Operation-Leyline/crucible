@@ -387,6 +387,7 @@ name = "crucible-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "crucible-codegen-c",
  "crucible-codegen-cpp",
  "crucible-codegen-csharp",
  "crucible-codegen-dart",
@@ -395,6 +396,7 @@ dependencies = [
  "crucible-codegen-kotlin",
  "crucible-codegen-php",
  "crucible-codegen-python",
+ "crucible-codegen-r",
  "crucible-codegen-ruby",
  "crucible-codegen-rust",
  "crucible-codegen-swift",
@@ -418,6 +420,16 @@ dependencies = [
  "serde_json",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "crucible-codegen-c"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-common",
+ "crucible-smithy",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -500,6 +512,16 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-python"
+version = "0.1.0"
+dependencies = [
+ "crucible-codegen-common",
+ "crucible-smithy",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "crucible-codegen-r"
 version = "0.1.0"
 dependencies = [
  "crucible-codegen-common",

@@ -75,6 +75,38 @@ enum Target {
         #[arg(long)]
         content_sha256: bool,
     },
+    /// A native C17 CMake package with arena-owned models and libcurl transport.
+    C {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        package_name: String,
+        #[arg(long)]
+        prefix: String,
+        #[arg(long, default_value = "0.0.0")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        #[arg(long)]
+        content_sha256: bool,
+    },
+    /// An R package with S3 models and lazy page iteration.
+    R {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        package_name: String,
+        #[arg(long, default_value = "0.0.0")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        #[arg(long)]
+        content_sha256: bool,
+    },
     /// A C++20 CMake package with native models and libcurl transport.
     Cpp {
         #[command(flatten)]
@@ -343,6 +375,62 @@ fn generate(target: Target) -> Result<(), String> {
                 },
             )
             .map_err(|d| format!("cannot generate the Ruby client:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
+        Target::C {
+            source,
+            out,
+            package_name,
+            prefix,
+            package_version,
+            endpoint,
+            content_sha256,
+        } => {
+            let service = lower(&source)?;
+            let files = crucible_codegen_c::emit(
+                &service,
+                &crucible_codegen_c::Options {
+                    package_name,
+                    prefix,
+                    package_version,
+                    endpoint,
+                    content_sha256,
+                },
+            )
+            .map_err(|d| format!("cannot generate the C client:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
+        Target::R {
+            source,
+            out,
+            package_name,
+            package_version,
+            endpoint,
+            content_sha256,
+        } => {
+            let service = lower(&source)?;
+            let files = crucible_codegen_r::emit(
+                &service,
+                &crucible_codegen_r::Options {
+                    package_name,
+                    package_version,
+                    endpoint,
+                    content_sha256,
+                },
+            )
+            .map_err(|d| format!("cannot generate the R client:\n{d}"))?;
             output::write(
                 &out,
                 files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),

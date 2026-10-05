@@ -15,6 +15,8 @@ cargo test
 cargo run -p crucible-cli -- check <model.json>
 bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=... to reuse a local tsc)
 bash tools/test-e2e.sh            # e2e/: framework tests, the Rust client over HTTP, then the TS client
+python tools/test-c.py           # installed C17 consumer, shared fixtures, native HTTP
+python tools/test-r.py           # installed R package, shared fixtures, native HTTP
 CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended output change
 ```
 
@@ -35,7 +37,9 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-codegen-rust` | IR → the Rust code a service plugs into the framework, or a client (one file each) |
 | `crucible-build` | build scripts: model packages publish their AST, services and clients generate from it |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
-| `crucible-cli` | `check`, `generate ts`, `generate rust` (the build-script output, for reading) |
+| `crucible-codegen-common` | compact descriptions of already-lowered wire semantics for bundled client runtimes |
+| `crucible-codegen-{python,go,java,csharp,kotlin,swift,dart,php,ruby,cpp,c,r}` | native client models, operation wrappers, bundled runtimes, and package metadata; each reads only the IR |
+| `crucible-cli` | `check`, `generate <language>`, and service scaffolding |
 
 `e2e/` is its own Cargo workspace: `weather-model` (a model package),
 `weather-service` (a service package that generates in `build.rs`, laid out

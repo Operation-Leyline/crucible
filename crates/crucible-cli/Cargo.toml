@@ -25,6 +25,8 @@ crucible-codegen-dart.workspace = true
 crucible-codegen-php.workspace = true
 crucible-codegen-ruby.workspace = true
 crucible-codegen-cpp.workspace = true
+crucible-codegen-c.workspace = true
+crucible-codegen-r.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 clap.workspace = true
 

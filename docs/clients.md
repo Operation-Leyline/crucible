@@ -9,7 +9,7 @@ support conditional on finding an individual consumer.
 | Baseline | TypeScript/JavaScript, Rust | Shared retry conformance runs in CI |
 | 1 | Python, Go, Java, C# | Implemented; native package and HTTP gates run in CI |
 | 2 | Kotlin, Swift, Dart, PHP, Ruby | Implemented; native package and HTTP gates run in CI |
-| Extension | C++, C, R | C++ implemented; C and R remain |
+| Extension | C++, C, R | Implemented; native package and HTTP qualification gates |
 
 ## Architecture
 
@@ -115,6 +115,22 @@ native model classes, synchronous calls, and lazy pagination.
 consumer, and runs shared fixtures and real HTTP tests. CI covers GCC with
 address/undefined-behavior sanitizers and MSVC. See [C++ clients](cpp-client.md)
 for native model types, transport ownership, and package configuration.
+
+`python tools/test-c.py` installs a C17 CMake package and compiles a separate
+consumer, including coexisting packages and recursive models. Shared fixtures
+and real HTTP tests cover retry decisions, final-body digests, credentials,
+response ownership, cancellation, and pagination. CI covers GCC with sanitizers
+and MSVC. See [C clients](c-client.md) for arena ownership and callback APIs.
+
+`python tools/test-r.py` builds and installs an R source package, runs a
+separate consumer, and exercises shared fixtures and weather-service HTTP.
+CI covers R 4.1 and the current release. See [R clients](r-client.md) for S3
+models, exact numbers, native package requirements, and lazy page iteration.
+
+`tests/conformance/header-lists.json` specifies both parsing and serialization,
+including empty lists, empty items, whitespace, quotes, and backslashes.
+`tests/conformance/malformed-errors.json` checks that malformed modeled body or
+header members preserve the original failure metadata and retry eligibility.
 
 ## Remaining acceptance work
 
