@@ -117,8 +117,8 @@ When enabled, bundled body-digest middleware adds `x-amz-content-sha256` to
 requests with a body and to every `POST`, `PUT`, and `PATCH`. A write without a
 body uses the SHA-256 of zero bytes:
 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
-Bodiless `GET` and `DELETE` requests carry no digest. Rust applications provide their
-own [digest interceptor](clients/rust.md#transport-and-retries).
+The middleware does not add a digest to bodiless `GET` or `DELETE` requests.
+Rust applications provide their own [digest interceptor](clients/rust.md#transport-and-retries).
 
 All modeled operations remain directly available. Database helpers such as
 waiting for a job or carrying a read-consistency generation belong above the
