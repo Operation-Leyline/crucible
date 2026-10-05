@@ -26,6 +26,10 @@ pub struct XmlMember {
     pub namespace: Option<XmlNamespace>,
     pub flattened: bool,
     pub attribute: bool,
+    /// The root element name when this member is a restXml `@httpPayload`:
+    /// the member's own `@xmlName`, else the target's name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload_name: Option<String>,
 }
 
 pub(crate) fn namespace(
@@ -126,12 +130,40 @@ pub(crate) fn lower(
             } else {
                 name.clone()
             };
-            let namespace = namespace(&member_id, &member.traits, diagnostics).or_else(|| {
-                target.and_then(|target| namespace(&member.target, &target.traits, diagnostics))
-            });
             let flattened = member
                 .traits
                 .contains_key(&ShapeId::new("smithy.api", "xmlFlattened"));
+            // A flattened collection has no wrapper element for its own namespace.
+            let own_namespace = namespace(&member_id, &member.traits, diagnostics);
+            let namespace = if flattened {
+                own_namespace
+            } else {
+                own_namespace.or_else(|| {
+                    target.and_then(|target| namespace(&member.target, &target.traits, diagnostics))
+                })
+            };
+            let payload_name = (protocol == Protocol::AwsRestXml
+                && member
+                    .traits
+                    .contains_key(&ShapeId::new("smithy.api", "httpPayload"))
+                && target
+                    .is_some_and(|target| matches!(target.kind, Kind::Structure | Kind::Union)))
+            .then(|| {
+                if member
+                    .traits
+                    .contains_key(&ShapeId::new("smithy.api", "xmlName"))
+                {
+                    name.clone()
+                } else {
+                    // The target's own @xmlName is diagnosed where the target is lowered.
+                    model[&member.target]
+                        .traits
+                        .get(&ShapeId::new("smithy.api", "xmlName"))
+                        .and_then(|value| value.as_str())
+                        .unwrap_or(member.target.name())
+                        .to_owned()
+                }
+            });
             let attribute = member
                 .traits
                 .contains_key(&ShapeId::new("smithy.api", "xmlAttribute"));
@@ -175,6 +207,7 @@ pub(crate) fn lower(
                     namespace,
                     flattened,
                     attribute,
+                    payload_name,
                 },
             );
         }

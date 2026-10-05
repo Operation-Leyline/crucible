@@ -152,6 +152,9 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsJson11,
         Feature::HttpChecksum,
         Feature::Streaming,
+        Feature::AwsRestXml,
+        Feature::AwsQuery,
+        Feature::Ec2Query,
     ])
 }
 
@@ -180,7 +183,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }))
         .expect("provenance"),
     });
-    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\n  spec.add_dependency 'zlib', '>= 3.0', '< 4'\n  spec.add_dependency 'ipaddr', '>= 1.2', '< 2'\n  spec.add_dependency 'stringio', '>= 3.0', '< 4'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
+    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\n  spec.add_dependency 'zlib', '>= 3.0', '< 4'\n  spec.add_dependency 'ipaddr', '>= 1.2', '< 2'\n  spec.add_dependency 'stringio', '>= 3.0', '< 4'\n  spec.add_dependency 'rexml', '>= 3.2', '< 4'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
     let mut entry = String::from("# frozen_string_literal: true\n");
     for (name, source) in [
         ("unit", include_str!("../runtime/unit.rb")),
@@ -222,6 +225,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("waiters", include_str!("../runtime/waiters.rb")),
         ("endpoints", include_str!("../runtime/endpoints.rb")),
         ("checksums", include_str!("../runtime/checksums.rb")),
+        ("xml_protocol", include_str!("../runtime/xml_protocol.rb")),
         ("client_config", include_str!("../runtime/client_config.rb")),
         ("http_request", include_str!("../runtime/http_request.rb")),
         ("http_response", include_str!("../runtime/http_response.rb")),

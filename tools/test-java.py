@@ -1,6 +1,7 @@
 """Build a Java SDK jar, then exercise that jar with a separate consumer."""
 import os
 import json
+import sys
 from pathlib import Path
 import tempfile
 from sdk_test_support import ROOT, run, weather
@@ -134,6 +135,7 @@ def qualify(output):
         run("javac", "--release", "17", "-d", str(classes), "-cp", protocol_classpath,
             str(ROOT / "crates/crucible-codegen-java/tests/ProtocolTest.java"))
         run("java", "-cp", os.pathsep.join([str(classes), protocol_classpath]), "example.json.ProtocolTest", protocol)
+    xml_protocols(output, classes)
     defaults = output / "defaults"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         str(ROOT / "crates/crucible-codegen-java/tests/defaults.json"), "--out", str(defaults),
@@ -144,6 +146,45 @@ def qualify(output):
     run("javac", "-J-Xmx256m", "--release", "17", "-d", str(classes), "-cp", defaults_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/DefaultsTest.java"))
     run("java", "-Xmx256m", "-cp", os.pathsep.join([str(classes), defaults_classpath]), "example.defaults.DefaultsTest")
+
+
+def xml_protocols(output, classes):
+    """restXml, awsQuery and ec2Query: Smithy vectors through a native adapter, then real HTTP."""
+    fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
+    packages = [
+        ("xml", "protocol-rest-xml.json", "aws.protocoltests.restxml#RestXml", "aws.protocols#restXml"),
+        ("nowrap", "protocol-rest-xml.json", "aws.protocoltests.restxml.nowrap#RestXmlNoErrorWrapping", "aws.protocols#restXml"),
+        ("query", "protocol-aws-query.json", "aws.protocoltests.query#AwsQuery", "aws.protocols#awsQuery"),
+        ("ec2", "protocol-ec2-query.json", "aws.protocoltests.ec2#AwsEc2", "aws.protocols#ec2Query"),
+    ]
+    adapter = (ROOT / "crates/crucible-codegen-java/tests/ProtocolAdapter.java").read_text(encoding="utf-8")
+    roots = []
+    for label, fixture, service, protocol in packages:
+        generated = output / ("xml-" + label)
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java", str(fixtures / fixture),
+            "--service", service, "--out", str(generated), "--group-id", "example", "--artifact-id", "xml-" + label,
+            "--package-name", "example." + label)
+        run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=generated)
+        roots.append(generated)
+        package_classpath = os.pathsep.join([str(generated / "target/classes"), str(generated / "target/dependency/*")])
+        # The adapter reaches the package-private runtime, so it joins each generated package.
+        source = output / ("adapter-" + label) / "ProtocolAdapter.java"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(adapter.replace("package example.xml;", f"package example.{label};", 1), encoding="utf-8")
+        adapter_classes = output / ("adapter-" + label + "-classes")
+        run("javac", "--release", "17", "-d", str(adapter_classes), "-cp", package_classpath, str(source))
+        vectors = output / ("vectors-" + label)
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance", str(fixtures / fixture),
+            "--service", service, "--target", "java", "--out", str(vectors))
+        run(sys.executable, str(ROOT / "tools/protocol_conformance.py"), str(vectors / "protocol-tests.json"),
+            "--protocol", protocol, "--report", str(vectors / "results.json"), "--", "java", "-cp",
+            os.pathsep.join([str(adapter_classes), package_classpath]), f"example.{label}.ProtocolAdapter")
+    protocol_classpath = os.pathsep.join([str(root / "target/classes") for root in roots] + [str(roots[0] / "target/dependency/*")])
+    run("javac", "--release", "17", "-d", str(classes), "-cp", protocol_classpath,
+        str(ROOT / "crates/crucible-codegen-java/tests/XmlProtocolTest.java"),
+        str(ROOT / "crates/crucible-codegen-java/tests/QueryProtocolTest.java"))
+    run("java", "-cp", os.pathsep.join([str(classes), protocol_classpath]), "example.xml.XmlProtocolTest")
+    run("java", "-cp", os.pathsep.join([str(classes), protocol_classpath]), "example.query.QueryProtocolTest")
 
 
 if __name__ == "__main__":

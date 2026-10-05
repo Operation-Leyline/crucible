@@ -50,6 +50,14 @@ class ProtocolTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             protocol.compare_body('<a><b/>first</a>', '<a><b/>second</a>', "application/xml")
 
+    def test_form_bodies_compare_parameters_in_any_order(self):
+        form = "application/x-www-form-urlencoded"
+        protocol.compare_body("Action=A&Version=1&List=&X=a%20b", "Version=1&X=a+b&List=&Action=A", form)
+        with self.assertRaises(AssertionError):
+            protocol.compare_body("Action=A&List=", "Action=A", form)
+        with self.assertRaises(AssertionError):
+            protocol.compare_body("Action=A&X.1=a&X.2=b", "Action=A&X.1=b&X.2=a", form)
+
     def test_invalid_json_numbers_are_rejected(self):
         for value in ("NaN", "Infinity", "-Infinity"):
             with self.assertRaises(ValueError):

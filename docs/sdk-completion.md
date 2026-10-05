@@ -21,6 +21,10 @@ support in a generated client.
 | Conformance | Smithy protocol vectors, deterministic generated/property tests, live workflow runner | Every target executes applicable vectors; live results recorded separately |
 | Leyline rollout | Current model, authenticated workflow qualification, consumer migration | Model revision and coverage, deployed results, release and rollback records |
 
+## Status
+
+- AWS XML protocols: Java and Ruby implement `restXml` (including `noErrorWrapping`), `awsQuery`, and `ec2Query`; 141 request, response, and error vectors adapted from Smithy's AWS protocol tests pass in both, beside loopback HTTP consumer suites. Other targets still refuse these protocols.
+
 ## Integration rules
 
 Semantics are resolved in `crucible-smithy`; emitters never inspect the AST.

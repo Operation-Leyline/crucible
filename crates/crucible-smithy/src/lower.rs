@@ -224,6 +224,13 @@ impl<'m> Lowerer<'m> {
             settings.ignore_unknown_union_type = true;
             settings.non_finite_float_strings = true;
         }
+        if matches!(
+            self.protocol,
+            Protocol::AwsRestXml | Protocol::AwsQuery | Protocol::Ec2Query
+        ) {
+            // XML text and query values spell non-finite floats NaN, Infinity, -Infinity.
+            settings.non_finite_float_strings = true;
+        }
         let trait_id = self.protocol.trait_id();
         let Some(value) = shape.traits.get(&trait_id) else {
             return settings;
@@ -930,6 +937,21 @@ impl<'m> Lowerer<'m> {
         })
     }
 
+    /// XML has no null element, so a sparse entry could not round-trip.
+    fn check_xml_sparse(&mut self, id: &ShapeId, sparse: bool) {
+        if sparse
+            && matches!(
+                self.protocol,
+                Protocol::AwsRestXml | Protocol::AwsQuery | Protocol::Ec2Query
+            )
+        {
+            self.diagnostics.push(
+                id,
+                "@sparse collections are not supported by the selected XML protocol",
+            );
+        }
+    }
+
     fn check_traits(&mut self, id: &ShapeId, traits: &Traits) {
         for (name, feature) in [
             ("hostLabel", Feature::EndpointHostPrefix),
@@ -1163,6 +1185,7 @@ impl<'m> Lowerer<'m> {
                 if is_set && sparse {
                     self.diagnostics.push(id, "a set cannot be sparse");
                 }
+                self.check_xml_sparse(id, sparse);
                 let member = self.collection_member(id, "member", shape.member.as_ref(), sparse)?;
                 let mut constraints = constraints(&shape.traits);
                 constraints.unique_items |= is_set;
@@ -1177,6 +1200,7 @@ impl<'m> Lowerer<'m> {
             }
             Kind::Map => {
                 let sparse = shape.traits.contains_key(&smithy("sparse"));
+                self.check_xml_sparse(id, sparse);
                 let key = self.collection_member(id, "key", shape.key.as_ref(), false)?;
                 let value = self.collection_member(id, "value", shape.value.as_ref(), sparse)?;
                 Shape::Map(Map {

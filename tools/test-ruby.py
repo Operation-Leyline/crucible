@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
@@ -113,9 +114,31 @@ def behaviors(output):
         generate(protocol_path, output / package, package, module, "--protocol", "aws.protocols#" + name)
         includes += ["-I", str(output / package / "lib")]
     run(RUBY, *includes, str(tests / "protocols.rb"))
+    xml_protocols(output)
     generate(ROOT / "crates/crucible-codegen-java/tests/streaming.json", output / "stream", "stream_client", "StreamSdk")
     run(RUBY, "-I", str(output / "stream/lib"), str(tests / "streaming.rb"),
         env=dict(os.environ, CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json")))
+
+
+def xml_protocols(output):
+    """restXml, awsQuery and ec2Query: Smithy vectors through a native adapter, then the gems' own tests."""
+    fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
+    includes = []
+    for package, module, fixture, service, protocol in [
+        ("xml_client", "RestXml", "protocol-rest-xml.json", "aws.protocoltests.restxml#RestXml", "aws.protocols#restXml"),
+        ("nowrap_client", "NoWrap", "protocol-rest-xml.json", "aws.protocoltests.restxml.nowrap#RestXmlNoErrorWrapping", "aws.protocols#restXml"),
+        ("query_client", "Query", "protocol-aws-query.json", "aws.protocoltests.query#AwsQuery", "aws.protocols#awsQuery"),
+        ("ec2_client", "Ec2", "protocol-ec2-query.json", "aws.protocoltests.ec2#AwsEc2", "aws.protocols#ec2Query"),
+    ]:
+        generate(fixtures / fixture, output / package, package, module, "--service", service)
+        includes += ["-I", str(output / package / "lib")]
+        vectors = output / (package + "-vectors")
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance", str(fixtures / fixture),
+            "--service", service, "--target", "ruby", "--out", str(vectors))
+        run(sys.executable, str(ROOT / "tools/protocol_conformance.py"), str(vectors / "protocol-tests.json"),
+            "--protocol", protocol, "--report", str(vectors / "results.json"), "--", RUBY, "-I", str(output / package / "lib"),
+            str(ROOT / "crates/crucible-codegen-ruby/tests/protocol_adapter.rb"), package, module)
+    run(RUBY, *includes, str(ROOT / "crates/crucible-codegen-ruby/tests/xml_protocols.rb"))
 
 
 if __name__ == "__main__":
