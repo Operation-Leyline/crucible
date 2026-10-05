@@ -1,6 +1,7 @@
 # crucible
 
-Crucible generates a Rust service and native client SDKs from a Smithy model.
+Crucible generates a Rust service, native client SDKs, and infrastructure
+packages from a Smithy model.
 It is built for Leyline, with a shared model layer that preserves HTTP bindings,
 unions, modeled errors, defaults, pagination, and idempotency tokens.
 
@@ -50,6 +51,21 @@ cargo run -p crucible-cli -- generate ts model.json \
 `flattenAndRemoveMixins`. See [preparing a model](docs/clients.md#preparing-a-model).
 Use `generate <target> --help` for the options of another language. Generation
 owns its output directory; change the model or generator and regenerate.
+
+## Generate infrastructure packages
+
+`crucible generate cdk` emits jsii-compatible CDK constructs. `crucible generate
+terraform` emits a Terraform/OpenTofu provider for explicitly supported resource
+lifecycles. Both use shared Smithy resource metadata and validated deployment
+bindings. See [infrastructure generation](docs/infrastructure.md) for examples,
+language packages, supported subsets, and migration checks.
+
+## Generate a service CLI
+
+`crucible generate cli` creates a standalone Rust executable backed by the
+generated SDK. It supports typed flags, JSON input, profiles, shell completion,
+and pagination. See the [service CLI guide](docs/clients/cli.md) for generation,
+configuration, output conventions, and independent executable tests.
 
 ## Build a service
 

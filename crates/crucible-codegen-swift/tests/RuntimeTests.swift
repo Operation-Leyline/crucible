@@ -43,6 +43,25 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
             XCTAssertEqual(count, 0)
         }
     }
+    func testBodilessDigests() async throws {
+        for method in ["POST", "PUT", "PATCH", "GET", "DELETE"] {
+            let transport = FakeTransport { _, request, _ in
+                XCTAssertNil(request.body)
+                XCTAssertEqual(request.method, method)
+                if method == "GET" || method == "DELETE" {
+                    XCTAssertNil(request.headers["x-amz-content-sha256"])
+                } else {
+                    XCTAssertEqual(request.headers["x-amz-content-sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+                }
+                return response(200)
+            }
+            let client = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: transport,
+                middleware: [{ request in var changed = request; changed.method = method; return changed }]))
+            _ = try await client.retrySafe()
+            let count = await transport.count
+            XCTAssertEqual(count, 1)
+        }
+    }
     private func codec() throws -> WireCodec {
         try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1"), endpoint: "", digest: false).codec
     }

@@ -83,6 +83,10 @@ pub(crate) struct Shape {
     #[serde(default)]
     pub resources: Vec<Ref>,
     #[serde(default)]
+    pub identifiers: BTreeMap<String, Ref>,
+    #[serde(default)]
+    pub properties: BTreeMap<String, Ref>,
+    #[serde(default)]
     pub errors: Vec<Ref>,
     #[serde(default)]
     pub rename: BTreeMap<ShapeId, String>,
@@ -110,6 +114,8 @@ impl Shape {
             operations: Vec::new(),
             collection_operations: Vec::new(),
             resources: Vec::new(),
+            identifiers: BTreeMap::new(),
+            properties: BTreeMap::new(),
             errors: Vec::new(),
             rename: BTreeMap::new(),
             input: None,

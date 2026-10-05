@@ -56,7 +56,7 @@ protocols. crucible can emit OpenAPI from its IR when one is needed.
 smithy build (projection with flattenAndRemoveMixins)
   → model.json (JSON AST)
   → crucible-smithy: parse → subset check → lower → ir::Service
-  → emitters: rust server · rust client · typescript client
+  → emitters: rust server · native clients · CDK constructs · Terraform provider
 ```
 
 Smithy stays the authority on the model: it validates, resolves `apply`, and
@@ -96,6 +96,15 @@ reach, keyed by shape id. Lowering settles, once:
 
 Raw `traits` maps stay on the service, operations, shapes and members, so a
 project's own traits reach emitters intact.
+
+`Model::lower` preserves the operation contract for SDKs and servers without
+resource-only shapes or provisioning diagnostics. Infrastructure generators
+opt in through `Model::lower_infrastructure`, which also preserves the resource graph,
+identifiers, properties, explicit
+lifecycle slots, collection operations, and resolved resource member/reference
+paths. Infrastructure emitters consume a selected projection validated by
+`crucible-codegen-infra`; deployment policy remains separate from HTTP semantics.
+See [infrastructure generation](infrastructure.md) for target boundaries.
 
 ## Targets and phases
 

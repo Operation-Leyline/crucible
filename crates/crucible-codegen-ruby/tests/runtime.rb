@@ -45,6 +45,19 @@ fake = Fake.new do |_, request|
   check(request.headers['x-amz-content-sha256'] == Digest::SHA256.hexdigest(''), 'Empty write digest')
   HttpResponse.new(200, headers: {}, body: '{}')
 end
+%w[POST PUT PATCH GET DELETE].each do |method|
+  transport = Fake.new do |_, request|
+    check(request.body.nil? && request.method == method, 'Bodiless request')
+    if %w[GET DELETE].include?(method)
+      check(!request.headers.key?('x-amz-content-sha256'), 'Bodiless read has no digest')
+    else
+      check(request.headers['x-amz-content-sha256'] == Digest::SHA256.hexdigest(''), 'Empty write digest')
+    end
+    HttpResponse.new(200, headers: {}, body: '{}')
+  end
+  sdk(transport, middleware: [->(request) { request.with(method: method) }]).retry_safe
+  check(transport.requests.size == 1, 'One bodiless request')
+end
 sdk(fake).retry_safe
 ['.', '..'].each do |label|
   fake = Fake.new { raise 'Dot label reached transport' }

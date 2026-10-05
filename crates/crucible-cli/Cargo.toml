@@ -12,9 +12,13 @@ name = "crucible"
 path = "src/main.rs"
 
 [dependencies]
+crucible-codegen-cli.workspace = true
 crucible-smithy.workspace = true
 crucible-codegen-rust.workspace = true
 crucible-codegen-ts.workspace = true
+crucible-codegen-infra.workspace = true
+crucible-codegen-cdk.workspace = true
+crucible-codegen-terraform.workspace = true
 crucible-codegen-python.workspace = true
 crucible-codegen-go.workspace = true
 crucible-codegen-java.workspace = true
@@ -28,6 +32,7 @@ crucible-codegen-cpp.workspace = true
 crucible-codegen-c.workspace = true
 crucible-codegen-r.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
+serde.workspace = true
 clap.workspace = true
 
 [lints]

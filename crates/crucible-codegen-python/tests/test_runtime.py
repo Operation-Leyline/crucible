@@ -71,15 +71,17 @@ class RuntimeTests(unittest.TestCase):
             client._codec.schema = copy.deepcopy(client._codec.schema)
             op = client._codec.schema["operations"]["Ping"]
             op["bearer"] = False
-            for method in ("POST", "PUT", "PATCH"):
+            for method in ("POST", "PUT", "PATCH", "GET", "DELETE"):
                 op["method"] = method
                 client.ping()
                 self.assertNotIn("authorization", sent[-1].headers)
-                self.assertEqual(sent[-1].headers["x-amz-content-sha256"], hashlib.sha256(b"").hexdigest())
+                self.assertEqual(sent[-1].content, b"")
+                expected = hashlib.sha256(b"").hexdigest() if method in ("POST", "PUT", "PATCH") else None
+                self.assertEqual(sent[-1].headers.get("x-amz-content-sha256"), expected)
             for label in (".", ".."):
                 with self.assertRaisesRegex(ValueError, "dot segment"):
                     client.get_city(m.GetCityInput(city_id=label))
-            self.assertEqual(len(sent), 3)
+            self.assertEqual(len(sent), 5)
         codec = _Codec(m._SCHEMA, m._CLASSES)
         import copy
         codec.shapes = copy.deepcopy(codec.shapes)
@@ -350,10 +352,14 @@ class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
             client = AsyncWeatherClient(http=http, token=credential)
             import copy
             client._codec.schema = copy.deepcopy(client._codec.schema)
-            client._codec.schema["operations"]["Ping"].update(bearer=False, method="POST")
-            await client.ping()
-        self.assertNotIn("authorization", sent[0].headers)
-        self.assertEqual(sent[0].headers["x-amz-content-sha256"], hashlib.sha256(b"").hexdigest())
+            for method in ("POST", "PUT", "PATCH", "GET", "DELETE"):
+                client._codec.schema["operations"]["Ping"].update(bearer=False, method=method)
+                await client.ping()
+                self.assertNotIn("authorization", sent[-1].headers)
+                self.assertEqual(sent[-1].content, b"")
+                expected = hashlib.sha256(b"").hexdigest() if method in ("POST", "PUT", "PATCH") else None
+                self.assertEqual(sent[-1].headers.get("x-amz-content-sha256"), expected)
+            self.assertEqual(len(sent), 5)
 
     async def test_malformed_error_metadata_and_retry(self):
         for case in MALFORMED_ERRORS:

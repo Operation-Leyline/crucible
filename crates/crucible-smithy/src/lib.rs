@@ -20,6 +20,7 @@ mod lower_streams;
 mod protocol;
 mod protocol_tests;
 mod recursion;
+mod resources;
 mod shape_id;
 mod timestamp_default;
 mod xml;
@@ -82,7 +83,8 @@ impl Model {
             .collect()
     }
 
-    /// Lower `service`, or the model's only service when `None`.
+    /// Lower the operation contract for SDKs and servers. Resource-only shapes
+    /// and provisioning diagnostics are excluded. `None` selects the only service.
     pub fn lower(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
         self.lower_with_capabilities(service, &Capabilities::default())
     }
@@ -93,7 +95,7 @@ impl Model {
         service: Option<&ShapeId>,
         capabilities: &Capabilities,
     ) -> Result<ir::Service, Error> {
-        self.lower_selected(service, capabilities, None)
+        self.lower_selected(service, capabilities, None, false)
     }
 
     /// Explicit protocol selection for services that declare alternatives.
@@ -103,7 +105,13 @@ impl Model {
         capabilities: &Capabilities,
         protocol: Protocol,
     ) -> Result<ir::Service, Error> {
-        self.lower_selected(service, capabilities, Some(protocol))
+        self.lower_selected(service, capabilities, Some(protocol), false)
+    }
+
+    /// Lower the operation contract plus resource metadata and resource-only
+    /// shapes for infrastructure generators. Includes provisioning diagnostics.
+    pub fn lower_infrastructure(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
+        self.lower_selected(service, &Capabilities::default(), None, true)
     }
 
     fn lower_selected(
@@ -111,6 +119,7 @@ impl Model {
         service: Option<&ShapeId>,
         capabilities: &Capabilities,
         protocol: Option<Protocol>,
+        infrastructure: bool,
     ) -> Result<ir::Service, Error> {
         let id = match service {
             Some(id) if self.services().contains(id) => id.clone(),
@@ -121,7 +130,8 @@ impl Model {
                 many => return Err(Error::AmbiguousService(many.to_vec())),
             },
         };
-        lower::lower(&self.shapes, &id, capabilities, protocol).map_err(Error::Unsupported)
+        lower::lower(&self.shapes, &id, capabilities, protocol, infrastructure)
+            .map_err(Error::Unsupported)
     }
 }
 

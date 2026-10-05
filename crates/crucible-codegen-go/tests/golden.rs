@@ -98,6 +98,55 @@ fn accessor_names_do_not_collide_with_fields_or_other_accessors() {
 }
 
 #[test]
+fn resource_only_types_do_not_change_sdk_files() {
+    let model: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap();
+    let generated = |model: &serde_json::Value| {
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        emit(
+            &service,
+            &Options {
+                module_path: "example.com/weather".into(),
+                package_name: "weather".into(),
+                endpoint: None,
+                content_sha256: false,
+            },
+        )
+        .unwrap()
+        .into_iter()
+        .map(|file| (file.path, file.contents))
+        .collect::<std::collections::BTreeMap<_, _>>()
+    };
+    let baseline = generated(&model);
+    for resource_only_shape in [
+        serde_json::json!({"type":"structure","members":{"value":{"target":"smithy.api#String"}}}),
+        serde_json::json!({"type":"bigDecimal"}),
+        serde_json::json!({"type":"intEnum","members":{"ZERO":{"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":0}}}}),
+        serde_json::json!({"type":"set","member":{"target":"smithy.api#String"}}),
+    ] {
+        let mut extended = model.clone();
+        extended["shapes"]["example.weather#ResourceOnlyIdentifier"] =
+            serde_json::json!({"type":"string"});
+        extended["shapes"]["example.weather#City"]["identifiers"]["deploymentId"] =
+            serde_json::json!({"target":"example.weather#ResourceOnlyIdentifier"});
+        extended["shapes"]["example.weather#ResourceOnly"] = resource_only_shape.clone();
+        extended["shapes"]["example.weather#City"]["properties"] =
+            serde_json::json!({"deploymentState":{"target":"example.weather#ResourceOnly"}});
+        assert_eq!(
+            generated(&extended),
+            baseline,
+            "resource-only {} must not affect any SDK file",
+            resource_only_shape["type"]
+        );
+    }
+}
+
+#[test]
 fn weather_matches_goldens() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"

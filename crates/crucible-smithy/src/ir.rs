@@ -44,10 +44,71 @@ pub struct Service {
     pub protocol_tests: Vec<HttpProtocolTest>,
     /// Sorted by name, so output does not depend on model file order.
     pub operations: Vec<Operation>,
-    /// Every shape an operation reaches, prelude shapes included.
+    /// Resources bound to this service, including nested resources. Populated
+    /// only by `Model::lower_infrastructure`, as are roots and references.
+    pub resources: BTreeMap<ShapeId, Resource>,
+    /// Direct service bindings, sorted by shape ID.
+    pub resource_roots: Vec<ShapeId>,
+    /// Design-time resource references, keyed by the referencing shape.
+    pub resource_references: BTreeMap<ShapeId, Vec<ResourceReference>>,
+    /// Every shape an operation reaches, prelude shapes included. Infrastructure
+    /// lowering additionally includes resource identifier/property targets.
     pub shapes: BTreeMap<ShapeId, Shape>,
     pub traits: Traits,
     pub(crate) renames: BTreeMap<ShapeId, String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Resource {
+    pub id: ShapeId,
+    pub identifiers: BTreeMap<String, ShapeId>,
+    pub properties: BTreeMap<String, ShapeId>,
+    pub resources: Vec<ShapeId>,
+    pub lifecycle: ResourceLifecycle,
+    pub operations: Vec<ShapeId>,
+    pub collection_operations: Vec<ShapeId>,
+    /// Bindings are per resource: an operation may belong to several resources.
+    pub bindings: BTreeMap<ShapeId, ResourceOperationBindings>,
+    pub traits: Traits,
+    pub docs: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ResourceLifecycle {
+    pub create: Option<ShapeId>,
+    pub put: Option<ShapeId>,
+    pub read: Option<ShapeId>,
+    pub update: Option<ShapeId>,
+    pub delete: Option<ShapeId>,
+    pub list: Option<ShapeId>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ResourceOperationBindings {
+    pub input: ResourceMemberBindings,
+    pub output: ResourceMemberBindings,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ResourceMemberBindings {
+    /// Resource identifier name to member path, starting at the input/output.
+    pub identifiers: BTreeMap<String, Vec<String>>,
+    /// Resource property name to member path, starting at the input/output.
+    pub properties: BTreeMap<String, Vec<String>>,
+    /// Collection member name to bindings relative to each list element.
+    /// These are repeated resource instances, not scalar member paths.
+    pub collections: BTreeMap<String, ResourceMemberBindings>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResourceReference {
+    pub resource: ShapeId,
+    pub service: Option<ShapeId>,
+    /// Identifier names to member paths; an empty path denotes the string itself.
+    pub identifiers: BTreeMap<String, Vec<String>>,
+    pub rel: Option<String>,
+    /// External references are valid Smithy and may not resolve in this model.
+    pub resolved: bool,
 }
 
 impl Service {

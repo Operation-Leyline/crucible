@@ -8,6 +8,8 @@ and representation limits.
 
 ## Language guides
 
+For standalone command-line tools, see [generating a service CLI](clients/cli.md).
+
 | Target | Guide | Package / qualification command |
 |---|---|---|
 | `rust` | [Rust](clients/rust.md) | Cargo; `bash tools/test-e2e.sh` |
@@ -133,9 +135,12 @@ normalization can change the resource they address. Targets advertising
 base64 in headers. Other targets diagnose that binding until their native
 qualification passes. Media types on blob payloads remain supported.
 
-When enabled, bundled body-digest middleware hashes empty `POST`, `PUT`, and
-`PATCH` requests as the SHA-256 of zero bytes. See each language's transport
-configuration for digest and streaming-body options.
+When enabled, bundled body-digest middleware adds `x-amz-content-sha256` to
+requests with a body and to every `POST`, `PUT`, and `PATCH`. A write without a
+body uses the SHA-256 of zero bytes:
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+The middleware does not add a digest to bodiless `GET` or `DELETE` requests.
+See each language's transport configuration for digest and streaming-body options.
 
 All modeled operations remain directly available. Targets advertising `waiters`
 generate polling helpers from Smithy acceptors, with an explicit caller deadline.

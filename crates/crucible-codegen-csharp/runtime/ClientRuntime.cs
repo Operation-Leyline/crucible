@@ -523,7 +523,8 @@ internal sealed partial class ClientRuntime : IDisposable
             if (request.RequestUri is null || !request.RequestUri.IsAbsoluteUri || (request.RequestUri.Scheme != "https" && request.RequestUri.Scheme != "http") || request.RequestUri.UserInfo.Length != 0)
                 throw new ArgumentException("Middleware must supply an absolute HTTP(S) URI without credentials");
             if ((authentication.Credentials || request.Headers.Contains("Authorization")) && !Secure(request.RequestUri)) throw new ArgumentException("Credentials require HTTPS or loopback HTTP");
-            if (digest)
+            if (digest && (request.Content is not null || request.Method == HttpMethod.Post
+                || request.Method == HttpMethod.Put || request.Method == HttpMethod.Patch))
             {
                 var bytes = request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
                 if (request.Content is not null)

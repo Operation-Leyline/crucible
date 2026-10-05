@@ -17,6 +17,7 @@ bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=...
 bash tools/test-e2e.sh            # e2e/: framework tests, the Rust client over HTTP, then the TS client
 python tools/test-c.py           # installed C17 consumer, shared fixtures, native HTTP
 python tools/test-r.py           # installed R package, shared fixtures, native HTTP
+python tools/test-cli.py         # generated service executable, fixture and Weather HTTP
 CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended output change
 ```
 
@@ -38,8 +39,13 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-build` | build scripts: model packages publish their AST, services and clients generate from it |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
 | `crucible-codegen-common` | compact descriptions of already-lowered wire semantics for bundled client runtimes |
+| `crucible-codegen-infra` | explicit provisioning bindings resolved against the shared resource IR |
+| `crucible-codegen-cdk` | jsii-compatible CDK constructs and literal-input validation; existing provider lifecycle stays external |
+| `crucible-codegen-terraform` | protocol-v6 Terraform/OpenTofu provider for the diagnosed supported lifecycle subset; reuses the Go client wire runtime |
 | `crucible-codegen-{python,go,java,csharp,kotlin,swift,dart,php,ruby,cpp,c,r}` | native client models, operation wrappers, bundled runtimes, and package metadata; each reads only the IR |
 | `crucible-cli` | `check`, `generate <language>`, and service scaffolding |
+| `crucible-codegen-cli` | IR → standalone service CLI package and typed Rust SDK dispatch |
+| `crucible-cli-runtime` | service CLI parsing, configuration, completion, and output; calls use `crucible-client` |
 
 `e2e/` is its own Cargo workspace: `weather-model` (a model package),
 `weather-service` (a service package that generates in `build.rs`, laid out

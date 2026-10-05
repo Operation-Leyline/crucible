@@ -733,8 +733,10 @@ public final class ClientTest {
     try (var server = new Server(exchange -> {
       calls.incrementAndGet();
       check(exchange.getRequestHeaders().getFirst("authorization") == null, "anonymous credentials");
-      check(exchange.getRequestHeaders().getFirst("x-amz-content-sha256").equals(
-          HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0]))), "empty digest");
+      check(exchange.getRequestBody().readAllBytes().length == 0, "expected no body");
+      var expected = List.of("GET", "DELETE").contains(exchange.getRequestMethod()) ? null
+          : HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0]));
+      check(java.util.Objects.equals(exchange.getRequestHeaders().getFirst("x-amz-content-sha256"), expected), "bodiless digest");
       emptyResponse(exchange);
     })) {
       var config = server.config();
@@ -746,12 +748,12 @@ public final class ClientTest {
       var schema = (JsonObject) schemaField.get(runtime);
       var op = schema.getAsJsonObject("operations").getAsJsonObject("Ping");
       op.addProperty("bearer", false);
-      for (var method : List.of("POST", "PUT", "PATCH")) { op.addProperty("method", method); client.ping(); }
+      for (var method : List.of("POST", "PUT", "PATCH", "GET", "DELETE")) { op.addProperty("method", method); client.ping(); }
       for (var label : List.of(".", "..")) {
         try { client.getCity(GetCityInput.builder().cityId(label).build()); throw new AssertionError("Dot label accepted"); }
         catch (IllegalArgumentException error) { check(error.getMessage().contains("dot segment"), "wrong label error"); }
       }
-      check(calls.get() == 3, "invalid request dispatched");
+      check(calls.get() == 5, "invalid request dispatched");
       try { runtime.decode("example.weather#Tags", JsonParser.parseString("[null]"), null); throw new AssertionError("Dense null accepted"); }
       catch (IllegalArgumentException expected) { }
       try { runtime.encode("example.weather#Tags", java.util.Arrays.asList((String) null), null); throw new AssertionError("Dense null encoded"); }

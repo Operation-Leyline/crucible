@@ -409,7 +409,9 @@ private suspend fun hardening() {
     Server { exchange ->
         sent.incrementAndGet()
         check(exchange.requestHeaders.getFirst("Authorization") == null)
-        val hash = MessageDigest.getInstance("SHA-256").digest(byteArrayOf()).joinToString("") { "%02x".format(it.toInt() and 255) }
+        check(exchange.requestBody.readBytes().isEmpty())
+        val hash = if (exchange.requestMethod in listOf("GET", "DELETE")) null else
+            MessageDigest.getInstance("SHA-256").digest(byteArrayOf()).joinToString("") { "%02x".format(it.toInt() and 255) }
         check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash)
         exchange.sendResponseHeaders(200, -1)
     }.use { server ->
@@ -419,7 +421,7 @@ private suspend fun hardening() {
             val schemaField = runtime.javaClass.getDeclaredField("schema").apply { isAccessible = true }
             val schema = schemaField.get(runtime) as JsonObject
             val anonymous = changed(schema, listOf("operations", "Ping", "bearer"), JsonPrimitive(false))
-            for (method in listOf("POST", "PUT", "PATCH")) {
+            for (method in listOf("POST", "PUT", "PATCH", "GET", "DELETE")) {
                 schemaField.set(runtime, changed(anonymous, listOf("operations", "Ping", "method"), JsonPrimitive(method)))
                 client.ping()
             }
@@ -429,7 +431,7 @@ private suspend fun hardening() {
             }
         }
     }
-    check(sent.get() == 3)
+    check(sent.get() == 5)
     val codec = Codec()
     try { codec.decode("example.weather#Tags", "[null]"); error("Dense null accepted") } catch (_: IllegalArgumentException) {}
     try { codec.encode("example.weather#Tags", listOf(null)); error("Dense null encoded") } catch (_: IllegalArgumentException) {}

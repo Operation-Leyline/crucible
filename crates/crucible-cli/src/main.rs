@@ -9,7 +9,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use crucible_smithy::ir::{Service, Shape, Traits};
 use crucible_smithy::{Model, ShapeId};
 
-/// Generate servers and clients from a Smithy model.
+/// Generate servers, clients, and infrastructure packages from a Smithy model.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
@@ -131,6 +131,50 @@ impl ClientLanguage {
 
 #[derive(Subcommand)]
 enum Target {
+    /// A jsii-compatible CDK construct library for explicitly selected resources.
+    Cdk {
+        #[command(flatten)]
+        source: Source,
+        /// Provisioning bindings, including the existing provider contract.
+        #[arg(long)]
+        bindings: PathBuf,
+        /// Package metadata and jsii language target configuration.
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// A Terraform/OpenTofu provider for explicitly bound resource lifecycles.
+    Terraform {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        bindings: PathBuf,
+        #[arg(long)]
+        module_path: String,
+        #[arg(long)]
+        provider_name: String,
+        #[arg(long)]
+        provider_address: String,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// A standalone Rust service CLI backed by the generated Rust client.
+    Cli {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        bin_name: String,
+        #[arg(long, default_value = "0.0.0")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        /// Crucible checkout supplying the unpublished client and CLI runtimes.
+        #[arg(long)]
+        runtime_path: PathBuf,
+    },
     /// A Ruby gem with native models and lazy pagination.
     Ruby {
         #[command(flatten)]
@@ -442,9 +486,7 @@ fn lower_with_capabilities(
     source: &Source,
     capabilities: &crucible_smithy::Capabilities,
 ) -> Result<Service, String> {
-    let json = std::fs::read_to_string(&source.model)
-        .map_err(|error| format!("cannot read {}: {error}", source.model.display()))?;
-    let model = Model::from_json(&json).map_err(|error| error.to_string())?;
+    let model = load_model(source)?;
     match &source.protocol {
         Some(id) => {
             let protocol = crucible_smithy::Protocol::ALL
@@ -459,8 +501,116 @@ fn lower_with_capabilities(
     .map_err(|error| error.to_string())
 }
 
+fn lower_infrastructure(source: &Source) -> Result<Service, String> {
+    load_model(source)?
+        .lower_infrastructure(source.service.as_ref())
+        .map_err(|error| error.to_string())
+}
+
+fn load_model(source: &Source) -> Result<Model, String> {
+    let json = std::fs::read_to_string(&source.model)
+        .map_err(|error| format!("cannot read {}: {error}", source.model.display()))?;
+    Model::from_json(&json).map_err(|error| error.to_string())
+}
+
 fn generate(target: Target) -> Result<(), String> {
     match target {
+        Target::Cdk {
+            source,
+            bindings,
+            config,
+            out,
+        } => {
+            let service = lower_infrastructure(&source)?;
+            let bindings = read_config(&bindings)?;
+            let options = read_config(&config)?;
+            let plan = crucible_codegen_infra::resolve(&service, &bindings)
+                .map_err(|d| format!("invalid provisioning bindings:\n{d}"))?;
+            let files = crucible_codegen_cdk::emit(&service, &plan, &options)
+                .map_err(|d| format!("cannot generate CDK constructs:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
+        Target::Terraform {
+            source,
+            bindings,
+            module_path,
+            provider_name,
+            provider_address,
+            out,
+        } => {
+            let service = lower_infrastructure(&source)?;
+            let bindings = read_config(&bindings)?;
+            let plan = crucible_codegen_infra::resolve(&service, &bindings)
+                .map_err(|d| format!("invalid provisioning bindings:\n{d}"))?;
+            let options = crucible_codegen_terraform::Options {
+                module_path,
+                provider_name,
+                provider_address,
+            };
+            let files = crucible_codegen_terraform::emit(&service, &plan, &options)
+                .map_err(|d| format!("cannot generate Terraform provider:\n{d}"))?;
+            output::write(
+                &out,
+                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
+            )
+            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
+        Target::Cli {
+            source,
+            out,
+            bin_name,
+            package_version,
+            endpoint,
+            runtime_path,
+        } => {
+            let service = lower(&source)?;
+            let runtime_path = runtime_path.canonicalize().map_err(|error| {
+                format!(
+                    "cannot resolve runtime path {}: {error}",
+                    runtime_path.display()
+                )
+            })?;
+            for name in ["crucible-client", "crucible-cli-runtime"] {
+                if !runtime_path
+                    .join("crates")
+                    .join(name)
+                    .join("Cargo.toml")
+                    .is_file()
+                {
+                    return Err(format!(
+                        "{} is not a Crucible checkout: missing crates/{name}/Cargo.toml",
+                        runtime_path.display()
+                    ));
+                }
+            }
+            let files = crucible_codegen_cli::emit(
+                &service,
+                &crucible_codegen_cli::Options {
+                    bin_name,
+                    package_version,
+                    endpoint,
+                    runtime_path,
+                },
+            )
+            .map_err(|diagnostics| format!("cannot generate the service CLI:\n{diagnostics}"))?;
+            output::write(
+                &out,
+                files
+                    .iter()
+                    .map(|file| (file.path.as_str(), file.contents.as_str())),
+            )
+            .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
         Target::Ruby {
             source,
             out,
@@ -891,6 +1041,13 @@ fn generate(target: Target) -> Result<(), String> {
             Ok(())
         }
     }
+}
+
+fn read_config<T: serde::de::DeserializeOwned>(path: &std::path::Path) -> Result<T, String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    serde_json::from_str(&text)
+        .map_err(|e| format!("invalid configuration {}: {e}", path.display()))
 }
 
 fn summary(service: &Service) -> String {

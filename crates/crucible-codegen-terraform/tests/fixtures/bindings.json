@@ -1,0 +1,68 @@
+{
+  "resources": {
+    "example.infra#Widget": {
+      "name": "Widget",
+      "properties": {
+        "name": {
+          "source": {
+            "shape": "example.infra#CreateInput",
+            "path": [
+              "name"
+            ]
+          },
+          "required": true,
+          "immutable": false
+        },
+        "enabled": {
+          "source": {
+            "shape": "example.infra#CreateInput",
+            "path": [
+              "enabled"
+            ]
+          },
+          "required": true,
+          "immutable": false
+        },
+        "capacity": {
+          "source": {
+            "shape": "example.infra#CreateInput",
+            "path": [
+              "capacity"
+            ]
+          },
+          "required": true,
+          "immutable": false
+        },
+        "slug": {
+          "source": {
+            "shape": "example.infra#CreateInput",
+            "path": [
+              "slug"
+            ]
+          },
+          "required": false,
+          "immutable": true
+        }
+      },
+      "attributes": {
+        "id": {
+          "source": {
+            "shape": "example.infra#WidgetOutput",
+            "path": [
+              "widget",
+              "id"
+            ]
+          }
+        }
+      },
+      "terraform": {
+        "name": "widget",
+        "synchronous": true,
+        "read_after_write_consistent": true,
+        "not_found_errors": [
+          "NotFound"
+        ]
+      }
+    }
+  }
+}

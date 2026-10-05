@@ -32,6 +32,7 @@ pub(crate) fn lower(
     service_id: &ShapeId,
     capabilities: &Capabilities,
     selected_protocol: Option<Protocol>,
+    infrastructure: bool,
 ) -> Result<Service, Diagnostics> {
     let mut lowerer = Lowerer {
         model: shapes,
@@ -43,7 +44,7 @@ pub(crate) fn lower(
         capabilities,
         requirements: BTreeSet::new(),
     };
-    let service = lowerer.service(service_id);
+    let service = lowerer.service(service_id, infrastructure);
     if lowerer.diagnostics.is_empty() {
         Ok(service)
     } else {
@@ -71,7 +72,7 @@ impl<'m> Lowerer<'m> {
     pub(crate) fn protocol_uses_http_bindings(&self) -> bool {
         self.protocol.uses_http_bindings()
     }
-    fn service(&mut self, id: &ShapeId) -> Service {
+    fn service(&mut self, id: &ShapeId, infrastructure: bool) -> Service {
         let shape = &self.model[id];
         self.check_protocol(id, shape);
         self.check_traits(id, &shape.traits);
@@ -96,6 +97,28 @@ impl<'m> Lowerer<'m> {
             })
             .collect();
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
+        let resources = if infrastructure {
+            crate::resources::lower(self.model, shape, &mut self.diagnostics)
+        } else {
+            BTreeMap::new()
+        };
+        for resource in resources.values() {
+            for target in resource
+                .identifiers
+                .values()
+                .chain(resource.properties.values())
+            {
+                self.visit(target);
+            }
+        }
+        let (resource_roots, resource_references) = if infrastructure {
+            (
+                crate::resources::sorted_refs(&shape.resources),
+                crate::resources::references(self.model, self.shapes.keys(), &mut self.diagnostics),
+            )
+        } else {
+            (Vec::new(), BTreeMap::new())
+        };
         self.resolve_endpoint_parameters(id, shape, &mut operations, endpoint_rules.as_ref());
         let endpoint_discovery = self.discovery(id, shape, &mut operations);
         let reached: Vec<_> = self.reached_ids().collect();
@@ -142,6 +165,9 @@ impl<'m> Lowerer<'m> {
             endpoint_rules,
             protocol_tests,
             operations,
+            resources,
+            resource_roots,
+            resource_references,
             shapes: std::mem::take(&mut self.shapes),
             traits: shape.traits.clone(),
             renames: shape.rename.clone(),

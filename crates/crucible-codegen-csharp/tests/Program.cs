@@ -395,9 +395,29 @@ static class Program
     }
     static async Task Main(string[] args)
     {
+        await BodilessDigests();
         await Hardening();
         await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await Payloads(); await MalformedModeledErrors(); await NumericListErrors(); await FailureBehavior(); await Weather();
         Console.WriteLine("C# client conformance and weather HTTP passed");
+    }
+    static async Task BodilessDigests()
+    {
+        foreach (var method in new[] { "POST", "PUT", "PATCH", "GET", "DELETE" })
+        {
+            Request? sent = null;
+            await using var server = new Server(request => {
+                sent = request;
+                return new(200, "");
+            });
+            using var client = new WeatherClient(new() { Endpoint = server.Endpoint,
+                Middleware = [(request, _) => { request.Method = new HttpMethod(method); return ValueTask.CompletedTask; }] });
+            await client.PingAsync();
+            Check(server.Attempts == 1, "one bodiless request");
+            Check(sent!.Body.Length == 0, "expected no body");
+            var present = sent.Headers.TryGetValue("x-amz-content-sha256", out var digest);
+            if (method is "GET" or "DELETE") Check(!present, "bodiless read has no digest");
+            else Check(present && digest == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "empty write digest");
+        }
     }
     static async Task Hardening()
     {

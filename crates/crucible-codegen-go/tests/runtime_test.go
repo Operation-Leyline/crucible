@@ -580,9 +580,20 @@ func TestHardeningAuthEmptyDigestDotLabelsAndDenseCollections(t *testing.T) {
 		if r.Header.Get("Authorization") != "" {
 			t.Error("anonymous credentials")
 		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil || len(body) != 0 {
+			t.Error("expected no body")
+		}
 		hash := sha256.Sum256(nil)
-		if r.Header.Get("x-amz-content-sha256") != hex.EncodeToString(hash[:]) {
-			t.Error("empty digest")
+		expected := hex.EncodeToString(hash[:])
+		if r.Method == "GET" || r.Method == "DELETE" {
+			expected = ""
+		}
+		if r.Header.Get("x-amz-content-sha256") != expected {
+			t.Error("bodiless digest")
+		}
+		if expected == "" && len(r.Header.Values("x-amz-content-sha256")) != 0 {
+			t.Error("unexpected digest header")
 		}
 		w.WriteHeader(200)
 	})
@@ -597,7 +608,7 @@ func TestHardeningAuthEmptyDigestDotLabelsAndDenseCollections(t *testing.T) {
 	client.schema = &schemaDescription{Shapes: client.schema.Shapes, Operations: operations, Bearer: true}
 	op := operations["Ping"]
 	op.Bearer = false
-	for _, method := range []string{"POST", "PUT", "PATCH"} {
+	for _, method := range []string{"POST", "PUT", "PATCH", "GET", "DELETE"} {
 		op.Method = method
 		operations["Ping"] = op
 		if _, err := client.Ping(context.Background(), Unit{}); err != nil {
@@ -611,7 +622,7 @@ func TestHardeningAuthEmptyDigestDotLabelsAndDenseCollections(t *testing.T) {
 			t.Fatalf("dot label: %v", err)
 		}
 	}
-	if calls != 3 {
+	if calls != 5 {
 		t.Fatal("invalid request dispatched")
 	}
 	schema := &schemaDescription{Shapes: map[string]shapeDescription{

@@ -114,9 +114,10 @@ fn redaction_member(service: &Service, member: &Member, prefix: &str) -> String 
 
 /// A graph of static references also represents recursive model shapes.
 pub(crate) fn redactions(service: &Service) -> String {
-    let mut out = String::from(
-        "#[allow(dead_code, unused_imports)]\nmod __redaction {\n    use ::crucible::operation::Redaction;\n",
-    );
+    let mut out = String::from("#[allow(dead_code, unused_imports)]\nmod __redaction {\n");
+    if !service.shapes.is_empty() {
+        out.push_str("    use ::crucible::operation::Redaction;\n");
+    }
     for (index, shape) in service.shapes.values().enumerate() {
         let policy = if shape.sensitive() {
             "Redaction::Sensitive".to_owned()

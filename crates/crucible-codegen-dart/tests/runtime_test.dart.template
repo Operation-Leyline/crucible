@@ -40,6 +40,20 @@ void main() {
       expect(request.headers['x-amz-content-sha256'], 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
       return response(200);
     });
+    for (final method in ['POST', 'PUT', 'PATCH', 'GET', 'DELETE']) {
+      final fake = Fake((_, request, read) {
+        expect(request.body, isNull);
+        expect(request.method, method);
+        if (method == 'GET' || method == 'DELETE') {
+          expect(request.headers.containsKey('x-amz-content-sha256'), isFalse);
+        } else {
+          expect(request.headers['x-amz-content-sha256'], 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+        }
+        return response(200);
+      });
+      await client(fake, middleware: [(request) => request.copyWith(method: method)]).retrySafe();
+      expect(fake.requests.length, 1);
+    }
     await client(empty).retrySafe();
     for (final label in ['.', '..']) {
       final fake = Fake((_, request, read) => throw StateError('Dot label reached transport'));

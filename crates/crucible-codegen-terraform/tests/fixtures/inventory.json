@@ -1,0 +1,302 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.infra#Inventory": {
+      "type": "service",
+      "version": "1",
+      "resources": [
+        {
+          "target": "example.infra#Widget"
+        }
+      ],
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#httpBearerAuth": {}
+      }
+    },
+    "crucible.protocols#json": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#trait": {},
+        "smithy.api#protocolDefinition": {}
+      }
+    },
+    "example.infra#Widget": {
+      "type": "resource",
+      "identifiers": {
+        "widgetId": {
+          "target": "example.infra#Id"
+        }
+      },
+      "properties": {
+        "name": {
+          "target": "example.infra#Name"
+        },
+        "enabled": {
+          "target": "smithy.api#Boolean"
+        },
+        "capacity": {
+          "target": "smithy.api#Integer"
+        },
+        "slug": {
+          "target": "smithy.api#String"
+        }
+      },
+      "create": {
+        "target": "example.infra#CreateWidget"
+      },
+      "read": {
+        "target": "example.infra#ReadWidget"
+      },
+      "update": {
+        "target": "example.infra#UpdateWidget"
+      },
+      "delete": {
+        "target": "example.infra#DeleteWidget"
+      }
+    },
+    "example.infra#Id": {
+      "type": "string"
+    },
+    "example.infra#Name": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 100
+        }
+      }
+    },
+    "example.infra#NotFound": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 404
+      }
+    },
+    "example.infra#CreateInput": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "example.infra#Name",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "enabled": {
+          "target": "smithy.api#Boolean",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "capacity": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "slug": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "example.infra#IdentityInput": {
+      "type": "structure",
+      "members": {
+        "widgetId": {
+          "target": "example.infra#Id",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#httpLabel": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "example.infra#UpdateInput": {
+      "type": "structure",
+      "members": {
+        "widgetId": {
+          "target": "example.infra#Id",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#httpLabel": {}
+          }
+        },
+        "name": {
+          "target": "example.infra#Name",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "enabled": {
+          "target": "smithy.api#Boolean",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "capacity": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "slug": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "example.infra#WidgetState": {
+      "type": "structure",
+      "members": {
+        "id": {
+          "target": "example.infra#Id",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "name": {
+          "target": "example.infra#Name",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "enabled": {
+          "target": "smithy.api#Boolean",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "capacity": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "slug": {
+          "target": "smithy.api#String"
+        }
+      },
+      "traits": {
+        "smithy.api#references": [
+          {
+            "resource": "example.infra#Widget",
+            "ids": {
+              "widgetId": "id"
+            }
+          }
+        ]
+      }
+    },
+    "example.infra#WidgetOutput": {
+      "type": "structure",
+      "members": {
+        "widget": {
+          "target": "example.infra#WidgetState",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#nestedProperties": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "example.infra#CreateWidget": {
+      "type": "operation",
+      "input": {
+        "target": "example.infra#CreateInput"
+      },
+      "errors": [
+        {
+          "target": "example.infra#NotFound"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/widgets",
+          "code": 200
+        }
+      },
+      "output": {
+        "target": "example.infra#WidgetOutput"
+      }
+    },
+    "example.infra#ReadWidget": {
+      "type": "operation",
+      "input": {
+        "target": "example.infra#IdentityInput"
+      },
+      "errors": [
+        {
+          "target": "example.infra#NotFound"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/widgets/{widgetId}",
+          "code": 200
+        },
+        "smithy.api#readonly": {}
+      },
+      "output": {
+        "target": "example.infra#WidgetOutput"
+      }
+    },
+    "example.infra#UpdateWidget": {
+      "type": "operation",
+      "input": {
+        "target": "example.infra#UpdateInput"
+      },
+      "errors": [
+        {
+          "target": "example.infra#NotFound"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/widgets/{widgetId}",
+          "code": 200
+        }
+      },
+      "output": {
+        "target": "example.infra#WidgetOutput"
+      }
+    },
+    "example.infra#DeleteWidget": {
+      "type": "operation",
+      "input": {
+        "target": "example.infra#IdentityInput"
+      },
+      "errors": [
+        {
+          "target": "example.infra#NotFound"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "DELETE",
+          "uri": "/widgets/{widgetId}",
+          "code": 200
+        }
+      }
+    }
+  }
+}
