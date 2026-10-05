@@ -76,12 +76,22 @@ The recovery CI exposed a Java checksum completion race, Kotlin response-job
 cleanup waiting for an unmodeled body, oversized Rust waiter errors, and MSVC
 compiler memory exhaustion in a nested test initializer. Targeted regressions
 cover the runtime failures; the C++ fixture retains its endpoint-rule assertions.
-Android CI installs current SDK packages and uses a smaller emulator data disk.
+Kotlin multiplatform CI installs current Android SDK packages. Android emulator
+CI frees unused runner .NET files before allocating the required 6 GiB data disk.
 Fresh Rust tests and Clippy, Kotlin's full JVM consumer gate, and Java's
 256 MiB streaming gate pass locally after these fixes.
 Ruby's memory test now warms each transfer path with at most 32 MiB before
 measuring 256 MiB transfers against the unchanged 96 MiB growth limit. Linux
 Ruby 4 passes repeated runs; a deliberately buffered response fails the gate.
+
+Review regressions cover oversized integer exponents, final waiter poll budgets,
+keyword-named Rust operations and outputless waiters, error discriminator
+collisions, signing overrides, release-path normalization, and native stream
+ownership and bounds. Java and Ruby retain original modeled error identities for
+waiters without changing wire error metadata. Kotlin preserves deadline types
+when Ktor replaces their cancellation cause, and its enum constants remain
+accessible as Java static fields. The local Rust suite passes 349 tests and the
+generated TypeScript suite passes 172 tests.
 
 The complete native CI matrix, published packages, authenticated AWS/Leyline
 traffic, and consumer migrations remain separate proof requirements. The PR's
