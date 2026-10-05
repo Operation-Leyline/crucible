@@ -175,7 +175,7 @@ internal sealed class ClientRuntime : IDisposable
         if (value is not JsonArray list) return Scalar(value);
         return string.Join(", ", list.Select(item => {
             var text = Scalar(item!);
-            return text.IndexOfAny([',', '"', '\\']) >= 0 || text.Trim() != text ? JsonSerializer.Serialize(text, JsonOptions) : text;
+            return text.Length == 0 || text.IndexOfAny([',', '"', '\\']) >= 0 || text.Trim() != text ? JsonSerializer.Serialize(text, JsonOptions) : text;
         }));
     }
     internal JsonNode? Header(JsonNode member, string value)

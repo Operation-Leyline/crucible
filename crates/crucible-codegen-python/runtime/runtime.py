@@ -193,7 +193,7 @@ class _Codec:
         shape = self.shapes[member["target"]]
         if shape["kind"] == "list":
             items = [self.bound(shape["member"], item, header=True) for item in value]
-            return ", ".join(json.dumps(x) if any(c in x for c in ',"\\') or x != x.strip() else x for x in items)
+            return ", ".join(json.dumps(x) if not x or any(c in x for c in ',"\\') or x != x.strip() else x for x in items)
         if shape["kind"] == "timestamp":
             value = _timestamp(value, member["format"], False)
         if isinstance(value, bool):

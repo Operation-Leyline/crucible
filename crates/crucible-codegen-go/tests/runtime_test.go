@@ -83,8 +83,9 @@ func TestHeaderLists(t *testing.T) {
 		t.Fatal(err)
 	}
 	var cases []struct {
-		Wire   string
-		Values []any
+		Wire    string
+		Encoded string
+		Values  []any
 	}
 	if err := json.Unmarshal(data, &cases); err != nil {
 		t.Fatal(err)
@@ -93,6 +94,14 @@ func TestHeaderLists(t *testing.T) {
 		value, err := headerValue(wireSchema, memberDescription{Target: "example.weather#Tags"}, test.Wire)
 		if err != nil || !reflect.DeepEqual(value, test.Values) {
 			t.Fatalf("%q => %#v, %v", test.Wire, value, err)
+		}
+		encoded, err := boundValue(test.Values)
+		if err != nil || encoded != test.Encoded {
+			t.Fatalf("encode %#v => %q, %v", test.Values, encoded, err)
+		}
+		roundTrip, err := headerValue(wireSchema, memberDescription{Target: "example.weather#Tags"}, encoded)
+		if err != nil || !reflect.DeepEqual(roundTrip, test.Values) {
+			t.Fatalf("roundtrip %#v => %#v, %v", test.Values, roundTrip, err)
 		}
 	}
 }

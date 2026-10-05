@@ -175,6 +175,9 @@ public final class ClientTest {
       check(
           runtime.header(member, test.get("wire").getAsString()).equals(test.get("values")),
           "header lists");
+      var headerText = ClientRuntime.bound(test.get("values"));
+      check(headerText.equals(test.get("encoded").getAsString()), "header encoding");
+      check(runtime.header(member, headerText).equals(test.get("values")), "header roundtrip");
     }
     check(
         runtime

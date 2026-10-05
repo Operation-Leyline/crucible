@@ -69,6 +69,9 @@ class RuntimeTests(unittest.TestCase):
         for case in json.loads((ROOT / "tests/conformance/header-lists.json").read_text()):
             with self.subTest(case=case):
                 self.assertEqual(codec.read_header(member, case["wire"]), case["values"])
+                encoded = codec.bound(member, case["values"], header=True)
+                self.assertEqual(encoded, case["encoded"])
+                self.assertEqual(codec.read_header(member, encoded), case["values"])
 
     def test_cleartext_credentials_are_rejected_before_send(self):
         with httpx.Client(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:

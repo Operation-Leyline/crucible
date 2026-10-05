@@ -429,7 +429,8 @@ function headerValue(value: unknown, schema: Schema | undefined): string {
   return value
     .map(item => {
       const text = scalar(item, member);
-      return /[",]/.test(text) ? `"${text.replace(/["\\]/g, "\\$&")}"` : text;
+      return text.length === 0 || /[",\\]/.test(text) || text.trim() !== text
+        ? `"${text.replace(/["\\]/g, "\\$&")}"` : text;
     })
     .join(", ");
 }
@@ -461,6 +462,7 @@ function parseHeader(text: string, schema: Schema | undefined): unknown {
 }
 
 function splitHeader(text: string): string[] {
+  if (text.trim().length === 0) return [];
   const items: string[] = [];
   const pattern = /\s*(?:"((?:[^"\\]|\\.)*)"|([^,]*?))\s*(?:,|$)/g;
   for (const match of text.matchAll(pattern)) {

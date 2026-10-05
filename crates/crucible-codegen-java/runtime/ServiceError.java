@@ -5,7 +5,7 @@ public class ServiceError extends RuntimeException {
   private int status;
   private String requestId;
   private java.net.http.HttpHeaders headers;
-  private byte[] body;
+  private byte[] body = new byte[0];
   private boolean retryable;
   private boolean throttling;
 
