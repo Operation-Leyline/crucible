@@ -1,0 +1,623 @@
+{
+  "name": "weather",
+  "version": "0.1.0",
+  "description": "Weather",
+  "env_prefix": "WEATHER",
+  "endpoint": "http://localhost:8080",
+  "operations": [
+    {
+      "name": "create-city",
+      "operation": "CreateCity",
+      "description": "",
+      "input": "example.weather#CreateCityInput",
+      "paginated": false
+    },
+    {
+      "name": "get-city",
+      "operation": "GetCity",
+      "description": "",
+      "input": "example.weather#GetCityInput",
+      "paginated": false
+    },
+    {
+      "name": "get-city-photo",
+      "operation": "GetCityPhoto",
+      "description": "",
+      "input": "example.weather#GetCityPhotoInput",
+      "paginated": false
+    },
+    {
+      "name": "list-cities",
+      "operation": "ListCities",
+      "description": "",
+      "input": "example.weather#ListCitiesInput",
+      "paginated": true
+    },
+    {
+      "name": "ping",
+      "operation": "Ping",
+      "description": "",
+      "input": null,
+      "paginated": false
+    },
+    {
+      "name": "put-city-photo",
+      "operation": "PutCityPhoto",
+      "description": "Stores a city's photo exactly as sent.",
+      "input": "example.weather#PutCityPhotoInput",
+      "paginated": false
+    },
+    {
+      "name": "status",
+      "operation": "Status",
+      "description": "",
+      "input": "example.weather#StatusInput",
+      "paginated": false
+    }
+  ],
+  "shapes": {
+    "example.weather#CityId": {
+      "kind": "string",
+      "sensitive": false
+    },
+    "example.weather#CityName": {
+      "kind": "string",
+      "sensitive": false
+    },
+    "example.weather#CitySummaries": {
+      "kind": "list",
+      "target": "example.weather#CitySummary",
+      "sensitive": false
+    },
+    "example.weather#CitySummary": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "id",
+          "flag": "id",
+          "target": "example.weather#CityId",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "name",
+          "flag": "name",
+          "target": "example.weather#CityName",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "population",
+          "flag": "population",
+          "target": "smithy.api#Long",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "updatedAt",
+          "flag": "updated-at",
+          "target": "smithy.api#Timestamp",
+          "description": "",
+          "required": false,
+          "sensitive": false,
+          "kind": "string"
+        },
+        {
+          "name": "createdAt",
+          "flag": "created-at",
+          "target": "smithy.api#Timestamp",
+          "description": "",
+          "required": false,
+          "sensitive": false,
+          "kind": "number"
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#ConflictError": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "message",
+          "flag": "message",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#Coordinates": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "latitude",
+          "flag": "latitude",
+          "target": "smithy.api#Double",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "longitude",
+          "flag": "longitude",
+          "target": "smithy.api#Double",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#CreateCityInput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "name",
+          "flag": "name",
+          "target": "example.weather#CityName",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "location",
+          "flag": "location",
+          "target": "example.weather#Location",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "clientToken",
+          "flag": "client-token",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "expectedRevision",
+          "flag": "expected-revision",
+          "target": "smithy.api#Long",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#CreateCityOutput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "city",
+          "flag": "city",
+          "target": "example.weather#CitySummary",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#DateTime": {
+      "kind": "timestamp",
+      "sensitive": false
+    },
+    "example.weather#Forecast": {
+      "kind": "map",
+      "target": "smithy.api#Document",
+      "sensitive": false
+    },
+    "example.weather#GetCityInput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "cityId",
+          "flag": "city-id",
+          "target": "example.weather#CityId",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "at",
+          "flag": "at",
+          "target": "example.weather#DateTime",
+          "description": "",
+          "required": false,
+          "sensitive": false,
+          "kind": "string"
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#GetCityOutput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "city",
+          "flag": "city",
+          "target": "example.weather#CitySummary",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "forecast",
+          "flag": "forecast",
+          "target": "example.weather#Forecast",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "requestId",
+          "flag": "request-id",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#GetCityPhotoInput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "cityId",
+          "flag": "city-id",
+          "target": "example.weather#CityId",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#GetCityPhotoOutput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "caption",
+          "flag": "caption",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "photo",
+          "flag": "photo",
+          "target": "example.weather#Photo",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#ListCitiesInput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "nextToken",
+          "flag": "next-token",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "maxResults",
+          "flag": "max-results",
+          "target": "smithy.api#Integer",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "tags",
+          "flag": "tags",
+          "target": "example.weather#Tags",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#ListCitiesOutput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "cities",
+          "flag": "cities",
+          "target": "example.weather#CitySummaries",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "nextToken",
+          "flag": "next-token",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#Location": {
+      "kind": "union",
+      "members": [
+        {
+          "name": "coordinates",
+          "flag": "coordinates",
+          "target": "example.weather#Coordinates",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "unknown",
+          "flag": "unknown",
+          "target": "smithy.api#Unit",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#NotFoundError": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "message",
+          "flag": "message",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "resourceId",
+          "flag": "resource-id",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#Photo": {
+      "kind": "blob",
+      "sensitive": false
+    },
+    "example.weather#PhotoSummary": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "size",
+          "flag": "size",
+          "target": "smithy.api#Integer",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "thumbnail",
+          "flag": "thumbnail",
+          "target": "example.weather#Thumbnail",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "caption",
+          "flag": "caption",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#PutCityPhotoInput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "cityId",
+          "flag": "city-id",
+          "target": "example.weather#CityId",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "caption",
+          "flag": "caption",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "photo",
+          "flag": "photo",
+          "target": "example.weather#Photo",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#PutCityPhotoOutput": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "photo",
+          "flag": "photo",
+          "target": "example.weather#PhotoSummary",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#Sky": {
+      "kind": "string",
+      "sensitive": false
+    },
+    "example.weather#StatusInput": {
+      "kind": "structure",
+      "members": [],
+      "sensitive": false
+    },
+    "example.weather#StatusOutput": {
+      "kind": "structure",
+      "members": [],
+      "sensitive": false
+    },
+    "example.weather#Tags": {
+      "kind": "list",
+      "target": "smithy.api#String",
+      "sensitive": false
+    },
+    "example.weather#ThrottlingError": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "message",
+          "flag": "message",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "retryAfter",
+          "flag": "retry-after",
+          "target": "smithy.api#Integer",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#Thumbnail": {
+      "kind": "blob",
+      "sensitive": false
+    },
+    "example.weather#ValidationError": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "message",
+          "flag": "message",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "reason",
+          "flag": "reason",
+          "target": "example.weather#ValidationReason",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "fieldList",
+          "flag": "field-list",
+          "target": "example.weather#ValidationFieldList",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        },
+        {
+          "name": "requestId",
+          "flag": "request-id",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": false,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#ValidationField": {
+      "kind": "structure",
+      "members": [
+        {
+          "name": "path",
+          "flag": "path",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        },
+        {
+          "name": "message",
+          "flag": "message",
+          "target": "smithy.api#String",
+          "description": "",
+          "required": true,
+          "sensitive": false
+        }
+      ],
+      "sensitive": false
+    },
+    "example.weather#ValidationFieldList": {
+      "kind": "list",
+      "target": "example.weather#ValidationField",
+      "sensitive": false
+    },
+    "example.weather#ValidationReason": {
+      "kind": "string",
+      "sensitive": false
+    },
+    "smithy.api#Document": {
+      "kind": "document",
+      "sensitive": false
+    },
+    "smithy.api#Double": {
+      "kind": "number",
+      "sensitive": false
+    },
+    "smithy.api#Integer": {
+      "kind": "integer",
+      "sensitive": false
+    },
+    "smithy.api#Long": {
+      "kind": "integer",
+      "sensitive": false
+    },
+    "smithy.api#String": {
+      "kind": "string",
+      "sensitive": false
+    },
+    "smithy.api#Timestamp": {
+      "kind": "timestamp",
+      "sensitive": false
+    },
+    "smithy.api#Unit": {
+      "kind": "unit",
+      "sensitive": false
+    }
+  }
+}

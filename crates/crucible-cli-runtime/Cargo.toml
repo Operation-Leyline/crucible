@@ -1,0 +1,19 @@
+[package]
+name = "crucible-cli-runtime"
+description = "Shared command-line behavior for generated Crucible service clients"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["string"] }
+clap_complete = "4"
+crucible-client.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url = "2"
+
+[lints]
+workspace = true

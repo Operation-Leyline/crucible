@@ -51,6 +51,13 @@ cargo run -p crucible-cli -- generate ts model.json \
 Use `generate <target> --help` for the options of another language. Generation
 owns its output directory; change the model or generator and regenerate.
 
+## Generate a service CLI
+
+`crucible generate cli` creates a standalone Rust executable backed by the
+generated SDK. It supports typed flags, JSON input, profiles, shell completion,
+and pagination. See the [service CLI guide](docs/clients/cli.md) for generation,
+configuration, output conventions, and independent executable tests.
+
 ## Build a service
 
 The [framework guide](docs/framework.md) explains model packages, generated

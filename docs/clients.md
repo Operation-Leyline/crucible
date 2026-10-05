@@ -8,6 +8,8 @@ and representation limits.
 
 ## Language guides
 
+For standalone command-line tools, see [generating a service CLI](clients/cli.md).
+
 | Target | Guide | Package / qualification command |
 |---|---|---|
 | `rust` | [Rust](clients/rust.md) | Cargo; `bash tools/test-e2e.sh` |

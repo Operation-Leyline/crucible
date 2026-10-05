@@ -58,6 +58,22 @@ enum Command {
 
 #[derive(Subcommand)]
 enum Target {
+    /// A standalone Rust service CLI backed by the generated Rust client.
+    Cli {
+        #[command(flatten)]
+        source: Source,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        bin_name: String,
+        #[arg(long, default_value = "0.0.0")]
+        package_version: String,
+        #[arg(long)]
+        endpoint: Option<String>,
+        /// Crucible checkout supplying the unpublished client and CLI runtimes.
+        #[arg(long)]
+        runtime_path: PathBuf,
+    },
     /// A Ruby gem with native models and lazy pagination.
     Ruby {
         #[command(flatten)]
@@ -354,6 +370,54 @@ fn lower(source: &Source) -> Result<Service, String> {
 
 fn generate(target: Target) -> Result<(), String> {
     match target {
+        Target::Cli {
+            source,
+            out,
+            bin_name,
+            package_version,
+            endpoint,
+            runtime_path,
+        } => {
+            let service = lower(&source)?;
+            let runtime_path = runtime_path.canonicalize().map_err(|error| {
+                format!(
+                    "cannot resolve runtime path {}: {error}",
+                    runtime_path.display()
+                )
+            })?;
+            for name in ["crucible-client", "crucible-cli-runtime"] {
+                if !runtime_path
+                    .join("crates")
+                    .join(name)
+                    .join("Cargo.toml")
+                    .is_file()
+                {
+                    return Err(format!(
+                        "{} is not a Crucible checkout: missing crates/{name}/Cargo.toml",
+                        runtime_path.display()
+                    ));
+                }
+            }
+            let files = crucible_codegen_cli::emit(
+                &service,
+                &crucible_codegen_cli::Options {
+                    bin_name,
+                    package_version,
+                    endpoint,
+                    runtime_path,
+                },
+            )
+            .map_err(|diagnostics| format!("cannot generate the service CLI:\n{diagnostics}"))?;
+            output::write(
+                &out,
+                files
+                    .iter()
+                    .map(|file| (file.path.as_str(), file.contents.as_str())),
+            )
+            .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+            println!("wrote {} files to {}", files.len(), out.display());
+            Ok(())
+        }
         Target::Ruby {
             source,
             out,
