@@ -43,6 +43,9 @@ pub fn percent_decode(text: &str, plus: bool) -> Cow<'_, str> {
 
 /// A header list: comma-separated, items quoted when they hold a comma or quote.
 pub fn split_header(text: &str) -> Vec<String> {
+    if text.trim().is_empty() {
+        return Vec::new();
+    }
     let mut items = Vec::new();
     let mut chars = text.chars().peekable();
     loop {
@@ -74,9 +77,6 @@ pub fn split_header(text: &str) -> Vec<String> {
             break;
         }
     }
-    if items.len() == 1 && items[0].is_empty() {
-        items.clear();
-    }
     items
 }
 
@@ -84,7 +84,7 @@ pub fn join_header(items: impl IntoIterator<Item = String>) -> String {
     items
         .into_iter()
         .map(|item| {
-            if item.contains([',', '"']) {
+            if item.is_empty() || item.contains([',', '"', '\\']) || item.trim() != item {
                 format!("\"{}\"", item.replace('\\', "\\\\").replace('"', "\\\""))
             } else {
                 item
@@ -117,5 +117,24 @@ mod tests {
         ];
         assert_eq!(split_header(&join_header(items.clone())), items);
         assert!(split_header("").is_empty());
+    }
+
+    #[test]
+    fn shared_header_lists_preserve_empty_items_and_whitespace() {
+        #[derive(serde::Deserialize)]
+        struct Case {
+            wire: String,
+            values: Vec<String>,
+            encoded: String,
+        }
+        let cases: Vec<Case> =
+            serde_json::from_str(include_str!("../../../tests/conformance/header-lists.json"))
+                .unwrap();
+        for case in cases {
+            assert_eq!(split_header(&case.wire), case.values, "{}", case.wire);
+            let encoded = join_header(case.values.clone());
+            assert_eq!(encoded, case.encoded);
+            assert_eq!(split_header(&encoded), case.values);
+        }
     }
 }

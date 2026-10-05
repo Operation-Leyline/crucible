@@ -116,7 +116,7 @@ internal class JsonCodec(val schema: JsonObject) {
     }
     fun bound(value: JsonElement): String = if (value.isJsonArray) value.asJsonArray.joinToString(", ") {
         val text = it.asString
-        if (text.any { c -> c == ',' || c == '"' || c == '\\' } || text.trim() != text) json.toJson(text) else text
+        if (text.isEmpty() || text.any { c -> c == ',' || c == '"' || c == '\\' } || text.trim() != text) json.toJson(text) else text
     } else value.asString
     fun header(member: JsonObject, value: String): JsonElement {
         val shape = shape(member.text("target")!!)

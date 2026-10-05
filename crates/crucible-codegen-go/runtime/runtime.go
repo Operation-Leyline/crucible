@@ -502,7 +502,7 @@ func boundValue(value any) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			if strings.ContainsAny(text, ",\"\\") || strings.TrimSpace(text) != text {
+			if text == "" || strings.ContainsAny(text, ",\"\\") || strings.TrimSpace(text) != text {
 				text = strconv.Quote(text)
 			}
 			values[i] = text

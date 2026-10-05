@@ -1,7 +1,13 @@
 [
-  {"wire": "", "values": []},
-  {"wire": "  ", "values": []},
-  {"wire": "one, two", "values": ["one", "two"]},
-  {"wire": "\"a,b\", c", "values": ["a,b", "c"]},
-  {"wire": "\" a \", \"\", \"a\\\"b\", \"a\\\\b\"", "values": [" a ", "", "a\"b", "a\\b"]}
+  {"wire": "", "values": [], "encoded": ""},
+  {"wire": "  ", "values": [], "encoded": ""},
+  {"wire": "one, two", "values": ["one", "two"], "encoded": "one, two"},
+  {"wire": "\"a,b\", c", "values": ["a,b", "c"], "encoded": "\"a,b\", c"},
+  {"wire": "\" a \", \"\", \"a\\\"b\", \"a\\\\b\"", "values": [" a ", "", "a\"b", "a\\b"], "encoded": "\" a \", \"\", \"a\\\"b\", \"a\\\\b\""},
+  {"wire": "\"\"", "values": [""], "encoded": "\"\""},
+  {"wire": "\" leading\"", "values": [" leading"], "encoded": "\" leading\""},
+  {"wire": "\"trailing \"", "values": ["trailing "], "encoded": "\"trailing \""},
+  {"wire": "\"a\\\\b\"", "values": ["a\\b"], "encoded": "\"a\\\\b\""},
+  {"wire": "\"a\\\"b\"", "values": ["a\"b"], "encoded": "\"a\\\"b\""},
+  {"wire": "\"a,b\"", "values": ["a,b"], "encoded": "\"a,b\""}
 ]

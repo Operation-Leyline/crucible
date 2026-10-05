@@ -376,13 +376,14 @@ final class ClientRuntime {
     return Instant.parse(value.getAsString());
   }
 
-  private static String bound(JsonElement value) {
+  static String bound(JsonElement value) {
     if (value.isJsonArray()) {
       List<String> values = new ArrayList<>();
       for (JsonElement item : value.getAsJsonArray()) {
         String text = bound(item);
         values.add(
-            text.contains(",")
+            text.isEmpty()
+                    || text.contains(",")
                     || text.contains("\"")
                     || text.contains("\\")
                     || !text.strip().equals(text)

@@ -129,6 +129,10 @@ static class Program
             {
                 var actual = (JsonNode)Invoke(runtime, "Header", J("""{"target":"example.weather#Tags"}"""), test!["wire"]!.GetValue<string>())!;
                 Check(JsonNode.DeepEquals(actual, test["values"]), "header list");
+                var headerText = (string)RuntimeType.GetMethod("Bound", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [test["values"]])!;
+                Check(headerText == test["encoded"]!.GetValue<string>(), "header encoding");
+                var roundTrip = (JsonNode)Invoke(runtime, "Header", J("""{"target":"example.weather#Tags"}"""), headerText)!;
+                Check(JsonNode.DeepEquals(roundTrip, test["values"]), "header roundtrip");
             }
             var date = (JsonNode)Invoke(runtime, "Encode", "example.weather#DateTime", DateTimeOffset.Parse("2026-10-01T00:00:00Z"), "http-date")!;
             Check(date.GetValue<string>() == "Thu, 01 Oct 2026 00:00:00 GMT", "HTTP date");

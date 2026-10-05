@@ -86,6 +86,7 @@ private class Codec {
     fun decode(target: String, wire: String): Any? = invoke("decode", target, json(wire), null)
     fun encode(target: String, value: Any?, format: String? = null): JsonElement = invoke("encode", target, value, format) as JsonElement
     fun header(wire: String): JsonElement = invoke("header", json("""{"target":"example.weather#Tags"}""").asJsonObject, wire) as JsonElement
+    fun bound(values: JsonElement): String = invoke("bound", values) as String
 }
 private fun serialization(path: String) {
     val codec = Codec()
@@ -111,6 +112,9 @@ private fun serialization(path: String) {
     catch (_: IllegalArgumentException) { }
     for (test in json(String(Files.readAllBytes(Paths.get(path)))).asJsonArray) {
         check(codec.header(test.asJsonObject.get("wire").asString) == test.asJsonObject.get("values"))
+        val encoded = codec.bound(test.asJsonObject.get("values"))
+        check(encoded == test.asJsonObject.get("encoded").asString)
+        check(codec.header(encoded) == test.asJsonObject.get("values"))
     }
     check(codec.encode("example.weather#DateTime", Instant.parse("2026-10-01T00:00:00Z"), "http-date").asString == "Thu, 01 Oct 2026 00:00:00 GMT")
 }
