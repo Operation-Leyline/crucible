@@ -134,6 +134,53 @@ String and structured payloads occupy the whole body. Media-type strings in
 direct and prefixed headers are encoded on the wire and exposed as strings.
 Modeled error payloads use the Crucible error discriminator header.
 
+## Retry modes, endpoint discovery, and telemetry
+
+These follow [the runtime policy contract](../sdk-runtime-policy.md) and pass
+its shared vectors.
+
+`ClientConfig.RetryMode` is `RetryMode.Legacy` (the default: retry every
+eligible failure up to `MaxAttempts`), `Standard` (adds the client's retry
+quota of 500 tokens, 5 per retry and 10 after a transport timeout, refunded
+on success), or `Adaptive` (standard plus a CUBIC client-side send-rate
+limiter that engages after the first modeled throttling error). One quota and
+limiter are shared by every call of a client. `RetryQuota`,
+`AdaptiveRateLimiter`, and `CubicCalculator` are public for inspection and
+tests. A transport timeout (connect, read, or an injected `HttpClient`'s own
+`Timeout`) is a `NetworkError` retried for safe operations; the call's
+`Timeout` ends the call instead. A call waiting for a send token waits under
+its deadline and returns the token if canceled; the synchronous wrappers
+behave the same, since they run the asynchronous call.
+
+For a service with `@aws.api#clientEndpointDiscovery`, `EndpointDiscovery`
+is `null` (discover for operations that require it), `true` (also for
+optional ones), or `false` (never; a required operation throws
+`EndpointDiscoveryException` before sending). Discovered endpoints are cached
+per client by operation and identifiers for their `CachePeriodInMinutes`.
+Concurrent calls that need the same endpoint share one discovery, which runs
+as its own task: canceling the call that started it does not cancel it for
+the others. HTTP 421 or the modeled discovery error evicts the entry and
+retries the call, even a write, within `MaxAttempts` and the retry quota. An
+optional operation whose discovery fails uses the configured endpoint for 60
+seconds.
+
+`Telemetry` takes a `TelemetryHook` whose `OnOperationStarted`,
+`OnAttemptStarted`, `OnAttemptFinished`, and `OnOperationFinished` methods
+receive record events. Headers and targets redact credentials, API keys,
+and every header, query parameter, and label bound to a `@sensitive` member;
+no event carries a body, input, output, or error message. A hook that throws
+is reported through `System.Diagnostics.Trace` and never changes the call.
+`ActivityTelemetryHook` maps the events onto .NET's built-in `ActivitySource`
+and `Meter` (default name `Crucible.Client`), which OpenTelemetry .NET can
+listen to: one client activity per operation with `rpc.*` tags, attempt
+events, an error status, the `crucible.client.operation.duration` histogram,
+and the `crucible.client.attempts` counter. No package is added.
+
+`TimeProvider` (default `TimeProvider.System`) is the clock for backoff and
+rate-limit sleeps, the rate limiter, discovery cache expiry, and telemetry
+times and latencies. Tests can inject a fake; the call's `Timeout` always
+uses real time.
+
 ## Streaming blobs
 
 A `@streaming` blob is a `ByteStream`, sent or received as the whole HTTP body
@@ -225,7 +272,13 @@ follow the rules under Streaming blobs.
 `python tools/test-csharp.py` packs the SDK, installs the package into a fresh
 consumer, runs shared retry/header fixtures and loopback HTTP tests, and drives
 the weather service. It also packages empty services and models with names
-that shadow runtime types or inherited methods. Its streaming suite runs
+that shadow runtime types or inherited methods. Its policy suite generates
+`runtime-policy.json` and runs every shared vector in `retry-quota.json`,
+`adaptive-retry.json`, `endpoint-discovery.json`, and `telemetry.json` on a
+fake `TimeProvider`, plus single-flight discovery with eight concurrent
+asynchronous and blocking callers, a shared discovery failure, a canceled
+leader, hook failures, cancellation events, and the `ActivitySource`/`Meter`
+adapter. Its streaming suite runs
 under a 128 MiB hard GC heap limit against a loopback HTTP/1.1 server: one-shot,
 seekable, file and factory uploads with their replay rules, `@requiresLength` and
 length bounds, 256 MiB uploads and downloads (unsigned and SigV4-signed) with

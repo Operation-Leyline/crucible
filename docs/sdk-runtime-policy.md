@@ -331,4 +331,5 @@ eight threads or tasks, one discovery, including a cancelled leader).
 | Runtime | Retry modes | Endpoint discovery | Telemetry |
 |---|---|---|---|
 | Python | yes | yes (`Feature::EndpointDiscovery` declared) | yes |
+| C# | yes (`RetryMode`) | yes (`Feature::EndpointDiscovery` declared) | yes (`TelemetryHook`, `ActivityTelemetryHook`) |
 | Others | not yet | not declared | not yet |

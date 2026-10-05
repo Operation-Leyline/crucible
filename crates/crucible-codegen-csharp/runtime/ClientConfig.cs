@@ -20,4 +20,12 @@ public sealed class ClientConfig
     public TimeSpan MaxDelay { get; init; } = TimeSpan.FromSeconds(20);
     public Dictionary<string, string> Headers { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     public List<Func<HttpRequestMessage, CancellationToken, ValueTask>> Middleware { get; init; } = [];
+    /// <summary>Legacy (the default) has no retry quota; Standard adds the client's retry quota; Adaptive also limits the send rate after throttling.</summary>
+    public RetryMode RetryMode { get; init; } = RetryMode.Legacy;
+    /// <summary>Null discovers endpoints only for operations that require it, true also for optional ones, false never (a required operation then fails before sending).</summary>
+    public bool? EndpointDiscovery { get; init; }
+    /// <summary>Receives redacted operation and attempt events. A hook that throws is traced and otherwise ignored.</summary>
+    public TelemetryHook? Telemetry { get; init; }
+    /// <summary>The clock for retry and rate-limit sleeps, the rate limiter, the discovery cache, and telemetry. <see cref="Timeout"/> always uses real time.</summary>
+    public TimeProvider TimeProvider { get; init; } = TimeProvider.System;
 }

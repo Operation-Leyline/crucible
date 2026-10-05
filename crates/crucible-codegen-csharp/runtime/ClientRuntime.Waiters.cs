@@ -58,7 +58,7 @@ internal sealed partial class ClientRuntime
             while (true)
             {
                 deadline.Token.ThrowIfCancellationRequested(); attempts++; error = null;
-                try { response = await SendAsync<T>(Prepare(operation,(JsonObject)encoded.DeepClone(),stream),deadline.Token).ConfigureAwait(false); }
+                try { response = await TracedAsync(operation,trace => SendAsync<T>(Prepare(operation,(JsonObject)encoded.DeepClone(),stream),trace,null,deadline.Token)).ConfigureAwait(false); }
                 catch (Exception failure) when (failure is not OperationCanceledException) { response = default; error = failure; }
                 var output = error is null ? QueryModel(Text(op["output"]),Encode(Text(op["output"]),response)) : null;
                 string state = error is null ? "retry" : "failure"; string? message = null;

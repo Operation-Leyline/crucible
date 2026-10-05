@@ -43,7 +43,26 @@ def streaming(output):
     run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"), cwd=consumer)
 
 
+def policy(output):
+    """Retry modes, endpoint discovery and telemetry against the shared runtime-policy vectors."""
+    package = output / "policy"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/runtime-policy.json", package, "Example.Policy", "Example.Policy", digest=False)
+    feed = output / "policy-feed"
+    run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(feed), cwd=package)
+    consumer = output / "policy-consumer"
+    consumer.mkdir()
+    (consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.Policy" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Policy.cs", consumer / "Program.cs")
+    run("dotnet", "restore", "--source", str(feed), "--packages", str(output / "policy-installed"), cwd=consumer)
+    run("dotnet", "build", "--no-restore", "--nologo", "-v", "quiet", "-warnaserror", cwd=consumer)
+    run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"), str(ROOT / "tests/conformance"), cwd=consumer)
+
+
 def qualify(output):
+    policy(output)
     streaming(output)
     checksum = output / "checksum"
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", checksum, "Example.Checksum", "Example.Checksum")
@@ -206,5 +225,7 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="crucible-csharp-") as directory:
         if os.environ.get("CSHARP_ONLY") == "streaming":
             streaming(Path(directory))
+        elif os.environ.get("CSHARP_ONLY") == "policy":
+            policy(Path(directory))
         else:
             qualify(Path(directory))

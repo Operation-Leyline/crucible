@@ -142,6 +142,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsJson11,
         Feature::HttpChecksum,
         Feature::Streaming,
+        Feature::EndpointDiscovery,
     ])
 }
 
@@ -495,6 +496,51 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         (
             "ClientRuntime.Waiters",
             include_str!("../runtime/ClientRuntime.Waiters.cs"),
+        ),
+        (
+            "ClientRuntime.Policy",
+            include_str!("../runtime/ClientRuntime.Policy.cs"),
+        ),
+        ("RetryMode", include_str!("../runtime/RetryMode.cs")),
+        ("RetryQuota", include_str!("../runtime/RetryQuota.cs")),
+        ("RetryStrategy", include_str!("../runtime/RetryStrategy.cs")),
+        (
+            "CubicCalculator",
+            include_str!("../runtime/CubicCalculator.cs"),
+        ),
+        (
+            "AdaptiveRateLimiter",
+            include_str!("../runtime/AdaptiveRateLimiter.cs"),
+        ),
+        ("EndpointCache", include_str!("../runtime/EndpointCache.cs")),
+        (
+            "DiscoveredAddress",
+            include_str!("../runtime/DiscoveredAddress.cs"),
+        ),
+        (
+            "EndpointDiscoveryException",
+            include_str!("../runtime/EndpointDiscoveryException.cs"),
+        ),
+        ("TelemetryHook", include_str!("../runtime/TelemetryHook.cs")),
+        (
+            "OperationStarted",
+            include_str!("../runtime/OperationStarted.cs"),
+        ),
+        (
+            "AttemptStarted",
+            include_str!("../runtime/AttemptStarted.cs"),
+        ),
+        (
+            "AttemptFinished",
+            include_str!("../runtime/AttemptFinished.cs"),
+        ),
+        (
+            "OperationFinished",
+            include_str!("../runtime/OperationFinished.cs"),
+        ),
+        (
+            "ActivityTelemetryHook",
+            include_str!("../runtime/ActivityTelemetryHook.cs"),
         ),
     ] {
         files.push(File {

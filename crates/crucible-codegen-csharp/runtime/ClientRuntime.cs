@@ -40,11 +40,14 @@ internal sealed partial class ClientRuntime : IDisposable
             EndpointParameters = input.EndpointParameters.ToDictionary(entry => entry.Key,entry => entry.Value?.DeepClone()),
             EndpointBuiltIns = input.EndpointBuiltIns.ToDictionary(entry => entry.Key,entry => entry.Value?.DeepClone()), DisableHostPrefix = input.DisableHostPrefix,
             Timeout = input.Timeout, BaseDelay = input.BaseDelay, MaxDelay = input.MaxDelay,
-            Headers = new(input.Headers, StringComparer.OrdinalIgnoreCase), Middleware = [.. input.Middleware]
+            Headers = new(input.Headers, StringComparer.OrdinalIgnoreCase), Middleware = [.. input.Middleware],
+            RetryMode = input.RetryMode, EndpointDiscovery = input.EndpointDiscovery, Telemetry = input.Telemetry,
+            TimeProvider = input.TimeProvider ?? throw new ArgumentException("A TimeProvider is required")
         };
         ownsHttp = input.HttpClient is null;
         http = input.HttpClient ?? new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
         this.digest = digest; this.schema = schema; this.types = types;
+        InitializePolicy();
     }
     public void Dispose() { if (ownsHttp) http.Dispose(); }
     private static JsonObject LoadSchema()
@@ -294,7 +297,19 @@ internal sealed partial class ClientRuntime : IDisposable
         return JsonValue.Create(value);
     }
     private sealed record Prepared(JsonObject Operation, Uri Uri, Dictionary<string, string> Headers, byte[]? Body, string Name, ChecksumSettings Checksums,
-        ByteStream? Stream = null, long? MinLength = null, long? MaxLength = null);
+        ByteStream? Stream = null, long? MinLength = null, long? MaxLength = null)
+    {
+        /// <summary>The endpoint the URI was built from, and where it came from: configured or rules.</summary>
+        public string EndpointUrl { get; init; } = "";
+        public string EndpointSource { get; init; } = "configured";
+        /// <summary>The path and query appended to the endpoint, so a discovered endpoint can replace it.</summary>
+        public string Target { get; init; } = "";
+        /// <summary>The path with sensitive labels redacted, for telemetry.</summary>
+        public string DisplayPath { get; init; } = "";
+        public HashSet<string> SensitiveHeaders { get; init; } = [];
+        public HashSet<string> SensitiveQuery { get; init; } = [];
+        public DiscoveryRequest? Discovery { get; init; }
+    }
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static JsonNode? MediaValue(JsonNode? value, bool decode)
     {
@@ -351,7 +366,12 @@ internal sealed partial class ClientRuntime : IDisposable
         var boundValues = (JsonObject)values.DeepClone();
         foreach (var (member, format) in request["timestampFormats"]?.AsObject() ?? new JsonObject())
             boundValues[Wire(member)] = BoundMember(Shape(Text(op["input"])!)["members"]![member]!, values[Wire(member)], Text(format));
-        var path = Text(op["uri"])!;
+        var path = Text(op["uri"])!; var display = path;
+        // Telemetry shows where sensitive members went without their values.
+        var inputMembers = op["input"] is null ? null : Shape(Text(op["input"])!)["members"]?.AsObject();
+        bool Sensitive(string member) => Flag(inputMembers?[member]?["sensitive"]);
+        var sensitiveHeaders = new HashSet<string>(credentialHeaders, StringComparer.OrdinalIgnoreCase);
+        var sensitiveQuery = new HashSet<string>(credentialQuery, StringComparer.OrdinalIgnoreCase);
         foreach (var label in request["labels"]!.AsArray())
         {
             var key = Text(label)!; var value = boundValues[Wire(key)];
@@ -360,12 +380,15 @@ internal sealed partial class ClientRuntime : IDisposable
             var greedy = op["greedyLabels"]?.AsArray().Any(item => Text(item) == key) == true;
             var parts = greedy ? labelText.Split('/') : new[] { labelText };
             if (parts.Any(part => part is "." or "..")) throw new ArgumentException("Dot-segment HTTP label: " + key);
-            path = path.Replace("{" + key + (greedy ? "+" : "") + "}", string.Join("/", parts.Select(Uri.EscapeDataString)), StringComparison.Ordinal);
+            var placeholder = "{" + key + (greedy ? "+" : "") + "}"; var escaped = string.Join("/", parts.Select(Uri.EscapeDataString));
+            path = path.Replace(placeholder, escaped, StringComparison.Ordinal);
+            display = display.Replace(placeholder, Sensitive(key) ? Redacted : escaped, StringComparison.Ordinal);
         }
         var query = new List<string>();
         foreach (var binding in request["query"]!.AsArray())
         {
-            var value = boundValues[Wire(Text(binding![0])!)]; if (value is null) continue;
+            if (Sensitive(Text(binding![0])!)) sensitiveQuery.Add(Text(binding[1])!);
+            var value = boundValues[Wire(Text(binding[0])!)]; if (value is null) continue;
             IEnumerable<JsonNode?> items = value is JsonArray array ? array : new[] { value };
             foreach (var item in items) query.Add(Uri.EscapeDataString(Text(binding[1])!) + "=" + Uri.EscapeDataString(Scalar(item!)));
         }
@@ -376,6 +399,7 @@ internal sealed partial class ClientRuntime : IDisposable
             foreach (var (key, value) in queryMap.OrderBy(entry => entry.Key, StringComparer.Ordinal))
             {
                 if (reserved.Contains(key) || value is null) continue;
+                if (Sensitive(queryMember)) sensitiveQuery.Add(key);
                 IEnumerable<JsonNode?> items = value is JsonArray array ? array : new[] { value };
                 foreach (var item in items) query.Add(Uri.EscapeDataString(key) + "=" + Uri.EscapeDataString(Scalar(item!)));
             }
@@ -390,12 +414,14 @@ internal sealed partial class ClientRuntime : IDisposable
             foreach (var (key, value) in map)
             {
                 var header = Text(binding[1]) + key;
+                if (Sensitive(Text(binding[0])!)) sensitiveHeaders.Add(header);
                 if (!reservedHeaders.Contains(header) && value is not null) headers[header] = Bound(Text(request["headerEncodings"]?[Text(binding[0])!]) == "base64" ? MediaValue(value,false)! : value);
             }
         }
         foreach (var binding in request["headers"]!.AsArray())
         {
             var key = Text(binding![0])!;
+            if (Sensitive(key)) sensitiveHeaders.Add(Text(binding[1])!);
             var value = boundValues[Wire(key)];
             if (value is not null) headers[Text(binding[1])!] = Bound(Text(request["headerEncodings"]?[key]) == "base64" ? MediaValue(value, false)! : value);
         }
@@ -432,7 +458,12 @@ internal sealed partial class ClientRuntime : IDisposable
             headers["Content-Type"] = "application/x-amz-json-" + (Text(schema["protocol"]) == "awsJson1_0" ? "1.0" : "1.1");
             headers["X-Amz-Target"] = Text(schema["service"])!.Split('#')[^1] + "." + name;
         }
-        return new(op, new Uri(endpoint.TrimEnd('/') + path), headers, body, name, checksums, stream, minimum, maximum);
+        return new(op, new Uri(endpoint.TrimEnd('/') + path), headers, body, name, checksums, stream, minimum, maximum)
+        {
+            EndpointUrl = endpoint.TrimEnd('/'), EndpointSource = schema["endpointRules"] is null ? "configured" : "rules", Target = path,
+            DisplayPath = display.Split('?', 2)[0], SensitiveHeaders = sensitiveHeaders, SensitiveQuery = sensitiveQuery,
+            Discovery = DiscoveryFor(name, op, key => values[Wire(key)])
+        };
     }
     private static bool Secure(Uri uri) => uri.Scheme == "https" || uri.Scheme == "http" &&
         (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || System.Net.IPAddress.TryParse(uri.Host.Trim('[', ']'), out var ip) && System.Net.IPAddress.IsLoopback(ip));
@@ -448,17 +479,17 @@ internal sealed partial class ClientRuntime : IDisposable
             request.Content.Headers.Remove(key); request.Content.Headers.Add(key, value);
         }
     }
-    internal async Task<T> CallAsync<T>(string name, object? input, CancellationToken cancellationToken)
+    internal Task<T> CallAsync<T>(string name, object? input, CancellationToken cancellationToken) => TracedAsync(name, async trace =>
     {
         var op = schema["operations"]![name]!.AsObject();
         var stream = RequestStream(op, input);
         try
         {
             var values = Encode(Text(op["input"]), input)?.AsObject() ?? new JsonObject();
-            return await SendAsync<T>(Prepare(name, values, stream), cancellationToken).ConfigureAwait(false);
+            return await SendAsync<T>(Prepare(name, values, stream), trace, null, cancellationToken).ConfigureAwait(false);
         }
         finally { stream?.Release(); }
-    }
+    });
     /// <summary>The streaming payload of <paramref name="input"/>, which encoding leaves out of the JSON values.</summary>
     private ByteStream? RequestStream(JsonObject op, object? input)
     {
@@ -569,22 +600,35 @@ internal sealed partial class ClientRuntime : IDisposable
             throw new InvalidOperationException("No identity available for modeled authentication schemes");
         return (false, null);
     }
-    private async Task<T> SendAsync<T>(Prepared prepared, CancellationToken cancellationToken)
+    private async Task<T> SendAsync<T>(Prepared prepared, CallTrace trace, TimeSpan? timeout, CancellationToken cancellationToken)
     {
         // A streamed response takes over the deadline, so it still bounds reading the body.
         var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         bool handedOff = false;
         try
         {
-            deadline.CancelAfter(config.Timeout); var ct = deadline.Token;
-            var op = prepared.Operation; bool safe = Flag(op["safe"]);
+            // The deadline always uses real time; the configured TimeProvider only drives policy sleeps and readings.
+            var limit = timeout ?? config.Timeout; var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            deadline.CancelAfter(limit); var ct = deadline.Token;
+            var op = prepared.Operation;
             var stream = prepared.Stream;
             // A one-shot stream cannot be sent twice.
             int maxAttempts = stream is { Replayable: false } ? 1 : config.MaxAttempts;
-            for (int attempt = 0; ; attempt++)
+            int? lastCost = null;
+            for (int attempt = 1; ; attempt++)
             {
                 ct.ThrowIfCancellationRequested();
-                using var request = new HttpRequestMessage(new HttpMethod(Text(op["method"])!), prepared.Uri);
+                var discovered = await DiscoverAsync(prepared, limit - System.Diagnostics.Stopwatch.GetElapsedTime(started), ct).ConfigureAwait(false);
+                // Host prefixes are not applied to a discovered address; endpoint-rule headers and auth properties still are.
+                var (uri, endpoint, source) = discovered is null ? (prepared.Uri, prepared.EndpointUrl, prepared.EndpointSource)
+                    : (new Uri(discovered.Url + prepared.Target), discovered.Url, "discovered");
+                var wait = retry.SendDelay();
+                if (wait > TimeSpan.Zero)
+                {
+                    try { await Task.Delay(wait, config.TimeProvider, ct).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { retry.CancelSend(); throw; }
+                }
+                using var request = new HttpRequestMessage(new HttpMethod(Text(op["method"])!), uri);
                 if (stream is not null) request.Content = new ByteStreamContent(stream, prepared.MinLength, prepared.MaxLength);
                 else if (prepared.Body is not null) request.Content = new ByteArrayContent(prepared.Body);
                 foreach (var (key, value) in prepared.Headers) SetHeader(request, key, value);
@@ -609,47 +653,79 @@ internal sealed partial class ClientRuntime : IDisposable
                 ct.ThrowIfCancellationRequested();
                 await Checksums.RequestAsync(prepared.Checksums, request, ct).ConfigureAwait(false);
                 if (authentication.Sign is not null) await authentication.Sign().ConfigureAwait(false);
-                Exception? failure = null; TimeSpan delay = TimeSpan.Zero;
-                HttpResponseMessage? response = null;
+                trace.AttemptStarted(prepared, request, endpoint, source);
+                Exception? failure = null; bool timedOut = false;
+                HttpResponseMessage? response = null; int? status = null; long? size = null;
+                Dictionary<string, string>? headers = null;
                 try
                 {
                     response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-                    var headers = response.Headers.Concat(response.Content.Headers).GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
+                    status = (int)response.StatusCode;
+                    headers = response.Headers.Concat(response.Content.Headers).GroupBy(h => h.Key, StringComparer.OrdinalIgnoreCase)
                         .ToDictionary(g => g.Key, g => string.Join(", ", g.SelectMany(h => h.Value)), StringComparer.OrdinalIgnoreCase);
                     var payload = op["response"]!["payload"] as JsonArray;
                     if (response.IsSuccessStatusCode && payload is not null && Flag(op["response"]!["streaming"]))
                     {
+                        var length = response.Content.Headers.ContentLength;
                         var output = await StreamedAsync<T>(prepared, response, headers, deadline, cancellationToken, ct).ConfigureAwait(false);
                         handedOff = true; response = null;
+                        Succeeded(lastCost);
+                        trace.AttemptFinished(status, null, length, RequestIdOf(null, headers));
                         return output;
                     }
                     bool hasBody = op["response"]!["body"]!.AsArray().Count != 0 || payload is not null || prepared.Checksums.Response.Count != 0;
                     var bytes = response.IsSuccessStatusCode && !hasBody ? [] : await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+                    size = bytes.Length;
                     if (response.IsSuccessStatusCode)
                     {
                         var algorithm = Checksums.Response(prepared.Checksums, headers, bytes);
                         if (algorithm is not null) config.ChecksumValidated?.Invoke(prepared.Name, algorithm);
-                        // Payloads occupy the whole body and are decoded by their modeled kind.
-                        var body = payload is not null || bytes.Length == 0 ? new JsonObject() : JsonNode.Parse(bytes)!.AsObject();
-                        var target = Text(op["output"]);
-                        if (target is null) return (T)(object)new Unit();
-                        if (payload is not null) body[WireName(target, Text(payload[0])!)] = PayloadValue(Text(op["response"]!["payloadKind"]), bytes);
-                        ResponseBindings(target, op["response"]!, (int)response.StatusCode, headers, body);
-                        return (T)Decode(target, body)!;
+                        var output = Output<T>(op, payload, bytes, (int)response.StatusCode, headers);
+                        Succeeded(lastCost);
+                        trace.AttemptFinished(status, null, size, RequestIdOf(null, headers));
+                        return output;
                     }
-                    var error = Error(op, (int)response.StatusCode, headers, bytes);
-                    if (attempt + 1 >= maxAttempts || !(error.Throttling || safe && (error.Retryable || error.StatusCode is 500 or 502 or 503 or 504))) throw error;
-                    failure = error; delay = Delay(attempt, headers);
+                    failure = Error(op, (int)response.StatusCode, headers, bytes);
                 }
                 // The caller's stream failed or broke its declared length: not a transport fault, never retried.
-                catch (Exception) when (request.Content is ByteStreamContent { SourceFailure: { } source }) { ExceptionDispatchInfo.Capture(source).Throw(); }
-                catch (HttpRequestException e) { failure = new NetworkError(e.Message, e); if (!safe || attempt + 1 >= maxAttempts) throw failure; delay = Delay(attempt, null); }
-                catch (IOException e) { failure = new NetworkError(e.Message, e); if (!safe || attempt + 1 >= maxAttempts) throw failure; delay = Delay(attempt, null); }
+                catch (Exception) when (request.Content is ByteStreamContent { SourceFailure: { } broken })
+                {
+                    Interrupted(status, broken, size, headers, trace);
+                    ExceptionDispatchInfo.Capture(broken).Throw();
+                }
+                catch (Exception e) when (e is HttpRequestException or IOException || TimedOut(e, ct))
+                { failure = new NetworkError(e.Message, e); timedOut = TimedOut(e, ct); }
+                catch (Exception e) { Interrupted(status, e, size, headers, trace); throw; }
                 finally { response?.Dispose(); }
-                if (failure is not null) await Task.Delay(delay, ct).ConfigureAwait(false);
+                var decision = AfterFailure(prepared, failure!, timedOut, attempt, maxAttempts, discovered, headers);
+                trace.AttemptFinished(status, failure, size, RequestIdOf(failure, headers), decision);
+                if (decision is not (_, var delay, var cost)) throw failure!;
+                lastCost = cost;
+                await Task.Delay(delay, config.TimeProvider, ct).ConfigureAwait(false);
             }
         }
         finally { if (!handedOff) deadline.Dispose(); }
+    }
+    private void Succeeded(int? lastCost)
+    {
+        retry.AfterAttempt(false);
+        retry.Succeeded(lastCost);
+    }
+    /// <summary>An attempt ended by an error that is never retried; a response that arrived was still measured.</summary>
+    private void Interrupted(int? status, Exception error, long? size, Dictionary<string, string>? headers, CallTrace trace)
+    {
+        if (status is not null) retry.AfterAttempt(false);
+        trace.AttemptFinished(status, error, size, RequestIdOf(error, headers));
+    }
+    /// <summary>Decodes a buffered successful response; payloads occupy the whole body and are decoded by their modeled kind.</summary>
+    private T Output<T>(JsonObject op, JsonArray? payload, byte[] bytes, int status, Dictionary<string, string> headers)
+    {
+        var body = payload is not null || bytes.Length == 0 ? new JsonObject() : JsonNode.Parse(bytes)!.AsObject();
+        var target = Text(op["output"]);
+        if (target is null) return (T)(object)new Unit();
+        if (payload is not null) body[WireName(target, Text(payload[0])!)] = PayloadValue(Text(op["response"]!["payloadKind"]), bytes);
+        ResponseBindings(target, op["response"]!, status, headers, body);
+        return (T)Decode(target, body)!;
     }
     /// <summary>Returns a successful streaming response at its headers; the caller reads the body.</summary>
     private async Task<T> StreamedAsync<T>(Prepared prepared, HttpResponseMessage response, Dictionary<string, string> headers,
@@ -705,6 +781,7 @@ internal sealed partial class ClientRuntime : IDisposable
         error.Initialize(name, StringValue(body["message"]) ?? (AwsJson ? StringValue(body["Message"]) : null) ?? $"HTTP {status}", status, requestId, headers, Flag(metadata?["retryable"]), Flag(metadata?["throttling"]));
         return error;
     }
+    /// <summary>The delay after the given (1-based) failed attempt: a valid Retry-After, or full-jitter backoff.</summary>
     private TimeSpan Delay(int attempt, Dictionary<string, string>? headers)
     {
         if (headers is not null && headers.TryGetValue("Retry-After", out var value))
@@ -713,11 +790,11 @@ internal sealed partial class ClientRuntime : IDisposable
                 return TimeSpan.FromMilliseconds(Math.Min(uint.MaxValue - 1d, seconds * 1000));
             if (DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date))
             {
-                var remaining = (date - DateTimeOffset.UtcNow).TotalMilliseconds;
+                var remaining = (date - config.TimeProvider.GetUtcNow()).TotalMilliseconds;
                 if (remaining >= 0) return TimeSpan.FromMilliseconds(Math.Min(uint.MaxValue - 1d, remaining));
             }
         }
-        return TimeSpan.FromMilliseconds(Random.Shared.NextDouble() * Math.Min(config.MaxDelay.TotalMilliseconds, config.BaseDelay.TotalMilliseconds * Math.Pow(2, Math.Min(attempt, 30))));
+        return retry.Backoff(attempt);
     }
     internal async IAsyncEnumerable<T> PagesAsync<T>(string name, object? input, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -730,7 +807,7 @@ internal sealed partial class ClientRuntime : IDisposable
         {
             while (true)
             {
-                var result = await SendAsync<T>(Prepare(name, values, stream), cancellationToken).ConfigureAwait(false);
+                var result = await TracedAsync(name, trace => SendAsync<T>(Prepare(name, values, stream), trace, null, cancellationToken)).ConfigureAwait(false);
                 yield return result;
                 JsonNode? next = Encode(Text(op["output"]), result);
                 var target = Text(op["output"]);
