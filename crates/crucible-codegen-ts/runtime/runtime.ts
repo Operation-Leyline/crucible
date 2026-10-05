@@ -637,12 +637,16 @@ function bearer(token: TokenProvider): Middleware {
 }
 
 /**
- * Adds `x-amz-content-sha256` to a request with a body: a front door that
- * signs requests to its origin needs the body's digest from the caller.
+ * Adds `x-amz-content-sha256` to a request with a body, and to every POST,
+ * PUT and PATCH even without one (the empty body's digest): a front door
+ * that signs requests to its origin needs the digest from the caller, and
+ * may refuse a write method that arrives without it.
  */
 export const contentSha256: Middleware = async (request, next) => {
-  if (request.body === null || request.headers.has("x-amz-content-sha256")) return next(request);
-  const bytes = await request.clone().arrayBuffer();
+  if (request.headers.has("x-amz-content-sha256")) return next(request);
+  const writes = request.method === "POST" || request.method === "PUT" || request.method === "PATCH";
+  if (request.body === null && !writes) return next(request);
+  const bytes = request.body === null ? new ArrayBuffer(0) : await request.clone().arrayBuffer();
   const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes));
   request.headers.set("x-amz-content-sha256", Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join(""));
   return next(request);

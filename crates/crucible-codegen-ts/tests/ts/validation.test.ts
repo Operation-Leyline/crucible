@@ -91,6 +91,23 @@ test("real response path validates raw longs before rounding without retry", asy
   }
 });
 
+test("a write without a body still carries the empty body's digest; a bodiless read carries none", async () => {
+  const seen: Request[] = [];
+  const transport = new Transport({ endpoint: "https://example.test", fetch: async request => {
+    seen.push(request);
+    return new Response("{}");
+  } }, { bearer: false, middleware: [contentSha256] }, {});
+  const empty = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  for (const method of ["POST", "PUT", "PATCH", "GET", "DELETE"]) {
+    const operation = { name: "Bare", method, path: [], errors: [], retrySafe: false,
+      input: structure(() => ({}), {}, []), query: [], headers: [],
+      output: { body: true, schema: structure(() => ({}), {}, []), headers: [] } };
+    await transport.send(operation, {});
+  }
+  assert.deepEqual(seen.map(request => request.headers.get("x-amz-content-sha256")),
+    [empty, empty, empty, null, null]);
+});
+
 test("bound longs, exact request body digest and pre-dispatch overflow", async () => {
   let attempts = 0;
   const schema = structure(() => ({ count: long }), {}, ["count"]);
