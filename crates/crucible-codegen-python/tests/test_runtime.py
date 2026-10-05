@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 import unittest
 
@@ -14,6 +15,7 @@ from weather_client.runtime import _Codec, SyncClient, AsyncClientBase, NetworkE
 ROOT = Path(__file__).resolve().parents[3]
 CASES = json.loads((ROOT / "tests/conformance/retry.json").read_text())
 MALFORMED_ERRORS = json.loads((ROOT / "tests/conformance/malformed-errors.json").read_text())
+SERIALIZATION_CASES = json.loads((ROOT / "tests/conformance/serialization.json").read_text())
 
 
 def assert_error_metadata(test, error, case):
@@ -44,6 +46,50 @@ CLASSES = {name: ServiceError for name in ("Ordinary", "Transient", "Throttled")
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_shared_serialization(self):
+        codec = _Codec(m._SCHEMA, m._CLASSES)
+        for case in SERIALIZATION_CASES:
+            with self.subTest(case=case["id"]):
+                wire = json.loads(case["wire"])
+                if case.get("reject"):
+                    with self.assertRaises((ValueError, TypeError)):
+                        codec.convert(case["target"], wire, decode=True)
+                    continue
+                expected = case.get("expectByProfile", {}).get("python-datetime", case["expect"])
+                native = codec.convert(case["target"], wire, decode=True)
+                encoded = json.dumps(codec.convert(case["target"], native), allow_nan=False)
+                self.assertEqual(json.loads(encoded, parse_float=Decimal),
+                                 json.loads(expected["json"], parse_float=Decimal))
+                members = codec.shapes[case["target"]].get("members", {})
+                for name, state in expected.get("states", {}).items():
+                    value = getattr(native, members[name]["attribute"])
+                    actual = "absent" if isinstance(value, type(UNSET)) else "null" if value is None else "value"
+                    self.assertEqual(actual, state)
+                if "blobHex" in expected:
+                    self.assertEqual(native.hex(), expected["blobHex"])
+                if "instant" in expected:
+                    instant = expected["instant"]
+                    value = getattr(native, members[instant["member"]]["attribute"])
+                    delta = value - datetime(1970, 1, 1, tzinfo=timezone.utc)
+                    self.assertEqual(str(delta.days * 86400 + delta.seconds), instant["seconds"])
+                    self.assertEqual(delta.microseconds * 1000, instant["nanoseconds"])
+
+    def test_ir_nullability_preserves_client_optional_and_document_null(self):
+        codec = _Codec(m._SCHEMA, m._CLASSES)
+        self.assertEqual(codec.convert("example.weather#CreateCityInput", m.CreateCityInput(name=None)), {"name": None})
+        for population in (None, UNSET):
+            with self.assertRaises(ValueError):
+                codec.convert("example.weather#CitySummary", m.CitySummary(id="c", name="n", population=population))
+        schema = {"shapes": {
+            "Document": {"kind": "document"},
+            "Record": {"kind": "structure", "name": "Record", "members": {
+                "document": {"attribute": "document", "target": "Document", "optional": False,
+                             "default": None, "format": "date-time"}}}}}
+        document_codec = _Codec(schema, {"Record": lambda **fields: fields})
+        self.assertEqual(document_codec.convert("Record", {"document": None}, decode=True), {"document": None})
+        with self.assertRaises(ValueError):
+            document_codec.convert("Record", {}, decode=True)
+
     def test_malformed_error_metadata_and_retry(self):
         for case in MALFORMED_ERRORS:
             for attempts in (1, 2):

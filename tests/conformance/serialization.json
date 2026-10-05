@@ -1,0 +1,189 @@
+[
+  {
+    "id": "absent-members-and-default",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\"}",
+    "expect": {
+      "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0}",
+      "states": {
+        "population": "value",
+        "updatedAt": "absent",
+        "createdAt": "absent"
+      }
+    }
+  },
+  {
+    "id": "explicit-optional-null",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"updatedAt\":null}",
+    "expect": {
+      "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"updatedAt\":null}",
+      "states": {
+        "updatedAt": "null",
+        "createdAt": "absent"
+      }
+    }
+  },
+  {
+    "id": "missing-required-member",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"name\":\"n\"}",
+    "reject": true
+  },
+  {
+    "id": "null-required-member",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":null,\"name\":\"n\"}",
+    "reject": true
+  },
+  {
+    "id": "null-does-not-apply-default",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"population\":null}",
+    "reject": true
+  },
+  {
+    "id": "int64-maximum",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"population\":9223372036854775807}",
+    "expect": {
+      "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":9223372036854775807}"
+    },
+    "expectByProfile": {
+      "javascript-number-date": {
+        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":9223372036854776000}"
+      }
+    }
+  },
+  {
+    "id": "int64-overflow",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"population\":9223372036854775808}",
+    "reject": true
+  },
+  {
+    "id": "fractional-integer",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"population\":1.5}",
+    "reject": true
+  },
+  {
+    "id": "binary-blob",
+    "target": "example.weather#Photo",
+    "wire": "\"AAH/gA==\"",
+    "expect": {
+      "json": "\"AAH/gA==\"",
+      "blobHex": "0001ff80"
+    }
+  },
+  {
+    "id": "malformed-base64",
+    "target": "example.weather#Photo",
+    "wire": "\"not-base64!\"",
+    "reject": true
+  },
+  {
+    "id": "open-enum",
+    "target": "example.weather#Sky",
+    "wire": "\"future\"",
+    "expect": {
+      "json": "\"future\""
+    }
+  },
+  {
+    "id": "unknown-union-exact-document",
+    "target": "example.weather#Location",
+    "wire": "{\"future\":{\"n\":9007199254740993}}",
+    "expect": {
+      "json": "{\"future\":{\"n\":9007199254740993}}"
+    },
+    "expectByProfile": {
+      "javascript-number-date": {
+        "json": "{\"future\":{\"n\":9007199254740992}}"
+      }
+    }
+  },
+  {
+    "id": "map-document-container-identity",
+    "target": "example.weather#Forecast",
+    "wire": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":null}",
+    "expect": {
+      "json": "{\"future\":{\"n\":9007199254740993,\"object\":{},\"array\":[]},\"clear\":null}"
+    },
+    "expectByProfile": {
+      "javascript-number-date": {
+        "json": "{\"future\":{\"n\":9007199254740992,\"object\":{},\"array\":[]},\"clear\":null}"
+      }
+    }
+  },
+  {
+    "id": "timestamp-offset",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"updatedAt\":\"1970-01-01T01:00:00.125+01:00\"}",
+    "expect": {
+      "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"updatedAt\":\"1970-01-01T00:00:00.125Z\"}",
+      "instant": {
+        "member": "updatedAt",
+        "seconds": "0",
+        "nanoseconds": 125000000
+      }
+    },
+    "expectByProfile": {
+      "python-datetime": {
+        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"updatedAt\":\"1970-01-01T00:00:00.125000Z\"}",
+        "instant": {
+          "member": "updatedAt",
+          "seconds": "0",
+          "nanoseconds": 125000000
+        }
+      }
+    }
+  },
+  {
+    "id": "negative-epoch-precision",
+    "target": "example.weather#CitySummary",
+    "wire": "{\"id\":\"c\",\"name\":\"n\",\"createdAt\":-0.000000125}",
+    "expect": {
+      "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":-0.000000125}",
+      "instant": {
+        "member": "createdAt",
+        "seconds": "-1",
+        "nanoseconds": 999999875
+      }
+    },
+    "expectByProfile": {
+      "dotnet-ticks": {
+        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":-0.0000001}",
+        "instant": {
+          "member": "createdAt",
+          "seconds": "-1",
+          "nanoseconds": 999999900
+        }
+      },
+      "python-datetime": {
+        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":0}",
+        "instant": {
+          "member": "createdAt",
+          "seconds": "0",
+          "nanoseconds": 0
+        }
+      },
+      "rust-chrono-epoch-ms": {
+        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":0}",
+        "instant": {
+          "member": "createdAt",
+          "seconds": "0",
+          "nanoseconds": 0
+        }
+      },
+      "javascript-number-date": {
+        "json": "{\"id\":\"c\",\"name\":\"n\",\"population\":0,\"createdAt\":0}",
+        "instant": {
+          "member": "createdAt",
+          "seconds": "0",
+          "nanoseconds": 0
+        }
+      }
+    }
+  }
+]

@@ -34,6 +34,8 @@ def qualify(output):
     library.mkdir(exist_ok=True)
     run(R, "CMD", "build", "--no-manual", "--no-build-vignettes", str(package), cwd=output)
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "weather.client_0.0.0.tar.gz"))
+    run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/serialization.R"), str(library),
+        env=dict(os.environ, SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))
     with weather() as endpoint, fixture() as fixture_url:
         run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/runtime.R"), str(library),
             env=dict(os.environ, WEATHER_URL=endpoint, FIXTURE_URL=fixture_url,

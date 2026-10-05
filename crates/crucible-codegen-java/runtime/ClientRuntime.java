@@ -329,12 +329,18 @@ final class ClientRuntime {
               var member = entry.getValue().getAsJsonObject();
               JsonElement item = object.get(entry.getKey());
               if (item == null && !member.get("default").isJsonNull()) item = member.get("default");
+              Field field = result.getClass().getField(text(member, "attribute"));
+              // OptionalValue is emitted from the IR's client nullability.
+              boolean optional = field.getType() == OptionalValue.class;
+              if (!optional
+                  && (item == null
+                      || (item.isJsonNull()
+                          && !"document".equals(text(shape(text(member, "target")), "kind")))))
+                throw new IllegalArgumentException(
+                    entry.getKey() + ": missing or null non-optional member");
               if (item == null) continue;
               Object decoded = decode(text(member, "target"), item, text(member, "format"));
-              Field field = result.getClass().getField(text(member, "attribute"));
-              field.set(
-                  result,
-                  field.getType() == OptionalValue.class ? OptionalValue.of(decoded) : decoded);
+              field.set(result, optional ? OptionalValue.of(decoded) : decoded);
             }
           } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(e);

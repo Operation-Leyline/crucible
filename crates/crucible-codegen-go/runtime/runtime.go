@@ -367,11 +367,16 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 				item = member.Default
 				present = true
 			}
+			field := out.FieldByName(member.Attribute)
+			_, optional := field.Interface().(optionalField)
+			// Generated Optional fields already encode the IR's client nullability.
+			if !optional && (!present || (item == nil && schema.Shapes[member.Target].Kind != "document")) {
+				return fmt.Errorf("%s: missing or null non-optional member", wire)
+			}
 			if !present {
 				continue
 			}
-			field := out.FieldByName(member.Attribute)
-			if _, optional := field.Interface().(optionalField); optional {
+			if optional {
 				field.FieldByName("Set").SetBool(true)
 				field.FieldByName("Null").SetBool(item == nil)
 				field = field.FieldByName("Value")

@@ -2,6 +2,7 @@
 // @types/node install: only TypeScript itself.
 declare module "node:test" {
   export function test(name: string, run: () => void | Promise<void>): void;
+  export function test(name: string, options: { skip: boolean | string }, run: () => void | Promise<void>): void;
 }
 
 declare module "node:fs" {

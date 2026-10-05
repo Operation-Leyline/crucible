@@ -90,6 +90,30 @@ private class Codec {
 }
 private fun serialization(path: String) {
     val codec = Codec()
+    for (row in json(Files.readString(Paths.get(path).resolveSibling("serialization.json"))).asJsonArray) {
+        val test = row.asJsonObject
+        val id = test.get("id").asString; val target = test.get("target").asString
+        val value = try { codec.decode(target, test.get("wire").asString) } catch (error: RuntimeException) {
+            if (test.get("reject")?.asBoolean == true) continue
+            throw AssertionError(id, error)
+        }
+        check(test.get("reject")?.asBoolean != true) { "$id accepted invalid wire" }
+        val expect = test.getAsJsonObject("expect")
+        val encoded = codec.encode(target, value)
+        check(exactJsonEquals(encoded, json(expect.get("json").asString))) { "$id: $encoded" }
+        expect.getAsJsonObject("states")?.entrySet()?.forEach { (member, state) ->
+            val field = value!!::class.java.getMethod("get" + member.replaceFirstChar { it.uppercase() }).invoke(value)
+            val actual = if (field !is OptionalValue<*>) "value" else if (!field.present) "absent" else if (field.value == null) "null" else "value"
+            check(actual == state.asString) { "$id native presence" }
+        }
+        expect.get("blobHex")?.let { check(java.util.HexFormat.of().formatHex(value as ByteArray) == it.asString) { "$id bytes" } }
+        expect.getAsJsonObject("instant")?.let { instant ->
+            val member = instant.get("member").asString
+            val optional = value!!::class.java.getMethod("get" + member.replaceFirstChar { it.uppercase() }).invoke(value) as OptionalValue<*>
+            val actual = optional.value as Instant
+            check(actual.epochSecond.toString() == instant.get("seconds").asString && actual.nano == instant.get("nanoseconds").asInt) { "$id instant" }
+        }
+    }
     check(codec.decode("example.weather#Sky", "\"future\"") == Models.Sky("future"))
     val future = """{"future":{"n":9223372036854775807}}"""
     val union = codec.decode("example.weather#Location", future)
@@ -117,6 +141,12 @@ private fun serialization(path: String) {
         check(codec.header(encoded) == test.asJsonObject.get("values"))
     }
     check(codec.encode("example.weather#DateTime", Instant.parse("2026-10-01T00:00:00Z"), "http-date").asString == "Thu, 01 Oct 2026 00:00:00 GMT")
+}
+private fun exactJsonEquals(a: JsonElement, b: JsonElement): Boolean {
+    if (a.isJsonPrimitive && a.asJsonPrimitive.isNumber) return b.isJsonPrimitive && b.asJsonPrimitive.isNumber && a.asBigDecimal.compareTo(b.asBigDecimal) == 0
+    if (a.isJsonObject) return b.isJsonObject && a.asJsonObject.keySet() == b.asJsonObject.keySet() && a.asJsonObject.entrySet().all { (key, value) -> exactJsonEquals(value, b.asJsonObject.get(key)) }
+    if (a.isJsonArray) return b.isJsonArray && a.asJsonArray.size() == b.asJsonArray.size() && (0 until a.asJsonArray.size()).all { exactJsonEquals(a.asJsonArray[it], b.asJsonArray[it]) }
+    return a == b
 }
 private suspend fun httpBehavior() {
     val sent = mutableListOf<ByteArray>(); val credentials = AtomicInteger()

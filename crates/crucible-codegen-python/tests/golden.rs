@@ -42,6 +42,33 @@ fn weather_matches_goldens() {
 }
 
 #[test]
+fn runtime_nullability_is_taken_from_ir() {
+    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let models = &files
+        .iter()
+        .find(|file| file.path.ends_with("/models.py"))
+        .unwrap()
+        .contents;
+    let literal = models
+        .lines()
+        .find_map(|line| line.strip_prefix("_SCHEMA = json.loads("))
+        .unwrap()
+        .strip_suffix(')')
+        .unwrap();
+    let text: String = serde_json::from_str(literal).unwrap();
+    let schema: Value = serde_json::from_str(&text).unwrap();
+    let city = &schema["shapes"]["example.weather#CitySummary"]["members"];
+    assert_eq!(city["id"]["optional"], false);
+    assert_eq!(city["population"]["optional"], false);
+    assert_eq!(city["updatedAt"]["optional"], true);
+    assert_eq!(
+        schema["shapes"]["example.weather#CreateCityInput"]["members"]["name"]["optional"],
+        true
+    );
+}
+
+#[test]
 fn naming_collisions_are_collected_before_emission() {
     let mut model: Value = serde_json::from_str(WEATHER).unwrap();
     let members = &mut model["shapes"]["example.weather#CreateCityInput"]["members"];

@@ -167,7 +167,12 @@ class _Codec:
                 if isinstance(item, Unset) and decode and m["default"] is not None:
                     item = copy.deepcopy(m["default"])
                 if isinstance(item, Unset):
+                    if kind == "structure" and m.get("optional") is False:
+                        raise ValueError(f"missing required member: {wire}")
                     continue
+                if (kind == "structure" and item is None and m.get("optional") is False
+                        and self.shapes[m["target"]]["kind"] != "document"):
+                    raise ValueError(f"null for nonoptional member: {wire}")
                 out[native if decode else wire] = self.convert(m["target"], item, decode=decode, fmt=m["format"])
             if kind == "union":
                 if decode:

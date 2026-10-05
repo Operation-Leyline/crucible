@@ -140,10 +140,16 @@ internal sealed class ClientRuntime : IDisposable
                 }
                 foreach (var (name, description) in members)
                 {
-                    if (!obj.TryGetPropertyValue(name, out var item)) { item = description!["default"]; if (item is null) continue; }
+                    var property = result.GetType().GetProperty(Text(description!["attribute"])!)!;
+                    bool optional = property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(Optional<>);
+                    bool present = obj.TryGetPropertyValue(name, out var item);
+                    if (!present && description!["default"] is JsonNode defaultValue) { item = defaultValue; present = true; }
+                    // The generated Optional type carries the IR's client nullability.
+                    if (!optional && (!present || item is null && Text(Shape(Text(description!["target"])!)["kind"]) != "document"))
+                        throw new JsonException($"Missing or null non-optional member {name}");
+                    if (!present) continue;
                     var decoded = Decode(Text(description!["target"]), item, Text(description["format"]));
-                    var property = result.GetType().GetProperty(Text(description["attribute"])!)!;
-                    if (property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(Optional<>))
+                    if (optional)
                         decoded = property.PropertyType.GetMethod("FromWire", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null, [decoded]);
                     else if (decoded is null && property.PropertyType.IsValueType) throw new JsonException($"Null for non-nullable member {name}");
                     property.SetValue(result, decoded);
