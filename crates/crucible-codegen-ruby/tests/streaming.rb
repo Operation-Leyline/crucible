@@ -121,6 +121,43 @@ rejects(R::NetworkError) { sdk(broken).download { |_chunk| nil } }
 check(broken.requests.size == 1, 'Delivered response bytes are never retried')
 rejects { sdk(Fake.new { R::HttpResponse.new(200) }).upload(StreamSdk::UploadInput.new(body: 42)) }
 
+# Output bounds include the member's narrowed limits over the target's limits.
+[:block, :target, :buffer].each do |destination|
+  [2, 3, 4].each do |length|
+    fake = Fake.new do |_count, _request, sink|
+      sink.call('ab')
+      sink.call('c') if length >= 3
+      sink.call('d') if length == 4
+      R::HttpResponse.new(200)
+    end
+    target = StringIO.new
+    chunks = []
+    call = lambda do
+      case destination
+      when :block then sdk(fake).bounded_download { |chunk| chunks << chunk }
+      when :target then sdk(fake).bounded_download(response_target: target)
+      else sdk(fake).bounded_download
+      end
+    end
+    if length == 3
+      output = call.call
+      body = case destination
+             when :block then chunks.join
+             when :target then target.rewind; target.read
+             else output.body.read
+             end
+      check(body == 'abc', "Bounded output via #{destination}")
+    else
+      rejects { call.call }
+      check(fake.requests.size == 1, "Invalid output length never retries via #{destination}")
+      unless destination == :buffer
+        delivered = destination == :block ? chunks.join : target.string
+        check(delivered != 'abcd', 'Overflow bytes are rejected before delivery')
+      end
+    end
+  end
+end
+
 # Real HTTP on loopback: chunked and sized uploads, streamed downloads, cancellation, and bounded memory.
 SIZE = Integer(ENV.fetch('STREAM_BYTES', (256 * 1024 * 1024).to_s))
 WARM_SIZE = [SIZE / 4, 32 * 1024 * 1024].min
@@ -165,6 +202,8 @@ Thread.new do
             client.write("4\r\nslow\r\n")
             sleep 0.05
           end
+        when '/bounded-download'
+          client.write("HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nabcd")
         else client.write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
         end
       end
@@ -185,6 +224,7 @@ end
 client = StreamSdk::StreamingClient.new(R::ClientConfig.new(endpoint: "http://127.0.0.1:#{server.addr[1]}", timeout: 120))
 client.upload(StreamSdk::UploadInput.new(body: 'warm'))
 uploads.pop
+rejects { client.bounded_download { |_chunk| nil } }
 # Ruby retains heap arenas and native allocator pages after collections. Warm
 # each transfer path before measuring its high-water growth with a larger body.
 client.upload(StreamSdk::UploadInput.new(body: Generated.new(WARM_SIZE)))
@@ -223,3 +263,13 @@ rejects(R::DeadlineError) { deadline.fetch(StreamSdk::FetchInput.new) { |_chunk|
 check(R::CallScope.now - start < 2, 'Deadline stops a stalled streamed response')
 deadline.close
 puts "Ruby streaming blobs passed (#{SIZE} bytes each way, peak memory growth #{growth} bytes)"
+
+# Digest middleware must not consume an owned one-shot source before transport.
+fake = Fake.new { R::HttpResponse.new(200) }
+runtime = R::ClientRuntime.new(R::ClientConfig.new(endpoint: 'https://example.invalid', transport: fake), StreamSdk.codec, endpoint: "", digest: true)
+runtime.call('Upload', StreamSdk::UploadInput.new(body: R::ByteStream.from(OneShot.new(data))))
+check(fake.bodies == [data] && fake.requests[0].headers['x-amz-content-sha256'] == 'UNSIGNED-PAYLOAD', 'One-shot digest preserves upload bytes')
+fake = Fake.new { R::HttpResponse.new(200) }
+runtime = R::ClientRuntime.new(R::ClientConfig.new(endpoint: 'https://example.invalid', transport: fake), StreamSdk.codec, endpoint: "", digest: true)
+runtime.call('Upload', StreamSdk::UploadInput.new(body: R::ByteStream.from(data)))
+check(fake.bodies == [data] && fake.requests[0].headers['x-amz-content-sha256'] == Digest::SHA256.hexdigest(data), 'Replayable digest remains exact')

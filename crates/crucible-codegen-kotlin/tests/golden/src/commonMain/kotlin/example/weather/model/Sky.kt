@@ -4,7 +4,7 @@ package example.weather.model
     data class `Sky`(val value: kotlin.String) {
         override fun toString(): kotlin.String = value
         companion object {
-            val `CLEAR` = `Sky`("clear")
-            val `CLOUDY` = `Sky`("cloudy")
+            @kotlin.jvm.JvmField val `CLEAR` = `Sky`("clear")
+            @kotlin.jvm.JvmField val `CLOUDY` = `Sky`("cloudy")
         }
     }

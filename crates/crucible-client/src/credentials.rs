@@ -60,7 +60,10 @@ impl AwsCredentials {
             (Some(access), Some(secret)) => Ok(Some(Self {
                 access_key_id: access.clone(),
                 secret_access_key: secret.clone(),
-                session_token: environment.get("AWS_SESSION_TOKEN").cloned(),
+                session_token: environment
+                    .get("AWS_SESSION_TOKEN")
+                    .filter(|value| !value.is_empty())
+                    .cloned(),
                 expiration: None,
             })),
             _ => Err("incomplete AWS environment credentials".into()),
@@ -158,6 +161,32 @@ impl Identity<AwsCredentials> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    #[test]
+    fn empty_session_tokens_are_absent() {
+        let mut environment = BTreeMap::from([
+            ("AWS_ACCESS_KEY_ID".into(), "key".into()),
+            ("AWS_SECRET_ACCESS_KEY".into(), "secret".into()),
+            ("AWS_SESSION_TOKEN".into(), String::new()),
+        ]);
+        assert!(
+            AwsCredentials::from_environment_map(&environment)
+                .unwrap()
+                .unwrap()
+                .session_token
+                .is_none()
+        );
+        environment.insert("AWS_SESSION_TOKEN".into(), "token".into());
+        assert_eq!(
+            AwsCredentials::from_environment_map(&environment)
+                .unwrap()
+                .unwrap()
+                .session_token
+                .as_deref(),
+            Some("token")
+        );
+        assert!(AwsCredentials::from_profile("[default]\naws_access_key_id=key\naws_secret_access_key=secret\naws_session_token=", "default").unwrap().unwrap().session_token.is_none());
+    }
+
     #[tokio::test]
     async fn portable_sources_chain_and_concurrent_cache_refresh() {
         assert!(

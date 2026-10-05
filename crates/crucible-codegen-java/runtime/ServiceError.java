@@ -1,6 +1,7 @@
 public class ServiceError extends RuntimeException {
   private static final long serialVersionUID = 1L;
   private String errorName;
+  private String modeledErrorName;
   private String errorMessage;
   private int status;
   private String requestId;
@@ -35,6 +36,14 @@ public class ServiceError extends RuntimeException {
 
   public String errorName() {
     return errorName;
+  }
+
+  void setModeledErrorName(String name) {
+    this.modeledErrorName = name;
+  }
+
+  String waiterErrorName() {
+    return modeledErrorName == null ? errorName : modeledErrorName;
   }
 
   public int status() {

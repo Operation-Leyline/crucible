@@ -96,18 +96,24 @@ module CrucibleGenerated
     # caller's block, or (by default) buffered. Checksums are computed as bytes pass.
     class StreamSink
       attr_reader :bytes, :hashers
-      def initialize(target: nil, block: nil, algorithms: [])
+      def initialize(target: nil, block: nil, algorithms: [], minimum: nil, maximum: nil)
         raise ::ArgumentError, 'Response target must respond to write' unless target.nil? || target.respond_to?(:write)
         @target, @block, @bytes = target, block, 0
+        @minimum, @maximum = minimum, maximum
         @buffer = ::StringIO.new(+''.b) if target.nil? && block.nil?
         @hashers = algorithms.to_h { |algorithm| [algorithm, Checksums::Hasher.new(algorithm)] }
       end
       def call(chunk)
+        size = @bytes + chunk.bytesize
+        raise ::ArgumentError, 'Stream exceeds its modeled length' if @maximum && size > @maximum
         @hashers.each_value { |hasher| hasher.update(chunk) }
-        @bytes += chunk.bytesize
+        @bytes = size
         if @block then @block.call(chunk)
         else (@target || @buffer).write(chunk)
         end
+      end
+      def finish
+        raise ::ArgumentError, 'Stream ended before its modeled length' if @minimum && @bytes < @minimum
       end
       # The output member: the caller's IO, an empty IO after a block, or the rewound buffer.
       def body

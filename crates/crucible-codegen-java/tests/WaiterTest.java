@@ -24,6 +24,7 @@ public final class WaiterTest {
           case "gone" -> "{\"__type\":\"Missing\"}";
           case "query" -> "{\"items\":[{\"wire-status\":\"READY\"},{\"wire-status\":\"READY\"}],\"updatedAt\":\"2026-01-01T00:00:00Z\"}";
           case "failed" -> "{\"wire-status\":\"FAILED\",\"reasons\":[\"job rejected\"]}";
+          case "final-poll" -> { Thread.sleep(100); yield attempt==1 ? "{\"wire-status\":\"PENDING\"}" : "{\"wire-status\":\"READY\"}"; }
           case "blocked" -> { entered.countDown(); release.await(5,TimeUnit.SECONDS); yield "{\"wire-status\":\"PENDING\"}"; }
           default -> "{\"wire-status\":\"PENDING\"}";
         };
@@ -41,6 +42,10 @@ public final class WaiterTest {
       check(count.get()==3,"retry error then pending"); mode.set("gone"); check(client.waitUntilDeleted(input,options)==null,"error success returns absent result"); mode.set("query");
       client.waitUntilAllReady(input,options); client.waitUntilAnyReady(input,options); client.waitUntilFilteredReady(input,options);
       client.waitUntilCountsMatch(options,b->b.names(List.of("a","b"))); client.waitUntilUpdated(input,options); client.waitUntilFunctions(input,options);
+      mode.set("final-poll"); count.set(0);
+      var finalPoll=new WaiterOptions(Duration.ofMillis(1500),Duration.ofSeconds(1),Duration.ofSeconds(1));
+      check(client.waitUntilReadyAsync(input,finalPoll).get(3,TimeUnit.SECONDS).status().equals("READY") && count.get()==2,
+          "final feasible poll reserves call time instead of sleeping until deadline");
       mode.set("failed");
       try { client.waitUntilReady(input,options); throw new AssertionError("expected failure"); }
       catch (WaiterError failure) { check(failure.attempts()==1 && failure.waiterMessage().toString().equals("[\"job rejected\"]"),"failure metadata"); }

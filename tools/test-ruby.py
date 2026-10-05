@@ -99,6 +99,14 @@ def behaviors(output):
     tests = ROOT / "crates/crucible-codegen-ruby/tests"
     generate(ROOT / "crates/crucible-codegen-java/tests/waiters.json", output / "jobs", "jobs_client", "Jobs")
     run(RUBY, "-I", str(output / "jobs/lib"), str(tests / "waiters.rb"))
+    identity_model = ROOT / "tests/conformance/waiter-errors.json"
+    identity_includes = []
+    for label, service in [("query", "QueryIdentity"), ("json", "JsonIdentity")]:
+        package = output / ("waiter-identity-" + label)
+        generate(identity_model, package, "waiter_" + label + "_client", "Waiter" + label.title(),
+                 "--service", "example.waiter#" + service)
+        identity_includes += ["-I", str(package / "lib")]
+    run(RUBY, *identity_includes, str(tests / "waiter_identity.rb"))
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json", output / "behavior", "behavior_client", "Behavior")
     run(RUBY, "-I", str(output / "behavior/lib"), str(tests / "endpoints.rb"))
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", output / "checksum", "checksum_client", "ChecksumSdk")
@@ -129,13 +137,13 @@ def xml_protocols(output):
     modules = {"xml": "RestXml", "nowrap": "NoWrap", "query": "Query", "ec2": "Ec2",
                "officialxml": "OfficialXml", "namespace": "Namespace", "s3": "S3",
                "officialquery": "OfficialQuery", "officialec2": "OfficialEc2"}
-    for label, fixture, service, protocol in PACKAGES:
+    for label, fixture_file, service, protocol in PACKAGES:
         package, module = label + "_client", modules[label]
-        generate(fixtures / fixture, output / package, package, module, "--service", service)
-        if (label, fixture, service, protocol) in REGRESSIONS:
+        generate(fixtures / fixture_file, output / package, package, module, "--service", service)
+        if (label, fixture_file, service, protocol) in REGRESSIONS:
             includes += ["-I", str(output / package / "lib")]
         vectors = output / (package + "-vectors")
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance", str(fixtures / fixture),
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance", str(fixtures / fixture_file),
             "--service", service, "--target", "ruby", "--out", str(vectors))
         run(sys.executable, str(ROOT / "tools/protocol_conformance.py"), str(vectors / "protocol-tests.json"),
             "--protocol", protocol, "--report", str(vectors / "results.json"), *conformance_options(label), "--", RUBY, "-I", str(output / package / "lib"),

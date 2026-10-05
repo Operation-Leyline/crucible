@@ -191,7 +191,7 @@ Do not combine an earlier generated digest with a later body mutation.
 ## Qualification
 
 Run `bash tools/test-ts.sh` for generated type checks, fake-fetch runtime tests,
-all 15 shared serialization cases, shared retry cases, the shared checksum
+all 16 shared serialization cases, shared retry cases, the shared checksum
 vectors, and the published event stream framing and signing vectors. The event
 stream suite also drives generated clients (restJson1, awsJson1_0, and SigV4)
 against a loopback Node HTTP/1.1 server. Set `TSC` to use an existing TypeScript compiler and `CRUCIBLE_BIN` to

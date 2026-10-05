@@ -834,6 +834,8 @@ public final class ClientTest {
       check(entered.await(5, TimeUnit.SECONDS), "active call did not start");
       subscription.cancel(); release.countDown();
       check(hookFinished.await(5, TimeUnit.SECONDS), "credential hook did not release");
+      // Allow the released credential worker to reach the dispatch guard.
+      Thread.sleep(200);
       check(requests.get() == 0 && cancelled.pages.isEmpty() && !cancelled.complete.isDone(), "cancelled publisher dispatched or signaled");
     }
   }

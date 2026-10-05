@@ -4,9 +4,9 @@ package example.weather.model
     data class `ValidationReason`(val value: kotlin.String) {
         override fun toString(): kotlin.String = value
         companion object {
-            val `UNKNOWN_OPERATION` = `ValidationReason`("unknownOperation")
-            val `CANNOT_PARSE` = `ValidationReason`("cannotParse")
-            val `FIELD_VALIDATION_FAILED` = `ValidationReason`("fieldValidationFailed")
-            val `OTHER` = `ValidationReason`("other")
+            @kotlin.jvm.JvmField val `UNKNOWN_OPERATION` = `ValidationReason`("unknownOperation")
+            @kotlin.jvm.JvmField val `CANNOT_PARSE` = `ValidationReason`("cannotParse")
+            @kotlin.jvm.JvmField val `FIELD_VALIDATION_FAILED` = `ValidationReason`("fieldValidationFailed")
+            @kotlin.jvm.JvmField val `OTHER` = `ValidationReason`("other")
         }
     }

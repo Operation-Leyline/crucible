@@ -69,6 +69,7 @@ final class Waiter
     {
         $ceiling = min($this->maxDelay, $this->minDelay * 2 ** min($attempt - 1, 62));
         $delay = $this->random !== null ? ($this->random)($this->minDelay, $ceiling) : $this->minDelay + ($ceiling - $this->minDelay) * (random_int(0, PHP_INT_MAX) / PHP_INT_MAX);
-        return $remaining - $delay <= $this->minDelay ? $remaining : $delay;
+        if ($remaining <= $this->minDelay) return $remaining;
+        return $remaining - $delay <= $this->minDelay ? $remaining - $this->minDelay : $delay;
     }
 }

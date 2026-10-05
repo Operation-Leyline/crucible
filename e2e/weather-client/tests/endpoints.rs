@@ -90,6 +90,30 @@ async fn generated_endpoint_rules_host_prefix_and_waiter_collision_over_http() {
 }
 
 #[tokio::test]
+async fn generated_waiter_reserves_budget_for_one_final_http_poll() {
+    let (config, requests) = serve(vec![
+        (200, r#"{"wire-status":"WAIT"}"#),
+        (200, r#"{"wire-status":"READY"}"#),
+    ])
+    .await;
+    let mut budget = WaiterOptions::new(Duration::from_millis(1_500));
+    budget.min_delay = Some(Duration::from_secs(1));
+    budget.max_delay = Some(Duration::from_secs(1));
+    let result = sdk::ServiceClient::new(config)
+        .wait_until_ready_2(input(), budget)
+        .await
+        .unwrap();
+    match result {
+        WaiterResult::Response { output, attempts } => {
+            assert_eq!(attempts, 2);
+            assert_eq!(output.status.value().unwrap(), "READY");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(requests.await.unwrap().len(), 2);
+}
+
+#[tokio::test]
 async fn generated_waiter_normalizes_model_names_timestamps_and_exact_numbers() {
     let (config,requests) = serve(vec![(200,r#"{"wire-status":"READY","time":"Thu, 01 Jan 1970 00:00:00 GMT","amount":9007199254740992.000000001}"#)]).await;
     let input = sdk::model::Input::builder()

@@ -69,6 +69,65 @@ public final class StreamingTest {
     };
   }
 
+  static final class BlockingZero extends InputStream {
+    final CountDownLatch reading = new CountDownLatch(1), released = new CountDownLatch(1), closed = new CountDownLatch(1);
+    final AtomicInteger closes = new AtomicInteger();
+    public int read() throws IOException {
+      reading.countDown();
+      try { check(released.await(10, TimeUnit.SECONDS), "zero source released"); }
+      catch (InterruptedException interrupted) { throw new IOException(interrupted); }
+      return -1;
+    }
+    public void close() { closes.incrementAndGet(); released.countDown(); closed.countDown(); }
+  }
+
+  static void zeroLengthInputs(StreamingClient client, ClientConfig config) throws Exception {
+    attempts.set(0);
+    var closes = new AtomicInteger();
+    var invalid = ByteStream.fromInputStream(new java.io.ByteArrayInputStream(new byte[]{1}) {
+      public void close() { closes.incrementAndGet(); }
+    }, 0);
+    fails(IllegalArgumentException.class, "declared length", () -> client.upload(b -> b.body(invalid)));
+    invalid.close();
+    check(attempts.get() == 0 && closes.get() == 1, "nonempty zero-length source rejected and released before dispatch");
+    var opens = new AtomicInteger();
+    fails(IllegalArgumentException.class, "declared length", () -> client.upload(b -> b.body(ByteStream.fromInputStreamSupplier(() -> {
+      opens.incrementAndGet(); return new java.io.ByteArrayInputStream(new byte[]{1});
+    }, 0))));
+    check(attempts.get() == 0 && opens.get() == 1, "invalid zero-length factory never retried or dispatched");
+    fails(java.io.UncheckedIOException.class, "streaming request body failed", () -> client.upload(b -> b.body(ByteStream.fromInputStreamSupplier(() -> {
+      opens.incrementAndGet(); return new InputStream() {
+        public int read() throws IOException { throw new IOException("source failed"); }
+        public void close() { closes.incrementAndGet(); }
+      };
+    }, 0))));
+    check(attempts.get() == 0 && opens.get() == 2 && closes.get() == 2, "zero-length source failure is final and closes its factory IO");
+
+    var timed = new ClientConfig(); timed.endpoint = config.endpoint; timed.timeout = Duration.ofMillis(300);
+    var stalled = new BlockingZero();
+    var late = new StreamingClient(timed).uploadAsync(UploadInput.builder().body(ByteStream.fromInputStream(stalled, 0)).build());
+    check(stalled.reading.await(5, TimeUnit.SECONDS), "zero-length deadline preflight started");
+    fails(HttpTimeoutException.class, null, () -> late.get(5, TimeUnit.SECONDS));
+    check(stalled.closed.await(5, TimeUnit.SECONDS) && stalled.closes.get() == 1 && attempts.get() == 0,
+        "deadline closes stalled zero-length preflight without dispatch");
+    var cancelled = new BlockingZero();
+    var pending = client.uploadAsync(UploadInput.builder().body(ByteStream.fromInputStream(cancelled, 0)).build());
+    check(cancelled.reading.await(5, TimeUnit.SECONDS), "zero-length cancellation preflight started");
+    pending.cancel(true);
+    check(cancelled.closed.await(5, TimeUnit.SECONDS) && cancelled.closes.get() == 1 && attempts.get() == 0,
+        "cancellation closes zero-length preflight without dispatch");
+
+    mode.set("503-once"); opens.set(0); closes.set(0);
+    client.upload(b -> b.body(ByteStream.fromInputStreamSupplier(() -> {
+      opens.incrementAndGet(); return new java.io.ByteArrayInputStream(new byte[0]) {
+        public void close() { closes.incrementAndGet(); }
+      };
+    }, 0)));
+    check(attempts.get() == 2 && opens.get() == 2 && closes.get() == 2 && receivedSize.get() == 0,
+        "empty zero-length factories validate and close once per retry");
+    mode.set("ok");
+  }
+
   static void checksumCompletionRace() throws Exception {
     var verifying = new CountDownLatch(1);
     var finish = new CountDownLatch(1);
@@ -111,6 +170,133 @@ public final class StreamingTest {
     }
     check(!ending.isAlive() && terminal.getCount() == 0 && error.get() instanceof ChecksumMismatch,
         "concurrent demand receives checksum mismatch");
+  }
+
+  static InputStream trackedInput(AtomicInteger closes) {
+    return new InputStream() {
+      public int read() { return -1; }
+      public void close() { closes.incrementAndGet(); }
+    };
+  }
+
+  public static final class MalformedInput {
+    public ByteStream body;
+  }
+
+  static final class PendingSource {
+    final AtomicInteger closes = new AtomicInteger(), opens = new AtomicInteger(), reads = new AtomicInteger();
+    final CountDownLatch closed = new CountDownLatch(1);
+    final ByteStream stream;
+    final boolean replayable;
+    PendingSource(boolean replayable) {
+      this.replayable = replayable;
+      java.util.function.Supplier<InputStream> factory = () -> {
+        opens.incrementAndGet();
+        return new InputStream() {
+          public int read() { reads.incrementAndGet(); return -1; }
+          public void close() { closes.incrementAndGet(); closed.countDown(); }
+        };
+      };
+      if (replayable) stream = ByteStream.fromInputStreamSupplier(factory);
+      else { stream = ByteStream.fromInputStream(factory.get()); opens.set(0); }
+    }
+    void checkReleased(String message) throws InterruptedException {
+      if (!replayable) check(closed.await(5, TimeUnit.SECONDS), message + " completed");
+      check(closes.get() == (replayable ? 0 : 1) && opens.get() == 0 && reads.get() == 0, message);
+      stream.close();
+      check(closes.get() == (replayable ? 0 : 1), message + " is idempotent");
+    }
+  }
+
+  static void unopenedCallOwnership(ClientConfig original) throws Exception {
+    attempts.set(0);
+    for (boolean replayable : new boolean[]{false, true}) {
+      var source = new PendingSource(replayable);
+      var client = new StreamingClient(original);
+      fails(IllegalArgumentException.class, "known length", () -> client.sized(b -> b.body(source.stream)));
+      source.checkReleased("requiresLength failure releases only supplied one-shot input");
+
+      var malformed = new PendingSource(replayable);
+      var input = new MalformedInput(); input.body = malformed.stream;
+      var runtime = new ClientRuntime(original, "", false, ModelRegistry.classes());
+      fails(IllegalStateException.class, null, () -> ClientRuntime.await(runtime.call("Store", input, Unit.class)));
+      malformed.checkReleased("malformed input cleanup precedes encoding");
+
+      var digest = new PendingSource(replayable);
+      var digesting = new ClientRuntime(original, "", true, ModelRegistry.classes());
+      fails(IllegalArgumentException.class, "precomputed", () -> ClientRuntime.await(digesting.call("Upload", UploadInput.builder().body(digest.stream).build(), Unit.class)));
+      digest.checkReleased("precomputed digest failure releases only supplied input");
+
+      var middleware = new PendingSource(replayable);
+      var failing = new ClientConfig(); failing.endpoint = original.endpoint;
+      failing.middleware.add(request -> { throw new IllegalStateException("middleware failed"); });
+      fails(IllegalStateException.class, "middleware failed", () -> new StreamingClient(failing).upload(b -> b.body(middleware.stream)));
+      middleware.checkReleased("failed middleware cleanup");
+
+      var token = new PendingSource(replayable);
+      var auth = new ClientConfig(); auth.endpoint = original.endpoint;
+      auth.token = () -> { throw new IllegalStateException("token failed"); };
+      com.google.gson.JsonObject schema;
+      try (var resource = StreamingTest.class.getResourceAsStream("schema.json")) {
+        schema = new com.google.gson.Gson().fromJson(new String(resource.readAllBytes(), StandardCharsets.UTF_8), com.google.gson.JsonObject.class);
+      }
+      schema.getAsJsonObject("operations").getAsJsonObject("Upload").addProperty("bearer", true);
+      var authenticated = new ClientRuntime(auth, "", false, ModelRegistry.classes(), schema);
+      fails(IllegalStateException.class, "token failed", () -> ClientRuntime.await(authenticated.call("Upload", UploadInput.builder().body(token.stream).build(), Unit.class)));
+      token.checkReleased("failed token provider cleanup");
+
+      for (boolean timeout : new boolean[]{false, true}) {
+        var pending = new PendingSource(replayable);
+        var entered = new CountDownLatch(1); var releaseHook = new CountDownLatch(1); var finished = new CountDownLatch(1);
+        var delayed = new ClientConfig(); delayed.endpoint = original.endpoint;
+        if (timeout) delayed.timeout = Duration.ofMillis(300);
+        delayed.middleware.add(request -> {
+          entered.countDown();
+          try { check(releaseHook.await(5, TimeUnit.SECONDS), "middleware released"); }
+          catch (InterruptedException interrupted) { throw new RuntimeException(interrupted); }
+          finally { finished.countDown(); }
+        });
+        var future = new StreamingClient(delayed).uploadAsync(UploadInput.builder().body(pending.stream).build());
+        try {
+          check(entered.await(5, TimeUnit.SECONDS), "middleware entered before source open");
+          if (timeout) fails(HttpTimeoutException.class, null, () -> future.get(5, TimeUnit.SECONDS));
+          else future.cancel(true);
+        } finally { releaseHook.countDown(); }
+        check(finished.await(5, TimeUnit.SECONDS), "middleware returned after terminal call");
+        pending.checkReleased(timeout ? "deadline before source open cleanup" : "cancellation before source open cleanup");
+      }
+    }
+    check(attempts.get() == 0, "pre-dispatch failures and cancellation never reach HTTP");
+  }
+
+  static void unreadInputOwnership() throws Exception {
+    var closes = new AtomicInteger();
+    var source = ByteStream.fromInputStream(trackedInput(closes));
+    source.inputStream().close();
+    check(closes.get() == 1, "closing an unread input releases the supplied stream");
+    source.close();
+    check(closes.get() == 1, "one-shot input release is idempotent");
+
+    closes.set(0);
+    var published = ByteStream.fromInputStream(trackedInput(closes));
+    published.publisher().subscribe(new Flow.Subscriber<ByteBuffer>() {
+      public void onSubscribe(Flow.Subscription subscription) { subscription.cancel(); }
+      public void onNext(ByteBuffer bytes) { throw new AssertionError("cancelled source emitted bytes"); }
+      public void onError(Throwable error) { throw new AssertionError(error); }
+      public void onComplete() { throw new AssertionError("cancelled source completed"); }
+    });
+    check(closes.get() == 1, "cancellation before demand releases the supplied stream");
+    published.close();
+    check(closes.get() == 1, "publisher cancellation and discard share ownership");
+
+    var opens = new AtomicInteger();
+    var lazy = ByteStream.fromInputStreamSupplier(() -> {
+      opens.incrementAndGet();
+      return InputStream.nullInputStream();
+    });
+    lazy.inputStream().close();
+    lazy.close();
+    check(opens.get() == 0, "closing an unread factory stream never opens it");
   }
 
   static void handle(HttpExchange exchange) throws IOException, InterruptedException {
@@ -157,6 +343,7 @@ public final class StreamingTest {
 
   public static void main(String[] args) throws Exception {
     checksumCompletionRace();
+    unreadInputOwnership();
     var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.setExecutor(Executors.newCachedThreadPool());
     server.createContext("/", exchange -> {
@@ -171,6 +358,7 @@ public final class StreamingTest {
       var validated = new ArrayList<String>();
       config.checksumValidated = (operation, algorithm) -> validated.add(operation + ":" + algorithm);
       var client = new StreamingClient(config);
+      unopenedCallOwnership(config);
 
       // One-shot bodies are sent once, even for an idempotent operation that could be retried.
       mode.set("503"); attempts.set(0);
@@ -188,6 +376,13 @@ public final class StreamingTest {
       check(factories.get() == 2 && attempts.get() == 2 && received.get().equals("same bytes"), "replay per attempt");
       check("10".equals(seen.get().get("content-length")), "known length sent as Content-Length");
       mode.set("ok");
+      var emptyCloses = new AtomicInteger();
+      var empty = ByteStream.fromInputStream(trackedInput(emptyCloses), 0);
+      client.upload(b -> b.body(empty));
+      check(receivedSize.get() == 0 && emptyCloses.get() == 1, "zero-length upload releases its unread source");
+      empty.close();
+      check(emptyCloses.get() == 1, "zero-length upload release is idempotent");
+      zeroLengthInputs(client, config);
       var file = Files.createTempFile("crucible-stream", ".bin");
       try {
         Files.writeString(file, "file bytes");

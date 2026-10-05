@@ -38,7 +38,9 @@ module CrucibleGenerated
       def delay(attempt, remaining, random: ::Random)
         ceiling = [@max_delay, @min_delay * 2**[attempt - 1, 62].min].min
         delay = @min_delay + random.rand * (ceiling - @min_delay)
-        remaining - delay <= @min_delay ? remaining : delay
+        return remaining if remaining <= @min_delay
+        # Preserve a final call's budget when the next delay would consume it.
+        remaining - delay <= @min_delay ? remaining - @min_delay : delay
       end
       private
       def matches?(matcher, input, output, error)
@@ -46,7 +48,7 @@ module CrucibleGenerated
         when 'success' then error.nil? == matcher.fetch('expected')
         when 'errorType'
           expected = matcher.fetch('name')
-          error.is_a?(ServiceError) && [expected, expected.split('#').last].include?(error.metadata.name)
+          error.is_a?(ServiceError) && [expected, expected.split('#').last].include?(error.modeled_error_name || error.metadata.name)
         else
           return false if error
           source = matcher['kind'] == 'inputOutput' ? {'input' => input, 'output' => output} : output

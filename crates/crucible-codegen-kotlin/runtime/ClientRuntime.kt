@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -343,7 +344,9 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
                 val ceiling=minOf(maximum.inWholeMilliseconds.toDouble(),minimum.inWholeMilliseconds.toDouble()*2.0.pow(minOf(attempts-1,62)))
                 val chosen=minimum.inWholeMilliseconds.toDouble()+Random.nextDouble()*(ceiling-minimum.inWholeMilliseconds)
                 val remaining=options.timeout-started.elapsedNow()
-                val sleep=if (remaining.inWholeMilliseconds-chosen<=minimum.inWholeMilliseconds) remaining.inWholeMilliseconds else chosen.toLong()
+                if (remaining<=minimum) awaitCancellation()
+                val sleep=if (remaining.inWholeMilliseconds-chosen<=minimum.inWholeMilliseconds)
+                    remaining.inWholeMilliseconds-minimum.inWholeMilliseconds else chosen.toLong()
                 delay(maxOf(0,sleep))
             }
             @Suppress("UNREACHABLE_CODE") error("unreachable")
@@ -367,7 +370,14 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
     private suspend fun send(prepared: Prepared, timeout: Duration, trace: CallTrace, consume: suspend (Any) -> Any): Any {
         // Discovery started by this call gets the remaining deadline, on the platform clock like the timeout itself.
         val deadline = TimeSource.Monotonic.markNow() + timeout
-        return withTimeout(timeout) { attempts(prepared, deadline, trace, consume) }
+        return withTimeout(timeout) {
+            try { attempts(prepared, deadline, trace, consume) }
+            catch (error: CancellationException) {
+                // Ktor can replace the scope's timeout with a generic call-job cancellation.
+                currentCoroutineContext().ensureActive()
+                throw error
+            }
+        }
     }
     private suspend fun attempts(prepared: Prepared, deadline: TimeMark, trace: CallTrace, consume: suspend (Any) -> Any): Any {
         val op = prepared.operation

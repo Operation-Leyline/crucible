@@ -747,10 +747,13 @@ final class ClientRuntime {
   }
 
   <T> CompletableFuture<T> call(String name, Object input, Class<T> output) {
+    ByteStream stream = null;
     try {
       JsonObject op = schema.getAsJsonObject("operations").getAsJsonObject(name);
-      return callValues(name, inputValues(op, input), requestStream(op, input), output);
+      stream = requestStream(op, input);
+      return callValues(name, inputValues(op, input), stream, output);
     } catch (RuntimeException e) {
+      closeOneShot(stream);
       return CompletableFuture.failedFuture(e);
     }
   }
@@ -816,7 +819,7 @@ final class ClientRuntime {
                   var acceptor=item.getAsJsonObject(); var matcher=acceptor.getAsJsonObject("matcher");
                   String kind=text(matcher,"kind"); boolean matches;
                   if ("success".equals(kind)) matches=(error==null)==flag(matcher,"expected");
-                  else if ("errorType".equals(kind)) { String expected=text(matcher,"name"); matches=error instanceof ServiceError service && (expected.equals(service.errorName()) || expected.substring(expected.lastIndexOf('#')+1).equals(service.errorName())); }
+                  else if ("errorType".equals(kind)) { String expected=text(matcher,"name"); matches=error instanceof ServiceError service && (expected.equals(service.waiterErrorName()) || expected.substring(expected.lastIndexOf('#')+1).equals(service.waiterErrorName())); }
                   else if (error!=null) matches=false;
                   else {
                     JsonElement context=queryOutput;
@@ -848,7 +851,9 @@ final class ClientRuntime {
                 double ceiling=Math.min((double)high,Math.scalb((double)low,Math.min(attempts-1,62)));
                 long delay=low+(long)(ThreadLocalRandom.current().nextDouble()*(ceiling-low));
                 long remaining=timeout-(System.nanoTime()-started);
-                result.schedule(this,remaining-delay<=low ? Math.max(0,remaining) : delay);
+                // Leave time for the final feasible poll instead of sleeping through its deadline.
+                long pause=remaining<=low ? Math.max(0,remaining) : remaining-delay<=low ? remaining-low : delay;
+                result.schedule(this,pause);
               } catch (RuntimeException invalid) { result.completeExceptionally(invalid); }
             },WORKERS);
           } catch (RuntimeException failure) { result.completeExceptionally(failure); }
@@ -902,8 +907,14 @@ final class ClientRuntime {
           && memberValue(value, member.getValue().getAsJsonObject()) instanceof ByteStream stream) stream.close();
   }
 
+  private static void closeOneShot(ByteStream stream) {
+    if (stream != null && !stream.replayable()) stream.close();
+  }
+
   private <T> CompletableFuture<T> callValues(String name, JsonObject values, ByteStream stream, Class<T> output) {
-    Prepared prepared = prepare(name, values, stream);
+    Prepared prepared;
+    try { prepared = prepare(name, values, stream); }
+    catch (RuntimeException failure) { closeOneShot(stream); throw failure; }
     var result = new Call<T>();
     long start = System.nanoTime();
     result.deadline =
@@ -920,6 +931,9 @@ final class ClientRuntime {
             TimeUnit.NANOSECONDS);
     result.whenComplete(
         (value, error) -> {
+          // A supplied one-shot source is owned for the whole call, including
+          // failures and cancellation before its publisher is ever opened.
+          closeOneShot(stream);
           if (result.stream == null) result.deadline.cancel(false);
           result.stop();
         });
@@ -979,7 +993,6 @@ final class ClientRuntime {
         // Opened per attempt, after every check that could fail, so a one-shot body is not lost.
         upload = StreamBody.request(stream.open(), length < 0 ? null : length, minimum, lengthBound(member, "max"));
         if (length == 0) {
-          upload.abort(new CancellationException("empty stream"));
           body = HttpRequest.BodyPublishers.noBody();
         } else body = length > 0 ? HttpRequest.BodyPublishers.fromPublisher(upload, length) : HttpRequest.BodyPublishers.fromPublisher(upload);
       } else body = request.body == null
@@ -995,64 +1008,105 @@ final class ClientRuntime {
         return;
       }
       StreamBody sending = upload;
-      CompletableFuture<HttpResponse<Object>> sent =
-          http.sendAsync(
-              builder.build(),
-              info -> {
-                boolean ok = info.statusCode() >= 200 && info.statusCode() < 300;
-                // A successful streaming response is handed over unread; errors are read whole.
-                if (ok && streamingOutput)
-                  return HttpResponse.BodySubscribers.mapping(HttpResponse.BodySubscribers.ofPublisher(), value -> (Object) value);
-                return HttpResponse.BodySubscribers.mapping(
-                    ok && !hasBody ? emptyBody() : HttpResponse.BodySubscribers.ofByteArray(), value -> (Object) value);
-              });
-      result.track(sent);
-      sent.whenComplete(
-          (response, error) -> {
-            if (result.isDone()) {
-              if (response != null && response.body() instanceof Flow.Publisher<?> unread) discard(unread);
-              return;
-            }
-            Throwable failure = unwrap(error);
-            if (failure == null) {
-              try {
-                if (response.body() instanceof Flow.Publisher<?> received) {
-                  streamed(prepared, output, result, response, received);
+      CompletableFuture<Void> verified = sending != null && stream.length().orElse(-1) == 0
+          ? verifyEmpty(sending, result) : CompletableFuture.completedFuture(null);
+      verified.whenComplete((ignored, validationError) -> {
+        if (validationError != null) {
+          result.completeExceptionally(unwrap(validationError));
+          return;
+        }
+        if (result.isDone()) return;
+        long left = config.timeout.toNanos() - (System.nanoTime() - start);
+        if (left <= 0) {
+          result.completeExceptionally(new HttpTimeoutException("request deadline exceeded"));
+          return;
+        }
+        try {
+          builder.timeout(Duration.ofNanos(left));
+          CompletableFuture<HttpResponse<Object>> sent =
+              http.sendAsync(
+                  builder.build(),
+                  info -> {
+                    boolean ok = info.statusCode() >= 200 && info.statusCode() < 300;
+                    // A successful streaming response is handed over unread; errors are read whole.
+                    if (ok && streamingOutput)
+                      return HttpResponse.BodySubscribers.mapping(HttpResponse.BodySubscribers.ofPublisher(), value -> (Object) value);
+                    return HttpResponse.BodySubscribers.mapping(
+                        ok && !hasBody ? emptyBody() : HttpResponse.BodySubscribers.ofByteArray(), value -> (Object) value);
+                  });
+          result.track(sent);
+          sent.whenComplete(
+              (response, error) -> {
+                if (result.isDone()) {
+                  if (response != null && response.body() instanceof Flow.Publisher<?> unread) discard(unread);
                   return;
                 }
-                byte[] bytes = (byte[]) response.body();
-                if(response.statusCode()>=200 && response.statusCode()<300) Checksums.validate(prepared.checksum(),response.headers(),bytes,config);
-                JsonObject decoded = response(prepared.name(), prepared.operation(), response, bytes);
-                result.complete(
-                    output.cast(decode(text(prepared.operation(), "output"), decoded, null)));
-                return;
-              } catch (RuntimeException e) {
-                failure = e;
-              }
-            }
-            boolean safe = flag(prepared.operation(), "safe");
-            boolean retry;
-            if (sending != null && sending.failure() != null) {
-              // The caller's stream failed or broke its declared length: not a transport fault.
-              Throwable source = sending.failure();
-              failure = source instanceof IOException io ? new java.io.UncheckedIOException("streaming request body failed", io) : source;
-              retry = false;
-            } else if (failure instanceof ServiceError modeled) retry = canRetry(safe, modeled);
-            else if (failure instanceof IOException) {
-              retry = safe;
-              failure = new NetworkError(failure);
-            } else retry = false;
-            if (!retry || attempt >= attempts(prepared)) {
-              result.completeExceptionally(failure);
-              return;
-            }
-            long delay = delay(attempt, response);
-            result.schedule(() -> attempt(prepared, output, result, attempt + 1, start), delay);
-          });
+                Throwable failure = unwrap(error);
+                if (failure == null) {
+                  try {
+                    if (response.body() instanceof Flow.Publisher<?> received) {
+                      streamed(prepared, output, result, response, received);
+                      return;
+                    }
+                    byte[] bytes = (byte[]) response.body();
+                    if(response.statusCode()>=200 && response.statusCode()<300) Checksums.validate(prepared.checksum(),response.headers(),bytes,config);
+                    JsonObject decoded = response(prepared.name(), prepared.operation(), response, bytes);
+                    result.complete(
+                        output.cast(decode(text(prepared.operation(), "output"), decoded, null)));
+                    return;
+                  } catch (RuntimeException e) {
+                    failure = e;
+                  }
+                }
+                boolean safe = flag(prepared.operation(), "safe");
+                boolean retry;
+                if (sending != null && sending.failure() != null) {
+                  // The caller's stream failed or broke its declared length: not a transport fault.
+                  Throwable source = sending.failure();
+                  failure = source instanceof IOException io ? new java.io.UncheckedIOException("streaming request body failed", io) : source;
+                  retry = false;
+                } else if (failure instanceof ServiceError modeled) retry = canRetry(safe, modeled);
+                else if (failure instanceof IOException) {
+                  retry = safe;
+                  failure = new NetworkError(failure);
+                } else retry = false;
+                if (!retry || attempt >= attempts(prepared)) {
+                  result.completeExceptionally(failure);
+                  return;
+                }
+                long delay = delay(attempt, response);
+                result.schedule(() -> attempt(prepared, output, result, attempt + 1, start), delay);
+              });
+        } catch (RuntimeException failure) {
+          if (sending != null) sending.abort(failure);
+          result.completeExceptionally(failure);
+        }
+      });
     } catch (Exception e) {
       if (upload != null) upload.abort(e);
       result.completeExceptionally(e);
     }
+  }
+
+  /** A zero-length BodyPublisher cannot be sent by HttpClient: validate its EOF first. */
+  private static CompletableFuture<Void> verifyEmpty(StreamBody body, Call<?> result) {
+    var verified = new CompletableFuture<Void>();
+    result.whenComplete((value, error) -> {
+      if (!verified.isDone()) body.abort(error == null ? new CancellationException("call cancelled") : unwrap(error));
+    });
+    body.subscribe(new Flow.Subscriber<java.nio.ByteBuffer>() {
+      public void onSubscribe(Flow.Subscription subscription) { subscription.request(1); }
+      public void onNext(java.nio.ByteBuffer bytes) {
+        body.abort(new IllegalArgumentException("stream exceeds its declared length"));
+      }
+      public void onError(Throwable failure) {
+        Throwable source = body.failure();
+        verified.completeExceptionally(source instanceof IOException io
+            ? new java.io.UncheckedIOException("streaming request body failed", io) : failure);
+      }
+      public void onComplete() { verified.complete(null); }
+    });
+    return verified;
   }
 
   @SuppressWarnings("unchecked")
@@ -1222,6 +1276,8 @@ final class ClientRuntime {
         if (payload != null) typedValues.add(wireName(target, payload), payloadValue(traits, bytes));
         applyHeaders(typedValues, target, traits, response);
         error = (ServiceError) decode(target, typedValues, null);
+        // Waiters match the model's shape name even when the protocol uses a custom wire code.
+        error.setModeledErrorName(target.substring(target.indexOf('#') + 1));
       } catch (RuntimeException ignored) {
         // Malformed modeled members must not hide HTTP metadata or the retry policy.
       }

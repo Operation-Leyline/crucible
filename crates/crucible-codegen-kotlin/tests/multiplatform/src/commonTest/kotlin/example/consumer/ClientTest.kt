@@ -84,6 +84,9 @@ class ClientTest {
         queries.close()
         val slow=HttpClient(MockEngine { kotlinx.coroutines.delay(1000); respond("{}",HttpStatusCode.OK) })
         WeatherClient(ClientConfig(endpoint="https://example.test",httpClient=slow,timeout=1.milliseconds)).use { client ->
+            repeat(50) {
+                assertFailsWith<kotlinx.coroutines.TimeoutCancellationException> { client.poll() }
+            }
             val failure=assertFailsWith<example.weather.WaiterError> { client.waitUntilReady(options) }
             assertTrue(failure.lastError is kotlinx.coroutines.TimeoutCancellationException)
         }
@@ -94,6 +97,62 @@ class ClientTest {
             val task=async { client.waitUntilReady(options) }; entered.await(); task.cancelAndJoin(); cancelled.await()
         }
         waiting.close()
+    }
+    @Test fun deadlinesSurviveUntypedCancellationAndActiveCancellationPropagates() = realTest {
+        var requests=0
+        val http=HttpClient(MockEngine { requests++; respond("{}",HttpStatusCode.OK) })
+        var entered=CompletableDeferred<Unit>()
+        // Like Ktor's call job, a dependency may discard the timeout type and cause.
+        val losingCause: suspend (example.weather.Request) -> Unit = {
+            entered.complete(Unit)
+            try { CompletableDeferred<Unit>().await() }
+            catch (error: kotlinx.coroutines.CancellationException) {
+                throw kotlinx.coroutines.CancellationException(error.message)
+            }
+        }
+        val config=ClientConfig(endpoint="https://example.test",httpClient=http,middleware=listOf(losingCause))
+        try {
+            WeatherClient(config.copy(timeout=20.milliseconds)).use { client ->
+                assertFailsWith<kotlinx.coroutines.TimeoutCancellationException> { client.poll() }
+                val failure=assertFailsWith<example.weather.WaiterError> {
+                    client.waitUntilReady(example.weather.WaiterOptions(timeout=2.seconds))
+                }
+                assertTrue(failure.lastError is kotlinx.coroutines.TimeoutCancellationException)
+            }
+            WeatherClient(config).use { client ->
+                assertFailsWith<example.weather.WaiterTimeout> {
+                    client.waitUntilReady(example.weather.WaiterOptions(timeout=20.milliseconds))
+                }
+                entered=CompletableDeferred()
+                val task=async { client.poll() }
+                entered.await(); task.cancelAndJoin()
+                assertTrue(task.isCancelled)
+            }
+            val providerCancellation=kotlinx.coroutines.CancellationException("provider cancelled")
+            WeatherClient(config.copy(token={ throw providerCancellation },middleware=emptyList())).use { client ->
+                val error=assertFailsWith<kotlinx.coroutines.CancellationException> { client.getCity { cityId="cancelled" } }
+                assertTrue(error === providerCancellation)
+            }
+            assertEquals(0,requests)
+        } finally { http.close() }
+    }
+    @Test fun waiterLeavesTimeForItsFinalPoll() = realTest {
+        var requests=0
+        val http=HttpClient(MockEngine {
+            requests++
+            if (requests>1) kotlinx.coroutines.delay(100)
+            respond(if (requests==1) """{"wire-status":"PENDING"}""" else """{"wire-status":"READY"}""",HttpStatusCode.OK)
+        })
+        try {
+            WeatherClient(ClientConfig(endpoint="https://example.test",httpClient=http)).use { client ->
+                val options=example.weather.WaiterOptions(timeout=1500.milliseconds,minDelay=1.seconds,maxDelay=1.seconds)
+                assertEquals("READY",client.waitUntilReady(options)!!.statusValue)
+                assertEquals(2,requests)
+                requests=0
+                assertFailsWith<example.weather.WaiterTimeout> { client.waitUntilReady(options.copy(timeout=500.milliseconds)) }
+                assertEquals(1,requests)
+            }
+        } finally { http.close() }
     }
     @Test fun authSelectionCachingAndPublishedAwsSignatureVector() = realTest {
         val sent = mutableListOf<io.ktor.client.request.HttpRequestData>()

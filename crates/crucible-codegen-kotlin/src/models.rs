@@ -91,7 +91,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 models.push_str(&format!("    data class `{name}`(val value: kotlin.String) {{\n        override fun toString(): kotlin.String = value\n        companion object {{\n"));
                 for v in &e.values {
                     models.push_str(&format!(
-                        "            val `{}` = `{name}`({})\n",
+                        "            @kotlin.jvm.JvmField val `{}` = `{name}`({})\n",
                         v.name.to_uppercase(),
                         literal(&v.value)
                     ));
@@ -108,7 +108,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 models.push_str(&format!("data class `{name}`(val value: kotlin.Int) {{\n    override fun toString(): kotlin.String = value.toString()\n    companion object {{\n"));
                 for v in &e.values {
                     models.push_str(&format!(
-                        "        val `{}` = `{name}`({})\n",
+                        "        @kotlin.jvm.JvmField val `{}` = `{name}`({})\n",
                         v.name.to_uppercase(),
                         v.value
                     ));

@@ -31,6 +31,10 @@ fake = Fake.new { |count| count == 1 ? json(404, '__type' => 'Missing') : json(2
 output = jobs(fake).wait_until_ready(input, timeout: 2, **fast)
 check(output.status == 'READY' && fake.requests.size == 3, 'Retry acceptor, pending output, then success')
 
+fake = Fake.new { |count| json(200, 'wire-status' => count == 1 ? 'PENDING' : 'READY') }
+output = jobs(fake).wait_until_ready(input, timeout: 1.5, min_delay: 1, max_delay: 1)
+check(output.status == 'READY' && fake.requests.size == 2, 'Nonzero delays reserve budget for one final transport poll')
+
 fake = Fake.new { json(404, '__type' => 'Missing') }
 check(jobs(fake).wait_until_deleted(input, timeout: 1).nil? && fake.requests.size == 1, 'Error type success acceptor')
 
@@ -85,7 +89,8 @@ class Ceiling
 end
 waiter = R::Waiter.new('Test', {'minDelay' => 2, 'maxDelay' => 8, 'acceptors' => []})
 check((1..5).map { |attempt| waiter.delay(attempt, 100, random: Ceiling) } == [2, 4, 8, 8, 8], 'Exponential ceiling')
-check(waiter.delay(2, 5, random: Ceiling) == 5, 'Delay near deadline waits out the remainder')
+check(waiter.delay(2, 5, random: Ceiling) == 3, 'Delay near deadline reserves one minimum delay for a final call')
+check(waiter.delay(2, 2, random: Ceiling) == 2 && waiter.delay(2, 1, random: Ceiling) == 1, 'Short remaining budgets wait out the remainder')
 check((1..50).all? { waiter.delay(3, 100).between?(2, 8) }, 'Jitter stays between bounds')
 
 literal = ->(value) { {'kind' => 'literal', 'value' => value} }
