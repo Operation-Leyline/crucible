@@ -25,7 +25,9 @@ class `CitySummary` internal constructor(
     class Builder {
         var `id`: kotlin.String? = null
         var `name`: kotlin.String? = null
-        var `population`: kotlin.Long? = 0L
+        private var __crucibleField2Assigned: kotlin.Boolean = false
+        var `population`: kotlin.Long? = null
+            set(value) { field = value; __crucibleField2Assigned = true }
         internal var __crucibleField3: example.weather.OptionalValue<java.time.Instant> = example.weather.OptionalValue.unset()
         var `updatedAt`: java.time.Instant?
             get() = __crucibleField3.value
@@ -39,7 +41,7 @@ class `CitySummary` internal constructor(
         fun build(): example.weather.model.`CitySummary` = example.weather.model.`CitySummary`(
             `id` = requireNotNull(`id`) { "Missing required member: id" },
             `name` = requireNotNull(`name`) { "Missing required member: name" },
-            `population` = requireNotNull(`population`) { "Missing required member: population" },
+            `population` = if (__crucibleField2Assigned) requireNotNull(`population`) { "Missing required member: population" } else 0L,
             __crucibleField3 = __crucibleField3,
             __crucibleField4 = __crucibleField4,
         )

@@ -146,6 +146,13 @@ private fun serialization(path: String) {
     check(BuilderDefaults { requiredValue = "required"; count = 0 }.count == 0)
     defaults.document.asJsonObject.addProperty("changed", true)
     check(!BuilderDefaults { requiredValue = "required" }.document.asJsonObject.has("changed"))
+    val reusedDefaults = BuilderDefaults.Builder().apply { requiredValue = "required" }
+    val firstDefaults = reusedDefaults.build()
+    firstDefaults.document.asJsonObject.addProperty("changed", true)
+    firstDefaults.blob[0] = 99
+    val secondDefaults = reusedDefaults.build()
+    check(!secondDefaults.document.asJsonObject.has("changed") && secondDefaults.blob.contentEquals(byteArrayOf(1, 2)))
+    check(reusedDefaults.apply { count = 0 }.build().count == 0)
     try { BuilderDefaults {}; error("Missing required member accepted") } catch (_: IllegalArgumentException) { }
     try { BuilderDefaults { requiredValue = "required"; count = null }; error("Explicit null replaced by default") } catch (_: IllegalArgumentException) { }
     val present = CreateCityInput { this.name = "x"; this.location = null }

@@ -53,6 +53,8 @@ accept a `Consumer<Builder>`, such as `client.createCity(b -> b.name("Oslo"))`.
 Operations whose members can all be omitted offer a no-argument call.
 Nonoptional fields start with their modeled defaults. Client-optional members
 remain omitted until assigned, even when the model declares a default.
+Reusing a builder creates fresh mutable defaults for each result. Explicitly
+supplied values retain normal Java reference semantics.
 
 A builder setter accepts the native type; not calling it omits an optional
 member, while passing `null` sends explicit null. Accessors return the value or

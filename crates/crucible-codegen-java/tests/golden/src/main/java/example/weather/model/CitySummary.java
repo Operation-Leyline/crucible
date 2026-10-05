@@ -17,14 +17,15 @@ package example.weather.model;
             private final CitySummary value = new CitySummary();
             public Builder id(java.lang.String item) { value.id = item; return this; }
             public Builder name(java.lang.String item) { value.name = item; return this; }
-            public Builder population(java.lang.Long item) { value.population = item; return this; }
+            private boolean $defaultSet2;
+            public Builder population(java.lang.Long item) { $defaultSet2 = true; value.population = item; return this; }
             public Builder updatedAt(java.time.Instant item) { value.updatedAt = example.weather.OptionalValue.of(item); return this; }
             public Builder createdAt(java.time.Instant item) { value.createdAt = example.weather.OptionalValue.of(item); return this; }
             public CitySummary build() {
                 CitySummary result = new CitySummary();
                 result.id = value.id;
                 result.name = value.name;
-                result.population = value.population;
+                if ($defaultSet2) result.population = value.population;
                 result.updatedAt = value.updatedAt;
                 result.createdAt = value.createdAt;
                 return result;

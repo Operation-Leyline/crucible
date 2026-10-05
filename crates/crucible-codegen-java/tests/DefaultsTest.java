@@ -10,7 +10,8 @@ public final class DefaultsTest {
   }
 
   public static void main(String[] args) {
-    var value = DefaultsOutput.builder().build();
+    var builder = DefaultsOutput.builder();
+    var value = builder.build();
     check(value.flag() && value.tiny() == -7 && value.small() == 1234, "small scalar defaults");
     check(value.count() == 17 && value.large() == Long.MAX_VALUE, "integer defaults");
     check(value.decimalInteger() == 17, "integral decimal default");
@@ -26,7 +27,7 @@ public final class DefaultsTest {
     var explicit = DefaultsOutput.builder().count(null).optionalCount(null).build();
     check(explicit.count() == null && explicit.optionalCount.present() && explicit.optionalCount() == null,
         "explicit null must override defaults");
-    var another = DefaultsOutput.builder().build();
+    var another = builder.build();
     value.strings().add("changed");
     value.lookup().put("changed", 1L);
     value.document().getAsJsonObject().addProperty("changed", true);
@@ -34,6 +35,13 @@ public final class DefaultsTest {
     check(another.strings().isEmpty() && another.lookup().isEmpty()
         && !another.document().getAsJsonObject().has("changed") && another.blob()[0] == 'a',
         "mutable defaults are shared between instances");
+    var suppliedList = new java.util.ArrayList<String>();
+    suppliedList.add("supplied");
+    builder.strings(suppliedList).lookup(null).document(null).blob(null);
+    var assigned = builder.build();
+    check(assigned.strings() == suppliedList && assigned.lookup() == null
+        && assigned.document() == null && assigned.blob() == null,
+        "explicit mutable assignments or nulls were replaced by defaults");
     check(new DefaultsOutput().count() == 17, "direct model default");
     System.out.println("Java native modeled defaults passed");
   }

@@ -105,16 +105,21 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         (storage, cast)
                     } else {
                         models.push_str(&format!("    val `{f}`: {t},\n"));
-                        let initial = m
-                            .default
-                            .as_ref()
-                            .and_then(|value| default_expr(service, &m.target, value, package))
-                            .unwrap_or_else(|| "null".into());
-                        builder.push_str(&format!("        var `{f}`: {t}? = {initial}\n"));
-                        build.push_str(&format!(
-                            "            `{f}` = requireNotNull(`{f}`) {{ {} }},\n",
+                        let required = format!(
+                            "requireNotNull(`{f}`) {{ {} }}",
                             literal(&format!("Missing required member: {}", m.name))
-                        ));
+                        );
+                        let assigned = if let Some(default) = &m.default {
+                            let default = default_expr(service, &m.target, default, package)
+                                .expect("validated default");
+                            let assigned = format!("__crucibleField{index}Assigned");
+                            builder.push_str(&format!("        private var {assigned}: kotlin.Boolean = false\n        var `{f}`: {t}? = null\n            set(value) {{ field = value; {assigned} = true }}\n"));
+                            format!("if ({assigned}) {required} else {default}")
+                        } else {
+                            builder.push_str(&format!("        var `{f}`: {t}? = null\n"));
+                            required
+                        };
+                        build.push_str(&format!("            `{f}` = {assigned},\n"));
                         copy.push_str(&format!("        builder.`{f}` = `{f}`\n"));
                         (format!("`{f}`"), t)
                     };

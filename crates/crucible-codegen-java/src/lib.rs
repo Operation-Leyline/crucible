@@ -430,9 +430,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 if matches!(shape,Shape::Union(_)){models.push_str(&format!("        public {package}.UnknownUnion unknownVariant;\n"));}
                 models.push_str("        public static Builder builder() { return new Builder(); }\n");
                 let mut builder = format!("        public static final class Builder {{\n            private final {name} value = new {name}();\n");
-                for m in &s.members {
+                for (index, m) in s.members.iter().enumerate() {
                     let t=ty(service,&m.target,package); let f=field(&m.name);
                     let optional = m.optional_on_client() || matches!(shape,Shape::Union(_));
+                    // '$' cannot occur in a lowered Smithy member name, keeping
+                    // these private flags independent of modeled identifiers.
+                    let set_default = if !optional && m.default.is_some() {
+                        builder.push_str(&format!("            private boolean $defaultSet{index};\n"));
+                        format!("$defaultSet{index} = true; ")
+                    } else { String::new() };
                     let read = if optional { format!("{f}.value()") } else {f.clone()};
                     let getter = accessor(&f, s.error.is_some());
                     models.push_str(&format!("        public {t} {getter}() {{ return {read}; }}\n"));
@@ -440,12 +446,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     let clear = if matches!(shape, Shape::Union(_)) {
                         s.members.iter().map(|other| format!("value.{} = {package}.OptionalValue.unset(); ", field(&other.name))).collect::<String>() + "value.unknownVariant = null; "
                     } else { String::new() };
-                    builder.push_str(&format!("            public Builder {f}({t} item) {{ {clear}value.{f} = {assigned}; return this; }}\n"));
+                    builder.push_str(&format!("            public Builder {f}({t} item) {{ {clear}{set_default}value.{f} = {assigned}; return this; }}\n"));
                 }
                 builder.push_str(&format!("            public {name} build() {{\n                {name} result = new {name}();\n"));
-                for m in &s.members {
+                for (index, m) in s.members.iter().enumerate() {
                     let f=field(&m.name);
-                    builder.push_str(&format!("                result.{f} = value.{f};\n"));
+                    let assigned = if !m.optional_on_client() && m.default.is_some() && !matches!(shape, Shape::Union(_)) {
+                        format!("if ($defaultSet{index}) ")
+                    } else { String::new() };
+                    builder.push_str(&format!("                {assigned}result.{f} = value.{f};\n"));
                 }
                 if matches!(shape, Shape::Union(_)) { builder.push_str("                result.unknownVariant = value.unknownVariant;\n"); }
                 builder.push_str("                return result;\n            }\n");
