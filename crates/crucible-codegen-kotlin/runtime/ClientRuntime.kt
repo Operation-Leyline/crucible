@@ -97,7 +97,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
     private fun prepare(name: String, originalValues: MutableMap<String, JsonElement>, stream: ByteStream? = null): Prepared {
         val values=originalValues.toMutableMap()
         var op = operation(name); val binding = op.obj("request")
-        val checksum=Checksums.prepare(name,op,values,config)
+        val checksum=Checksums.prepare(name,op,values,config,stream!=null)
         val wireInput=JsonObject(values.mapKeys { (key,_)->codec.wireName(op.text("input")!!,key) })
         val queryInput=codec.queryValue(op.text("input"),wireInput)
         val resolved=if(schema["endpointRules"]!=null) Endpoints.resolve(schema.obj("endpointRules"),(op["endpointParameters"] as? JsonObject) ?: JsonObject(emptyMap()),queryInput,config.endpointParameters,

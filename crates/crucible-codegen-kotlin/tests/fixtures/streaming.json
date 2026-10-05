@@ -5,7 +5,7 @@
       "type": "service", "version": "1", "traits": {"crucible.protocols#json": {}},
       "operations": [
         {"target": "example.stream#Upload"}, {"target": "example.stream#Download"},
-        {"target": "example.stream#Sized"}, {"target": "example.stream#Transfer"}
+        {"target": "example.stream#Sized"}, {"target": "example.stream#Transfer"}, {"target": "example.stream#RequiredTransfer"}
       ]
     },
     "example.stream#Stream": {"type": "blob", "traits": {"smithy.api#streaming": {}}},
@@ -59,6 +59,13 @@
           "requestAlgorithmMember": "algorithm", "requestValidationModeMember": "validation",
           "responseAlgorithms": ["CRC32", "CRC32C", "CRC64NVME", "MD5", "SHA1", "SHA256", "SHA512"]
         }
+      }
+    },
+    "example.stream#RequiredTransfer": {
+      "type": "operation", "input": {"target": "example.stream#TransferInput"}, "output": {"target": "example.stream#TransferOutput"},
+      "traits": {
+        "smithy.api#http": {"method": "POST", "uri": "/required-transfer"},
+        "aws.protocols#httpChecksum": {"requestAlgorithmMember": "algorithm", "requestChecksumRequired": true}
       }
     },
     "example.stream#TransferInput": {

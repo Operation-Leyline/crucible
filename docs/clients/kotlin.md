@@ -164,18 +164,20 @@ supports the protocol's string representations of nonfinite floating-point value
 Payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`.
 The supported algorithms are CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and
 SHA512. Selecting an unsupported XXHASH algorithm raises an error before sending.
-Required legacy checksums use `Content-MD5`; flexible requests default to CRC32
+Required legacy checksums use `Content-MD5`; buffered flexible requests default to CRC32
 and response validation defaults to `ENABLED` when the model supplies those input
 members. These defaults change only the private request copy. Explicit checksum
 headers take precedence. Request checksums cover the final middleware body and
 are included in authentication signing. Response verification runs before decoding;
 a mismatch raises `ChecksumMismatch` and returns no model.
 
+Streamed requests select a checksum only when required or explicitly configured.
+Optional streams keep the default policy without an automatic checksum pass.
 Streaming bodies are checksummed without buffering. A replayable request body is
 read once more before sending to compute its checksum (once per call, not per
 attempt); a SHA256 checksum of a body with a supplied `sha256` needs no extra read.
-A one-shot body needs a caller-supplied checksum header, otherwise the call fails
-before sending. A streamed response is verified as the consumer reads it: at the
+A one-shot body needs a caller-supplied header when a checksum is selected;
+otherwise that checksum request fails before sending. A streamed response is verified as the consumer reads it: at the
 end of the body a mismatch fails the read, and the call raises `ChecksumMismatch`
 even if the consumer caught that failure. A body the consumer does not read to
 the end is not verified, and the callback is not invoked.
