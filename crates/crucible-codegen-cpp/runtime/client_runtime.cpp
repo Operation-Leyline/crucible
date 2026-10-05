@@ -338,7 +338,7 @@ std::optional<SigningOptions> ClientRuntime::authenticate(const Json& operation,
             }
         }
     }
-    if (!ids.empty() && !(ids.size() == 1 && bearer) && !flag(operation, "optionalAuth")) throw std::invalid_argument("No identity available for modeled authentication schemes");
+    if (!ids.empty() && !(ids.size() == 1 && ids.front() == bearer_id && bearer) && !flag(operation, "optionalAuth")) throw std::invalid_argument("No identity available for modeled authentication schemes");
     return std::nullopt;
 }
 Json ClientRuntime::apply_headers(const std::string& target, const Json& bindings, const HttpResponse& response, const Json& body) const {

@@ -62,13 +62,13 @@ public static class SigV4Signer
             if (trailing && !path.EndsWith('/')) path += "/";
         }
         if (!(disableDoubleEncoding ?? service == "s3")) path = string.Join("/", path.Split('/').Select(Uri.EscapeDataString));
-        var query = new List<string>();
+        var query = new List<(string Key, string Value)>();
         foreach (var pair in url.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             var parts = pair.Split('=', 2);
-            query.Add(Uri.EscapeDataString(Uri.UnescapeDataString(parts[0])) + "=" + Uri.EscapeDataString(Uri.UnescapeDataString(parts.Length == 2 ? parts[1] : "")));
+            query.Add((Uri.EscapeDataString(Uri.UnescapeDataString(parts[0])), Uri.EscapeDataString(Uri.UnescapeDataString(parts.Length == 2 ? parts[1] : ""))));
         }
-        query.Sort(StringComparer.Ordinal);
+        query.Sort((a, b) => { var order = string.CompareOrdinal(a.Key, b.Key); return order != 0 ? order : string.CompareOrdinal(a.Value, b.Value); });
         var excluded = new HashSet<string>(["authorization", "connection", "expect", "transfer-encoding", "user-agent", "x-amzn-trace-id", "accept-encoding", "content-length"], StringComparer.OrdinalIgnoreCase);
         var headers = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
         var all = request.Headers.AsEnumerable();
@@ -82,6 +82,6 @@ public static class SigV4Signer
         headers["host"] = [request.Headers.Host ?? url.Authority];
         var signed = string.Join(";", headers.Keys);
         var canonicalHeaders = string.Concat(headers.Select(header => header.Key + ":" + string.Join(",", header.Value) + "\n"));
-        return (string.Join("\n", request.Method.Method, path, string.Join("&", query), canonicalHeaders, signed, digest), signed);
+        return (string.Join("\n", request.Method.Method, path, string.Join("&", query.Select(pair => pair.Key + "=" + pair.Value)), canonicalHeaders, signed, digest), signed);
     }
 }

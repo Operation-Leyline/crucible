@@ -82,6 +82,7 @@ def qualify(output, native=False):
     service["rename"].update({"example.wait#Input": "WaiterInput", "example.wait#Output": "WaiterOutput", "example.wait#Names": "WaiterNames"})
     model["shapes"]["example.wait#Poll"]["traits"]["smithy.waiters#waitable"]["Deleted"] = {"acceptors": [{"state": "success", "matcher": {"errorType": "example.wait#Missing"}}]}
     expressions = ["abs(`-2`) == `2`", "avg(`[1,2]`) == `1.5`", "ceil(`-1.1`) == `-1`", "floor(`-1.1`) == `-2`",
+        "to_string(ceil(`-1.1`)) == '-1'", "to_string(floor(`-0.1`)) == '-1'",
         "contains(`[true]`, `1`) == `false`", "ends_with('abc', 'bc')", "starts_with('abc', 'ab')", "join(',', `['a','b']`) == 'a,b'".replace("`['a','b']`", '`["a","b"]`'),
         'keys(`{"a":1}`) == `["a"]`', 'values(`{"a":1}`) == `[1]`', "length('😀é') == `2`", "reverse('😀é') == 'é😀'",
         "map(&status, items) == `['READY','READY']`".replace("`['READY','READY']`", '`["READY","READY"]`'), "max(`[1,3,2]`) == `3`", "min(`[1,3,2]`) == `1`",

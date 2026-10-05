@@ -1,4 +1,5 @@
 #include "auth_client/client.hpp"
+#include "auth_client/schema.hpp"
 #define SCRIPTED_RUNTIME auth_sdk::runtime
 #include "scripted.hpp"
 #include <atomic>
@@ -114,6 +115,50 @@ void modeled_authentication(Scripted& server) {
     check(rejects<std::invalid_argument>([&] { (void)sdk::AuthClient(config).read(); }, "plaintext credentials").find("HTTPS") != std::string::npos, "credentials require HTTPS outside loopback");
 }
 
+void legacy_bearer_missing_identity() {
+    struct ObservedTransport : rt::Transport {
+        unsigned calls = 0;
+        rt::Headers headers;
+        rt::HttpResponse send(const rt::HttpRequest& request, bool, const rt::CallScope&) override {
+            ++calls; headers = request.headers;
+            return {204, {}, ""};
+        }
+    };
+    const auto call = [](const std::string& scheme, bool optional) {
+        // An operation can override a service's legacy bearer default with one
+        // required scheme; the inherited flag must not make that scheme optional.
+        auto description = sdk::schema().description().object();
+        auto operations = description.at("operations").object();
+        auto operation = operations.at("Read").object();
+        operation.insert_or_assign("bearer", rt::Json(true));
+        if (scheme.empty()) operation.erase("auth");
+        else operation.insert_or_assign("auth", rt::Json(rt::Json::Array{rt::Json(scheme)}));
+        operation.insert_or_assign("optionalAuth", rt::Json(optional));
+        operations.insert_or_assign("Read", rt::Json(std::move(operation)));
+        description.insert_or_assign("operations", rt::Json(std::move(operations)));
+        const rt::Schema schema(rt::Json(std::move(description)));
+        const auto transport = std::make_shared<ObservedTransport>();
+        rt::ClientConfig config; config.endpoint = "https://example.invalid"; config.transport = transport;
+        const rt::ClientRuntime client(config, schema,
+            [](const std::string&, const rt::Json&, rt::ErrorMetadata) { return std::exception_ptr(); }, "", false);
+        const auto invoke = [&] { (void)client.exchange("Read", rt::Json(rt::Json::Object{}), client.scope()); };
+        if (scheme.empty() || optional) {
+            invoke();
+            check(transport->calls == 1 && !transport->headers.contains("authorization") && !transport->headers.contains("x-api-key"),
+                "legacy bearer and optional authentication still allow anonymous calls");
+        } else {
+            check(rejects<std::invalid_argument>(invoke, "missing required " + scheme).find("No identity available") != std::string::npos,
+                "missing required scheme rejected despite inherited bearer flag");
+            check(transport->calls == 0, "missing required identity rejected before dispatch");
+        }
+    };
+    for (const auto* scheme : {"smithy.api#httpBasicAuth", "smithy.api#httpApiKeyAuth", "aws.auth#sigv4"}) {
+        call(scheme, false);
+        call(scheme, true);
+    }
+    call("", false);
+}
+
 void credential_providers() {
     const rt::CallScope scope(10);
     const auto source = env("CREDENTIALS_FILE");
@@ -186,6 +231,7 @@ void cached_client_credentials(Scripted& server) {
 
 int main() {
     try {
+        legacy_bearer_missing_identity();
         Scripted server;
         published_signing_vector();
         preconfigured_credentials(server);

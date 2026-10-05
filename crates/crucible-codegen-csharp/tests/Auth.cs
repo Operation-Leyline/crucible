@@ -20,6 +20,16 @@ static class Program
         var identity = new AwsCredentials("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");
         await SigV4Signer.SignAsync(request, identity, new("us-east-1", "s3") { Time = new DateTimeOffset(2013,5,24,0,0,0,TimeSpan.Zero) });
         Check(request.Headers.GetValues("Authorization").Single().EndsWith("Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41", StringComparison.Ordinal), "published AWS signing vector");
+        const string prefixUrl = "https://examplebucket.s3.amazonaws.com/test.txt?a-=z&a=z&a=aa&a&a=&a-=b&%61=%2F";
+        using var prefix = new HttpRequestMessage(HttpMethod.Get, prefixUrl);
+        prefix.Headers.Add("Range", "bytes=0-9");
+        await SigV4Signer.SignAsync(prefix, identity, new("us-east-1", "s3") { Time = new DateTimeOffset(2013,5,24,0,0,0,TimeSpan.Zero) });
+        Check(prefix.Headers.GetValues("Authorization").Single().EndsWith("Signature=a08d64c4c7bf9729f2b51c2a7e248447c77bf5f32413c0271397bd48b353860e", StringComparison.Ordinal),
+            "independent SigV4 prefix-key, duplicate-value and escaping vector");
+        using var prefixV4a = new HttpRequestMessage(HttpMethod.Get, prefixUrl);
+        prefixV4a.Headers.Add("Range", "bytes=0-9");
+        var signedV4a = await SigV4aSigner.SignAsync(prefixV4a, identity, new("*", "s3") { Time = new DateTimeOffset(2013,5,24,0,0,0,TimeSpan.Zero) });
+        Check(signedV4a.CanonicalRequest.Split('\n')[2] == "a=&a=&a=%2F&a=aa&a=z&a-=b&a-=z", "SigV4a shares key-then-value query ordering");
         Check(!identity.ToString().Contains(identity.SecretAccessKey, StringComparison.Ordinal), "secret formatting");
         var handler = new Handler(); using var http = new HttpClient(handler);
         int calls = 0;

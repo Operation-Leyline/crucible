@@ -115,11 +115,11 @@ try { $call('abs', $literal('"x"')); throw new RuntimeException('abs string acce
 $slice = static fn(string $json, ?int $start, ?int $stop, ?int $step) => array_map(static fn($n) => $n->text, Query::search(new JsonObject(['kind' => 'slice',
     'start' => $start === null ? null : new JsonNumber((string)$start), 'stop' => $stop === null ? null : new JsonNumber((string)$stop), 'step' => $step === null ? null : new JsonNumber((string)$step)]), ExactJson::decode($json)));
 check($slice('[0,1,2,3,4]', 1, null, null) === ['1', '2', '3', '4'] && $slice('[0,1,2,3,4]', null, null, -2) === ['4', '2', '0'] && $slice('[0,1,2,3,4]', -2, null, 1) === ['3', '4'], 'slices');
-echo "PHP waiters, compiled JMESPath, and waiter timing passed\n";
-
 check($waiter->delay(2, 1.0) === 1.0, 'short budget is exhausted without another poll');
 $transport = new Script(static function(int $call): HttpResponse {
     if ($call === 2) usleep(100000);
     return new HttpResponse(200, [], $call === 1 ? '{"wire-status":"PENDING"}' : '{"wire-status":"READY"}');
 });
 check(jobs($transport)->waitUntilReady($input, 1.5, 1.0, 1.0)?->status === 'READY' && $transport->calls === 2, 'final poll retains a call budget');
+
+echo "PHP waiters, compiled JMESPath, and waiter timing passed\n";

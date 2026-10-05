@@ -21,6 +21,14 @@ internal fun JsonObject.obj(name: String): JsonObject = getValue(name).jsonObjec
 internal fun JsonObject.array(name: String): JsonArray = getValue(name).jsonArray
 private val jsonNumber = Regex("-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?")
 
+internal fun decimalText(value: com.ionspin.kotlin.bignum.decimal.BigDecimal): String {
+    val text = value.toString()
+    val point = text.indexOf('.')
+    // bignum 0.3.10 leaves a dangling point for negative powers of ten.
+    return if (point >= 0 && (point == text.lastIndex || text[point + 1] == 'E' || text[point + 1] == 'e'))
+        text.removeRange(point, point + 1) else text
+}
+
 /** Compare numbers exactly and objects independent of member order. */
 private fun collectionKey(value: JsonElement): String = when (value) {
     is JsonArray -> value.joinToString(",", "[", "]") { collectionKey(it) }
@@ -93,7 +101,8 @@ internal class JsonCodec(val schema: JsonObject) {
             "timestamp" -> writeTime(value as Instant, format ?: shape.text("format"))
             "document" -> checkedJson(value as JsonElement)
             "blob" -> if(shape.flag("streaming")) JsonPrimitive("") else JsonPrimitive(Base64.encode(value as ByteArray))
-            "bigInteger", "bigDecimal" -> JsonUnquotedLiteral(value.toString())
+            "bigInteger" -> JsonUnquotedLiteral(value.toString())
+            "bigDecimal" -> JsonUnquotedLiteral(decimalText(value as com.ionspin.kotlin.bignum.decimal.BigDecimal))
             "list" -> {
                 val member = shape.obj("member")
                 val items = (value as Iterable<*>).map {

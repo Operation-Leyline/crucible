@@ -100,4 +100,26 @@ final class WaiterTests: XCTestCase, @unchecked Sendable {
             "right": .object(["kind": .string("literal"), "value": number("1")])])
         XCTAssertEqual(try JMESPath.evaluate(mixed, .null), .null)
     }
+    func testExtremeExponentFailsWithoutTrapping() throws {
+        let extreme = "1e\(Int.min)"
+        let value = try JSONValue(data: Data(extreme.utf8))
+        XCTAssertEqual(value, .number(extreme), "valid JSON syntax reaches query precision validation")
+        let literal: JSONValue = .object(["kind": .string("literal"), "value": value])
+        let compare: JSONValue = .object(["kind": .string("compare"), "comparator": .string("lessThan"),
+            "left": literal, "right": .object(["kind": .string("literal"), "value": .number("1")])])
+        XCTAssertThrowsError(try JMESPath.evaluate(compare, .null)) { error in
+            XCTAssertTrue(error is WireError)
+        }
+        for function in ["abs", "sum", "avg", "sort"] {
+            let argument: JSONValue = function == "abs" ? value : .array([value])
+            let query: JSONValue = .object(["kind": .string("function"), "function": .string(function),
+                "arguments": .array([.object(["kind": .string("literal"), "value": argument])])])
+            XCTAssertThrowsError(try JMESPath.evaluate(query, .null)) { error in
+                XCTAssertTrue(error is WireError)
+            }
+        }
+        let conversion: JSONValue = .object(["kind": .string("function"), "function": .string("to_number"),
+            "arguments": .array([.object(["kind": .string("literal"), "value": .string(extreme)])])])
+        XCTAssertEqual(try JMESPath.evaluate(conversion, .null), .null, "try? catches the precision error")
+    }
 }

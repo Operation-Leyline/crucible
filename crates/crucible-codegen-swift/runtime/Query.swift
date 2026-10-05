@@ -19,7 +19,7 @@ internal struct QueryDecimal: Sendable {
         let unsigned = negative ? String(raw.dropFirst()) : raw
         let parts = unsigned.lowercased().split(separator: "e", omittingEmptySubsequences: false)
         let decimal = parts[0].split(separator: ".", omittingEmptySubsequences: false)
-        guard let shift = parts.count == 2 ? Int(parts[1]) : 0, abs(shift) <= 1_000_000 else {
+        guard let shift = parts.count == 2 ? Int(parts[1]) : 0, shift.magnitude <= 1_000_000 else {
             throw WireError("JMESPath arithmetic exponent exceeds supported precision")
         }
         let fraction = decimal.count == 2 ? decimal[1] : ""
