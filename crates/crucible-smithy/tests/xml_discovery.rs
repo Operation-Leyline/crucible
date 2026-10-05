@@ -213,25 +213,31 @@ fn xml_protocol_fixtures_lower_with_their_vectors() {
             include_str!("fixtures/protocol-rest-xml.json"),
             "aws.protocoltests.restxml#RestXml",
             Protocol::AwsRestXml,
-            60,
+            182,
         ),
         (
             include_str!("fixtures/protocol-rest-xml.json"),
-            "aws.protocoltests.restxml.nowrap#RestXmlNoErrorWrapping",
+            "aws.protocoltests.restxml.xmlns#RestXmlWithNamespace",
             Protocol::AwsRestXml,
             2,
+        ),
+        (
+            include_str!("fixtures/protocol-rest-xml.json"),
+            "com.amazonaws.s3#AmazonS3",
+            Protocol::AwsRestXml,
+            13,
         ),
         (
             include_str!("fixtures/protocol-aws-query.json"),
             "aws.protocoltests.query#AwsQuery",
             Protocol::AwsQuery,
-            44,
+            75,
         ),
         (
             include_str!("fixtures/protocol-ec2-query.json"),
             "aws.protocoltests.ec2#AwsEc2",
             Protocol::Ec2Query,
-            35,
+            57,
         ),
     ] {
         let service = Model::from_json(fixture)
@@ -250,14 +256,82 @@ fn xml_protocol_fixtures_lower_with_their_vectors() {
         assert!(!service.protocol_settings.omit_null_structure_members);
         assert_eq!(
             service.protocol_settings.no_error_wrapping,
-            service.id.name() == "RestXmlNoErrorWrapping"
+            service.id.name() == "AmazonS3"
+        );
+        for operation in &service.operations {
+            assert_eq!(
+                operation.unwrapped_xml_output,
+                service.id.name() == "AmazonS3" && operation.name() == "GetBucketLocation"
+            );
+        }
+    }
+}
+
+#[test]
+fn unwrapped_xml_output_requires_one_body_member_and_rest_xml() {
+    let fixture = include_str!("fixtures/protocol-rest-xml.json");
+    for invalid_protocol in [false, true] {
+        let mut model: Value = serde_json::from_str(fixture).unwrap();
+        if invalid_protocol {
+            model["shapes"]["com.amazonaws.s3#AmazonS3"]["traits"]
+                .as_object_mut()
+                .unwrap()
+                .remove("aws.protocols#restXml");
+            model["shapes"]["com.amazonaws.s3#AmazonS3"]["traits"]["aws.protocols#awsQuery"] =
+                json!({});
+        } else {
+            model["shapes"]["com.amazonaws.s3#GetBucketLocationOutput"]["members"]["extra"] =
+                json!({"target": "smithy.api#String"});
+        }
+        let error = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower_with_capabilities(Some(&"com.amazonaws.s3#AmazonS3".parse().unwrap()), &all())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("com.amazonaws.s3#GetBucketLocation")
+                && error.contains("@s3UnwrappedXmlOutput requires"),
+            "{error}"
         );
     }
 }
 
 #[test]
+fn unwrapped_xml_output_is_scoped_to_an_operation_with_a_shared_output() {
+    let mut model: Value =
+        serde_json::from_str(include_str!("fixtures/protocol-rest-xml.json")).unwrap();
+    let mut wrapped = model["shapes"]["com.amazonaws.s3#GetBucketLocation"].clone();
+    let traits = wrapped["traits"].as_object_mut().unwrap();
+    traits.remove("aws.customizations#s3UnwrappedXmlOutput");
+    traits.remove("smithy.test#httpResponseTests");
+    traits["smithy.api#http"]["uri"] = json!("/{Bucket}?wrapped-location");
+    model["shapes"]["com.amazonaws.s3#WrappedLocation"] = wrapped;
+    model["shapes"]["com.amazonaws.s3#AmazonS3"]["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"target": "com.amazonaws.s3#WrappedLocation"}));
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(Some(&"com.amazonaws.s3#AmazonS3".parse().unwrap()), &all())
+        .unwrap();
+    let original = service
+        .operations
+        .iter()
+        .find(|op| op.name() == "GetBucketLocation")
+        .unwrap();
+    let wrapped = service
+        .operations
+        .iter()
+        .find(|op| op.name() == "WrappedLocation")
+        .unwrap();
+    assert_eq!(original.output, wrapped.output);
+    assert!(original.unwrapped_xml_output);
+    assert!(!wrapped.unwrapped_xml_output);
+}
+
+#[test]
 fn rest_xml_payload_roots_and_flattened_namespaces_are_resolved() {
-    let service = Model::from_json(include_str!("fixtures/protocol-rest-xml.json"))
+    let service = Model::from_json(include_str!("fixtures/xml-additions-rest-xml.json"))
         .unwrap()
         .lower_with_protocol(
             Some(&"aws.protocoltests.restxml#RestXml".parse().unwrap()),
@@ -326,7 +400,7 @@ fn rest_xml_payload_roots_and_flattened_namespaces_are_resolved() {
 
 #[test]
 fn ec2_query_names_capitalize_unless_explicit() {
-    let service = Model::from_json(include_str!("fixtures/protocol-ec2-query.json"))
+    let service = Model::from_json(include_str!("fixtures/xml-additions-ec2-query.json"))
         .unwrap()
         .lower_with_protocol(None, &all(), Protocol::Ec2Query)
         .unwrap();
@@ -351,7 +425,7 @@ fn ec2_query_names_capitalize_unless_explicit() {
 #[test]
 fn sparse_collections_are_refused_by_xml_protocols() {
     let mut model: Value =
-        serde_json::from_str(include_str!("fixtures/protocol-aws-query.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/xml-additions-aws-query.json")).unwrap();
     model["shapes"]["aws.protocoltests.query#StringList"]["traits"] =
         json!({"smithy.api#sparse": {}});
     model["shapes"]["aws.protocoltests.query#StringMap"]["traits"] =
@@ -366,6 +440,49 @@ fn sparse_collections_are_refused_by_xml_protocols() {
             error.contains(&format!(
                 "aws.protocoltests.query#{shape}: @sparse collections are not supported by the selected XML protocol"
             )),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn official_xml_provenance_and_exclusions_are_explicit() {
+    for fixture in [
+        include_str!("fixtures/protocol-rest-xml.json"),
+        include_str!("fixtures/protocol-aws-query.json"),
+        include_str!("fixtures/protocol-ec2-query.json"),
+    ] {
+        let mut model: Value = serde_json::from_str(fixture).unwrap();
+        let provenance = model["metadata"]["crucibleQualification"].clone();
+        assert_eq!(
+            provenance["revision"],
+            "bd0ed9e054b29874a5bec389e16d8c4db9dc9b94"
+        );
+        assert_eq!(provenance["compilerVersion"], "1.74.0");
+        assert_eq!(provenance["transform"], "flattenAndRemoveMixins");
+        assert!(!provenance["sources"].as_array().unwrap().is_empty());
+        for source in provenance["sources"].as_array().unwrap() {
+            assert_eq!(source["sha256"].as_str().unwrap().len(), 64);
+        }
+        let exclusions = provenance["excludedOperations"].as_array().unwrap();
+        assert_eq!(exclusions.len(), 1);
+        let excluded = &exclusions[0];
+        let service = excluded["service"].as_str().unwrap();
+        let operation = excluded["operation"].as_str().unwrap();
+        assert!(!excluded["tests"].as_array().unwrap().is_empty());
+        // The full official operation and vectors remain present. Reattaching it
+        // must produce a shape-specific diagnostic rather than silently emit it.
+        model["shapes"][service]["operations"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"target": operation}));
+        let error = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower_with_capabilities(Some(&service.parse().unwrap()), &all())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains(operation) && error.contains("requestCompression"),
             "{error}"
         );
     }

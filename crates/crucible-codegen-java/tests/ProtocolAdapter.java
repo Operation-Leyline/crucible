@@ -46,12 +46,30 @@ public final class ProtocolAdapter {
       schema = JsonParser.parseString(new String(input.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
     }
     JsonObject snapshot;
-    if ((vector.has("vendorParams") && !vector.get("vendorParams").isJsonNull())
+    boolean errorVendor = "aws.protocoltests.config#ErrorCodeParams".equals(text(vector, "vendorParamsShape"))
+        && "response".equals(text(vector.getAsJsonObject("case"), "kind"));
+    if ((vector.has("vendorParams") && !vector.get("vendorParams").isJsonNull() && !errorVendor)
         || (vector.has("authScheme") && !vector.get("authScheme").isJsonNull())) {
       snapshot = new JsonObject();
       snapshot.addProperty("unsupported", "Java adapter needs vendor/auth fixture configuration");
-    } else snapshot = run(vector);
-    System.out.print(new GsonBuilder().disableHtmlEscaping().serializeNulls().create().toJson(snapshot));
+    } else {
+      snapshot = run(vector);
+      if (errorVendor) {
+        // These vendor parameters control server error construction. A client
+        // consumes their code/type from the supplied XML, without configuration.
+        JsonObject vendor = vector.getAsJsonObject("vendorParams");
+        if (!java.util.Set.of("code", "type").containsAll(vendor.keySet()))
+          throw new AssertionError("unrecognized error vendor parameter");
+        byte[] body = text(vector.getAsJsonObject("case").getAsJsonObject("message"), "body").getBytes(StandardCharsets.UTF_8);
+        for (String key : vendor.keySet()) {
+          var node = XmlProtocol.parse(body).find(key.equals("code") ? "Code" : "Type");
+          if (node == null || !node.text.toString().strip().equals(text(vendor, key)))
+            throw new AssertionError("error vendor parameter absent from response: " + key);
+        }
+        snapshot.addProperty("vendorParamsApplied", true);
+      }
+    }
+    System.out.write(new GsonBuilder().disableHtmlEscaping().serializeNulls().create().toJson(snapshot).getBytes(StandardCharsets.UTF_8));
   }
 
   private static String text(JsonObject object, String key) {
@@ -77,6 +95,7 @@ public final class ProtocolAdapter {
     // so preparation never consults environment or instance metadata providers.
     config.credentials = () -> new AwsCredentials("AKIDEXAMPLE", "fixture-secret");
     config.region = "us-east-1";
+    config.idempotencyToken = () -> "00000000-0000-4000-8000-000000000000";
     JsonObject snapshot = new JsonObject();
     config.middleware.add(request -> {
       snapshot.addProperty("method", request.method);
@@ -87,6 +106,10 @@ public final class ProtocolAdapter {
       snapshot.add("queryParams", query);
       var headers = new JsonObject();
       request.headers.forEach(headers::addProperty);
+      // The JDK adds this after middleware; use its actual byte-array publisher
+      // length, including UTF-8 bytes, when capturing before transport.
+      if (request.body != null)
+        headers.addProperty("content-length", Long.toString(HttpRequest.BodyPublishers.ofByteArray(request.body).contentLength()));
       snapshot.add("headers", headers);
       snapshot.addProperty("body", request.body == null ? "" : new String(request.body, StandardCharsets.UTF_8));
       throw new Captured();

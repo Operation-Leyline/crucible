@@ -172,7 +172,7 @@ module CrucibleGenerated
         endpoint = resolve_endpoint(op, query_input)
         checksum = Checksums.prepare(op['checksum'], values, @config.request_checksum_calculation, @config.response_checksum_validation)
         token = op['token']
-        values[token] = ::SecureRandom.uuid if token && values[token].nil?
+        values[token] = WireCodec.string(@config.idempotency_token.call) if token && values[token].nil?
         bindings = op.fetch('request')
         path = op.fetch('uri').dup
         bindings.fetch('labels').each do |member|
@@ -324,7 +324,10 @@ module CrucibleGenerated
         elsif @xml && (payload.nil? || bindings['payloadKind'] == 'document')
           @xml.output(name, op['output'], bindings.fetch('body'), payload&.first, response.body)
         elsif payload
-          {payload[0] => payload_value(op.fetch('output'), bindings, response.body)}
+          member = @codec.shape(op.fetch('output')).fetch('members').fetch(payload[0])
+          absent_blob = @xml && response.body.empty? && member['optional'] &&
+            @codec.shape(member.fetch('target'))['kind'] == 'blob'
+          absent_blob ? {} : {payload[0] => payload_value(op.fetch('output'), bindings, response.body)}
         elsif bindings.fetch('body').empty? || response.body.empty?
           {}
         else WireCodec.object(@codec.document(op.fetch('output'), ExactJson.decode(response.body), encode: false))
@@ -357,7 +360,7 @@ module CrucibleGenerated
         explicit = bindings.fetch('headers').map { |_, wire| wire.downcase }
         bindings.fetch('prefixHeaders', []).each do |member, prefix|
           prefix = prefix.downcase
-          object[member] = response.headers.filter_map { |header, text| [header.delete_prefix(prefix), media(text, bindings, member, false)] if header.start_with?(prefix) && !explicit.include?(header) }.to_h
+          object[member] = response.headers.filter_map { |header, text| [header.delete_prefix(prefix), media(text, bindings, member, false)] if header.start_with?(prefix) && (prefix.empty? || !explicit.include?(header)) }.to_h
         end
         object[bindings['responseCode']] = response.status if bindings['responseCode']
         object

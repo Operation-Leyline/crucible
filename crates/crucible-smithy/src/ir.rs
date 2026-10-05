@@ -401,6 +401,8 @@ pub struct Retryable {
 
 #[derive(Debug, Clone)]
 pub struct Operation {
+    /// The sole output member is the restXml root rather than its child.
+    pub unwrapped_xml_output: bool,
     pub unsigned_payload: bool,
     pub discovered_endpoint: Option<DiscoveredEndpoint>,
     pub checksum: Option<Checksum>,

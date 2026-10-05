@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlsplit
 import xml.etree.ElementTree as ET
 
 
@@ -52,6 +52,11 @@ def equal(left, right):
 
 def xml_value(element):
     children = tuple(xml_value(child) for child in element)
+    element_only = children and not (element.text or "").strip() and all(
+        not (child.tail or "").strip() for child in element)
+    if element_only:
+        # Structure members have no order; stable sorting retains repeated list-item order.
+        children = tuple(sorted(children, key=lambda child: child[0]))
     return (element.tag, tuple(sorted(element.attrib.items())),
             element.text if not children else (element.text or "").strip(), children,
             (element.tail or "").strip())
@@ -59,6 +64,9 @@ def xml_value(element):
 
 def compare_body(expected, actual, media):
     if expected is None:
+        return
+    if expected == "":
+        require(actual == "", "body differs")
         return
     if media and (media.split(";", 1)[0].endswith("json") or "+json" in media):
         require(equal(read_json(expected), read_json(actual)), "JSON body differs")
@@ -81,7 +89,8 @@ def compare(vector, snapshot):
     require(snapshot["method"] == case["method"], "HTTP method differs")
     require(snapshot["uri"] == case["uri"], "URI path differs")
     if case.get("resolvedHost") or case.get("host"):
-        require(snapshot["host"] == (case.get("resolvedHost") or case["host"]), "host differs")
+        endpoint = case.get("resolvedHost") or case["host"]
+        require(snapshot["host"] == urlsplit("//" + endpoint).hostname, "host differs")
     actual_query = snapshot.get("queryParams", [])
     def pairs(items):
         return Counter(pair for item in items for pair in parse_qsl(item, keep_blank_values=True))
@@ -100,7 +109,7 @@ def compare(vector, snapshot):
     compare_body(message.get("body"), snapshot.get("body", ""), message.get("bodyMediaType"))
 
 
-def run(vectors, command, protocol, timeout=30):
+def run(vectors, command, protocol, timeout=30, allow_unsupported=()):
     results = []
     for vector in vectors["tests"]:
         item = {"id": vector["id"], "operation": vector["operation"]}
@@ -109,7 +118,7 @@ def run(vectors, command, protocol, timeout=30):
             continue
         try:
             result = subprocess.run(command, input=write_json(vector), text=True,
-                                    capture_output=True, timeout=timeout, check=True)
+                                    encoding="utf-8", capture_output=True, timeout=timeout, check=True)
             snapshot = read_json(result.stdout)
             if "unsupported" in snapshot:
                 results.append({**item, "status": "unsupported", "reason": snapshot["unsupported"]})
@@ -123,9 +132,14 @@ def run(vectors, command, protocol, timeout=30):
         except (AssertionError, ValueError, KeyError, OSError, subprocess.SubprocessError, ET.ParseError) as error:
             results.append({**item, "status": "failed", "reason": str(error)})
     counts = Counter(item["status"] for item in results)
-    return {"schemaVersion": 1, "service": vectors["service"], "protocol": protocol,
-            "complete": counts["passed"] > 0 and counts["failed"] == 0 and counts["unsupported"] == 0,
-            "counts": dict(counts), "results": results}
+    report = {"schemaVersion": 1, "service": vectors["service"], "protocol": protocol,
+              "complete": counts["passed"] > 0 and counts["failed"] == 0 and counts["unsupported"] == 0,
+              "counts": dict(counts), "results": results}
+    if allow_unsupported:
+        unsupported = {item["id"] for item in results if item["status"] == "unsupported"}
+        report["qualifiedSubset"] = (counts["passed"] > 0 and counts["failed"] == 0
+                                     and unsupported == set(allow_unsupported))
+    return report
 
 
 def main():
@@ -134,16 +148,19 @@ def main():
     parser.add_argument("--protocol", default="crucible.protocols#json")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=30)
+    parser.add_argument("--allow-unsupported", action="append", default=[], metavar="ID",
+                        help="explicitly allow this unsupported test ID when qualifying a subset (repeatable)")
     argv = sys.argv[1:]
     split = argv.index("--") if "--" in argv else len(argv)
     args = parser.parse_args(argv[:split])
     command = argv[split + 1:]
     if not command:
         parser.error("supply a native adapter command after --")
-    report = run(read_json(args.vectors.read_text(encoding="utf-8")), command, args.protocol, args.timeout)
+    report = run(read_json(args.vectors.read_text(encoding="utf-8")), command, args.protocol,
+                 args.timeout, args.allow_unsupported)
     args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report["counts"], sort_keys=True))
-    return 0 if report["complete"] else 1
+    return 0 if report.get("qualifiedSubset", report["complete"]) else 1
 
 
 if __name__ == "__main__":

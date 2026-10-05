@@ -84,7 +84,10 @@ no body or content type. Optional SHA-256 covers bytes after middleware.
 ## Transport and errors
 
 Token providers and middleware run on every attempt. Generated idempotency
-tokens and input bytes remain stable across retries. A single deadline covers
+tokens and input bytes remain stable across retries.
+`ClientConfig.new(idempotency_token: -> { ... })` can override the
+default random UUID supplier. It runs once for an omitted modeled token and
+preserves explicit tokens. A single deadline covers
 the call and retry waits. `CancellationToken` supports both `cancel` and an
 optional polling block. A retry delay extending past the call deadline ends
 with `DeadlineError`; cancellation can interrupt the wait.
@@ -246,3 +249,6 @@ HTTP transports, error envelopes, hostile XML), and streaming blobs
 HTTP with bounded peak memory). Set `RUBY` to select the executable.
 These checks do not establish published-gem or authenticated deployed-Leyline
 compatibility.
+The [XML qualification scope](../xml-qualification.md) records pinned official
+sources, exact unsupported compression/S3 addressing cases, and the separate
+handwritten regression fixtures.

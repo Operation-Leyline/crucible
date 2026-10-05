@@ -35,6 +35,7 @@ module CrucibleGenerated
         @shapes = schema.fetch('shapes')
         @xml_shapes = schema.fetch('xmlShapes', {})
         @service_namespace = schema['xmlNamespace']
+        @operations = schema.fetch('operations', {})
         @protocol = schema.fetch('protocol')
         @version = schema.fetch('version')
       end
@@ -75,6 +76,12 @@ module CrucibleGenerated
         end
         return {} if only.empty? || body.strip.empty?
         root = parse(body)
+        if @operations.fetch(operation, {})['unwrappedXmlOutput']
+          name = only.first
+          raise ::ArgumentError, 'Unwrapped XML response root differs from its body member' unless root.is?(xml_member(target, name).fetch('name'))
+          description = member(target, name)
+          return {name => read(root, description.fetch('target'), description['format'])}
+        end
         if @protocol == 'awsQuery'
           # awsQuery wraps the members in <OperationResult>, beside <ResponseMetadata>.
           root = root.child(operation + 'Result')

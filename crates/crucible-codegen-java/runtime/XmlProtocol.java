@@ -26,7 +26,7 @@ import javax.xml.stream.XMLStreamReader;
 final class XmlProtocol {
   private static final Set<String> PROTOCOLS = Set.of("awsRestXml", "awsQuery", "ec2Query");
   private static final int MAX_DEPTH = 256;
-  private final JsonObject shapes, xmlShapes, serviceNamespace;
+  private final JsonObject shapes, xmlShapes, serviceNamespace, operations;
   private final String protocol, version;
 
   static boolean handles(String protocol) {
@@ -37,6 +37,7 @@ final class XmlProtocol {
     shapes = schema.getAsJsonObject("shapes");
     xmlShapes = schema.has("xmlShapes") ? schema.getAsJsonObject("xmlShapes") : new JsonObject();
     serviceNamespace = schema.has("xmlNamespace") ? schema.getAsJsonObject("xmlNamespace") : null;
+    operations = schema.has("operations") ? schema.getAsJsonObject("operations") : new JsonObject();
     protocol = schema.get("protocol").getAsString();
     version = schema.get("version").getAsString();
   }
@@ -380,6 +381,14 @@ final class XmlProtocol {
     }
     if (only.isEmpty() || blank(body)) return values;
     Node root = parse(body);
+    if (flag(operations.getAsJsonObject(operation), "unwrappedXmlOutput")) {
+      String name = only.iterator().next();
+      if (!root.is(text(xmlMember(target, name), "name")))
+        throw new IllegalArgumentException("unwrapped XML response root differs from its body member");
+      JsonObject description = member(target, name);
+      values.add(name, read(root, text(description, "target"), text(description, "format")));
+      return values;
+    }
     if ("awsQuery".equals(protocol)) {
       // awsQuery wraps the members in <OperationResult>, beside <ResponseMetadata>.
       root = root.child(operation + "Result");

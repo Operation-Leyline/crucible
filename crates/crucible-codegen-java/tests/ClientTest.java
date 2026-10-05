@@ -320,6 +320,8 @@ public final class ClientTest {
             })) {
       var config = server.config();
       config.token = () -> Integer.toString(credentials.incrementAndGet());
+      var tokenCalls = new java.util.concurrent.atomic.AtomicInteger();
+      config.idempotencyToken = () -> { tokenCalls.incrementAndGet(); return "deterministic-idempotency-token"; };
       var client = new WeatherClient(config);
       var input = new CreateCityInput();
       input.name = OptionalValue.of("é");
@@ -329,6 +331,8 @@ public final class ClientTest {
       check(
           !input.clientToken.present() && java.util.Arrays.equals(sent.get(0), sent.get(1)),
           "token mutated or retry body changed");
+      check(tokenCalls.get() == 1 && new String(sent.get(0), java.nio.charset.StandardCharsets.UTF_8).contains("deterministic-idempotency-token"),
+          "configured idempotency token is generated once and reused on retry");
     }
     try (var server =
         new Server(

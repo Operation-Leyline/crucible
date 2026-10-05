@@ -52,14 +52,17 @@ def params(target, value, format)
 end
 
 def run(vector)
-  if vector['vendorParams'] || vector['authScheme']
+  error_vendor = vector['vendorParamsShape'] == 'aws.protocoltests.config#ErrorCodeParams' && vector.fetch('case').fetch('kind') == 'response'
+  if (vector['vendorParams'] && !error_vendor) || vector['authScheme']
     return {'unsupported' => 'Ruby adapter needs vendor/auth fixture configuration'}
   end
   test = vector.fetch('case')
   name = vector.fetch('operation').split('#', 2).last
   op = CODEC.schema.fetch('operations').fetch(name)
   target = vector['shape']
-  config = R::ClientConfig.new(endpoint: 'https://' + (test['host'] || 'example.test'), transport: Capture.new, max_attempts: 1)
+  config = R::ClientConfig.new(endpoint: 'https://' + (test['host'] || 'example.test'), transport: Capture.new, max_attempts: 1,
+    credentials: -> { R::AwsCredentials.new(access_key_id: 'AKIDEXAMPLE', secret_access_key: 'fixture-secret') }, region: 'us-east-1',
+    idempotency_token: -> { '00000000-0000-4000-8000-000000000000' })
   runtime = R::ClientRuntime.new(config, CODEC, endpoint: '', digest: false)
   if test.fetch('kind') == 'request'
     input = target ? CODEC.decode(wire(target, vector.fetch('params'), nil), CODEC.context(target)) : nil
@@ -68,13 +71,32 @@ def run(vector)
     rescue Captured => captured
       request = captured.request
       uri = URI.parse(request.url)
+      # Match the buffered-body length Net::HTTP adds after the capture boundary.
+      # set_body_internal is the same preparation called by Net::HTTP#request.
+      headers = request.headers.dup
+      unless request.body.nil?
+        message = Net::HTTPGenericRequest.new(request.method, true, request.method != 'HEAD', uri.request_uri, headers)
+        message.body = request.body
+        message.set_body_internal(nil)
+        headers['content-length'] = message.body.bytesize.to_s
+      end
       return {'method' => request.method, 'uri' => uri.path, 'host' => uri.host,
-              'queryParams' => uri.query ? uri.query.split('&') : [], 'headers' => request.headers,
+              'queryParams' => uri.query ? uri.query.split('&') : [], 'headers' => headers,
               'body' => request.body.to_s.dup.force_encoding(Encoding::UTF_8)}
     end
     raise 'native client did not send a request'
   end
   message = test.fetch('message')
+  if error_vendor
+    # These values configure server-side error construction; clients read the
+    # supplied code/type from XML rather than changing their own configuration.
+    root = R::XmlProtocol.parse(message.fetch('body'))
+    vector.fetch('vendorParams').each do |key, value|
+      raise 'Unrecognized error vendor parameter' unless %w[code type].include?(key)
+      node = root.find(key == 'code' ? 'Code' : 'Type')
+      raise 'Error vendor parameter absent from response' unless node && node.text.strip == value
+    end
+  end
   response = R::HttpResponse.new(test.fetch('code'), headers: message.fetch('headers'), body: message['body'] || '')
   if (200...300).cover?(response.status)
     values = runtime.send(:success, name, op, response)
@@ -83,7 +105,8 @@ def run(vector)
   end
   error = runtime.send(:failure, op, response)
   modeled = error.class != R::ServiceError && target
-  {'params' => modeled ? params(target, CODEC.encode(error, CODEC.context(target)), nil) : nil, 'error' => true}
+  {'params' => modeled ? params(target, CODEC.encode(error, CODEC.context(target)), nil) : nil, 'error' => true,
+   'vendorParamsApplied' => error_vendor}
 end
 
 print R::ExactJson.encode(run(R::ExactJson.decode($stdin.read)))

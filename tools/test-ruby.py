@@ -8,6 +8,7 @@ import tempfile
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
 from sdk_http_fixture import fixture
+from xml_qualification import PACKAGES, REGRESSIONS, conformance_options, write_exclusions
 
 RUBY = os.environ.get("RUBY", "ruby")
 
@@ -123,20 +124,21 @@ def behaviors(output):
 def xml_protocols(output):
     """restXml, awsQuery and ec2Query: Smithy vectors through a native adapter, then the gems' own tests."""
     fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
+    write_exclusions(output)
     includes = []
-    for package, module, fixture, service, protocol in [
-        ("xml_client", "RestXml", "protocol-rest-xml.json", "aws.protocoltests.restxml#RestXml", "aws.protocols#restXml"),
-        ("nowrap_client", "NoWrap", "protocol-rest-xml.json", "aws.protocoltests.restxml.nowrap#RestXmlNoErrorWrapping", "aws.protocols#restXml"),
-        ("query_client", "Query", "protocol-aws-query.json", "aws.protocoltests.query#AwsQuery", "aws.protocols#awsQuery"),
-        ("ec2_client", "Ec2", "protocol-ec2-query.json", "aws.protocoltests.ec2#AwsEc2", "aws.protocols#ec2Query"),
-    ]:
+    modules = {"xml": "RestXml", "nowrap": "NoWrap", "query": "Query", "ec2": "Ec2",
+               "officialxml": "OfficialXml", "namespace": "Namespace", "s3": "S3",
+               "officialquery": "OfficialQuery", "officialec2": "OfficialEc2"}
+    for label, fixture, service, protocol in PACKAGES:
+        package, module = label + "_client", modules[label]
         generate(fixtures / fixture, output / package, package, module, "--service", service)
-        includes += ["-I", str(output / package / "lib")]
+        if (label, fixture, service, protocol) in REGRESSIONS:
+            includes += ["-I", str(output / package / "lib")]
         vectors = output / (package + "-vectors")
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance", str(fixtures / fixture),
             "--service", service, "--target", "ruby", "--out", str(vectors))
         run(sys.executable, str(ROOT / "tools/protocol_conformance.py"), str(vectors / "protocol-tests.json"),
-            "--protocol", protocol, "--report", str(vectors / "results.json"), "--", RUBY, "-I", str(output / package / "lib"),
+            "--protocol", protocol, "--report", str(vectors / "results.json"), *conformance_options(label), "--", RUBY, "-I", str(output / package / "lib"),
             str(ROOT / "crates/crucible-codegen-ruby/tests/protocol_adapter.rb"), package, module)
     run(RUBY, *includes, str(ROOT / "crates/crucible-codegen-ruby/tests/xml_protocols.rb"))
 

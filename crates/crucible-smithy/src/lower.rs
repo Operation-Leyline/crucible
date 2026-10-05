@@ -489,7 +489,23 @@ impl<'m> Lowerer<'m> {
             && shape
                 .traits
                 .contains_key(&ShapeId::new("aws.auth", "unsignedPayload"));
+        let unwrapped_xml_output = shape
+            .traits
+            .contains_key(&ShapeId::new("aws.customizations", "s3UnwrappedXmlOutput"));
+        if unwrapped_xml_output
+            && (self.protocol != Protocol::AwsRestXml
+                || response.body.len() != 1
+                || output
+                    .as_ref()
+                    .is_none_or(|output| self.model[output].members.len() != 1))
+        {
+            self.diagnostics.push(
+                id,
+                "@s3UnwrappedXmlOutput requires restXml and an output with exactly one body member",
+            );
+        }
         Some(Operation {
+            unwrapped_xml_output,
             unsigned_payload,
             discovered_endpoint: None,
             checksum: self.checksum(id, shape, input.as_ref()),

@@ -136,6 +136,7 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
             "bearer":op.auth.iter().any(|id|id.to_string()=="smithy.api#httpBearerAuth")});
         if !op.uri.greedy_labels.is_empty() { value["greedyLabels"] = json!(op.uri.greedy_labels); }
         if op.unsigned_payload {value["unsignedPayload"] = json!(true);}
+        if op.unwrapped_xml_output {value["unwrappedXmlOutput"] = json!(true);}
         if let Some(discovery) = &op.discovered_endpoint { value["discoveredEndpoint"] = json!(discovery); }
         if let Some(checksum) = &op.checksum {value["checksum"] = json!(checksum);}
         if op.optional_auth { value["optionalAuth"] = json!(true); }

@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -129,6 +128,7 @@ final class ClientRuntime {
     config.baseDelay.toNanos();
     config.maxDelay.toNanos();
     config.token = input.token;
+    config.idempotencyToken = java.util.Objects.requireNonNull(input.idempotencyToken);
     config.basicAuth = input.basicAuth;
     config.apiKey = input.apiKey;
     config.credentials = input.credentials;
@@ -467,9 +467,12 @@ final class ClientRuntime {
   }
 
   private static JsonElement writeTime(Instant value, String format) {
-    if ("epoch-seconds".equals(format))
-      return new JsonPrimitive(
-          BigDecimal.valueOf(value.getEpochSecond()).add(BigDecimal.valueOf(value.getNano(), 9)));
+    if ("epoch-seconds".equals(format)) {
+      BigDecimal seconds = BigDecimal.valueOf(value.getEpochSecond())
+          .add(BigDecimal.valueOf(value.getNano(), 9)).stripTrailingZeros();
+      // Bindings use this number's text, which must stay decimal rather than scientific notation.
+      return new JsonPrimitive(seconds.scale() < 0 ? seconds.setScale(0) : seconds);
+    }
     if ("http-date".equals(format))
       return new JsonPrimitive(
           DateTimeFormatter.ofPattern("EEE, dd MMM uuuu HH:mm:ss 'GMT'", java.util.Locale.US)
@@ -626,7 +629,7 @@ final class ClientRuntime {
     for(var entry:formats.entrySet()) if(values.has(entry.getKey())) values.add(entry.getKey(),boundaryTime(shape(text(op,"input")).getAsJsonObject("members").getAsJsonObject(entry.getKey()),values.get(entry.getKey()),entry.getValue().getAsString(),true));
     String token = text(op, "token");
     if (token != null && (!values.has(token) || values.get(token).isJsonNull()))
-      values.addProperty(token, UUID.randomUUID().toString());
+      values.addProperty(token, java.util.Objects.requireNonNull(config.idempotencyToken.get()));
     String uri = text(op, "uri");
     for (JsonElement label : request.getAsJsonArray("labels")) {
       String key = label.getAsString();
@@ -1159,8 +1162,13 @@ final class ClientRuntime {
         values = xml.output(operation, text(op, "output"), members, payload, bytes);
       }
       // A payload is the body as received, whatever it holds.
-      else if (payload != null)
-        values.add(wireName(text(op, "output"), payload), payloadValue(op.getAsJsonObject("response"), bytes));
+      else if (payload != null) {
+        JsonObject member = shape(text(op, "output")).getAsJsonObject("members").getAsJsonObject(payload);
+        boolean absentBlob = xml != null && bytes.length == 0 && flag(member, "optional")
+            && "blob".equals(text(shape(text(member, "target")), "kind"));
+        if (!absentBlob)
+          values.add(wireName(text(op, "output"), payload), payloadValue(op.getAsJsonObject("response"), bytes));
+      }
       else if (!body.isEmpty()) values = JSON.fromJson(body, JsonObject.class);
       if (values == null) throw new IllegalArgumentException("response requires object");
       applyHeaders(

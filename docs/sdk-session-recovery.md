@@ -47,23 +47,33 @@ event-stream HTTP suite has 12, and the TypeScript HTTP suite has 10. R's full
 native gate also passes. Build and gate logs are under the local `target/`
 directory; they are not checked in.
 
+## XML qualification
+
+The provisional fixtures have been replaced by official Smithy models pinned
+at `bd0ed9e054b29874a5bec389e16d8c4db9dc9b94`, assembled and validated with
+Smithy 1.74.0. The importer is reproducible byte for byte and preserves the
+141 handwritten regression cases in separate `xml-additions-*` fixtures.
+[XML qualification](xml-qualification.md) records provenance and report semantics.
+
+Fresh Java and Ruby runs each pass 312 applicable supported official cases,
+covering restXml, the namespace service, S3 unwrapped XML responses, awsQuery,
+and ec2Query. Six cases are server-only, six compression cases are excluded
+with generation diagnostics, and eleven legacy S3 addressing cases retain
+explicit unsupported results. None count as passing tests.
+
+Java's Weather, restXml, and query consumers pass over actual loopback HTTP.
+The full Ruby native gate also passes, including gem installation, its independent
+consumer, XML loopback HTTP, and 256 MiB streaming transfers in each direction.
+The fixes cover epoch text formatting, absent optional XML blob decoding,
+Ruby float32 formatting and non-finite headers, empty prefix-header maps,
+and operation-scoped unwrapped XML responses. Idempotency-token suppliers
+preserve production UUID defaults while allowing deterministic qualification;
+independent consumer regressions check reuse across retries.
+
 ## Remaining qualification
 
-The checked-in XML fixtures were transcribed from memory. Replace them with
-official fixtures assembled by Smithy, preserving custom additions separately.
-The pinned source is `smithy-lang/smithy` commit
-`bd0ed9e054b29874a5bec389e16d8c4db9dc9b94`; its compiler version is 1.74.0.
-The official restXml, awsQuery, and ec2Query sources and assembled models are
-available in this worktree's ignored `target/official-smithy` directory and
-`target/official-*.json` files.
-
-An exploratory Java restXml run exercises 182 vectors, with request compression
-excluded because generation diagnoses it as unsupported. Qualification is still
-incomplete: adapter handling of transport headers and deterministic token tests,
-empty-body comparison, timestamp rendering, and empty blob payload decoding
-need investigation. Ruby and the two query protocols still need official runs.
-
-Rebuild deleted local toolchain paths before rerunning the complete native
-matrix. CI, published packages, authenticated AWS/Leyline traffic, and consumer
-migrations remain separate proof requirements. Preserve the generator revision,
-bundled runtime, and generated packages together when rolling back.
+The complete native CI matrix, published packages, authenticated AWS/Leyline
+traffic, and consumer migrations remain separate proof requirements. Some
+native CI jobs on the earlier recovery commit failed; the updated draft must
+pass its own gates before release qualification. Preserve the generator
+revision, bundled runtime, and generated packages together when rolling back.

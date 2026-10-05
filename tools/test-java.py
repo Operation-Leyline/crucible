@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 import tempfile
 from sdk_test_support import ROOT, run, weather
+from xml_qualification import PACKAGES, REGRESSIONS, conformance_options, write_exclusions
 
 MAVEN = os.environ.get("MAVEN", "mvn")
 
@@ -151,21 +152,17 @@ def qualify(output):
 def xml_protocols(output, classes):
     """restXml, awsQuery and ec2Query: Smithy vectors through a native adapter, then real HTTP."""
     fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
-    packages = [
-        ("xml", "protocol-rest-xml.json", "aws.protocoltests.restxml#RestXml", "aws.protocols#restXml"),
-        ("nowrap", "protocol-rest-xml.json", "aws.protocoltests.restxml.nowrap#RestXmlNoErrorWrapping", "aws.protocols#restXml"),
-        ("query", "protocol-aws-query.json", "aws.protocoltests.query#AwsQuery", "aws.protocols#awsQuery"),
-        ("ec2", "protocol-ec2-query.json", "aws.protocoltests.ec2#AwsEc2", "aws.protocols#ec2Query"),
-    ]
+    write_exclusions(output)
     adapter = (ROOT / "crates/crucible-codegen-java/tests/ProtocolAdapter.java").read_text(encoding="utf-8")
     roots = []
-    for label, fixture, service, protocol in packages:
+    for label, fixture, service, protocol in PACKAGES:
         generated = output / ("xml-" + label)
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java", str(fixtures / fixture),
             "--service", service, "--out", str(generated), "--group-id", "example", "--artifact-id", "xml-" + label,
             "--package-name", "example." + label)
         run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=generated)
-        roots.append(generated)
+        if (label, fixture, service, protocol) in REGRESSIONS:
+            roots.append(generated)
         package_classpath = os.pathsep.join([str(generated / "target/classes"), str(generated / "target/dependency/*")])
         # The adapter reaches the package-private runtime, so it joins each generated package.
         source = output / ("adapter-" + label) / "ProtocolAdapter.java"
@@ -177,7 +174,7 @@ def xml_protocols(output, classes):
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance", str(fixtures / fixture),
             "--service", service, "--target", "java", "--out", str(vectors))
         run(sys.executable, str(ROOT / "tools/protocol_conformance.py"), str(vectors / "protocol-tests.json"),
-            "--protocol", protocol, "--report", str(vectors / "results.json"), "--", "java", "-cp",
+            "--protocol", protocol, "--report", str(vectors / "results.json"), *conformance_options(label), "--", "java", "-cp",
             os.pathsep.join([str(adapter_classes), package_classpath]), f"example.{label}.ProtocolAdapter")
     protocol_classpath = os.pathsep.join([str(root / "target/classes") for root in roots] + [str(roots[0] / "target/dependency/*")])
     run("javac", "--release", "17", "-d", str(classes), "-cp", protocol_classpath,

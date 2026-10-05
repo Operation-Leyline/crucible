@@ -182,7 +182,16 @@ module CrucibleGenerated
           if @settings['nonFiniteFloatStrings'] && value.is_a?(::Float) && !value.finite?
             return value.nan? ? 'NaN' : (value.positive? ? 'Infinity' : '-Infinity')
           end
-          decode(value, context)
+          result = decode(value, context)
+          if kind == 'float'
+            # Ruby stores binary64: serialize the shortest decimal that round-trips as binary32.
+            bits = [result].pack('g')
+            (1..9).each do |precision|
+              candidate = ::Kernel.Float(::Kernel.format("%.#{precision}g", result))
+              return candidate if [candidate].pack('g') == bits
+            end
+          end
+          result
         else decode(value, context)
         end
       end
@@ -213,7 +222,9 @@ module CrucibleGenerated
           append.call
           return parts
         end
-        if %w[byte short integer long intEnum bigInteger bigDecimal float double boolean].include?(kind) || (kind == 'timestamp' && member['format'] == 'epoch-seconds')
+        if %w[float double].include?(kind) && @settings['nonFiniteFloatStrings'] && NON_FINITE.key?(text)
+          text
+        elsif %w[byte short integer long intEnum bigInteger bigDecimal float double boolean].include?(kind) || (kind == 'timestamp' && member['format'] == 'epoch-seconds')
           ExactJson.decode(text)
         else text
         end

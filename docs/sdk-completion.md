@@ -36,10 +36,13 @@ implemented in PHP and C#, which run those vectors, RFC 7616 and AWS SigV4a
 vectors, and verifying loopback servers. Other targets do not declare them yet.
 
 AWS XML protocols: Java and Ruby implement `restXml` (including
-`noErrorWrapping`), `awsQuery`, and `ec2Query`. Their current 141 vectors were
-transcribed or adapted from memory; they are not the official Smithy suite.
-Both also have loopback HTTP consumer suites. Official-vector qualification
-remains pending. Other targets still refuse these protocols.
+`noErrorWrapping`), `awsQuery`, and `ec2Query`. Their native gates run 312
+applicable supported official cases from pinned Smithy 1.74.0 models and preserve
+141 handwritten regressions separately. Six compression cases and eleven legacy
+S3 endpoint cases remain unsupported; six cases apply only to servers.
+[XML qualification](xml-qualification.md) records provenance, exact exclusions,
+report semantics, and adapter boundaries. Both also have loopback HTTP consumer
+suites. Other targets still refuse these protocols.
 
 Event streams (`event-streams`) are declared by the Rust and TypeScript clients.
 Lowering records the stream member and whether the other members travel in HTTP

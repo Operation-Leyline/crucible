@@ -326,6 +326,9 @@ caller-owned; the default does not follow redirects. Credentials are refreshed
 per attempt and require HTTPS except on loopback. Middleware receives the
 request's headers and body bytes; the optional digest is computed afterwards.
 Generated tokens are reused across retries without mutating input models.
+`ClientConfig.idempotencyToken` defaults to a random UUID supplier. A custom
+supplier runs once when the modeled input token is omitted; explicit tokens
+remain unchanged.
 `maxAttempts` defaults to 3 and includes the first call; `timeout` defaults to
 30 seconds. Retry-After takes precedence over jittered backoff.
 
@@ -342,12 +345,14 @@ tests it through a separate consumer, shared retry/header cases, the
 weather service over HTTP, and generated feature packages (payloads, streaming,
 authentication, waiters, endpoints, checksums, and the AWS JSON protocols). The
 XML-family fixtures (`protocol-rest-xml.json`, `protocol-aws-query.json`,
-`protocol-ec2-query.json`, with request, response and error vectors adapted from
-Smithy's AWS protocol tests) run through `tests/ProtocolAdapter.java` and
+`protocol-ec2-query.json`, assembled from pinned official Smithy sources) run
+through `tests/ProtocolAdapter.java` and
 `tools/protocol_conformance.py`, then `XmlProtocolTest` and `QueryProtocolTest`
 exercise the generated clients over loopback HTTP, including hostile XML. Generate and package the current full Leyline
 projection separately, recording its model fingerprint and operation coverage.
-Published Maven artifacts and authenticated deployed Leyline traffic are
+The [XML qualification scope](../xml-qualification.md) records supported cases,
+explicit compression/S3 addressing exclusions, and the separate handwritten
+regression fixtures. Published Maven artifacts and authenticated deployed Leyline traffic are
 separate qualification steps.
 
 ## Migration

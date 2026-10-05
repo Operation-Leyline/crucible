@@ -49,6 +49,7 @@ public final class XmlProtocolTest {
       config.endpoint = endpoint;
       config.maxAttempts = 1;
       var client = new RestXmlClient(config);
+      timestampBindings(config);
       requests(client);
       responses(client);
       errors(client, endpoint);
@@ -58,6 +59,16 @@ public final class XmlProtocolTest {
       server.stop(0);
     }
     System.out.println("Java generated restXml client passed");
+  }
+
+  static void timestampBindings(ClientConfig config) {
+    var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes());
+    String target = "aws.protocoltests.restxml#EpochSeconds";
+    check(ClientRuntime.bound(runtime.encode(target, Instant.ofEpochSecond(1576540098), null)).equals("1576540098"), "whole epoch binding");
+    check(ClientRuntime.bound(runtime.encode(target, Instant.ofEpochSecond(1000), null)).equals("1000"), "epoch binding avoids scientific notation");
+    check(ClientRuntime.bound(runtime.encode(target, Instant.ofEpochSecond(1, 500_000_000), null)).equals("1.5"), "fractional epoch binding");
+    check(ClientRuntime.bound(runtime.encode(target, Instant.ofEpochSecond(-1, 750_000_000), null)).equals("-0.25"), "negative fractional epoch binding");
+    check(ClientRuntime.bound(runtime.encode(target, Instant.ofEpochSecond(1, 1), null)).equals("1.000000001"), "nanosecond epoch binding");
   }
 
   static void requests(RestXmlClient client) {
@@ -132,6 +143,13 @@ public final class XmlProtocolTest {
 
     NEXT.set((exchange, body) -> new Reply(200, Map.of(), "<XmlBlobsResponse><data>dmFsdWU=</data></XmlBlobsResponse>"));
     check(new String(client.xmlBlobs().data(), StandardCharsets.UTF_8).equals("value"), "blob response");
+
+    NEXT.set((exchange, body) -> new Reply(200, Map.of("X-Foo", "Foo"), ""));
+    var absentBlob = client.httpPayloadTraits();
+    check(!absentBlob.blob.present() && absentBlob.foo().equals("Foo"), "absent optional blob payload");
+    NEXT.set((exchange, body) -> new Reply(200, Map.of("X-Foo", "Foo"), "blobby blob blob"));
+    var blob = client.httpPayloadTraits();
+    check(new String(blob.blob(), StandardCharsets.UTF_8).equals("blobby blob blob"), "nonempty blob payload");
   }
 
   static void errors(RestXmlClient client, String endpoint) {

@@ -11,6 +11,8 @@ public final class ClientConfig {
   public String endpoint;
   public HttpClient httpClient;
   public Supplier<String> token;
+  /** Called once per operation with an omitted modeled idempotency token. */
+  public Supplier<String> idempotencyToken = () -> java.util.UUID.randomUUID().toString();
   public Supplier<BasicCredentials> basicAuth;
   public Supplier<String> apiKey;
   public Supplier<AwsCredentials> credentials;
