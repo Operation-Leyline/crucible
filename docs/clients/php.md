@@ -1,9 +1,13 @@
 # PHP clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate php` emits a Composer package with typed models,
 synchronous operations, and lazy `Generator` pagination. It requires 64-bit
 PHP 8.3 or later within PHP 8.x, with the cURL and JSON extensions. Generated
 packages have no third-party PHP dependencies.
+
+## Generating and installing
 
 ```sh
 cargo run -p crucible-cli -- generate php model.json \
@@ -18,6 +22,8 @@ The package uses PSR-4 autoloading, with one model or runtime class per file.
 Generation writes package identity and provenance; it does not publish.
 Supply your license and release metadata before distribution. Use a Composer
 path repository during development or archive the package for distribution.
+
+## Calling operations
 
 ```php
 <?php
@@ -43,6 +49,8 @@ try {
 }
 ```
 
+## Models and precision
+
 Model properties are readonly. Required members are constructor arguments;
 optional members use `Field`, whose default constructor means absent.
 `Field::nullValue()` means explicit null and `Field::value($value)` means
@@ -65,6 +73,8 @@ encoded as padded base64 in JSON. Raw blob payloads use bytes directly. An
 empty response payload remains present; an empty request payload sends no body
 or content type. Optional SHA-256 covers the final bytes after middleware.
 
+## Transport and errors
+
 Each call snapshots its input before hooks. Retries reuse that snapshot and
 its generated idempotency token; token providers and middleware run on every
 attempt. One deadline covers the call and retry delays. A `CancellationToken`
@@ -85,10 +95,12 @@ count as API responses. Credentials require HTTPS except on loopback.
 Calls on one transport are synchronous and cannot be reentrant. Modeled errors
 extend `ServiceError`, which retains status, name, request ID, headers, and
 retry traits even if modeled members are malformed. Retries follow the
-[shared contract](clients.md).
+[shared contract](../clients.md).
 
 Generation diagnoses reserved names, case-insensitive naming collisions,
 and recursive collection aliases. Nominal recursive structures are supported.
+## Qualification
+
 `python tools/test-php.py` checks exact codecs, shared retry/header fixtures,
 native weather-service calls, body interruption and proxy behavior, Composer
 archive installation, and empty and renamed packages. Set `PHP` to choose the

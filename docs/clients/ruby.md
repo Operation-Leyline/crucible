@@ -1,9 +1,13 @@
 # Ruby clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate ruby` emits native Ruby models, synchronous operations,
 lazy `Enumerator` pagination, and a gemspec. Generated gems require Ruby 3.3
 or later, below Ruby 5. They declare the Ruby standard-library gems they use,
 including JSON and Net::HTTP.
+
+## Generating and installing
 
 ```sh
 cargo run -p crucible-cli -- generate ruby model.json \
@@ -17,6 +21,8 @@ gem install ./weather_client-0.1.0.gem
 Generation does not publish the gem. The package owner supplies author,
 license, and repository metadata before publishing. `crucible.json` records
 the generator version, service version, package version, and schema digest.
+
+## Calling operations
 
 ```ruby
 require 'weather_client'
@@ -33,6 +39,8 @@ ensure
   client.close
 end
 ```
+
+## Models and precision
 
 Each model has keyword constructor arguments and readers in `Models`.
 Ordinary model instances are frozen; their arrays and strings remain native
@@ -63,6 +71,8 @@ strings, encoded as padded base64 in JSON or sent directly for raw payloads.
 An empty response payload remains present; an empty request payload sends
 no body or content type. Optional SHA-256 covers bytes after middleware.
 
+## Transport and errors
+
 Token providers and middleware run on every attempt. Generated idempotency
 tokens and input bytes remain stable across retries. A single deadline covers
 the call and retry waits. `CancellationToken` supports both `cancel` and an
@@ -77,7 +87,7 @@ cycles, and gives each page a fresh deadline.
 The default Net::HTTP transport reuses a connection to the current origin and
 serializes access to it. Waiting calls honor cancellation and deadlines.
 Net::HTTP's internal retry is disabled; retries follow the
-[shared contract](clients.md). The transport refuses redirects, uses no response
+[shared contract](../clients.md). The transport refuses redirects, uses no response
 cache or cookie jar, and requests identity encoding. Truncated bodies are
 transport failures. Successful responses without modeled bodies are discarded
 without draining them. Credentials require HTTPS except on loopback.
@@ -88,6 +98,8 @@ transport remains caller-owned and implements
 scope's deadline/cancellation and the body-read decision. Modeled errors
 inherit `ServiceError`; metadata retains wire status, error name, request ID,
 headers, and retry traits even when modeled members cannot be decoded.
+
+## Qualification
 
 Generation diagnoses invalid package/module names, core-class module
 collisions, and model/member/operation name collisions. Recursive models and

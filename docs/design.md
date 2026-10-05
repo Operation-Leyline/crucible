@@ -91,6 +91,9 @@ project's own traits reach emitters intact.
 
 ## Targets and phases
 
+The current portfolio and setup guides are in [client setup and conformance](clients.md).
+The sequence below records the original rollout; use the language guides for current APIs.
+
 Each phase runs beside the openapi-generator output until it matches the
 consumer's tests, then replaces it.
 

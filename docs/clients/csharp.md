@@ -1,11 +1,15 @@
 # C# clients
 
+[All clients](../clients.md) · [Repository overview](../../README.md)
+
 `crucible generate csharp` emits a .NET 8 library and NuGet project. Its runtime
 uses `HttpClient` and `System.Text.Json` without external packages.
 
+## Generating and installing
+
 ```sh
 cargo run -p crucible-cli -- generate csharp model.json \
-  --out generated/client --namespace Leyline.Client --package-id Leyline.Client \
+  --out generated/client --namespace Example.Weather --package-id Example.Weather \
   --package-version 0.1.0 --endpoint https://api.example --content-sha256
 dotnet pack generated/client/Client.csproj
 ```
@@ -16,6 +20,8 @@ Member names use PascalCase; members that collide with exception metadata or
 inherited methods receive a `Value` suffix. Unresolvable collisions produce
 diagnostics. Package output includes embedded wire schema and provenance.
 
+## Calling operations
+
 ```csharp
 using Example.Weather;
 using Example.Weather.Models;
@@ -24,6 +30,7 @@ using var client = new Client(new ClientConfig {
     Endpoint = "https://weather.example",
     Token = cancellationToken => ValueTask.FromResult<string?>("access-token")
 });
+var cancellationToken = CancellationToken.None;
 var input = new CreateCityInput { Name = "London" };
 var city = await client.CreateCityAsync(input, cancellationToken);
 await foreach (var page in client.ListCitiesPagesAsync(
@@ -31,6 +38,8 @@ await foreach (var page in client.ListCitiesPagesAsync(
     foreach (var row in page.Cities) Console.WriteLine(row.Name);
 }
 ```
+
+## Transport and cancellation
 
 Every operation has an asynchronous method accepting `CancellationToken` and
 a synchronous wrapper. Synchronous calls dispatch through the thread pool so
@@ -47,6 +56,8 @@ the generated client disposes only its own default transport. Credentials
 require HTTPS, except for loopback HTTP. Middleware runs before the optional
 SHA-256 digest, which hashes the exact buffered bytes sent. Response bodies
 without modeled body members are not read.
+
+## Models and errors
 
 `Optional<T>` distinguishes three states: default is absent, `Optional<T>.Null`
 is explicit null, and `Optional<T>.Of(value)` supplies a value. Implicit
@@ -67,14 +78,16 @@ Modeled exceptions extend `ServiceError`. Its `ErrorName`, `StatusCode`,
 `RequestId`, `Headers`, `Retryable`, and `Throttling` properties describe the
 wire failure; modeled fields remain separate. `NetworkError` wraps transport
 failures. Invalid successful JSON and caller cancellation are not retried.
-Retry decisions follow [the shared contract](clients.md); valid `Retry-After`
+Retry decisions follow [the shared contract](../clients.md); valid `Retry-After`
 values override jitter. Paginators preserve caller input and reject token
 cycles.
+
+## Qualification
 
 `python tools/test-csharp.py` packs the SDK, installs the package into a fresh
 consumer, runs shared retry/header fixtures and loopback HTTP tests, and drives
 the weather service. It also packages empty services and models with names
 that shadow runtime types or inherited methods. CI runs this gate on .NET 8.
-The full 116-operation Leyline model has a separate local generation/package
-check using its adapted Crucible projection. These checks do not establish
+Generate and package the current full Leyline projection separately, recording
+its model fingerprint and operation coverage. These checks do not establish
 published-package or authenticated deployed-Leyline compatibility.
