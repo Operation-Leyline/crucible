@@ -52,6 +52,9 @@ def qualify(output):
         "type": "operation", "output": {"target": "example.weather#BuilderDefaults"},
         "traits": {"smithy.api#http": {"method": "GET", "uri": "/builder-defaults"}, "smithy.api#readonly": {}}}
     model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.weather#ReadBuilderDefaults"})
+    streaming = json.loads((ROOT / "crates/crucible-codegen-kotlin/tests/fixtures/streaming.json").read_text())
+    model["shapes"]["example.weather#Weather"]["operations"].extend(streaming["shapes"].pop("example.stream#Streaming")["operations"])
+    model["shapes"].update(streaming["shapes"])
     model_path.write_text(json.dumps(model), encoding="utf-8")
     generate(model_path, package)
     run(MAVEN, "-q", REPO, "install", "dependency:copy-dependencies", cwd=package)

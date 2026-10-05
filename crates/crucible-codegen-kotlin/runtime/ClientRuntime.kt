@@ -214,15 +214,17 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         val prepared=prepare(name,codec.inputValues(op.text("input"),input),ModelCodecs.stream(op.text("input"),input))
         return (send(prepared) { ScopedResult(consume(it)) } as ScopedResult).value as T
     }
-    private fun checkedStream(op: JsonObject,targetKey: String,bindingKey: String,stream: ByteStream): ByteStream {
+    private fun checkedStream(op: JsonObject,targetKey: String,bindingKey: String,stream: ByteStream,verifier: Checksums.Verifier? = null): ByteStream {
         val bindings=op.obj(bindingKey);val member=codec.shape(op.text(targetKey)!!).obj("members").obj(payloadMember(bindings)!!)
         val length=member["length"] as? JsonObject
         fun bound(name:String)=(length?.get(name) as? JsonPrimitive)?.takeUnless {it==JsonNull}?.content?.toLong()
-        return stream.checked(bound("min"),bound("max"),bindings.flag("requiresLength"))
+        // requiresLength constrains what the client sends; a response length is checked against its header.
+        return stream.checked(bound("min"),bound("max"),bindingKey=="request" && bindings.flag("requiresLength"),verifier)
     }
     private suspend fun send(prepared: Prepared, consume: suspend (Any) -> Any = {it}): Any = withTimeout(config.timeout) {
         val op = prepared.operation
         var attempt = 0
+        var streamChecksum: Pair<ByteStream, Map<String, String>>? = null
         while (true) {
             currentCoroutineContext().ensureActive(); attempt++
             val headers = prepared.headers.toMutableMap()
@@ -232,7 +234,14 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             val body = request.body?.copyOf()
             if (digest && (body?.isNotEmpty() == true || request.method in setOf("POST", "PUT", "PATCH")))
                 request.headers["x-amz-content-sha256"] = if(request.stream!=null) requireNotNull(request.stream!!.sha256) { "Streaming content digest requires precomputed SHA-256" } else sha256(body ?: byteArrayOf())
-            if(request.stream!=null) Checksums.requestStream(prepared.checksum,request.headers) else Checksums.request(prepared.checksum,request.headers,body)
+            val stream = request.stream
+            check(stream?.openable != false) { "One-shot byte stream has already been opened" }
+            if (stream != null) {
+                // A replayable body is checksummed once per call, not once per attempt.
+                val supplied = streamChecksum?.takeIf { it.first === stream }?.second
+                    ?: Checksums.requestStream(prepared.checksum, request.headers, stream).also { streamChecksum = stream to it }
+                request.headers.putAll(supplied)
+            } else Checksums.request(prepared.checksum,request.headers,body)
             val authenticated = applyAuth(config, schema, op, request)
             val finalHeaders = request.headers.mapKeys { it.key.lowercase() }.toMutableMap()
             require(!(authenticated || finalHeaders.containsKey("authorization")) || secure(request.uri)) { "Credentials require HTTPS or loopback HTTP" }
@@ -244,7 +253,9 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             } catch (error: CancellationException) { throw error
             } catch (error: IllegalArgumentException) { throw error
             } catch (error: Exception) {
-                if (!op.flag("safe") || attempt >= config.maxAttempts || request.stream?.replayable==false) throw NetworkError(error)
+                // A body that violated its declared or modeled length is a caller error, never retried.
+                stream?.failure?.let { throw it }
+                if (!op.flag("safe") || attempt >= config.maxAttempts || stream?.replayable==false) throw NetworkError(error)
                 delay(retryDelay(attempt, null)); continue
             }
             if (response.status in 200..299) {
@@ -254,7 +265,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             }
             val error = decodeError(op, response)
             val retry = error.throttling || op.flag("safe") && (error.retryable || response.status in setOf(500, 502, 503, 504))
-            if (!retry || attempt >= config.maxAttempts || request.stream?.replayable==false) throw error
+            if (!retry || attempt >= config.maxAttempts || stream?.replayable==false) throw error
             delay(retryDelay(attempt, response.header("retry-after")))
         }
         @Suppress("UNREACHABLE_CODE") error("unreachable")
@@ -269,7 +280,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
                 override val contentLength: Long? = stream.contentLength
                 override suspend fun writeTo(channel: ByteWriteChannel) {
                     val source=stream.openChannel()
-                    try {source.copyTo(channel)}finally{source.cancel(null)}
+                    try {source.copyTo(channel)} catch(error: Exception) {throw stream.failure ?: error} finally{source.cancel(null)}
                 }
             }) else if (payload != null) setBody(object : OutgoingContent.ByteArrayContent() {
                 override fun bytes(): ByteArray = payload
@@ -278,15 +289,21 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
         }.execute { response ->
             val responseHeaders=response.headers.entries().associate {it.key.lowercase() to it.value.toList()}
             if(response.status.value in 200..299 && prepared.operation.obj("response").flag("streaming")) {
+                // The body stays on the wire until the consumer reads it; the exchange ends with the consumer.
                 val length=response.headers["content-length"]?.toLongOrNull()
-                val stream=checkedStream(prepared.operation,"output","response",ByteStream.once(response.bodyAsChannel(),length))
-                    .verified(Checksums.verifier(prepared.checksum,responseHeaders,config))
+                val source=ByteStream.once(response.bodyAsChannel(),length)
+                var stream: ByteStream?=null
                 try {
+                    stream=checkedStream(prepared.operation,"output","response",source,Checksums.verifier(prepared.checksum,responseHeaders,config))
                     val wire=WireResponse(response.status.value,responseHeaders,byteArrayOf())
                     val decoded=ModelCodecs.withStream(prepared.operation.text("output")!!,decodeSuccess(prepared.operation,wire),stream)
-                    return@execute wire.copy(result=consume(decoded))
-                } catch(error: Throwable) {throw ScopedFailure(error)}
-                finally {stream.close()}
+                    val result=consume(decoded)
+                    // A consumer that swallowed a checksum or length failure still receives no result.
+                    stream.failure?.let { throw it }
+                    return@execute wire.copy(result=result)
+                } catch(error: CancellationException) {throw error
+                } catch(error: Throwable) {throw ScopedFailure(stream?.failure ?: error)}
+                finally {stream?.close();source.close()}
             }
             val body = if (response.status.value in 200..299 && !hasBody) {
                 response.bodyAsChannel().cancel(null); byteArrayOf()

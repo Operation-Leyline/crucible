@@ -130,6 +130,14 @@ def qualify(output, native=False):
             "--package-name", "example.json." + label, "--package-version", "0.0.0-test")
         run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
             *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=protocol_sdk, timeout=3600)
+    # Streaming bodies use their own package: no body digest, so unsized bodies need no precomputed SHA-256.
+    stream_sdk = output / "stream"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
+        str(ROOT / "crates/crucible-codegen-kotlin/tests/fixtures/streaming.json"), "--out", str(stream_sdk),
+        "--group-id", "example", "--artifact-id", "stream-kotlin-mpp", "--package-name", "example.stream",
+        "--package-version", "0.0.0-test")
+    run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
+        *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=stream_sdk, timeout=3600)
     consumer = output / "consumer"
     shutil.copytree(ROOT / "crates/crucible-codegen-kotlin/tests/multiplatform", consumer, dirs_exist_ok=True)
     class Handler(BaseHTTPRequestHandler):

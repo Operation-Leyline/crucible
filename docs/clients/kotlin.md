@@ -98,8 +98,58 @@ An injected Ktor `HttpClient` stays caller-owned and retains its own policies.
 Transport injection also supports Ktor's MockEngine for common tests.
 Close the generated client to release its owned transport. Credentials require
 HTTPS except on loopback. Middleware runs before the optional SHA-256 digest,
-which covers exactly the buffered bytes sent. Successful responses without
+which covers exactly the buffered bytes sent (a streamed body uses its supplied
+`sha256`). Successful responses without
 modeled body members do not read the response body.
+
+## Streaming blobs
+
+A `@streaming` blob member has type `ByteStream`, and its bytes are never
+buffered by the client. Construct a request body as one of:
+
+| Constructor | Retries | Use |
+| --- | --- | --- |
+| `ByteStream.once(channel, contentLength, sha256)` | never | a single `ByteReadChannel`; the operation is sent at most once, even when idempotent |
+| `ByteStream.replay(contentLength, sha256) { channel }` | per the shared contract | the factory runs once per attempt and must reproduce the same bytes |
+| `ByteStream.fromBytes(bytes)` | per the shared contract | a snapshot with its length and SHA-256 |
+
+```kotlin
+val body = ByteStream.replay(contentLength = file.size) { openFileChannel(file) }
+client.upload { this.body = body }
+```
+
+`contentLength` becomes the `Content-Length` header; without it the body is sent
+with chunked transfer encoding. The client checks the bytes actually read against
+the declared length and the modeled `@length` bounds, and fails with
+`IllegalArgumentException` (never retried) on a mismatch. A `@requiresLength` body
+without `contentLength` is rejected before network I/O. A one-shot stream can be
+opened once; sending it again raises `IllegalStateException`. The caller owns an
+unsent request body: `close()` cancels a one-shot channel.
+
+Signing and `--content-sha256` need the payload digest before the body is sent.
+Supply `sha256` (64 hexadecimal digits) for a streamed body, or model the operation
+with `@unsignedPayload`; otherwise the call fails before sending.
+
+An operation with a streaming response takes a consumer. The response, including
+its body, is readable only inside the consumer; the exchange ends when the
+consumer returns, and an unread body is cancelled rather than drained:
+
+```kotlin
+val bytes = client.download { output ->
+    val channel = output.body.openChannel()   // read with Ktor's ByteReadChannel APIs
+    copyToFile(channel)
+}
+val small = client.download { it.body.toByteArray(limit = 1 shl 20) }
+```
+
+The overall `timeout` covers the consumer. Coroutine cancellation stops the
+transfer and cancels both the response body and an open request source. The
+response length is checked against `Content-Length` and the modeled bounds.
+Streaming operations cannot be paginated or waited on; such models are diagnosed.
+Event streams (`@streaming` unions) are not supported and are diagnosed.
+
+The JVM and Android CIO engine streams both directions. Ktor's JavaScript engine
+reads a request body into memory before calling `fetch`; responses still stream.
 
 ## AWS JSON protocols and checksums
 
@@ -111,7 +161,7 @@ REST JSON applies the lowered HTTP bindings and timestamp formats. AWS JSON
 omits null ordinary structure members, retains explicit document nulls, and
 supports the protocol's string representations of nonfinite floating-point values.
 
-Buffered payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`.
+Payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`.
 The supported algorithms are CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and
 SHA512. Selecting an unsupported XXHASH algorithm raises an error before sending.
 Required legacy checksums use `Content-MD5`; flexible requests default to CRC32
@@ -120,6 +170,15 @@ members. These defaults change only the private request copy. Explicit checksum
 headers take precedence. Request checksums cover the final middleware body and
 are included in authentication signing. Response verification runs before decoding;
 a mismatch raises `ChecksumMismatch` and returns no model.
+
+Streaming bodies are checksummed without buffering. A replayable request body is
+read once more before sending to compute its checksum (once per call, not per
+attempt); a SHA256 checksum of a body with a supplied `sha256` needs no extra read.
+A one-shot body needs a caller-supplied checksum header, otherwise the call fails
+before sending. A streamed response is verified as the consumer reads it: at the
+end of the body a mismatch fails the read, and the call raises `ChecksumMismatch`
+even if the consumer caught that failure. A body the consumer does not read to
+the end is not verified, and the callback is not invoked.
 
 `requestChecksumCalculation` and `responseChecksumValidation` default to
 `ChecksumPolicy.WHEN_SUPPORTED`. Set either to `WHEN_REQUIRED` to disable its
@@ -219,14 +278,21 @@ consumer, runs shared retry/header cases and weather-service HTTP tests, and
 compiles empty and adversarially renamed models. The package itself compiles
 against Java 8 APIs; the JVM test server requires JDK 17. The suite also compiles
 a synthetic service with 100 records and 2,000 fields to detect JVM method-size limits.
+Over real CIO HTTP it uploads (replayable and unsized one-shot) and downloads
+512 MiB streaming bodies with a 256 MiB heap, checking their SHA-256, and
+verifies streamed response checksums.
 
 `python tools/test-kotlin-multiplatform.py` publishes generated JVM/JS artifacts
 and metadata into an isolated Maven repository, then compiles a separate
 Multiplatform consumer against those artifacts. Its common tests verify exact
 64-bit numbers, negative nanosecond timestamps, presence, URI escaping, body
 digests, cold pagination, cancellation, injected transport ownership, exact
-arbitrary-precision collections, payloads, authentication, compiled waiters, and
-endpoint rules on JVM and Node. `--native` also publishes and runs Windows x64 tests on Windows or
+arbitrary-precision collections, payloads, authentication, compiled waiters,
+endpoint rules, and streaming blobs on JVM and Node. The streaming tests cover
+one-shot and replayable retry rules, `@requiresLength` and modeled bounds, 32 MiB
+transfers whose in-flight bytes stay below 8 MiB, cancellation and deadlines
+releasing request and response sources, unread bodies, and streamed checksums for
+all seven algorithms. `--native` also publishes and runs Windows x64 tests on Windows or
 macOS arm64 tests on macOS, and compiles iOS device/simulator tests on macOS.
 Apple binaries require an Apple host and Xcode; a local Windows run does not
 prove Apple execution. Browser compilation does not establish browser live HTTP

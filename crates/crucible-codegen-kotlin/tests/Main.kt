@@ -41,6 +41,9 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import io.ktor.utils.io.readAvailable
+import io.ktor.utils.io.writeFully
+import io.ktor.utils.io.writer
 
 
 private val JsonElement?.asJsonObject: JsonObject get() = this!!.jsonObject
@@ -121,7 +124,7 @@ private class Codec {
     }
     fun decode(target: String, wire: String): Any? = invoke("decode", target, json(wire), null)
     fun encode(target: String, value: Any?, format: String? = null): JsonElement = invoke("encode", target, value, format) as JsonElement
-    fun header(wire: String): JsonElement = invoke("header", json("""{"target":"example.weather#Tags"}""").asJsonObject, wire) as JsonElement
+    fun header(wire: String): JsonElement = invoke("header", json("""{"target":"example.weather#Tags"}""").asJsonObject, wire, null) as JsonElement
     fun bound(values: JsonElement): String = invoke("bound", values) as String
     fun checkDenseMapNulls() {
         instance = type.getConstructor(JsonObject::class.java).newInstance(changed(schema, listOf("shapes", "example.weather#Forecast", "value", "target"), JsonPrimitive("smithy.api#String")))
@@ -438,8 +441,73 @@ private suspend fun hardening() {
     check(codec.encode("example.weather#Forecast", codec.decode("example.weather#Forecast", "{\"key\":{\"nil\":null}}")) == json("{\"key\":{\"nil\":null}}"))
     codec.checkDenseMapNulls()
 }
+private const val STREAM_CHUNK = 64 * 1024
+private const val STREAM_CHUNKS = 8192 // 512 MiB, twice the consumer's -Xmx256m heap.
+private fun streamChunk(index: Int) = ByteArray(STREAM_CHUNK) { (it + index).toByte() }
+private fun streamDigest(): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    repeat(STREAM_CHUNKS) { digest.update(streamChunk(it)) }
+    return digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+}
+private fun CoroutineScope.streamSource() = writer { repeat(STREAM_CHUNKS) { channel.writeFully(streamChunk(it), 0, STREAM_CHUNK) } }.channel
+/** Real CIO transfers larger than the heap prove that streamed bodies are never buffered. */
+private suspend fun streaming() = coroutineScope {
+    val total = STREAM_CHUNK.toLong() * STREAM_CHUNKS
+    val expected = streamDigest()
+    Server { exchange ->
+        when (exchange.requestURI.path) {
+            "/upload" -> {
+                val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(STREAM_CHUNK); var count = 0L
+                exchange.requestBody.use { body -> while (true) { val size = body.read(buffer); if (size < 0) break; digest.update(buffer, 0, size); count += size } }
+                val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+                check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash) { "streamed body digest" }
+                exchange.responseHeaders.add("x-received", count.toString()); exchange.responseHeaders.add("x-digest", hash)
+                exchange.sendResponseHeaders(200, -1)
+            }
+            "/download" -> {
+                exchange.responseHeaders.add("x-count", STREAM_CHUNKS.toString())
+                exchange.sendResponseHeaders(200, total)
+                exchange.responseBody.use { body -> repeat(STREAM_CHUNKS) { body.write(streamChunk(it)) } }
+            }
+            "/transfer" -> {
+                val body = exchange.requestBody.readBytes()
+                val crc = java.util.zip.CRC32().apply { update(body) }.value
+                check(exchange.requestHeaders.getFirst("x-amz-checksum-crc32") == java.util.Base64.getEncoder().encodeToString(java.nio.ByteBuffer.allocate(4).putInt(crc.toInt()).array()))
+                exchange.responseHeaders.add("x-amz-checksum-crc32", exchange.requestHeaders.getFirst("x-amz-checksum-crc32"))
+                response(exchange, 200, if (body.decodeToString() == "corrupt") "corrupted".toByteArray() else body)
+            }
+            else -> response(exchange, 404, "{}")
+        }
+    }.use { server ->
+        val validated = mutableListOf<String>()
+        WeatherClient(server.config().copy(timeout = 120.seconds, checksumValidated = { operation, algorithm -> validated.add("$operation:$algorithm") })).use { client ->
+            val output = client.upload { body = ByteStream.replay(total, expected) { streamSource() } }
+            check(output.received == total && output.digest == expected) { "replayable upload" }
+            val chunked = client.upload { body = ByteStream.once(streamSource(), sha256 = expected) }
+            check(chunked.received == total && chunked.digest == expected) { "unsized one-shot upload" }
+            val unsigned = ByteStream.once(streamSource())
+            try { client.upload { body = unsigned }; error("unsigned stream digest accepted") }
+            catch (error: IllegalArgumentException) { check(error.message!!.contains("SHA-256")) }
+            finally { unsigned.close() } // The caller owns an unsent body; closing cancels its producer.
+            val received = client.download { result ->
+                check(result.count == STREAM_CHUNKS && result.body.contentLength == total)
+                val channel = result.body.openChannel(); val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(STREAM_CHUNK); var count = 0L
+                while (true) { val size = channel.readAvailable(buffer, 0, buffer.size); if (size < 0) break; digest.update(buffer, 0, size); count += size }
+                check(digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) } == expected)
+                count
+            }
+            check(received == total) { "download length" }
+            val echoed = client.transfer({ body = ByteStream.fromBytes("streamed checksum".toByteArray()) }) { it.body.toByteArray(1024).decodeToString() }
+            check(echoed == "streamed checksum" && validated == listOf("Transfer:CRC32")) { "streamed checksum validation" }
+            try { client.transfer({ body = ByteStream.fromBytes("corrupt".toByteArray()) }) { it.body.toByteArray(1024) }; error("corrupt body accepted") }
+            catch (_: ChecksumMismatch) { }
+            check(validated.size == 1)
+        }
+    }
+}
 fun main(args: Array<String>) = runBlocking {
     hardening()
+    withTimeout(300000) { streaming() }
     withTimeout(60000) { retries(args[0]); serialization(args[1]); httpBehavior(); failures(); deadlines(); payloads(); weather() }
     println("Kotlin native package, conformance, and weather HTTP passed")
 }

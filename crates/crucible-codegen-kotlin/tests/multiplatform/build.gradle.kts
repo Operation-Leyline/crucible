@@ -6,7 +6,7 @@ kotlin {
     if (providers.gradleProperty("crucible.native").orNull != "false") { macosArm64(); iosArm64(); iosSimulatorArm64(); mingwX64() }
     compilerOptions { optIn.addAll("kotlin.time.ExperimentalTime") }
     sourceSets {
-        commonMain.dependencies { implementation("example:weather-kotlin-mpp:0.0.0-test"); implementation("example:json-rest-kotlin-mpp:0.0.0-test"); implementation("example:json-json10-kotlin-mpp:0.0.0-test"); implementation("example:json-json11-kotlin-mpp:0.0.0-test") }
+        commonMain.dependencies { implementation("example:weather-kotlin-mpp:0.0.0-test"); implementation("example:json-rest-kotlin-mpp:0.0.0-test"); implementation("example:json-json10-kotlin-mpp:0.0.0-test"); implementation("example:json-json11-kotlin-mpp:0.0.0-test"); implementation("example:stream-kotlin-mpp:0.0.0-test") }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation("io.ktor:ktor-client-mock:3.3.3")
