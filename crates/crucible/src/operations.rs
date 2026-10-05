@@ -199,7 +199,8 @@ fn decode_bound<'a, O: Operation>(
     bound: Vec<(&'static str, BoundValue<'a>)>,
     stream: Option<crucible_wire::stream::ByteStream>,
 ) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let mut input: O::Input = crate::protocol::read_bound(body, bound).map_err(unreadable)?;
+    let mut input: O::Input =
+        crucible_wire::bound::read_http(body, bound, O::INFO.input).map_err(unreadable)?;
     if let Some(stream) = stream {
         O::set_input_stream(&mut input, stream);
     }

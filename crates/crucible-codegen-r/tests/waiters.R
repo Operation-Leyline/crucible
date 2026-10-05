@@ -84,6 +84,21 @@ check(identical(vapply(sorted, as.character, ''), c('1.1', '2.2', '10')), 'Numer
 check(call('type', literal(json_number('1.1'))) == 'number', 'Number type')
 check(call('to_string', literal(json_parse('{"number":1.000000000000000000001}'))) == '{"number":1.000000000000000000001}', 'Exact to_string')
 check(as.character(call('sum', literal(json_parse('[0.1,0.2,10000000000000000000000]')))) == '10000000000000000000000.3', 'Exact sum')
+for (case in list(
+  list('[-0.01]', '-0.01'),
+  list('[-0.01,0]', '-0.01'),
+  list('[0,-0.01]', '-0.01'),
+  list('[-0.01,0.02]', '0.01'),
+  list('[0.01,-0.02]', '-0.01'),
+  list('[-1.25,0.005]', '-1.245'),
+  list('[0.005,-1.25]', '-1.245'),
+  list('[10000000000000000000000.01,-10000000000000000000000]', '0.01'),
+  list('[-10000000000000000000000,10000000000000000000000.01]', '0.01'),
+  list('[1e-40,-2e-40]', paste0('-0.', strrep('0', 39L), '1'))
+)) {
+  check(identical(as.character(call('sum', literal(json_parse(case[[1L]])))), case[[2L]]),
+        paste('Exact negative and mixed-sign sum', case[[1L]]))
+}
 check(as.character(call('avg', literal(json_parse('[1,2]')))) == '1.5', 'Average')
 for (name in c('sum', 'avg')) {
   for (value in c('1e100001', '1e-100001', '1e1000000')) {

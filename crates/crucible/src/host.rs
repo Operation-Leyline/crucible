@@ -171,7 +171,7 @@ mod lambda_event {
     use std::borrow::Cow;
 
     use axum::body::{Body, Bytes};
-    use axum::http::{HeaderMap, HeaderValue, Request};
+    use axum::http::{HeaderMap, HeaderValue, Request, header::SET_COOKIE};
     use lambda_http::aws_lambda_events::alb::AlbTargetGroupResponse;
     use lambda_http::aws_lambda_events::apigw::{
         ApiGatewayProxyResponse, ApiGatewayV2httpResponse,
@@ -293,7 +293,31 @@ mod lambda_event {
                 response.status_code = status;
                 response.body = body;
                 response.is_base64_encoded = base64;
-                response.headers = headers;
+                let mut headers = headers;
+                // HTTP API v2 carries each Set-Cookie value in its cookies array.
+                response.cookies = headers
+                    .get_all(SET_COOKIE)
+                    .iter()
+                    .map(|value| std::str::from_utf8(value.as_bytes()).map(str::to_owned))
+                    .collect::<Result<Vec<_>, _>>()?;
+                headers.remove(SET_COOKIE);
+                // HTTP API v2 has one string per header name. Joining bytes
+                // preserves valid non-ASCII values that HeaderValue::to_str rejects.
+                for name in headers.keys() {
+                    let mut values = headers.get_all(name).iter();
+                    let first = values.next().expect("header key has a value");
+                    let value = if let Some(second) = values.next() {
+                        let mut joined = first.as_bytes().to_vec();
+                        for value in std::iter::once(second).chain(values) {
+                            joined.push(b',');
+                            joined.extend_from_slice(value.as_bytes());
+                        }
+                        HeaderValue::from_bytes(&joined).expect("joined header values are valid")
+                    } else {
+                        first.clone()
+                    };
+                    response.headers.insert(name.clone(), value);
+                }
                 to_raw_value(&response)?
             }
             RequestOrigin::Alb => {

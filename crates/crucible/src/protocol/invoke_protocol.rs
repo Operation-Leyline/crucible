@@ -2,6 +2,8 @@
 //! JSON object, no HTTP bindings. Lambda's direct invokes arrive this way
 //! (`host::lambda`), and so can any in-process caller (`Crucible::invoke`).
 //! The answer is `{"output": ...}` or `{"error": {"__type": ..., ...}}`.
+//! Operations with streaming payloads use HTTP; direct invocation rejects
+//! them before the implementation runs, rather than serializing streams as null.
 
 use axum::http::request::Parts;
 use axum::http::{HeaderValue, StatusCode, header};
@@ -11,7 +13,9 @@ use serde_json::{Value, json};
 use super::{Answers, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
 use crate::handler::{Handler, Hook, Job, Resolution};
+use crate::operation::Location;
 use crate::operations::Operations;
+use crate::validate::Rejection;
 
 /// Marks a request as a direct invocation of `operation`. Set only by the
 /// framework, as a request extension, so no HTTP client can forge one.
@@ -109,8 +113,18 @@ impl InvokeProtocol {
         if !self.owns(job.request()) {
             return Ok(());
         }
-        if job.operation().is_none() {
-            return Err(FrameworkError::UnknownOperation.into());
+        let operation = job.operation().ok_or(FrameworkError::UnknownOperation)?;
+        if operation
+            .input
+            .iter()
+            .chain(operation.output)
+            .any(|member| matches!(member.location, Location::StreamingPayload { .. }))
+        {
+            return Err(Rejection::malformed(
+                "",
+                "direct invocation does not support streaming payloads; use HTTP",
+            )
+            .into());
         }
         let input = job.decode_json(job.body())?;
         job.set_input(input);

@@ -14,7 +14,7 @@ use serde::de::{
     SeqAccess, Visitor,
 };
 
-use crate::operation::{Scalar, TimestampFormat};
+use crate::operation::{Location, MemberInfo, Scalar, TimestampFormat};
 use crate::{blob, text, time};
 
 /// A bound member's value, already checked against its kind, so a bad one
@@ -124,6 +124,30 @@ pub fn read<'a, T: DeserializeOwned>(
     bound: Vec<(&'static str, BoundValue<'a>)>,
 ) -> Result<T, serde_json::Error> {
     let names: Vec<&'static str> = bound.iter().map(|(name, _)| *name).collect();
+    read_excluding(body, bound, names)
+}
+
+/// Reads an HTTP input, keeping every member declared outside the body
+/// out of the body even when its header, query parameter or payload is absent.
+pub fn read_http<'a, T: DeserializeOwned>(
+    body: &'a [u8],
+    bound: Vec<(&'static str, BoundValue<'a>)>,
+    members: &[MemberInfo],
+) -> Result<T, serde_json::Error> {
+    let mut names: Vec<&'static str> = members
+        .iter()
+        .filter(|member| member.location != Location::Body)
+        .map(|member| member.name)
+        .collect();
+    names.extend(bound.iter().map(|(name, _)| *name));
+    read_excluding(body, bound, names)
+}
+
+fn read_excluding<'a, T: DeserializeOwned>(
+    body: &'a [u8],
+    bound: Vec<(&'static str, BoundValue<'a>)>,
+    names: Vec<&'static str>,
+) -> Result<T, serde_json::Error> {
     if body.iter().all(u8::is_ascii_whitespace) {
         return T::deserialize(BoundOnly { bound });
     }
@@ -475,6 +499,51 @@ mod tests {
         let input: Input = read(b"", vec![("cityId", BoundValue::Text("c-2".into()))]).unwrap();
         assert_eq!(input.city_id, "c-2");
         assert_eq!(input.name, None);
+    }
+
+    #[test]
+    fn http_read_excludes_absent_bindings_but_keeps_body_members() {
+        use crate::operation::Redaction;
+        let members = [
+            MemberInfo {
+                name: "cityId",
+                location: Location::Label,
+                scalar: Scalar::String,
+                redaction: &Redaction::Public,
+                traits: &[],
+            },
+            MemberInfo {
+                name: "maxResults",
+                location: Location::Query("max"),
+                scalar: Scalar::Integer,
+                redaction: &Redaction::Public,
+                traits: &[],
+            },
+            MemberInfo {
+                name: "name",
+                location: Location::Body,
+                scalar: Scalar::String,
+                redaction: &Redaction::Public,
+                traits: &[],
+            },
+        ];
+        let input: Input = read_http(
+            br#"{"cityId":"body-copy","maxResults":9,"name":"Oslo"}"#,
+            vec![("cityId", BoundValue::Text("c-2".into()))],
+            &members,
+        )
+        .unwrap();
+        assert_eq!(input.city_id, "c-2");
+        assert_eq!(input.max_results, None);
+        assert_eq!(input.name.as_deref(), Some("Oslo"));
+        assert!(read_http::<Input>(br#"{"cityId":"injected"}"#, vec![], &members).is_err());
+    }
+
+    #[test]
+    fn ordinary_read_still_accepts_body_members_not_in_the_supplied_bindings() {
+        let input: Input = read(br#"{"cityId":"c-2","maxResults":9}"#, vec![]).unwrap();
+        assert_eq!(input.city_id, "c-2");
+        assert_eq!(input.max_results, Some(9));
     }
 
     #[derive(Debug, Deserialize, PartialEq)]

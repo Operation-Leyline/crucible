@@ -1,0 +1,513 @@
+//! Public framework consumers exercising HTTP bindings and protocol selection.
+
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+use axum::{
+    body::{Body, to_bytes},
+    http::{HeaderValue, Request},
+};
+use crucible::handlers::before_fn;
+use crucible::operation::{
+    ErrorInfo, Fault, Location, MemberInfo, OperationInfo, Redaction, Scalar, Segment, ServiceInfo,
+    Unit,
+};
+use crucible::protocol::Invocation;
+use crucible::validate::{Validate, Validator};
+use crucible::{
+    Crucible, HandlerExt, InvokeProtocol, JsonProtocol, Operation, Operations, Protocol,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+
+const fn member(name: &'static str, location: Location, scalar: Scalar) -> MemberInfo {
+    MemberInfo {
+        name,
+        location,
+        scalar,
+        redaction: &Redaction::Public,
+        traits: &[],
+    }
+}
+
+static OUTPUT: &[MemberInfo] = &[member("observed", Location::Body, Scalar::Json)];
+
+const fn operation(
+    name: &'static str,
+    path: &'static [Segment],
+    query: &'static [(&'static str, Option<&'static str>)],
+) -> OperationInfo {
+    OperationInfo {
+        id: "audit#Operation",
+        name,
+        resource: None,
+        method: "POST",
+        path,
+        literal_query: query,
+        status: 200,
+        input: &[],
+        output: OUTPUT,
+        errors: &[],
+        readonly: false,
+        idempotent: false,
+        idempotency_token: None,
+        traits: &[],
+    }
+}
+
+static BINDINGS: OperationInfo = OperationInfo {
+    input: &[
+        member(
+            "headerDisplay",
+            Location::Header("x-required"),
+            Scalar::String,
+        ),
+        member("queryDisplay", Location::Query("q"), Scalar::String),
+        member("bodyDisplay", Location::Body, Scalar::String),
+        member(
+            "strings",
+            Location::Header("x-strings"),
+            Scalar::List(&Scalar::String),
+        ),
+        member(
+            "dates",
+            Location::Header("x-dates"),
+            Scalar::List(&Scalar::HttpDate),
+        ),
+        member(
+            "encoded",
+            Location::Header("x-encoded"),
+            Scalar::List(&Scalar::Base64),
+        ),
+        member(
+            "numbers",
+            Location::Header("x-numbers"),
+            Scalar::List(&Scalar::Integer),
+        ),
+    ],
+    ..operation("Bindings", &[Segment::Literal("bindings")], &[])
+};
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct BindingInput {
+    #[serde(rename = "headerDisplay")]
+    header: String,
+    #[serde(rename = "queryDisplay")]
+    query: Option<String>,
+    #[serde(rename = "bodyDisplay")]
+    body: String,
+    #[serde(default)]
+    strings: Vec<String>,
+    #[serde(default)]
+    dates: Vec<String>,
+    #[serde(default)]
+    encoded: Vec<String>,
+    #[serde(default)]
+    numbers: Vec<i32>,
+}
+
+impl Validate for BindingInput {
+    fn validate(&self, validator: &mut Validator) {
+        validator.at("bodyDisplay", |validator| {
+            validator.length(self.body.len(), Some(1), None)
+        });
+    }
+}
+
+struct Bindings;
+impl Operation for Bindings {
+    const INFO: &'static OperationInfo = &BINDINGS;
+    type Input = BindingInput;
+    type Output = Value;
+}
+
+static ERROR: ErrorInfo = ErrorInfo {
+    name: "Invalid",
+    status: 400,
+    fault: Fault::Client,
+    retryable: false,
+    throttling: false,
+    members: &[member("message", Location::Body, Scalar::String)],
+};
+#[derive(Debug)]
+struct Invalid(String);
+impl std::fmt::Display for Invalid {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+impl std::error::Error for Invalid {}
+impl crucible::ModelledError for Invalid {
+    fn info(&self) -> &'static ErrorInfo {
+        &ERROR
+    }
+    fn to_json(&self) -> Value {
+        json!({"message": self.0})
+    }
+}
+static SERVICE: ServiceInfo = ServiceInfo {
+    id: "audit#Bindings",
+    version: "1",
+    operations: &[&BINDINGS],
+    errors: &[&ERROR],
+    classify: |_| None,
+    reject: Some(|rejection| Box::new(Invalid(rejection.summary()))),
+    internal: None,
+    unknown: None,
+};
+
+fn service(calls: Arc<AtomicUsize>) -> Crucible {
+    let operations = Operations::builder(&SERVICE)
+        .add::<Bindings, _>(calls, |calls, input| {
+            Box::pin(async move {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Ok(json!({"observed": input}))
+            })
+        })
+        .build()
+        .unwrap();
+    Crucible::builder(operations)
+        .handler(JsonProtocol)
+        .handler(InvokeProtocol)
+        .build()
+        .unwrap()
+}
+
+async fn answer(service: &Crucible, request: Request<Body>) -> (u16, Value) {
+    let response = service.handle(request).await;
+    let status = response.status().as_u16();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap())
+}
+
+#[tokio::test]
+async fn absent_http_bindings_cannot_be_supplied_in_the_json_body() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = service(calls.clone());
+    let (status, _) = answer(
+        &service,
+        Request::post("/bindings")
+            .body(Body::from(
+                r#"{"headerDisplay":"injected","queryDisplay":"injected","bodyDisplay":"body"}"#,
+            ))
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, 400);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let (status, body) = answer(&service, Request::post("/bindings").header("x-required", "header")
+        .body(Body::from(r#"{"headerDisplay":"ignored","queryDisplay":"injected","strings":["injected"],"bodyDisplay":"body"}"#)).unwrap()).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["observed"]["headerDisplay"], "header");
+    assert!(body["observed"]["queryDisplay"].is_null());
+    assert_eq!(body["observed"]["strings"], json!([]));
+
+    let (status, body) = answer(
+        &service,
+        Request::post("/bindings?q=query")
+            .header("x-required", "header")
+            .body(Body::from(
+                r#"{"queryDisplay":"ignored","bodyDisplay":"body"}"#,
+            ))
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["observed"]["queryDisplay"], "query");
+    assert_eq!(body["observed"]["bodyDisplay"], "body");
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn repeated_header_fields_preserve_lists_quotes_dates_and_media_type_strings() {
+    let service = service(Arc::new(AtomicUsize::new(0)));
+    let request = Request::post("/bindings")
+        .header("x-required", "header")
+        .header("x-strings", "plain,\"a,b\"")
+        .header("x-strings", "\"say \\\"hi\\\"\",last")
+        .header("x-dates", "Mon, 16 Dec 2019 23:48:18 GMT")
+        .header("x-dates", "Tue, 17 Dec 2019 23:48:18 GMT")
+        .header("x-encoded", "YQ==,Yg==")
+        .header("x-encoded", "Yyxk")
+        .header("x-numbers", "1,2")
+        .header("x-numbers", "3")
+        .body(Body::from(r#"{"bodyDisplay":"body"}"#))
+        .unwrap();
+    let (status, body) = answer(&service, request).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        body["observed"]["strings"],
+        json!(["plain", "a,b", "say \"hi\"", "last"])
+    );
+    assert_eq!(
+        body["observed"]["dates"],
+        json!([
+            "Mon, 16 Dec 2019 23:48:18 GMT",
+            "Tue, 17 Dec 2019 23:48:18 GMT"
+        ])
+    );
+    assert_eq!(body["observed"]["encoded"], json!(["a", "b", "c,d"]));
+    assert_eq!(body["observed"]["numbers"], json!([1, 2, 3]));
+}
+
+#[tokio::test]
+async fn malformed_later_header_fields_and_body_constraints_are_rejected_before_dispatch() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = service(calls.clone());
+    for (header, value) in [
+        ("x-numbers", "not-a-number"),
+        ("x-dates", "not-a-date"),
+        ("x-encoded", "not-base64!"),
+    ] {
+        let request = Request::post("/bindings")
+            .header("x-required", "header")
+            .header(
+                header,
+                match header {
+                    "x-numbers" => "1",
+                    "x-dates" => "Mon, 16 Dec 2019 23:48:18 GMT",
+                    _ => "YQ==",
+                },
+            )
+            .header(header, value)
+            .body(Body::from(r#"{"bodyDisplay":"body"}"#))
+            .unwrap();
+        let (status, body) = answer(&service, request).await;
+        assert_eq!(status, 400, "{header}: {body}");
+        assert!(body["message"].as_str().unwrap().contains(header), "{body}");
+    }
+    let mut request = Request::post("/bindings")
+        .header("x-required", "header")
+        .header("x-strings", "first")
+        .body(Body::from(r#"{"bodyDisplay":"body"}"#))
+        .unwrap();
+    request
+        .headers_mut()
+        .append("x-strings", HeaderValue::from_bytes(&[0x80]).unwrap());
+    assert_eq!(answer(&service, request).await.0, 400);
+    assert_eq!(
+        answer(
+            &service,
+            Request::post("/bindings")
+                .header("x-required", "header")
+                .body(Body::from(r#"{"bodyDisplay":""}"#))
+                .unwrap()
+        )
+        .await
+        .0,
+        400
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+static EARLY: OperationInfo = operation(
+    "ZEarly",
+    &[
+        Segment::Literal("abc"),
+        Segment::Literal("bcd"),
+        Segment::Label("x"),
+    ],
+    &[],
+);
+static LATE: OperationInfo = operation(
+    "ALate",
+    &[
+        Segment::Label("x"),
+        Segment::Literal("bcd"),
+        Segment::Literal("cde"),
+    ],
+    &[("mode", Some("on"))],
+);
+static REGULAR: OperationInfo = operation(
+    "Regular",
+    &[
+        Segment::Literal("greedy"),
+        Segment::Label("x"),
+        Segment::Label("y"),
+    ],
+    &[],
+);
+static GREEDY: OperationInfo = operation(
+    "Greedy",
+    &[
+        Segment::Literal("greedy"),
+        Segment::GreedyLabel("x"),
+        Segment::Literal("tail"),
+    ],
+    &[],
+);
+static FLAG: OperationInfo = operation("AFlag", &[Segment::Literal("flag")], &[("mode", None)]);
+static EXACT: OperationInfo = operation(
+    "ZExact",
+    &[Segment::Literal("flag")],
+    &[("mode", Some("on"))],
+);
+macro_rules! route_operation {
+    ($type:ident, $info:ident) => {
+        struct $type;
+        impl Operation for $type {
+            const INFO: &'static OperationInfo = &$info;
+            type Input = Unit;
+            type Output = Unit;
+        }
+    };
+}
+route_operation!(Early, EARLY);
+route_operation!(Late, LATE);
+route_operation!(Regular, REGULAR);
+route_operation!(Greedy, GREEDY);
+route_operation!(Flag, FLAG);
+route_operation!(Exact, EXACT);
+static ROUTES: ServiceInfo = ServiceInfo {
+    id: "audit#Routes",
+    version: "1",
+    operations: &[&EARLY, &LATE, &REGULAR, &GREEDY, &FLAG, &EXACT],
+    errors: &[],
+    classify: |_| None,
+    reject: None,
+    internal: None,
+    unknown: None,
+};
+
+fn route_operations() -> Operations {
+    Operations::builder(&ROUTES)
+        .add::<Early, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Late, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Regular, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Greedy, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Flag, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Exact, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn routing_compares_path_segments_before_query_and_greedy_labels() {
+    let operations = route_operations();
+    for (uri, expected, labels) in [
+        (
+            "/abc/bcd/cde?mode=on",
+            "ZEarly",
+            vec![("x", "cde".to_owned())],
+        ),
+        (
+            "/other/bcd/cde?mode=on",
+            "ALate",
+            vec![("x", "other".to_owned())],
+        ),
+        (
+            "/greedy/a/tail",
+            "Regular",
+            vec![("x", "a".to_owned()), ("y", "tail".to_owned())],
+        ),
+        ("/greedy/a/b/tail", "Greedy", vec![("x", "a/b".to_owned())]),
+        ("/flag?mode=on", "ZExact", vec![]),
+        ("/flag?mode=other", "AFlag", vec![]),
+    ] {
+        let (parts, _) = Request::post(uri).body(()).unwrap().into_parts();
+        let route = JsonProtocol.route(&parts, &operations).unwrap();
+        assert_eq!(route.operation, expected, "{uri}");
+        assert_eq!(route.labels, labels, "{uri}");
+    }
+}
+
+async fn assert_selected_route(service: &Crucible, uri: &str, expected: &str) {
+    let response = service
+        .handle(Request::post(uri).body(Body::from("{}")).unwrap())
+        .await;
+    assert_eq!(response.status(), 200, "{uri}");
+    assert_eq!(
+        response.headers()["x-selected-operation"],
+        expected,
+        "{uri}"
+    );
+}
+
+#[tokio::test]
+async fn scoped_json_routes_choose_allowed_overlapping_path_and_query_candidates() {
+    let service = Crucible::builder(route_operations())
+        .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
+        .handler(before_fn(|job| {
+            let name = job.operation().unwrap().name;
+            job.response_headers_mut()
+                .insert("x-selected-operation", HeaderValue::from_static(name));
+            Ok(())
+        }))
+        .handler(JsonProtocol.only(&["ALate", "AFlag"]))
+        .handler(JsonProtocol)
+        .build()
+        .unwrap();
+    // The unrestricted winners are ZEarly and ZExact. They must not hide
+    // the less specific candidates accepted by the first protocol's scope.
+    assert_selected_route(&service, "/abc/bcd/cde?mode=on", "ALate").await;
+    assert_selected_route(&service, "/flag?mode=on", "AFlag").await;
+    // A request with no candidate in that scope still reaches the fallback.
+    assert_selected_route(&service, "/abc/bcd/other", "ZEarly").await;
+}
+
+#[tokio::test]
+async fn nested_json_scopes_intersect_before_choosing_overlapping_candidates() {
+    let service = Crucible::builder(route_operations())
+        .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
+        .handler(before_fn(|job| {
+            let name = job.operation().unwrap().name;
+            job.response_headers_mut()
+                .insert("x-selected-operation", HeaderValue::from_static(name));
+            Ok(())
+        }))
+        .handler(
+            JsonProtocol
+                .only(&["ALate", "AFlag", "ZExact"])
+                .except(&["ZExact"])
+                .when(|operation| operation.name != "ZEarly"),
+        )
+        .handler(JsonProtocol)
+        .build()
+        .unwrap();
+    assert_selected_route(&service, "/abc/bcd/cde?mode=on", "ALate").await;
+    assert_selected_route(&service, "/flag?mode=on", "AFlag").await;
+
+    // The outer scope cannot widen the inner scope: their empty intersection
+    // leaves both matching query candidates to the fallback protocol.
+    let service = Crucible::builder(route_operations())
+        .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
+        .handler(before_fn(|job| {
+            let name = job.operation().unwrap().name;
+            job.response_headers_mut()
+                .insert("x-selected-operation", HeaderValue::from_static(name));
+            Ok(())
+        }))
+        .handler(JsonProtocol.only(&["AFlag"]).only(&["ZExact"]))
+        .handler(JsonProtocol)
+        .build()
+        .unwrap();
+    assert_selected_route(&service, "/flag?mode=on", "ZExact").await;
+}
+
+#[tokio::test]
+async fn invocation_extensions_always_use_the_invoke_protocol_even_on_an_http_route() {
+    let service = service(Arc::new(AtomicUsize::new(0)));
+    let mut request = Request::post("/bindings")
+        .body(Body::from(
+            r#"{"headerDisplay":"direct","queryDisplay":"direct","bodyDisplay":"direct"}"#,
+        ))
+        .unwrap();
+    request.extensions_mut().insert(Invocation {
+        operation: "Bindings".to_owned(),
+    });
+    let (status, body) = answer(&service, request).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["output"]["observed"]["headerDisplay"], "direct");
+    assert_eq!(body["output"]["observed"]["queryDisplay"], "direct");
+    let mut request = Request::post("/bindings").body(Body::from("{}")).unwrap();
+    request.extensions_mut().insert(Invocation {
+        operation: "Missing".to_owned(),
+    });
+    let (status, body) = answer(&service, request).await;
+    assert_eq!(status, 404, "{body}");
+    assert_eq!(body["error"]["__type"], "UnknownOperation");
+}

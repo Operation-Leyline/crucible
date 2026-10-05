@@ -42,6 +42,11 @@
 }
 # Requires a >= b.
 .crucible_digits_subtract <- function(a, b) {
+  # Alignment can pad zero to more digits than the larger coefficient.
+  # Compare and subtract must use the same significant digit widths.
+  a <- sub('^0+', '', a); b <- sub('^0+', '', b)
+  if (a == '') a <- '0'
+  if (b == '') b <- '0'
   x <- rev(as.integer(strsplit(a, '', fixed = TRUE)[[1L]])); y <- rev(as.integer(strsplit(b, '', fixed = TRUE)[[1L]]))
   y <- c(y, integer(length(x) - length(y))); out <- integer(length(x)); borrow <- 0L
   for (i in seq_along(x)) { s <- x[i] - y[i] - borrow; borrow <- if (s < 0L) 1L else 0L; out[i] <- s + 10L * borrow }

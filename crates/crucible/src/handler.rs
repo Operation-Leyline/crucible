@@ -5,7 +5,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 
-use axum::body::Bytes;
+use axum::body::{Body, Bytes};
 use axum::http::HeaderMap;
 use axum::http::request::Parts;
 use axum::response::Response;
@@ -249,6 +249,9 @@ pub struct Job {
     pub(crate) context: Arc<Context>,
     pub(crate) request: Arc<Parts>,
     pub(crate) body: Bytes,
+    pub(crate) raw_body: Option<Body>,
+    pub(crate) body_limit: usize,
+    pub(crate) body_read_error: Option<Rejection>,
     pub(crate) body_stream: Option<crucible_wire::stream::ByteStream>,
     pub(crate) labels: Vec<(&'static str, String)>,
     pub(crate) decode: Option<Decode>,
@@ -280,8 +283,76 @@ impl Job {
         &self.request
     }
 
+    /// Buffered bytes, empty until [`Job::read_body`] or the selected protocol
+    /// reads the body. HTTP streaming payloads remain streams, not buffered bytes.
     pub fn body(&self) -> &Bytes {
         &self.body
+    }
+
+    /// Reads the body once, enforcing the configured limit. Admission handlers
+    /// normally inspect headers without reading; call this explicitly when they
+    /// need body bytes. Later calls reuse the bytes or the same rejection.
+    /// HTTP streaming payloads stay lazy; direct invocations always buffer JSON.
+    pub async fn read_body(&mut self) -> Result<()> {
+        if let Some(error) = &self.body_read_error {
+            return Err(error.clone().into());
+        }
+        let Some(body) = self.raw_body.take() else {
+            return Ok(());
+        };
+        let payload = self
+            .operation()
+            .and_then(|op| crucible_wire::operation::Location::payload(op.input));
+        if self
+            .request
+            .extensions
+            .get::<crate::protocol::Invocation>()
+            .is_none()
+            && let Some((member, _)) = payload
+            && let crucible_wire::operation::Location::StreamingPayload {
+                minimum, maximum, ..
+            } = member.location
+        {
+            let mut stream = crucible_wire::stream::ByteStream::new(body.into_data_stream())
+                .with_maximum(self.body_limit)
+                .with_bounds(minimum, maximum);
+            if let Some(length) = self
+                .request
+                .headers
+                .get("content-length")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.parse().ok())
+            {
+                stream = stream.with_length(length);
+            }
+            self.body_stream = Some(stream);
+            return Ok(());
+        }
+        // Cancellation drops the raw body too; a later read must not accept it
+        // as an empty successful body.
+        self.body_read_error = Some(Rejection::malformed(
+            "",
+            "request body reading did not complete",
+        ));
+        match axum::body::to_bytes(body, self.body_limit).await {
+            Ok(bytes) => {
+                self.body = bytes;
+                self.body_read_error = None;
+                Ok(())
+            }
+            Err(error) => {
+                let limited = std::error::Error::source(&error)
+                    .is_some_and(|cause| cause.is::<http_body_util::LengthLimitError>());
+                let message = if limited {
+                    format!("the body is larger than {} bytes", self.body_limit)
+                } else {
+                    "could not read the request body".to_owned()
+                };
+                let rejection = Rejection::malformed("", message);
+                self.body_read_error = Some(rejection.clone());
+                Err(rejection.into())
+            }
+        }
     }
 
     /// URI labels the routing protocol matched, percent-decoded.
