@@ -2,6 +2,7 @@
 #include "jobs_client/schema.hpp"
 #define SCRIPTED_RUNTIME jobs_sdk::runtime
 #include "scripted.hpp"
+#include <chrono>
 
 namespace sdk = jobs_sdk;
 using sdk::models::Input;

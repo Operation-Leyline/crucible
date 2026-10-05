@@ -3,12 +3,60 @@
 #define SCRIPTED_RUNTIME auth_sdk::runtime
 #include "scripted.hpp"
 #include <atomic>
+#include <chrono>
 #include <future>
 #include <sstream>
 #include <thread>
 
 using namespace std::chrono;
 namespace sdk = auth_sdk;
+
+void endpoint_override_and_fallback() {
+    struct Observed : rt::Transport {
+        std::string url;
+        rt::HttpResponse send(const rt::HttpRequest& request, bool, const rt::CallScope&) override {
+            url = request.url;
+            return {204, {}, ""};
+        }
+    };
+    const auto verify = [](std::optional<std::string> configured, std::optional<std::string> builtin,
+                           bool rules, const std::string& expected) {
+        auto description = sdk::schema().description().object();
+        auto operations = description.at("operations").object();
+        auto operation = operations.at("Read").object();
+        operation.insert_or_assign("auth", rt::Json(rt::Json::Array{}));
+        operation.insert_or_assign("bearer", rt::Json(false));
+        operation.insert_or_assign("endpointParameters", rt::Json::parse(R"({"Endpoint":[{"kind":"builtIn","name":"SDK::Endpoint"}]})"));
+        operations.insert_or_assign("Read", rt::Json(std::move(operation)));
+        description.insert_or_assign("operations", rt::Json(std::move(operations)));
+        if (rules) description.insert_or_assign("endpointRules", rt::Json::parse(R"({
+            "parameters":{"Endpoint":{"kind":"string","required":false}},
+            "rules":[
+                {"conditions":[{"function":"isSet","arguments":[{"kind":"reference","name":"Endpoint"}],"assign":null}],
+                 "result":{"kind":"endpoint","url":{"kind":"reference","name":"Endpoint"}}},
+                {"conditions":[],"result":{"kind":"endpoint","url":{"kind":"string","parts":[{"kind":"literal","value":"https://derived.example"}]}}}
+            ]
+        })"));
+        else description.erase("endpointRules");
+        const rt::Schema schema(rt::Json(std::move(description)));
+        auto transport = std::make_shared<Observed>();
+        rt::ClientConfig config;
+        config.endpoint = configured;
+        config.transport = transport;
+        if (builtin) config.endpoint_builtins.emplace("SDK::Endpoint", rt::Json(*builtin));
+        const rt::ClientRuntime client(config, schema,
+            [](const std::string&, const rt::Json&, rt::ErrorMetadata) { return std::exception_ptr(); },
+            "https://fallback.example", false);
+        (void)client.exchange("Read", rt::Json(rt::Json::Object{}), client.scope());
+        check(transport->url == expected + "/read", "endpoint override/default distinction: " + transport->url);
+    };
+    verify(std::nullopt, std::nullopt, true, "https://derived.example");
+    verify("https://configured.example", std::nullopt, true, "https://configured.example");
+    verify("https://configured.example", "https://builtin.example", true, "https://builtin.example");
+    verify(std::nullopt, "https://builtin.example", true, "https://builtin.example");
+    verify("", std::nullopt, true, "https://derived.example");
+    verify(std::nullopt, std::nullopt, false, "https://fallback.example");
+}
 
 void set_environment(const char* name, const char* value) {
 #ifdef _WIN32
@@ -231,6 +279,7 @@ void cached_client_credentials(Scripted& server) {
 
 int main() {
     try {
+        endpoint_override_and_fallback();
         legacy_bearer_missing_identity();
         Scripted server;
         published_signing_vector();

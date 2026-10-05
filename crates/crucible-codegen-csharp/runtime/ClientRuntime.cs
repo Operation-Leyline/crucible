@@ -641,7 +641,7 @@ internal sealed partial class ClientRuntime : IDisposable
                     break;
             }
         }
-        if (ids.Count != 0 && !(ids.Count == 1 && Flag(op["bearer"])) && !Flag(op["optionalAuth"]))
+        if (ids.Count != 0 && !(ids.Count == 1 && ids[0] == "smithy.api#httpBearerAuth" && Flag(op["bearer"])) && !Flag(op["optionalAuth"]))
             throw new InvalidOperationException("No identity available for modeled authentication schemes");
         return (false, null);
     }

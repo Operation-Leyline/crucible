@@ -152,7 +152,7 @@ ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Js
         if (rules) {
             auto builtins = config_.endpoint_builtins;
             if (!builtins.contains("AWS::Region") && config_.region) builtins.emplace("AWS::Region", Json(*config_.region));
-            if (!builtins.contains("SDK::Endpoint") && !endpoint.empty()) builtins.emplace("SDK::Endpoint", Json(endpoint));
+            if (!builtins.contains("SDK::Endpoint") && config_.endpoint && !config_.endpoint->empty()) builtins.emplace("SDK::Endpoint", Json(*config_.endpoint));
             prepared.endpoint = resolve_endpoint(*rules, operation.find("endpointParameters"), view, config_.endpoint_parameters, builtins);
             endpoint = prepared.endpoint->url;
         }

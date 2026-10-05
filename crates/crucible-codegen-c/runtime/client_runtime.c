@@ -76,6 +76,7 @@ status crucible_generated_runtime_new(const crucible_generated_client_config *co
     client *value = calloc(1, sizeof(*value));
     if (!value) return crucible_generated_fail(issue, OOM, "Client allocation failed");
     value->arena = crucible_generated_arena_new(); value->config = settings; value->digest = digest;
+    value->endpoint_configured = settings.endpoint.data != NULL;
     status code = OK;
     if (!value->arena) { code = crucible_generated_fail(issue, OOM, "Client allocation failed"); goto failed; }
     code = crucible_generated_arena_copy(value->arena, endpoint, &value->config.endpoint, issue);
@@ -190,7 +191,7 @@ static status plan_endpoint(client *value, arena *storage, const yyjson_val *op,
         if (!builtins) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
         if (value->config.region.length && !yyjson_mut_obj_get(builtins, "AWS::Region")
             && !yyjson_mut_obj_add_strncpy(doc, builtins, "AWS::Region", value->config.region.data, value->config.region.length)) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
-        if (value->config.endpoint.length && !yyjson_mut_obj_get(builtins, "SDK::Endpoint")
+        if (value->endpoint_configured && value->config.endpoint.length && !yyjson_mut_obj_get(builtins, "SDK::Endpoint")
             && !yyjson_mut_obj_add_strncpy(doc, builtins, "SDK::Endpoint", value->config.endpoint.data, value->config.endpoint.length)) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
         const yyjson_val *owned_builtins;
         TRY(crucible_generated_json_own(storage, builtins, &owned_builtins, issue));

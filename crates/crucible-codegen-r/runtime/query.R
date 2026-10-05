@@ -209,8 +209,11 @@
       for (item in list) total <- .crucible_decimal_add(total, .crucible_decimal(item))
       if (name == 'sum') return(.crucible_decimal_text(total$negative, total$digits, total$exponent))
       if (!length(list)) return(NULL)
-      # Long division to 34 fractional digits, matching the other runtimes.
-      digits <- paste0(total$digits, strrep('0', 34)); exponent <- total$exponent - 34
+      # Pad normalized coefficients to 34 fractional digits, retaining existing deeper precision.
+      digits <- sub('0+$', '', total$digits)
+      exponent <- total$exponent + nchar(total$digits) - nchar(digits)
+      pad <- max(0, exponent + 34)
+      digits <- paste0(digits, strrep('0', pad)); exponent <- exponent - pad
       source <- as.integer(strsplit(digits, '', fixed = TRUE)[[1L]])
       quotient <- integer(length(source)); remainder <- 0
       for (i in seq_along(source)) { remainder <- remainder * 10 + source[i]; quotient[i] <- remainder %/% length(list); remainder <- remainder %% length(list) }

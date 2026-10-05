@@ -9,6 +9,7 @@ struct crucible_generated_client {
     const yyjson_val *schema;
     crucible_generated_curl *owned_transport;
     bool digest;
+    bool endpoint_configured;
     /* Caller endpoint parameters and built-ins as JSON objects (never NULL). */
     const yyjson_val *endpoint_parameters, *endpoint_builtins;
 };

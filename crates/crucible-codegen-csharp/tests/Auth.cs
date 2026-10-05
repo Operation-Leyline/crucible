@@ -6,15 +6,46 @@ static class Program
     static void Check(bool value, string message) { if (!value) throw new Exception(message); }
     sealed class Handler : HttpMessageHandler
     {
+        public int Calls;
         public Dictionary<string,string> Headers = new();
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
+            Calls++;
             Headers = request.Headers.ToDictionary(entry => entry.Key.ToLowerInvariant(), entry => string.Join(",", entry.Value));
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NoContent));
         }
     }
+    static async Task LegacyBearerMissingIdentity(string? scheme, bool optional, bool legacy = true)
+    {
+        var handler = new Handler(); using var http = new HttpClient(handler);
+        using var client = new AuthClient(new() { Endpoint = "https://example.test", HttpClient = http, MaxAttempts = 1 });
+        // C# exposes calls through the generated client; adjust only the lowered descriptor to reproduce an operation override.
+        const System.Reflection.BindingFlags fields = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        var runtime = typeof(AuthClient).GetField("runtime", fields)!.GetValue(client)!;
+        var schema = (System.Text.Json.Nodes.JsonObject)runtime.GetType().GetField("schema", fields)!.GetValue(runtime)!;
+        var operation = schema["operations"]!["Read"]!.AsObject();
+        operation["bearer"] = legacy; operation["optionalAuth"] = optional;
+        if (scheme is null) operation.Remove("auth");
+        else operation["auth"] = new System.Text.Json.Nodes.JsonArray(System.Text.Json.Nodes.JsonValue.Create(scheme));
+        if (scheme is null || optional || scheme == "smithy.api#httpBearerAuth" && legacy) {
+            await client.ReadAsync();
+            Check(handler.Calls == 1 && !handler.Headers.ContainsKey("authorization") && !handler.Headers.ContainsKey("x-api-key"),
+                "legacy bearer and optional authentication allow anonymous dispatch");
+        } else {
+            try { await client.ReadAsync(); throw new Exception("missing identity dispatched for " + scheme); }
+            catch (InvalidOperationException error) { Check(error.Message.Contains("No identity available", StringComparison.Ordinal), "required scheme rejection"); }
+            Check(handler.Calls == 0, "inherited bearer flag cannot bypass required " + scheme);
+        }
+    }
     static async Task Main()
     {
+        foreach (var scheme in new[] { "smithy.api#httpBasicAuth", "smithy.api#httpApiKeyAuth", "aws.auth#sigv4" }) {
+            await LegacyBearerMissingIdentity(scheme, false);
+            await LegacyBearerMissingIdentity(scheme, true);
+        }
+        await LegacyBearerMissingIdentity(null, false);
+        await LegacyBearerMissingIdentity("smithy.api#httpBearerAuth", false);
+        await LegacyBearerMissingIdentity("smithy.api#httpBearerAuth", false, false);
         using var request = new HttpRequestMessage(HttpMethod.Get, "https://examplebucket.s3.amazonaws.com/test.txt");
         request.Headers.Add("Range", "bytes=0-9");
         var identity = new AwsCredentials("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY");

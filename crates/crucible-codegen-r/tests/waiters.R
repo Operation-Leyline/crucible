@@ -104,6 +104,13 @@ boundary <- as.character(call('sum', literal(list(json_number('1e100000'), json_
 check(identical(boundary, paste0('1', strrep('0', 99999L), '1')), 'Exact alignment limit remains supported')
 check(as.character(call('avg', literal(json_parse('[1,0,0]')))) == paste0('0.', strrep('3', 34L)), 'Average repeating remainder precision')
 check(as.character(call('avg', literal(json_parse('[-1,0,0]')))) == paste0('-0.', strrep('3', 34L)), 'Negative average remainder precision')
+check(as.character(call('avg', literal(json_parse('[0.01,0.01,0.02]')))) == paste0('0.01', strrep('3', 32L)), 'Small average uses 34 fractional digits')
+check(as.character(call('avg', literal(json_parse('[-0.01,-0.01,-0.02]')))) == paste0('-0.01', strrep('3', 32L)), 'Negative small average uses 34 fractional digits')
+check(as.character(call('avg', literal(json_parse('[500,0,0]')))) == paste0('166.', strrep('6', 34L)), 'Normalized coefficient retains 34 fractional digits')
+check(as.character(call('avg', literal(json_parse('[-500,0,0]')))) == paste0('-166.', strrep('6', 34L)), 'Negative normalized coefficient retains 34 fractional digits')
+check(as.character(call('avg', literal(json_parse('[1e-40,2e-40]')))) == paste0('0.', strrep('0', 39L), '1'), 'Tiny average retains the deeper exponent without extra padding')
+precise_average <- '0.1234567890123456789012345678901234567890123456789'
+check(as.character(call('avg', literal(list(json_number(precise_average))))) == precise_average, 'Single high-precision input remains exact')
 check(is.null(call('avg', literal(list()))) && as.character(call('avg', literal(json_parse('[1,-1]')))) == '0', 'Empty and cancelling averages')
 large_number <- paste0(strrep('7', 1000L), '2')
 large_average <- as.character(call('avg', literal(list(json_number(large_number), json_number(large_number)))))

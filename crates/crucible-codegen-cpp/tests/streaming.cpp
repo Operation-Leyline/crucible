@@ -4,6 +4,7 @@
 #include "scripted.hpp"
 #include <atomic>
 #include <chrono>
+#include <cctype>
 #include <cstring>
 #include <filesystem>
 #include <sstream>

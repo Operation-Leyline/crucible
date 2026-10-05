@@ -928,6 +928,9 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 	defer func() { if !streamed { cancel() } }()
 	op := c.schema.Operations[name]
 	inputShape := c.schema.Shapes[op.Input]
+	// Defaults and generated tokens belong to this call, including its retries.
+	values = maps.Clone(values)
+	if values == nil { values = map[string]any{} }
 	var source *streamSource
 	var streamMember memberDescription
 	if op.Request.Streaming {

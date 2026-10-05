@@ -55,6 +55,48 @@ static bool boolean_is(const behavior_json *value, bool expected) {
     return value && !behavior_json_boolean_value(value, &flag, &error) && flag == expected;
 }
 
+typedef struct { int calls; char url[256]; } endpoint_observation;
+static behavior_status observe_endpoint(void *user, const behavior_request *request, bool read_body,
+    const behavior_scope *scope, behavior_arena *arena, behavior_response *response, behavior_error *error) {
+    endpoint_observation *state = user; (void)read_body; (void)scope; (void)arena; (void)error;
+    check(request->url.length < sizeof(state->url), "observed endpoint URL length");
+    memcpy(state->url, request->url.data, request->url.length); state->url[request->url.length] = 0;
+    ++state->calls; response->status = 204; return behavior_ok;
+}
+static void endpoint_override_case(behavior_string configured, const char *builtin, bool rules, const char *expected) {
+    /* Exercise the public runtime constructor with a generated default separate
+     * from caller configuration; evaluating rules directly misses that boundary. */
+    static const char base[] = "{\"service\":\"example.endpoint#Service\",\"shapes\":{},\"operations\":{\"Read\":{"
+        "\"method\":\"GET\",\"uri\":\"/read\",\"input\":null,\"output\":null,"
+        "\"request\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},"
+        "\"response\":{\"labels\":[],\"query\":[],\"headers\":[],\"body\":[],\"payload\":null},"
+        "\"errors\":[],\"safe\":true,\"token\":null,\"pagination\":null,\"bearer\":false,\"auth\":[],"
+        "\"endpointParameters\":{\"Endpoint\":[{\"kind\":\"builtIn\",\"name\":\"SDK::Endpoint\"}]}}}";
+    static const char endpoint_rules[] = ",\"endpointRules\":{\"parameters\":{\"Endpoint\":{\"kind\":\"string\",\"required\":false}},"
+        "\"rules\":[{\"conditions\":[{\"function\":\"isSet\",\"arguments\":[{\"kind\":\"reference\",\"name\":\"Endpoint\"}],\"assign\":null}],"
+        "\"result\":{\"kind\":\"endpoint\",\"url\":{\"kind\":\"reference\",\"name\":\"Endpoint\"}}},"
+        "{\"conditions\":[],\"result\":{\"kind\":\"endpoint\",\"url\":{\"kind\":\"string\",\"parts\":[{\"kind\":\"literal\",\"value\":\"https://derived.example\"}]}}}]}";
+    behavior_string chunks[] = {VIEW(base), rules ? VIEW(endpoint_rules) : VIEW(""), VIEW("}")};
+    endpoint_observation state = {0}; behavior_error error = {0}; behavior_client *client = NULL;
+    behavior_client_config config = behavior_client_defaults();
+    config.endpoint = configured; config.send = observe_endpoint; config.transport_user = &state;
+    behavior_endpoint_value override = {VIEW("SDK::Endpoint"), behavior_endpoint_string, {0}, false, NULL, 0};
+    if (builtin) { override.text = VIEW(builtin); config.endpoint_builtins = &override; config.endpoint_builtin_count = 1; }
+    good(behavior_runtime_new(&config, chunks, sizeof(chunks) / sizeof(chunks[0]), VIEW("https://fallback.example"), false, &client, &error), &error, "endpoint override client");
+    behavior_result result = {0};
+    good(behavior_client_call(client, VIEW("Read"), NULL, NULL, NULL, &result, &error), &error, "endpoint override call");
+    check(state.calls == 1 && !strcmp(state.url, expected), "caller endpoint override distinguished from generated fallback");
+    behavior_result_free(&result); behavior_client_free(client);
+}
+static void configured_endpoint_precedence(void) {
+    endpoint_override_case((behavior_string){0}, NULL, true, "https://derived.example/read");
+    endpoint_override_case(VIEW("https://configured.example"), NULL, true, "https://configured.example/read");
+    endpoint_override_case(VIEW("https://configured.example"), "https://builtin.example", true, "https://builtin.example/read");
+    endpoint_override_case((behavior_string){0}, "https://builtin.example", true, "https://builtin.example/read");
+    endpoint_override_case(VIEW(""), NULL, true, "https://derived.example/read");
+    endpoint_override_case((behavior_string){0}, NULL, false, "https://fallback.example/read");
+}
+
 static void generated_resolution(void) {
     fake state = {0, {0}, false}; behavior_error error = {0};
     behavior_client_config config = behavior_client_defaults();
@@ -146,6 +188,7 @@ static void standard_functions(void) {
 }
 
 int main(void) {
+    configured_endpoint_precedence();
     generated_resolution();
     parameter_precedence();
     standard_functions();
