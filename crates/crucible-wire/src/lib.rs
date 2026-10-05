@@ -8,6 +8,7 @@ pub mod blob;
 pub mod bound;
 pub mod codec;
 pub mod error;
+pub mod event_stream;
 pub mod field;
 pub mod number;
 pub mod open;

@@ -9,7 +9,7 @@ export type { WaiterOptions, WaiterResult } from "./waiters.js";
 export * from "./models.js";
 export * from "./errors.js";
 export { WeatherClient } from "./client.js";
-export { AuthenticationError, ByteStream, Decimal, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson } from "./runtime.js";
+export { AuthenticationError, ByteStream, Decimal, EventStream, EventStreamError, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson } from "./runtime.js";
 export type {
   ClientConfig,
   Document,

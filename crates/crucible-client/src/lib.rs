@@ -25,6 +25,7 @@ pub mod checksum;
 mod config;
 mod credentials;
 mod endpoint;
+mod events;
 mod metadata;
 mod paginate;
 mod query;
@@ -78,6 +79,11 @@ pub mod __private {
     pub use serde;
     pub use serde_json;
 }
+
+pub use crucible_wire::event_stream;
+/// Event stream members: events to send, events received, and why a
+/// stream ended early.
+pub use crucible_wire::event_stream::{EventReceiver, EventStream, EventStreamError};
 
 /// Owned streaming body and chunk stream used by generated payload members.
 pub use crucible_wire::stream::{ByteStream, ChunkStream};

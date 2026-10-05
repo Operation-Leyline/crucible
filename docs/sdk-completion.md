@@ -21,6 +21,19 @@ support in a generated client.
 | Conformance | Smithy protocol vectors, deterministic generated/property tests, live workflow runner | Every target executes applicable vectors; live results recorded separately |
 | Leyline rollout | Current model, authenticated workflow qualification, consumer migration | Model revision and coverage, deployed results, release and rollback records |
 
+## Status
+
+Event streams (`event-streams`) are declared by the Rust and TypeScript clients.
+Lowering records the stream member and whether the other members travel in HTTP
+bindings or an initial message; both runtimes frame and verify messages
+(published AWS vectors in `tests/conformance/event-streams.json`), sign events
+with SigV4 chunk signatures, and are tested over loopback HTTP/1.1 for input,
+output, and bidirectional streams, modeled and unmodeled stream errors,
+backpressure, cancellation, and deadlines. Limits: HTTP/2-only services are
+untested in Rust; browser Fetch cannot stream request events interactively; the
+server framework does not serve event streams; other targets do not declare the
+capability.
+
 ## Integration rules
 
 Semantics are resolved in `crucible-smithy`; emitters never inspect the AST.

@@ -37,6 +37,98 @@ fn hmac(key: &[u8], message: &[u8]) -> [u8; 32] {
     outer.finalize().into()
 }
 
+fn signing_key(secret: &str, date: &str, region: &str, name: &str) -> [u8; 32] {
+    let key = hmac(format!("AWS4{secret}").as_bytes(), date.as_bytes());
+    let key = hmac(&key, region.as_bytes());
+    let key = hmac(&key, name.as_bytes());
+    hmac(&key, b"aws4_request")
+}
+
+/// The payload hash a request declares when its body is a signed event
+/// stream: each message is signed as it is sent instead.
+pub(crate) const STREAMING_EVENTS: &str = "STREAMING-AWS4-HMAC-SHA256-EVENTS";
+
+/// Signs event stream messages in sequence: each signature chains the one
+/// before it, starting from the HTTP request's own signature.
+#[derive(Clone)]
+pub(crate) struct EventSigner {
+    secret: String,
+    region: String,
+    name: String,
+    prior: String,
+}
+
+impl EventSigner {
+    pub(crate) fn new(secret: &str, region: &str, name: &str, seed: String) -> Self {
+        Self {
+            secret: secret.to_owned(),
+            region: region.to_owned(),
+            name: name.to_owned(),
+            prior: seed,
+        }
+    }
+
+    /// The `AWS4-HMAC-SHA256-PAYLOAD` string to sign for `payload` (an
+    /// encoded message, or nothing for the final empty one) at `time`.
+    pub(crate) fn string_to_sign(
+        &self,
+        payload: &[u8],
+        time: chrono::DateTime<chrono::Utc>,
+    ) -> String {
+        use crucible_wire::event_stream::{Header, HeaderValue, encode_headers};
+        let mut date = Vec::new();
+        encode_headers(
+            &[Header {
+                name: ":date".into(),
+                value: HeaderValue::Timestamp(time.timestamp() * 1000),
+            }],
+            &mut date,
+        )
+        .expect("a date header encodes");
+        format!(
+            "AWS4-HMAC-SHA256-PAYLOAD
+{}
+{}/{}/{}/aws4_request
+{}
+{}
+{}",
+            time.format("%Y%m%dT%H%M%SZ"),
+            time.format("%Y%m%d"),
+            self.region,
+            self.name,
+            self.prior,
+            hash(&date),
+            hash(payload)
+        )
+    }
+
+    /// The envelope message carrying `payload`, signed; the signature
+    /// becomes the next message's prior one. Sub-second time is dropped, as
+    /// the signed date has whole seconds.
+    pub(crate) fn sign(
+        &mut self,
+        payload: bytes::Bytes,
+        time: chrono::DateTime<chrono::Utc>,
+    ) -> crucible_wire::event_stream::Message {
+        use crucible_wire::event_stream::{HeaderValue, Message};
+        let time = chrono::DateTime::from_timestamp(time.timestamp(), 0).expect("whole seconds");
+        let key = signing_key(
+            &self.secret,
+            &time.format("%Y%m%d").to_string(),
+            &self.region,
+            &self.name,
+        );
+        let signature = hmac(&key, self.string_to_sign(&payload, time).as_bytes());
+        self.prior = hex(&signature);
+        Message::new(payload)
+            .with_header(
+                ":chunk-signature",
+                HeaderValue::Bytes(bytes::Bytes::copy_from_slice(&signature)),
+            )
+            .with_header(":date", HeaderValue::Timestamp(time.timestamp() * 1000))
+    }
+}
+
 pub(crate) fn sign(
     request: &mut reqwest::Request,
     credentials: &AwsCredentials,
@@ -185,13 +277,12 @@ pub(crate) fn sign(
         "AWS4-HMAC-SHA256\n{date}\n{credential_scope}\n{}",
         hash(canonical.as_bytes())
     );
-    let key = hmac(
-        format!("AWS4{}", credentials.secret_access_key).as_bytes(),
-        &date.as_bytes()[..8],
+    let key = signing_key(
+        &credentials.secret_access_key,
+        &date[..8],
+        scope.region,
+        scope.name,
     );
-    let key = hmac(&key, scope.region.as_bytes());
-    let key = hmac(&key, scope.name.as_bytes());
-    let key = hmac(&key, b"aws4_request");
     let authorization = format!(
         "AWS4-HMAC-SHA256 Credential={}/{credential_scope}, SignedHeaders={names}, Signature={}",
         credentials.access_key_id,
@@ -209,6 +300,52 @@ pub(crate) fn sign(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn published_event_stream_string_to_sign_and_chained_signature() {
+        use crucible_wire::event_stream::{HeaderValue, Message};
+        // tests/conformance/event-streams.json: smithy-rs aws-sigv4
+        // event_stream::tests::string_to_sign.
+        let vectors: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/conformance/event-streams.json"
+        ))
+        .unwrap();
+        let vector = &vectors["signing"];
+        let message = Message::new(&b"test payload"[..])
+            .with_header("some-header", HeaderValue::String("value".into()))
+            .encode()
+            .unwrap();
+        let mut signer = EventSigner::new(
+            vector["secretAccessKey"].as_str().unwrap(),
+            "us-east-1",
+            "testservice",
+            vector["priorSignature"].as_str().unwrap().to_owned(),
+        );
+        let time = chrono::DateTime::from_timestamp(123_456_789, 1234).unwrap();
+        let whole = chrono::DateTime::from_timestamp(123_456_789, 0).unwrap();
+        assert_eq!(
+            signer.string_to_sign(&message, whole),
+            vector["stringToSign"].as_str().unwrap()
+        );
+        let signed = signer.sign(message, time);
+        let expected = vector["signature"].as_str().unwrap();
+        assert_eq!(signer.prior, expected);
+        assert_eq!(
+            signed.header(":chunk-signature"),
+            Some(&HeaderValue::Bytes(
+                (0..32)
+                    .map(|i| u8::from_str_radix(&expected[i * 2..i * 2 + 2], 16).unwrap())
+                    .collect::<Vec<_>>()
+                    .into()
+            ))
+        );
+        assert_eq!(
+            signed.header(":date"),
+            Some(&HeaderValue::Timestamp(123_456_789_000))
+        );
+        // The next message chains from this signature.
+        assert!(signer.string_to_sign(b"", whole).contains(expected));
+    }
     #[test]
     fn published_s3_get_signature() {
         // https://docs.aws.amazon.com/AmazonS3/latest/developerguide/sig-v4-header-based-auth.html

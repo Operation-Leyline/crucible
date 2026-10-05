@@ -1,0 +1,186 @@
+{
+  "description": "AWS event-stream (application/vnd.amazon.eventstream) framing vectors. Binary messages are reproduced byte for byte from the cited Apache-2.0 sources; header values decode as listed. Every runtime decodes each positive vector, re-encodes the listed headers and payload to the same bytes, and rejects every negative vector.",
+  "positive": [
+    {
+      "name": "crt-no-op",
+      "source": "aws-c-event-stream tests/message_serializer_test.c test_incoming_no_op_valid",
+      "hex": "000000100000000005c248eb7d98c8ff",
+      "headers": [],
+      "payloadUtf8": ""
+    },
+    {
+      "name": "crt-application-data-no-headers",
+      "source": "aws-c-event-stream tests/message_serializer_test.c test_incoming_application_data_no_headers_valid",
+      "hex": "0000001d00000000fd528c5a7b27666f6f273a27626172277dc3653936",
+      "headers": [],
+      "payloadUtf8": "{'foo':'bar'}"
+    },
+    {
+      "name": "crt-one-string-header",
+      "source": "aws-c-event-stream tests/message_serializer_test.c test_incoming_application_one_compressed_header_pair_valid",
+      "hex": "0000003d0000002007fd83960c636f6e74656e742d747970650700106170706c69636174696f6e2f6a736f6e7b27666f6f273a27626172277d8d9c08b1",
+      "headers": [
+        {
+          "name": "content-type",
+          "type": "string",
+          "value": "application/json"
+        }
+      ],
+      "payloadUtf8": "{'foo':'bar'}"
+    },
+    {
+      "name": "crt-int32-header",
+      "source": "aws-c-event-stream tests/message_serializer_test.c test_incoming_application_int32_header_valid",
+      "hex": "0000002b0000000e348bec7b086576656e742d6964040000a00c7b27666f6f273a27626172277dd3890285",
+      "headers": [
+        {
+          "name": "event-id",
+          "type": "integer",
+          "value": 40972
+        }
+      ],
+      "payloadUtf8": "{'foo':'bar'}"
+    },
+    {
+      "name": "smithy-rs-valid-empty-payload",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/valid_empty_payload",
+      "hex": "0000001f0000000f172dc2ab0b736f6d652d6865616465720301f4933c5cad",
+      "headers": [
+        {
+          "name": "some-header",
+          "type": "short",
+          "value": 500
+        }
+      ],
+      "payloadUtf8": ""
+    },
+    {
+      "name": "smithy-rs-valid-no-headers",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/valid_no_headers",
+      "hex": "0000002400000000516356ad616e6f746865722074657374207061796c6f61648df80e65",
+      "headers": [],
+      "payloadUtf8": "another test payload"
+    },
+    {
+      "name": "smithy-rs-valid-with-all-headers-and-payload",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/valid_with_all_headers_and_payload",
+      "hex": "000000960000007a8bb495fb0474727565000566616c736501046279746502320573686f7274034e2003696e74040007a120046c6f6e67050000000ba43b740005627974657306000a736f6d6520627974657303737472070008736f6d65207374720474696d6508000000012a05f200047575696409b79bc914de214e13b8b2bc47e85b7f0b736f6d65207061796c6f616401a05860",
+      "headers": [
+        {
+          "name": "true",
+          "type": "boolean",
+          "value": true
+        },
+        {
+          "name": "false",
+          "type": "boolean",
+          "value": false
+        },
+        {
+          "name": "byte",
+          "type": "byte",
+          "value": 50
+        },
+        {
+          "name": "short",
+          "type": "short",
+          "value": 20000
+        },
+        {
+          "name": "int",
+          "type": "integer",
+          "value": 500000
+        },
+        {
+          "name": "long",
+          "type": "long",
+          "value": "50000000000"
+        },
+        {
+          "name": "bytes",
+          "type": "blob",
+          "value": "c29tZSBieXRlcw=="
+        },
+        {
+          "name": "str",
+          "type": "string",
+          "value": "some str"
+        },
+        {
+          "name": "time",
+          "type": "timestamp",
+          "value": 5000000000
+        },
+        {
+          "name": "uuid",
+          "type": "uuid",
+          "value": "b79bc914de214e13b8b2bc47e85b7f0b"
+        }
+      ],
+      "payloadUtf8": "some payload"
+    }
+  ],
+  "negative": [
+    {
+      "name": "invalid-header-name-length",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/invalid_header_name_length",
+      "hex": "000000960000007a8bb495fb0474727565000566616c736501ff6279746502320573686f7274034e2003696e74040007a120046c6f6e67050000000ba43b740005627974657306000a736f6d6520627974657303737472070008736f6d65207374720474696d6508000000012a05f200047575696409b79bc914de214e13b8b2bc47e85b7f0b736f6d65207061796c6f616401a05860"
+    },
+    {
+      "name": "invalid-header-name-length-too-long",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/invalid_header_name_length_too_long",
+      "hex": "0000005d0000004dadcce93e0474727565006605616c736501046279746502320573685d0ba43b740005627974657306000a736f6d65206279746573037374720705616c736501046279746502320573686f7274034e2003696e74040007a120046c6f6e670500005d0ba43b74000562797465730600ff00000000"
+    },
+    {
+      "name": "invalid-header-string-length-cut-off",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/invalid_header_string_length_cut_off",
+      "hex": "0000005d0000004dadcce93e0474727565000566616c736501046279746502320573686f7274034e2003696e74040007a120046c6f6e67050000000ba43b740005627974657306000a736f6d652062797465730373747207ff00000000"
+    },
+    {
+      "name": "invalid-header-string-value-length",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/invalid_header_string_value_length",
+      "hex": "000000960000007a8bb495fb0474727565000566616c736501046279746502320573686f7274034e2003696e74040007a120046c6f6e67050000000ba43b740005627974657306000a736f6d652062797465730373747207ffff736f6d65207374720474696d6508000000012a05f200047575696409b79bc914de214e13b8b2bc47e85b7f0b736f6d65207061796c6f616401a05860"
+    },
+    {
+      "name": "invalid-header-value-type",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/invalid_header_value_type",
+      "hex": "000000960000007a8bb495fb0474727565000566616c736501046279746560320573686f7274034e2003696e74040007a120046c6f6e67050000000ba43b740005627974657306000a736f6d6520627974657303737472070008736f6d65207374720474696d6508000000012a05f200047575696409b79bc914de214e13b8b2bc47e85b7f0b736f6d65207061796c6f616401a05860"
+    },
+    {
+      "name": "invalid-headers-length",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/invalid_headers_length",
+      "hex": "000000590000004d584c4ffe0474727565000566616c736501046279746502320573686f7274034e2003696e74040007a120046c6f6e67050000000ba43b740005627974657306000a736f6d652062797465730373747207ff"
+    },
+    {
+      "name": "invalid-message-checksum",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/invalid_message_checksum",
+      "hex": "000000960000007a8bb495fb0474727565000566616c736501046279746502320573686f7274034e2003696e74040007a120046c6f6e67050000000ba43b740005627974657306000a736f6d6520627974657303737472070008736f6d65207374720474696d6508000000012a05f200047575696409b79bc914de214e13b8b2bc47e85b7f0b736f6d65207061796c6f6164deadbeef"
+    },
+    {
+      "name": "invalid-prelude-checksum",
+      "source": "smithy-rs rust-runtime/aws-smithy-eventstream/test_data/invalid_prelude_checksum",
+      "hex": "000000960000007adeadbeef0474727565000566616c736501046279746502320573686f7274034e2003696e74040007a120046c6f6e67050000000ba43b740005627974657306000a736f6d6520627974657303737472070008736f6d65207374720474696d6508000000012a05f200047575696409b79bc914de214e13b8b2bc47e85b7f0b736f6d65207061796c6f616401a05860"
+    }
+  ],
+  "signing": {
+    "source": "smithy-rs aws/rust-runtime/aws-sigv4/src/event_stream.rs tests::string_to_sign",
+    "message": {
+      "headers": [
+        {
+          "name": "some-header",
+          "type": "string",
+          "value": "value"
+        }
+      ],
+      "payloadUtf8": "test payload"
+    },
+    "epochSeconds": 123456789,
+    "region": "us-east-1",
+    "service": "testservice",
+    "priorSignature": "be1f8c7d79ef8e1abc5254a2c70e4da3bfaf4f07328f527444e1fc6ea67273e2",
+    "stringToSign": "AWS4-HMAC-SHA256-PAYLOAD\n19731129T213309Z\n19731129/us-east-1/testservice/aws4_request\nbe1f8c7d79ef8e1abc5254a2c70e4da3bfaf4f07328f527444e1fc6ea67273e2\n0c0e3b3bf66b59b976181bd7d401927bbd624107303c713fd1e5f3d3c8dd1b1e\nf2eba0f2e95967ee9fbc6db5e678d2fd599229c0d04b11e4fc8e0f2a02a806c6",
+    "secretAccessKey": "notrealrnrELgWzOk3IfjzDKtFBhDby",
+    "signature": "08fed460df836999e1c4137962a3d6ad66a9e8c1bf8e8888e3cbeee26bbf774d",
+    "signatureNote": "HMAC-SHA256 of stringToSign under the SigV4 key for secretAccessKey (smithy-rs Credentials::for_tests); computed with Python's hmac, not published"
+  }
+}

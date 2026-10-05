@@ -49,6 +49,9 @@ fn bindings(b: &Bindings) -> Value {
             value["requiresLength"] = json!(true);
         }
     }
+    if let Some(stream) = &b.event_stream {
+        value["eventStream"] = json!(stream);
+    }
     if let Some(member) = &b.query_params {
         value["queryParams"] = json!(member);
     }
@@ -338,6 +341,40 @@ mod tests {
         assert_eq!(
             schema["shapes"]["test#Input"]["members"]["body"]["length"],
             serde_json::json!({"min":2,"max":10})
+        );
+    }
+
+    #[test]
+    fn event_streams_name_their_member_union_and_initial_message() {
+        let mut model: serde_json::Value = serde_json::from_str(include_str!(
+            "../../crucible-smithy/tests/fixtures/event-streams.json"
+        ))
+        .unwrap();
+        model["shapes"]["example.events#Events"]["traits"] =
+            serde_json::json!({"aws.protocols#awsJson1_0": {}});
+        let service = crucible_smithy::Model::from_json(&model.to_string())
+            .unwrap()
+            .lower_with_capabilities(
+                None,
+                &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
+            )
+            .unwrap();
+        let schema = super::schema(&service, str::to_owned);
+        assert_eq!(
+            schema["operations"]["Publish"]["request"]["eventStream"],
+            serde_json::json!({"member": "events", "target": "example.events#ClientEvents", "initialMessage": true})
+        );
+        assert_eq!(
+            schema["operations"]["Publish"]["request"]["body"],
+            serde_json::json!(["channel"])
+        );
+        assert_eq!(
+            schema["shapes"]["example.events#ServerEvents"]["streaming"],
+            true
+        );
+        assert_eq!(
+            schema["shapes"]["example.events#MessageEvent"]["members"]["id"]["eventBinding"],
+            "header"
         );
     }
 

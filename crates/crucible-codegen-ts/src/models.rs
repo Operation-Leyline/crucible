@@ -127,7 +127,17 @@ pub(crate) fn fields(out: &mut String, service: &Service, structure: &Structure,
 
 /// One arm per member, each forbidding the others: exactly one is set.
 fn union_arms(out: &mut String, service: &Service, union: &Structure) {
-    for member in &union.members {
+    // An event stream's modeled errors are thrown as their error classes,
+    // never yielded, and a client cannot send one.
+    let members: Vec<_> = union
+        .members
+        .iter()
+        .filter(|member| {
+            !(union.streaming
+                && matches!(service.shape(&member.target), Some(Shape::Structure(s)) if s.error.is_some()))
+        })
+        .collect();
+    for member in &members {
         let others: String = union
             .members
             .iter()

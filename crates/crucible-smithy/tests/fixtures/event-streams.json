@@ -1,0 +1,409 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.events#Events": {
+      "type": "service",
+      "version": "2024-01-01",
+      "traits": {
+        "aws.protocols#restJson1": {}
+      },
+      "operations": [
+        {
+          "target": "example.events#Publish"
+        },
+        {
+          "target": "example.events#Subscribe"
+        },
+        {
+          "target": "example.events#Chat"
+        }
+      ]
+    },
+    "example.events#Publish": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/channels/{channel}/publish",
+          "code": 200
+        },
+        "smithy.api#documentation": "Sends events to a channel; the response counts them."
+      },
+      "input": {
+        "target": "example.events#PublishInput"
+      },
+      "output": {
+        "target": "example.events#PublishOutput"
+      },
+      "errors": [
+        {
+          "target": "example.events#UnavailableError"
+        }
+      ]
+    },
+    "example.events#PublishInput": {
+      "type": "structure",
+      "members": {
+        "channel": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        },
+        "events": {
+          "target": "example.events#ClientEvents",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.events#PublishOutput": {
+      "type": "structure",
+      "members": {
+        "accepted": {
+          "target": "smithy.api#Long",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.events#Subscribe": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/channels/{channel}/subscribe",
+          "code": 200
+        },
+        "smithy.api#readonly": {}
+      },
+      "input": {
+        "target": "example.events#SubscribeInput"
+      },
+      "output": {
+        "target": "example.events#SubscribeOutput"
+      },
+      "errors": [
+        {
+          "target": "example.events#UnavailableError"
+        }
+      ]
+    },
+    "example.events#SubscribeInput": {
+      "type": "structure",
+      "members": {
+        "channel": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        },
+        "limit": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpQuery": "limit"
+          }
+        }
+      }
+    },
+    "example.events#SubscribeOutput": {
+      "type": "structure",
+      "members": {
+        "channel": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "x-channel"
+          }
+        },
+        "events": {
+          "target": "example.events#ServerEvents",
+          "traits": {
+            "smithy.api#httpPayload": {},
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.events#Chat": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/chat",
+          "code": 200
+        }
+      },
+      "input": {
+        "target": "example.events#ChatInput"
+      },
+      "output": {
+        "target": "example.events#ChatOutput"
+      }
+    },
+    "example.events#ChatInput": {
+      "type": "structure",
+      "members": {
+        "room": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "x-room"
+          }
+        },
+        "events": {
+          "target": "example.events#ClientEvents",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      }
+    },
+    "example.events#ChatOutput": {
+      "type": "structure",
+      "members": {
+        "events": {
+          "target": "example.events#ServerEvents",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      }
+    },
+    "example.events#ClientEvents": {
+      "type": "union",
+      "traits": {
+        "smithy.api#streaming": {}
+      },
+      "members": {
+        "message": {
+          "target": "example.events#MessageEvent"
+        },
+        "data": {
+          "target": "example.events#DataEvent"
+        },
+        "structured": {
+          "target": "example.events#StructuredEvent"
+        },
+        "ping": {
+          "target": "example.events#Ping"
+        }
+      }
+    },
+    "example.events#ServerEvents": {
+      "type": "union",
+      "traits": {
+        "smithy.api#streaming": {}
+      },
+      "members": {
+        "message": {
+          "target": "example.events#MessageEvent"
+        },
+        "structured": {
+          "target": "example.events#StructuredEvent"
+        },
+        "payload": {
+          "target": "example.events#PayloadEvent"
+        },
+        "ping": {
+          "target": "example.events#Ping"
+        },
+        "throttled": {
+          "target": "example.events#ThrottledError"
+        },
+        "unavailable": {
+          "target": "example.events#UnavailableError"
+        }
+      }
+    },
+    "example.events#MessageEvent": {
+      "type": "structure",
+      "members": {
+        "id": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#eventHeader": {},
+            "smithy.api#required": {}
+          }
+        },
+        "sequence": {
+          "target": "smithy.api#Long",
+          "traits": {
+            "smithy.api#eventHeader": {}
+          }
+        },
+        "urgent": {
+          "target": "smithy.api#Boolean",
+          "traits": {
+            "smithy.api#eventHeader": {}
+          }
+        },
+        "sentAt": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#eventHeader": {},
+            "smithy.api#jsonName": "sent_at"
+          }
+        },
+        "text": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#eventPayload": {}
+          }
+        }
+      }
+    },
+    "example.events#DataEvent": {
+      "type": "structure",
+      "members": {
+        "byteValue": {
+          "target": "smithy.api#Byte",
+          "traits": {
+            "smithy.api#eventHeader": {}
+          }
+        },
+        "shortValue": {
+          "target": "smithy.api#Short",
+          "traits": {
+            "smithy.api#eventHeader": {}
+          }
+        },
+        "intValue": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#eventHeader": {}
+          }
+        },
+        "tag": {
+          "target": "smithy.api#Blob",
+          "traits": {
+            "smithy.api#eventHeader": {}
+          }
+        },
+        "kind": {
+          "target": "example.events#Kind",
+          "traits": {
+            "smithy.api#eventHeader": {}
+          }
+        },
+        "bytes": {
+          "target": "smithy.api#Blob",
+          "traits": {
+            "smithy.api#eventPayload": {}
+          }
+        }
+      }
+    },
+    "example.events#StructuredEvent": {
+      "type": "structure",
+      "members": {
+        "text": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "count": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#jsonName": "itemCount"
+          }
+        },
+        "at": {
+          "target": "smithy.api#Timestamp"
+        },
+        "nested": {
+          "target": "example.events#Nested"
+        }
+      }
+    },
+    "example.events#PayloadEvent": {
+      "type": "structure",
+      "members": {
+        "kind": {
+          "target": "example.events#Kind",
+          "traits": {
+            "smithy.api#eventHeader": {}
+          }
+        },
+        "item": {
+          "target": "example.events#Nested",
+          "traits": {
+            "smithy.api#eventPayload": {}
+          }
+        }
+      }
+    },
+    "example.events#Nested": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String"
+        },
+        "values": {
+          "target": "example.events#Values"
+        }
+      }
+    },
+    "example.events#Values": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#Integer"
+      }
+    },
+    "example.events#Kind": {
+      "type": "enum",
+      "members": {
+        "ALPHA": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "alpha"
+          }
+        },
+        "BETA": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "beta"
+          }
+        }
+      }
+    },
+    "example.events#Ping": {
+      "type": "structure",
+      "members": {}
+    },
+    "example.events#ThrottledError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#retryable": {
+          "throttling": true
+        },
+        "smithy.api#httpError": 429
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String"
+        },
+        "retryAfterSeconds": {
+          "target": "smithy.api#Integer"
+        }
+      }
+    },
+    "example.events#UnavailableError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "server",
+        "smithy.api#httpError": 503
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String"
+        }
+      }
+    }
+  }
+}

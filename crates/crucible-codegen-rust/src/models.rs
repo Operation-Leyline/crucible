@@ -637,6 +637,8 @@ fn value_checks(
                 ));
             }
         }
+        // Events are not validated as they are sent; the stream handle has nothing to check.
+        Some(Shape::Union(union)) if union.streaming => {}
         Some(Shape::Structure(_) | Shape::Union(_)) => {
             out.push_str(&format!("{pad}{value}.validate(validator);\n"));
         }

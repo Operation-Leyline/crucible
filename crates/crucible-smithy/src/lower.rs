@@ -381,14 +381,20 @@ impl<'m> Lowerer<'m> {
 
         let input = self.io(id, shape.input.as_ref());
         let output = self.io(id, shape.output.as_ref());
-        let request = input
+        let mut request = input
             .as_ref()
             .map(|input| self.request_bindings(id, input, &uri))
             .unwrap_or_default();
-        let response = output
+        let mut response = output
             .as_ref()
             .map(|output| self.response_bindings(output))
             .unwrap_or_default();
+        if let Some(input) = &input {
+            self.event_stream_binding(input, &mut request);
+        }
+        if let Some(output) = &output {
+            self.event_stream_binding(output, &mut response);
+        }
         if input.is_none() && uri.labels().next().is_some() {
             self.diagnostics
                 .push(id, "the URI has labels but the operation has no input");

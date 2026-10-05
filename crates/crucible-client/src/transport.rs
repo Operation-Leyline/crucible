@@ -234,7 +234,17 @@ impl Transport {
             .map(|metadata| metadata.endpoint(input, &self.config))
             .transpose()
             .map_err(Error::Invalid)?;
-        let streaming = O::input_stream(input).is_some();
+        let mut input_events = match O::INPUT_EVENTS {
+            // An absent optional stream sends no events, but still a stream.
+            Some(info) => Some((
+                info,
+                O::input_events(input)
+                    .unwrap_or_else(|| Ok(Box::pin(futures_util::stream::empty())))
+                    .map_err(|error| Error::Invalid(error.to_string()))?,
+            )),
+            None => None,
+        };
+        let streaming = O::input_stream(input).is_some() || input_events.is_some();
         let (url, bound_headers, body, plan) = self.prepare_at(
             info,
             input,
@@ -278,7 +288,9 @@ impl Transport {
                 );
             }
         }
-        let replayable = stream.as_ref().is_none_or(ByteStream::replayable);
+        // Events are read from the caller's source once: never replayed.
+        let replayable =
+            stream.as_ref().is_none_or(ByteStream::replayable) && input_events.is_none();
         let method = Method::from_bytes(info.method.as_bytes())
             .map_err(|e| Error::Invalid(e.to_string()))?;
         let retry_safe = info.readonly || info.idempotent || info.idempotency_token.is_some();
@@ -295,6 +307,9 @@ impl Transport {
                         .with_properties(endpoint.as_ref().map(|endpoint| &endpoint.properties)),
                     stream.as_ref(),
                     &plan,
+                    input_events
+                        .take()
+                        .map(|(info, events)| (info, events, deadline, cancellation.clone())),
                 )
                 .await?;
             let response = match self.config.http.execute(request).await {
@@ -310,6 +325,40 @@ impl Transport {
             };
             let status = response.status().as_u16();
             let response_headers = response.headers().clone();
+            if let (true, Some(events)) = ((200..300).contains(&status), O::OUTPUT_EVENTS) {
+                let chunks = guarded_stream(
+                    ByteStream::new(response.bytes_stream())
+                        .open()
+                        .map_err(|e| Error::Decode(e.to_string()))?,
+                    deadline,
+                    cancellation,
+                )
+                .open()
+                .map_err(|e| Error::Decode(e.to_string()))?;
+                let mut reader = crate::events::Reader::new(events, chunks);
+                // Without HTTP bindings the other output members arrive
+                // first, as an `initial-response` event.
+                let (mut initial, mut pending) = (Bytes::new(), None);
+                if events.initial_message {
+                    match reader.next().await {
+                        Some(Ok(crucible_wire::event_stream::Decoded::Initial(document))) => {
+                            initial = document
+                        }
+                        other => pending = other,
+                    }
+                }
+                let mut bound = header_members(status, info.output, &response_headers)
+                    .map_err(Error::Decode)?;
+                for member in info.output {
+                    if member.location == Location::EventStream {
+                        bound.push((member.name, BoundValue::Json(Value::Null)));
+                    }
+                }
+                let mut output: O::Output =
+                    bound::read(&initial, bound).map_err(|e| Error::Decode(e.to_string()))?;
+                O::set_output_events(&mut output, reader.into_incoming(pending));
+                return Ok(output);
+            }
             if (200..300).contains(&status)
                 && info
                     .output
@@ -550,7 +599,8 @@ impl Transport {
                 | Location::TextPayload(_)
                 | Location::DocumentPayload(_)
                 | Location::ResponseCode
-                | Location::StreamingPayload { .. } => {}
+                | Location::StreamingPayload { .. }
+                | Location::EventStream => {}
             }
         }
         // A payload is sent raw under its media type; an absent one sends
@@ -591,19 +641,45 @@ impl Transport {
         auth: crate::auth::OperationAuth<'_>,
         stream: Option<&ByteStream>,
         plan: &crate::checksum::Plan,
+        events: Option<OutgoingEvents>,
     ) -> Result<reqwest::Request, Error<E>> {
         let url = reqwest::Url::parse(url).map_err(|error| Error::Invalid(error.to_string()))?;
         let mut request = reqwest::Request::new(method, url);
         let headers = request.headers_mut();
         headers.extend(self.config.headers.clone());
         headers.extend(bound_headers.clone());
+        let mut body = body;
+        let slot = crate::events::SignerSlot::default();
+        let has_events = events.is_some();
+        if let Some((info, outgoing, deadline, cancellation)) = events {
+            // Without HTTP bindings the document the body would have been
+            // travels as the stream's first message instead.
+            let initial = info.initial_message.then(|| {
+                body.take()
+                    .map_or_else(|| Bytes::from_static(b"{}"), |(_, bytes)| bytes)
+            });
+            headers.insert(
+                http::header::CONTENT_TYPE,
+                HeaderValue::from_static(crucible_wire::event_stream::CONTENT_TYPE),
+            );
+            *request.body_mut() = Some(reqwest::Body::wrap_stream(crate::events::body(
+                info,
+                outgoing,
+                initial,
+                slot.clone(),
+                deadline,
+                cancellation,
+            )));
+        }
         if let Some((content_type, body)) = body {
             let content_type = match content_type {
                 JSON => HeaderValue::from_static(JSON),
                 media_type => HeaderValue::from_str(media_type)
                     .map_err(|error| Error::Invalid(error.to_string()))?,
             };
-            headers.insert(http::header::CONTENT_TYPE, content_type);
+            request
+                .headers_mut()
+                .insert(http::header::CONTENT_TYPE, content_type);
             *request.body_mut() = Some(reqwest::Body::from(body));
         }
         if let Some(stream) = stream {
@@ -632,8 +708,16 @@ impl Transport {
             ));
         }
         let signing = crate::auth::authenticate(&self.config, &mut request, auth).await?;
+        if has_events && signing.is_some() {
+            // Each message is signed as it is sent; the request declares so.
+            request.headers_mut().insert(
+                "x-amz-content-sha256",
+                HeaderValue::from_static(crate::signing::STREAMING_EVENTS),
+            );
+        }
         if self.config.content_sha256
             && stream.is_none()
+            && !has_events
             && (request.body().is_some()
                 || matches!(
                     *request.method(),
@@ -681,8 +765,17 @@ impl Transport {
                 }
             }
         }
-        if let Some(signing) = signing {
+        if let Some(signing) = &signing {
             signing.apply(&mut request).map_err(Error::Invalid)?;
+        }
+        if has_events {
+            let signer = match &signing {
+                Some(signing) => Some(signing.event_signer(&request).ok_or_else(|| {
+                    Error::Invalid("the signed request carries no signature".into())
+                })?),
+                None => None,
+            };
+            let _ = slot.set(signer);
         }
         Ok(request)
     }
@@ -722,6 +815,15 @@ fn guarded_stream(
 
 /// A request body: its content type and bytes.
 type Body = (&'static str, Bytes);
+
+/// An input event stream to send: its description, the events, and the
+/// call's deadline and cancellation, which outlive the response.
+type OutgoingEvents = (
+    &'static crucible_wire::event_stream::EventStreamInfo,
+    crucible_wire::event_stream::Outgoing,
+    Option<tokio::time::Instant>,
+    Option<crate::CancellationToken>,
+);
 
 const JSON: &str = "application/json";
 

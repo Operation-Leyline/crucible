@@ -15,7 +15,13 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
         .members
         .iter()
         .map(|member| {
-            let location = if bindings.labels.contains(&member.name) {
+            let location = if bindings
+                .event_stream
+                .as_ref()
+                .is_some_and(|stream| stream.member == member.name)
+            {
+                "EventStream".to_owned()
+            } else if bindings.labels.contains(&member.name) {
                 "Label".to_owned()
             } else if let Some(b) = find(&bindings.query, &member.name) {
                 format!("Query({})", literal(&b.name))
@@ -39,7 +45,10 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
             } else {
                 "Body".to_owned()
             };
-            let scalar = if location == "Body" || location.contains("Payload") {
+            let scalar = if location == "Body"
+                || location == "EventStream"
+                || location.contains("Payload")
+            {
                 "Json".to_owned()
             } else {
                 scalar(

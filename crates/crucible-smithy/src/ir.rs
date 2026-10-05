@@ -450,8 +450,12 @@ pub struct Bindings {
     pub prefix_headers: Vec<Binding>,
     pub response_code: Option<String>,
     /// Members serialized into the JSON body, in member order. Empty when
-    /// there is a payload.
+    /// there is a payload. An event stream member is never a body member;
+    /// with `event_stream.initial_message` these members form the initial
+    /// event's document instead of the HTTP body.
     pub body: Vec<String>,
+    /// The member carrying an event stream, when the structure has one.
+    pub event_stream: Option<EventStreamBinding>,
     /// The member that is the whole body, raw (`@httpPayload` on a blob).
     pub payload: Option<Payload>,
 }

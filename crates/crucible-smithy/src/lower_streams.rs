@@ -1,5 +1,5 @@
 use crate::ast::{self, Kind};
-use crate::ir::{EventBinding, Operation};
+use crate::ir::{Bindings, EventBinding, EventStreamBinding, Operation};
 use crate::lower::Lowerer;
 use crate::{Feature, ShapeId};
 use std::collections::BTreeSet;
@@ -121,6 +121,30 @@ impl Lowerer<'_> {
         })
     }
 
+    /// Records the member of `structure` that carries an event stream. With
+    /// HTTP bindings it is also the `@httpPayload`; without them it leaves the
+    /// body, whose members become the initial message's document instead.
+    pub(crate) fn event_stream_binding(&mut self, structure: &ShapeId, bindings: &mut Bindings) {
+        let Some(shape) = self.model.get(structure) else {
+            return;
+        };
+        let stream = shape.members.iter().find(|(_, member)| {
+            self.model.get(&member.target).is_some_and(|target| {
+                target.kind == Kind::Union && target.traits.contains_key(&trait_id("streaming"))
+            })
+        });
+        let Some((name, member)) = stream else {
+            return;
+        };
+        let (name, target) = (name.clone(), member.target.clone());
+        bindings.body.retain(|body| body != &name);
+        bindings.event_stream = Some(EventStreamBinding {
+            member: name,
+            target,
+            initial_message: !self.protocol_uses_http_bindings(),
+        });
+    }
+
     pub(crate) fn check_stream_references(&mut self, operations: &[Operation]) {
         let inputs: BTreeSet<_> = operations
             .iter()
@@ -132,6 +156,35 @@ impl Lowerer<'_> {
             .collect();
         // Only inspect reachable shapes; unrelated services may use other semantics.
         let reached: Vec<_> = self.reached_ids().collect();
+        // Event bindings describe a message's headers and payload, so they
+        // apply only to structures an event stream sends as events.
+        let events: BTreeSet<&ShapeId> = reached
+            .iter()
+            .filter_map(|id| self.model.get(id))
+            .filter(|shape| {
+                shape.kind == Kind::Union && shape.traits.contains_key(&trait_id("streaming"))
+            })
+            .flat_map(|shape| shape.members.values().map(|member| &member.target))
+            .collect();
+        let mut misplaced = Vec::new();
+        for id in &reached {
+            if events.contains(id) {
+                continue;
+            }
+            for (name, member) in &self.model[id].members {
+                if member.traits.contains_key(&trait_id("eventHeader"))
+                    || member.traits.contains_key(&trait_id("eventPayload"))
+                {
+                    misplaced.push(id.with_member(name));
+                }
+            }
+        }
+        for id in misplaced {
+            self.diagnostics.push(
+                &id,
+                "@eventHeader and @eventPayload apply only to members of event stream events",
+            );
+        }
         let mut containers = BTreeSet::new();
         for id in &reached {
             let shape = &self.model[id];

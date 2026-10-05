@@ -208,7 +208,14 @@ fn is_payload(service: &Service, structure: &ShapeId, member: &str) -> bool {
                     .as_ref()
                     .is_some_and(|p| p.member == member && matches!(p.kind,crucible_smithy::ir::PayloadKind::Blob|crucible_smithy::ir::PayloadKind::EventStream))
         };
-        payload(&op.input, &op.request) || payload(&op.output, &op.response)
+        let events = |io: &Option<ShapeId>, bindings: &crucible_smithy::ir::Bindings| {
+            io.as_ref() == Some(structure)
+                && bindings.event_stream.as_ref().is_some_and(|stream| stream.member == member)
+        };
+        payload(&op.input, &op.request)
+            || payload(&op.output, &op.response)
+            || events(&op.input, &op.request)
+            || events(&op.output, &op.response)
     }) || service.shape(structure).is_some_and(|shape|matches!(shape,Shape::Structure(shape) if shape.error.as_ref().and_then(|error|error.payload.as_ref()).is_some_and(|payload|payload.member==member && payload.kind==crucible_smithy::ir::PayloadKind::Blob)))
 }
 
@@ -487,7 +494,15 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
             let body: Vec<String> = op.request.body.iter().map(|m| literal(m)).collect();
             fields.push(format!("body: [{}]", body.join(", ")));
         }
-        if let Some(payload) = &op.request.payload {
+        if let Some(stream) = &op.request.event_stream {
+            fields.push(format!("inputEvents: {}", event_stream(service, stream)));
+        }
+        if let Some(payload) = op
+            .request
+            .payload
+            .as_ref()
+            .filter(|_| op.request.event_stream.is_none())
+        {
             fields.push(format!(
                 "payload: {{ member: {}, mediaType: {}{}{} }}",
                 literal(&payload.member),
@@ -521,13 +536,21 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     }
     if let (Some(id), Some(output)) = (op.output.as_ref(), structure(service, op.output.as_ref())) {
         let mut parts = vec![format!("body: {}", !op.response.body.is_empty())];
+        if let Some(stream) = &op.response.event_stream {
+            parts.push(format!("events: {}", event_stream(service, stream)));
+        }
         if !op.response.header_encodings.is_empty() {
             parts.push(format!(
                 "headerEncodings: {}",
                 serde_json::to_string(&op.response.header_encodings).unwrap()
             ));
         }
-        if let Some(payload) = &op.response.payload {
+        if let Some(payload) = op
+            .response
+            .payload
+            .as_ref()
+            .filter(|_| op.response.event_stream.is_none())
+        {
             parts.push(format!("payload: {}", literal(&payload.member)));
             if payload.kind != crucible_smithy::ir::PayloadKind::Blob {
                 parts.push(format!(
@@ -596,6 +619,75 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         "export const {}: OperationSpec = {{\n  {},\n}};\n",
         op.name(),
         fields.join(",\n  ")
+    )
+}
+
+/// An event stream member's spec: per union member, its structure's schema
+/// and which members travel in headers or as the payload; for an `@error`
+/// member, its entry in the error table.
+fn event_stream(service: &Service, stream: &crucible_smithy::ir::EventStreamBinding) -> String {
+    let Some(Shape::Union(union)) = service.shape(&stream.target) else {
+        unreachable!("lowering requires an event stream union")
+    };
+    let events: Vec<String> = union
+        .members
+        .iter()
+        .filter_map(|arm| {
+            let Some(Shape::Structure(event)) = service.shape(&arm.target) else {
+                return None;
+            };
+            let mut fields = vec![format!("schema: {}", schema_name(service, &arm.target))];
+            if let Some(error) = &event.error {
+                fields.push(format!("error: {}", literal(&error.wire_code)));
+            }
+            let headers: Vec<String> = event
+                .members
+                .iter()
+                .filter(|member| {
+                    member.event_binding == Some(crucible_smithy::ir::EventBinding::Header)
+                })
+                .map(|member| {
+                    let kind = match service.shape(&member.target) {
+                        Some(Shape::Simple(simple)) => match simple.kind {
+                            SimpleKind::Boolean => "boolean",
+                            SimpleKind::Byte => "byte",
+                            SimpleKind::Short => "short",
+                            SimpleKind::Integer => "integer",
+                            SimpleKind::Long => "long",
+                            SimpleKind::Blob => "blob",
+                            SimpleKind::Timestamp => "timestamp",
+                            _ => "string",
+                        },
+                        _ => "string",
+                    };
+                    format!("[{}, \"{kind}\"]", literal(&member.name))
+                })
+                .collect();
+            if !headers.is_empty() {
+                fields.push(format!("headers: [{}]", headers.join(", ")));
+            }
+            if let Some(member) = event.members.iter().find(|member| {
+                member.event_binding == Some(crucible_smithy::ir::EventBinding::Payload)
+            }) {
+                let kind = match service.shape(&member.target) {
+                    Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Blob => "blob",
+                    Some(Shape::Simple(_) | Shape::Enum(_)) => "string",
+                    _ => "structure",
+                };
+                fields.push(format!("payload: [{}, \"{kind}\"]", literal(&member.name)));
+            }
+            Some(format!(
+                "{}: {{ {} }}",
+                property(&arm.name),
+                fields.join(", ")
+            ))
+        })
+        .collect();
+    format!(
+        "{{ member: {}, initial: {}, events: {{ {} }} }}",
+        literal(&stream.member),
+        stream.initial_message,
+        events.join(", ")
     )
 }
 
