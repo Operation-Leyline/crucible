@@ -245,6 +245,10 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
                 AuthScheme::SigV4 { signing_name } => {
                     format!("SigV4 {{ signing_name: {} }}", literal(signing_name))
                 }
+                // Rust does not declare these capabilities, so emit rejects them first.
+                AuthScheme::Digest | AuthScheme::SigV4a { .. } => {
+                    unreachable!("undeclared Rust auth capability")
+                }
             };
             format!("::crucible::operation::AuthScheme::{value}")
         })

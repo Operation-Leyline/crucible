@@ -21,6 +21,11 @@ support in a generated client.
 | Conformance | Smithy protocol vectors, deterministic generated/property tests, live workflow runner | Every target executes applicable vectors; live results recorded separately |
 | Leyline rollout | Current model, authenticated workflow qualification, consumer migration | Model revision and coverage, deployed results, release and rollback records |
 
+Status: Smithy RPC v2 CBOR and JSON, HTTP Digest, and SigV4a are lowered in
+`crucible-smithy` (official Smithy RPC v2 protocol tests as fixtures) and
+implemented in PHP, which runs those vectors, RFC 7616 and AWS SigV4a vectors,
+and a verifying loopback server. Other targets do not declare them yet.
+
 ## Integration rules
 
 Semantics are resolved in `crucible-smithy`; emitters never inspect the AST.

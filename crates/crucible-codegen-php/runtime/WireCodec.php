@@ -7,13 +7,16 @@ final readonly class WireCodec
     private bool $omitNulls;
     private bool $ignoreUnionType;
     private bool $nonFinite;
+    private bool $bigStrings;
     public function __construct(public JsonObject $schema, private \Closure $models)
     {
         $settings = $schema->get('protocolSettings');
         $setting = static fn(string $name): bool => $settings instanceof JsonObject && $settings->get($name) === true;
         $this->omitNulls = $setting('omitNullStructureMembers');
         $this->ignoreUnionType = $setting('ignoreUnknownUnionType');
-        $this->nonFinite = $setting('nonFiniteFloatStrings');
+        // The CBOR bridge carries non-finite floats as these strings between Cbor and this codec.
+        $this->nonFinite = $setting('nonFiniteFloatStrings') || $schema->get('protocol') === 'rpcv2Cbor';
+        $this->bigStrings = $setting('arbitraryPrecisionStrings');
     }
     public static function object(mixed $value): JsonObject
     {
@@ -86,6 +89,13 @@ final readonly class WireCodec
             default: return $value;
         }
     }
+    /** Arbitrary-precision text: a JSON number, or a string matching $grammar when the protocol uses strings. */
+    private function bigText(mixed $value, string $grammar): string
+    {
+        if (!$this->bigStrings) return $this->number($value)->text;
+        if (!is_string($value) || !preg_match($grammar, $value)) throw new \UnexpectedValueException('Expected arbitrary-precision number string');
+        return $value;
+    }
     private function number(mixed $value): JsonNumber
     {
         if (!$value instanceof JsonNumber) throw new \UnexpectedValueException('Expected number');
@@ -108,8 +118,8 @@ final readonly class WireCodec
             case 'short': return $this->number($value)->integer(-32768, 32767);
             case 'integer': return $this->number($value)->integer(-2147483648, 2147483647);
             case 'long': return $this->number($value)->integer();
-            case 'bigInteger': return new BigInteger($this->number($value)->text);
-            case 'bigDecimal': return new BigDecimal($this->number($value)->text);
+            case 'bigInteger': return new BigInteger($this->bigText($value, '/^-?(?:0|[1-9][0-9]*)$/D'));
+            case 'bigDecimal': return new BigDecimal($this->bigText($value, '/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/D'));
             case 'float':
             case 'double':
                 if ($this->nonFinite && is_string($value)) {
@@ -166,7 +176,9 @@ final readonly class WireCodec
         }
         if ($kind === 'bigInteger' || $kind === 'bigDecimal') {
             if ($kind === 'bigInteger' ? !$value instanceof BigInteger : !$value instanceof BigDecimal) throw new \UnexpectedValueException('Expected exact number');
-            return $value->number;
+            if (!$this->bigStrings) return $value->number;
+            // RPC v2 JSON strings use plain integer digits for bigInteger.
+            return $kind === 'bigInteger' ? $value->number->scaled(0, 100000) : $value->number->text;
         }
         if ($kind === 'timestamp') {
             if (!$value instanceof Timestamp) throw new \UnexpectedValueException('Expected Timestamp');

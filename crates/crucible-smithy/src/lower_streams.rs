@@ -18,6 +18,17 @@ impl Lowerer<'_> {
                 Feature::Streaming
             };
             self.require(id, feature, trait_id("streaming"));
+            if self.protocol().is_rpc_v2() {
+                // RPC v2 streams are event streams framed as application/vnd.amazon.eventstream;
+                // no target implements that framing for these protocols yet.
+                self.diagnostics.push(
+                    id,
+                    format!(
+                        "@streaming is not supported with @{}",
+                        self.protocol().trait_id()
+                    ),
+                );
+            }
             if !matches!(shape.kind, Kind::Blob | Kind::Union) {
                 self.diagnostics
                     .push(id, "@streaming must target a blob or union");

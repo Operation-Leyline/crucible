@@ -37,6 +37,7 @@ pub(crate) fn lower(
     let mut lowerer = Lowerer {
         model: shapes,
         protocol: Protocol::CrucibleJson,
+        service_name: service_id.name().to_owned(),
         selected_protocol,
         diagnostics: Diagnostics::default(),
         shapes: BTreeMap::new(),
@@ -54,6 +55,8 @@ pub(crate) fn lower(
 
 pub(crate) struct Lowerer<'m> {
     protocol: Protocol,
+    /// The service's shape name, which RPC v2 request paths carry.
+    service_name: String,
     selected_protocol: Option<Protocol>,
     pub(crate) model: &'m BTreeMap<ShapeId, ast::Shape>,
     pub(crate) diagnostics: Diagnostics,
@@ -72,9 +75,38 @@ impl<'m> Lowerer<'m> {
     pub(crate) fn protocol_uses_http_bindings(&self) -> bool {
         self.protocol.uses_http_bindings()
     }
+    pub(crate) fn protocol(&self) -> Protocol {
+        self.protocol
+    }
+    /// `@timestampFormat`, unless the protocol fixes every timestamp's format.
+    fn explicit_timestamp_format(&self, traits: &Traits) -> Option<TimestampFormat> {
+        if self.protocol.respects_timestamp_format() {
+            timestamp_format(traits)
+        } else {
+            None
+        }
+    }
     fn service(&mut self, id: &ShapeId, infrastructure: bool) -> Service {
         let shape = &self.model[id];
         self.check_protocol(id, shape);
+        if self.protocol.is_rpc_v2() {
+            // RPC v2 errors are identified by their absolute shape ID, so they cannot be renamed.
+            for renamed in shape.rename.keys() {
+                if self
+                    .model
+                    .get(renamed)
+                    .is_some_and(|target| target.traits.contains_key(&smithy("error")))
+                {
+                    self.diagnostics.push(
+                        id,
+                        format!(
+                            "@{} services cannot rename error shape {renamed}",
+                            self.protocol.trait_id()
+                        ),
+                    );
+                }
+            }
+        }
         self.check_traits(id, &shape.traits);
         let auth = self.auth(id, shape);
         let auth_schemes = self.auth_configs(id, shape, &auth);
@@ -218,11 +250,22 @@ impl<'m> Lowerer<'m> {
         let mut settings = crate::ProtocolSettings::default();
         if matches!(
             self.protocol,
-            Protocol::AwsRestJson1 | Protocol::AwsJson10 | Protocol::AwsJson11
+            Protocol::AwsRestJson1
+                | Protocol::AwsJson10
+                | Protocol::AwsJson11
+                | Protocol::SmithyRpcV2Json
         ) {
             settings.omit_null_structure_members = true;
             settings.ignore_unknown_union_type = true;
             settings.non_finite_float_strings = true;
+        }
+        if self.protocol == Protocol::SmithyRpcV2Json {
+            settings.arbitrary_precision_strings = true;
+        }
+        if self.protocol == Protocol::SmithyRpcV2Cbor {
+            // CBOR carries non-finite floats natively, so only null handling applies.
+            settings.omit_null_structure_members = true;
+            settings.ignore_unknown_union_type = true;
         }
         let trait_id = self.protocol.trait_id();
         let Some(value) = shape.traits.get(&trait_id) else {
@@ -375,6 +418,10 @@ impl<'m> Lowerer<'m> {
                 self.uri(id, http["uri"].as_str().unwrap_or_default()),
                 http.get("code").and_then(Value::as_u64).unwrap_or(200),
             )
+        } else if self.protocol.is_rpc_v2() {
+            // Shape names, never namespaces or renames, identify the operation.
+            let path = format!("/service/{}/operation/{}", self.service_name, id.name());
+            ("POST".to_owned(), self.uri(id, &path), 200)
         } else {
             ("POST".to_owned(), self.uri(id, "/"), 200)
         };
@@ -796,8 +843,9 @@ impl<'m> Lowerer<'m> {
             if target.kind != Kind::Timestamp {
                 continue;
             }
-            let explicit =
-                timestamp_format(&member.traits).or_else(|| timestamp_format(&target.traits));
+            let explicit = self
+                .explicit_timestamp_format(&member.traits)
+                .or_else(|| self.explicit_timestamp_format(&target.traits));
             let document = explicit.unwrap_or_else(|| self.protocol.timestamp_format(false));
             let binding = explicit.unwrap_or_else(|| {
                 if header {
@@ -1074,13 +1122,14 @@ impl<'m> Lowerer<'m> {
     fn shape(&mut self, id: &ShapeId, shape: &'m ast::Shape) -> Option<Shape> {
         let docs = string_trait(&shape.traits, "documentation");
         let traits = shape.traits.clone();
+        let explicit_format = self.explicit_timestamp_format(&shape.traits);
         let simple = |kind| {
             Shape::Simple(Simple {
                 kind,
                 streaming: shape.traits.contains_key(&smithy("streaming")),
                 requires_length: shape.traits.contains_key(&smithy("requiresLength")),
                 constraints: constraints(&shape.traits),
-                timestamp_format: timestamp_format(&shape.traits),
+                timestamp_format: explicit_format,
                 docs: docs.clone(),
                 traits: traits.clone(),
             })
@@ -1111,6 +1160,12 @@ impl<'m> Lowerer<'m> {
                     self.diagnostics.push(
                         id,
                         "document shapes are not supported by the selected XML protocol",
+                    );
+                }
+                if self.protocol == Protocol::SmithyRpcV2Cbor {
+                    self.diagnostics.push(
+                        id,
+                        "document shapes are not supported by smithy.protocols#rpcv2Cbor",
                     );
                 }
                 simple(SimpleKind::Document)
@@ -1286,8 +1341,9 @@ impl<'m> Lowerer<'m> {
             .or_else(|| target_traits.and_then(|t| t.get(&smithy("default"))))
             .filter(|value| !value.is_null())
             .cloned();
-        let format = timestamp_format(&member.traits)
-            .or_else(|| target_traits.and_then(timestamp_format))
+        let format = self
+            .explicit_timestamp_format(&member.traits)
+            .or_else(|| target_traits.and_then(|t| self.explicit_timestamp_format(t)))
             .unwrap_or_else(|| self.protocol.member_timestamp_format(&member.traits));
         let wire_default = if self
             .model
@@ -1321,7 +1377,7 @@ impl<'m> Lowerer<'m> {
             wire_default,
             client_optional: in_input || member.traits.contains_key(&smithy("clientOptional")),
             constraints: effective,
-            timestamp_format: timestamp_format(&member.traits),
+            timestamp_format: self.explicit_timestamp_format(&member.traits),
             docs: string_trait(&member.traits, "documentation"),
             traits: member.traits.clone(),
         }
