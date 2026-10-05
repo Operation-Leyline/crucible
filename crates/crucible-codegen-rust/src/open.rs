@@ -72,6 +72,11 @@ pub(crate) fn union(
     for member in &union.members {
         doc(out, "    ", member.docs.as_deref());
         let mut ty = rust_type(service, &member.target, "");
+        // An event stream's modeled errors live with the other errors.
+        if matches!(service.shape(&member.target), Some(crucible_smithy::ir::Shape::Structure(s)) if s.error.is_some())
+        {
+            ty = format!("super::errors::{ty}");
+        }
         if boxed.contains(&id.with_member(&member.name)) {
             ty = format!("::std::boxed::Box<{ty}>");
         }

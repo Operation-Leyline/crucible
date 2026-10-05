@@ -7,6 +7,9 @@ import { hostPrefix, parseEndpoint, resolveEndpoint, type EndpointPrefix, type E
 import { waitFor, type WaiterSpec, type WaiterOptions, type WaiterResult } from "./waiters.js";
 import { signSigV4, type AwsCredentials, type SigningScope } from "./credentials.js";
 import { ChecksumError, computeChecksum, planChecksum, responseChecksum, sameChecksum, verifyingStream, type ChecksumPlan, type ChecksumPolicy, type ChecksumSpec } from "./checksums.js";
+import { EVENT_STREAM_CONTENT_TYPE, EventMessageReader, EventSigner, EventStream, STREAMING_EVENTS, decodeEvent, eventBody, eventSigning, receivedEvents, type EventMessage, type EventSigning, type EventStreamSpec } from "./events.js";
+export { EventStream, EventStreamError } from "./events.js";
+export type { EventStreamSpec } from "./events.js";
 type Signing = {credentials: AwsCredentials; scope: SigningScope; streaming: boolean};
 const signingRequests = new WeakMap<Request, Signing>();
 export type { WaiterSpec } from "./waiters.js";
@@ -125,7 +128,7 @@ export function union(members: () => Record<string, Schema>, jsonNames?: Readonl
 function reverseNames(names: Readonly<Record<string, string>> | undefined): Readonly<Record<string, string>> {
   return Object.fromEntries(Object.entries(names ?? {}).map(([model, wire]) => [wire, model]));
 }
-function wireName(schema: Schema | undefined, name: string): string {
+export function wireName(schema: Schema | undefined, name: string): string {
   if (schema?.kind !== "structure" && schema?.kind !== "union") return name;
   return schema.jsonNames && Object.hasOwn(schema.jsonNames, name) ? schema.jsonNames[name] : name;
 }
@@ -171,7 +174,7 @@ function exactInteger(value: unknown, bits: 8 | 16 | 32 | 64 | undefined, encodi
 function jsonValue(value: unknown): unknown {
   if (value instanceof JsonNumber) return jsonValue(Number(value.text));
   if (typeof value === "number" && !Number.isFinite(value)) throw new TypeError("non-finite JSON number");
-  if (value instanceof Uint8Array || value instanceof Date || value instanceof ByteStream || value instanceof Decimal) return value;
+  if (value instanceof Uint8Array || value instanceof Date || value instanceof ByteStream || value instanceof Decimal || value instanceof EventStream) return value;
   if (Array.isArray(value)) return value.map(jsonValue);
   if (value !== null && typeof value === "object") return mapValues(value as Record<string, unknown>, jsonValue);
   return value;
@@ -268,7 +271,7 @@ function valueKey(value: unknown): string {
 /** Clone public values while keeping exact decimals and streaming body ownership. */
 function snapshotValue<T>(value: T, seen = new Map<object, unknown>()): T {
   if (value === null || typeof value !== "object") return value;
-  if (value instanceof ByteStream || value instanceof Decimal) return value;
+  if (value instanceof ByteStream || value instanceof Decimal || value instanceof EventStream) return value;
   if (value instanceof Date) return new Date(value.getTime()) as T;
   if (value instanceof Uint8Array) return value.slice() as T;
   if (seen.has(value)) return seen.get(value) as T;
@@ -457,7 +460,11 @@ export interface OperationSpec {
   /** The input member that is the whole body, raw (`@httpPayload`), and its content type. */
   readonly payload?: { readonly member: string; readonly mediaType: string; readonly kind?: "blob" | "string" | "document"; readonly streaming?: boolean; readonly requiresLength?: boolean; readonly minimum?: number; readonly maximum?: number };
   readonly input?: Schema;
+  /** The input member that sends an event stream. */
+  readonly inputEvents?: EventStreamSpec;
   readonly output?: {
+    /** The output member that receives an event stream. */
+    readonly events?: EventStreamSpec;
     readonly body: boolean;
     readonly responseCode?: string;
     readonly prefixHeaders?: readonly (readonly [member: string, prefix: string])[];
@@ -646,6 +653,11 @@ export class Transport {
     try {
       controller.signal.throwIfAborted();
       const result = await abortable(this.#send<O>(operation, input, { ...options, signal: controller.signal }), controller.signal);
+      const events = operation.output?.events && (result as Record<string, unknown>)[operation.output.events.member];
+      if (events instanceof EventStream) {
+        // Deadlines and cancellation cover the events until they end.
+        retained = true; retainUntilSettled(events, cleanup);
+      }
       if (operation.output?.streaming && operation.output.payload) {
         const fields = result as Record<string, unknown>;
         const body = fields[operation.output.payload];
@@ -662,34 +674,36 @@ export class Transport {
     // Preserve write-back of generated tokens, but replay one logical input even
     // when the caller changes its mutable objects while a request is in flight.
     const original = withIdempotencyToken(operation, input) as Record<string, unknown>;
-    const streamMember = operation.payload?.streaming ? operation.payload.member : undefined;
+    const streamMember = operation.inputEvents?.member ?? (operation.payload?.streaming ? operation.payload.member : undefined);
     const stream = streamMember ? original[streamMember] : undefined;
     const snapshot = streamMember ? Object.fromEntries(Object.entries(original).filter(([name]) => name !== streamMember)) : original;
     const values = snapshotValue(snapshot) as Record<string, unknown>;
     if (streamMember && stream !== undefined) values[streamMember] = stream;
     const retry = this.#config.retry === false ? { maxAttempts: 1 } : (this.#config.retry ?? {});
-    const maxAttempts = stream instanceof ByteStream && !stream.replayable ? 1 : Math.max(1, retry.maxAttempts ?? 3);
-    const streaming = stream instanceof ByteStream;
+    // Events are read from the caller's source once: never replayed.
+    const maxAttempts = (stream instanceof ByteStream && !stream.replayable) || operation.inputEvents ? 1 : Math.max(1, retry.maxAttempts ?? 3);
+    const streaming = stream instanceof ByteStream || operation.inputEvents !== undefined;
     // Fills defaulted checksum members into the private snapshot only.
     const checksum = planChecksum(operation.checksum, values, this.#config.requestChecksumCalculation ?? "WHEN_SUPPORTED",
       this.#config.responseChecksumValidation ?? "WHEN_SUPPORTED", streaming);
     for (let attempt = 1; ; attempt++) {
       // Invalid inputs are caller errors, not transport failures.
       options.signal?.throwIfAborted();
-      const prepared = this.#request(operation, values, options); let request = prepared.request;
+      const signing = operation.inputEvents ? eventSigning() : undefined;
+      const prepared = this.#request(operation, values, options, signing); let request = prepared.request;
       if (streaming && checksum.header !== undefined && !request.headers.has(checksum.header)) {
         // Hashing a stream first would buffer it; the caller supplies the value instead.
         const error = new TypeError(`${operation.name}: a streamed body cannot be checksummed before it is sent; supply the ${checksum.header} header`);
         await request.body?.cancel(error).catch(() => {});
         throw error;
       }
-      try { request = await authenticate(request, operation.auth ?? ((operation.bearer ?? this.#bearer) ? [{ kind: "bearer" }] : []), operation.optionalAuth ?? false, this.#config, prepared.properties, stream instanceof ByteStream, operation.unsignedPayload); }
+      try { request = await authenticate(request, operation.auth ?? ((operation.bearer ?? this.#bearer) ? [{ kind: "bearer" }] : []), operation.optionalAuth ?? false, this.#config, prepared.properties, streaming, operation.unsignedPayload); }
       catch (error) { await request.body?.cancel(error).catch(() => {}); throw error; }
       let response: Response | undefined;
       let text = "";
       let bytes: Uint8Array | ByteStream | undefined;
       try {
-        response = await this.#dispatch(request, signingRequests.get(request), streaming ? undefined : checksum);
+        response = await this.#dispatch(request, signingRequests.get(request), streaming ? undefined : checksum, signing);
         if (options.signal?.aborted) {
           void response.body?.cancel().catch(() => {});
           options.signal.throwIfAborted();
@@ -697,7 +711,9 @@ export class Transport {
         // Fetch resolves at the headers; required bodies can still fail.
         // A successful operation without a modeled body needs only headers;
         // a payload is read as the bytes sent, never as text.
-        if (response.ok && operation.output?.payload !== undefined && operation.output.streaming) {
+        if (response.ok && operation.output?.events) {
+          // Read below, outside the retry: events are not replayed.
+        } else if (response.ok && operation.output?.payload !== undefined && operation.output.streaming) {
           let source = response.body ?? new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } });
           const expected = responseChecksum(checksum, response.headers);
           if (expected !== undefined) source = verifyingStream(source, expected.algorithm, expected.expected, () => this.#config.checksumValidated?.(operation.name, expected.algorithm));
@@ -715,6 +731,7 @@ export class Transport {
         await sleep(delay ?? backoff(attempt, retry), options.signal);
         continue;
       }
+      if (response.ok && operation.output?.events) return this.#receiveEvents<O>(operation, operation.output.events, response, options.signal);
       if (response.ok) {
         // A streamed body is verified as it is read. A corrupted response is
         // not retried: the request may have taken effect.
@@ -734,7 +751,36 @@ export class Transport {
     }
   }
 
-  #dispatch(request: Request, signing?: Signing, checksum?: ChecksumPlan): Promise<Response> {
+  async #receiveEvents<O>(operation: OperationSpec, spec: EventStreamSpec, response: Response, signal: AbortSignal | undefined): Promise<O> {
+    const output = operation.output!;
+    const settled = new Settlement();
+    const source = lifetimeStream(response.body ?? new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } }), signal, () => settled.settle());
+    const reader = new EventMessageReader(source);
+    try {
+      // Without HTTP bindings the output's other members arrive first, as an initial-response event.
+      let document: unknown = {};
+      let pending: EventMessage | undefined;
+      if (spec.initial) {
+        const first = await reader.next();
+        if (first !== undefined && decodeEvent(spec, first).kind === "initial") {
+          document = readJson(new TextDecoder("utf-8", { fatal: true }).decode(first.payload)) ?? {};
+        } else pending = first;
+      }
+      const fields = object(document);
+      readHeaders(response.headers, output.headers, fields, true, output.schema, output.headerEncodings);
+      readDynamicHeaders(response, output, fields);
+      const metadata: ResponseMetadata = { status: response.status, requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? undefined, headers: response.headers };
+      const events = receivedEvents(spec, reader, pending, this.#errors, metadata);
+      settlements.set(events as EventStream<unknown>, settled);
+      Object.defineProperty(fields, wireName(output.schema, spec.member), { value: events, enumerable: true, writable: true, configurable: true });
+      return fromWire(output.schema, fields) as O;
+    } catch (error) {
+      await reader.cancel(error);
+      throw error;
+    }
+  }
+
+  #dispatch(request: Request, signing?: Signing, checksum?: ChecksumPlan, events?: EventSigning): Promise<Response> {
     const send = this.#config.fetch ?? ((request: Request) => fetch(request));
     const signal = request.signal;
     const checked: Next = async pending => {
@@ -747,8 +793,19 @@ export class Transport {
         headers = new Headers(pending.headers);
         headers.set(checksum.header, await computeChecksum(checksum.algorithm, bytes));
       }
-      const final = new Request(pending, { signal: AbortSignal.any([signal, pending.signal]), ...(headers ? { headers } : {}) });
-      return send(signing ? await signSigV4(final, signing.credentials, signing.scope, signing.streaming) : final);
+      if (events) {
+        // Each event is signed as it is sent; the request declares so.
+        headers ??= new Headers(pending.headers);
+        if (signing) headers.set("x-amz-content-sha256", STREAMING_EVENTS);
+        else if (headers.get("x-amz-content-sha256") === STREAMING_EVENTS) headers.delete("x-amz-content-sha256");
+      }
+      const final = new Request(pending, { signal: AbortSignal.any([signal, pending.signal]), ...(headers ? { headers } : {}), ...(events ? { duplex: "half" } : {}) } as RequestInit);
+      const signed = signing ? await signSigV4(final, signing.credentials, signing.scope, signing.streaming) : final;
+      if (events) {
+        const seed = /Signature=([0-9a-f]+)/.exec(signed.headers.get("authorization") ?? "")?.[1];
+        events.resolve(signing && seed ? new EventSigner(signing.credentials, signing.scope, seed) : undefined);
+      }
+      return send(signed);
     };
     const chain = this.#middleware.reduceRight<Next>((next, middleware) => request => {
       signal.throwIfAborted(); request.signal.throwIfAborted(); return middleware(request, next);
@@ -756,7 +813,7 @@ export class Transport {
     return chain(request);
   }
 
-  #request(operation: OperationSpec, values: Record<string, unknown>, options: RequestOptions): {request: Request; properties: Readonly<Record<string,unknown>>} {
+  #request(operation: OperationSpec, values: Record<string, unknown>, options: RequestOptions, events?: EventSigning): {request: Request; properties: Readonly<Record<string,unknown>>} {
     const encoded = toWire(operation.input, values) as Record<string, unknown>;
     const path = operation.path
       .map(segment => {
@@ -840,6 +897,18 @@ export class Transport {
     }
     if (operation.protocol==="awsJson1_0" || operation.protocol==="awsJson1_1") {
       body ??="{}";headers.set("content-type",`application/x-amz-json-${operation.protocol==="awsJson1_0"?"1.0":"1.1"}`);headers.set("x-amz-target",operation.target!);
+    }
+    if (operation.inputEvents && events) {
+      const source = values[operation.inputEvents.member] ?? [];
+      if (typeof source !== "object" || (!(Symbol.asyncIterator in source) && !(Symbol.iterator in source))) throw new TypeError(`${operation.name}: an event stream member is an EventStream or an iterable of events`);
+      const sigV4 = operation.auth?.some(scheme => scheme.kind === "sigV4") ?? false;
+      if (this.#middleware.includes(contentSha256) && !sigV4) throw new TypeError("an event stream has no body digest to precompute");
+      // Without HTTP bindings the document the body would have been is the stream's first message.
+      const initial = operation.inputEvents.initial ? (typeof body === "string" ? body : "{}") : undefined;
+      body = eventBody(operation.inputEvents, source as AsyncIterable<unknown> | Iterable<unknown>, initial, events);
+      headers.set("content-type", EVENT_STREAM_CONTENT_TYPE);
+      // Declared before middleware runs, so a digest middleware leaves the stream alone; removed again if no signature follows.
+      if (sigV4) headers.set("x-amz-content-sha256", STREAMING_EVENTS);
     }
     const init: RequestInit & { duplex?: "half" } = { method: operation.method, headers, body, signal: options.signal };
     if (body instanceof ReadableStream) init.duplex = "half";
@@ -1088,6 +1157,19 @@ export const contentSha256: Middleware = async (request, next) => {
   request.headers.set("x-amz-content-sha256", Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join(""));
   return next(request);
 };
+
+/** Runs a call's cleanup once its received events have ended, however they end. */
+class Settlement {
+  #settled = false;
+  #cleanup?: () => void;
+  settle(): void { if (this.#settled) return; this.#settled = true; this.#cleanup?.(); }
+  retain(cleanup: () => void): void { if (this.#settled) cleanup(); else this.#cleanup = cleanup; }
+}
+const settlements = new WeakMap<EventStream<unknown>, Settlement>();
+function retainUntilSettled(events: EventStream<unknown>, cleanup: () => void): void {
+  const settlement = settlements.get(events);
+  if (settlement) settlement.retain(cleanup); else cleanup();
+}
 
 /** Keeps transport ownership until EOF or cancellation without eager buffering. */
 function lifetimeStream(source: ReadableStream<Uint8Array>, signal: AbortSignal | undefined, cleanup: () => void, length?: number, minimum?: number, maximum?: number): ReadableStream<Uint8Array> {

@@ -45,6 +45,20 @@ crucible generate ts crates/crucible-smithy/tests/fixtures/checksums.json \
   --out "$dir/generated-checksums" --package-name @example/checksums >/dev/null
 crucible generate ts crates/crucible-codegen-ts/tests/fixtures/checksum-streaming.json \
   --out "$dir/generated-checksum-streaming" --package-name @example/checksum-streaming >/dev/null
+# The event stream fixture under each protocol shape: HTTP bindings, an
+# initial message (awsJson1_0), and SigV4-signed events.
+events=crates/crucible-smithy/tests/fixtures/event-streams.json
+variant() {
+  node -e 'const fs = require("fs"); const model = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    model.shapes["example.events#Events"].traits = JSON.parse(process.argv[3]);
+    fs.writeFileSync(process.argv[2], JSON.stringify(model));' "$events" "$1" "$2"
+}
+mkdir -p "$dir/generated-fixtures"
+variant "$dir/generated-fixtures/events-rpc.json" '{"aws.protocols#awsJson1_0":{}}'
+variant "$dir/generated-fixtures/events-signed.json" '{"aws.protocols#restJson1":{},"aws.auth#sigv4":{"name":"events"},"smithy.api#auth":["aws.auth#sigv4"]}'
+crucible generate ts "$events" --out "$dir/generated-events" --package-name @example/events >/dev/null
+crucible generate ts "$dir/generated-fixtures/events-rpc.json" --out "$dir/generated-events-rpc" --package-name @example/events-rpc >/dev/null
+crucible generate ts "$dir/generated-fixtures/events-signed.json" --out "$dir/generated-events-signed" --package-name @example/events-signed >/dev/null
 for protocol in restJson1 awsJson1_0 awsJson1_1; do
   crucible generate ts crates/crucible-smithy/tests/fixtures/protocol-json.json \
     --protocol "aws.protocols#$protocol" --out "$dir/generated-$protocol" --package-name "@example/$protocol" >/dev/null

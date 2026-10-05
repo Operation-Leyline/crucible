@@ -89,6 +89,42 @@ fn main() {
         std::fs::write(out.join(format!("auth_{name}_client.rs")), code).unwrap();
     }
     wire_extensions(&out);
+    event_streams(&out);
+}
+
+/// The event stream fixture under each protocol shape: HTTP bindings
+/// (restJson1), an initial message (awsJson1_0), and SigV4-signed events.
+fn event_streams(out: &std::path::Path) {
+    let fixture = "../../crates/crucible-smithy/tests/fixtures/event-streams.json";
+    println!("cargo::rerun-if-changed={fixture}");
+    let base: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture).unwrap()).unwrap();
+    for (name, traits) in [
+        (
+            "events_rest_client.rs",
+            serde_json::json!({"aws.protocols#restJson1": {}}),
+        ),
+        (
+            "events_rpc_client.rs",
+            serde_json::json!({"aws.protocols#awsJson1_0": {}}),
+        ),
+        (
+            "events_signed_client.rs",
+            serde_json::json!({"aws.protocols#restJson1": {}, "aws.auth#sigv4": {"name": "events"}, "smithy.api#auth": ["aws.auth#sigv4"]}),
+        ),
+    ] {
+        let mut model = base.clone();
+        model["shapes"]["example.events#Events"]["traits"] = traits;
+        let path = out.join(name.replace(".rs", ".json"));
+        std::fs::write(&path, model.to_string()).unwrap();
+        std::fs::write(
+            out.join(name),
+            crucible_build::Codegen::client_from_model(&path)
+                .render()
+                .unwrap_or_else(|error| panic!("{name}: {error}")),
+        )
+        .unwrap();
+    }
 }
 
 /// Fixtures for payload kinds, media-type headers, AWS JSON protocols and

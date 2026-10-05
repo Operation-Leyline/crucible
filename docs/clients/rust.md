@@ -203,7 +203,10 @@ then `bash tools/test-e2e.sh` for the generated client over the weather service.
 The E2E client tests also drive generated clients for the shared
 `error-payloads`, `checksums` (with its vectors), and `protocol-json` fixtures
 (once per AWS JSON protocol) against loopback HTTP servers, since the server
-framework serves only `crucible.protocols#json`.
+framework serves only `crucible.protocols#json`. The `event-streams` fixture runs
+the same way under `restJson1`, `awsJson1_0`, and SigV4 (`tests/event_streams.rs`),
+and `crucible-wire` decodes the published framing vectors in
+`tests/conformance/event-streams.json`.
 The real loopback retry runner consumes the shared retry fixture. The E2E
 workspace is a separate Cargo workspace and uses a generated model package.
 
@@ -310,6 +313,85 @@ streaming inputs require `with_sha256` or an explicit digest header. The runtime
 does not collect a streaming body to calculate a hash. Generated servers also
 stream request and response bodies, and enforce configured request-body limits
 as chunks arrive.
+
+### Event streams
+
+A member targeting an `@streaming` union is an `EventStream<Union>`. To send
+events, build one from a `Stream` of union values with `EventStream::new`, from
+a fallible source with `EventStream::try_new`, or from a collection with
+`EventStream::from_events`. The transport pulls an event only when the
+connection accepts more bytes, so a slow service slows the source. A source
+error aborts the request, and the call fails with `Error::Transport`. A call
+that sends events is never retried, because its events cannot be replayed.
+
+```rust
+let events = EventStream::new(futures_util::stream::iter(vec![
+    ClientEvents::Ping(Ping {}),
+]));
+client.publish(PublishInput { channel: "general".into(), events }).await?;
+
+let output = client.subscribe(SubscribeInput { channel: "news".into(), limit: Field::Absent }).await?;
+let mut events = output.events.open()?;
+while let Some(event) = events.recv().await? {
+    // ServerEvents::Message(..), ServerEvents::UnknownValue(..) for a newer event
+}
+```
+
+A received stream is read once: `open()` returns an `EventReceiver`, which is
+also a `Stream`. `recv()` yields events in order, `Ok(None)` at the end, or one
+`EventStreamError`, after which the stream has ended:
+
+- `Exception(union)`: a modeled error, as the union's error member, for example
+  `ServerEvents::Throttled(errors::ThrottledError)`.
+- `Error { code, message }`: an `error` message, or an exception type the client
+  does not know.
+- `Decode(message)`: invalid framing, a checksum mismatch, or an event that does
+  not match the model.
+- `Io(error)`: the connection failed, or the call deadline (`TimedOut`) or
+  cancellation (`Interrupted`) ended it.
+
+An event type the client does not know is the union's unknown member. Dropping
+the receiver releases the connection; `close()` releases an unopened stream.
+The call's total timeout and cancellation token stay active until the stream
+ends, so a configured timeout also bounds a long-lived subscription. Override it
+per call with `CallOptions`. An HTTP error response is decoded as the
+operation's error, as for any call.
+
+Each event is one AWS event stream message (`application/vnd.amazon.eventstream`)
+with `:message-type`, `:event-type`, and `:content-type` headers. `@eventHeader`
+members are typed headers: booleans, byte, short, integer, long, blob, string
+(and enum), and timestamps in milliseconds. An `@eventPayload` blob or string
+is the raw payload, and a structure is its JSON document. Without an
+`@eventPayload`, the remaining members form a JSON document. Prelude and message
+CRC32s are verified; headers are limited to 128 KiB and payloads to 16 MiB.
+With `restJson1` and `crucible.protocols#json`, the operation's other members
+use HTTP bindings. With `awsJson1_0` and `awsJson1_1`, they are sent as an
+`initial-request` message before the first event. An `initial-response`
+message, when the service sends one, fills the output's other members before
+the call returns.
+
+With SigV4 authentication the request declares
+`x-amz-content-sha256: STREAMING-AWS4-HMAC-SHA256-EVENTS`. Each message is
+wrapped in an envelope whose `:chunk-signature` chains from the previous
+signature, starting from the request's, and the stream ends with an empty
+signed message. The string to sign is checked against the published smithy-rs
+vector. Responses are not signed.
+
+Bidirectional operations work over HTTP/1.1. The response is returned when the
+service sends its headers, and both directions then proceed independently; the
+tests exchange events interactively on one connection. `crucible-client` builds
+reqwest without its `http2` feature, so services that accept event streams only
+over HTTP/2 (for example, Amazon Transcribe streaming) are not reachable with
+the default client. An application can enable that feature and pass its own
+client to `Config::http_client`; that path is untested. Sent events are not checked against model constraints, timestamps in
+headers keep millisecond precision, and `Config::content_sha256` adds no digest
+to an unsigned event stream. Generation refuses a modeled error in an input event
+stream. The server framework does not serve event streams; server generation
+reports `event-streams` as unsupported.
+
+This adds `Location::EventStream` and the defaulted `Operation::INPUT_EVENTS`,
+`OUTPUT_EVENTS`, `input_events`, and `set_output_events` items to
+`crucible-wire`. Add the new variant to exhaustive matches on `Location`.
 
 ### Exact numbers and collections
 

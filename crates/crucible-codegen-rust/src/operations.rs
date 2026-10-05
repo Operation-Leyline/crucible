@@ -195,7 +195,11 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         ("input", op.input.as_ref(), &op.request),
         ("output", op.output.as_ref(), &op.response),
     ] {
-        if let Some(payload) = bindings.payload.as_ref().filter(|p| p.streaming) {
+        if let Some(payload) = bindings
+            .payload
+            .as_ref()
+            .filter(|p| p.streaming && p.kind != crucible_smithy::ir::PayloadKind::EventStream)
+        {
             let member = structure(service, id)
                 .and_then(|s| s.member(&payload.member))
                 .expect("lowered payload");
@@ -260,6 +264,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
     );
     if client {
         auth.push_str(&client_wire(service, op));
+        auth.push_str(&crate::events::marker_items(service, op));
     }
     if op.unsigned_payload {
         auth.push_str("    const UNSIGNED_PAYLOAD: bool = true;\n");

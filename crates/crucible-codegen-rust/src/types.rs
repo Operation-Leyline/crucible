@@ -18,6 +18,12 @@ pub(crate) fn rust_type(service: &Service, target: &ShapeId, prefix: &str) -> St
             _ => {}
         }
     }
+    if crate::events::is_event_stream(service, target) {
+        return format!(
+            "::crucible::EventStream<{prefix}{}>",
+            service.name_of(target)
+        );
+    }
     format!("{prefix}{}", service.name_of(target))
 }
 

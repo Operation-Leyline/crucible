@@ -17,6 +17,7 @@
 mod builders;
 mod client;
 mod errors;
+mod events;
 mod info;
 mod models;
 mod names;
@@ -92,6 +93,7 @@ pub fn client_capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsJson10,
         Feature::AwsJson11,
         Feature::HttpChecksum,
+        Feature::EventStreams,
     ]))
 }
 

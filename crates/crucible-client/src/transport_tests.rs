@@ -122,6 +122,7 @@ async fn body_digests_cover_empty_writes_and_raw_bytes() {
                 crate::auth::OperationAuth::of::<Probe>(),
                 None,
                 &crate::checksum::Plan::default(),
+                None,
             )
             .await
             .unwrap();

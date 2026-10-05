@@ -285,3 +285,18 @@ pub enum EventBinding {
     Header,
     Payload,
 }
+
+/// The member of an operation input or output that carries an event stream
+/// (`@streaming` union), and where the structure's other members travel.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventStreamBinding {
+    pub member: String,
+    /// The `@streaming` union.
+    pub target: crate::ShapeId,
+    /// Protocols without HTTP bindings send the structure's other members as
+    /// the first message of the stream: an `initial-request` or
+    /// `initial-response` event whose payload is those members' document.
+    /// With HTTP bindings they travel in labels, query parameters and headers.
+    pub initial_message: bool,
+}

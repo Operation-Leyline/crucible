@@ -4,7 +4,7 @@
 //! Output, under `src/`:
 //! - `runtime.ts`: the vendored runtime (wire conversion, transport, retries),
 //!   with its companions `query.ts`, `endpoints.ts`, `waiters.ts`,
-//!   `credentials.ts` and `checksums.ts`
+//!   `credentials.ts`, `checksums.ts` and `events.ts`
 //! - `models.ts`: a type per shape
 //! - `errors.ts`: a `ServiceError` subclass per modelled error
 //! - `schemas.ts`: what the runtime needs per operation (internal)
@@ -48,6 +48,8 @@ const RUNTIME_EXPORTS: &[&str] = &[
     "IdentityProvider",
     "UnknownUnion",
     "ByteStream",
+    "EventStream",
+    "EventStreamError",
     "ChecksumError",
     "ChecksumPolicy",
     "Decimal",
@@ -191,6 +193,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsJson10,
         Feature::AwsJson11,
         Feature::HttpChecksum,
+        Feature::EventStreams,
     ])
 }
 
@@ -226,6 +229,22 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             );
         }
     }
+    for operation in &service.operations {
+        let Some(stream) = &operation.request.event_stream else {
+            continue;
+        };
+        if let Some(crucible_smithy::ir::Shape::Union(union)) = service.shape(&stream.target) {
+            for arm in &union.members {
+                if matches!(service.shape(&arm.target), Some(crucible_smithy::ir::Shape::Structure(s)) if s.error.is_some())
+                {
+                    diagnostics.push(
+                        &stream.target.with_member(&arm.name),
+                        "a client cannot send a modeled error in an input event stream",
+                    );
+                }
+            }
+        }
+    }
     let errors = errors::emit(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -256,6 +275,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "src/checksums.ts",
             include_str!("../runtime/checksums.ts").replace("\r\n", "\n"),
         ),
+        file(
+            "src/events.ts",
+            include_str!("../runtime/events.ts").replace("\r\n", "\n"),
+        ),
         file("src/models.ts", models::emit(service)),
         file("src/errors.ts", errors),
         file("src/schemas.ts", schemas::emit(service)),
@@ -272,7 +295,7 @@ fn index(client: &str) -> String {
         "{HEADER}export {{ credentialsFromEnvironment, credentialsFromProfile, chainCredentials, cacheCredentials }} from \"./credentials.js\";\nexport type {{ AwsCredentials }} from \"./credentials.js\";\nexport {{ WaiterError, WaiterTimeout }} from \"./waiters.js\";\nexport {{ ChecksumError }} from \"./checksums.js\";\nexport type {{ ChecksumPolicy }} from \"./checksums.js\";\nexport type {{ WaiterOptions, WaiterResult }} from \"./waiters.js\";\nexport * from \"./models.js\";\n\
          export * from \"./errors.js\";\n\
          export {{ {client} }} from \"./client.js\";\n\
-         export {{ AuthenticationError, ByteStream, Decimal, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
+         export {{ AuthenticationError, ByteStream, Decimal, EventStream, EventStreamError, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
          export type {{\n  ClientConfig,\n  Document,\n  Fetch,\n  Middleware,\n  Next,\n  RequestOptions,\n  \
          ResponseMetadata,\n  AuthScheme,\n  BasicCredentials,\n  IdentityProvider,\n  RetryConfig,\n  TokenProvider,\n  Unit,\n  UnknownUnion,\n}} from \"./runtime.js\";\n"
     )

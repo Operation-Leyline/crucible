@@ -171,6 +171,15 @@ impl SerializeStruct for Fields<'_> {
         key: &'static str,
         value: &T,
     ) -> serde_json::Result<()> {
+        // An event stream is the body itself; it never enters the document.
+        if self
+            .split
+            .members
+            .iter()
+            .any(|member| member.name == key && member.location == Location::EventStream)
+        {
+            return Ok(());
+        }
         if self.split.payload {
             let member = self.split.members.iter().find(|member| member.name == key);
             match member.map(|member| member.location) {

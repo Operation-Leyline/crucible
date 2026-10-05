@@ -31,6 +31,7 @@ fn weather_client_matches_golden_files() {
             "src/waiters.ts",
             "src/credentials.ts",
             "src/checksums.ts",
+            "src/events.ts",
         ]
         .contains(&file.path.as_str())
         {

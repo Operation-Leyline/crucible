@@ -28,6 +28,28 @@ impl Signing {
     }
 }
 
+impl Signing {
+    /// The signer for an event stream body, seeded with the signature
+    /// `apply` gave the request.
+    pub(crate) fn event_signer(
+        &self,
+        request: &reqwest::Request,
+    ) -> Option<crate::signing::EventSigner> {
+        let authorization = request
+            .headers()
+            .get(http::header::AUTHORIZATION)?
+            .to_str()
+            .ok()?;
+        let (_, seed) = authorization.rsplit_once("Signature=")?;
+        Some(crate::signing::EventSigner::new(
+            &self.credentials.secret_access_key,
+            &self.region,
+            &self.name,
+            seed.trim().to_owned(),
+        ))
+    }
+}
+
 pub(crate) struct OperationAuth<'a> {
     schemes: &'static [AuthScheme],
     optional: bool,

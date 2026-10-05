@@ -257,7 +257,8 @@ fn bound_members<'a>(
     for member in op.input {
         let wire = wire_name(member);
         let value = match (member.location, member.scalar) {
-            (Location::Body | Location::ResponseCode, _) => continue,
+            // Servers do not serve event streams: generation refuses them.
+            (Location::Body | Location::ResponseCode | Location::EventStream, _) => continue,
             (Location::QueryParams, scalar) => {
                 let mut values = serde_json::Map::new();
                 for pair in query.split('&').filter(|p| !p.is_empty()) {
@@ -379,7 +380,8 @@ fn wire_name(member: &MemberInfo) -> &'static str {
         | Location::QueryParams
         | Location::PrefixHeaders(_)
         | Location::ResponseCode
-        | Location::StreamingPayload { .. } => member.name,
+        | Location::StreamingPayload { .. }
+        | Location::EventStream => member.name,
     }
 }
 

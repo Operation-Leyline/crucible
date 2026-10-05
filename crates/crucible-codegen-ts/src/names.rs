@@ -33,6 +33,9 @@ pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> Stri
             return builtin.to_owned();
         }
     }
+    if matches!(service.shape(target), Some(Shape::Union(union)) if union.streaming) {
+        return format!("EventStream<{prefix}{}>", service.name_of(target));
+    }
     format!("{prefix}{}", service.name_of(target))
 }
 
@@ -108,10 +111,17 @@ pub(crate) fn property(name: &str) -> String {
 /// An `import type` of the runtime's `Document` and `Unit` where `code` uses
 /// them, plus `always`: a file imports nothing it does not use.
 pub(crate) fn runtime_types(code: &str, always: &[&str]) -> String {
-    let mut names: Vec<&str> = ["Document", "Unit", "UnknownUnion", "ByteStream", "Decimal"]
-        .into_iter()
-        .filter(|name| mentions(code, name))
-        .collect();
+    let mut names: Vec<&str> = [
+        "Document",
+        "Unit",
+        "UnknownUnion",
+        "ByteStream",
+        "Decimal",
+        "EventStream",
+    ]
+    .into_iter()
+    .filter(|name| mentions(code, name))
+    .collect();
     names.extend(always);
     names.sort_unstable();
     if names.is_empty() {

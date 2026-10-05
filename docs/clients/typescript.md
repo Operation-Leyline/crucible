@@ -191,8 +191,10 @@ Do not combine an earlier generated digest with a later body mutation.
 ## Qualification
 
 Run `bash tools/test-ts.sh` for generated type checks, fake-fetch runtime tests,
-all 15 shared serialization cases, shared retry cases, and the shared checksum
-vectors. Set `TSC` to use an existing TypeScript compiler and `CRUCIBLE_BIN` to
+all 15 shared serialization cases, shared retry cases, the shared checksum
+vectors, and the published event stream framing and signing vectors. The event
+stream suite also drives generated clients (restJson1, awsJson1_0, and SigV4)
+against a loopback Node HTTP/1.1 server. Set `TSC` to use an existing TypeScript compiler and `CRUCIBLE_BIN` to
 generate with a prebuilt CLI instead of `cargo run`.
 `bash tools/test-e2e.sh` also runs the TypeScript client against the real weather
 service. Browser APIs are used by the runtime, but Node tests alone do not prove
@@ -243,6 +245,77 @@ requires a declared length, which is checked while reading. Modeled length
 bounds are also checked incrementally. Request streaming requires Fetch support
 for streaming request bodies; browsers control which HTTP headers can be sent.
 The native gate covers Node's Fetch implementation.
+
+### Event streams
+
+A member targeting an `@streaming` union is an `EventStream<Union>`. To send
+events, construct one from an iterable or async iterable of union values; an
+async generator is pulled only when Fetch reads more of the request body, so a
+slow service slows the source. A source that throws aborts the request with
+`NetworkError`. A call that sends events is never retried.
+
+```ts
+async function* outgoing(): AsyncGenerator<ClientEvents> {
+  yield { message: { id: "m1", text: "hello" } };
+}
+await client.publish({ channel: "general", events: new EventStream(outgoing()) });
+
+const output = await client.subscribe({ channel: "news" });
+try {
+  for await (const event of output.events) {
+    if (event.message) console.log(event.message.text);
+  }
+} catch (error) {
+  if (error instanceof ThrottledError) { /* the stream's modeled error */ }
+}
+```
+
+A received stream is read once, with `for await` or its async iterator. A
+modeled error in the stream is thrown as its generated error class, with the
+HTTP response's `$metadata`; the stream's union type leaves those members out.
+An `error` message, or an exception type the client does not know, is thrown as
+`EventStreamError` with `code` and `message`. Invalid framing, a checksum
+mismatch, or an event that does not match the model is a `TypeError` (a
+`SyntaxError` for a payload that is not JSON). An event
+type the client does not know arrives as
+`{ $unknown: { name, json } }`, where `json` is the payload's JSON text (a JSON
+string of base64 for a non-JSON payload). Leaving the loop early, or calling
+`cancel()` on an unread stream, releases the connection. The call's
+`timeoutMs` budget and abort signal stay active until the stream ends and
+reject a pending read with `TimeoutError` or the signal's reason.
+
+Each event is one AWS event stream message (`application/vnd.amazon.eventstream`)
+with `:message-type`, `:event-type`, and `:content-type` headers. `@eventHeader`
+members are typed headers (`boolean`, byte/short/integer `number`, long
+`bigint`, `Uint8Array`, `string`, and `Date` at millisecond precision). An
+`@eventPayload` blob or string is the raw payload, and a structure is its JSON
+document; otherwise the remaining members form a JSON document. Prelude and
+message CRC32s are verified; headers are limited to 128 KiB and payloads to
+16 MiB. With `restJson1` the operation's other members use HTTP bindings. With
+`awsJson1_0` and `awsJson1_1` they are sent as an `initial-request` message
+first, and an `initial-response` message, when the service sends one, fills the
+output's other members before the call resolves. HTTP errors before the stream
+are decoded as the operation's errors.
+
+With SigV4 authentication the request declares
+`x-amz-content-sha256: STREAMING-AWS4-HMAC-SHA256-EVENTS`, each message is
+wrapped in an envelope whose `:chunk-signature` chains from the request's
+signature, and the stream ends with an empty signed message. Signing uses Web
+Crypto and is checked against the published smithy-rs string-to-sign vector.
+Responses are not signed.
+
+Node 22's Fetch streams request bodies over HTTP/1.1 and resolves the response
+as soon as its headers arrive, so input, output, and bidirectional streams are
+interactive there; the tests exchange events on one connection. Browsers differ:
+Fetch request streaming is half duplex (the response is not available until the
+request body is complete), Chromium streams request bodies only over HTTP/2 or
+later, and Firefox and Safari do not stream them. Output streams work wherever
+response bodies stream; input and bidirectional streams are not qualified in
+browsers. A middleware that reads `request.body` would buffer an unbounded
+stream, and `contentSha256` is refused for an unsigned event stream. Sent
+events are converted with the model's schemas but not checked against length,
+range, or pattern constraints. Generation refuses a modeled error in an input
+event stream.
 
 ### Exact numbers and collections
 

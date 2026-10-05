@@ -40,6 +40,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             });
         out.push_str(&format!("\nstatic __CRUCIBLE_CLIENT_METADATA: ::std::sync::LazyLock<::crucible::ServiceMetadata> = ::std::sync::LazyLock::new(|| ::crucible::ServiceMetadata::from_json({}).expect(\"compiler validated client metadata\"));\n", literal(&schema.to_string())));
     }
+    out.push_str(&crate::events::statics(service, diagnostics));
     let mut methods = String::new();
     let mut names: std::collections::BTreeSet<String> = service
         .operations

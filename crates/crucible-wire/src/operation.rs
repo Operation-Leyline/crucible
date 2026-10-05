@@ -36,6 +36,16 @@ pub trait Operation: Send + Sync + 'static {
     }
     fn set_input_stream(_input: &mut Self::Input, _stream: crate::stream::ByteStream) {}
     fn set_output_stream(_output: &mut Self::Output, _stream: crate::stream::ByteStream) {}
+    /// The event stream the input sends, when it has one (clients only).
+    const INPUT_EVENTS: Option<&'static crate::event_stream::EventStreamInfo> = None;
+    /// The event stream the output receives, when it has one (clients only).
+    const OUTPUT_EVENTS: Option<&'static crate::event_stream::EventStreamInfo> = None;
+    fn input_events(
+        _input: &Self::Input,
+    ) -> Option<std::io::Result<crate::event_stream::Outgoing>> {
+        None
+    }
+    fn set_output_events(_output: &mut Self::Output, _events: crate::event_stream::Incoming) {}
     type Input: DeserializeOwned + Serialize + Validate + Send + Sync + 'static;
     type Output: Serialize + Send + Sync + 'static;
 }
@@ -245,6 +255,11 @@ pub enum Location {
         minimum: Option<u64>,
         maximum: Option<u64>,
     },
+    /// An event stream (`@streaming` union): the whole body, as
+    /// `application/vnd.amazon.eventstream` messages. It is never part of a
+    /// JSON document; the operation's `INPUT_EVENTS` / `OUTPUT_EVENTS`
+    /// describe its events.
+    EventStream,
 }
 
 impl Location {
