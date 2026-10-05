@@ -67,6 +67,13 @@ public final class ClientTest {
     exchange.close();
   }
 
+  static void emptyResponse(HttpExchange exchange) throws Exception {
+    // Unit calls complete at headers and cancel their response subscription.
+    // Sending a body here would race that cancellation and fixture shutdown.
+    exchange.sendResponseHeaders(200, -1);
+    exchange.close();
+  }
+
   static void retries(Path cases) throws Exception {
     for (var entry : JsonParser.parseString(Files.readString(cases)).getAsJsonArray()) {
       var test = entry.getAsJsonObject();
@@ -77,10 +84,9 @@ public final class ClientTest {
                 int count = attempts.incrementAndGet();
                 var body = new JsonObject();
                 if (!test.get("error").isJsonNull()) body.add("__type", test.get("error"));
-                response(
-                    exchange,
-                    count <= test.get("failures").getAsInt() ? test.get("status").getAsInt() : 200,
-                    body.toString());
+                if (count <= test.get("failures").getAsInt())
+                  response(exchange, test.get("status").getAsInt(), body.toString());
+                else emptyResponse(exchange);
               })) {
         JsonObject schema =
             JsonParser.parseString(
@@ -604,6 +610,35 @@ public final class ClientTest {
     }
   }
 
+  static void unitSuccessDoesNotWaitForBody() throws Exception {
+    var releaseBody = new CountDownLatch(1);
+    var handlerFinished = new CountDownLatch(1);
+    var calls = new AtomicInteger();
+    try (var server =
+        new Server(
+            exchange -> {
+              try {
+                calls.incrementAndGet();
+                exchange.sendResponseHeaders(200, 100);
+                exchange.getResponseBody().flush();
+                // Keep the declared body unavailable until the Unit call has
+                // completed. No sleep or socket-write exception is required.
+                check(releaseBody.await(5, TimeUnit.SECONDS), "body was not released");
+                exchange.close();
+              } finally {
+                handlerFinished.countDown();
+              }
+            })) {
+      try {
+        new Client(server.config()).pingAsync().get(2, TimeUnit.SECONDS);
+        check(releaseBody.getCount() == 1 && calls.get() == 1, "Unit call read the body or retried");
+      } finally {
+        releaseBody.countDown();
+        check(handlerFinished.await(2, TimeUnit.SECONDS), "response handler did not finish");
+      }
+    }
+  }
+
   static void malformedErrorMetadataAndRetry(Path fixtures) throws Exception {
     for (var entry : JsonParser.parseString(Files.readString(fixtures)).getAsJsonArray()) {
       var test = entry.getAsJsonObject();
@@ -619,10 +654,9 @@ public final class ClientTest {
                           .getResponseHeaders()
                           .set(header.getKey(), header.getValue().getAsString());
                   }
-                  response(
-                      exchange,
-                      count == 1 ? test.get("status").getAsInt() : 200,
-                      count == 1 ? test.get("body").getAsString() : "{}");
+                  if (count == 1)
+                    response(exchange, test.get("status").getAsInt(), test.get("body").getAsString());
+                  else emptyResponse(exchange);
                 })) {
           var config = server.config();
           config.maxAttempts = limit;
@@ -668,6 +702,7 @@ public final class ClientTest {
     malformedAndInterruptedBodies();
     cancellation();
     independentDeadlines();
+    unitSuccessDoesNotWaitForBody();
     weather();
     System.out.println("Java client conformance and weather HTTP passed");
   }
