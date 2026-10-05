@@ -1,0 +1,65 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.collisions#Collisions": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.collisions#Read"
+        },
+        {
+          "target": "example.collisions#Write"
+        }
+      ],
+      "rename": {
+        "example.other#Problem": "OtherProblem"
+      }
+    },
+    "example.collisions#Read": {
+      "type": "operation",
+      "errors": [
+        {
+          "target": "example.collisions#Problem"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/read"
+        }
+      }
+    },
+    "example.collisions#Write": {
+      "type": "operation",
+      "errors": [
+        {
+          "target": "example.other#Problem"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/write"
+        }
+      }
+    },
+    "example.collisions#Problem": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#error": "client"
+      }
+    },
+    "example.other#Problem": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#error": "server"
+      }
+    }
+  }
+}

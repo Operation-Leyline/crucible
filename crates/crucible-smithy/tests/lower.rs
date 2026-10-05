@@ -629,3 +629,15 @@ fn refuses_a_media_type_that_is_not_a_header_value() {
         "{messages:?}"
     );
 }
+
+#[test]
+fn renamed_errors_cannot_share_a_wire_discriminator_even_on_distinct_operations() {
+    let model = Model::from_json(include_str!("fixtures/error-wire-collision.json")).unwrap();
+    let diagnostics = model.lower(None).unwrap_err();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("error wire code \"Problem\" collides with example.collisions#Problem"),
+        "{diagnostics}"
+    );
+}

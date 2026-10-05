@@ -385,3 +385,21 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
         .is_err()
     );
 }
+
+#[test]
+fn keyword_operation_derivatives_and_outputless_waiters_use_valid_names_and_types() {
+    let model = include_str!("fixtures/keyword-waiters.json");
+    let service = Model::from_json(model)
+        .unwrap()
+        .lower_with_capabilities(
+            None,
+            &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
+        )
+        .unwrap();
+    let code = generate_client(&service).unwrap();
+    assert!(code.contains("pub async fn r#type("));
+    assert!(code.contains("pub async fn type_with_options_2("));
+    assert!(code.contains("pub async fn wait_until_match_2("));
+    assert!(code.contains("WaiterResult<::crucible_client::operation::Unit, TypeError>"));
+    assert!(!code.contains("wait_until_r#"));
+}

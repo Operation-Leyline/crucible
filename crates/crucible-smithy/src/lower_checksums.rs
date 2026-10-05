@@ -25,7 +25,7 @@ impl Lowerer<'_> {
         let legacy = ShapeId::new("smithy.api", "httpChecksumRequired");
         let flexible = ShapeId::new("aws.protocols", "httpChecksum");
         let Some(value) = operation.traits.get(&flexible) else {
-            if self.protocol_uses_http_bindings() && operation.traits.contains_key(&legacy) {
+            if operation.traits.contains_key(&legacy) {
                 self.require(id, Feature::HttpChecksum, legacy);
                 return Some(Checksum::Md5);
             }

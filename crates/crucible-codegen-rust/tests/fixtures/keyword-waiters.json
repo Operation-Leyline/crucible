@@ -1,0 +1,67 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.keywords#Keywords": {
+      "type": "service",
+      "version": "1",
+      "operations": [
+        {
+          "target": "example.keywords#Type"
+        },
+        {
+          "target": "example.keywords#TypeWithOptions"
+        },
+        {
+          "target": "example.keywords#WaitUntilMatch"
+        }
+      ],
+      "traits": {
+        "crucible.protocols#json": {}
+      }
+    },
+    "example.keywords#Type": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/Type"
+        },
+        "smithy.api#readonly": {},
+        "smithy.waiters#waitable": {
+          "Match": {
+            "minDelay": 1,
+            "maxDelay": 1,
+            "acceptors": [
+              {
+                "state": "success",
+                "matcher": {
+                  "success": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "example.keywords#TypeWithOptions": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/TypeWithOptions"
+        },
+        "smithy.api#readonly": {}
+      }
+    },
+    "example.keywords#WaitUntilMatch": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/WaitUntilMatch"
+        },
+        "smithy.api#readonly": {}
+      }
+    }
+  }
+}

@@ -24,6 +24,21 @@ test("error-type success has a typed absent response and unmatched transport err
   catch (error) { assert.ok(error instanceof WaiterError); assert.equal(error.cause, network); assert.equal(error.attempts, 1); }
 });
 
+test("generated waiter reserves budget for one final poll with nonzero delays", async () => {
+  let attempts = 0;
+  const client = new ServiceClient({ region: "local", fetch: async () => {
+    attempts++;
+    return new Response(`{"wire-status":"${attempts === 1 ? "WAIT" : "READY"}"}`);
+  } });
+  const result = await client.waitUntilReady_2({ account: "customer" }, {
+    maxWaitTimeMs: 1500, minDelayMs: 1000, maxDelayMs: 1000,
+  });
+  assert.equal(result.outcome, "response");
+  if (result.outcome === "response") assert.equal(result.output.status, "READY");
+  assert.equal(result.attempts, 2);
+  assert.equal(attempts, 2);
+});
+
 test("waiter inputOutput and timestamp expressions use model values and retain failure messages", async () => {
   const description = parseBehavior('{"minDelay":0,"maxDelay":0,"acceptors":[{"state":"failure","matcher":{"kind":"inputOutput","path":{"expression":{"kind":"compare","comparator":"equal","left":{"kind":"subexpression","left":{"kind":"field","name":"input"},"right":{"kind":"field","name":"at"}},"right":{"kind":"subexpression","left":{"kind":"field","name":"output"},"right":{"kind":"field","name":"at"}}}},"comparator":"booleanEquals","expected":"true"},"message":{"expression":{"kind":"field","name":"messages"}}}]}') as WaiterSpec;
   const at = new Date("2026-10-01T00:00:00.125Z");

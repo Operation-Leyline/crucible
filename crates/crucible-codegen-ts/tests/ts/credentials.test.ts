@@ -10,6 +10,19 @@ test("SigV4 matches the published AWS S3 GET signature", async()=>{
   assert.ok(request.headers.get("authorization")?.endsWith("Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41"));
 });
 
+test("S3 path normalization honors explicit false and true over the default", async()=>{
+  // Fixed canonical-request/HMAC vectors use the published S3 example identity.
+  const preserved="1e4f0cefa193768745bf5d4cad4da016789c441ffa00df7c1f26b97cda2e87ca";
+  const normalized="133c75b158dab066ec3ca5b9ecbb837bdac21410ed406791925e4ecba4c07977";
+  for (const [disableNormalizePath,signature] of [[undefined,preserved],[false,normalized],[true,preserved]] as const) {
+    const request=new Request("https://examplebucket.s3.amazonaws.com/folder//test%20file.txt",{headers:{range:"bytes=0-9","x-amz-date":"20130524T000000Z"}});
+    await signSigV4(request,{accessKeyId:"AKIAIOSFODNN7EXAMPLE",secretAccessKey:"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"},
+      {region:"us-east-1",name:"s3",disableNormalizePath});
+    assert.equal(request.headers.get("authorization"),
+      `AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=${signature}`);
+  }
+});
+
 test("generated SigV4 refreshes credentials and signs middleware headers while auth[] bypasses providers", async()=>{
   let identities=0,calls=0;const sent:Request[]=[];
   const client=new AuthHeaderClient({endpoint:"https://example.test",region:"us-east-1",retry:{baseDelayMs:0},awsCredentials:()=>({accessKeyId:`key${++identities}`,secretAccessKey:"secret",sessionToken:`session${identities}`}),middleware:[async(request,next)=>{request.headers.set("x-custom","signed");return next(request);}],fetch:async request=>{sent.push(request);return new Response(null,{status:++calls===1?503:204});}});

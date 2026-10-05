@@ -73,7 +73,7 @@ export async function signSigV4(request: Request, credentials: AwsCredentials, s
     request.headers.set("x-amz-content-sha256",payload);
   }
   const url=new URL(request.url); let path=url.pathname;
-  if (!scope.disableNormalizePath && scope.name!=="s3") path=path.replace(/\/{2,}/g,"/");
+  if (!(scope.disableNormalizePath ?? scope.name==="s3")) path=path.replace(/\/{2,}/g,"/");
   if (!(scope.disableDoubleEncoding ?? scope.name==="s3")) path=path.split("/").map(encode).join("/");
   const pairs:[string,string][]=[];url.searchParams.forEach((value,name)=>pairs.push([encode(name),encode(value)]));
   const query=pairs.sort(([an,av],[bn,bv])=>an<bn?-1:an>bn?1:av<bv?-1:av>bv?1:0).map(([name,value])=>`${name}=${value}`).join("&");

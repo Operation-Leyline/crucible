@@ -48,7 +48,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         .flat_map(|op| {
             [
                 function(op.name()),
-                format!("{}_pages", function(op.name())),
+                format!("{}_pages", function(op.name()).trim_start_matches("r#")),
             ]
         })
         .collect();
@@ -64,7 +64,10 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             out.push_str(&format!("\n#[allow(non_upper_case_globals)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
         }
         methods.push_str(&method(service, op, None));
-        let base = format!("{}_with_options", function(op.name()));
+        let base = format!(
+            "{}_with_options",
+            function(op.name()).trim_start_matches("r#")
+        );
         let mut options_name = base.clone();
         let mut suffix = 2;
         while !names.insert(options_name.clone()) {
@@ -74,7 +77,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         methods.push_str(&method(service, op, Some(&options_name)));
         methods.push_str(&pages(service, op, diagnostics));
         for waiter in op.waiters.keys() {
-            let base = format!("wait_until_{}", function(waiter));
+            let base = format!("wait_until_{}", function(waiter).trim_start_matches("r#"));
             let mut name = base.clone();
             let mut suffix = 2;
             while !names.insert(name.clone()) {
@@ -110,7 +113,11 @@ fn metadata_needed(service: &Service, op: &Operation) -> bool {
 fn waiter_method(service: &Service, op: &Operation, waiter: &str, method: &str) -> String {
     let name = op.name();
     let errors = error_type(op);
-    let output = output_type(service, op);
+    let output = if op.output.is_some() {
+        output_type(service, op)
+    } else {
+        UNIT.to_owned()
+    };
     let (parameter, input, token) = if op.input.is_some() {
         let token = token_member(service,op).map(|member|format!("        if input.{}.value().is_none() {{ input.{} = ::crucible::Field::Value(::crucible::idempotency_token()); }}\n",field(&member.name),field(&member.name))).unwrap_or_default();
         (
