@@ -160,6 +160,84 @@ fn xml(text: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+// Defaults are already resolved by lowering. Initialize each model instance with
+// its own mutable defaults; setters may still explicitly replace them with null.
+fn default_expression(
+    service: &Service,
+    id: &ShapeId,
+    value: &serde_json::Value,
+    package: &str,
+) -> Option<String> {
+    let native = ty(service, id, package);
+    Some(match service.shape(id)? {
+        Shape::Simple(simple) => match simple.kind {
+            SimpleKind::String => literal(value.as_str()?),
+            SimpleKind::Boolean => value.as_bool()?.to_string(),
+            SimpleKind::Byte
+            | SimpleKind::Short
+            | SimpleKind::Integer
+            | SimpleKind::Long
+            | SimpleKind::Float
+            | SimpleKind::Double => {
+                value.as_number()?;
+                let exact = match simple.kind {
+                    SimpleKind::Byte => Some("byteValueExact"),
+                    SimpleKind::Short => Some("shortValueExact"),
+                    SimpleKind::Integer => Some("intValueExact"),
+                    SimpleKind::Long => Some("longValueExact"),
+                    _ => None,
+                };
+                if value.as_i64().is_none()
+                    && let Some(exact) = exact
+                {
+                    format!(
+                        "new java.math.BigDecimal({}).{exact}()",
+                        literal(&value.to_string())
+                    )
+                } else {
+                    format!("{native}.valueOf({})", literal(&value.to_string()))
+                }
+            }
+            SimpleKind::Document => format!(
+                "com.google.gson.JsonParser.parseString({})",
+                literal(&value.to_string())
+            ),
+            SimpleKind::Blob => format!(
+                "java.util.Base64.getDecoder().decode({})",
+                literal(value.as_str()?)
+            ),
+            SimpleKind::Timestamp => {
+                if let Some(text) = value.as_str() {
+                    format!("java.time.Instant.parse({})", literal(text))
+                } else {
+                    value.as_number()?;
+                    let decimal =
+                        format!("new java.math.BigDecimal({})", literal(&value.to_string()));
+                    format!(
+                        "java.time.Instant.ofEpochSecond({decimal}.longValue(), {decimal}.remainder(java.math.BigDecimal.ONE).movePointRight(9).longValueExact())"
+                    )
+                }
+            }
+        },
+        Shape::Enum(_) => format!("new {native}({})", literal(value.as_str()?)),
+        Shape::List(_) if value.as_array()?.is_empty() => {
+            if recursive_collection(service, id, id, &mut BTreeSet::new()) {
+                format!("new {native}()")
+            } else {
+                "new java.util.ArrayList<>()".into()
+            }
+        }
+        Shape::Map(_) if value.as_object()?.is_empty() => {
+            if recursive_collection(service, id, id, &mut BTreeSet::new()) {
+                format!("new {native}()")
+            } else {
+                "new java.util.LinkedHashMap<>()".into()
+            }
+        }
+        _ => return None,
+    })
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     let client_name = format!("{}Client", service.id.name());
     let mut diagnostics = Diagnostics::default();
@@ -205,6 +283,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             let mut members = BTreeSet::new();
             let mut accessors = BTreeSet::new();
             for m in &s.members {
+                if !m.optional_on_client()
+                    && let Some(value) = &m.default
+                    && default_expression(service, &m.target, value, &options.package_name)
+                        .is_none()
+                {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "unsupported Java native default value",
+                    );
+                }
                 let native = field(&m.name);
                 if !accessors.insert(accessor(&native, s.error.is_some())) {
                     diagnostics.push(
@@ -334,7 +422,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 for m in &s.members {
                     let t=ty(service,&m.target,package); let f=field(&m.name);
                     if m.optional_on_client() || matches!(shape,Shape::Union(_)) {models.push_str(&format!("        public {package}.OptionalValue<{t}> {f} = {package}.OptionalValue.unset();\n"));}
-                    else {models.push_str(&format!("        public {t} {f};\n"));}
+                    else {
+                        let initial = m.default.as_ref().map(|value| format!(" = {}", default_expression(service, &m.target, value, package).expect("validated default"))).unwrap_or_default();
+                        models.push_str(&format!("        public {t} {f}{initial};\n"));
+                    }
                 }
                 if matches!(shape,Shape::Union(_)){models.push_str(&format!("        public {package}.UnknownUnion unknownVariant;\n"));}
                 models.push_str("        public static Builder builder() { return new Builder(); }\n");

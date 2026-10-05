@@ -1,5 +1,7 @@
 use super::{field, literal, ty};
-use crucible_smithy::ir::{Service, Shape};
+use crucible_smithy::ShapeId;
+use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use serde_json::Value;
 
 pub fn variant(name: &str) -> String {
     let mut chars = name.chars();
@@ -103,7 +105,12 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         (storage, cast)
                     } else {
                         models.push_str(&format!("    val `{f}`: {t},\n"));
-                        builder.push_str(&format!("        var `{f}`: {t}? = null\n"));
+                        let initial = m
+                            .default
+                            .as_ref()
+                            .and_then(|value| default_expr(service, &m.target, value, package))
+                            .unwrap_or_else(|| "null".into());
+                        builder.push_str(&format!("        var `{f}`: {t}? = {initial}\n"));
                         build.push_str(&format!(
                             "            `{f}` = requireNotNull(`{f}`) {{ {} }},\n",
                             literal(&format!("Missing required member: {}", m.name))
@@ -201,6 +208,107 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
             "@Suppress(\"UNCHECKED_CAST\", \"UNUSED_VARIABLE\", \"UNUSED_PARAMETER\")\ninternal object ModelCodecs {{\n{encode}{decode}{helpers}}}\n"
         ),
     )
+}
+
+/// Render the already-lowered default without losing integral precision.
+pub(crate) fn default_expr(
+    service: &Service,
+    target: &ShapeId,
+    value: &Value,
+    package: &str,
+) -> Option<String> {
+    match (service.shape(target)?, value) {
+        (Shape::Enum(_), Value::String(text)) => Some(format!(
+            "{}({})",
+            ty(service, target, package),
+            literal(text)
+        )),
+        (Shape::Simple(simple), value) => match (simple.kind, value) {
+            (SimpleKind::Boolean, Value::Bool(value)) => Some(value.to_string()),
+            (SimpleKind::String, Value::String(value)) => Some(literal(value)),
+            (
+                SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long,
+                Value::Number(number),
+            ) => {
+                let Some(value) = number.as_i64() else {
+                    let method = match simple.kind {
+                        SimpleKind::Byte => "byteValueExact",
+                        SimpleKind::Short => "shortValueExact",
+                        SimpleKind::Integer => "intValueExact",
+                        SimpleKind::Long => "longValueExact",
+                        _ => unreachable!(),
+                    };
+                    return Some(format!(
+                        "java.math.BigDecimal({}).{method}()",
+                        literal(&number.to_string())
+                    ));
+                };
+                match simple.kind {
+                    SimpleKind::Byte => i8::try_from(value)
+                        .ok()
+                        .map(|value| format!("({value}).toByte()")),
+                    SimpleKind::Short => i16::try_from(value)
+                        .ok()
+                        .map(|value| format!("({value}).toShort()")),
+                    SimpleKind::Integer => i32::try_from(value).ok().map(|value| value.to_string()),
+                    SimpleKind::Long if value == i64::MIN => Some("kotlin.Long.MIN_VALUE".into()),
+                    SimpleKind::Long => Some(format!("{value}L")),
+                    _ => unreachable!(),
+                }
+            }
+            (SimpleKind::Float | SimpleKind::Double, Value::Number(number)) => {
+                let mut text = number.to_string();
+                if !text.contains(['.', 'e', 'E']) {
+                    text.push_str(".0");
+                }
+                if simple.kind == SimpleKind::Float {
+                    text.push('f');
+                }
+                Some(text)
+            }
+            (SimpleKind::Document, value) => Some(format!(
+                "com.google.gson.JsonParser.parseString({})",
+                literal(&value.to_string())
+            )),
+            (SimpleKind::Blob, Value::String(value)) => Some(format!(
+                "java.util.Base64.getDecoder().decode({})",
+                literal(value)
+            )),
+            (SimpleKind::Timestamp, Value::String(value)) => {
+                Some(format!("java.time.Instant.parse({})", literal(value)))
+            }
+            (SimpleKind::Timestamp, Value::Number(value)) => Some(format!(
+                "java.math.BigDecimal({}).let {{ value -> java.time.Instant.ofEpochSecond(value.toLong(), value.remainder(java.math.BigDecimal.ONE).movePointRight(9).longValueExact()) }}",
+                literal(&value.to_string())
+            )),
+            _ => None,
+        },
+        (Shape::List(_), Value::Array(value)) if value.is_empty() => Some(
+            if recursive_collection(
+                service,
+                target,
+                target,
+                &mut std::collections::BTreeSet::new(),
+            ) {
+                format!("{}()", ty(service, target, package))
+            } else {
+                "kotlin.collections.emptyList()".into()
+            },
+        ),
+        (Shape::Map(_), Value::Object(value)) if value.is_empty() => Some(
+            if recursive_collection(
+                service,
+                target,
+                target,
+                &mut std::collections::BTreeSet::new(),
+            ) {
+                format!("{}()", ty(service, target, package))
+            } else {
+                "kotlin.collections.emptyMap()".into()
+            },
+        ),
+        _ => None,
+    }
 }
 
 // Kotlin aliases cannot recurse without a nominal type breaking the cycle.

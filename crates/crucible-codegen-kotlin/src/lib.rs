@@ -195,6 +195,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 diagnostics.push(id, "Kotlin union name collides with its unknown variant");
             }
             for m in &s.members {
+                if !m.optional_on_client()
+                    && m.default.as_ref().is_some_and(|value| {
+                        models::default_expr(service, &m.target, value, &options.package_name)
+                            .is_none()
+                    })
+                {
+                    diagnostics.push(
+                        &id.with_member(&m.name),
+                        "unsupported Kotlin builder default",
+                    );
+                }
                 let member = field(&m.name);
                 if member.starts_with("__crucibleField") {
                     diagnostics.push(

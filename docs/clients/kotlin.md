@@ -54,6 +54,9 @@ client.createCity(changed)
 Every operation with a modeled input has a builder overload; paginators have the
 same overload. `client.listCities()` builds an input with every optional member
 omitted. Lists and maps accept `listOf(...)` and `mapOf(...)` directly.
+Builders initialize nonoptional members from modeled defaults. Required members
+without defaults must be assigned. Client-optional members remain omitted until
+assigned, even when the model declares a default.
 
 ## Transport and cancellation
 

@@ -1,12 +1,41 @@
 #include "json.hpp"
 #include "timestamp.hpp"
+#include "types.hpp"
 #include <iostream>
 #include <limits>
 
 using namespace crucible_generated::runtime;
+template<class Source> constexpr bool rejects_cross_field =
+    !std::is_constructible_v<Field<bool>, Source> &&
+    !std::is_convertible_v<Source, Field<bool>> &&
+    !std::is_assignable_v<Field<bool>&, Source>;
+static_assert(rejects_cross_field<Field<int>&>);
+static_assert(rejects_cross_field<const Field<int>&>);
+static_assert(rejects_cross_field<Field<int>&&>);
+static_assert(rejects_cross_field<const Field<int>&&>);
+static_assert(std::is_convertible_v<bool, Field<bool>>);
+static_assert(std::is_assignable_v<Field<bool>&, bool>);
 void check(bool condition, const char* message) { if (!condition) throw std::runtime_error(message); }
 template<class Action> void rejects(Action action) { try { action(); } catch (const std::invalid_argument&) { return; } throw std::runtime_error("Expected invalid_argument"); }
+template<class T> void check_field_copies(T value) {
+    for (const auto& original : {Field<T>{}, Field<T>::null(), Field<T>(value)}) {
+        Field<T> copied(original), assigned(value);
+        assigned = original;
+        Field<T> moved(std::move(copied)), move_assigned(value);
+        move_assigned = std::move(assigned);
+        for (const auto* result : {&moved, &move_assigned}) {
+            check(result->is_set() == original.is_set(), "Field copy/move preserves presence");
+            check(result->is_null() == original.is_null(), "Field copy/move preserves null");
+            check(static_cast<bool>(*result) == static_cast<bool>(original), "Field copy/move preserves value state");
+            if (original) check(result->value() == original.value(), "Field copy/move preserves value");
+        }
+    }
+}
 int main() {
+    check_field_copies(false);
+    check_field_copies(true);
+    check_field_copies(0);
+    check_field_copies(42);
     const auto json = Json::parse(R"({"integer":9223372036854775807,"decimal":1.000000000000000000001,"nul\u0000key":{},"list":[]})");
     check(json.at("integer").number().integer() == INT64_MAX, "Exact int64");
     check(json.at("decimal").number().text() == "1.000000000000000000001", "Exact decimal");

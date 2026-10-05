@@ -535,6 +535,10 @@ public final class ClientTest {
   }
 
   static void ergonomics() {
+    check(CitySummary.builder().id("city").name("Oslo").build().population() == 0L,
+        "builder omitted modeled default");
+    check(CitySummary.builder().id("city").name("Oslo").population(null).build().population() == null,
+        "explicit null was replaced by modeled default");
     var builder = CreateCityInput.builder().name("first").location(null);
     var first = builder.build();
     var second = builder.name("second").build();

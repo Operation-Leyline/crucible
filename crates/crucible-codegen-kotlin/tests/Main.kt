@@ -1,5 +1,6 @@
 package example.weather
 
+import example.weather.model.BuilderDefaults
 import example.weather.model.ValidationError
 import example.weather.model.Sky
 import example.weather.model.PutCityPhotoInput
@@ -133,6 +134,20 @@ private fun serialization(path: String) {
     val city = codec.decode("example.weather#CitySummary", """{"id":"c","name":"x","createdAt":-0.000000001,"population":9223372036854775807}""") as CitySummary
     check(city.population == Long.MAX_VALUE && city.createdAt == Instant.ofEpochSecond(-1, 999999999))
     check((codec.decode("example.weather#CitySummary", """{"id":"c","name":"x"}""") as CitySummary).population == 0L)
+    check(CitySummary { id = "c"; name = "x" }.population == 0L)
+    val defaults = BuilderDefaults { requiredValue = "required" }
+    check(defaults.flag && defaults.small == (-7).toByte() && defaults.medium == 300.toShort())
+    check(defaults.count == 42 && defaults.large == Long.MIN_VALUE && defaults.ratio == 1.5f && defaults.score == 2.5)
+    check(defaults.decimalCount == 17 && defaults.blob.contentEquals(byteArrayOf(1, 2)))
+    check(defaults.date == Instant.parse("2024-01-01T00:00:00Z") && defaults.epoch == Instant.ofEpochSecond(-2, 500_000_000))
+    check(defaults.label == "default \$value\\path" && defaults.sky == Sky("sunny"))
+    check(defaults.tags.isEmpty() && defaults.forecast.isEmpty() && defaults.document.asJsonObject.get("count").asLong == Long.MAX_VALUE)
+    check(!defaults.hasOptionalDefault())
+    check(BuilderDefaults { requiredValue = "required"; count = 0 }.count == 0)
+    defaults.document.asJsonObject.addProperty("changed", true)
+    check(!BuilderDefaults { requiredValue = "required" }.document.asJsonObject.has("changed"))
+    try { BuilderDefaults {}; error("Missing required member accepted") } catch (_: IllegalArgumentException) { }
+    try { BuilderDefaults { requiredValue = "required"; count = null }; error("Explicit null replaced by default") } catch (_: IllegalArgumentException) { }
     val present = CreateCityInput { this.name = "x"; this.location = null }
     check(present.name == "x" && present.hasLocation() && present.location == null)
     val omitted = present.copy { unsetLocation() }

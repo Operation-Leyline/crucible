@@ -24,14 +24,21 @@ struct HeaderNameLess {
 };
 using Headers = std::map<std::string, std::string, HeaderNameLess>;
 
+template<class T> class Field;
+namespace detail {
+template<class T> inline constexpr bool is_field = false;
+template<class T> inline constexpr bool is_field<Field<T>> = true;
+}
+
 template<class T> class Field {
     bool set_ = false;
     std::optional<T> value_;
 public:
     Field() = default;
-    template<class U> requires (!std::same_as<std::remove_cvref_t<U>, Field> && std::constructible_from<T, U&&>)
+    // A Field's explicit bool conversion describes presence, not its contained value.
+    template<class U> requires (!detail::is_field<std::remove_cvref_t<U>> && std::constructible_from<T, U&&>)
     Field(U&& value) : set_(true), value_(std::in_place, std::forward<U>(value)) {}
-    template<class U> requires (!std::same_as<std::remove_cvref_t<U>, Field> && std::constructible_from<T, U&&>)
+    template<class U> requires (!detail::is_field<std::remove_cvref_t<U>> && std::constructible_from<T, U&&>)
     Field& operator=(U&& value) { value_ = T(std::forward<U>(value)); set_ = true; return *this; }
     [[nodiscard]] explicit operator bool() const noexcept { return value_.has_value(); }
     [[nodiscard]] const T& operator*() const { return value(); }

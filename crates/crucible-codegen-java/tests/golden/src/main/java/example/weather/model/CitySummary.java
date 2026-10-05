@@ -4,7 +4,7 @@ package example.weather.model;
     public final class CitySummary {
         public java.lang.String id;
         public java.lang.String name;
-        public java.lang.Long population;
+        public java.lang.Long population = java.lang.Long.valueOf("0");
         public example.weather.OptionalValue<java.time.Instant> updatedAt = example.weather.OptionalValue.unset();
         public example.weather.OptionalValue<java.time.Instant> createdAt = example.weather.OptionalValue.unset();
         public static Builder builder() { return new Builder(); }

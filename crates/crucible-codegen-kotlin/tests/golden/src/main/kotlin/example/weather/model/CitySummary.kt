@@ -25,7 +25,7 @@ class `CitySummary` internal constructor(
     class Builder {
         var `id`: kotlin.String? = null
         var `name`: kotlin.String? = null
-        var `population`: kotlin.Long? = null
+        var `population`: kotlin.Long? = 0L
         internal var __crucibleField3: example.weather.OptionalValue<java.time.Instant> = example.weather.OptionalValue.unset()
         var `updatedAt`: java.time.Instant?
             get() = __crucibleField3.value

@@ -80,3 +80,27 @@ fn configuration_diagnostics_are_collected() {
     options.artifact_id = "bad<id".into();
     assert_eq!(emit(&service, &options).err().unwrap().len(), 2);
 }
+
+#[test]
+fn native_defaults_follow_lowered_client_nullability() {
+    let service = Model::from_json(include_str!("defaults.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let model = &files
+        .iter()
+        .find(|file| file.path.ends_with("/DefaultsOutput.java"))
+        .unwrap()
+        .contents;
+    assert!(model.contains(
+        "public java.lang.Long large = java.lang.Long.valueOf(\"9223372036854775807\");"
+    ));
+    assert!(model.contains("public java.lang.Integer count = java.lang.Integer.valueOf(\"17\");"));
+    assert!(model.contains(
+        "OptionalValue<java.lang.Integer> optionalCount = example.weather.OptionalValue.unset();"
+    ));
+    assert!(model.contains("new java.util.ArrayList<>()"));
+    assert!(model.contains("new java.util.LinkedHashMap<>()"));
+    assert!(model.contains("new example.weather.model.Mode(\"known\")"));
+}
