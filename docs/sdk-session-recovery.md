@@ -42,7 +42,7 @@ python tools/test_protocol_conformance.py
 python tools/test_sdk_release.py
 ```
 
-The current local runs pass. TypeScript has 170 passing tests; the Rust
+The current local runs pass. TypeScript has 172 passing tests; the Rust
 event-stream HTTP suite has 12, and the TypeScript HTTP suite has 10. R's full
 native gate also passes. Build and gate logs are under the local `target/`
 directory; they are not checked in.
@@ -92,6 +92,15 @@ waiters without changing wire error metadata. Kotlin preserves deadline types
 when Ktor replaces their cancellation cause, and its enum constants remain
 accessible as Java static fields. The local Rust suite passes 349 tests and the
 generated TypeScript suite passes 172 tests.
+
+Native review regressions also cover SigV4 query sorting by escaped key and
+value, C# per-attempt timeout handling, nullable Dart waiter results when error
+acceptors succeed, and exact Go numeric waiter queries. Java rejects one-shot
+stream inputs for waiters and pagination before reading or dispatching them.
+Ruby detects duplicate set members through canonical hash keys, preserving
+numeric and nested-value equality; its 10,000-member regression forbids prefix
+scans and pairwise comparisons. The C++ signature vector, C# waiter consumer,
+Java streaming suite, and Ruby wire consumers pass natively after these fixes.
 
 The complete native CI matrix, published packages, authenticated AWS/Leyline
 traffic, and consumer migrations remain separate proof requirements. The PR's

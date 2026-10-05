@@ -795,8 +795,9 @@ final class ClientRuntime {
       Duration maximum=options.maxDelay()==null ? Duration.ofSeconds(waiter.get("maxDelay").getAsLong()) : options.maxDelay();
       if (options.timeout()==null || options.timeout().isNegative() || options.timeout().isZero() || minimum.isNegative() || maximum.compareTo(minimum)<0) throw new IllegalArgumentException("Invalid waiter timeout or delay bounds");
       long timeout=options.timeout().toNanos(), low=minimum.toNanos(), high=maximum.toNanos();
-      var values=inputValues(op,input);
       var stream=requestStream(op,input);
+      requireReplayable(stream,"waiter");
+      var values=inputValues(op,input);
       var queryInput=queryValue(text(op,"input"),encode(text(op,"input"),input,null),null);
       var result=new Call<T>();
       class Poll implements Runnable {
@@ -913,6 +914,13 @@ final class ClientRuntime {
 
   private static void closeOneShot(ByteStream stream) {
     if (stream != null && !stream.replayable()) stream.close();
+  }
+
+  private static void requireReplayable(ByteStream stream, String action) {
+    if (stream != null && !stream.replayable()) {
+      closeOneShot(stream);
+      throw new IllegalArgumentException(action + " streaming input must be replayable");
+    }
   }
 
   private <T> CompletableFuture<T> callValues(String name, JsonObject values, ByteStream stream, Class<T> output) {
@@ -1385,8 +1393,9 @@ final class ClientRuntime {
 
   <T> Flow.Publisher<T> pagesAsync(String name, Object input, Class<T> output) {
     JsonObject op = schema.getAsJsonObject("operations").getAsJsonObject(name);
-    JsonObject snapshot = inputValues(op, input);
     ByteStream stream = requestStream(op, input);
+    requireReplayable(stream,"pagination");
+    JsonObject snapshot = inputValues(op, input);
     return subscriber -> {
       java.util.Objects.requireNonNull(subscriber, "subscriber");
       new PageSubscription<T>(subscriber, name, output, op, snapshot.deepCopy(), stream).start();
@@ -1496,9 +1505,9 @@ final class ClientRuntime {
   <T> Iterator<T> pages(String name, Object input, Class<T> output) {
     JsonObject op = schema.getAsJsonObject("operations").getAsJsonObject(name),
         pagination = op.getAsJsonObject("pagination");
-    JsonObject values =
-        inputValues(op, input);
     ByteStream stream = requestStream(op, input);
+    requireReplayable(stream,"pagination");
+    JsonObject values = inputValues(op, input);
     String key = text(pagination, "input");
     Set<String> seen = new HashSet<>();
     if (values.has(key) && !values.get(key).isJsonNull()) seen.add(values.get(key).getAsString());

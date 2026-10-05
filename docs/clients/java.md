@@ -84,8 +84,9 @@ restXml's unwrapped `<Error>` (`noErrorWrapping`, as S3 sends), or ec2Query's
 error message, and `RequestId`/`RequestID` is the request ID unless an
 `x-amzn-requestid` or `x-amz-request-id` header supplies one. A success
 response's request ID is not exposed. The parser accepts no document type
-declaration, so no external entity or entity expansion is ever processed;
-nesting is limited to 256 elements, and malformed XML fails the call.
+declaration, preventing DTD-defined entity expansion. Predefined references
+such as `&amp;` remain part of normal XML parsing. Nesting is limited to 256
+elements, and malformed XML fails the call.
 A restXml body with text XML 1.0 cannot carry (most control characters) is
 rejected before sending. Sparse collections are refused for these protocols at
 generation time, because XML has no null element; document shapes and raw restXml error payloads are refused as

@@ -300,6 +300,43 @@ public final class StreamingTest {
     }
   }
 
+  static void repeatedCallInputs(ClientConfig config) throws Exception {
+    com.google.gson.JsonObject schema;
+    try (var resource = StreamingTest.class.getResourceAsStream("schema.json")) {
+      schema = com.google.gson.JsonParser.parseString(new String(resource.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+    }
+    var op = schema.getAsJsonObject("operations").getAsJsonObject("Upload");
+    op.add("waiters", com.google.gson.JsonParser.parseString(
+        "{\"Ready\":{\"minDelay\":0,\"maxDelay\":0,\"acceptors\":[{\"state\":\"success\",\"matcher\":{\"kind\":\"success\",\"expected\":true}}]}}"));
+    op.add("pagination", com.google.gson.JsonParser.parseString("{\"input\":\"cursor\",\"output\":[]}"));
+    var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes(), schema);
+    var options = new WaiterOptions(Duration.ofSeconds(5), Duration.ZERO, Duration.ZERO);
+    attempts.set(0);
+    var waiter = new PendingSource(false);
+    fails(IllegalArgumentException.class, "replayable", () -> runtime.waitUntil("Upload", "Ready",
+        UploadInput.builder().body(waiter.stream).build(), Unit.class, options).get(5, TimeUnit.SECONDS));
+    waiter.checkReleased("waiter rejects and closes an unread one-shot input exactly once");
+    var pages = new PendingSource(false);
+    fails(IllegalArgumentException.class, "replayable", () -> runtime.pages("Upload",
+        UploadInput.builder().body(pages.stream).build(), Unit.class));
+    pages.checkReleased("iterator creation rejects and closes an unread one-shot input exactly once");
+    var asyncPages = new PendingSource(false);
+    fails(IllegalArgumentException.class, "replayable", () -> runtime.pagesAsync("Upload",
+        UploadInput.builder().body(asyncPages.stream).build(), Unit.class));
+    asyncPages.checkReleased("publisher creation rejects and closes an unread one-shot input exactly once");
+    check(attempts.get() == 0, "one-shot waiter and pagination rejection sends no HTTP requests");
+
+    var replay = new PendingSource(true);
+    var input = UploadInput.builder().body(replay.stream).build();
+    check(runtime.pages("Upload", input, Unit.class).hasNext(), "replayable pagination accepted");
+    check(runtime.pagesAsync("Upload", input, Unit.class) != null, "replayable asynchronous pagination accepted");
+    replay.checkReleased("pagination creation leaves replay factories lazy");
+    check(attempts.get() == 0, "replayable pagination is lazy");
+    runtime.waitUntil("Upload", "Ready", input, Unit.class, options).get(5, TimeUnit.SECONDS);
+    check(attempts.get() == 1 && replay.opens.get() == 1 && replay.closes.get() == 1,
+        "replayable waiter opens and closes its factory for the dispatched call");
+  }
+
   static void unopenedCallOwnership(ClientConfig original) throws Exception {
     attempts.set(0);
     for (boolean replayable : new boolean[]{false, true}) {
@@ -452,6 +489,7 @@ public final class StreamingTest {
       config.checksumValidated = (operation, algorithm) -> validated.add(operation + ":" + algorithm);
       var client = new StreamingClient(config);
       unopenedCallOwnership(config);
+      repeatedCallInputs(config);
 
       // One-shot bodies are sent once, even for an idempotent operation that could be retried.
       mode.set("503"); attempts.set(0);
