@@ -221,6 +221,15 @@ impl Lowerer<'_> {
                     string(&shape.traits[scheme], "name")
                         .map(|signing_name| AuthScheme::SigV4 { signing_name })
                 }
+                ("smithy.api", "httpDigestAuth") => {
+                    self.require(id, Feature::DigestAuth, scheme.clone());
+                    Ok(AuthScheme::Digest)
+                }
+                ("aws.auth", "sigv4a") => {
+                    self.require(id, Feature::SigV4a, scheme.clone());
+                    string(&shape.traits[scheme], "name")
+                        .map(|signing_name| AuthScheme::SigV4a { signing_name })
+                }
                 _ => Err(format!("auth scheme {scheme} is not supported")),
             };
             match parsed {

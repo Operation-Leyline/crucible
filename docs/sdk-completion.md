@@ -28,6 +28,11 @@ Python implements retry modes, endpoint discovery (declares
 `endpoint-discovery`) and telemetry and passes the vectors; no other runtime
 does yet. Credential chains and caching are tracked per language guide.
 
+Status: Smithy RPC v2 CBOR and JSON, HTTP Digest, and SigV4a are lowered in
+`crucible-smithy` (official Smithy RPC v2 protocol tests as fixtures) and
+implemented in PHP, which runs those vectors, RFC 7616 and AWS SigV4a vectors,
+and a verifying loopback server. Other targets do not declare them yet.
+
 ## Integration rules
 
 Semantics are resolved in `crucible-smithy`; emitters never inspect the AST.

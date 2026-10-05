@@ -174,6 +174,10 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsJson11,
         Feature::HttpChecksum,
         Feature::Streaming,
+        Feature::SmithyRpcV2Cbor,
+        Feature::SmithyRpcV2Json,
+        Feature::DigestAuth,
+        Feature::SigV4a,
     ])
 }
 
@@ -185,10 +189,20 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     let schema =
         serde_json::to_string(&crucible_codegen_common::schema(service, field)).expect("schema");
+    let mut require =
+        serde_json::json!({"php":">=8.3 <9", "php-64bit":"*", "ext-curl":"*", "ext-json":"*"});
+    // SigV4a derives and uses an ECDSA P-256 key through the openssl extension.
+    if service
+        .auth_schemes
+        .values()
+        .any(|scheme| matches!(scheme, crucible_smithy::ir::AuthScheme::SigV4a { .. }))
+    {
+        require["ext-openssl"] = serde_json::json!("*");
+    }
     let manifest = serde_json::to_string_pretty(&serde_json::json!({
         "name":options.package_name, "version":options.package_version, "type":"library",
         "description":format!("Generated {} client", service.name_of(&service.id)),
-        "require":{"php":">=8.3 <9", "php-64bit":"*", "ext-curl":"*", "ext-json":"*"},
+        "require":require,
         "autoload":{"psr-4":{format!("{}\\",options.namespace):"src/"}}
     }))
     .expect("manifest");
@@ -229,6 +243,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/CachedCredentials.php"),
         ),
         ("Credentials", include_str!("../runtime/Credentials.php")),
+        (
+            "DigestAuthentication",
+            include_str!("../runtime/DigestAuthentication.php"),
+        ),
         ("CallScope", include_str!("../runtime/CallScope.php")),
         (
             "CancellationToken",
@@ -245,6 +263,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/ChecksumHasher.php"),
         ),
         ("ByteStream", include_str!("../runtime/ByteStream.php")),
+        ("Cbor", include_str!("../runtime/Cbor.php")),
+        ("CborBytes", include_str!("../runtime/CborBytes.php")),
+        ("CborTag", include_str!("../runtime/CborTag.php")),
         ("StreamBody", include_str!("../runtime/StreamBody.php")),
         (
             "StreamException",

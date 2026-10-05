@@ -416,6 +416,55 @@ mod tests {
     }
 
     #[test]
+    fn rpc_v2_and_extended_auth_schemes_reach_the_runtime_schema() {
+        use crucible_smithy::{Capabilities, Feature, Model};
+        let all = Capabilities::new(Feature::ALL.iter().copied());
+        let service = Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/rpc-auth.json"
+        ))
+        .unwrap()
+        .lower_with_capabilities(None, &all)
+        .unwrap();
+        let schema = super::schema(&service, str::to_owned);
+        assert_eq!(schema["protocol"], "rpcv2Cbor");
+        assert_eq!(
+            schema["operations"]["Put"]["uri"],
+            "/service/Vault/operation/Put"
+        );
+        assert_eq!(
+            schema["authSchemes"]["smithy.api#httpDigestAuth"],
+            serde_json::json!({"kind":"digest"})
+        );
+        assert_eq!(
+            schema["authSchemes"]["aws.auth#sigv4a"],
+            serde_json::json!({"kind":"sigV4a","signingName":"vault"})
+        );
+        assert_eq!(
+            schema["shapes"]["smithy.api#Timestamp"]["format"],
+            "epoch-seconds"
+        );
+        // Only RPC v2 JSON carries arbitrary-precision numbers as strings.
+        assert!(
+            schema["protocolSettings"]
+                .get("arbitraryPrecisionStrings")
+                .is_none()
+        );
+        let json = Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/rpcv2-json.json"
+        ))
+        .unwrap()
+        .lower_with_capabilities(None, &all)
+        .unwrap();
+        let schema = super::schema(&json, str::to_owned);
+        assert_eq!(schema["protocol"], "rpcv2Json");
+        assert_eq!(
+            schema["protocolSettings"]["arbitraryPrecisionStrings"],
+            true
+        );
+        assert_eq!(schema["protocolTests"].as_array().map(Vec::len), Some(82));
+    }
+
+    #[test]
     fn runtime_schema_preserves_effective_client_semantics() {
         let service = crucible_smithy::Model::from_json(include_str!(
             "../../crucible-smithy/tests/fixtures/review-hardening.json"

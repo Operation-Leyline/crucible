@@ -17,7 +17,13 @@ pub enum AuthScheme {
         location: ApiKeyLocation,
         scheme: Option<String>,
     },
+    /// RFC 7616 HTTP Digest: credentials answer a `401` challenge.
+    Digest,
     SigV4 {
+        signing_name: String,
+    },
+    /// AWS Signature Version 4a: ECDSA P-256 over a region set.
+    SigV4a {
         signing_name: String,
     },
 }

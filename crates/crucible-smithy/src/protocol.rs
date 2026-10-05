@@ -11,6 +11,9 @@ pub struct ProtocolSettings {
     pub omit_null_structure_members: bool,
     pub ignore_unknown_union_type: bool,
     pub non_finite_float_strings: bool,
+    /// `bigInteger` and `bigDecimal` travel as JSON strings (RPC v2 JSON).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub arbitrary_precision_strings: bool,
 }
 
 impl Default for ProtocolSettings {
@@ -22,6 +25,7 @@ impl Default for ProtocolSettings {
             omit_null_structure_members: false,
             ignore_unknown_union_type: false,
             non_finite_float_strings: false,
+            arbitrary_precision_strings: false,
         }
     }
 }
@@ -43,6 +47,10 @@ pub enum Protocol {
     AwsQuery,
     #[serde(rename = "ec2Query")]
     Ec2Query,
+    #[serde(rename = "rpcv2Cbor")]
+    SmithyRpcV2Cbor,
+    #[serde(rename = "rpcv2Json")]
+    SmithyRpcV2Json,
 }
 
 impl Protocol {
@@ -54,6 +62,8 @@ impl Protocol {
         Self::AwsRestXml,
         Self::AwsQuery,
         Self::Ec2Query,
+        Self::SmithyRpcV2Cbor,
+        Self::SmithyRpcV2Json,
     ];
 
     pub fn trait_id(self) -> ShapeId {
@@ -65,6 +75,8 @@ impl Protocol {
             Self::AwsRestXml => ("aws.protocols", "restXml"),
             Self::AwsQuery => ("aws.protocols", "awsQuery"),
             Self::Ec2Query => ("aws.protocols", "ec2Query"),
+            Self::SmithyRpcV2Cbor => ("smithy.protocols", "rpcv2Cbor"),
+            Self::SmithyRpcV2Json => ("smithy.protocols", "rpcv2Json"),
         };
         ShapeId::new(namespace, name)
     }
@@ -78,6 +90,8 @@ impl Protocol {
             Self::AwsRestXml => Some(Feature::AwsRestXml),
             Self::AwsQuery => Some(Feature::AwsQuery),
             Self::Ec2Query => Some(Feature::Ec2Query),
+            Self::SmithyRpcV2Cbor => Some(Feature::SmithyRpcV2Cbor),
+            Self::SmithyRpcV2Json => Some(Feature::SmithyRpcV2Json),
         }
     }
 
@@ -86,6 +100,18 @@ impl Protocol {
             self,
             Self::CrucibleJson | Self::AwsRestJson1 | Self::AwsRestXml
         )
+    }
+
+    /// Smithy RPC v2 (CBOR or JSON): `POST /service/{Service}/operation/{Operation}`
+    /// with a `Smithy-Protocol` header, epoch-second timestamps that ignore
+    /// `@timestampFormat`, and errors identified only by the body's `__type`.
+    pub fn is_rpc_v2(self) -> bool {
+        matches!(self, Self::SmithyRpcV2Cbor | Self::SmithyRpcV2Json)
+    }
+
+    /// Whether `@timestampFormat` customizes this protocol's timestamps.
+    pub fn respects_timestamp_format(self) -> bool {
+        !self.is_rpc_v2()
     }
 
     pub fn uses_json_names(self) -> bool {
@@ -111,7 +137,11 @@ impl Protocol {
             return TimestampFormat::HttpDate;
         }
         match self {
-            Self::AwsRestJson1 | Self::AwsJson10 | Self::AwsJson11 => TimestampFormat::EpochSeconds,
+            Self::AwsRestJson1
+            | Self::AwsJson10
+            | Self::AwsJson11
+            | Self::SmithyRpcV2Cbor
+            | Self::SmithyRpcV2Json => TimestampFormat::EpochSeconds,
             _ => TimestampFormat::DateTime,
         }
     }
