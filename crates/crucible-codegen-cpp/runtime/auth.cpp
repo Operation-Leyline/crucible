@@ -12,6 +12,7 @@
 #include <mutex>
 #include <ostream>
 #include <set>
+#include <utility>
 
 namespace crucible_generated::runtime {
 namespace {
@@ -202,14 +203,15 @@ void sign_v4(HttpRequest& request, const AwsCredentials& credentials, const Sign
         }
         uri = std::move(encoded);
     }
-    std::vector<std::string> query;
+    std::vector<std::pair<std::string, std::string>> query;
     std::size_t start = 0;
     while (start < url.query.size()) {
         const auto end = url.query.find('&', start);
         const auto pair = url.query.substr(start, end == std::string::npos ? std::string::npos : end - start);
         if (!pair.empty()) {
             const auto equals = pair.find('=');
-            query.push_back(uri_encode(uri_decode(pair.substr(0, equals))) + "=" + (equals == std::string::npos ? std::string{} : uri_encode(uri_decode(pair.substr(equals + 1)))));
+            query.emplace_back(uri_encode(uri_decode(pair.substr(0, equals))),
+                equals == std::string::npos ? std::string{} : uri_encode(uri_decode(pair.substr(equals + 1))));
         }
         if (end == std::string::npos) break;
         start = end + 1;
@@ -241,7 +243,7 @@ void sign_v4(HttpRequest& request, const AwsCredentials& credentials, const Sign
         if (!signed_headers.empty()) signed_headers += ';';
         signed_headers += name;
     }
-    for (const auto& item : query) { if (!query_text.empty()) query_text += '&'; query_text += item; }
+    for (const auto& [key, value] : query) { if (!query_text.empty()) query_text += '&'; query_text += key + "=" + value; }
     const auto canonical = request.method + "\n" + uri + "\n" + query_text + "\n" + header_text + "\n" + signed_headers + "\n" + digest;
     const auto date = timestamp(now, true);
     const auto scope = date + "/" + options.region + "/" + options.service + "/aws4_request";

@@ -66,6 +66,12 @@ static void published_vector(void) {
     size_t authorizations = 0;
     for (size_t i = 0; i < request.headers.count; ++i) if (auth_header_get((auth_headers){&request.headers.items[i], 1}, VIEW("authorization"), NULL)) ++authorizations;
     check(authorizations == 1, "one authorization header");
+    /* Independent SHA-256/HMAC vector: escaped keys sort before their values.
+       Canonical query: a=&a=&a=%2F&a=aa&a=z&a-=b&a-=z. */
+    request.url = VIEW("https://examplebucket.s3.amazonaws.com/test.txt?a-=z&a=z&a=aa&a&a=&a-=b&%61=%2F");
+    good(auth_sigv4_sign(arena, &request, &credentials, &options, &error), &error, "sign prefix query");
+    check(auth_header_get(request.headers, VIEW("authorization"), &value), "query authorization header");
+    check(equal(value, "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=a08d64c4c7bf9729f2b51c2a7e248447c77bf5f32413c0271397bd48b353860e"), "SigV4 query keys, duplicate values and escaping");
     credentials.expires = true; credentials.expires_at = 1369353600;
     check(auth_sigv4_sign(arena, &request, &credentials, &options, &error) == auth_invalid && message_contains(&error, "expired"), "expired identity rejected");
     credentials.expires = false; options.region = VIEW("");

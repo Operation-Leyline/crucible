@@ -49,7 +49,23 @@ static class Program
         handler.Mode = "pending";
         try { await client.WaitUntilReadyAsync(input,TimeSpan.FromMilliseconds(100)); throw new Exception("deadline ignored"); }
         catch (WaiterTimeoutException error) { Check(error.Attempts >= 1,"timeout retains attempts"); }
+
+        var attemptHandler = new Handler { Mode = "blocked" };
+        using var attemptHttp = new HttpClient(attemptHandler);
+        using var attemptClient = new JobsClient(new() { Endpoint = "https://example.test", HttpClient = attemptHttp,
+            MaxAttempts = 1, Timeout = TimeSpan.FromMilliseconds(100) });
+        try { await attemptClient.WaitUntilReadyAsync(input,timeout,options); throw new Exception("operation timeout ignored"); }
+        catch (WaiterTimeoutException) { throw new Exception("operation timeout reported as the waiter deadline"); }
+        catch (WaiterException error) {
+            Check(error.Attempts == 1 && attemptHandler.Calls == 1 && error.InnerException is OperationCanceledException,
+                "operation timeout reaches acceptor matching as the attempt error");
+        }
+
         handler.Mode = "blocked";
+        int beforeDeadline = handler.Calls;
+        try { await client.WaitUntilReadyAsync(input,TimeSpan.FromMilliseconds(100),options); throw new Exception("blocked waiter deadline ignored"); }
+        catch (WaiterTimeoutException error) { Check(error.Attempts == 1 && handler.Calls == beforeDeadline + 1,"waiter deadline remains a timeout"); }
+        handler.Entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancelled = new CancellationTokenSource();
         var pending = client.WaitUntilReadyAsync(input,timeout,options,cancelled.Token);
         await handler.Entered.Task.WaitAsync(timeout); int before = handler.Calls; cancelled.Cancel();

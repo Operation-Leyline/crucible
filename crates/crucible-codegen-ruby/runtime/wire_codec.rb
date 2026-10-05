@@ -52,10 +52,26 @@ module CrucibleGenerated
         end
         left == right
       end
+      def canonical(value)
+        case value
+        when JsonNumber, ::Numeric
+          decimal = ::Kernel.BigDecimal(number(value).text)
+          # BigDecimal considers signed zeros equal but gives them different hashes.
+          [:number, decimal.zero? ? ::Kernel.BigDecimal('0') : decimal]
+        when ::Array then [:array, value.map { |item| canonical(item) }]
+        when ::Hash then [:hash, value.to_h { |key, item| [key, canonical(item)] }]
+        else [:scalar, value]
+        end
+      end
       def collection(values, shape)
         raise ::ArgumentError, 'Null in dense list' if !shape['sparse'] && values.any?(&:nil?)
         if shape['set']
-          values.each_with_index { |value, index| raise ::ArgumentError, 'Duplicate set member' if values.take(index).any? { |other| equivalent(value, other) } }
+          seen = {}
+          values.each do |value|
+            key = canonical(value)
+            raise ::ArgumentError, 'Duplicate set member' if seen.key?(key)
+            seen[key] = true
+          end
         end
         values
       end

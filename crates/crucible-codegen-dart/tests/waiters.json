@@ -10,6 +10,8 @@
      {"state":"failure","matcher":{"output":{"path":"status","comparator":"stringEquals","expected":"FAILED"}},"message":"reasons"},
      {"state":"retry","matcher":{"errorType":"example.wait#Missing"}}
     ]},
+    "Deleted":{"acceptors":[{"state":"success","matcher":{"errorType":"example.wait#Missing"}}]},
+    "FailedRequest":{"acceptors":[{"state":"success","matcher":{"success":false}}]},
     "AllReady":{"acceptors":[{"state":"success","matcher":{"output":{"path":"items[].status","comparator":"allStringEquals","expected":"READY"}}}]},
     "AnyReady":{"acceptors":[{"state":"success","matcher":{"output":{"path":"items[].status","comparator":"anyStringEquals","expected":"READY"}}}]},
     "FilteredReady":{"acceptors":[{"state":"success","matcher":{"output":{"path":"length(items[?status == 'READY']) == length(items) && length(items) > `0`","comparator":"booleanEquals","expected":"true"}}}]},

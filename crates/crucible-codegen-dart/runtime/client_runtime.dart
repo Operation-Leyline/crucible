@@ -168,7 +168,7 @@ final class ClientRuntime {
 
   /// Polls until a modeled acceptor reaches a terminal state. One deadline
   /// covers every attempt and delay; each attempt also keeps its own timeout.
-  Future<T> wait<T>(String name, String waiter, WireModel input,
+  Future<T?> wait<T>(String name, String waiter, WireModel input,
       {required Duration timeout, Duration? minDelay, Duration? maxDelay, CancellationToken? cancellation}) async {
     final op = _operation(name);
     final description = wireObject(wireObject(op['waiters'])[waiter]);
@@ -212,7 +212,7 @@ final class ClientRuntime {
         } on FormatException catch (caught) {
           throw WaiterException(waiter, attempts, response: output, error: caught);
         }
-        if (state == 'success') return output as T;
+        if (state == 'success') return output;
         if (state == 'failure') throw WaiterException(waiter, attempts, response: output, error: error, message: message);
         try {
           await scope.sleep(waiterDelay(attempts, scope.remaining, minimum, maximum));

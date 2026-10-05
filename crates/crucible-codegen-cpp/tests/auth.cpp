@@ -30,6 +30,11 @@ void published_signing_vector() {
     check(authorization == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41", "published SigV4 vector: " + authorization);
     check(request.headers.at("x-amz-date") == "20130524T000000Z", "SigV4 date header");
     check(request.headers.at("x-amz-content-sha256") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "SigV4 payload digest");
+    // Independent SHA-256/HMAC vector with prefix keys and repeated escaped values.
+    // Canonical query: a=&a=&a=%2F&a=aa&a=z&a-=b&a-=z.
+    rt::HttpRequest prefix_query{"https://examplebucket.s3.amazonaws.com/test.txt?a-=z&a=z&a=aa&a&a=&a-=b&%61=%2F", "GET", {{"Range", "bytes=0-9"}}, std::nullopt};
+    rt::sign_v4(prefix_query, identity, options);
+    check(prefix_query.headers.at("authorization") == "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=a08d64c4c7bf9729f2b51c2a7e248447c77bf5f32413c0271397bd48b353860e", "SigV4 query keys, duplicate values and escaping");
     std::ostringstream printed;
     printed << identity << rt::BasicCredentials{"user", "password"};
     check(printed.str().find(identity.secret_access_key) == std::string::npos && printed.str().find("password") == std::string::npos, "identities print redacted");

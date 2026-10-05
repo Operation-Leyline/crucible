@@ -1,6 +1,6 @@
 # Python clients
 
-[All clients](../clients.md) Â· [Repository overview](../../README.md)
+[All clients](../clients.md) · [Repository overview](../../README.md)
 
 Generate a typed Python 3.11+ package from a prepared Smithy JSON AST:
 

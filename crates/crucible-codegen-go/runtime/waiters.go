@@ -28,6 +28,10 @@ func (c *clientRuntime) queryModel(target string, value any, format string) (any
     case "blob": if data,ok := value.([]byte); ok { return base64.StdEncoding.EncodeToString(data),nil }; return value,nil
     case "timestamp":
         if format == "" { format = shape.Format }; parsed,err := readTime(value,format); if err != nil { return nil,err }; return writeTime(parsed,"epoch-seconds"),nil
+    case "byte","short","integer","long","intEnum","float","double":
+        switch value.(type) { case json.Number,string: return value,nil }
+        data,err := json.Marshal(value); if err != nil { return nil,err }
+        return json.Number(data),nil
     case "structure","union":
         object,ok := value.(map[string]any); if !ok { return nil,errors.New("query model requires object") }; result := map[string]any{}
         for name,member := range shape.Members { if item,present := object[shape.wireName(name)]; present { next,err := c.queryModel(member.Target,item,member.Format); if err != nil { return nil,err }; result[name] = next } }; return result,nil

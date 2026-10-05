@@ -315,7 +315,7 @@ fn client_behaviors_generate_waiters_and_bundle_feature_runtimes() {
         .unwrap()
         .contents;
     assert!(client.contains(
-        "Future<models.Output> waitUntilReady(models.Input input, {required Duration timeout"
+        "Future<models.Output?> waitUntilReady(models.Input input, {required Duration timeout"
     ));
     for runtime in ["auth", "checksums", "endpoints", "query", "waiters"] {
         let path = format!("lib/src/runtime/{runtime}.dart");

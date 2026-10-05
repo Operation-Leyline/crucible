@@ -159,8 +159,9 @@ valid host name, or the call raises `EndpointException`. Set
 ## Waiters
 
 Each modeled waiter generates `waitUntil<Name>(input, timeout: ...)`, which
-returns the successful output. Acceptors are evaluated in order over the
-input and output by member name, with timestamps as epoch seconds and exact
+returns the successful output, or `null` when an error acceptor succeeds.
+The generated return type is `Future<Output?>`. Acceptors are evaluated in
+order over the input and output by member name, with timestamps as epoch seconds and exact
 numbers. Delays grow exponentially from the modeled `minDelay` to `maxDelay`
 with jitter, and are clipped to the deadline; `minDelay` and `maxDelay` may be
 overridden. One `timeout` covers every attempt and delay, and each attempt

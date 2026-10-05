@@ -59,7 +59,8 @@ internal sealed partial class ClientRuntime
             {
                 deadline.Token.ThrowIfCancellationRequested(); attempts++; error = null;
                 try { response = await TracedAsync(operation,trace => SendAsync<T>(Prepare(operation,(JsonObject)encoded.DeepClone(),stream),trace,null,deadline.Token)).ConfigureAwait(false); }
-                catch (Exception failure) when (failure is not OperationCanceledException) { response = default; error = failure; }
+                // An operation timeout is an attempt error; only the linked waiter cancellation ends the wait.
+                catch (Exception failure) when (failure is not OperationCanceledException || !deadline.IsCancellationRequested) { response = default; error = failure; }
                 var output = error is null ? QueryModel(Text(op["output"]),Encode(Text(op["output"]),response)) : null;
                 string state = error is null ? "retry" : "failure"; string? message = null;
                 foreach (var acceptor in waiter["acceptors"]!.AsArray())

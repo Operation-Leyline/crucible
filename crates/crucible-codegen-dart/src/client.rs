@@ -49,7 +49,7 @@ pub fn emit(service: &Service, options: &Options) -> String {
                     "models.{input} input, {{required Duration timeout, Duration? minDelay, Duration? maxDelay, CancellationToken? cancellation}}"
                 )
             };
-            out.push_str(&format!("  Future<models.{output}> waitUntil{}({params}) => _runtime.wait({}, {}, {input_expr}, timeout: timeout, minDelay: minDelay, maxDelay: maxDelay, cancellation: cancellation);\n", super::models::variant(waiter), literal(op.name()), literal(waiter)));
+            out.push_str(&format!("  Future<models.{output}?> waitUntil{}({params}) => _runtime.wait({}, {}, {input_expr}, timeout: timeout, minDelay: minDelay, maxDelay: maxDelay, cancellation: cancellation);\n", super::models::variant(waiter), literal(op.name()), literal(waiter)));
         }
         if op.paginated.is_some() {
             out.push_str(&format!("  Stream<models.{output}> {name}Pages(models.{input} input, {{CancellationToken? cancellation}}) => _runtime.pages({}, input, cancellation: cancellation);\n", literal(op.name())));

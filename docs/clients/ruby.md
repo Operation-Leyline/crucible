@@ -129,7 +129,8 @@ suffix removed. `X-Amzn-RequestId` becomes `metadata.request_id`.
 `aws.protocols#restXml`, `aws.protocols#awsQuery`, and `aws.protocols#ec2Query`
 are generated the same way. XML is read with REXML (the gem declares `rexml`);
 the runtime refuses any document type declaration and any undeclared entity
-reference before using a value, so no entity is ever expanded.
+reference before using a value, preventing DTD-defined entity expansion.
+Predefined references such as `&amp;` remain part of normal XML parsing.
 Element and query names, flattening, attributes, and namespaces come from the
 lowered IR (`@xmlName`, `@xmlFlattened`, `@xmlAttribute`, `@xmlNamespace`,
 `aws.protocols#ec2QueryName`). restXml applies the HTTP bindings and writes the

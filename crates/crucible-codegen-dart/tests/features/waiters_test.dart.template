@@ -37,7 +37,7 @@ void main() {
   test('generated waiter uses member names and retries modeled error types', () async {
     final fake = Fake((attempt, request, _) => attempt == 1 ? json(404, {'__type': 'Missing'}) : json(200, {'wire-status': attempt >= 3 ? 'READY' : 'PENDING'}));
     final output = await client(fake).waitUntilReady(const Input(), timeout: const Duration(seconds: 5), minDelay: Duration.zero, maxDelay: Duration.zero);
-    expect(output.status, 'READY');
+    expect(output!.status, 'READY');
     expect(fake.requests, hasLength(3));
   });
 
@@ -48,8 +48,19 @@ void main() {
     });
     final output = await client(fake).waitUntilReady(const Input(), timeout: const Duration(milliseconds: 1500),
         minDelay: const Duration(seconds: 1), maxDelay: const Duration(seconds: 1));
-    expect(output.status, 'READY');
+    expect(output!.status, 'READY');
     expect(fake.requests, hasLength(2));
+  });
+
+  test('successful error acceptors return no output', () async {
+    final missing = Fake((_, __, ___) => json(404, {'__type': 'Missing'}));
+    final Output? deleted = await client(missing).waitUntilDeleted(const Input(), timeout: const Duration(seconds: 1));
+    expect(deleted, isNull);
+    expect(missing.requests, hasLength(1));
+    final denied = Fake((_, __, ___) => json(403, {'__type': 'Denied'}));
+    final Output? failed = await client(denied).waitUntilFailedRequest(const Input(), timeout: const Duration(seconds: 1));
+    expect(failed, isNull);
+    expect(denied.requests, hasLength(1));
   });
 
   test('projections, filters, input-output, timestamps and failure messages', () async {

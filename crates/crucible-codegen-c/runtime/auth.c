@@ -303,10 +303,15 @@ static int compare(string a, string b) {
     int order = shared ? memcmp(a.data, b.data, shared) : 0;
     return order ? order : (a.length < b.length ? -1 : a.length > b.length ? 1 : 0);
 }
-static void sort(string *items, size_t count) {
+typedef struct canonical_query_pair { string key, value; } canonical_query_pair;
+static int compare_query_pair(canonical_query_pair a, canonical_query_pair b) {
+    int order = compare(a.key, b.key);
+    return order ? order : compare(a.value, b.value);
+}
+static void sort_query_pairs(canonical_query_pair *items, size_t count) {
     for (size_t i = 1; i < count; ++i) {
-        string item = items[i]; size_t j = i;
-        while (j && compare(items[j - 1], item) > 0) { items[j] = items[j - 1]; --j; }
+        canonical_query_pair item = items[i]; size_t j = i;
+        while (j && compare_query_pair(items[j - 1], item) > 0) { items[j] = items[j - 1]; --j; }
         items[j] = item;
     }
 }
@@ -349,7 +354,7 @@ static status canonical_path(arena *storage, string path, bool normalize, bool d
 static status canonical_query(arena *storage, string query, string *out, error *issue) {
     size_t pairs = 1;
     for (size_t i = 0; i < query.length; ++i) if (query.data[i] == '&') ++pairs;
-    string *items = crucible_generated_arena_alloc(storage, pairs * sizeof(*items), issue);
+    canonical_query_pair *items = crucible_generated_arena_alloc(storage, pairs * sizeof(*items), issue);
     if (!items) return OOM;
     size_t count = 0, start = 0;
     for (size_t i = 0; i <= query.length; ++i) {
@@ -362,14 +367,15 @@ static status canonical_query(arena *storage, string query, string *out, error *
         string value = separator ? (string){separator + 1, pair.length - key.length - 1} : (string){"", 0};
         TRY(unescape(storage, key, &key, issue)); TRY(unescape(storage, value, &value, issue));
         TRY(crucible_generated_uri_escape(storage, key, &key, issue)); TRY(crucible_generated_uri_escape(storage, value, &value, issue));
-        string parts[] = {key, VIEW("="), value};
-        TRY(crucible_generated_concat(storage, parts, 3, &items[count++], issue));
+        items[count++] = (canonical_query_pair){key, value};
     }
-    sort(items, count);
+    sort_query_pairs(items, count);
     buffer result = {0}; status code = OK;
     for (size_t i = 0; !code && i < count; ++i) {
         if (i) code = append(&result, VIEW("&"), issue);
-        if (!code) code = append(&result, items[i], issue);
+        if (!code) code = append(&result, items[i].key, issue);
+        if (!code) code = append(&result, VIEW("="), issue);
+        if (!code) code = append(&result, items[i].value, issue);
     }
     if (!code) code = crucible_generated_arena_copy(storage, (string){result.data ? result.data : "", result.length}, out, issue);
     free(result.data); return code;

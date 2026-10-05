@@ -2,8 +2,10 @@ package jobs
 
 import (
     "context"
+    "encoding/json"
     "errors"
     "io"
+    "math"
     "net/http"
     "net/http/httptest"
     "strings"
@@ -11,6 +13,78 @@ import (
     "testing"
     "time"
 )
+
+func TestWaiterQueriesUseNativeModelNumbers(t *testing.T) {
+    type numericCode int32
+    cases := []struct { kind string; value,lower any; number,less string }{
+        {"byte",int8(4),int8(1),"4","1"},
+        {"short",int16(4),int16(1),"4","1"},
+        {"integer",int32(4),int32(1),"4","1"},
+        {"long",int64(9007199254740993),int64(9007199254740992),"9007199254740993","9007199254740992"},
+        {"intEnum",numericCode(4),numericCode(1),"4","1"},
+        {"float",float32(1.5),float32(0.25),"1.5","0.25"},
+        {"double",float64(2.5),float64(0.25),"2.5","0.25"},
+    }
+    field := func(name string) map[string]any { return map[string]any{"kind":"field","name":name} }
+    literal := func(number string) map[string]any { return map[string]any{"kind":"literal","value":json.Number(number)} }
+    compare := func(left map[string]any,comparator string,right map[string]any) map[string]any {
+        return map[string]any{"kind":"compare","left":left,"right":right,"comparator":comparator}
+    }
+    function := func(name string) map[string]any { return map[string]any{"kind":"function","function":name,"arguments":[]any{field("counts")}} }
+    for _,item := range cases {
+        t.Run(item.kind,func(t *testing.T) {
+            schema := &schemaDescription{Shapes:map[string]shapeDescription{
+                "number":{Kind:item.kind},
+                "numbers":{Kind:"list",Member:memberDescription{Target:"number"}},
+                "model":{Kind:"structure",Members:map[string]memberDescription{
+                    "count":{Target:"number",Attribute:"Count",JSONName:"wire-count"},
+                    "counts":{Target:"numbers",Attribute:"Counts"},
+                }},
+            }}
+            model := struct { Count any; Counts []any }{item.value,[]any{item.value,item.lower}}
+            encoded,err := encodeModel(schema,"model",model); if err != nil { t.Fatal(err) }
+            runtime := &clientRuntime{schema:schema}
+            queried,err := runtime.queryModel("model",encoded,""); if err != nil { t.Fatal(err) }
+            checks := map[string]map[string]any{
+                "equality":compare(field("count"),"equal",literal(item.number)),
+                "ordering":compare(field("count"),"greaterThan",literal(item.less)),
+                "minimum":compare(function("min"),"equal",literal(item.less)),
+                "maximum":compare(function("max"),"equal",literal(item.number)),
+                "sort":compare(map[string]any{"kind":"subexpression","left":function("sort"),"right":map[string]any{"kind":"index","index":json.Number("0")}},"equal",literal(item.less)),
+            }
+            for name,expression := range checks {
+                for _,kind := range []string{"output","inputOutput"} {
+                    path := expression
+                    if kind == "inputOutput" { path = map[string]any{"kind":"subexpression","left":field("input"),"right":expression} }
+                    description := map[string]any{"acceptors":[]any{map[string]any{"state":"success","matcher":map[string]any{
+                        "kind":kind,"comparator":"booleanEquals","expected":"true","path":map[string]any{"expression":path},
+                    }}}}
+                    state,_,err := waiterState(description,queried,queried,nil)
+                    if err != nil || state != "success" { t.Errorf("%s %s: state=%s error=%v",kind,name,state,err) }
+                }
+            }
+        })
+    }
+}
+
+func TestWaiterQueryPreservesWireNumbersAndRejectsNonFiniteNativeNumbers(t *testing.T) {
+    runtime := &clientRuntime{schema:&schemaDescription{Shapes:map[string]shapeDescription{
+        "double":{Kind:"double"},
+        "bigDecimal":{Kind:"bigDecimal"},
+    }}}
+    for _,value := range []any{json.Number("9007199254740993.0000000001"),"NaN","Infinity","-Infinity"} {
+        queried,err := runtime.queryModel("double",value,"")
+        if err != nil || queried != value { t.Fatal(queried,err) }
+    }
+    exact := json.Number("12345678901234567890.0000000001")
+    queried,err := runtime.queryModel("bigDecimal",exact,"")
+    if err != nil || queried != exact { t.Fatal(queried,err) }
+    for _,value := range []float64{math.NaN(),math.Inf(1),math.Inf(-1)} {
+        _,err := runtime.queryModel("double",value,"")
+        var unsupported *json.UnsupportedValueError
+        if !errors.As(err,&unsupported) { t.Fatalf("nonfinite native number: %v",err) }
+    }
+}
 
 func TestWaiterLeavesTimeForFinalHTTPPoll(t *testing.T) {
     var calls atomic.Int32
