@@ -1,4 +1,4 @@
-"""R curl regressions for opaque path labels and HEAD response framing."""
+"""R curl regressions for rejected dot labels and HEAD response framing."""
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import threading
@@ -33,7 +33,7 @@ def edge_fixture():
     thread.start()
     try:
         yield f"http://127.0.0.1:{server.server_port}"
-        assert requests == [("GET", "/cities/.."), ("HEAD", "/ping")], requests
+        assert requests == [("HEAD", "/ping")], requests
     finally:
         server.shutdown()
         server.server_close()
