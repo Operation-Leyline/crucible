@@ -17,6 +17,12 @@ use futures_util::stream;
 use serde_json::Value;
 use weather_service::contract;
 
+#[test]
+fn job_remains_send() {
+    fn assert_send<T: Send>() {}
+    assert_send::<Job>();
+}
+
 static INFO: OperationInfo = OperationInfo {
     id: "lifecycle#Probe",
     name: "Probe",

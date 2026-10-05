@@ -298,8 +298,8 @@ mod lambda_event {
                 response.cookies = headers
                     .get_all(SET_COOKIE)
                     .iter()
-                    .map(|value| value.to_str().unwrap_or_default().to_owned())
-                    .collect();
+                    .map(|value| std::str::from_utf8(value.as_bytes()).map(str::to_owned))
+                    .collect::<Result<Vec<_>, _>>()?;
                 headers.remove(SET_COOKIE);
                 // HTTP API v2 has one string per header name. Joining bytes
                 // preserves valid non-ASCII values that HeaderValue::to_str rejects.

@@ -235,7 +235,11 @@ fn http_v2_event() -> Value {
 #[tokio::test]
 async fn http_and_lambda_v2_preserve_cookies_and_repeated_headers_for_normal_and_answered_responses()
  {
-    let expected = ["session=a; Path=/", "csrf=b; Path=/"];
+    let expected = [
+        "session=a; Path=/",
+        "csrf=b; Path=/",
+        "label=present; Path=/café",
+    ];
     for job_headers in [true, false] {
         let service = weather_service::builder(Arc::new(weather_service::MemoryCities::default()))
             .handler(before_fn(move |job| {
@@ -246,7 +250,10 @@ async fn http_and_lambda_v2_preserve_cookies_and_repeated_headers_for_normal_and
                     response.headers_mut()
                 };
                 for cookie in expected {
-                    headers.append(SET_COOKIE, HeaderValue::from_static(cookie));
+                    headers.append(
+                        SET_COOKIE,
+                        HeaderValue::from_bytes(cookie.as_bytes()).unwrap(),
+                    );
                 }
                 headers.append("x-values", HeaderValue::from_static("first"));
                 headers.append(
@@ -271,7 +278,7 @@ async fn http_and_lambda_v2_preserve_cookies_and_repeated_headers_for_normal_and
             .headers()
             .get_all(SET_COOKIE)
             .iter()
-            .map(|value| value.to_str().unwrap())
+            .map(|value| std::str::from_utf8(value.as_bytes()).unwrap())
             .collect();
         assert_eq!(cookies, expected);
         let values: Vec<_> = response
@@ -291,6 +298,30 @@ async fn http_and_lambda_v2_preserve_cookies_and_repeated_headers_for_normal_and
         assert!(event["headers"].get("set-cookie").is_none());
         assert_eq!(event["statusCode"], 200);
     }
+}
+
+#[tokio::test]
+async fn lambda_v2_rejects_non_utf8_cookies_instead_of_emitting_empty_values() {
+    let service = weather_service::builder(Arc::new(weather_service::MemoryCities::default()))
+        .handler(before_fn(|job| {
+            let mut response = Response::new(Body::empty());
+            response
+                .headers_mut()
+                .append(SET_COOKIE, HeaderValue::from_bytes(&[0x80]).unwrap());
+            job.respond(response);
+            Ok(())
+        }))
+        .build()
+        .unwrap();
+    let response = service
+        .handle(Request::get("/ping").body(Body::empty()).unwrap())
+        .await;
+    assert_eq!(response.headers()[SET_COOKIE].as_bytes(), &[0x80]);
+    assert!(
+        crucible::host::lambda_event(&service, http_v2_event())
+            .await
+            .is_err()
+    );
 }
 
 #[derive(Debug, Clone)]
