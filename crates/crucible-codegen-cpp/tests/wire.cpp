@@ -1,7 +1,8 @@
 #include "wire_client/client.hpp"
 #include <iostream>
+#include <source_location>
 
-void check(bool condition) { if (!condition) throw std::runtime_error("Wire check failed"); }
+void check(bool condition, std::source_location where = std::source_location::current()) { if (!condition) throw std::runtime_error("Wire check failed at line " + std::to_string(where.line())); }
 struct Fake : wire_sdk::runtime::Transport {
     bool failure;
     explicit Fake(bool failure) : failure(failure) {}
@@ -17,7 +18,7 @@ struct Fake : wire_sdk::runtime::Transport {
     }
     void close() override {}
 };
-int main() {
+int run() {
     wire_sdk::runtime::ClientConfig config;
     config.endpoint = "http://127.0.0.1"; config.transport = std::make_shared<Fake>(false);
     wire_sdk::models::TextInput input;
@@ -31,4 +32,9 @@ int main() {
     try { (void)wire_sdk::WireClient(config).text(input); throw std::runtime_error("Expected TextError"); }
     catch (const wire_sdk::models::TextError& error) { check(*error.details == "invalid text" && error.metadata().status == 422); }
     std::cout << "C++ payloads and media headers passed\n";
+    return 0;
+}
+int main() {
+    try { return run(); }
+    catch (const std::exception& error) { std::cerr << error.what() << "\n"; return 1; }
 }

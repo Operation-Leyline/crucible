@@ -36,5 +36,13 @@ public:
         changed.wait_until(lock, cancellation_, until, [] { return false; });
         check();
     }
+    // Waits on shared state (such as an in-flight credential refresh) within this call's limits.
+    template<class Predicate> void wait_until(std::condition_variable_any& changed, std::unique_lock<std::mutex>& lock, Predicate ready) const {
+        while (!ready()) {
+            if (cancellation_.stop_requested() || Clock::now() >= deadline_) { lock.unlock(); check(); }
+            (void)changed.wait_until(lock, cancellation_, (std::min)(deadline_, Clock::now() + std::chrono::milliseconds(50)), ready);
+        }
+    }
+    [[nodiscard]] std::stop_token cancellation() const noexcept { return cancellation_; }
 };
 }

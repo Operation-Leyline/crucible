@@ -29,15 +29,20 @@ Json document(const Schema& schema, std::string_view target, const Json& value, 
     if (kind == "structure" || kind == "union") {
         Json::Object result;
         std::vector<std::string> known, wire_names;
+        // AWS JSON protocols treat a null structure member as absent, except for documents.
+        const bool omit_null = kind == "structure" && schema.setting("omitNullStructureMembers");
         for (const auto& [name, member] : shape.at("members").object()) {
             const auto* renamed = member.find("jsonName");
             const auto& wire = renamed ? renamed->string() : name;
             const auto& source = encode ? name : wire;
             known.push_back(source); wire_names.push_back(wire);
-            if (const auto* item = value.find(source)) result.emplace(encode ? wire : name, document(schema, member.at("target").string(), *item, encode));
+            const auto* item = value.find(source);
+            if (item && item->is_null() && omit_null && schema.shape(member.at("target").string()).at("kind").string() != "document") continue;
+            if (item) result.emplace(encode ? wire : name, document(schema, member.at("target").string(), *item, encode));
         }
         if (kind == "union") for (const auto& [name, item] : value.object()) {
             if (std::find(known.begin(), known.end(), name) != known.end()) continue;
+            if (!encode && name == "__type" && schema.setting("ignoreUnknownUnionType")) continue;
             if (encode && std::find(wire_names.begin(), wire_names.end(), name) != wire_names.end()) throw std::invalid_argument("Unknown variant name is declared");
             result.emplace(name, item);
         }
@@ -89,18 +94,27 @@ Blob unbase64(std::string_view text) {
     if (base64(result) != text) throw std::invalid_argument("Noncanonical base64");
     return result;
 }
-Json header(const Schema& schema, const Json& member, std::string_view text) {
+Json header(const Schema& schema, const Json& member, std::string_view text, std::string_view format) {
     const auto& shape = schema.shape(member.at("target").string());
     const auto& kind = shape.at("kind").string();
     if (kind == "list") {
         Json::Array result;
         if (trim(text).empty()) return Json(std::move(result));
+        // Unquoted HTTP dates contain one comma each, so each list item spans two comma-separated parts.
+        if (format == "http-date" && schema.shape(shape.at("member").at("target").string()).at("kind").string() == "timestamp" && text.find('"') == std::string_view::npos) {
+            std::size_t comma = 0, begin = 0;
+            for (std::size_t index = 0; index <= text.size(); ++index) {
+                if (index < text.size() && text[index] != ',') continue;
+                if (++comma % 2 == 0 || index == text.size()) { result.push_back(header(schema, shape.at("member"), trim(text.substr(begin, index - begin)), format)); begin = index + 1; }
+            }
+            return Json(std::move(result));
+        }
         std::size_t start = 0;
         bool quoted = false, escaped = false;
         auto append = [&](std::size_t end) {
             const auto part = trim(text.substr(start, end - start));
             const auto value = !part.empty() && part.front() == '"' ? Json::parse(part).string() : std::string(part);
-            result.push_back(header(schema, shape.at("member"), value));
+            result.push_back(header(schema, shape.at("member"), value, format));
         };
         for (std::size_t index = 0; index < text.size(); ++index) {
             const char c = text[index];
@@ -112,6 +126,12 @@ Json header(const Schema& schema, const Json& member, std::string_view text) {
         if (quoted) throw std::invalid_argument("Unterminated quoted header");
         append(text.size());
         return Json(std::move(result));
+    }
+    if (kind == "timestamp" && !format.empty()) {
+        const auto time = format == "http-date" ? Timestamp::from_http_date(text) : format == "date-time" ? Timestamp::parse(text) : Timestamp::from_epoch(Number(std::string(text)));
+        const auto* declared = member.find("format");
+        const auto native = declared && !declared->is_null() ? std::string_view(declared->string()) : std::string_view(shape.at("format").string());
+        return native == "epoch-seconds" ? Json(time.epoch()) : native == "http-date" ? Json(time.http_date()) : Json(time.date_time());
     }
     if (kind == "byte" || kind == "short" || kind == "integer" || kind == "long" || kind == "intEnum" || kind == "bigInteger" || kind == "bigDecimal" || kind == "float" || kind == "double" || kind == "boolean" || (kind == "timestamp" && member.at("format").string() == "epoch-seconds")) return Json::parse(text);
     return Json(std::string(text));

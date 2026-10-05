@@ -53,6 +53,22 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
         } else {
             source.push_str("    scope.check();\n    return {};\n}\n");
         }
+        for waiter in operation.waiters.keys() {
+            let method = format!("wait_until_{}", names::field(waiter));
+            header.push_str(&format!(
+                "    // Polls {} until the {waiter} waiter's acceptors succeed or fail; throws runtime::WaiterTimeoutError after timeout seconds.
+    [[nodiscard]] std::optional<{output}> {method}({input}double timeout, runtime::WaiterOptions options = {{}}, std::stop_token stop = {{}}) const;
+",
+                operation.name()
+            ));
+            source.push_str(&format!(
+                "std::optional<{output}> {client_name}::{method}({input}double timeout, runtime::WaiterOptions options, std::stop_token stop) const {{
+    return runtime_->wait<{output}>({wire_name}, {}, {encoded}, timeout, options, stop);
+}}
+",
+                names::literal(waiter)
+            ));
+        }
         if operation.paginated.is_some() {
             header.push_str(&format!("    [[nodiscard]] runtime::Pages<{output}> {name}_pages({input}std::stop_token stop = {{}}) const;\n"));
             source.push_str(&format!("runtime::Pages<{output}> {client_name}::{name}_pages({input}std::stop_token stop) const {{\n    return runtime::Pages<{output}>(runtime_, {wire_name}, {encoded}, stop);\n}}\n"));

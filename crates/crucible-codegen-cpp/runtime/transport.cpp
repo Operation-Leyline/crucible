@@ -109,6 +109,43 @@ struct Transfer {
 };
 }
 std::string lower(std::string text) { for (char& byte : text) if (byte >= 'A' && byte <= 'Z') byte = static_cast<char>(byte + ('a' - 'A')); return text; }
+std::string uri_encode(std::string_view text) {
+    constexpr char hex[] = "0123456789ABCDEF";
+    std::string output;
+    for (const unsigned char byte : text) {
+        if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') || (byte >= '0' && byte <= '9') || byte == '-' || byte == '.' || byte == '_' || byte == '~') output += static_cast<char>(byte);
+        else { output += '%'; output += hex[byte >> 4]; output += hex[byte & 15]; }
+    }
+    return output;
+}
+std::string uri_decode(std::string_view text) {
+    std::string result;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (text[i] != '%') { result += text[i]; continue; }
+        unsigned byte = 0;
+        if (i + 2 >= text.size()) throw std::invalid_argument("Invalid percent-encoding");
+        const auto parsed = std::from_chars(text.data() + i + 1, text.data() + i + 3, byte, 16);
+        if (parsed.ec != std::errc() || parsed.ptr != text.data() + i + 3) throw std::invalid_argument("Invalid percent-encoding");
+        result += static_cast<char>(byte);
+        i += 2;
+    }
+    return result;
+}
+UrlParts split_url(std::string_view url) {
+    UrlParts result;
+    const auto scheme = url.find("://");
+    if (scheme == std::string_view::npos) throw std::invalid_argument("Absolute URL required");
+    result.scheme = lower(std::string(url.substr(0, scheme)));
+    auto rest = url.substr(scheme + 3);
+    if (const auto fragment = rest.find('#'); fragment != std::string_view::npos) rest = rest.substr(0, fragment);
+    const auto end = rest.find_first_of("/?");
+    result.authority = std::string(rest.substr(0, end));
+    rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end);
+    const auto question = rest.find('?');
+    result.path = std::string(rest.substr(0, question));
+    if (question != std::string_view::npos) result.query = std::string(rest.substr(question + 1));
+    return result;
+}
 void validate_url(const std::string& text, bool endpoint, bool credentials) {
     initialize();
     for (const unsigned char byte : text) if (byte <= 32 || byte == 127) throw std::invalid_argument("Invalid URL character");

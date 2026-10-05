@@ -86,11 +86,101 @@ and nanoseconds. Date text supports years 1 through 9999.
 
 Generated `runtime::Codec<T>` converts a model to or from `Json` using its
 `schema().context("namespace#Shape")`. Codecs reject malformed types, invalid
-UTF-8, nonfinite numbers, and out-of-range native numbers. JSON and model
+UTF-8, nonfinite numbers (except the AWS JSON string forms below), and
+out-of-range native numbers. JSON and model
 decoding have a nesting limit of 255. Recursive collection aliases without an
 intervening structure or union produce a generator diagnostic.
 HEAD operations with request body or payload bindings also produce a diagnostic
 because libcurl does not transmit those request bytes.
+
+## Protocols
+
+Generated clients speak the model's selected protocol: Crucible JSON,
+`aws.protocols#restJson1`, `awsJson1_0`, or `awsJson1_1` (choose one with
+`--protocol` when a service declares several). AWS JSON RPC clients `POST` to
+`/` with `X-Amz-Target: Service.Operation` and an `application/x-amz-json-1.x`
+body, which is `{}` for an operation without input. REST JSON applies HTTP
+bindings, including HTTP-date headers and date-time query timestamps. Both AWS
+JSON protocols send non-finite floats as `"NaN"`, `"Infinity"`, and
+`"-Infinity"`, omit null structure members (documents keep `null`), ignore a
+`__type` member in unions, and read the error name from `X-Amzn-Errortype`,
+`code`, or `__type`, keeping only the shape name. The request ID comes from
+`X-Amzn-RequestId`.
+
+## Authentication
+
+Operations try their modeled schemes in order. Each scheme has its own
+`ClientConfig` provider, called for every attempt:
+
+| Scheme | Provider |
+|---|---|
+| `@httpBearerAuth` | `token` returns the bearer token |
+| `@httpBasicAuth` | `basic_credentials` returns `runtime::BasicCredentials` |
+| `@httpApiKeyAuth` | `api_key` returns the key; the modeled header, scheme prefix, or query parameter is applied |
+| `aws.auth#sigv4` | `credentials` returns `runtime::AwsCredentials`; `region` sets the signing region |
+
+A provider returning `std::nullopt` passes to the next scheme. When no scheme
+yields an identity, the call fails before dispatch unless the operation has
+`@optionalAuth`; `@auth([])` operations never call a provider. An
+`Authorization` header or API-key header already present in `headers` (or the
+API-key query parameter) satisfies its scheme without calling the provider.
+Any identity requires HTTPS outside loopback. Identities print redacted.
+
+SigV4 signs the final request after middleware, request checksums, and the
+`--content-sha256` digest, including the session token and
+`@unsignedPayload`. `runtime::sign_v4` is public and passes the published AWS
+test vector. AWS credentials come from providers that take the call's
+`CallScope`:
+
+```cpp
+config.region = "us-east-1";
+config.credentials = runtime::CachedCredentials(runtime::credential_chain({
+    runtime::environment_credentials,
+    runtime::profile_credentials(),  // AWS_PROFILE, AWS_SHARED_CREDENTIALS_FILE
+}));
+```
+
+`profile_credentials` reads static keys only and never runs
+`credential_process`. `CachedCredentials` reuses an identity until five
+minutes (or half its remaining life) before `expires_at`. Concurrent callers
+share one refresh; a waiting caller still honors its own deadline and
+`std::stop_token`. A provider returning an expired identity fails.
+
+## Endpoints
+
+With `smithy.rules#endpointRuleSet`, each call resolves its endpoint from the
+rules, using operation context parameters, `endpoint_parameters`,
+`endpoint_builtins`, `AWS::Region` from `region`, and `SDK::Endpoint` from
+`endpoint`. The resolved endpoint's headers are sent and its `authSchemes`
+property selects the signing name and region. `endpoint` is optional when rules
+are modeled. A rule error or unmatched rule set throws `runtime::EndpointError`.
+`@endpoint(hostPrefix)` prepends validated host labels to the endpoint before
+dispatch; `disable_host_prefix` turns that off.
+
+## Waiters
+
+Each `@waitable` waiter generates `wait_until_<name>(input, timeout, options,
+stop)`. It polls with the modeled exponential backoff and jitter, bounded by
+`timeout` seconds; `runtime::WaiterOptions` overrides the minimum and maximum
+delays. Acceptors match on output, input and output, success, or error type,
+using JMESPath with all standard functions. It returns the matching output (or
+`std::nullopt` when an error acceptor succeeded), throws `runtime::WaiterError`
+for a failure acceptor or unmatched error (with `attempts()`, `reason()`, and
+`cause()`), throws `runtime::WaiterTimeoutError` at the deadline, and rethrows
+`CancelledError` on cancellation.
+
+## Checksums
+
+`@httpChecksumRequired` and `aws.protocols#httpChecksum` operations send
+`Content-MD5` or `x-amz-checksum-<algorithm>` over the final body; a checksum
+header the caller already set is kept. CRC32, CRC32C, CRC64NVME, MD5, SHA1,
+SHA256, and SHA512 are supported. With `request_checksum_calculation` at the
+default `ChecksumPolicy::when_supported`, an unset algorithm member defaults
+to CRC32; `when_required` only sends required checksums. When response
+validation is enabled (the default, or `ENABLED` in the validation member),
+the first modeled algorithm the response carries is verified;
+a mismatch throws `runtime::ChecksumError` and a match calls
+`checksum_validated(operation, algorithm)`.
 
 ## Errors, retries, and cancellation
 
@@ -131,7 +221,12 @@ Call `close()` after outstanding calls finish.
 
 `python tools/test-cpp.py` generates and installs a CMake package, compiles a
 separate consumer, runs shared retry/header fixtures, and exercises the weather
-service and transport edge cases over loopback HTTP. Set `CPP_SANITIZE=1` for
+service and transport edge cases over loopback HTTP. It also generates the
+authentication, endpoint-rule, waiter, checksum, and three AWS JSON protocol
+fixtures and runs their native tests: the published SigV4 vector and a
+server-side signature check, credential chains and concurrent cached refresh,
+the shared checksum vectors, rule-engine functions and host-prefix validation,
+and waiter, checksum, and protocol behavior against a scripted loopback server. Set `CPP_SANITIZE=1` for
 Linux address and undefined-behavior sanitizers. Windows dependency configuration
 uses `CMAKE_TOOLCHAIN_FILE` and `VCPKG_INSTALLED_DIR`.
 
