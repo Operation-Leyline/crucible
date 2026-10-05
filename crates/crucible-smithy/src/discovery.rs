@@ -64,6 +64,23 @@ impl Lowerer<'_> {
         for operation in operations.iter_mut() {
             let trait_id = aws("clientDiscoveredEndpoint");
             let Some(value) = self.model[&operation.id].traits.get(&trait_id) else {
+                // An identifier only means something to a discovered operation;
+                // elsewhere it would be silently dropped from the cache key.
+                if let Some(input) = operation.input.as_ref()
+                    && let Some(shape) = self.model.get(input)
+                {
+                    for (name, member) in &shape.members {
+                        if member
+                            .traits
+                            .contains_key(&aws("clientEndpointDiscoveryId"))
+                        {
+                            self.diagnostics.push(
+                                &input.with_member(name),
+                                "@aws.api#clientEndpointDiscoveryId requires an operation with @aws.api#clientDiscoveredEndpoint",
+                            );
+                        }
+                    }
+                }
                 continue;
             };
             self.require(&operation.id, Feature::EndpointDiscovery, trait_id.clone());

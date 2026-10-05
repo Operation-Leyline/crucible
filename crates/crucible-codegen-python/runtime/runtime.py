@@ -10,7 +10,6 @@ import inspect
 import ipaddress
 import json
 import math
-import random
 import time
 import uuid
 from dataclasses import dataclass
@@ -28,6 +27,10 @@ from . import checksums
 from .waiters import Waiter, WaiterError, WaiterTimeout
 from .endpoints import resolve as resolve_endpoint, host_prefix, parse_url
 from .streams import ByteStream, StreamLengthError, Upload
+from .policy import RetryStrategy, SystemClock
+from .discovery import DiscoveredAddress, EndpointCache, EndpointDiscoveryError, cache_key
+from .telemetry import (REDACTED, AttemptFinished, AttemptStarted, OperationFinished, OperationStarted,
+                        TelemetryHook, emit, redact_headers, redact_query)
 
 
 class Unset:
@@ -335,7 +338,9 @@ class _Base:
                  timeout: float = 30, content_sha256: bool = False,
                  request_checksum_calculation: str = "WHEN_SUPPORTED", response_checksum_validation: str = "WHEN_SUPPORTED",
                  checksum_validated: Callable[[str, str], None] | None = None,
-                 middleware: list[Callable[..., Any]] | None = None) -> None:
+                 middleware: list[Callable[..., Any]] | None = None,
+                 retry_mode: str = "legacy", endpoint_discovery: bool | None = None,
+                 telemetry: TelemetryHook | None = None, clock: Any = None) -> None:
         if endpoint is None and "endpointRules" not in schema or endpoint is not None and parse_url(endpoint) is None:
             raise ValueError("an absolute HTTP(S) endpoint is required")
         if max_attempts < 1 or timeout <= 0 or not math.isfinite(timeout):
@@ -362,6 +367,22 @@ class _Base:
         self._request_checksum_calculation = request_checksum_calculation
         self._response_checksum_validation = response_checksum_validation
         self._checksum_validated = checksum_validated
+        if endpoint_discovery not in (None, True, False):
+            raise ValueError("endpoint_discovery must be None, True or False")
+        self._clock = clock if clock is not None else SystemClock()
+        # One quota and rate limiter for every call this client makes.
+        self._retry = RetryStrategy(retry_mode, self._clock, base_delay=base_delay, max_delay=max_delay)
+        self._telemetry = telemetry
+        self._endpoint_discovery = endpoint_discovery
+        self._discovery = EndpointCache(self._clock) if "endpointDiscovery" in schema else None
+        self._service = str(schema.get("service", ""))
+        credential_headers: set[str] = set()
+        credential_query: set[str] = set()
+        for scheme in schema.get("authSchemes", {}).values():
+            if scheme.get("kind") == "apiKey":
+                (credential_query if scheme.get("location") == "query" else credential_headers).add(scheme["name"].lower())
+        self._credential_headers = frozenset(credential_headers)
+        self._credential_query = frozenset(credential_query)
 
     def _query_value(self, target: str | None, value: Any) -> Any:
         if target is None or isinstance(value, Unset) or value is None:
@@ -424,7 +445,11 @@ class _Base:
         endpoint_url = str(endpoint["url"])
         if op.get("endpoint") is not None and not self._disable_host_prefix:
             endpoint_url = host_prefix(endpoint_url, op["endpoint"], self._query_value(op["input"], input))
-        op = {**op, "resolvedEndpoint": endpoint}
+        op = {**op, "resolvedEndpoint": endpoint, "endpointUrl": endpoint_url.rstrip("/"),
+              "endpointSource": "rules" if "endpointRules" in self._codec.schema else "configured"}
+        # Telemetry shows where sensitive members went without their values.
+        sensitive_headers: set[str] = set()
+        sensitive_query: set[str] = set()
         values = self._codec.convert(op["input"], input) or {}
         token = op["token"]
         shape = self._codec.shapes.get(op["input"], {})
@@ -456,6 +481,7 @@ class _Base:
             m = members[key]
             return input.get(key, UNSET) if isinstance(input, dict) else getattr(input, m["attribute"], UNSET)
         uri = op["uri"]
+        display = uri
         for key in op["request"]["labels"]:
             value = original(key)
             if value is None or isinstance(value, Unset) or str(value) == "":
@@ -464,7 +490,10 @@ class _Base:
             greedy = key in op.get("greedyLabels", [])
             if any(part in (".", "..") for part in (label.split("/") if greedy else [label])):
                 raise ValueError(f"{key} cannot be a dot segment")
-            uri = uri.replace("{" + key + ("+" if greedy else "") + "}", quote(label, safe="/-._~" if greedy else "-._~"))
+            placeholder = "{" + key + ("+" if greedy else "") + "}"
+            encoded = quote(label, safe="/-._~" if greedy else "-._~")
+            uri = uri.replace(placeholder, encoded)
+            display = display.replace(placeholder, REDACTED if members[key].get("sensitive") else encoded)
         query: list[tuple[str, str]] = []
         for key, wire in op["request"]["query"]:
             value = original(key)
@@ -473,6 +502,8 @@ class _Base:
             if value is None or isinstance(value, Unset):
                 continue
             member = members[key]
+            if member.get("sensitive"):
+                sensitive_query.add(wire.lower())
             shape = self._codec.shapes[member["target"]]
             if shape["kind"] == "list":
                 query.extend((wire, self._codec.bound(shape["member"], item, fmt=formats.get(key))) for item in value)
@@ -489,6 +520,8 @@ class _Base:
                 for wire, entry in value.items():
                     if wire in reserved:
                         continue
+                    if members[query_member].get("sensitive"):
+                        sensitive_query.add(wire.lower())
                     if collection["kind"] == "list":
                         query.extend((wire, self._codec.bound(collection["member"], element)) for element in entry)
                     else:
@@ -507,10 +540,14 @@ class _Base:
                 item = self._codec.shapes[members[key]["target"]]["value"]
                 for suffix, entry in value.items():
                     wire = (prefix + suffix).lower()
+                    if members[key].get("sensitive"):
+                        sensitive_headers.add(wire)
                     if wire not in reserved_headers:
                         headers[wire] = self._codec.bound(item, entry, header=True,
                             encoding=op["request"].get("headerEncodings", {}).get(key))
         for key, wire in op["request"]["headers"]:
+            if members[key].get("sensitive"):
+                sensitive_headers.add(wire.lower())
             value = values.get(json_name(key), UNSET) if key == token else original(key)
             if value is not None and not isinstance(value, Unset):
                 headers[wire.lower()] = self._codec.bound(members[key], value, header=True,
@@ -554,7 +591,109 @@ class _Base:
             body = body if body is not None else b"{}"
             headers["content-type"] = "application/x-amz-json-" + ("1.0" if protocol == "awsJson1_0" else "1.1")
             headers["x-amz-target"] = self._codec.schema["service"].split("#")[-1] + "." + name
+        op["target"] = uri
+        op["displayPath"] = display.split("?", 1)[0]
+        op["sensitiveHeaders"] = frozenset(sensitive_headers) | self._credential_headers
+        op["sensitiveQuery"] = frozenset(sensitive_query) | self._credential_query
+        op["discovery"] = self._discovery_request(name, op, original)
         return op, endpoint_url.rstrip("/") + uri, body, headers
+
+    def _discovery_request(self, name: str, op: dict[str, Any], original: Callable[[str], Any]) -> dict[str, Any] | None:
+        """What this call sends to the discovery operation, or None when it uses no discovery."""
+        discovered = op.get("discoveredEndpoint")
+        config = self._codec.schema.get("endpointDiscovery")
+        if discovered is None or config is None:
+            return None
+        if self._endpoint_discovery is False:
+            if discovered["required"]:
+                raise EndpointDiscoveryError(f"{name} requires endpoint discovery, which is disabled")
+            return None
+        if not discovered["required"] and not self._endpoint_discovery:
+            return None
+        operation = name if config.get("operationMember") else None
+        identifiers = {key: str(original(key)) for key in discovered["identifiers"]} if config.get("identifiersMember") else {}
+        input: dict[str, Any] = {}
+        if operation is not None:
+            input[config["operationMember"]] = operation
+        if identifiers:
+            input[config["identifiersMember"]] = identifiers
+        return {"key": cache_key(operation, identifiers), "input": input, "required": discovered["required"],
+                "operation": config["operation"].rsplit("#", 1)[-1]}
+
+    def _discovered(self, output: Any) -> DiscoveredAddress:
+        """The first usable endpoint of a discovery response, cached for its period."""
+        config = self._codec.schema["endpointDiscovery"]
+        operation = self._codec.schema["operations"][config["operation"].rsplit("#", 1)[-1]]
+        values = self._query_value(operation["output"], output) or {}
+        scheme = urlsplit(self._endpoint).scheme or "https"
+        for endpoint in values.get(config["endpointsMember"]) or []:
+            address = endpoint.get(config["addressMember"])
+            minutes = endpoint.get(config["cachePeriodMember"])
+            if not isinstance(address, str) or not address or isinstance(minutes, bool) or not isinstance(minutes, int):
+                continue
+            # Discovered addresses are usually bare hosts; they keep the configured scheme.
+            url = address if "://" in address else f"{scheme}://{address}"
+            if parse_url(url) is None:
+                continue
+            return DiscoveredAddress(url.rstrip("/"), self._clock.now() + max(minutes, 0) * 60)
+        raise EndpointDiscoveryError("endpoint discovery returned no usable endpoint")
+
+    def _invalidates(self, error: BaseException) -> bool:
+        if not isinstance(error, ServiceError):
+            return False
+        target = (self._codec.schema.get("endpointDiscovery") or {}).get("error")
+        code = None
+        if target is not None:
+            shape = self._codec.shapes[target]
+            code = shape["error"].get("wireCode", shape["name"])
+        return error.metadata.status == 421 or (code is not None and error.name == code)
+
+    def _classify(self, op: dict[str, Any], error: BaseException, discovered: DiscoveredAddress | None) -> str | None:
+        """The retry reason for a failed attempt, or None when the failure is not retryable."""
+        if isinstance(error, httpx.TransportError):
+            if not op["safe"]:
+                return None
+            return "timeout" if isinstance(error, httpx.TimeoutException) else "network"
+        if not isinstance(error, ServiceError):
+            return None
+        # A misdirected request was not processed, so even a write may be resent.
+        if discovered is not None and self._invalidates(error):
+            return "endpoint"
+        if error.throttling:
+            return "throttling"
+        if op["safe"] and (error.retryable or error.metadata.status in (500, 502, 503, 504)):
+            return "transient"
+        return None
+
+    def _after_failure(self, op: dict[str, Any], error: BaseException, response: httpx.Response | None,
+                       attempt: int, replayable: bool, discovered: DiscoveredAddress | None) -> tuple[str, float, int | None] | None:
+        """Records a failed attempt with the retry policy and decides whether, and when, to retry."""
+        self._retry.after_attempt(isinstance(error, ServiceError) and error.throttling)
+        if discovered is not None and self._invalidates(error):
+            assert self._discovery is not None and op["discovery"] is not None
+            self._discovery.invalidate(op["discovery"]["key"], discovered)
+        reason = self._classify(op, error, discovered)
+        if reason is None or attempt >= self._attempts or not replayable:
+            return None
+        granted, cost = self._retry.acquire_retry(reason == "timeout")
+        if not granted:
+            return None
+        return reason, self._delay(attempt, response), cost
+
+    def _succeeded(self, last_cost: int | None) -> None:
+        self._retry.after_attempt(False)
+        self._retry.succeeded(last_cost)
+
+    def _interrupted(self, response: httpx.Response | None) -> None:
+        """An attempt ended by an error that is never retried still measured a response."""
+        if response is not None:
+            self._retry.after_attempt(False)
+
+    def _attempt_url(self, op: dict[str, Any], url: str, discovered: DiscoveredAddress | None) -> tuple[str, str, str]:
+        """The attempt's URL, its endpoint, and where that endpoint came from."""
+        if discovered is not None:
+            return discovered.url + op["target"], discovered.url, "discovered"
+        return url, op["endpointUrl"], op["endpointSource"]
 
     def _response_bindings(self, target: str, bindings: dict[str, Any], response: httpx.Response,
                            values: dict[str, Any]) -> None:
@@ -660,10 +799,7 @@ class _Base:
                         delay = -1
                 if math.isfinite(delay) and delay >= 0:
                     return delay
-        return random.uniform(0, min(self._max_delay, self._base_delay * 2 ** min(attempt - 1, 30)))
-
-    def _can_retry(self, op: dict[str, Any], error: ServiceError) -> bool:
-        return error.throttling or op["safe"] and (error.retryable or error.metadata.status in (500, 502, 503, 504))
+        return self._retry.backoff(attempt)
 
     def _body_checks(self, op: dict[str, Any], request: httpx.Request, body: bytes | ByteStream | None) -> None:
         """Checksums and the content digest over the final body, after middleware.
@@ -722,6 +858,69 @@ class _Base:
         return value
 
 
+def _error_name(error: BaseException | None) -> str | None:
+    if error is None:
+        return None
+    return error.name if isinstance(error, ServiceError) else type(error).__name__
+
+
+class _Trace:
+    """One call's telemetry. Without a hook it only counts attempts."""
+
+    def __init__(self, client: _Base, operation: str) -> None:
+        self._client = client
+        self._hook = client._telemetry
+        self._operation = operation
+        self.attempts = 0
+        self._status: int | None = None
+        self._id = ""
+        self._start = self._attempt_start = 0.0
+        if self._hook is not None:
+            self._id = uuid.uuid4().hex
+            self._start = client._clock.now()
+            emit(self._hook, "operation_started", OperationStarted(self._id, client._service, operation, self._start))
+
+    def attempt_started(self, op: dict[str, Any], request: httpx.Request, endpoint: str, source: str) -> None:
+        self.attempts += 1
+        if self._hook is None:
+            return
+        self._attempt_start = self._client._clock.now()
+        parts = urlsplit(endpoint)
+        # Scheme, host, port and base path; never user information.
+        shown = f"{parts.scheme}://{parts.netloc.rsplit('@', 1)[-1]}{parts.path}"
+        query = redact_query(parse_qsl(request.url.query.decode("ascii"), keep_blank_values=True), op["sensitiveQuery"])
+        target = op["displayPath"] + ("?" + urlencode(query, quote_via=quote, safe="-._~*") if query else "")
+        length = request.headers.get("content-length")
+        emit(self._hook, "attempt_started", AttemptStarted(
+            self._id, self._client._service, self._operation, self.attempts, request.method, shown, source, target,
+            redact_headers(request.headers, op["sensitiveHeaders"]),
+            int(length) if length is not None and length.isdigit() else None, self._attempt_start))
+
+    def attempt_finished(self, response: httpx.Response | None, error: BaseException | None, size: int | None,
+                         retry: tuple[str, float, int | None] | None = None) -> None:
+        self._status = response.status_code if response is not None else None
+        if self._hook is None:
+            return
+        now = self._client._clock.now()
+        request_id = None
+        if isinstance(error, ServiceError):
+            request_id = error.metadata.request_id
+        elif response is not None:
+            request_id = response.headers.get("x-request-id", response.headers.get("x-amzn-requestid"))
+        emit(self._hook, "attempt_finished", AttemptFinished(
+            self._id, self._client._service, self._operation, self.attempts, self._status, _error_name(error),
+            request_id, size, now - self._attempt_start, retry[0] if retry else None, retry[1] if retry else None, now))
+
+    def finished(self, error: BaseException | None) -> None:
+        if self._hook is None:
+            return
+        now = self._client._clock.now()
+        emit(self._hook, "operation_finished", OperationFinished(
+            self._id, self._client._service, self._operation, self.attempts, self._status, _error_name(error),
+            now - self._start, now))
+
+
+
 class SyncClient(_Base):
     def __init__(self, *, http: httpx.Client | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -739,16 +938,59 @@ class SyncClient(_Base):
         self.close()
 
     def _call(self, name: str, input: Any = None, *, timeout: float | None = None) -> Any:
+        trace = _Trace(self, name)
+        try:
+            output = self._send(name, input, timeout, trace)
+        except BaseException as error:
+            trace.finished(error)
+            raise
+        trace.finished(None)
+        return output
+
+    def _discover(self, op: dict[str, Any], deadline: float) -> DiscoveredAddress | None:
+        """This attempt's discovered endpoint; None means the configured endpoint."""
+        request = op["discovery"]
+        if request is None:
+            return None
+        assert self._discovery is not None
+        if not request["required"] and self._discovery.failed_recently(request["key"]):
+            return None
+
+        def fetch() -> DiscoveredAddress:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("request deadline exceeded before endpoint discovery")
+            return self._discovered(self._call(request["operation"], request["input"],
+                                               timeout=min(remaining, self._timeout)))
+        try:
+            return self._discovery.resolve(request["key"], fetch, deadline - time.monotonic())
+        except Exception:
+            if request["required"]:
+                raise
+            self._discovery.record_failure(request["key"])
+            return None
+
+    def _send(self, name: str, input: Any, timeout: float | None, trace: _Trace) -> Any:
         op, url, body, headers = self._prepare(name, input)
         deadline = time.monotonic() + (self._timeout if timeout is None else timeout)
         # A one-shot stream is sent at most once, whatever the retry policy.
         replayable = not isinstance(body, ByteStream) or body.replayable
+        last_cost: int | None = None
         for attempt in range(1, self._attempts + 1):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("request deadline exceeded")
+            discovered = self._discover(op, deadline)
+            attempt_url, endpoint, source = self._attempt_url(op, url, discovered)
+            wait = self._retry.send_delay()
+            if wait > 0:
+                if wait >= deadline - time.monotonic():
+                    self._retry.cancel_send()
+                    raise TimeoutError("client-side rate limit delay exceeds request deadline")
+                self._clock.sleep(wait)
+            remaining = deadline - time.monotonic()
             upload = Upload(body, *op["streamLimits"]) if isinstance(body, ByteStream) else None
-            request = self._http.build_request(op["method"], url, content=upload.sync() if upload else body,
+            request = self._http.build_request(op["method"], attempt_url, content=upload.sync() if upload else body,
                                                headers=headers, timeout=remaining)
             authentication = None
             preset = False
@@ -776,41 +1018,61 @@ class SyncClient(_Base):
             if remaining <= 0:
                 raise TimeoutError("request deadline exceeded during preparation")
             request.extensions["timeout"] = {key: remaining for key in ("connect", "read", "write", "pool")}
+            trace.attempt_started(op, request, endpoint, source)
             response = None
+            failure: BaseException | None = None
+            data = b""
             try:
-                response = self._http.send(request, stream=True)
-                if response.is_success and op["response"].get("streaming"):
+                try:
+                    response = self._http.send(request, stream=True)
+                    if response.is_success and op["response"].get("streaming"):
+                        try:
+                            output = self._streamed_output(op, response, self._sync_body(name, op, response, deadline))
+                        except BaseException:
+                            response.close()
+                            raise
+                        self._succeeded(last_cost)
+                        trace.attempt_finished(response, None, self._response_length(response))
+                        return output
                     try:
-                        return self._streamed_output(op, response, self._sync_body(name, op, response, deadline))
-                    except BaseException:
+                        data = b"" if response.is_success and not _has_body(op) else response.read()
+                    finally:
                         response.close()
-                        raise
-                try:
-                    data = b"" if response.is_success and not _has_body(op) else response.read()
-                finally:
-                    response.close()
-            except httpx.TransportError as error:
-                if not op["safe"] or attempt == self._attempts or not replayable:
-                    raise NetworkError(str(error)) from error
-            else:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError("request deadline exceeded while reading the response")
-                if response.is_success:
-                    algorithm = checksums.response(op["resolvedChecksum"], response.headers, data)
-                    if algorithm is not None and self._checksum_validated is not None:
-                        self._checksum_validated(name, algorithm)
-                try:
-                    return self._decode(op, response, data)
-                except ServiceError as error:
-                    if not self._can_retry(op, error) or attempt == self._attempts or not replayable:
-                        raise
+                except httpx.TransportError as error:
+                    failure = error
+                else:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("request deadline exceeded while reading the response")
+                    if response.is_success:
+                        algorithm = checksums.response(op["resolvedChecksum"], response.headers, data)
+                        if algorithm is not None and self._checksum_validated is not None:
+                            self._checksum_validated(name, algorithm)
+                    try:
+                        output = self._decode(op, response, data)
+                    except ServiceError as error:
+                        failure = error
+                    else:
+                        self._succeeded(last_cost)
+                        trace.attempt_finished(response, None, len(data))
+                        return output
+            except BaseException as error:
+                self._interrupted(response)
+                trace.attempt_finished(response, error, len(data) if response is not None else None)
+                raise
             finally:
                 if upload is not None:
                     upload.close()
-            delay = self._delay(attempt, response)
+            assert failure is not None
+            retry = self._after_failure(op, failure, response, attempt, replayable, discovered)
+            trace.attempt_finished(response, failure, len(data) if response is not None else None, retry)
+            if retry is None:
+                if isinstance(failure, httpx.TransportError):
+                    raise NetworkError(str(failure)) from failure
+                raise failure
+            delay, last_cost = retry[1], retry[2]
             if delay >= deadline - time.monotonic():
                 raise TimeoutError("retry delay exceeds request deadline")
-            time.sleep(delay)
+            self._clock.sleep(delay)
         raise AssertionError("unreachable")
 
     def _sync_body(self, name: str, op: dict[str, Any], response: httpx.Response, deadline: float) -> ByteStream:
@@ -918,8 +1180,40 @@ class AsyncClientBase(_Base):
     async def _call(self, name: str, input: Any = None, *, timeout: float | None = None) -> Any:
         # The same deadline bounds a streamed response body read after the call returns.
         deadline = asyncio.get_running_loop().time() + (self._timeout if timeout is None else timeout)
-        async with asyncio.timeout_at(deadline):
-            return await self._send(name, input, timeout, deadline)
+        trace = _Trace(self, name)
+        try:
+            async with asyncio.timeout_at(deadline):
+                output = await self._send(name, input, timeout, deadline, trace)
+        except BaseException as error:
+            trace.finished(error)
+            raise
+        trace.finished(None)
+        return output
+
+    async def _discover(self, op: dict[str, Any], deadline: float) -> DiscoveredAddress | None:
+        """This attempt's discovered endpoint; None means the configured endpoint."""
+        request = op["discovery"]
+        if request is None:
+            return None
+        assert self._discovery is not None
+        if not request["required"] and self._discovery.failed_recently(request["key"]):
+            return None
+        loop = asyncio.get_running_loop()
+
+        async def fetch() -> DiscoveredAddress:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                raise TimeoutError("request deadline exceeded before endpoint discovery")
+            return self._discovered(await self._call(request["operation"], request["input"],
+                                                     timeout=min(remaining, self._timeout)))
+        try:
+            return await self._discovery.aresolve(request["key"], fetch)
+        except Exception:
+            if request["required"]:
+                raise
+            self._discovery.record_failure(request["key"])
+            return None
+
 
     async def _wait(self, operation: str, name: str, input: Any, *, timeout: float,
                     min_delay: float | None = None, max_delay: float | None = None) -> Any:
@@ -956,12 +1250,22 @@ class AsyncClientBase(_Base):
         except TimeoutError as caught:
             raise WaiterTimeout(name, attempts, response=output, error=error) from caught
 
-    async def _send(self, name: str, input: Any, timeout: float | None, deadline: float) -> Any:
+    async def _send(self, name: str, input: Any, timeout: float | None, deadline: float, trace: _Trace) -> Any:
         op, url, body, headers = self._prepare(name, input)
         replayable = not isinstance(body, ByteStream) or body.replayable
+        last_cost: int | None = None
         for attempt in range(1, self._attempts + 1):
+            discovered = await self._discover(op, deadline)
+            attempt_url, endpoint, source = self._attempt_url(op, url, discovered)
+            wait = self._retry.send_delay()
+            if wait > 0:
+                try:
+                    await self._clock.asleep(wait)
+                except BaseException:
+                    self._retry.cancel_send()
+                    raise
             upload = Upload(body, *op["streamLimits"]) if isinstance(body, ByteStream) else None
-            request = self._http.build_request(op["method"], url, content=upload.asynchronous() if upload else body,
+            request = self._http.build_request(op["method"], attempt_url, content=upload.asynchronous() if upload else body,
                                                headers=headers, timeout=self._timeout if timeout is None else timeout)
             authentication = None
             preset = False
@@ -985,37 +1289,58 @@ class AsyncClientBase(_Base):
             if authentication is not None:
                 apply_auth(request, *authentication, region=self._region, unsigned_payload=op.get("unsignedPayload", False))
             _check_credentials(request)
+            trace.attempt_started(op, request, endpoint, source)
             response = None
+            failure: BaseException | None = None
+            data = b""
             try:
-                response = await self._http.send(request, stream=True)
-                if response.is_success and op["response"].get("streaming"):
+                try:
+                    response = await self._http.send(request, stream=True)
+                    if response.is_success and op["response"].get("streaming"):
+                        try:
+                            output = self._streamed_output(op, response, self._async_body(name, op, response, deadline))
+                        except BaseException:
+                            await response.aclose()
+                            raise
+                        self._succeeded(last_cost)
+                        trace.attempt_finished(response, None, self._response_length(response))
+                        return output
                     try:
-                        return self._streamed_output(op, response, self._async_body(name, op, response, deadline))
-                    except BaseException:
+                        data = b"" if response.is_success and not _has_body(op) else await response.aread()
+                    finally:
                         await response.aclose()
-                        raise
-                try:
-                    data = b"" if response.is_success and not _has_body(op) else await response.aread()
-                finally:
-                    await response.aclose()
-            except httpx.TransportError as error:
-                if not op["safe"] or attempt == self._attempts or not replayable:
-                    raise NetworkError(str(error)) from error
-            else:
-                if response.is_success:
-                    algorithm = checksums.response(op["resolvedChecksum"], response.headers, data)
-                    if algorithm is not None and self._checksum_validated is not None:
-                        self._checksum_validated(name, algorithm)
-                try:
-                    return self._decode(op, response, data)
-                except ServiceError as error:
-                    if not self._can_retry(op, error) or attempt == self._attempts or not replayable:
-                        raise
+                except httpx.TransportError as error:
+                    failure = error
+                else:
+                    if response.is_success:
+                        algorithm = checksums.response(op["resolvedChecksum"], response.headers, data)
+                        if algorithm is not None and self._checksum_validated is not None:
+                            self._checksum_validated(name, algorithm)
+                    try:
+                        output = self._decode(op, response, data)
+                    except ServiceError as error:
+                        failure = error
+                    else:
+                        self._succeeded(last_cost)
+                        trace.attempt_finished(response, None, len(data))
+                        return output
+            except BaseException as error:
+                self._interrupted(response)
+                trace.attempt_finished(response, error, len(data) if response is not None else None)
+                raise
             finally:
                 # Also runs on cancellation, so the caller's source is closed.
                 if upload is not None:
                     await upload.aclose()
-            await asyncio.sleep(self._delay(attempt, response))
+            assert failure is not None
+            retry = self._after_failure(op, failure, response, attempt, replayable, discovered)
+            trace.attempt_finished(response, failure, len(data) if response is not None else None, retry)
+            if retry is None:
+                if isinstance(failure, httpx.TransportError):
+                    raise NetworkError(str(failure)) from failure
+                raise failure
+            last_cost = retry[2]
+            await self._clock.asleep(retry[1])
         raise AssertionError("unreachable")
 
     def _async_body(self, name: str, op: dict[str, Any], response: httpx.Response, deadline: float) -> ByteStream:

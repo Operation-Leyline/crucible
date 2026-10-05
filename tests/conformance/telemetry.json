@@ -1,0 +1,101 @@
+{
+  "description": "Telemetry event scenarios for a client generated from crates/crucible-smithy/tests/fixtures/runtime-policy.json with endpoint https://records.example, api key 'api-key-secret', backoff disabled and the default endpoint discovery setting. Each call answers its requests from 'responses' in order ('transport': 'timeout' is a transport timeout). 'events' lists every event in order; each object names the event and the fields it must have (fields not listed are not compared). No event field, at any depth, may contain any 'secrets' string. An expected value of \"*\" matches any non-null value (the runtime's own exception name).",
+  "scenarios": [
+    {
+      "name": "retry-then-success",
+      "call": "ListRecords",
+      "input": {},
+      "responses": [
+        { "status": 503, "json": { "__type": "Unavailable" }, "headers": { "x-request-id": "req-1" } },
+        { "transport": "timeout" },
+        { "status": 200, "json": { "count": 1 }, "headers": { "x-request-id": "req-3" } }
+      ],
+      "secrets": ["api-key-secret"],
+      "events": [
+        { "event": "operationStarted", "operation": "ListRecords" },
+        { "event": "attemptStarted", "operation": "ListRecords", "attempt": 1, "method": "GET", "endpoint": "https://records.example", "endpointSource": "configured", "target": "/records", "headers": { "x-api-key": "***" } },
+        { "event": "attemptFinished", "operation": "ListRecords", "attempt": 1, "status": 503, "error": "Unavailable", "requestId": "req-1", "retryReason": "transient" },
+        { "event": "attemptStarted", "operation": "ListRecords", "attempt": 2 },
+        { "event": "attemptFinished", "operation": "ListRecords", "attempt": 2, "status": null, "retryReason": "timeout" },
+        { "event": "attemptStarted", "operation": "ListRecords", "attempt": 3 },
+        { "event": "attemptFinished", "operation": "ListRecords", "attempt": 3, "status": 200, "error": null, "requestId": "req-3", "retryReason": null },
+        { "event": "operationFinished", "operation": "ListRecords", "attempts": 3, "status": 200, "error": null }
+      ]
+    },
+    {
+      "name": "non-retryable-failure",
+      "call": "ListRecords",
+      "input": {},
+      "responses": [{ "status": 400, "json": { "__type": "Denied", "message": "api-key-secret was rejected" } }],
+      "secrets": ["api-key-secret"],
+      "events": [
+        { "event": "operationStarted", "operation": "ListRecords" },
+        { "event": "attemptStarted", "operation": "ListRecords", "attempt": 1 },
+        { "event": "attemptFinished", "operation": "ListRecords", "attempt": 1, "status": 400, "error": "Denied", "retryReason": null },
+        { "event": "operationFinished", "operation": "ListRecords", "attempts": 1, "status": 400, "error": "Denied" }
+      ]
+    },
+    {
+      "name": "throttled-write-is-retried",
+      "call": "PutRecord",
+      "input": { "table": "t1", "value": "v" },
+      "responses": [
+        { "status": 429, "json": { "__type": "Throttled" } },
+        { "status": 200, "json": {} }
+      ],
+      "secrets": ["api-key-secret"],
+      "events": [
+        { "event": "operationStarted", "operation": "PutRecord" },
+        { "event": "attemptStarted", "operation": "PutRecord", "attempt": 1, "method": "POST", "requestBytes": 13 },
+        { "event": "attemptFinished", "operation": "PutRecord", "attempt": 1, "status": 429, "error": "Throttled", "retryReason": "throttling" },
+        { "event": "attemptStarted", "operation": "PutRecord", "attempt": 2 },
+        { "event": "attemptFinished", "operation": "PutRecord", "attempt": 2, "status": 200, "retryReason": null },
+        { "event": "operationFinished", "operation": "PutRecord", "attempts": 2, "status": 200, "error": null }
+      ]
+    },
+    {
+      "name": "sensitive-members-and-credentials-are-redacted",
+      "call": "PutRecord",
+      "input": { "table": "t1", "secret": "header-secret", "ticket": "query-secret", "label": "public", "value": "body-value" },
+      "responses": [{ "status": 200, "json": {} }],
+      "secrets": ["api-key-secret", "header-secret", "query-secret", "body-value"],
+      "events": [
+        { "event": "operationStarted", "operation": "PutRecord" },
+        { "event": "attemptStarted", "operation": "PutRecord", "attempt": 1, "target": "/records/t1?ticket=***&label=public", "headers": { "x-api-key": "***", "x-record-secret": "***" } },
+        { "event": "attemptFinished", "operation": "PutRecord", "attempt": 1, "status": 200 },
+        { "event": "operationFinished", "operation": "PutRecord", "attempts": 1, "status": 200, "error": null }
+      ]
+    },
+    {
+      "name": "discovery-is-its-own-operation-and-labels-are-redacted",
+      "call": "GetRecord",
+      "input": { "table": "t1", "key": "label-secret" },
+      "responses": [
+        { "status": 200, "json": { "Endpoints": [{ "Address": "t1.records.example", "CachePeriodInMinutes": 10 }] } },
+        { "status": 200, "json": { "value": "v" } }
+      ],
+      "secrets": ["api-key-secret", "label-secret"],
+      "events": [
+        { "event": "operationStarted", "operation": "GetRecord" },
+        { "event": "operationStarted", "operation": "DescribeEndpoints" },
+        { "event": "attemptStarted", "operation": "DescribeEndpoints", "attempt": 1, "endpoint": "https://records.example", "endpointSource": "configured", "target": "/endpoints" },
+        { "event": "attemptFinished", "operation": "DescribeEndpoints", "attempt": 1, "status": 200 },
+        { "event": "operationFinished", "operation": "DescribeEndpoints", "attempts": 1, "status": 200 },
+        { "event": "attemptStarted", "operation": "GetRecord", "attempt": 1, "endpoint": "https://t1.records.example", "endpointSource": "discovered", "target": "/records/t1/***" },
+        { "event": "attemptFinished", "operation": "GetRecord", "attempt": 1, "status": 200 },
+        { "event": "operationFinished", "operation": "GetRecord", "attempts": 1, "status": 200, "error": null }
+      ]
+    },
+    {
+      "name": "invalid-input-has-no-attempts",
+      "call": "GetRecord",
+      "input": { "table": "t1", "key": "" },
+      "responses": [],
+      "secrets": ["api-key-secret"],
+      "events": [
+        { "event": "operationStarted", "operation": "GetRecord" },
+        { "event": "operationFinished", "operation": "GetRecord", "attempts": 0, "status": null, "error": "*" }
+      ]
+    }
+  ]
+}

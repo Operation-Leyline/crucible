@@ -12,6 +12,10 @@ fn member(service: &Service, m: &Member, field: &impl Fn(&str) -> String) -> Val
     if m.wire_name != m.name {
         value["jsonName"] = json!(m.wire_name);
     }
+    // Runtimes redact these from telemetry, wherever the member is bound.
+    if service.sensitive(m) {
+        value["sensitive"] = json!(true);
+    }
     if matches!(service.shape(&m.target), Some(Shape::Simple(shape)) if shape.streaming)
         && let Some(length) = &m.constraints.length
     {
@@ -200,6 +204,33 @@ mod tests {
             schema["shapes"]["example.types#SparseNames"]
                 .get("set")
                 .is_none()
+        );
+    }
+    #[test]
+    fn sensitive_members_and_discovery_are_described_for_runtimes() {
+        use crucible_smithy::{Capabilities, Feature, Model};
+        let service = Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/runtime-policy.json"
+        ))
+        .unwrap()
+        .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
+        .unwrap();
+        let schema = super::schema(&service, str::to_owned);
+        let members = &schema["shapes"]["example.policy#PutRecordInput"]["members"];
+        assert_eq!(members["secret"]["sensitive"], true);
+        assert_eq!(members["ticket"]["sensitive"], true);
+        assert!(members["label"].get("sensitive").is_none());
+        assert_eq!(
+            schema["endpointDiscovery"]["operation"],
+            "example.policy#DescribeEndpoints"
+        );
+        assert_eq!(
+            schema["endpointDiscovery"]["cachePeriodMember"],
+            "CachePeriodInMinutes"
+        );
+        assert_eq!(
+            schema["operations"]["GetRecord"]["discoveredEndpoint"],
+            serde_json::json!({"required": true, "identifiers": ["table"]})
         );
     }
     #[test]

@@ -109,3 +109,95 @@ fn pure_collection_cycles_and_invalid_discovery_are_diagnosed() {
     assert!(error.contains("collection-only cycle"), "{error}");
     assert!(error.contains("CachePeriodInMinutes:long"), "{error}");
 }
+
+fn lower_discovery(model: &Value) -> Result<crucible_smithy::ir::Service, String> {
+    Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(
+            None,
+            &Capabilities::new([Feature::EndpointDiscovery, Feature::ApiKeyAuth]),
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[test]
+fn runtime_policy_fixture_lowers_required_and_optional_discovery() {
+    let model: Value = serde_json::from_str(include_str!("fixtures/runtime-policy.json")).unwrap();
+    let service = lower_discovery(&model).unwrap();
+    let discovery = service.endpoint_discovery.as_ref().unwrap();
+    assert_eq!(
+        discovery.error.as_ref().unwrap().to_string(),
+        "example.policy#InvalidEndpointException"
+    );
+    let discovered = |name: &str| {
+        service
+            .operations
+            .iter()
+            .find(|op| op.name() == name)
+            .unwrap()
+            .discovered_endpoint
+            .clone()
+    };
+    let get = discovered("GetRecord").unwrap();
+    assert!(get.required);
+    assert_eq!(get.identifiers, ["table"]);
+    let put = discovered("PutRecord").unwrap();
+    assert!(!put.required);
+    assert_eq!(put.identifiers, ["table"]);
+    assert!(discovered("ListRecords").is_none());
+    assert!(discovered("DescribeEndpoints").is_none());
+}
+
+#[test]
+fn every_invalid_discovery_construct_is_a_diagnostic() {
+    let base: Value = serde_json::from_str(include_str!("fixtures/runtime-policy.json")).unwrap();
+    type Mutation = fn(&mut Value);
+    let cases: [(&str, Mutation); 8] = [
+        ("invalid @aws.api#clientEndpointDiscovery", |m| {
+            m["shapes"]["example.policy#Records"]["traits"]["aws.api#clientEndpointDiscovery"]["extra"] =
+                json!(true);
+        }),
+        ("cannot itself use endpoint discovery", |m| {
+            m["shapes"]["example.policy#DescribeEndpoints"]["traits"]["aws.api#clientDiscoveredEndpoint"] =
+                json!({});
+        }),
+        ("must be bound to every discovered operation", |m| {
+            m["shapes"]["example.policy#PutRecord"]["errors"] =
+                json!([{"target": "example.policy#Throttled"}]);
+        }),
+        ("requires service @clientEndpointDiscovery", |m| {
+            m["shapes"]["example.policy#Records"]["traits"]
+                .as_object_mut()
+                .unwrap()
+                .remove("aws.api#clientEndpointDiscovery");
+        }),
+        ("identifiers must be required strings", |m| {
+            m["shapes"]["example.policy#PutRecordInput"]["members"]["label"]["traits"]["aws.api#clientEndpointDiscoveryId"] =
+                json!({});
+        }),
+        ("must be bound to the service", |m| {
+            m["shapes"]["example.policy#Records"]["operations"] = json!([
+                {"target": "example.policy#ListRecords"}
+            ]);
+        }),
+        ("discovery input permits only", |m| {
+            m["shapes"]["example.policy#DescribeEndpointsRequest"]["members"]["Region"] =
+                json!({"target": "smithy.api#String"});
+        }),
+        (
+            "requires an operation with @aws.api#clientDiscoveredEndpoint",
+            |m| {
+                m["shapes"]["example.policy#ListRecords"]["input"] =
+                    json!({"target": "example.policy#PutRecordInput"});
+                m["shapes"]["example.policy#ListRecords"]["traits"]["smithy.api#http"]["uri"] =
+                    json!("/records/{table}");
+            },
+        ),
+    ];
+    for (expected, mutate) in cases {
+        let mut model = base.clone();
+        mutate(&mut model);
+        let error = lower_discovery(&model).unwrap_err();
+        assert!(error.contains(expected), "{expected}: {error}");
+    }
+}
