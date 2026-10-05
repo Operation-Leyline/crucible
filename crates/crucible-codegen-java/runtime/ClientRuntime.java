@@ -810,7 +810,11 @@ final class ClientRuntime {
           try {
             var request=callValues(operation,values.deepCopy(),stream,output); result.track(request);
             request.whenCompleteAsync((value,failure)->{
-              if (result.isDone()) return;
+              if (result.isDone()) {
+                // Cancelling a completed operation cannot release its unread response.
+                closeStreams(text(op,"output"),value);
+                return;
+              }
               response=value; error=failure instanceof CompletionException && failure.getCause()!=null ? failure.getCause() : failure;
               try {
                 var queryOutput=error==null ? queryValue(text(op,"output"),encode(text(op,"output"),value,null),null) : JsonNull.INSTANCE;
