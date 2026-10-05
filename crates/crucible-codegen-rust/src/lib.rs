@@ -19,6 +19,7 @@ mod errors;
 mod info;
 mod models;
 mod names;
+mod open;
 mod operations;
 mod scaffold;
 mod types;
@@ -58,8 +59,8 @@ pub struct Options {
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
     let strict = models::strict_shapes(service, options.strict_inputs);
-    let model = models::emit(service, &strict, &mut diagnostics);
-    let errors = errors::emit(service, &mut diagnostics);
+    let model = models::emit(service, &strict, false, &mut diagnostics);
+    let errors = errors::emit(service, false, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
     let configured_validation = options.validation_error.as_ref();
     let configured_internal = options.internal_error.as_ref();
@@ -120,8 +121,8 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
 pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
     // A client reads what a newer service sends: never strict.
-    let model = models::emit(service, &Default::default(), &mut diagnostics);
-    let errors = errors::emit(service, &mut diagnostics);
+    let model = models::emit(service, &Default::default(), true, &mut diagnostics);
+    let errors = errors::emit(service, true, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
     let client = format!(
         "{}{}",
@@ -139,8 +140,8 @@ pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
         indent(&errors),
         client
     );
-    // The model and error code is the server's: both runtimes export the
-    // wire types under the same paths, so only the crate name differs.
+    // Shared wire paths keep generated client declarations independent of the
+    // server framework; client-only presence and open types live in the runtime.
     Ok(code.replace("::crucible::", "::crucible_client::"))
 }
 

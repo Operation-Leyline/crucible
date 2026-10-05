@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use chrono::{TimeZone, Utc};
-use crucible_client::{Config, Error, Retry, Token};
+use crucible_client::{Config, Error, Field, Retry, Token};
 use weather_client::model::{
     Coordinates, CreateCityInput, GetCityInput, GetCityPhotoInput, ListCitiesInput, Location,
     PutCityPhotoInput, Sky, StatusInput,
@@ -39,10 +39,10 @@ async fn client() -> Client {
 
 fn create(name: &str) -> CreateCityInput {
     CreateCityInput {
-        name: name.to_owned(),
-        location: None,
-        client_token: None,
-        expected_revision: None,
+        name: Field::Value(name.to_owned()),
+        location: Field::Absent,
+        client_token: Field::Absent,
+        expected_revision: Field::Absent,
     }
 }
 
@@ -51,8 +51,8 @@ async fn a_created_city_reads_back_with_every_member_intact() {
     let client = client().await;
     let created = client
         .create_city(CreateCityInput {
-            expected_revision: Some(7),
-            location: Some(Location::Coordinates(Coordinates {
+            expected_revision: Field::Value(7),
+            location: Field::Value(Location::Coordinates(Coordinates {
                 latitude: 59.9,
                 longitude: 10.7,
             })),
@@ -66,11 +66,11 @@ async fn a_created_city_reads_back_with_every_member_intact() {
         "a header member reached the server"
     );
     assert!(
-        created.city.updated_at.is_some(),
+        created.city.updated_at.value().is_some(),
         "date-time body timestamp"
     );
     // Epoch seconds travel with millisecond precision, date-times with all of it.
-    let millis = |at: Option<chrono::DateTime<Utc>>| at.map(|at| at.timestamp_millis());
+    let millis = |at: Field<chrono::DateTime<Utc>>| at.value().map(|at| at.timestamp_millis());
     assert_eq!(
         millis(created.city.created_at),
         millis(created.city.updated_at),
@@ -80,8 +80,8 @@ async fn a_created_city_reads_back_with_every_member_intact() {
     let at = Utc.with_ymd_and_hms(2026, 10, 1, 12, 30, 0).unwrap();
     let read = client
         .get_city(GetCityInput {
-            city_id: created.city.id.clone(),
-            at: Some(at),
+            city_id: Field::Value(created.city.id.clone()),
+            at: Field::Value(at),
         })
         .await
         .unwrap();
@@ -93,7 +93,7 @@ async fn a_created_city_reads_back_with_every_member_intact() {
     );
     assert_eq!(
         read.forecast,
-        Some(BTreeMap::from([(
+        Field::Value(BTreeMap::from([(
             Sky::Clear,
             serde_json::json!({ "at": "2026-10-01T12:30:00+00:00" })
         )])),
@@ -105,7 +105,7 @@ async fn a_created_city_reads_back_with_every_member_intact() {
 async fn the_same_idempotency_token_replays_instead_of_creating_twice() {
     let client = client().await;
     let input = CreateCityInput {
-        client_token: Some("token-1".to_owned()),
+        client_token: Field::Value("token-1".to_owned()),
         ..create("bergen")
     };
     let first = client.create_city(input.clone()).await.unwrap();
@@ -126,8 +126,8 @@ async fn a_modelled_error_arrives_as_its_variant() {
     }
     match client
         .get_city(GetCityInput {
-            city_id: "c-99999999".to_owned(),
-            at: None,
+            city_id: Field::Value("c-99999999".to_owned()),
+            at: Field::Absent,
         })
         .await
     {
@@ -143,7 +143,7 @@ async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
     let client = client().await;
     match client.create_city(create(&"x".repeat(41))).await {
         Err(Error::Service(CreateCityError::ValidationError(error))) => {
-            let fields = error.field_list.unwrap();
+            let fields = error.field_list.into_value().unwrap();
             assert_eq!(fields[0].path, "name");
             assert_eq!(fields[0].message, "length must be at most 40");
         }
@@ -151,14 +151,14 @@ async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
     }
     match client
         .list_cities(ListCitiesInput {
-            max_results: Some(0),
-            next_token: None,
-            tags: None,
+            max_results: Field::Value(0),
+            next_token: Field::Absent,
+            tags: Field::Absent,
         })
         .await
     {
         Err(Error::Service(ListCitiesError::ValidationError(error))) => {
-            assert_eq!(error.field_list.unwrap()[0].path, "maxResults")
+            assert_eq!(error.field_list.into_value().unwrap()[0].path, "maxResults")
         }
         other => panic!("expected a validation error, got {other:?}"),
     }
@@ -169,13 +169,13 @@ async fn labels_are_percent_encoded() {
     let client = client().await;
     match client
         .get_city(GetCityInput {
-            city_id: "a/b c".to_owned(),
-            at: None,
+            city_id: Field::Value("a/b c".to_owned()),
+            at: Field::Absent,
         })
         .await
     {
         Err(Error::Service(GetCityError::ValidationError(error))) => {
-            assert_eq!(error.field_list.unwrap()[0].path, "cityId")
+            assert_eq!(error.field_list.into_value().unwrap()[0].path, "cityId")
         }
         other => panic!("expected the label to reach the server whole, got {other:?}"),
     }
@@ -189,9 +189,9 @@ async fn pagination_walks_every_page_and_list_query_parameters_repeat() {
         client.create_city(create(name)).await.unwrap();
     }
     let mut pages = client.list_cities_pages(ListCitiesInput {
-        max_results: Some(2),
-        next_token: None,
-        tags: None,
+        max_results: Field::Value(2),
+        next_token: Field::Absent,
+        tags: Field::Absent,
     });
     let mut seen = Vec::new();
     let mut count = 0;
@@ -208,9 +208,9 @@ async fn pagination_walks_every_page_and_list_query_parameters_repeat() {
 
     let filtered = client
         .list_cities(ListCitiesInput {
-            tags: Some(vec!["p-two".to_owned(), "p-three".to_owned()]),
-            max_results: None,
-            next_token: None,
+            tags: Field::Value(vec!["p-two".to_owned(), "p-three".to_owned()]),
+            max_results: Field::Absent,
+            next_token: Field::Absent,
         })
         .await
         .unwrap();
@@ -234,7 +234,7 @@ async fn throttling_is_retried_then_surfaces_with_its_header_member() {
     failing(&endpoint, "brief", 2).ping().await.unwrap();
     match failing(&endpoint, "stubborn", 9).ping().await {
         Err(Error::Service(PingError::ThrottlingError(error))) => {
-            assert_eq!(error.retry_after, Some(0))
+            assert_eq!(error.retry_after, Field::Value(0))
         }
         other => panic!("expected throttling, got {other:?}"),
     }
@@ -304,9 +304,9 @@ async fn a_payload_travels_raw_both_ways() {
     let photo: &'static [u8] = b"\xff\xd8{\"looks\": \"like json\"}\x00\x80";
     let stored = client
         .put_city_photo(PutCityPhotoInput {
-            city_id: city.id.clone(),
-            caption: Some("aurora".to_owned()),
-            photo: photo.into(),
+            city_id: Field::Value(city.id.clone()),
+            caption: Field::Value("aurora".to_owned()),
+            photo: Field::Value(photo.into()),
         })
         .await
         .unwrap();
@@ -318,7 +318,7 @@ async fn a_payload_travels_raw_both_ways() {
 
     let read = client
         .get_city_photo(GetCityPhotoInput {
-            city_id: city.id.clone(),
+            city_id: Field::Value(city.id.clone()),
         })
         .await
         .unwrap();
@@ -327,9 +327,9 @@ async fn a_payload_travels_raw_both_ways() {
 
     let refused = client
         .put_city_photo(PutCityPhotoInput {
-            city_id: city.id,
-            caption: None,
-            photo: vec![0; 4097].into(),
+            city_id: Field::Value(city.id),
+            caption: Field::Absent,
+            photo: Field::Value(vec![0; 4097].into()),
         })
         .await;
     assert!(

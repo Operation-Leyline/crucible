@@ -24,7 +24,7 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
 }
 
 /// The body of `pub mod errors { ... }`.
-pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
+pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostics) -> String {
     let boxed = boxed_members(service);
     let mut out =
         String::from("use ::crucible::operation::{ErrorInfo, Fault};\nuse super::__redaction;\n");
@@ -46,6 +46,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                 is_boxed,
                 "super::model::",
                 &mut defaults,
+                client,
                 diagnostics,
             );
         }
@@ -71,7 +72,13 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             .member("message")
             .filter(|m| simple_kind(service, &m.target) == Some(SimpleKind::String));
         let display = match message {
-            Some(m) if m.optional_on_server() => {
+            Some(m)
+                if if client {
+                    m.optional_on_client()
+                } else {
+                    m.optional_on_server()
+                } =>
+            {
                 "self.message.as_deref().unwrap_or_default()".to_owned()
             }
             Some(_) => "&self.message".to_owned(),

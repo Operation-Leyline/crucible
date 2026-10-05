@@ -138,7 +138,7 @@ test("labels are encoded, queries repeat, timestamps take their location's forma
   assert.equal(sent[0].headers.get("authorization"), "Bearer secret");
   assert.equal(sent[0].body, undefined);
   assert.equal(out.requestId, "r-1");
-  assert.equal(out.city.population, 0, "a missing member with a default takes it");
+  assert.equal(out.city.population, 0n, "a missing member with a default takes it");
 });
 
 test("list query parameters repeat their key", async () => {
@@ -150,7 +150,7 @@ test("list query parameters repeat their key", async () => {
 
 test("bodies carry body members only, with a digest and a filled idempotency token", async () => {
   const { sent, fetch } = fake(json(201, { city: { id: "c-1", name: "Oslo", population: 7, updatedAt: "2026-09-21T14:13:20Z", createdAt: 1_790_000_000 } }));
-  const input = { name: "Oslo", expectedRevision: 3, location: { coordinates: { latitude: 1, longitude: 2 } } };
+  const input = { name: "Oslo", expectedRevision: 3n, location: { coordinates: { latitude: 1, longitude: 2 } } };
   const out = await new WeatherClient({ fetch }).createCity(input);
 
   const body = JSON.parse(sent[0].body!);
@@ -167,7 +167,7 @@ test("bodies carry body members only, with a digest and a filled idempotency tok
   assert.ok(out.city.updatedAt instanceof Date);
   assert.equal(out.city.updatedAt!.toISOString(), "2026-09-21T14:13:20.000Z");
   assert.equal(out.city.createdAt!.toISOString(), "2026-09-21T14:13:20.000Z", "@timestampFormat overrides");
-  assert.equal(out.city.population, 7);
+  assert.equal(out.city.population, 7n);
 });
 
 test("a frozen input gets a token on a copy", async () => {
@@ -202,14 +202,14 @@ test("the body's __type wins over the status", async () => {
 
 test("throttling retries, honouring Retry-After, and decodes header members", async () => {
   const { sent, fetch } = fake(
-    json(429, { message: "slow" }, { "retry-after": "0.001" }),
-    json(429, { message: "slow" }, { "retry-after": "0.001" }),
-    json(429, { message: "slow" }, { "retry-after": "0.001" }),
+    json(429, { message: "slow" }, { "retry-after": "0" }),
+    json(429, { message: "slow" }, { "retry-after": "0" }),
+    json(429, { message: "slow" }, { "retry-after": "0" }),
   );
   const error = await new WeatherClient({ fetch, retry: quick }).ping().catch(e => e);
   assert.equal(sent.length, 3);
   assert.ok(error instanceof ThrottlingError);
-  assert.equal(error.retryAfter, 0.001);
+  assert.equal(error.retryAfter, 0);
 });
 
 test("an unknown error keeps status and message", async () => {

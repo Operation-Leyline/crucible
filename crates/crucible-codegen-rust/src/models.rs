@@ -37,6 +37,7 @@ pub(crate) fn strict_shapes(service: &Service, all_inputs: bool) -> BTreeSet<Sha
 pub(crate) fn emit(
     service: &Service,
     strict: &BTreeSet<ShapeId>,
+    client: bool,
     diagnostics: &mut Diagnostics,
 ) -> String {
     let boxed = boxed_members(service);
@@ -80,7 +81,7 @@ pub(crate) fn emit(
                     );
                 }
             }
-            Shape::Enum(values) => enumeration(&mut out, id, name, values, diagnostics),
+            Shape::Enum(values) => enumeration(&mut out, id, name, values, client, diagnostics),
             Shape::Structure(structure) => {
                 doc(&mut out, "", structure.docs.as_deref());
                 out.push_str(crate::DERIVE);
@@ -98,10 +99,14 @@ pub(crate) fn emit(
                         is_boxed,
                         "",
                         &mut defaults,
+                        client,
                         diagnostics,
                     );
                 }
                 out.push_str("}\n");
+            }
+            Shape::Union(union) if client => {
+                crate::open::union(&mut out, service, id, name, union, &boxed)
             }
             Shape::Union(union) => {
                 doc(&mut out, "", union.docs.as_deref());
@@ -124,7 +129,14 @@ pub(crate) fn emit(
         }
         if validated.contains(id) {
             if let Shape::Structure(structure) | Shape::Union(structure) = shape {
-                validations.push_str(&validate_impl(service, id, structure, shape, &mut patterns));
+                validations.push_str(&validate_impl(
+                    service,
+                    id,
+                    structure,
+                    shape,
+                    client,
+                    &mut patterns,
+                ));
             }
         }
     }
@@ -159,6 +171,7 @@ fn enumeration(
     id: &ShapeId,
     name: &str,
     values: &crucible_smithy::ir::Enum,
+    client: bool,
     diagnostics: &mut Diagnostics,
 ) {
     let mut seen = BTreeSet::new();
@@ -172,6 +185,10 @@ fn enumeration(
                 ),
             );
         }
+    }
+    if client {
+        crate::open::enumeration(out, name, values);
+        return;
     }
     doc(out, "", values.docs.as_deref());
     out.push_str(crate::DERIVE_ENUM);
@@ -210,24 +227,44 @@ pub(crate) fn member_field(
     boxed: bool,
     prefix: &str,
     defaults: &mut String,
+    client: bool,
     diagnostics: &mut Diagnostics,
 ) {
     doc(out, "    ", member.docs.as_deref());
     let mut serde = vec![format!("rename = {}", literal(&member.name))];
-    let optional = member.optional_on_server();
+    let optional = if client {
+        member.optional_on_client()
+    } else {
+        member.optional_on_server()
+    };
     if optional {
-        serde.push("default".to_owned());
-        serde.push("skip_serializing_if = \"::std::option::Option::is_none\"".to_owned());
-    } else if let Some(value) = &member.default {
+        if member.default.is_none() {
+            serde.push("default".to_owned());
+        }
+        serde.push(
+            if client {
+                "skip_serializing_if = \"::crucible::Field::is_absent\""
+            } else {
+                "skip_serializing_if = \"::std::option::Option::is_none\""
+            }
+            .to_owned(),
+        );
+    }
+    if let Some(value) = &member.default {
         let inner = format!("super::{prefix}");
         match default_expr(service, member, value, &inner) {
             Some(expr) => {
+                let expr = if client && optional {
+                    format!("::crucible::Field::Value({expr})")
+                } else {
+                    expr
+                };
                 let function = format!(
                     "{}__{}",
                     function(service.name_of(owner)),
                     function(&member.name).trim_start_matches("r#")
                 );
-                let ty = field_type(service, member, boxed, &inner);
+                let ty = field_type(service, member, boxed, &inner, client);
                 defaults.push_str(&format!(
                     "    pub(super) fn {function}() -> {ty} {{\n        {expr}\n    }}\n"
                 ));
@@ -239,9 +276,15 @@ pub(crate) fn member_field(
             ),
         }
     }
+    if client
+        && !optional
+        && crate::types::simple_kind(service, &member.target) == Some(SimpleKind::Document)
+    {
+        serde.push("deserialize_with = \"::crucible::field::required\"".to_owned());
+    }
     if let Some(module) = timestamp_module(service, member) {
         let module = if optional {
-            format!("{module}::option")
+            format!("{module}::{}", if client { "field" } else { "option" })
         } else {
             module.to_owned()
         };
@@ -251,7 +294,7 @@ pub(crate) fn member_field(
     out.push_str(&format!(
         "    pub {}: {},\n",
         field(&member.name),
-        field_type(service, member, boxed, prefix)
+        field_type(service, member, boxed, prefix, client)
     ));
 }
 
@@ -353,6 +396,7 @@ fn validate_impl(
     id: &ShapeId,
     structure: &Structure,
     shape: &Shape,
+    client: bool,
     patterns: &mut Patterns,
 ) -> String {
     let name = service.name_of(id);
@@ -375,6 +419,11 @@ fn validate_impl(
                 }
                 body.push_str("            }\n");
             }
+            if client {
+                let unknown =
+                    crate::open::unknown_variant(structure.members.iter().map(|m| m.name.as_str()));
+                body.push_str(&format!("            Self::{unknown}(_) => {{}}\n"));
+            }
             body.push_str("        }\n");
         }
         _ => {
@@ -383,7 +432,12 @@ fn validate_impl(
                 if checks.is_empty() {
                     continue;
                 }
-                let access = if member.optional_on_server() {
+                let access = if client && member.optional_on_client() {
+                    format!(
+                        "if let ::crucible::Field::Value(value) = &self.{} {{\n",
+                        field(&member.name)
+                    )
+                } else if !client && member.optional_on_server() {
                     format!("if let Some(value) = &self.{} {{\n", field(&member.name))
                 } else {
                     format!(

@@ -19,10 +19,10 @@ pub mod model {
         pub name: CityName,
         #[serde(rename = "population", default = "defaults::city_summary__population")]
         pub population: i64,
-        #[serde(rename = "updatedAt", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub updated_at: ::std::option::Option<::crucible_client::time::Timestamp>,
-        #[serde(rename = "createdAt", default, skip_serializing_if = "::std::option::Option::is_none", with = "::crucible_client::time::epoch_seconds::option")]
-        pub created_at: ::std::option::Option<::crucible_client::time::Timestamp>,
+        #[serde(rename = "updatedAt", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub updated_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
+        #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client::Field::is_absent", with = "::crucible_client::time::epoch_seconds::field")]
+        pub created_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -37,14 +37,14 @@ pub mod model {
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct CreateCityInput {
-        #[serde(rename = "name")]
-        pub name: CityName,
-        #[serde(rename = "location", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub location: ::std::option::Option<Location>,
-        #[serde(rename = "clientToken", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub client_token: ::std::option::Option<::std::string::String>,
-        #[serde(rename = "expectedRevision", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub expected_revision: ::std::option::Option<i64>,
+        #[serde(rename = "name", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub name: ::crucible_client::Field<CityName>,
+        #[serde(rename = "location", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub location: ::crucible_client::Field<Location>,
+        #[serde(rename = "clientToken", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub client_token: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "expectedRevision", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub expected_revision: ::crucible_client::Field<i64>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -61,10 +61,10 @@ pub mod model {
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct GetCityInput {
-        #[serde(rename = "cityId")]
-        pub city_id: CityId,
-        #[serde(rename = "at", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub at: ::std::option::Option<DateTime>,
+        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub city_id: ::crucible_client::Field<CityId>,
+        #[serde(rename = "at", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub at: ::crucible_client::Field<DateTime>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -72,37 +72,37 @@ pub mod model {
     pub struct GetCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
-        #[serde(rename = "forecast", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub forecast: ::std::option::Option<Forecast>,
-        #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub request_id: ::std::option::Option<::std::string::String>,
+        #[serde(rename = "forecast", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub forecast: ::crucible_client::Field<Forecast>,
+        #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub request_id: ::crucible_client::Field<::std::string::String>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct GetCityPhotoInput {
-        #[serde(rename = "cityId")]
-        pub city_id: CityId,
+        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub city_id: ::crucible_client::Field<CityId>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct GetCityPhotoOutput {
-        #[serde(rename = "caption", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub caption: ::std::option::Option<::std::string::String>,
-        #[serde(rename = "photo", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub photo: ::std::option::Option<Photo>,
+        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub caption: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub photo: ::crucible_client::Field<Photo>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct ListCitiesInput {
-        #[serde(rename = "nextToken", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub next_token: ::std::option::Option<::std::string::String>,
-        #[serde(rename = "maxResults", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub max_results: ::std::option::Option<i32>,
-        #[serde(rename = "tags", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub tags: ::std::option::Option<Tags>,
+        #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub next_token: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "maxResults", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub max_results: ::crucible_client::Field<i32>,
+        #[serde(rename = "tags", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub tags: ::crucible_client::Field<Tags>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -110,17 +110,42 @@ pub mod model {
     pub struct ListCitiesOutput {
         #[serde(rename = "cities")]
         pub cities: CitySummaries,
-        #[serde(rename = "nextToken", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub next_token: ::std::option::Option<::std::string::String>,
+        #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub next_token: ::crucible_client::Field<::std::string::String>,
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq)]
     pub enum Location {
-        #[serde(rename = "coordinates")]
         Coordinates(Coordinates),
-        #[serde(rename = "unknown")]
         Unknown(::crucible_client::operation::Unit),
+        /// An arm introduced by a newer service.
+        UnknownValue(::crucible_client::UnknownUnion),
+    }
+    impl ::crucible_client::open::Union for Location {
+        fn deserialize_member<'de, D: ::crucible_client::__private::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {
+            match name.as_str() {
+                "coordinates" => ::crucible_client::__private::serde::Deserialize::deserialize(value).map(Self::Coordinates),
+                "unknown" => ::crucible_client::__private::serde::Deserialize::deserialize(value).map(Self::Unknown),
+                _ => ::crucible_client::__private::serde::Deserialize::deserialize(value).map(|value| Self::UnknownValue(::crucible_client::UnknownUnion { name, value })),
+            }
+        }
+        fn serialize_member<S: ::crucible_client::__private::serde::ser::SerializeMap>(&self, map: &mut S) -> ::std::result::Result<(), S::Error> {
+            match self {
+                Self::Coordinates(value) => map.serialize_entry("coordinates", value),
+                Self::Unknown(value) => map.serialize_entry("unknown", value),
+                Self::UnknownValue(value) => ::crucible_client::open::serialize_unknown(value, &["coordinates", "unknown"], map),
+            }
+        }
+    }
+    impl ::crucible_client::__private::serde::Serialize for Location {
+        fn serialize<S: ::crucible_client::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
+            ::crucible_client::open::serialize_union(self, serializer)
+        }
+    }
+    impl<'de> ::crucible_client::__private::serde::Deserialize<'de> for Location {
+        fn deserialize<D: ::crucible_client::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
+            ::crucible_client::open::deserialize_union(deserializer)
+        }
     }
 
     /// A photo, carried unparsed.
@@ -133,19 +158,19 @@ pub mod model {
         pub size: i32,
         #[serde(rename = "thumbnail")]
         pub thumbnail: Thumbnail,
-        #[serde(rename = "caption", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub caption: ::std::option::Option<::std::string::String>,
+        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub caption: ::crucible_client::Field<::std::string::String>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client::__private::serde")]
     pub struct PutCityPhotoInput {
-        #[serde(rename = "cityId")]
-        pub city_id: CityId,
-        #[serde(rename = "caption", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub caption: ::std::option::Option<::std::string::String>,
-        #[serde(rename = "photo")]
-        pub photo: Photo,
+        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub city_id: ::crucible_client::Field<CityId>,
+        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub caption: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub photo: ::crucible_client::Field<Photo>,
     }
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
@@ -155,22 +180,40 @@ pub mod model {
         pub photo: PhotoSummary,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum Sky {
-        #[serde(rename = "clear")]
         Clear,
-        #[serde(rename = "cloudy")]
         Cloudy,
+        /// A value introduced by a newer service.
+        UnknownValue(::std::string::String),
     }
-
     impl Sky {
-        /// The value on the wire.
-        pub fn as_str(&self) -> &'static str {
+        pub fn as_str(&self) -> &str {
             match self {
                 Self::Clear => "clear",
                 Self::Cloudy => "cloudy",
+                Self::UnknownValue(value) => value,
             }
+        }
+    }
+    impl ::crucible_client::open::Enum for Sky {
+        fn as_str(&self) -> &str { self.as_str() }
+        fn from_string(value: ::std::string::String) -> Self {
+            match value.as_str() {
+                "clear" => Self::Clear,
+                "cloudy" => Self::Cloudy,
+                _ => Self::UnknownValue(value),
+            }
+        }
+    }
+    impl ::crucible_client::__private::serde::Serialize for Sky {
+        fn serialize<S: ::crucible_client::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
+            ::crucible_client::open::serialize_enum(self, serializer)
+        }
+    }
+    impl<'de> ::crucible_client::__private::serde::Deserialize<'de> for Sky {
+        fn deserialize<D: ::crucible_client::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
+            ::crucible_client::open::deserialize_enum(deserializer)
         }
     }
 
@@ -200,28 +243,46 @@ pub mod model {
 
     pub type ValidationFieldList = ::std::vec::Vec<ValidationField>;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum ValidationReason {
-        #[serde(rename = "unknownOperation")]
         UnknownOperation,
-        #[serde(rename = "cannotParse")]
         CannotParse,
-        #[serde(rename = "fieldValidationFailed")]
         FieldValidationFailed,
-        #[serde(rename = "other")]
         Other,
+        /// A value introduced by a newer service.
+        UnknownValue(::std::string::String),
     }
-
     impl ValidationReason {
-        /// The value on the wire.
-        pub fn as_str(&self) -> &'static str {
+        pub fn as_str(&self) -> &str {
             match self {
                 Self::UnknownOperation => "unknownOperation",
                 Self::CannotParse => "cannotParse",
                 Self::FieldValidationFailed => "fieldValidationFailed",
                 Self::Other => "other",
+                Self::UnknownValue(value) => value,
             }
+        }
+    }
+    impl ::crucible_client::open::Enum for ValidationReason {
+        fn as_str(&self) -> &str { self.as_str() }
+        fn from_string(value: ::std::string::String) -> Self {
+            match value.as_str() {
+                "unknownOperation" => Self::UnknownOperation,
+                "cannotParse" => Self::CannotParse,
+                "fieldValidationFailed" => Self::FieldValidationFailed,
+                "other" => Self::Other,
+                _ => Self::UnknownValue(value),
+            }
+        }
+    }
+    impl ::crucible_client::__private::serde::Serialize for ValidationReason {
+        fn serialize<S: ::crucible_client::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
+            ::crucible_client::open::serialize_enum(self, serializer)
+        }
+    }
+    impl<'de> ::crucible_client::__private::serde::Deserialize<'de> for ValidationReason {
+        fn deserialize<D: ::crucible_client::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
+            ::crucible_client::open::deserialize_enum(deserializer)
         }
     }
 
@@ -242,13 +303,12 @@ pub mod model {
 
     impl Validate for CreateCityInput {
         fn validate(&self, validator: &mut Validator) {
-            {
-                let value = &self.name;
+            if let ::crucible_client::Field::Value(value) = &self.name {
                 validator.at("name", |validator| {
                     validator.length(value.chars().count(), None, Some(40));
                 });
             }
-            if let Some(value) = &self.location {
+            if let ::crucible_client::Field::Value(value) = &self.location {
                 validator.at("location", |validator| {
                     value.validate(validator);
                 });
@@ -258,8 +318,7 @@ pub mod model {
 
     impl Validate for GetCityInput {
         fn validate(&self, validator: &mut Validator) {
-            {
-                let value = &self.city_id;
+            if let ::crucible_client::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
@@ -269,8 +328,7 @@ pub mod model {
 
     impl Validate for GetCityPhotoInput {
         fn validate(&self, validator: &mut Validator) {
-            {
-                let value = &self.city_id;
+            if let ::crucible_client::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
@@ -280,12 +338,12 @@ pub mod model {
 
     impl Validate for ListCitiesInput {
         fn validate(&self, validator: &mut Validator) {
-            if let Some(value) = &self.max_results {
+            if let ::crucible_client::Field::Value(value) = &self.max_results {
                 validator.at("maxResults", |validator| {
                     validator.range_integer(i128::from(*value), Some(1i128), Some(100i128));
                 });
             }
-            if let Some(value) = &self.tags {
+            if let ::crucible_client::Field::Value(value) = &self.tags {
                 validator.at("tags", |validator| {
                     validator.length(value.len(), None, Some(5));
                 });
@@ -303,20 +361,19 @@ pub mod model {
                 }
                 Self::Unknown(_) => {
                 }
+                Self::UnknownValue(_) => {}
             }
         }
     }
 
     impl Validate for PutCityPhotoInput {
         fn validate(&self, validator: &mut Validator) {
-            {
-                let value = &self.city_id;
+            if let ::crucible_client::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
             }
-            {
-                let value = &self.photo;
+            if let ::crucible_client::Field::Value(value) = &self.photo {
                 validator.at("photo", |validator| {
                     validator.length(value.len(), Some(1), Some(4096));
                 });
@@ -381,8 +438,8 @@ pub mod errors {
     pub struct NotFoundError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
-        #[serde(rename = "resourceId", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub resource_id: ::std::option::Option<::std::string::String>,
+        #[serde(rename = "resourceId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub resource_id: ::crucible_client::Field<::std::string::String>,
     }
 
     pub(super) static NOT_FOUND_ERROR_INFO: ErrorInfo = ErrorInfo {
@@ -424,8 +481,8 @@ pub mod errors {
     pub struct ThrottlingError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
-        #[serde(rename = "retryAfter", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub retry_after: ::std::option::Option<i32>,
+        #[serde(rename = "retryAfter", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub retry_after: ::crucible_client::Field<i32>,
     }
 
     pub(super) static THROTTLING_ERROR_INFO: ErrorInfo = ErrorInfo {
@@ -469,10 +526,10 @@ pub mod errors {
         pub message: ::std::string::String,
         #[serde(rename = "reason")]
         pub reason: super::model::ValidationReason,
-        #[serde(rename = "fieldList", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub field_list: ::std::option::Option<super::model::ValidationFieldList>,
-        #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
-        pub request_id: ::std::option::Option<::std::string::String>,
+        #[serde(rename = "fieldList", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub field_list: ::crucible_client::Field<super::model::ValidationFieldList>,
+        #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
+        pub request_id: ::crucible_client::Field<::std::string::String>,
     }
 
     pub(super) static VALIDATION_ERROR_INFO: ErrorInfo = ErrorInfo {
@@ -1074,8 +1131,8 @@ impl Client {
     }
 
     pub async fn create_city(&self, mut input: model::CreateCityInput) -> ::std::result::Result<model::CreateCityOutput, ::crucible_client::Error<CreateCityError>> {
-        if input.client_token.is_none() {
-            input.client_token = Some(::crucible_client::idempotency_token());
+        if input.client_token.value().is_none() {
+            input.client_token = ::crucible_client::Field::Value(::crucible_client::idempotency_token());
         }
         self.transport.send::<CreateCity, CreateCityError>(&input).await
     }
@@ -1099,7 +1156,7 @@ impl Client {
             input,
             |output| output.next_token.as_deref(),
             |input| input.next_token.as_deref(),
-            |input, token| input.next_token = Some(token),
+            |input, token| input.next_token = ::crucible_client::Field::Value(token),
         )
     }
 

@@ -30,6 +30,7 @@ const RUNTIME_EXPORTS: &[&str] = &[
     "ServiceError",
     "NetworkError",
     "contentSha256",
+    "stringifyJson",
     "ClientConfig",
     "RequestOptions",
     "Middleware",
@@ -109,7 +110,7 @@ fn index(client: &str) -> String {
         "{HEADER}export * from \"./models.js\";\n\
          export * from \"./errors.js\";\n\
          export {{ {client} }} from \"./client.js\";\n\
-         export {{ NetworkError, ServiceError, contentSha256 }} from \"./runtime.js\";\n\
+         export {{ NetworkError, ServiceError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
          export type {{\n  ClientConfig,\n  Document,\n  Fetch,\n  Middleware,\n  Next,\n  RequestOptions,\n  \
          ResponseMetadata,\n  RetryConfig,\n  TokenProvider,\n  Unit,\n}} from \"./runtime.js\";\n"
     )

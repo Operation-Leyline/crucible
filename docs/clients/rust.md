@@ -4,7 +4,7 @@
 
 Crucible generates native Rust models, one error enum per operation, an async
 `Client`, and lazy paginators. The generated package uses `crucible-client` and
-the same wire types as the Rust service. Use the current stable Rust toolchain
+the shared `crucible-wire` runtime. Use the current stable Rust toolchain
 and an async runtime such as Tokio.
 
 ## Generating a client
@@ -65,7 +65,7 @@ The example below uses the generated weather client and needs Tokio's `macros`
 and `rt-multi-thread` features in the application:
 
 ```rust
-use crucible_client::{Config, Token};
+use crucible_client::{Config, Field, Token};
 use weather_client::{Client, model::{GetCityInput, ListCitiesInput}};
 
 #[tokio::main]
@@ -75,13 +75,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .token(Token::fixed(std::env::var("WEATHER_TOKEN")?)),
     );
     let result = client.get_city(GetCityInput {
-        city_id: "oslo".into(),
-        at: None,
+        city_id: Field::Value("oslo".into()),
+        at: Field::Absent,
     }).await?;
     println!("{}", result.city.name);
 
     let mut pages = client.list_cities_pages(ListCitiesInput {
-        max_results: Some(50), next_token: None, tags: None,
+        max_results: Field::Value(50), next_token: Field::Absent, tags: Field::Absent,
     });
     while let Some(page) = pages.next_page().await {
         println!("{} cities", page?.cities.len());
@@ -101,16 +101,29 @@ on every attempt, so refreshed credentials are picked up.
 Structures use public snake_case fields. Smithy `long` is `i64`, `integer` is
 `i32`, document values use `serde_json::Value`, and blobs use
 `crucible_client::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
-Optional members use `Option<T>`: `None` is omitted, and absent/null input values
-collapse when decoded. There is no independent explicit-null presence wrapper.
-Defaults are applied by generated deserialization.
+Members that Smithy permits clients to omit use `crucible_client::Field<T>`.
+This includes every member of an `@input` structure and members marked
+`@clientOptional`, even when the server requires them. `Field::Absent` omits the
+member, `Field::Null` writes JSON null, and `Field::Value(value)` writes a value.
+Defaults apply only when decoding an absent member; explicit null stays null
+for an optional member. Query and header bindings omit absent and null values.
+Supply all required labels and the values the operation needs before sending.
 
 Timestamps are `chrono::DateTime<Utc>`. RFC 3339 date-time preserves supported
 subsecond precision; HTTP-date has second precision. The epoch-seconds codec
 currently converts through `f64` and milliseconds, so it does not preserve
 nanosecond values or guarantee precision at extreme dates. Named string enums
-and unions are closed Rust enums: an unmodeled enum value or union arm fails
-decoding. A modeled arm named `unknown` is still just that modeled arm.
+retain unmodeled strings in `UnknownValue(String)`, including enum map keys.
+They implement `Clone`, but no longer `Copy`; `as_str()` borrows from the enum.
+Unions retain an unmodeled arm in
+`UnknownValue(crucible_client::UnknownUnion { name, value })`, where `value` is
+`serde_json::Value`. The generated variant receives a numeric suffix if its
+name would collide with a modeled variant. A modeled arm named `unknown` remains
+a normal modeled arm. Malformed known arms still fail decoding, and an unknown
+arm cannot be serialized under a declared arm's name.
+
+These representations apply to generated clients. Rust service models keep
+their server nullability, `Option<T>` fields, and closed enums and unions.
 
 Each method returns `Result<Output, Error<OperationError>>`. Match
 `Error::Service(CreateCityError::ConflictError(error))` for a modeled exception.
@@ -176,6 +189,54 @@ Local generation and native HTTP proof do not establish published-package or
 authenticated Leyline compatibility. See [qualification levels](../clients.md#qualification).
 
 ## Updating the runtime
+
+### Migrating client models
+
+Regenerate the entire client package and update `crucible-client`,
+`crucible-build`, and the generator to the same pinned revision. This changes
+the generated Rust API without changing the wire encoding of existing values.
+Consumers must update struct literals and matches:
+
+| Previous client API | Current client API |
+|---|---|
+| Optional field `None` | `Field::Absent` |
+| Optional field `Some(value)` | `Field::Value(value)` or `value.into()` |
+| Required field in an `@input` structure | `Field::Value(value)` |
+| No explicit null representation | `Field::Null` |
+| Read `Option<T>` | Use `value()` / `into_value()`, or match all three states |
+| Exhaustive enum or union match | Handle the generated unknown variant |
+| Copy an enum or retain its `&'static str` | Clone or borrow the enum; copy the string if needed |
+
+`Field::from(Option<T>)` maps `None` to `Absent` and `Some(value)` to `Value(value)`.
+Use it when adapting an existing optional value; it cannot infer explicit null.
+For example, with the generated weather models:
+
+```rust
+use crucible_client::Field;
+use weather_client::model::{ListCitiesInput, Sky};
+
+let previous_limit: Option<i32> = Some(50);
+let input = ListCitiesInput {
+    max_results: Field::from(previous_limit),
+    next_token: Field::Absent,
+    tags: Field::Null,
+};
+assert_eq!(input.max_results.value(), Some(&50));
+assert!(input.next_token.is_absent());
+assert!(input.tags.is_null());
+
+let future_sky = Sky::UnknownValue("hazy".into());
+assert_eq!(future_sky.as_str(), "hazy");
+```
+
+Keep the previous generator revision, lockfile, generated package, and consumer
+revision together as the rollback unit. Before adopting the new package, compile
+its consumers, run the shared serialization fixtures and weather HTTP tests,
+and check the model revision used for generation. Roll back all four together;
+new generated clients require the matching runtime. Service packages do not
+need a presence-model migration.
+
+### Retry metadata
 
 `ErrorInfo` includes `retryable`, preserving non-throttling `@retryable` metadata.
 Regenerate Rust clients and services with the matching runtime. Handwritten

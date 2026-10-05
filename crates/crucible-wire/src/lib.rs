@@ -7,6 +7,8 @@
 pub mod blob;
 pub mod bound;
 pub mod error;
+pub mod field;
+pub mod open;
 pub mod operation;
 pub mod split;
 pub mod text;

@@ -42,6 +42,28 @@ pub mod epoch_seconds {
             .ok_or_else(|| serde::de::Error::custom("timestamp out of range"))
     }
 
+    /// Presence-aware adapter used by generated optional client timestamps.
+    pub mod field {
+        use crate::field::Field;
+        use chrono::{DateTime, Utc};
+        use serde::{Deserializer, Serializer};
+        pub fn serialize<S: Serializer>(
+            time: &Field<DateTime<Utc>>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            match time {
+                Field::Value(value) => super::serialize(value, serializer),
+                Field::Absent | Field::Null => serializer.serialize_none(),
+            }
+        }
+        pub fn deserialize<'de, D: Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<Field<DateTime<Utc>>, D::Error> {
+            super::option::deserialize(deserializer)
+                .map(|value| value.map_or(Field::Null, Field::Value))
+        }
+    }
+
     pub mod option {
         use chrono::{DateTime, Utc};
         use serde::{Deserialize, Deserializer, Serializer};
@@ -95,6 +117,28 @@ pub mod http_date {
     ) -> Result<DateTime<Utc>, D::Error> {
         let text = String::deserialize(deserializer)?;
         parse(&text).ok_or_else(|| serde::de::Error::custom("not an HTTP date"))
+    }
+
+    /// Presence-aware adapter used by generated optional client timestamps.
+    pub mod field {
+        use crate::field::Field;
+        use chrono::{DateTime, Utc};
+        use serde::{Deserializer, Serializer};
+        pub fn serialize<S: Serializer>(
+            time: &Field<DateTime<Utc>>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            match time {
+                Field::Value(value) => super::serialize(value, serializer),
+                Field::Absent | Field::Null => serializer.serialize_none(),
+            }
+        }
+        pub fn deserialize<'de, D: Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<Field<DateTime<Utc>>, D::Error> {
+            super::option::deserialize(deserializer)
+                .map(|value| value.map_or(Field::Null, Field::Value))
+        }
     }
 
     pub mod option {

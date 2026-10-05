@@ -1,16 +1,10 @@
-//! Baseline coverage of the shared corpus. The four ignored contract cases name
-//! existing public model limitations; they remain failing tests when opted in.
+//! Shared client serialization: every corpus case runs against native models.
 use crucible_client::__private::serde::{Serialize, de::DeserializeOwned};
+use crucible_client::Field;
 use serde_json::Value;
 use weather_client::model::{CitySummary, Forecast, Location, Photo, Sky};
 
 const PROFILE: &str = "rust-chrono-epoch-ms";
-const GAPS: [&str; 4] = [
-    "explicit-optional-null",
-    "open-enum",
-    "unknown-union-exact-document",
-    "map-document-container-identity",
-];
 
 fn cases() -> Vec<Value> {
     serde_json::from_str(include_str!(
@@ -82,20 +76,20 @@ fn run(row: &Value) {
     match row["target"].as_str().unwrap() {
         "example.weather#CitySummary" => round_trip::<CitySummary>(row, |native, expect| {
             if let Some(states) = expect["states"].as_object() {
-                for (member, state) in states {
-                    let present = match member.as_str() {
-                        "population" => true,
-                        "updatedAt" => native.updated_at.is_some(),
-                        "createdAt" => native.created_at.is_some(),
+                for (member, wanted) in states {
+                    let actual = match member.as_str() {
+                        "population" => "value",
+                        "updatedAt" => state(&native.updated_at),
+                        "createdAt" => state(&native.created_at),
                         _ => panic!("unknown observed member: {member}"),
                     };
-                    assert_eq!(state, if present { "value" } else { "absent" });
+                    assert_eq!(wanted, actual);
                 }
             }
             if let Some(instant) = expect.get("instant") {
                 let value = match instant["member"].as_str().unwrap() {
-                    "updatedAt" => native.updated_at.unwrap(),
-                    "createdAt" => native.created_at.unwrap(),
+                    "updatedAt" => *native.updated_at.value().unwrap(),
+                    "createdAt" => *native.created_at.value().unwrap(),
                     member => panic!("unknown timestamp member: {member}"),
                 };
                 assert_eq!(
@@ -123,51 +117,19 @@ fn run(row: &Value) {
     }
 }
 
+fn state<T>(value: &Field<T>) -> &'static str {
+    match value {
+        Field::Absent => "absent",
+        Field::Null => "null",
+        Field::Value(_) => "value",
+    }
+}
+
 #[test]
-fn shared_serialization_supported_cases() {
+fn shared_serialization_all_15_cases() {
     let rows = cases();
-    assert_eq!(
-        rows.len(),
-        15,
-        "Update baseline coverage when extending the corpus"
-    );
-    for gap in GAPS {
-        assert!(rows.iter().any(|row| row["id"] == gap));
-    }
-    let mut supported = 0;
+    assert_eq!(rows.len(), 15, "Update corpus coverage when extending it");
     for row in &rows {
-        if !GAPS.contains(&row["id"].as_str().unwrap()) {
-            run(row);
-            supported += 1;
-        }
+        run(row);
     }
-    assert_eq!(supported, 11);
-}
-
-fn contract_case(id: &str) {
-    run(&cases().into_iter().find(|row| row["id"] == id).unwrap());
-}
-
-#[test]
-#[ignore = "Rust Option conflates absent and explicit null; requires a public presence type"]
-fn explicit_optional_null() {
-    contract_case("explicit-optional-null");
-}
-
-#[test]
-#[ignore = "Generated Rust enums are closed and cannot preserve unknown wire values"]
-fn open_enum() {
-    contract_case("open-enum");
-}
-
-#[test]
-#[ignore = "Generated Rust unions are closed and cannot preserve unknown members"]
-fn unknown_union_exact_document() {
-    contract_case("unknown-union-exact-document");
-}
-
-#[test]
-#[ignore = "Forecast uses the closed Sky enum as keys and rejects the future key"]
-fn map_document_container_identity() {
-    contract_case("map-document-container-identity");
 }
