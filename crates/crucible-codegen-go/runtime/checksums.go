@@ -55,14 +55,16 @@ func checksumDigest(algorithm string, data []byte) (string, error) {
     }
     return base64.StdEncoding.EncodeToString(raw),nil
 }
-func prepareChecksum(description *checksumDescription, shape shapeDescription, values map[string]any, requestPolicy,responsePolicy ChecksumPolicy) (checksumSettings,error) {
+// A streaming request gets no implicit checksum: a required or selected
+// algorithm needs its header supplied, since a stream is never buffered to hash it.
+func prepareChecksum(description *checksumDescription, shape shapeDescription, values map[string]any, requestPolicy,responsePolicy ChecksumPolicy, streaming bool) (checksumSettings,error) {
     settings := checksumSettings{}
     if description == nil { return settings,nil }
     if description.Kind == "md5" { settings.Algorithm,settings.Header="MD5","Content-MD5"; return settings,nil }
     if member := description.RequestAlgorithmMember; member != "" {
         wire := shape.wireName(member)
         algorithm,_ := values[wire].(string)
-        if algorithm == "" && (description.RequestRequired || requestPolicy != ChecksumWhenRequired) { algorithm="CRC32"; values[wire]=algorithm }
+        if algorithm == "" && (description.RequestRequired || requestPolicy != ChecksumWhenRequired && !streaming) { algorithm="CRC32"; values[wire]=algorithm }
         if algorithm != "" {
             if !checksumSupported(algorithm) { return settings,fmt.Errorf("unsupported checksum algorithm: %s",algorithm) }
             settings.Algorithm,settings.Header=algorithm,"X-Amz-Checksum-"+strings.ToLower(algorithm)
@@ -77,6 +79,9 @@ func prepareChecksum(description *checksumDescription, shape shapeDescription, v
 }
 func (s checksumSettings) request(request *http.Request) error {
     if s.Header == "" || request.Header.Get(s.Header) != "" { return nil }
+    if _, isStream := request.Body.(*streamBody); isStream {
+        return fmt.Errorf("%w: supply the %s header for a streaming request", ErrStreamDigest, s.Header)
+    }
     var data []byte; var err error
     if request.Body != nil { data,err=io.ReadAll(request.Body); request.Body.Close(); if err!=nil{return err} }
     request.Body=io.NopCloser(bytes.NewReader(data)); request.ContentLength=int64(len(data))

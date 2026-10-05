@@ -167,7 +167,13 @@ fn weather_matches_goldens() {
     for file in files {
         if matches!(
             file.path.as_str(),
-            "runtime.go" | "auth.go" | "query.go" | "waiters.go" | "endpoints.go" | "checksums.go"
+            "runtime.go"
+                | "auth.go"
+                | "query.go"
+                | "waiters.go"
+                | "endpoints.go"
+                | "checksums.go"
+                | "stream.go"
         ) {
             continue;
         }
@@ -187,4 +193,48 @@ fn weather_matches_goldens() {
             file.path
         );
     }
+}
+
+fn stream_options() -> Options {
+    Options {
+        module_path: "example.com/stream".into(),
+        package_name: "stream".into(),
+        endpoint: None,
+        content_sha256: false,
+    }
+}
+
+#[test]
+fn streaming_blobs_are_readers() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-codegen-java/tests/streaming.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_go::capabilities())
+    .unwrap();
+    let files = emit(&service, &stream_options()).unwrap();
+    let file = |name: &str| &files.iter().find(|f| f.path == name).unwrap().contents;
+    let models = file("models.go");
+    assert!(models.contains("import \"io\""));
+    assert!(models.contains("type UploadInput struct {\n    Body io.Reader\n}"));
+    assert!(models.contains("    Body io.ReadCloser\n    Count Optional[int32]"));
+    assert!(!models.contains("type Stream ="), "{models}");
+    assert!(file("client.go").contains("if err != nil { closeStreams(values) }"));
+    assert!(files.iter().any(|f| f.path == "stream.go"));
+}
+
+#[test]
+fn go_streams_outside_the_http_payload_are_diagnosed() {
+    let model = serde_json::json!({"smithy":"2.0","shapes":{
+        "test#Service":{"type":"service","version":"1","traits":{"aws.protocols#awsJson1_0":{}},"operations":[{"target":"test#Put"}]},
+        "test#Put":{"type":"operation","input":{"target":"test#Input"}},
+        "test#Stream":{"type":"blob","traits":{"smithy.api#streaming":{}}},
+        "test#Input":{"type":"structure","members":{"body":{"target":"test#Stream","traits":{"smithy.api#required":{}}}}}
+    }});
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_go::capabilities())
+        .unwrap();
+    let error = emit(&service, &stream_options()).err().unwrap();
+    assert!(format!("{error:?}").contains("not the streaming payload"));
 }

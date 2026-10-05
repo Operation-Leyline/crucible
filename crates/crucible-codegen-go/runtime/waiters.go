@@ -77,7 +77,9 @@ func (c *clientRuntime) wait(ctx context.Context, operation, name string, input 
     if timeout <= 0 || minimum < 0 || maximum < minimum { return nil,errors.New("waiter deadline and ordered delays must be valid") }
     values,err := encodeModel(c.schema,op.Input,input); if err != nil { return nil,err }
     queryInput,err := c.queryModel(op.Input,values,""); if err != nil { return nil,err }
-    deadline,cancel := context.WithTimeout(ctx,timeout); defer cancel(); end,_ := deadline.Deadline()
+    deadline,cancel := context.WithTimeout(ctx,timeout); end,_ := deadline.Deadline()
+    // A returned streaming response keeps the waiter's deadline until it is read or closed.
+    kept := false; defer func() { if !kept { cancel() } }()
     attempts := 0; var response any; var failure error
     timeoutError := func() error { if ctx.Err() != nil { return ctx.Err() }; return &WaiterTimeoutError{&WaiterError{Name:name,Attempts:attempts,Response:response,Cause:failure,Message:"deadline exceeded"}} }
     for {
@@ -90,10 +92,11 @@ func (c *clientRuntime) wait(ctx context.Context, operation, name string, input 
                 if failure == nil { output,failure = c.queryModel(op.Output,encoded,"") }
             }
         }
-        if deadline.Err() != nil { return nil,timeoutError() }
+        if deadline.Err() != nil { closeStreams(wire); return nil,timeoutError() }
         state,message,matchError := waiterState(description,queryInput,output,failure)
-        if matchError != nil { return nil,&WaiterError{Name:name,Attempts:attempts,Response:response,Cause:matchError} }
-        if state == "success" { return response,nil }
+        if matchError != nil { closeStreams(wire); return nil,&WaiterError{Name:name,Attempts:attempts,Response:response,Cause:matchError} }
+        if state == "success" { kept = keepStreams(wire,cancel); return response,nil }
+        closeStreams(wire)
         if state == "failure" { return nil,&WaiterError{Name:name,Attempts:attempts,Response:response,Cause:failure,Message:message} }
         ceiling := math.Min(float64(maximum),float64(minimum)*math.Pow(2,float64(min(attempts-1,62))))
         delay := time.Duration(float64(minimum)+mathrand.Float64()*(ceiling-float64(minimum)))

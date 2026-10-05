@@ -134,7 +134,11 @@ func SignV4(request *http.Request, credentials AWSCredentials, options SigningOp
     request.Header.Set("X-Amz-Date", now.Format("20060102T150405Z"))
     if credentials.SessionToken != "" { request.Header.Set("X-Amz-Security-Token", credentials.SessionToken) } else { request.Header.Del("X-Amz-Security-Token") }
     digest := "UNSIGNED-PAYLOAD"
-    if !options.UnsignedPayload {
+    if _, isStream := request.Body.(*streamBody); isStream && !options.UnsignedPayload {
+        // A stream is never read to sign it: its digest must be declared.
+        digest = strings.ToLower(request.Header.Get("X-Amz-Content-Sha256"))
+        if digest == "" { return fmt.Errorf("%w: SigV4 needs ByteStream.WithSHA256 or an unsigned-payload operation", ErrStreamDigest) }
+    } else if !options.UnsignedPayload {
         var data []byte
         if request.Body != nil {
             var err error; data, err = io.ReadAll(request.Body); request.Body.Close(); if err != nil { return err }

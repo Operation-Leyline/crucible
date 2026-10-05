@@ -68,7 +68,8 @@ optional input members settled by Smithy lowering. Required output members
 use native values, and absent modeled defaults are applied during decoding.
 Integers retain their modeled widths; document numbers decode as `json.Number`.
 Timestamps use `time.Time` and preserve nanoseconds in date-time and
-epoch-seconds formats. HTTP-date has second precision. Blobs are `[]byte`:
+epoch-seconds formats. HTTP-date has second precision. Blobs are `[]byte`
+(streaming blobs are readers; see below):
 standard, padded base64 in JSON, and the bytes themselves, under the blob's
 media type, as an `@httpPayload`. A payload response decodes to the body as
 received, an empty body to empty bytes.
@@ -181,11 +182,74 @@ response validation defaults to enabled, using a private input copy. Set
 `*ChecksumError` identifies a mismatch through `errors.As`. Explicit unsupported
 algorithms fail before dispatch.
 
+## Streaming blobs
+
+A `@streaming` blob is the whole HTTP body and is never buffered. On input it is
+an `io.Reader` field; on output an `io.ReadCloser` the caller reads and closes.
+
+| Input value | Replay | Length |
+|---|---|---|
+| any `io.ReadSeeker` (`*os.File`, `*bytes.Reader`, `*strings.Reader`) | rewound to its starting position per attempt | remaining bytes |
+| `NewByteStream(open, length)`, `open` like `http.Request.GetBody` | one `open` call per attempt | `length`, or unknown when negative |
+| `NewReaderStream(reader, length)` | one-shot | `length`, or unknown when negative |
+| any other `io.Reader` (a pipe, a socket, `bytes.Buffer`) | one-shot | `Len()` when the reader has one |
+| `nil` | none | an empty body |
+
+A replay factory must return the same bytes every time. A one-shot body is read
+at most once, so its operation is never retried, and passing the same
+`NewReaderStream` to a second call fails with `ErrStreamConsumed`. Like
+`net/http` request bodies, a one-shot reader that is an `io.Closer` is closed
+when the call ends, including on failure or cancellation, which also ends a
+read blocked in it; a seekable reader belongs to the caller and is left open.
+A known length is sent as `Content-Length` and the stream must produce exactly
+that many bytes; otherwise the body is chunked. `@requiresLength` rejects a
+stream of unknown length before sending, and modeled `@length` bounds are
+checked before sending when the length is known and again as bytes flow. A
+stream that fails or breaks its length returns its own error (`ErrStreamLength`
+or the reader's error), never a retried `*NetworkError`. For `PutObject` and
+`GetObject` operations with a streaming `Body`:
+
+```go
+file, err := os.Open("photo.jpg")
+if err != nil { return err }
+defer file.Close()
+_, err = client.PutObject(ctx, &sdk.PutObjectInput{Key: "photo.jpg", Body: file})
+
+object, err := client.GetObject(ctx, &sdk.GetObjectInput{Key: "photo.jpg"})
+if err != nil { return err }
+defer object.Body.Close()
+_, err = io.Copy(target, object.Body)
+```
+
+A streaming response is returned as soon as its headers are decoded; the body
+is read from the connection only as the caller reads it. The call's context and
+`Timeout` keep applying while the body is read: an expired deadline fails `Read`
+with `context.DeadlineExceeded`, and cancelling the context fails it with
+`context.Canceled`. `Close` releases the connection and the deadline, and may
+be called from another goroutine to end a blocked `Read`. A waiter closes the
+bodies of the responses it does not return.
+
+Streams are never buffered to compute a digest. With `--content-sha256` or
+SigV4 signing, declare the hex SHA-256 with `NewByteStream(...).WithSHA256(hex)`
+or an `X-Amz-Content-Sha256` header from middleware; without it the call fails
+with `ErrStreamDigest` before the stream is opened. SigV4 signs an operation
+modeled with an unsigned payload as `UNSIGNED-PAYLOAD` instead. A streaming
+request receives no automatic checksum: a required or explicitly selected
+algorithm needs its header supplied by the caller (for example a modeled
+`x-amz-checksum-crc32` member), or the call fails with `ErrStreamDigest`. A
+streaming response checksum is verified incrementally; a mismatch fails the
+final `Read` with a `*ChecksumError`, and `ChecksumValidated` runs on the
+reading goroutine only after the last byte verified. Middleware sees the
+unopened stream as `request.Body`. Event streams are not supported.
+
 ## Qualification
 
 `python tools/test-go.py` generates the package, checks it with `go vet`, runs
 shared cases and real weather-service HTTP tests, and consumes the SDK from a
-separate Go module. Set `GO` to a compiler path when it is not on PATH.
+separate Go module. Its streaming package exercises one-shot, seekable and
+factory uploads, length rules, cancellation, deadlines after return, connection
+release, checksums and declared digests, and moves 256 MiB each way over
+loopback HTTP while sampling `runtime.MemStats` to prove the heap stays bounded. Set `GO` to a compiler path when it is not on PATH.
 Generate and compile the current full Leyline projection separately, recording
 its model fingerprint and operation coverage. Local tests do not cover a
 published module or authenticated deployed Leyline traffic.

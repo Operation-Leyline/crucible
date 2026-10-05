@@ -173,6 +173,8 @@ type memberDescription struct {
 	Format    string
 	Required  bool
 	Default   any
+	// Length holds a streaming member's modeled byte bounds.
+	Length    *struct{ Min, Max *int64 }
 }
 type errorDescription struct {
 	WireCode string
@@ -188,6 +190,7 @@ type errorDescription struct {
 	Headers    [][2]string
 }
 type shapeDescription struct {
+	Streaming bool
 	Sparse bool
 	Set bool
 	Name    string
@@ -203,6 +206,9 @@ func (s shapeDescription) errorCode() string {
 	if s.Error != nil && s.Error.WireCode != "" { return s.Error.WireCode }; return s.Name
 }
 type bindings struct {
+	// Streaming marks a payload that is sent or returned as a stream.
+	Streaming bool
+	RequiresLength bool
 	HeaderEncodings map[string]string
 	PayloadKind string
 	TimestampFormats map[string]string
@@ -351,6 +357,11 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 	if shape.Kind == "unit" {
 		return map[string]any{}, nil
 	}
+	if shape.Streaming && shape.Kind == "blob" {
+		// A stream travels as the caller's reader; the call resolves it.
+		if !value.IsValid() || (value.Kind() == reflect.Interface || value.Kind() == reflect.Pointer) && value.IsNil() { return nil, nil }
+		return value.Interface(), nil
+	}
 	value = unwrap(value)
 	if !value.IsValid() {
 		return nil, nil
@@ -473,6 +484,12 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 	shape := schema.Shapes[target]
 	if value == nil {
 		out.SetZero()
+		return nil
+	}
+	if shape.Streaming && shape.Kind == "blob" {
+		stream := reflect.ValueOf(value)
+		if !stream.Type().AssignableTo(out.Type()) { return errors.New("streaming blob field cannot hold a stream") }
+		out.Set(stream)
 		return nil
 	}
 	for out.Kind() == reflect.Pointer {
@@ -836,10 +853,25 @@ func (c *clientRuntime) call(ctx context.Context, name string, input any) (map[s
 }
 func (c *clientRuntime) callValues(ctx context.Context, name string, values map[string]any) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
-	defer cancel()
+	// A streamed response keeps the deadline, released when its body ends or closes.
+	streamed := false
+	defer func() { if !streamed { cancel() } }()
 	op := c.schema.Operations[name]
 	inputShape := c.schema.Shapes[op.Input]
-	checksum,err := prepareChecksum(op.Checksum,inputShape,values,c.config.RequestChecksumCalculation,c.config.ResponseChecksumValidation)
+	var source *streamSource
+	var streamMember memberDescription
+	if op.Request.Streaming {
+		streamMember = inputShape.Members[op.Request.Payload[0]]
+		var err error
+		if source, err = newStreamSource(values[inputShape.wireName(op.Request.Payload[0])]); err != nil { return nil, err }
+		if source != nil {
+			defer source.release()
+			if err := source.check(streamMember, op.Request.RequiresLength); err != nil { return nil, err }
+		} else if streamMember.Length != nil && streamMember.Length.Min != nil && *streamMember.Length.Min > 0 {
+			return nil, fmt.Errorf("%w: an absent stream is below the modeled minimum", ErrStreamLength)
+		}
+	}
+	checksum,err := prepareChecksum(op.Checksum,inputShape,values,c.config.RequestChecksumCalculation,c.config.ResponseChecksumValidation,source != nil)
 	if err != nil { return nil,err }
 	endpoint := c.config.Endpoint
 	if c.schema.EndpointRules != nil || op.Endpoint != nil {
@@ -984,7 +1016,10 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		}
 		headers.Set("Content-Type", "application/json")
 	}
-	if len(op.Request.Payload) == 2 {
+	if source != nil {
+		headers.Set("Content-Type", op.Request.Payload[1])
+		if source.sha256 != "" { headers.Set("X-Amz-Content-Sha256", source.sha256) }
+	} else if len(op.Request.Payload) == 2 && !op.Request.Streaming {
 		if payload, present := values[inputShape.wireName(op.Request.Payload[0])]; present && payload != nil {
 			switch op.Request.PayloadKind {
 			case "string": body = []byte(payload.(string))
@@ -1001,13 +1036,21 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		service := strings.Split(c.schema.Service, "#")
 		headers.Set("X-Amz-Target", service[len(service)-1] + "." + name)
 	}
-	for attempt := 1; attempt <= c.config.MaxAttempts; attempt++ {
+	maxAttempts := c.config.MaxAttempts
+	// A one-shot stream is opened once, so its operation is never retried.
+	if source != nil && !source.replayable { maxAttempts = 1 }
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		request, err := http.NewRequestWithContext(ctx, op.Method, strings.TrimRight(endpoint,"/")+uri, bytes.NewReader(body))
 		if err != nil {
 			return nil, err
+		}
+		var stream *streamBody
+		if source != nil {
+			stream = newStreamBody(source, streamMember)
+			stream.install(request)
 		}
 		request.Header = headers.Clone()
 		credentials, sign, err := c.authenticate(ctx, request, op)
@@ -1025,7 +1068,10 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 				return nil, errors.New("refusing to send credentials over plaintext HTTP outside loopback")
 			}
 		}
-		if c.digest && (request.Body != nil || request.Method == "POST" || request.Method == "PUT" || request.Method == "PATCH") {
+		if _, isStream := request.Body.(*streamBody); isStream && c.digest {
+			// Streams are never buffered to hash them: the digest is declared.
+			if request.Header.Get("X-Amz-Content-Sha256") == "" { return nil, fmt.Errorf("%w: declare it with ByteStream.WithSHA256 or set x-amz-content-sha256", ErrStreamDigest) }
+		} else if c.digest && (request.Body != nil || request.Method == "POST" || request.Method == "PUT" || request.Method == "PATCH") {
 			var data []byte
 			var err error
 			if request.Body != nil {
@@ -1052,6 +1098,23 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		if sign != nil { if err := sign(); err != nil { return nil, err } }
 		if err := ctx.Err(); err != nil { return nil, err }
 		response, transportErr := c.config.HTTPClient.Do(request)
+		if stream != nil {
+			if err := ctx.Err(); err != nil {
+				if response != nil { response.Body.Close() }
+				return nil, err
+			}
+			if err := stream.err(); err != nil {
+				// The caller's stream failed or broke its length: never a retried NetworkError.
+				if response != nil { response.Body.Close() }
+				return nil, err
+			}
+		}
+		if transportErr == nil && op.Response.Streaming && response.StatusCode >= 200 && response.StatusCode < 300 {
+			result, err := c.streamResponse(ctx, cancel, name, op, response, checksum)
+			if err != nil { response.Body.Close(); return nil, err }
+			streamed = true
+			return result, nil
+		}
 		var data []byte
 		if response != nil {
 			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0 || len(op.Response.Payload) > 0 || len(checksum.Response)>0) {
@@ -1065,7 +1128,7 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 		var lastErr error
 		if transportErr != nil {
 			lastErr = &NetworkError{Cause: transportErr}
-			if !op.Safe || attempt == c.config.MaxAttempts {
+			if !op.Safe || attempt == maxAttempts {
 				return nil, &NetworkError{Cause: transportErr}
 			}
 		} else {
@@ -1079,10 +1142,12 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 			}
 			lastErr = err
 			var serviceErr *ServiceError
-			if !errors.As(err, &serviceErr) || !canRetry(op.Safe, serviceErr) || attempt == c.config.MaxAttempts {
+			if !errors.As(err, &serviceErr) || !canRetry(op.Safe, serviceErr) || attempt == maxAttempts {
 				return nil, err
 			}
 		}
+		// Fence the attempt's body before a retry reopens or rewinds its source.
+		if stream != nil { stream.Close() }
 		delay := retryDelay(attempt, response, c.config.BaseDelay, c.config.MaxDelay)
 		if deadline, ok := ctx.Deadline(); ok && delay >= time.Until(deadline) {
 			return nil, lastErr

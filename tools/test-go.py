@@ -52,6 +52,15 @@ def qualify(output):
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/waiters_test.go", jobs / "waiters_test.go")
     run(GO, "fmt", "./...", cwd=jobs)
     run(GO, "test", "-count=1", "-v", "./...", cwd=jobs)
+    streaming = output / "streaming"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
+        "crates/crucible-codegen-java/tests/streaming.json", "--out", str(streaming),
+        "--module-path", "example.com/stream", "--package-name", "stream")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/streaming_test.go", streaming / "streaming_test.go")
+    shutil.copyfile(ROOT / "tests/conformance/checksums.json", streaming / "checksums.json")
+    run(GO, "fmt", "./...", cwd=streaming)
+    run(GO, "vet", "./...", cwd=streaming)
+    run(GO, "test", "-count=1", "-v", "./...", cwd=streaming)
     auth = output / "auth"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
         "crates/crucible-codegen-python/tests/auth.json", "--out", str(auth),
