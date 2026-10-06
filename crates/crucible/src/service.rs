@@ -1,4 +1,4 @@
-//! The orchestrator: routes a request, runs the handler chain around the
+//! The orchestrator: routes a request, runs the phased pipeline around the
 //! operation, and has the routing protocol write the response.
 
 use std::collections::HashMap;
@@ -14,12 +14,15 @@ use tower::{Layer, Service, ServiceExt};
 
 use crate::context::{Context, RequestMeta};
 use crate::error::{Error, FrameworkError, ModelledError};
-use crate::handler::{Handler, Job, Outcome, Prepare};
-use crate::handlers::{ExceptionTranslator, ServiceLog};
+use crate::middlewares::ServiceLog;
 use crate::operation::{Operation, OperationInfo};
-use crate::operations::{Invoke, Operations};
-use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Route};
+use crate::operations::Operations;
+use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch};
 use crate::validate::Rejection;
+use crate::{
+    DecodedJob, ExceptionTranslator, Interceptor, Job, Middleware, OperationAwareMiddleware,
+    OperationJob, Outcome, Prepare,
+};
 
 /// The invocation answer when no protocol answered with JSON.
 pub(crate) const INVOKE_FAILURE: &str =
@@ -27,7 +30,7 @@ pub(crate) const INVOKE_FAILURE: &str =
 
 type Reject = Arc<dyn Fn(&Rejection) -> Box<dyn ModelledError> + Send + Sync>;
 
-/// The service as a tower service: what a [`Builder::layer`] wraps.
+/// The service as a tower service: what a [`Builder::tower_layer`] wraps.
 pub type Endpoint = BoxCloneSyncService<Request<Body>, Response, Infallible>;
 
 type Wrap = Box<dyn FnOnce(Endpoint) -> Endpoint + Send + Sync>;
@@ -49,7 +52,7 @@ fn request_id() -> HeaderValue {
 /// Buffered bodies above this are refused during reading, unless the builder says otherwise.
 pub const DEFAULT_BODY_LIMIT: usize = 10 * 1024 * 1024;
 
-/// A service: its operations, its handler chain, and the protocols in it.
+/// A service: its operations, its phased pipeline, and the protocols in it.
 #[derive(Clone)]
 pub struct Crucible {
     inner: Arc<Inner>,
@@ -60,9 +63,11 @@ pub struct Crucible {
 
 struct Inner {
     operations: Operations,
-    handlers: Vec<Box<dyn Handler>>,
-    /// Indexes into `handlers` of the protocol handlers, in chain order.
-    protocols: Vec<usize>,
+    middleware: Vec<Box<dyn Middleware>>,
+    operation_middleware: Vec<Box<dyn OperationAwareMiddleware>>,
+    interceptors: Vec<Box<dyn Interceptor>>,
+    protocols: Vec<Box<dyn Protocol>>,
+    translator: ExceptionTranslator,
     reject: Reject,
     body_limit: usize,
     /// Per-operation overrides of `body_limit`, by operation shape id.
@@ -74,7 +79,11 @@ impl Crucible {
     pub fn builder(operations: Operations) -> Builder {
         Builder {
             operations,
-            handlers: Vec::new(),
+            middleware: Vec::new(),
+            operation_middleware: Vec::new(),
+            interceptors: Vec::new(),
+            protocols: Vec::new(),
+            translator: ExceptionTranslator::new(),
             layers: Vec::new(),
             reject: None,
             body_limit: DEFAULT_BODY_LIMIT,
@@ -85,7 +94,7 @@ impl Crucible {
 
     /// An axum router that hands every request to the service, through its
     /// layers. Layers added here instead apply on this host only; prefer
-    /// [`Builder::layer`], which every host runs.
+    /// [`Builder::tower_layer`], which every host runs.
     pub fn into_router(self) -> axum::Router {
         axum::Router::new().fallback(move |request: Request<Body>| {
             let service = self.clone();
@@ -94,7 +103,7 @@ impl Crucible {
     }
 
     /// Calls an operation by name with its input as JSON bytes, through the
-    /// whole handler chain, without HTTP, and answers `{"output": ..}` or
+    /// whole phased pipeline, without HTTP, and answers `{"output": ..}` or
     /// `{"error": ..}` as bytes. The input is read straight from `input`, in
     /// one pass. For direct Lambda invokes and in-process callers; needs an
     /// [`InvokeProtocol`] in the chain.
@@ -133,7 +142,7 @@ impl Crucible {
         })
     }
 
-    /// Answers one request: through the layers, then the handler chain.
+    /// Answers one request: through the layers, then the phased pipeline.
     pub async fn handle(&self, request: Request<Body>) -> Response {
         match &self.endpoint {
             Some(endpoint) => match endpoint.clone().oneshot(request).await {
@@ -144,30 +153,9 @@ impl Crucible {
         }
     }
 
-    /// The handler chain around the operation, under the layers.
     async fn dispatch(&self, request: Request<Body>) -> Response {
         let inner = &self.inner;
-        let (mut parts, body) = request.into_parts();
-        let routed = inner.protocols.iter().find_map(|&index| {
-            let protocol = inner.handlers[index].as_protocol()?;
-            protocol
-                .route(&parts, &inner.operations)
-                .map(|route| (index, route))
-        });
-        let (protocol, route) = match routed {
-            Some((index, route)) => (index, Some(route)),
-            None => {
-                let owner = inner.protocols.iter().copied().find(|&index| {
-                    inner.handlers[index]
-                        .as_protocol()
-                        .is_some_and(|protocol| protocol.owns(&parts))
-                });
-                (owner.unwrap_or(inner.protocols[0]), None)
-            }
-        };
-        let entry = route
-            .as_ref()
-            .and_then(|route| inner.operations.entry(route.operation));
+        let (parts, body) = request.into_parts();
         let meta = parts.extensions.get::<RequestMeta>();
         let id = inner
             .request_id
@@ -176,145 +164,224 @@ impl Crucible {
             .filter(|id| !id.is_empty() && id.len() <= MAX_REQUEST_ID && id.to_str().is_ok())
             .unwrap_or_else(request_id);
         let deadline = meta.and_then(|meta| meta.deadline);
-        if let Some(rejection) = route.as_ref().and_then(|route| route.rejection.clone()) {
-            parts
-                .extensions
-                .insert(crate::protocol::RouteRejection(rejection));
-        }
         let parts = Arc::new(parts);
-        let context = Arc::new(Context::new(
-            id,
-            entry.map(|entry| entry.info),
-            parts.clone(),
-        ));
+        let context = Arc::new(Context::new(id, None, parts.clone()));
         if let Some(deadline) = deadline {
             context.set_deadline(deadline);
         }
-
-        let limit = entry
-            .and_then(|entry| inner.body_limits.get(entry.info.id))
-            .copied()
-            .unwrap_or(inner.body_limit);
         let mut job = Job {
             service: inner.operations.service,
             context: context.clone(),
             request: parts,
             body: Bytes::new(),
             raw_body: Some(body),
-            body_limit: limit,
+            body_limit: inner.body_limit,
             body_read_error: None,
             body_stream: None,
-            labels: route.map(|Route { labels, .. }| labels).unwrap_or_default(),
-            decode: entry.map(|entry| entry.decode),
-            decode_json: entry.map(|entry| entry.decode_json),
-            decode_bound: entry.map(|entry| entry.decode_bound),
+            labels: Vec::new(),
+            decode: None,
+            decode_json: None,
+            decode_bound: None,
             input: None,
             outcome: None,
+            error_revision: 0,
             response_headers: Default::default(),
             wants_snapshot: false,
             input_snapshot: None,
         };
-
         context
-            .clone()
             .scope(async move {
-                let ran = self
-                    .run(&mut job, entry.map(|entry| entry.invoke.clone()), protocol)
-                    .await;
+                let mut entered = Entered::default();
+                // An early transport failure still uses its owner's error envelope.
+                let mut selected = inner
+                    .protocols
+                    .iter()
+                    .position(|p| p.owns(job.request()))
+                    .unwrap_or(0);
+                self.execute(&mut job, &mut entered, &mut selected).await;
+                // Decoded input is still present when an interceptor refuses or answers.
+                if entered.decoded && job.wants_snapshot && job.input_snapshot.is_none() {
+                    job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
+                }
+                let mut translated = None;
+                self.translate(&mut job, &mut translated);
+                for interceptor in inner.interceptors[..entered.interceptors].iter().rev() {
+                    interceptor
+                        .after(&mut OperationJob::new(&mut job))
+                        .resolve()
+                        .await;
+                    self.translate(&mut job, &mut translated);
+                }
+                for middleware in inner.operation_middleware[..entered.operation].iter().rev() {
+                    middleware
+                        .after(&mut OperationJob::new(&mut job))
+                        .resolve()
+                        .await;
+                    self.translate(&mut job, &mut translated);
+                }
+                self.translate(&mut job, &mut translated);
                 let answers = Answers {
                     reject: &*inner.reject,
                     internal: inner.operations.service.internal,
                     unknown: inner.operations.service.unknown,
                 };
-                let writer = inner.handlers[protocol]
-                    .as_protocol()
-                    .expect("indexed as a protocol");
                 let mut response = match job.outcome.take() {
                     Some(Outcome::Answered(response)) => response,
                     outcome => {
                         job.outcome = outcome;
-                        writer.write(&job, &answers)
+                        inner.protocols[selected].write(&job, &answers)
                     }
                 };
                 response.headers_mut().extend(job.response_headers.drain());
-                // An operation that models its own `x-request-id` member keeps it.
                 if !response.headers().contains_key("x-request-id") {
                     response
                         .headers_mut()
                         .insert("x-request-id", job.context.request_id_header().clone());
                 }
-                for (index, handler) in inner.handlers[..ran].iter().enumerate().rev() {
-                    if index == protocol || handler.as_protocol().is_none() {
-                        handler.complete(&job, &response);
+                for middleware in inner.middleware[..entered.transport].iter().rev() {
+                    middleware.after(&mut job, &mut response).resolve().await;
+                }
+                if entered.operation > 0 || entered.interceptors > 0 {
+                    let operation = OperationJob::new(&mut job);
+                    for interceptor in inner.interceptors[..entered.interceptors].iter().rev() {
+                        interceptor.complete(&operation, &response);
                     }
+                    for middleware in inner.operation_middleware[..entered.operation].iter().rev() {
+                        middleware.complete(&operation, &response);
+                    }
+                }
+                for middleware in inner.middleware[..entered.transport].iter().rev() {
+                    middleware.complete(&job, &response);
                 }
                 response
             })
             .await
     }
 
-    /// `before` in order, the operation, then `after` in reverse for the
-    /// handlers whose `before` succeeded. Only the selected protocol enters;
-    /// it reads the body after preceding admission handlers have passed.
-    async fn run(&self, job: &mut Job, invoke: Option<Invoke>, protocol: usize) -> usize {
-        let handlers = &self.inner.handlers;
-        let mut ran = 0;
-        for (index, handler) in handlers.iter().enumerate() {
-            if index != protocol && handler.as_protocol().is_some() {
-                continue;
-            }
-            if index == protocol
-                && let Some(rejection) = job
-                    .request()
-                    .extensions
-                    .get::<crate::protocol::RouteRejection>()
-            {
-                job.outcome = Some(Outcome::Failed(rejection.0.clone().into()));
-                break;
-            }
-            if index == protocol
-                && let Err(error) = job.read_body().await
-            {
-                job.outcome = Some(Outcome::Failed(error));
-                break;
-            }
-            if let Err(error) = handler.before(job).resolve().await {
-                job.outcome = Some(Outcome::Failed(error));
-                break;
-            }
-            ran = index + 1;
-            // An answering handler is entered, but the rest of the chain is not.
-            if job.outcome.is_some() {
-                break;
-            }
+    fn translate(&self, job: &mut Job, translated: &mut Option<u64>) {
+        if matches!(job.outcome, Some(Outcome::Failed(_)))
+            && *translated != Some(job.error_revision)
+        {
+            self.inner.translator.apply(job);
+            *translated = Some(job.error_revision);
         }
-        if job.outcome.is_none() {
-            if job.wants_snapshot {
-                job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
-            }
-            job.outcome = Some(match (job.input.take(), invoke) {
-                (Some(input), Some(invoke)) => match invoke(input).await {
-                    Ok(output) => Outcome::Output(output),
-                    Err(error) => Outcome::Failed(error),
-                },
-                (None, Some(_)) => Outcome::Failed(Error::internal(
-                    "no protocol handler read the input: put one in the chain",
-                )),
-                (_, None) => Outcome::Failed(FrameworkError::UnknownOperation.into()),
-            });
-        }
-        for (index, handler) in handlers[..ran].iter().enumerate().rev() {
-            if index == protocol || handler.as_protocol().is_none() {
-                handler.after(job).resolve().await;
-            }
-        }
-        ran
     }
+
+    async fn execute(&self, job: &mut Job, entered: &mut Entered, selected: &mut usize) {
+        if let Err(error) = self.forward(job, entered, selected).await {
+            job.fail(error);
+        }
+    }
+
+    async fn forward(
+        &self,
+        job: &mut Job,
+        entered: &mut Entered,
+        selected: &mut usize,
+    ) -> crate::Result<()> {
+        let inner = &self.inner;
+        for middleware in &inner.middleware {
+            middleware.before(job).resolve().await?;
+            entered.transport += 1;
+            if job.outcome.is_some() {
+                return Ok(());
+            }
+        }
+        job.input = None;
+        *selected = 0;
+        let mut route = None;
+        for (index, protocol) in inner.protocols.iter().enumerate() {
+            match protocol.identify(job, &inner.operations).resolve().await {
+                Ok(ProtocolMatch::Declined) => {}
+                Ok(ProtocolMatch::Claimed(found)) => {
+                    *selected = index;
+                    route = found;
+                    break;
+                }
+                Err(error) => {
+                    *selected = index;
+                    return Err(error);
+                }
+            }
+        }
+        let route = route.ok_or(FrameworkError::UnknownOperation)?;
+        let entry = inner
+            .operations
+            .entry(route.operation)
+            .ok_or_else(|| Error::internal("protocol selected an unregistered operation"))?;
+        job.context.select_operation(entry.info);
+        job.labels = route.labels;
+        job.decode = Some(entry.decode);
+        job.decode_json = Some(entry.decode_json);
+        job.decode_bound = Some(entry.decode_bound);
+        let limit = inner
+            .body_limits
+            .get(entry.info.id)
+            .copied()
+            .unwrap_or(inner.body_limit);
+        let buffered = job.select_body_limit(limit);
+        for middleware in &inner.operation_middleware {
+            middleware
+                .before(&mut OperationJob::new(job))
+                .resolve()
+                .await?;
+            entered.operation += 1;
+            if job.outcome.is_some() {
+                return Ok(());
+            }
+        }
+        buffered?;
+        if let Some(rejection) = route.rejection {
+            return Err(rejection.into());
+        }
+        // Earlier transport extensions cannot supply an unvalidated input.
+        job.input = None;
+        job.read_body().await?;
+        inner.protocols[*selected].decode(job).resolve().await?;
+        if job.input.is_none() {
+            return Err(Error::internal("protocol did not decode an input"));
+        }
+        entered.decoded = true;
+        for interceptor in &inner.interceptors {
+            interceptor
+                .before(&mut DecodedJob::new(job))
+                .resolve()
+                .await?;
+            entered.interceptors += 1;
+            if job.outcome.is_some() {
+                return Ok(());
+            }
+        }
+        if job.wants_snapshot {
+            job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
+        }
+        let input = job.input.take().expect("decoded input checked");
+        job.outcome = Some(match (entry.invoke)(input).await {
+            Ok(output) => Outcome::Output(output),
+            Err(error) => Outcome::Failed(error),
+        });
+        if matches!(job.outcome, Some(Outcome::Failed(_))) {
+            job.error_revision += 1;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct Entered {
+    transport: usize,
+    operation: usize,
+    interceptors: usize,
+    decoded: bool,
 }
 
 pub struct Builder {
     operations: Operations,
-    handlers: Vec<Box<dyn Handler>>,
+    middleware: Vec<Box<dyn Middleware>>,
+    operation_middleware: Vec<Box<dyn OperationAwareMiddleware>>,
+    interceptors: Vec<Box<dyn Interceptor>>,
+    protocols: Vec<Box<dyn Protocol>>,
+    translator: ExceptionTranslator,
     layers: Vec<Wrap>,
     reject: Option<Reject>,
     body_limit: usize,
@@ -325,38 +392,70 @@ pub struct Builder {
 type BodyLimit = Box<dyn Fn(&OperationInfo) -> Option<usize> + Send + Sync>;
 
 impl Builder {
-    /// Appends a handler to the chain, inside every handler added before it:
-    /// the first added is outermost. `before` hooks run in the order added,
-    /// `after` hooks in reverse.
-    pub fn handler(mut self, handler: impl Handler) -> Self {
-        self.handlers.push(Box::new(handler));
+    /// Transport before hooks run before protocol identification, after hooks after encoding.
+    pub fn middleware(mut self, middleware: impl Middleware) -> Self {
+        self.middleware.push(Box::new(middleware));
         self
     }
-
-    /// Appends a bundle of handlers, in order: a chain a library ships.
-    pub fn handlers(mut self, handlers: impl IntoIterator<Item = Box<dyn Handler>>) -> Self {
-        self.handlers.extend(handlers);
+    pub fn middlewares(
+        mut self,
+        middleware: impl IntoIterator<Item = Box<dyn Middleware>>,
+    ) -> Self {
+        self.middleware.extend(middleware);
         self
     }
-
-    /// Appends the default handlers: the service log (errors only), the
-    /// exception translator (no translations: everything unmodelled is a 500)
-    /// and the JSON protocol.
+    /// Policies with guaranteed operation metadata, before input decoding.
+    pub fn operation_middleware(mut self, middleware: impl OperationAwareMiddleware) -> Self {
+        self.operation_middleware.push(Box::new(middleware));
+        self
+    }
+    pub fn operation_middlewares(
+        mut self,
+        middleware: impl IntoIterator<Item = Box<dyn OperationAwareMiddleware>>,
+    ) -> Self {
+        self.operation_middleware.extend(middleware);
+        self
+    }
+    /// Decoded invocation extensions. Registration order within this stage is execution order.
+    pub fn interceptor(mut self, interceptor: impl Interceptor) -> Self {
+        self.interceptors.push(Box::new(interceptor));
+        self
+    }
+    pub fn interceptors(
+        mut self,
+        interceptors: impl IntoIterator<Item = Box<dyn Interceptor>>,
+    ) -> Self {
+        self.interceptors.extend(interceptors);
+        self
+    }
+    /// Protocols are alternatives: only the first claiming protocol decodes/writes.
+    pub fn protocol(mut self, protocol: impl Protocol) -> Self {
+        self.protocols.push(Box::new(protocol));
+        self
+    }
+    pub fn protocols(mut self, protocols: impl IntoIterator<Item = Box<dyn Protocol>>) -> Self {
+        self.protocols.extend(protocols);
+        self
+    }
+    /// Orchestrator error rules cover failures in every entered phase.
+    pub fn exception_translator(mut self, translator: ExceptionTranslator) -> Self {
+        self.translator = translator;
+        self
+    }
     pub fn defaults(self) -> Self {
-        self.handler(ServiceLog::errors_only())
-            .handler(ExceptionTranslator::new())
-            .handler(JsonProtocol)
-            .handler(InvokeProtocol)
+        self.middleware(ServiceLog::errors_only())
+            .protocol(JsonProtocol)
+            .protocol(InvokeProtocol)
     }
 
-    /// Wraps the whole service in a tower layer, outside the handler chain:
+    /// Wraps the whole service in a tower layer, outside the phased pipeline:
     /// for work on the response as sent, such as compression or counting
-    /// the bytes that leave. Like handlers, the first added is outermost.
+    /// the bytes that leave. Like extensions, the first added is outermost.
     /// Every host runs the layers: HTTP, Lambda HTTP events and direct
     /// invokes alike, so swapping hosts keeps them. A layer's errors must be
     /// answered inside it (tower's `HandleErrorLayer`); the response body may
     /// be any HTTP body.
-    pub fn layer<L, S, B>(mut self, layer: L) -> Self
+    pub fn tower_layer<L, S, B>(mut self, layer: L) -> Self
     where
         L: Layer<Endpoint, Service = S> + Send + Sync + 'static,
         S: Service<Request<Body>, Response = axum::http::Response<B>, Error = Infallible>
@@ -396,7 +495,7 @@ impl Builder {
         self
     }
 
-    /// The largest request body any operation reads. Admission handlers run
+    /// The largest request body any operation reads. Admission extensions run
     /// before buffering; the selected protocol rejects larger buffered bodies
     /// as a validation error. Streaming bodies enforce the limit while read.
     pub fn body_limit(mut self, bytes: usize) -> Self {
@@ -423,17 +522,19 @@ impl Builder {
 
     pub fn build(mut self) -> Result<Crucible, BuildError> {
         let prepare = Prepare::new(self.operations.service);
-        for handler in &mut self.handlers {
-            handler.prepare(&prepare).map_err(BuildError::Prepare)?;
+        for middleware in &mut self.middleware {
+            middleware.prepare(&prepare).map_err(BuildError::Prepare)?;
         }
-        let protocols: Vec<usize> = self
-            .handlers
-            .iter()
-            .enumerate()
-            .filter(|(_, handler)| handler.as_protocol().is_some())
-            .map(|(index, _)| index)
-            .collect();
-        if protocols.is_empty() {
+        for middleware in &mut self.operation_middleware {
+            middleware.prepare(&prepare).map_err(BuildError::Prepare)?;
+        }
+        for interceptor in &mut self.interceptors {
+            interceptor.prepare(&prepare).map_err(BuildError::Prepare)?;
+        }
+        for protocol in &mut self.protocols {
+            protocol.prepare(&prepare).map_err(BuildError::Prepare)?;
+        }
+        if self.protocols.is_empty() {
             return Err(BuildError::NoProtocol);
         }
         let reject = match (self.reject, self.operations.service.reject) {
@@ -458,8 +559,11 @@ impl Builder {
         let core = Crucible {
             inner: Arc::new(Inner {
                 operations: self.operations,
-                handlers: self.handlers,
-                protocols,
+                middleware: self.middleware,
+                operation_middleware: self.operation_middleware,
+                interceptors: self.interceptors,
+                protocols: self.protocols,
+                translator: self.translator,
                 reject,
                 body_limit: self.body_limit,
                 body_limits,
@@ -489,19 +593,19 @@ impl Builder {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildError {
-    /// No handler in the chain is a protocol, so nothing can route.
+    /// No protocol was registered, so nothing can identify requests.
     NoProtocol,
     /// The service's validation error needs members crucible cannot fill:
     /// give the builder `on_rejection`.
     NoRejection,
-    /// A handler's `prepare` refused the service, saying why.
+    /// An extension's `prepare` refused the service, saying why.
     Prepare(String),
 }
 
 impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Self::NoProtocol => "the handler chain has no protocol handler",
+            Self::NoProtocol => "no protocol is registered",
             Self::NoRejection => {
                 "the validation error has required members crucible cannot fill: call on_rejection"
             }

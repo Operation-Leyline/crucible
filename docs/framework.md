@@ -4,7 +4,7 @@ Crucible is two products:
 
 1. **The framework** (`crucible` crate): everything a service does that is not
    specific to its API. That covers the request pipeline (an orchestrator
-   running a handler chain), the request context, protocols, validation, the
+   running a phased pipeline), the request context, protocols, validation, the
    error model, the service log, metrics plumbing and transports. A service
    depends on it like any library.
 2. **The Smithy adaptor** (`crucible-smithy` + `crucible-codegen-rust`, run by
@@ -91,10 +91,10 @@ src/
     graph/              one folder per resource, its Smithy name in snake_case
       mod.rs            what the graph operations share
       create_graph.rs   impl CreateGraphOperation for Service
-  handlers/
+  middlewares/
     mod.rs              pub use authenticate::Authenticate; ...
-    authenticate.rs     one handler per file, used as handlers::Authenticate
-  interceptors/         the same, for a client's interceptors
+    authenticate.rs     one middleware per file
+  interceptors/         decoded invocation extensions
 ```
 
 Each operation file holds one `impl XOperation for Service`; there is no
@@ -104,15 +104,15 @@ every operation that has no file yet, in its resource's folder, and adds the
 `mod` lines that reach it; it never overwrites a file. (`--out` is the
 operations folder, `src/operations` by default; `--service-type` the
 implementing type, `crate::operations::Service` by default.) crucible's own
-built-ins follow the same rule: `handlers::ServiceLog` is
-`handlers/service_log.rs`, `JsonProtocol` is `protocol/json_protocol.rs`.
+built-ins follow the same rule: `middlewares::ServiceLog` is
+`middlewares/service_log.rs`, `JsonProtocol` is `protocol/json_protocol.rs`.
 
 ## The request context
 
 `self.context()` inside an implementation, or `crucible::Context::current()`
 anywhere on the request's task, returns the request context. It holds the
 request id, the operation's `OperationInfo`, the deadline, request headers,
-and typed attributes that handlers set (an authenticated principal, say).
+and typed attributes that extensions set (an authenticated principal, say).
 It reads like a field of the implementing type, but `&self` is shared by concurrent
 requests, so it is a task-local the orchestrator sets around the call.
 **Decision:** a task spawned inside an implementation does not inherit it;
@@ -124,135 +124,140 @@ The request id comes from `Builder::request_id(source)` when the service
 names one (an inbound header behind a trusted edge), else from the host, else
 it is a fresh UUID; an id that is empty or over 128 bytes is replaced. On
 Lambda the host supplies an HTTP event's own request id, or the invocation's
-id for a direct invoke, and the invocation deadline, so a handler can budget
+id for a direct invoke, and the invocation deadline, so middleware can budget
 work against the time the function has left. Hosts pass both through a
 `RequestMeta` request extension.
 
-## The orchestrator and the handler chain
+## The request pipeline
 
-The service builder takes handlers in order. Each request:
+The orchestrator owns the phase order. Registration order matters within a
+phase; a protocol is selected from alternatives, rather than placed between
+arbitrary extensions.
 
-1. **Route.** The protocols registered in the chain are asked in order who
-   claims the request. The first claim fixes the operation, so every handler
-   knows `job.operation()` from the start. No protocol claims it: the
-   operation is unknown, and the chain still runs, so it is logged.
-2. **Before**, in chain order. A handler sees the `Job`: operation, context,
-   the raw request, and (after the protocol handler) the typed input as a
-   `&dyn Input` (JSON view, downcast). The body is read when the selected
-   protocol is reached, so authentication, admission checks and relays can
-   finish without waiting for a client to send its body. Other protocols'
-   hooks are skipped.
-3. **The implementation**, if every `before` passed.
-4. **After**, in reverse order. A handler sees the outcome (output, modelled
-   error or internal failure) and the response being built.
+```text
+Host
+  -> Middleware.before (raw transport)
+  -> Protocol.identify (choose operation)
+  -> OperationAwareMiddleware.before (metadata and raw transport)
+  -> Protocol.decode (read and validate input)
+  -> Interceptor.before (decoded invocation)
+  -> Operation implementation
+  <- Interceptor.after
+  <- OperationAwareMiddleware.after
+  <- Protocol.write (encode outcome)
+  <- Middleware.after (encoded response)
+  <- Completion observers (response ready)
+```
 
-A failing `before` stops the chain going forward. The `after` of every
-handler whose `before` succeeded still runs, in reverse, so logging and exception
-translation see failures too. The protocol that routed the request writes
-the response after every `after`. Then `Handler::complete(&Job, &Response)`
-runs in reverse order for the same handlers, observing the serialized status.
-Completion observers cannot change the response. An answered response has been
-moved out of the job by then; read its status from the response. Tower layers
-outside the chain and transport streaming happen later.
-If reading the body fails, only handlers already entered are unwound;
-handlers beyond the selected protocol have no cleanup or completion hooks.
+Each family has `before`, `after`, `complete`, and `prepare` defaults. A failing
+`before` stops forward execution. Only entries whose `before` succeeded unwind,
+in reverse order within each phase. An extension answering with `respond`
+also unwinds itself, skips later phases, and bypasses protocol encoding.
+The orchestrator classifies and sanitizes every failure, including failures
+before identification; configured exception rules normalize failures before outcome
+extensions unwind, regardless of where the failure originated. If a return hook
+replaces an error, the new failure is normalized before the next outer hook.
+Rules are not run repeatedly on an unchanged failure.
+
+| Interface | Before view | After view | Use |
+|---|---|---|---|
+| `Middleware` | `Job`, operation not yet selected | `Job` and mutable encoded `Response` | Headers, transport rejection, body wrappers, final-status observation |
+| `OperationAwareMiddleware` | `OperationJob`, operation guaranteed | `OperationJob`, outcome available | Model-driven authentication, admission, relay, audit of invalid input |
+| `Interceptor` | `DecodedJob`, validated input and operation guaranteed | `OperationJob`, outcome available | Typed authorization, invocation policy, outcome inspection and error changes |
+| `TypedInterceptor<O>` | `&O::Input` and `&Context` | Optional `&O::Output`, or `failed(&Error, &Context)` | One operation's typed extension |
+
+`OperationJob` and `DecodedJob` cannot be constructed by consumers and do not
+expose unrestricted decoding or input replacement. Operation-aware middleware
+cannot be registered as raw middleware. An unknown operation or failed
+identification skips operation-aware middleware and interceptors. Decoding
+failure skips interceptors, while earlier operation policies still unwind.
+The request context, attributes, request id and deadline survive selection;
+its tracing span is updated when the operation becomes known.
 
 ```rust
-pub trait Handler: Send + Sync + 'static {
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> { Hook::Ready(Ok(())) }
-    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> { Hook::Ready(()) }
-}
-
-// A hook that waits on something returns a future instead:
-//     Hook::wait(async move { self.limiter.check(job.operation()).await })
-// Or write hooks as `async fn` by implementing AsyncHandler, which is a
-// Handler too, at the cost of an allocation per call.
-#[crucible::async_trait]
-pub trait AsyncHandler: Send + Sync + 'static {
-    async fn before(&self, job: &mut Job) -> crucible::Result<()> { Ok(()) }
-    async fn after(&self, job: &mut Job) {}
-}
-
 Crucible::builder(contract::operations(Arc::new(service)))
-    .handler(ServiceLog::errors_only())
-    .handler(ExceptionTranslator::new().translate(|e: &DdbError| ...))
-    .handler(MyAuthentication)          // sets a Principal attribute
-    .handler(MyThrottle.when_trait("acme#operationClass"))
-    .handler(JsonProtocol)              // reads + validates the input
-    .handler(InvokeProtocol)            // direct invocations
+    .middleware(ServiceLog::errors_only())
+    .middleware(MyHeaderAuthentication)
+    .operation_middleware(MyThrottle.when_trait("acme#operationClass"))
+    .protocol(JsonProtocol)
+    .protocol(InvokeProtocol)
+    .interceptor(for_operation(MyTypedAuthorization))
+    .exception_translator(ExceptionTranslator::new().translate(|e: &DdbError| ...))
     .build()?
 ```
 
-`Crucible::builder(ops).defaults()` appends the service log (errors only),
-the exception translator and both protocols. Handlers placed before the
-protocols see the raw request. Handlers placed after them see the typed
-input.
+`defaults()` adds the error-only service log and both built-in protocols.
+`Middleware`, `OperationAwareMiddleware`, and `Interceptor` return `Hook::Ready`
+for synchronous work and `Hook::wait` for asynchronous work. The corresponding
+`AsyncMiddleware`, `AsyncOperationAwareMiddleware`, and `AsyncInterceptor`
+helpers let extensions write `async fn` hooks, boxing their futures. A `Job`
+contains a streaming body and is `Send`, not `Sync`; do not retain `&Job`
+across an asynchronous suspension. Borrow a mutable phase view or extract
+shared input/context references first.
 
-`Job::body()` is empty until the body has been read. A handler placed before
-the protocol that needs buffered bytes must first await
-`job.read_body().await?`. Reading again reuses the buffered result or the
-original rejection. For HTTP streaming payloads, this prepares the bounded
-stream instead of buffering it. Existing middleware that inspected
-`job.body()` before the protocol must add this call in an asynchronous hook.
+### Extension helpers
 
-## Extension points
+- `OperationMiddlewareExt`, `InterceptorExt`, and `ProtocolExt` provide
+  `.only`, `.except`, `.when`, and `.when_trait`. Raw middleware can inspect
+  headers before identification; operation scoping belongs to later stages.
+  Nested scopes only narrow `prepare.operations()` and request selection.
+- `before_fn` and `after_fn` construct synchronous operation-aware middleware;
+  `raw_before_fn` constructs a synchronous transport check.
+- `for_operation` adapts `TypedInterceptor<O>` to the interceptor registry.
+  It skips other operations and prepares only for its named operation.
+- Libraries can ship separate bundles of boxed middleware, operation-aware
+  middleware, interceptors and protocols through the matching plural builder
+  methods. A bundle retains the phase guarantees.
+- Every extension can read model traits once in `prepare`. Invalid required
+  configuration fails service construction. `prepare.service()` exposes the
+  whole model; `prepare.operations()` exposes only its scope.
 
-Everything around an operation is a `Handler`, and the built-in ones are
-ordinary handlers with nothing private. On top of the trait:
+### Bodies and responses
 
-- **Scoping** (`HandlerExt`): `.only(&["GetCity"])`, `.except(..)`,
-  `.when(|op| ..)` over `OperationInfo`, and `.when_trait("acme#audited")` for
-  a trait in the model. The handler is skipped elsewhere. A scoped protocol
-  can claim only operations allowed by its scope.
-- **Closures**: `before_fn(|job| ..)` and `after_fn(|job| ..)` for synchronous
-  checks. Anything that awaits implements `Handler`.
-- **Typed per-operation handlers**: `OperationHandler<GetCity>` sees
-  `&GetCityInput` and `Option<&GetCityOutput>`; `for_operation(h)` puts it in
-  the chain.
-- **Bundles**: a library ships `Vec<Box<dyn Handler>>`; `Builder::handlers`
-  appends it in order.
-- **Protocols**: implement `Protocol` (route, write) and `Handler` (read the
-  input) for a new wire format. A router with overlapping candidates should
-  override `Protocol::route_scoped` to filter candidates before ranking them.
-  Its default checks only the selected route; `JsonProtocol` filters first.
-  A malformed URI can claim an operation with `Route::rejection`, preserving
-  its operation context. The orchestrator rejects it at protocol entry, before
-  reading the body, after earlier admission handlers have run.
-- **Sinks and recorders**: `LogSink` takes service-log records, `Recorder`
-  takes metrics records.
-- **Exception rules**: `ExceptionTranslator::translate::<E>` by type, or
-  `translate_with` over any error.
-- **The model's own traits**: `OperationInfo::traits` and
-  `MemberInfo::traits` carry every trait outside Smithy's namespaces, as
-  written in the model. `Handler::prepare(&mut self, &Prepare)` runs once
-  at `build`: a handler reads them there (`trait_as::<T>(id)`,
-  `has_trait(id)`) into its own per-operation table, and an `Err` fails the
-  build, so a missing or malformed trait never reaches a request.
-  `prepare.operations()` yields only the operations the handler runs for, so
-  a scoped handler (`.only(..)`) is not refused over operations it skips;
-  `prepare.service()` is the whole service.
-- **Answering a request**: `job.respond(response)` in a `before` hook sends
-  `response` as it is. The remaining `before` hooks, decoding and the
-  operation are skipped; `after` hooks (the answering handler's included) see
-  `Resolution::Answered { status }`, so a service log records it and a meter
-  can skip it. For a response from elsewhere, such as relaying a request
-  forwarded to another region.
-- **Layers**: `Builder::layer(l)` wraps the whole service in any tower
-  layer, outside the handler chain, first added outermost. It is for work on
-  the response as it leaves, such as compression or counting bytes after
-  compression, which a handler (it sees the outcome, not the bytes) cannot
-  do. Every host runs the layers, Lambda included; a service with none pays
-  nothing for them.
-- **The request context**: a handler stores typed values with
-  `context.set_attribute(..)`; implementations read them with
-  `self.context().attribute::<T>()`.
+`Job::body()` and `OperationJob::body()` are empty until `read_body()` or the
+selected protocol reads the body. A transport policy needing buffered bytes
+must explicitly await `read_body()`. Header-only admission need not wait for
+a client to send its body. Reads are idempotent, including rejected or cancelled
+reads. The service-wide limit applies before selection; a smaller selected
+operation limit also rejects previously buffered bytes. Streaming HTTP
+payloads remain bounded streams; reading before selection buffers those bytes.
+
+Native transport `after` hooks receive the encoded response and can change its
+headers, status, or body, including wrapping its stream. `complete` observers
+run after all native response transformations and cannot change the response.
+Completion means response ready, not successful delivery or body exhaustion.
+Cancellation drops request work; hooks are not guaranteed to run when their
+future is dropped. Streaming failures after headers cannot replace the answer;
+body wrappers can observe end, error, and drop for delivery-specific metering.
+
+`Builder::tower_layer` is an explicit compatibility adapter for existing Tower
+middleware, outside the native pipeline and on every host. It can reuse CORS,
+compression, around-future task scopes, and similar transport machinery. The
+first adapter added is outermost. Its errors must be answered by that adapter,
+and its transformations/body delivery happen after native completion observers.
+A service can implement response transforms entirely through Crucible
+middleware. Request heads are read-only through `Job`; use the adapter
+for request-header, URI, or body rewriting. In transport `after`, modify the
+provided response directly: staging job headers, errors, or `respond` there
+occurs after encoding. Tower is not required for application extension interfaces.
 
 ## Protocols
 
-A protocol is a handler that also routes and writes. In `before` it reads the
-input and validates it, refusing a broken request with every violation. After
-the chain it writes the response. Several can be registered, and the first to
-claim a request serves it.
+A protocol implements `identify`, `decode`, and `write`. Identification returns
+`ProtocolMatch::Declined` or `Claimed(Option<Route>)`. The first claim fixes
+the protocol even if its envelope is malformed or its operation is unknown;
+a claimed invalid request never falls through to another protocol. An error
+from identification is answered by that protocol. With no claim, the first
+registered protocol writes the unknown-operation response.
+
+Header/URI protocols can implement synchronous `route`, `route_scoped`, and
+`owns`; default identification uses them. Filter scoped candidates before
+specificity ranking. A malformed URI can return `Route::rejection`, retaining
+operation metadata for admission and audit before decoding is refused.
+Envelope-based RPC protocols implement asynchronous `identify_scoped` to
+apply scopes while identifying. They may parse a bounded envelope there and
+retain it in context attributes for `decode`, avoiding a second parse. A
+protocol declining a request must leave it available to later protocols.
 
 - `JsonProtocol` implements `crucible.protocols#json` (`smithy/crucible.smithy`):
   HTTP bindings, a JSON body, errors with `"__type"`. An input payload is
@@ -271,21 +276,23 @@ claim a request serves it.
 ## Errors
 
 An implementation returns `crucible::Result<T>`, whose error is
-`crucible::Error`, a boxed error. `?` works on anything. After the
-implementation runs, the error is classified:
+`crucible::Error`, a boxed error. `?` works on anything. Failures anywhere
+in the pipeline are classified:
 
-- **A modelled error the operation declares**: answered as itself.
+- **A modelled error the selected operation declares**: answered as itself.
+  Before operation selection, an error known to the service model is accepted;
+  this lets raw authentication return its modelled refusal.
 - **A modelled error it does not declare**: a bug. It becomes an internal
   failure.
 - **Anything else**: an internal failure.
 
-The `ExceptionTranslator` handler maps internal failures to modelled errors
+The orchestrator-owned `ExceptionTranslator` maps internal failures to modelled errors
 with registered translations (`|e: &ThrottledByDependency| ThrottlingException
 {..}`). What nothing translates is answered as the service's internal error
 (its one 500 server error, filled by the generator) or the protocol's own
 `InternalFailure`. Either way the response has a fixed message, never the
 error's text. An applicable `ServiceLog` with failure logging enabled records
-the cause with the request id, provided it ran before any handler whose
+the cause with the request id, provided it ran before any transport middleware whose
 `before` hook failed (see [The service log](#the-service-log)). **Decision:** typed
 per-operation error enums would check at compile time which errors an
 operation returns. They are traded away for "return anything, translate
@@ -341,10 +348,10 @@ response status, including serialization failures. The record contains the
 request id, operation, status, outcome, latency, error type, and optional
 payload fields. By default it records failures only.
 
-Place `ServiceLog` first in the handler chain, with failure logging enabled
+Place `ServiceLog` first in the transport middleware registry, with failure logging enabled
 for every operation whose failures should be recorded. A missing, disabled,
 or scoped-out service log emits no failure record. A service log placed after
-a handler whose `before` hook fails never runs its completion hook, so it
+transport middleware whose `before` hook fails never runs its completion hook, so it
 cannot record that failure's cause. Protocols provide no fallback error log.
 The default `TracingSink` also requires an installed subscriber whose filters
 enable the event.
@@ -388,7 +395,7 @@ a sink doing I/O should enqueue records to a bounded writer and choose its
 backpressure policy. `serde_json::to_value(record)` provides the previous
 camelCase JSON layout for consumers that need it. Serialization-failure
 records carry an internal cause but the response retains a fixed message.
-Completion describes the response produced by the protocol; it does not
+Completion describes the response after native middleware; it does not
 claim successful delivery or include subsequent tower-layer transformations.
 Invalid modelled response header names or values also produce a serialization
 failure, including headers on modelled errors and streaming responses.
@@ -405,9 +412,15 @@ Regenerate Rust services and clients with the matching Crucible runtime.
 `OperationInfo` now includes `literal_query`. Update custom log sinks from
 `&serde_json::Value` to `&LogRecord<'_>`. If constructing `LogPolicy` directly,
 set `client_error_level`; its constructors default to INFO. Move custom
-post-serialization observers to `Handler::complete` when appropriate.
+post-serialization observers to `Middleware::complete` when appropriate.
+Replace `.handler` registrations with `.middleware`, `.operation_middleware`,
+`.protocol`, or `.interceptor` according to the view required. Replace
+`OperationHandler<O>` with `TypedInterceptor<O>`. Register exception rules using
+`.exception_translator`, and existing Tower layers with `.tower_layer`.
+Keep audit and admission outside decoding when they must observe invalid inputs.
+
 Before-protocol middleware that inspects `Job::body()` must await
-`Job::read_body()` first. Keep admission handlers that need only headers
+`Job::read_body()` first. Keep admission middleware that needs only headers
 before that read. Move streaming direct-invoke callers to HTTP. Test both
 hosts and early rejection paths before upgrading a service.
 
@@ -418,10 +431,10 @@ deliberately; changing this repository does not deploy Leyline or Pigeon.
 
 ## Metrics
 
-The `Metrics` handler builds a `RequestRecord` per request (operation,
+The `Metrics` middleware builds a `RequestRecord` per request (operation,
 latency, status, class, error) and hands it to a `Recorder` the service
 supplies. Place it early in the chain so its completion hook runs for requests a
-later handler refuses. It records in `complete`, using the serialized
+later extension refuses. It records in `complete`, using the serialized
 response's status and including serialization in latency. A serialization
 failure therefore records an internal failure even if the operation
 succeeded. Tower layers and delivery of streaming bytes happen afterward.
@@ -444,7 +457,7 @@ The same binary runs in both places, so moving a service between them is a
 deployment change. `host::serve(service, Host::..)` picks explicitly,
 `host::http_on(service, listener)` takes a bound socket, and
 `host::lambda_event(service, payload)` answers one event (for tests or a
-runtime loop of your own). Layers given to `Builder::layer` run on every
+runtime loop of your own). Layers given to `Builder::tower_layer` run on every
 host, so they move with the service; `into_router()` gives an
 `axum::Router` for layers that belong to one HTTP deployment only.
 
@@ -522,8 +535,9 @@ What got it there:
 - **Output in one pass.** An output, an error and an invoke answer are each
   serialized straight to bytes. Header members are taken out as the body is
   written.
-- **Hooks that do not wait do not allocate.** `Handler` hooks return
-  `Hook::Ready` or a future; only `AsyncHandler` and waiting hooks box one.
+- **Hooks that do not wait do not allocate.** Native extension hooks return
+  `Hook::Ready` or a future; async helpers and waiting hooks box one. Scoped asynchronous protocol
+  identification also boxes the scope adapter future.
 - **Lambda direct invokes from the raw event.** The input is a slice of the
   event text, read once.
 - **Lazy validation paths.** A violation's path is built into text only

@@ -1,8 +1,5 @@
-//! The handler chain. Each request is a `Job` passed down the chain's
-//! `before` hooks in order, to the operation, then back through the `after`
-//! hooks in reverse.
+//! Per-request state owned by the orchestrator.
 
-use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::body::{Body, Bytes};
@@ -12,234 +9,10 @@ use axum::response::Response;
 use serde_json::Value;
 
 use crate::context::Context;
-use crate::error::{Error, FrameworkError, ModelledError, Result};
-use crate::operation::{Input, OperationInfo, Output, ServiceInfo};
-use crate::protocol::Protocol;
+use crate::error::{Error, FrameworkError, Result};
+use crate::operation::{Input, OperationInfo, ServiceInfo};
 use crate::validate::Rejection;
-
-/// What a hook gives back: its result now, or a future to wait for. A hook
-/// that needs no waiting returns `Ready` and costs no allocation; one that
-/// does returns `Hook::wait(async move { .. })`.
-pub enum Hook<'a, T> {
-    Ready(T),
-    Wait(Pin<Box<dyn Future<Output = T> + Send + 'a>>),
-}
-
-impl<'a, T> Hook<'a, T> {
-    pub fn wait(future: impl Future<Output = T> + Send + 'a) -> Self {
-        Self::Wait(Box::pin(future))
-    }
-
-    /// The result, waiting for it if it is not ready.
-    pub async fn resolve(self) -> T {
-        match self {
-            Self::Ready(value) => value,
-            Self::Wait(future) => future.await,
-        }
-    }
-}
-
-/// A step in every request. Both hooks have defaults, so a handler writes
-/// only the one it needs. A hook that awaits something returns
-/// [`Hook::wait`]; for writing hooks as `async fn`, implement
-/// [`AsyncHandler`] instead.
-pub trait Handler: Send + Sync + 'static {
-    /// Runs in chain order before the operation. An error stops the chain:
-    /// the operation does not run, and it becomes the request's outcome.
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
-        let _ = job;
-        Hook::Ready(Ok(()))
-    }
-
-    /// Runs in reverse chain order after the operation, or after a `before`
-    /// failed, for every handler whose `before` succeeded.
-    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
-        let _ = job;
-        Hook::Ready(())
-    }
-
-    /// Observes the serialized response after all `after` hooks. Runs in
-    /// reverse order for the same handlers as `after`. Outer tower layers
-    /// and body streaming have not run yet. An answered response has been
-    /// moved out of the job; inspect `response` for its status.
-    fn complete(&self, job: &Job, response: &Response) {
-        let _ = (job, response);
-    }
-
-    /// A protocol handler routes requests and writes responses too.
-    fn as_protocol(&self) -> Option<&dyn Protocol> {
-        None
-    }
-
-    /// Runs once, at `build`: where a handler reads the model's traits into
-    /// its own per-operation table, rather than parsing them on every
-    /// request. [`Prepare::operations`] yields the operations the handler
-    /// runs for (all of them, unless it is scoped), [`Prepare::service`] the
-    /// whole service. An error fails the build, so a missing or malformed
-    /// trait is found before the first request.
-    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
-        let _ = prepare;
-        Ok(())
-    }
-}
-
-/// The service as a handler sees it at `build`: the whole of it, and the
-/// operations the handler's scope includes.
-#[derive(Clone, Copy)]
-pub struct Prepare<'a> {
-    service: &'static ServiceInfo,
-    scope: Option<&'a (dyn Fn(&OperationInfo) -> bool + 'a)>,
-    /// The scope this one narrows: an operation must pass both.
-    outer: Option<&'a Prepare<'a>>,
-}
-
-impl<'a> Prepare<'a> {
-    pub(crate) fn new(service: &'static ServiceInfo) -> Self {
-        Self {
-            service,
-            scope: None,
-            outer: None,
-        }
-    }
-
-    pub fn service(&self) -> &'static ServiceInfo {
-        self.service
-    }
-
-    /// Whether the handler runs for `operation`.
-    pub fn applies(&self, operation: &OperationInfo) -> bool {
-        self.outer.is_none_or(|outer| outer.applies(operation))
-            && self.scope.is_none_or(|scope| scope(operation))
-    }
-
-    /// The operations the handler runs for.
-    pub fn operations(&self) -> impl Iterator<Item = &'static OperationInfo> + '_ {
-        self.service
-            .operations
-            .iter()
-            .copied()
-            .filter(|op| self.applies(op))
-    }
-
-    /// The same service, narrowed to the operations `scope` accepts too: for
-    /// a handler that wraps another and runs it for fewer operations. It
-    /// only ever narrows: an operation outside this scope stays outside.
-    pub fn within<'b>(&'b self, scope: &'b (dyn Fn(&OperationInfo) -> bool + 'b)) -> Prepare<'b>
-    where
-        'a: 'b,
-    {
-        Prepare {
-            service: self.service,
-            scope: Some(scope),
-            outer: Some(self),
-        }
-    }
-}
-
-/// A handler written with `async fn` hooks: every type implementing it is a
-/// [`Handler`]. Each call allocates its future, which a handler that never
-/// waits avoids by implementing `Handler` directly.
-#[async_trait::async_trait]
-pub trait AsyncHandler: Send + Sync + 'static {
-    async fn before(&self, job: &mut Job) -> Result<()> {
-        let _ = job;
-        Ok(())
-    }
-
-    async fn after(&self, job: &mut Job) {
-        let _ = job;
-    }
-
-    fn complete(&self, job: &Job, response: &Response) {
-        let _ = (job, response);
-    }
-
-    /// As [`Handler::prepare`].
-    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
-        let _ = prepare;
-        Ok(())
-    }
-}
-
-impl<T: AsyncHandler> Handler for T {
-    fn complete(&self, job: &Job, response: &Response) {
-        AsyncHandler::complete(self, job, response);
-    }
-    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
-        AsyncHandler::prepare(self, prepare)
-    }
-
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
-        Hook::Wait(AsyncHandler::before(self, job))
-    }
-
-    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
-        Hook::Wait(AsyncHandler::after(self, job))
-    }
-}
-
-/// What an operation produced, or how the request failed.
-pub enum Outcome {
-    Output(Box<dyn Output>),
-    Failed(Error),
-    /// A handler answered with a response of its own ([`Job::respond`]):
-    /// the operation did not run, and the protocol does not rewrite it.
-    Answered(Response),
-}
-
-/// How an outcome is answered, decided once for the protocol, the service
-/// log and metrics alike.
-pub enum Resolution<'a> {
-    Success(&'a dyn Output),
-    /// A modelled error the operation declares.
-    Modelled(&'a dyn ModelledError),
-    /// A request that broke the model: answered as the validation error.
-    Rejected(&'a Rejection),
-    /// Answered by the framework itself (an unknown operation).
-    Framework(FrameworkError),
-    /// Anything else: logged, and answered with no detail.
-    Internal(&'a Error),
-    /// A handler answered with its own response, sent as it is.
-    Answered {
-        status: u16,
-    },
-}
-
-impl Resolution<'_> {
-    /// The response status this resolution gets.
-    pub fn status(&self, operation: Option<&OperationInfo>) -> u16 {
-        match self {
-            Self::Success(output) => output
-                .response_status()
-                .unwrap_or_else(|| operation.map_or(200, |op| op.status)),
-            Self::Modelled(error) => error.response_status(),
-            Self::Rejected(_) => 400,
-            Self::Framework(error) => error.status(),
-            Self::Internal(_) => 500,
-            Self::Answered { status } => *status,
-        }
-    }
-
-    /// `success`, `error` (the caller's) or `fault` (the service's).
-    pub fn class(&self, operation: Option<&OperationInfo>) -> &'static str {
-        match self.status(operation) {
-            0..400 => "success",
-            400..500 => "error",
-            _ => "fault",
-        }
-    }
-
-    /// The error's wire name, when the request failed.
-    pub fn error_name(&self) -> Option<&'static str> {
-        match self {
-            Self::Success(_) | Self::Answered { .. } => None,
-            Self::Modelled(error) => Some(error.info().name),
-            Self::Rejected(_) => Some("ValidationError"),
-            Self::Framework(error) => Some(error.name()),
-            Self::Internal(_) => Some("InternalFailure"),
-        }
-    }
-}
+use crate::{Outcome, Resolution};
 
 pub(crate) type Decode = fn(Value) -> std::result::Result<Box<dyn Input>, Rejection>;
 pub(crate) type DecodeJson = fn(&[u8]) -> std::result::Result<Box<dyn Input>, Rejection>;
@@ -259,6 +32,7 @@ pub struct Job {
     pub(crate) decode_bound: Option<crate::operations::DecodeBound>,
     pub(crate) input: Option<Box<dyn Input>>,
     pub(crate) outcome: Option<Outcome>,
+    pub(crate) error_revision: u64,
     pub(crate) response_headers: HeaderMap,
     pub(crate) wants_snapshot: bool,
     /// The input as JSON, kept for `after` hooks when one asked for it.
@@ -289,10 +63,42 @@ impl Job {
         &self.body
     }
 
-    /// Reads the body once, enforcing the configured limit. Admission handlers
+    /// Reads the body once, enforcing the configured limit. Admission extensions
     /// normally inspect headers without reading; call this explicitly when they
     /// need body bytes. Later calls reuse the bytes or the same rejection.
     /// HTTP streaming payloads stay lazy; direct invocations always buffer JSON.
+    pub(crate) fn select_body_limit(&mut self, limit: usize) -> Result<()> {
+        self.body_limit = limit;
+        if self.body.len() > limit {
+            let rejection =
+                Rejection::malformed("", format!("the body is larger than {limit} bytes"));
+            self.body_read_error = Some(rejection.clone());
+            return Err(rejection.into());
+        }
+        // A protocol may buffer its envelope before the operation is known.
+        // Preserve a streaming payload if an outer middleware read its bytes.
+        if self.raw_body.is_none()
+            && self.body_read_error.is_none()
+            && self.body_stream.is_none()
+            && self.operation().is_some_and(|op| {
+                op.input.iter().any(|member| {
+                    matches!(
+                        member.location,
+                        crate::operation::Location::StreamingPayload { .. }
+                    )
+                })
+            })
+            && self
+                .request
+                .extensions
+                .get::<crate::protocol::Invocation>()
+                .is_none()
+        {
+            self.raw_body = Some(Body::from(self.body.clone()));
+        }
+        Ok(())
+    }
+
     pub async fn read_body(&mut self) -> Result<()> {
         if let Some(error) = &self.body_read_error {
             return Err(error.clone().into());
@@ -360,7 +166,7 @@ impl Job {
         &self.labels
     }
 
-    /// The validated input, once the protocol handler has read it.
+    /// The validated input, once the protocol has read it.
     pub fn input(&self) -> Option<&dyn Input> {
         self.input.as_deref()
     }
@@ -369,17 +175,23 @@ impl Job {
         self.outcome.as_ref()
     }
 
+    pub(crate) fn fail(&mut self, error: Error) {
+        self.error_revision += 1;
+        self.outcome = Some(Outcome::Failed(error));
+    }
+
     /// Replaces a failure, as an exception translator does. Ignored when the
     /// operation succeeded.
     pub fn replace_error(&mut self, error: Error) {
         if matches!(self.outcome, Some(Outcome::Failed(_))) {
+            self.error_revision += 1;
             self.outcome = Some(Outcome::Failed(error));
         }
     }
 
     /// Answers the request with `response` as it is: the remaining `before`
     /// hooks, decoding and the operation are skipped, `after` hooks run (this
-    /// handler's included) and see [`Resolution::Answered`], and the protocol
+    /// extension's included) and see [`Resolution::Answered`], and the protocol
     /// does not rewrite it. For a response from elsewhere: relaying a request
     /// forwarded to another region, or a cached answer. Headers from
     /// [`Job::response_headers_mut`] are still added, and `x-request-id`
@@ -394,7 +206,7 @@ impl Job {
     }
 
     /// Reads a JSON value as the operation's input, and validates it. For
-    /// protocol handlers.
+    /// protocols.
     pub fn decode(&self, value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
         match self.decode {
             Some(decode) => decode(value),
@@ -404,7 +216,7 @@ impl Job {
 
     /// Reads JSON bytes straight into the operation's input, in one pass, and
     /// validates it: for an input that is the whole body. For protocol
-    /// handlers.
+    /// extensions.
     pub fn decode_json(&self, bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
         match self.decode_json {
             Some(decode) => decode(bytes),
@@ -414,7 +226,7 @@ impl Job {
 
     /// Reads the operation's input from its bound members (already checked
     /// against their kinds) and its JSON body in one pass, and validates it.
-    /// For protocol handlers.
+    /// For protocols.
     pub fn decode_bound<'a>(
         &self,
         body: &'a [u8],
@@ -436,7 +248,7 @@ impl Job {
         self.wants_snapshot = true;
     }
 
-    /// The input as JSON, if a handler asked for a snapshot.
+    /// The input as JSON, if an extension asked for a snapshot.
     pub fn input_snapshot(&self) -> Option<&Value> {
         self.input_snapshot.as_ref()
     }
@@ -466,7 +278,7 @@ impl Job {
             Some(modelled)
                 if self
                     .operation()
-                    .is_some_and(|op| op.declares(modelled.info().name)) =>
+                    .is_none_or(|op| op.declares(modelled.info().name)) =>
             {
                 Resolution::Modelled(modelled)
             }

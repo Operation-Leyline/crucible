@@ -31,7 +31,7 @@ reviewed by CodeRabbit; never push to main.
 
 | Crate | Owns |
 |---|---|
-| `crucible` | the framework: orchestrator and handler chain, context, protocols, validation, errors, built-in handlers, hosting (HTTP, Lambda) |
+| `crucible` | the framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
@@ -50,7 +50,7 @@ reviewed by CodeRabbit; never push to main.
 `e2e/` is its own Cargo workspace: `weather-model` (a model package),
 `weather-service` (a service package that generates in `build.rs`, laid out
 as `docs/framework.md` "Laying out a service" says: `operations/<resource>/`,
-one file per operation; `handlers/`, one file per handler) and
+one file per operation; `middlewares/` and `interceptors/`, one file per extension) and
 `weather-client` (a client package, tested against the service over HTTP).
 Code here follows the same rule: one type per file, named for it. It is the
 example service and the integration test. Keep these rules:
@@ -63,8 +63,8 @@ example service and the integration test. Keep these rules:
   lacks, add it to the IR.
 - Generated Rust is thin: types, `'static` descriptions, traits. Behaviour
   belongs in the framework, where it is written and tested once.
-- The framework is extended through its interfaces (`Handler`, `Protocol`,
-  `OperationHandler`, `LogSink`, `Recorder`, exception rules), never through
+- The framework is extended through its interfaces (`Middleware`, `OperationAwareMiddleware`, `Protocol`,
+  `Interceptor`, `TypedInterceptor`, `LogSink`, `Recorder`, exception rules), never through
   a check of a service or operation name inside the framework.
 - Unsupported Smithy is a diagnostic against the shape that uses it, never a
   silent skip. Every diagnostic is collected, so one run lists all of them.

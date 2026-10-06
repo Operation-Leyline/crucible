@@ -1,22 +1,26 @@
-//! A handler that answers the request itself: a relay that hands back a
+//! A middleware that answers the request itself: a relay that hands back a
 //! response from elsewhere, verbatim, before the input is read.
 
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::{Request, Response};
-use crucible::handlers::{LogPolicy, LogSink, ServiceLog, before_fn};
-use crucible::{Crucible, Handler, Hook, InvokeProtocol, Job, JsonProtocol, Resolution};
+use crucible::before_fn;
+use crucible::middlewares::{LogPolicy, LogSink, ServiceLog};
+use crucible::{
+    Crucible, Hook, InvokeProtocol, JsonProtocol, OperationAwareMiddleware, OperationJob,
+    Resolution,
+};
 use serde_json::{Value, json};
 use weather_service::contract;
 use weather_service::{MemoryCities, Weather};
 
-/// Answers requests carrying `x-relay` with a canned response, as a handler
+/// Answers requests carrying `x-relay` with a canned response, as a middleware
 /// forwarding to another region would with the response it got back.
 struct Relay(Arc<Mutex<Vec<String>>>);
 
-impl Handler for Relay {
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+impl OperationAwareMiddleware for Relay {
+    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
         if let Some(id) = job.request().headers.get("x-relay").cloned() {
             let mut response = Response::builder()
                 .status(202)
@@ -30,7 +34,7 @@ impl Handler for Relay {
         Hook::Ready(Ok(()))
     }
 
-    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
+    fn after<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, ()> {
         if let Some(Resolution::Answered { status }) = job.resolution() {
             self.0.lock().unwrap().push(format!("relay after {status}"));
         }
@@ -42,7 +46,7 @@ impl Handler for Relay {
 struct Records(Arc<Mutex<Vec<Value>>>);
 
 impl LogSink for Records {
-    fn write(&self, record: &crucible::handlers::LogRecord<'_>) {
+    fn write(&self, record: &crucible::middlewares::LogRecord<'_>) {
         self.0
             .lock()
             .unwrap()
@@ -57,18 +61,18 @@ fn relaying() -> (Crucible, Arc<Mutex<Vec<String>>>, Records) {
     let service = Crucible::builder(contract::operations(Arc::new(Weather::new(Arc::new(
         MemoryCities::default(),
     )))))
-    .handler(
+    .middleware(
         ServiceLog::errors_only()
             .operation::<contract::CreateCity>(LogPolicy::everything())
             .sink(records.clone()),
     )
-    .handler(Relay(seen.clone()))
-    .handler(before_fn(move |_| {
+    .operation_middleware(Relay(seen.clone()))
+    .operation_middleware(before_fn(move |_| {
         inner.lock().unwrap().push("inner before".to_owned());
         Ok(())
     }))
-    .handler(JsonProtocol)
-    .handler(InvokeProtocol)
+    .protocol(JsonProtocol)
+    .protocol(InvokeProtocol)
     .build()
     .unwrap();
     (service, seen, records)
@@ -108,7 +112,7 @@ async fn an_answered_request_is_sent_verbatim_and_the_operation_never_runs() {
     assert_eq!(
         *seen.lock().unwrap(),
         ["relay after 202"],
-        "later before hooks skipped; the answering handler's after ran"
+        "later before hooks skipped; the answering middleware's after ran"
     );
 
     let (_, listed) = send(
@@ -134,7 +138,7 @@ async fn an_answer_keeps_its_own_request_id() {
 }
 
 #[tokio::test]
-async fn requests_the_handler_does_not_answer_run_as_usual() {
+async fn requests_the_middleware_does_not_answer_run_as_usual() {
     let (service, seen, _) = relaying();
     let (response, body) = send(&service, create(None)).await;
     assert_eq!(response.status(), 201, "{body}");

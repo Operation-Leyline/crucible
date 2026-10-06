@@ -111,7 +111,7 @@ async fn serve(stalled: bool, fail_upload: bool) -> (String, Arc<Streams>) {
         dropped: Arc::new(AtomicUsize::new(0)),
     });
     let service = crucible::Crucible::builder(server::operations(streams.clone()))
-        .handler(crucible::JsonProtocol)
+        .protocol(crucible::JsonProtocol)
         .body_limit(128 * 1024 * 1024)
         .on_rejection(|_| {
             Box::new(weather_service::contract::errors::ConflictError {

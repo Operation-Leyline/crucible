@@ -12,10 +12,10 @@ use serde_json::Value;
 
 use super::{Answers, BoundValue, Invocation, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
-use crate::handler::{Handler, Hook, Job, Resolution};
 use crate::operation::{Location, MemberInfo, OperationInfo, Scalar, Segment};
 use crate::operations::Operations;
 use crate::validate::{Rejection, Violation, ViolationKind};
+use crate::{Hook, Job, Resolution};
 use crucible_wire::text::{percent_decode, query_values};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -112,6 +112,10 @@ impl Protocol for JsonProtocol {
             }
         }
         best.map(|(_, route, _)| route)
+    }
+
+    fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        Hook::Ready(read_input(job))
     }
 
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
@@ -258,16 +262,6 @@ fn more_specific(
             exact(candidate).cmp(&exact(previous))
         })
         .is_gt()
-}
-
-impl Handler for JsonProtocol {
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
-        Hook::Ready(read_input(job))
-    }
-
-    fn as_protocol(&self) -> Option<&dyn Protocol> {
-        Some(self)
-    }
 }
 
 /// Reads the input: bound members from the request's labels, query and

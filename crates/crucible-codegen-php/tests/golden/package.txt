@@ -18,7 +18,7 @@
 }
 === crucible.json ===
 {
-  "generatorVersion": "0.1.0",
+  "generatorVersion": "0.2.0",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
   "packageVersion": "0.0.0",

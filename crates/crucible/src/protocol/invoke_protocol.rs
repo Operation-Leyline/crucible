@@ -12,10 +12,10 @@ use serde_json::{Value, json};
 
 use super::{Answers, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
-use crate::handler::{Handler, Hook, Job, Resolution};
 use crate::operation::Location;
 use crate::operations::Operations;
 use crate::validate::Rejection;
+use crate::{Hook, Job, Resolution};
 
 /// Marks a request as a direct invocation of `operation`. Set only by the
 /// framework, as a request extension, so no HTTP client can forge one.
@@ -40,6 +40,10 @@ impl Protocol for InvokeProtocol {
 
     fn owns(&self, request: &Parts) -> bool {
         request.extensions.get::<Invocation>().is_some()
+    }
+
+    fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        Hook::Ready(self.read_input(job))
     }
 
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
@@ -96,16 +100,6 @@ fn respond(status: u16, body: Vec<u8>) -> Response {
         body,
     )
         .into_response()
-}
-
-impl Handler for InvokeProtocol {
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
-        Hook::Ready(self.read_input(job))
-    }
-
-    fn as_protocol(&self) -> Option<&dyn Protocol> {
-        Some(self)
-    }
 }
 
 impl InvokeProtocol {

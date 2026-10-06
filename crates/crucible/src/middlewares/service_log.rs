@@ -11,8 +11,8 @@ use tracing::Level;
 
 use serde_json::{Map, Value, json};
 
-use crate::handler::{Handler, Hook, Job, Resolution};
 use crate::operation::{MemberInfo, Operation};
+use crate::{Hook, Job, Middleware, Resolution};
 
 /// Which members of a structure a record carries.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -174,12 +174,15 @@ pub struct ServiceLog {
     default: LogPolicy,
     operations: HashMap<&'static str, LogPolicy>,
     sink: Arc<dyn LogSink>,
+    snapshots: bool,
 }
 
 impl ServiceLog {
     pub fn new(default: LogPolicy) -> Self {
+        let snapshots = default.input != Fields::None;
         Self {
             default,
+            snapshots,
             operations: HashMap::new(),
             sink: Arc::new(TracingSink),
         }
@@ -195,6 +198,7 @@ impl ServiceLog {
     }
 
     pub fn operation_named(mut self, name: &'static str, policy: LogPolicy) -> Self {
+        self.snapshots |= policy.input != Fields::None;
         self.operations.insert(name, policy);
         self
     }
@@ -277,11 +281,11 @@ impl ServiceLog {
     }
 }
 
-impl Handler for ServiceLog {
+impl Middleware for ServiceLog {
     fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crate::Result<()>> {
         // The input is consumed by the operation, so a policy that logs it
         // asks for a copy first.
-        if self.policy(job).input != Fields::None {
+        if self.snapshots {
             job.snapshot_input();
         }
         Hook::Ready(Ok(()))

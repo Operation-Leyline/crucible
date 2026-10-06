@@ -1,6 +1,6 @@
 [package]
 name = "crucible"
-description = "A service framework for Smithy-modelled APIs: handler chain, context, protocols, validation, errors, service log, hosting"
+description = "A service framework for Smithy-modelled APIs: phased pipeline, context, protocols, validation, errors, service log, hosting"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -117,7 +117,7 @@ impl server::UpdateOperation for Types {
 #[tokio::test]
 async fn generated_extended_types_round_trip_over_http() {
     let service = crucible::Crucible::builder(server::operations(Arc::new(Types)))
-        .handler(crucible::JsonProtocol)
+        .protocol(crucible::JsonProtocol)
         .on_rejection(|_| Box::new(serde_json::from_str::<server::errors::Bad>("{}").unwrap()))
         .build()
         .unwrap();

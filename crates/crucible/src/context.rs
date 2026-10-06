@@ -1,7 +1,7 @@
 //! The request context: what an implementation knows about the request
 //! besides its input. Implementations read it as `self.context()`.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use tracing::Instrument;
 use tracing::instrument::WithSubscriber;
@@ -28,7 +28,7 @@ pub struct RequestMeta {
 pub struct Context {
     /// Visible ASCII by construction, so `request_id` reads it as text.
     request_id: HeaderValue,
-    operation: Option<&'static OperationInfo>,
+    operation: OnceLock<&'static OperationInfo>,
     received: Instant,
     deadline: Mutex<Option<Instant>>,
     /// Shared with the job, not copied: one request head per request.
@@ -51,7 +51,7 @@ impl Context {
         );
         Self {
             request_id,
-            operation,
+            operation: operation.map_or_else(OnceLock::new, OnceLock::from),
             received: Instant::now(),
             deadline: Mutex::new(None),
             request,
@@ -98,7 +98,14 @@ impl Context {
 
     /// The operation serving the request; `None` when no operation does.
     pub fn operation(&self) -> Option<&'static OperationInfo> {
+        self.operation.get().copied()
+    }
+
+    pub(crate) fn select_operation(&self, operation: &'static OperationInfo) {
         self.operation
+            .set(operation)
+            .expect("operation selected once");
+        self.span.record("operation", operation.name);
     }
 
     pub fn received(&self) -> Instant {
@@ -117,7 +124,7 @@ impl Context {
         &self.request.headers
     }
 
-    /// A value a handler stored for this request, such as the caller.
+    /// A value an extension stored for this request, such as the caller.
     pub fn attribute<T: Clone + Send + Sync + 'static>(&self) -> Option<T> {
         self.attributes
             .lock()

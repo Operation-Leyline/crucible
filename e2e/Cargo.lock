@@ -440,7 +440,7 @@ dependencies = [
 
 [[package]]
 name = "crucible"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -460,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crucible-codegen-rust",
  "crucible-smithy",
@@ -468,7 +468,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -492,7 +492,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crucible-smithy",
  "serde_json",
@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-rust"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -510,7 +510,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-smithy"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "indexmap",
@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-wire"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "bigdecimal",
