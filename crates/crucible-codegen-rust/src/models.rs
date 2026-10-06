@@ -459,7 +459,7 @@ impl Patterns {
     fn statics(&self) -> String {
         let mut out = String::new();
         let mut entries: Vec<(&String, &String)> = self.names.iter().collect();
-        entries.sort_by_key(|(_, name)| (name.len(), (*name).clone()));
+        entries.sort_by_key(|(_, name)| (name.len(), *name));
         for (pattern, name) in entries {
             out.push_str(&format!(
                 "\nstatic {name}: ::std::sync::LazyLock<::crucible::__private::regex::Regex> =\n    ::std::sync::LazyLock::new(|| ::crucible::__private::regex::Regex::new({}).expect(\"checked by crucible\"));\n",
