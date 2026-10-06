@@ -514,6 +514,51 @@ async fn malformed_modeled_queries_are_rejected_and_valid_unicode_is_preserved()
     assert_eq!(body["observed"]["queryDisplay"], "café �+");
 }
 
+#[tokio::test]
+async fn malformed_queries_preserve_valid_flags_path_specificity_and_protocol_scopes() {
+    let operations = route_operations();
+    for (uri, expected) in [
+        ("/flag?mode=off&ignored=%FE", "AFlag"),
+        ("/flag?mode=off&%GG=x", "AFlag"),
+        ("/flag?mode=%FF", "ZExact"),
+        ("/flag?%GG=on", "ZExact"),
+        ("/abc/bcd/cde?mode=on&ignored=%FF", "ZEarly"),
+        ("/greedy/a/tail?ignored=%FF", "Regular"),
+    ] {
+        let (parts, _) = Request::post(uri).body(()).unwrap().into_parts();
+        let route = JsonProtocol.route(&parts, &operations).unwrap();
+        assert_eq!(route.operation, expected, "{uri}");
+        assert!(route.rejection.unwrap().is_malformed());
+    }
+    let service = Crucible::builder(operations)
+        .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
+        .handler(before_fn(|job| {
+            let operation = job.operation().unwrap().name;
+            job.response_headers_mut()
+                .insert("x-selected-operation", HeaderValue::from_static(operation));
+            Ok(())
+        }))
+        .handler(JsonProtocol.only(&["ALate", "AFlag"]))
+        .handler(JsonProtocol)
+        .build()
+        .unwrap();
+    for (uri, expected) in [
+        ("/abc/bcd/cde?mode=on&ignored=%FF", "ALate"),
+        ("/flag?mode=off&ignored=%FE", "AFlag"),
+        ("/abc/bcd/other?ignored=%FF", "ZEarly"),
+    ] {
+        let response = service
+            .handle(Request::post(uri).body(Body::from("{}")).unwrap())
+            .await;
+        assert_eq!(response.status(), 400, "{uri}");
+        assert_eq!(
+            response.headers()["x-selected-operation"],
+            expected,
+            "{uri}"
+        );
+    }
+}
+
 async fn assert_selected_route(service: &Crucible, uri: &str, expected: &str) {
     let response = service
         .handle(Request::post(uri).body(Body::from("{}")).unwrap())
@@ -524,6 +569,46 @@ async fn assert_selected_route(service: &Crucible, uri: &str, expected: &str) {
         expected,
         "{uri}"
     );
+}
+
+#[test]
+fn malformed_literal_fallback_keeps_path_specificity_ahead_of_query_preference() {
+    static SPECIFIC: OperationInfo = operation(
+        "Specific",
+        &[Segment::Literal("specific"), Segment::Literal("item")],
+        &[("mode", Some("on"))],
+    );
+    static GENERIC: OperationInfo = operation(
+        "Generic",
+        &[Segment::Label("root"), Segment::Label("item")],
+        &[],
+    );
+    static UNCONSTRAINED_GREEDY: OperationInfo =
+        operation("UnconstrainedGreedy", &[Segment::GreedyLabel("path")], &[]);
+    static SERVICE: ServiceInfo = ServiceInfo {
+        operations: &[&SPECIFIC, &GENERIC, &UNCONSTRAINED_GREEDY],
+        ..ROUTES
+    };
+    route_operation!(Specific, SPECIFIC);
+    route_operation!(Generic, GENERIC);
+    route_operation!(UnconstrainedGreedy, UNCONSTRAINED_GREEDY);
+    let operations = Operations::builder(&SERVICE)
+        .add::<Specific, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Generic, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<UnconstrainedGreedy, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .build()
+        .unwrap();
+    for (uri, expected) in [
+        ("/specific/item?mode=%FF", "Specific"),
+        ("/specific/item?%GG=on", "Specific"),
+        ("/specific/item?mode=on&ignored=%FF", "Specific"),
+        ("/specific/item?mode=wrong&ignored=%FF", "Generic"),
+    ] {
+        let (parts, _) = Request::post(uri).body(()).unwrap().into_parts();
+        let route = JsonProtocol.route(&parts, &operations).unwrap();
+        assert_eq!(route.operation, expected, "{uri}");
+        assert!(route.rejection.unwrap().is_malformed());
+    }
 }
 
 #[tokio::test]

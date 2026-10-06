@@ -43,7 +43,7 @@ impl Protocol for JsonProtocol {
         };
         let query = request.uri.query().unwrap_or("");
         let query_violations = query_violations(query);
-        let mut best: Option<(&OperationInfo, Route)> = None;
+        let mut best: Option<(&OperationInfo, Route, bool)> = None;
         for &op in operations
             .routes(path.len())
             .iter()
@@ -52,15 +52,11 @@ impl Protocol for JsonProtocol {
             if !applies(op) || op.method != request.method.as_str() {
                 continue;
             }
-            if query_violations.is_empty()
-                && !op.literal_query.iter().all(|(key, expected)| {
-                    query_values(query, key).any(|value| {
-                        value.is_ok_and(|value| expected.is_none_or(|expected| value == expected))
-                    })
-                })
-            {
-                continue;
-            }
+            let query_matches = match literal_queries_match(query, op) {
+                Some(true) => true,
+                Some(false) => continue,
+                None => false,
+            };
             let mut labels = Vec::new();
             let mut violations = query_violations.clone();
             if path.len() < op.path.len() {
@@ -100,9 +96,9 @@ impl Protocol for JsonProtocol {
                 }
             }) && cursor == path.len();
             if matched
-                && best
-                    .as_ref()
-                    .is_none_or(|(most, _)| more_specific(op, most))
+                && best.as_ref().is_none_or(|(most, _, most_query_matches)| {
+                    more_specific(op, most, query_matches, *most_query_matches)
+                })
             {
                 best = Some((
                     op,
@@ -111,10 +107,11 @@ impl Protocol for JsonProtocol {
                         labels,
                         rejection: (!violations.is_empty()).then_some(Rejection { violations }),
                     },
+                    query_matches,
                 ));
             }
         }
-        best.map(|(_, route)| route)
+        best.map(|(_, route, _)| route)
     }
 
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
@@ -227,7 +224,12 @@ impl Protocol for JsonProtocol {
 
 /// Path segments decide specificity before query constraints. A later
 /// literal must not outweigh an earlier literal or non-greedy label.
-fn more_specific(candidate: &OperationInfo, previous: &OperationInfo) -> bool {
+fn more_specific(
+    candidate: &OperationInfo,
+    previous: &OperationInfo,
+    candidate_query_matches: bool,
+    previous_query_matches: bool,
+) -> bool {
     let rank = |segment: &Segment| match segment {
         Segment::Literal(_) => 2,
         Segment::Label(_) => 1,
@@ -238,6 +240,7 @@ fn more_specific(candidate: &OperationInfo, previous: &OperationInfo) -> bool {
         .iter()
         .map(rank)
         .cmp(previous.path.iter().map(rank))
+        .then_with(|| candidate_query_matches.cmp(&previous_query_matches))
         .then_with(|| {
             candidate
                 .literal_query
@@ -481,6 +484,51 @@ fn malformed(path: &str, message: &str) -> Violation {
 }
 
 const JSON: &str = "application/json";
+
+/// True for matched literals, false for a known mismatch or missing literal,
+/// and undecidable when the relevant key or value could not be decoded.
+fn literal_queries_match(query: &str, operation: &OperationInfo) -> Option<bool> {
+    let mut fully_matched = true;
+    for (key, expected) in operation.literal_query {
+        let mut key_seen = false;
+        let mut malformed_key = false;
+        let mut malformed_value = false;
+        let mut matched = false;
+        for pair in query.split('&').filter(|pair| !pair.is_empty()) {
+            let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+            let name = match percent_decode(name, true) {
+                Ok(name) => name,
+                Err(_) => {
+                    malformed_key = true;
+                    continue;
+                }
+            };
+            if name != *key {
+                continue;
+            }
+            key_seen = true;
+            match percent_decode(value, true) {
+                Ok(value) if expected.is_none_or(|expected| value == expected) => {
+                    matched = true;
+                    break;
+                }
+                Ok(_) => {}
+                Err(_) => malformed_value = true,
+            }
+        }
+        if matched {
+            continue;
+        }
+        // Once the key is readable, unrelated malformed keys cannot erase
+        // its valid mismatch. Repeated matching values retain any-match semantics.
+        if malformed_value || (!key_seen && malformed_key) {
+            fully_matched = false;
+        } else {
+            return Some(false);
+        }
+    }
+    fully_matched.then_some(true)
+}
 
 fn error_response(error: &dyn ModelledError) -> Response {
     let mut body = Vec::with_capacity(128);

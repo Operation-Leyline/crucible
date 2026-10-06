@@ -145,6 +145,51 @@ fn exact_query_values_outrank_any_value_matches() {
     }
 }
 
+#[tokio::test]
+async fn malformed_query_data_preserves_valid_literals_and_rejection_operation_context() {
+    use crucible::protocol::Protocol;
+
+    let operations = api::operations(Arc::new(Echo));
+    for (uri, expected) in [
+        ("/echo?mode=other&ignored=%FF", Some("Other")),
+        ("/echo?mode=other&%GG=flag", Some("Other")),
+        ("/echo?mode=echo&flag&ignored=%FF", Some("Echo")),
+        ("/echo?mode=echo&ignored=%FF", None),
+        ("/echo?mode=wrong&ignored=%FF", None),
+        ("/echo?mode=%FF&flag", Some("Echo")),
+        ("/echo?%GG=other", Some("Echo")),
+        ("/echo?mode=other&mode=echo&flag&ignored=%FF", Some("Echo")),
+        ("/echo?mode=wrong&mode=other&ignored=%FF", Some("Other")),
+        ("/echo?mode=echo&flag=%FF", Some("Echo")),
+        ("/echo?mode=other&flag=%FF", Some("Other")),
+    ] {
+        let (request, _) = Request::post(uri).body(()).unwrap().into_parts();
+        let route = JsonProtocol.route(&request, &operations);
+        assert_eq!(
+            route.as_ref().map(|route| route.operation),
+            expected,
+            "{uri}"
+        );
+        if let Some(route) = route {
+            assert!(route.rejection.unwrap().is_malformed());
+        }
+    }
+    let records = Records::default();
+    let service = service(ServiceLog::new(LogPolicy::everything()).sink(records.clone()));
+    let response = service
+        .handle(
+            Request::post("/echo?mode=other&ignored=%FF")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), 400);
+    let records = records.0.lock().unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["operation"], "Other");
+    assert_eq!(records[0]["status"], 400);
+}
+
 struct BrokenOutput;
 impl serde::Serialize for BrokenOutput {
     fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
