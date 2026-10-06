@@ -9,7 +9,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{HeaderValue, Request},
 };
-use crucible::handlers::before_fn;
+use crucible::before_fn;
 use crucible::operation::{
     ErrorInfo, Fault, Location, MemberInfo, OperationInfo, Redaction, Scalar, Segment, ServiceInfo,
     Unit,
@@ -17,7 +17,7 @@ use crucible::operation::{
 use crucible::protocol::Invocation;
 use crucible::validate::{Validate, Validator};
 use crucible::{
-    Crucible, HandlerExt, InvokeProtocol, JsonProtocol, Operation, Operations, Protocol,
+    Crucible, InvokeProtocol, JsonProtocol, Operation, Operations, Protocol, ProtocolExt,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -170,8 +170,8 @@ fn service(calls: Arc<AtomicUsize>) -> Crucible {
         .build()
         .unwrap();
     Crucible::builder(operations)
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap()
 }
@@ -415,6 +415,18 @@ fn routing_compares_path_segments_before_query_and_greedy_labels() {
     }
 }
 
+struct CountInvocations(Arc<AtomicUsize>);
+
+impl crucible::Interceptor for CountInvocations {
+    fn before<'a>(
+        &'a self,
+        _: &'a mut crucible::DecodedJob<'_>,
+    ) -> crucible::Hook<'a, crucible::Result<()>> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        crucible::Hook::Ready(Ok(()))
+    }
+}
+
 #[tokio::test]
 async fn malformed_uri_components_claim_their_route_and_reject_before_calling_it() {
     let calls = Arc::new(AtomicUsize::new(0));
@@ -424,17 +436,14 @@ async fn malformed_uri_components_claim_their_route_and_reject_before_calling_it
             assert!(rejection.is_malformed());
             Box::new(Invalid(rejection.summary()))
         })
-        .handler(before_fn(|job| {
-            let operation = job.operation().unwrap().name;
+        .operation_middleware(before_fn(|job| {
+            let operation = job.operation().name;
             job.response_headers_mut()
                 .insert("x-selected-operation", HeaderValue::from_static(operation));
             Ok(())
         }))
-        .handler(JsonProtocol)
-        .handler(before_fn(move |_| {
-            observed.fetch_add(1, Ordering::SeqCst);
-            Ok(())
-        }))
+        .protocol(JsonProtocol)
+        .interceptor(CountInvocations(observed))
         .build()
         .unwrap();
     for (uri, operation, field) in [
@@ -532,14 +541,14 @@ async fn malformed_queries_preserve_valid_flags_path_specificity_and_protocol_sc
     }
     let service = Crucible::builder(operations)
         .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
-        .handler(before_fn(|job| {
-            let operation = job.operation().unwrap().name;
+        .operation_middleware(before_fn(|job| {
+            let operation = job.operation().name;
             job.response_headers_mut()
                 .insert("x-selected-operation", HeaderValue::from_static(operation));
             Ok(())
         }))
-        .handler(JsonProtocol.only(&["ALate", "AFlag"]))
-        .handler(JsonProtocol)
+        .protocol(JsonProtocol.only(&["ALate", "AFlag"]))
+        .protocol(JsonProtocol)
         .build()
         .unwrap();
     for (uri, expected) in [
@@ -615,14 +624,14 @@ fn malformed_literal_fallback_keeps_path_specificity_ahead_of_query_preference()
 async fn scoped_json_routes_choose_allowed_overlapping_path_and_query_candidates() {
     let service = Crucible::builder(route_operations())
         .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
-        .handler(before_fn(|job| {
-            let name = job.operation().unwrap().name;
+        .operation_middleware(before_fn(|job| {
+            let name = job.operation().name;
             job.response_headers_mut()
                 .insert("x-selected-operation", HeaderValue::from_static(name));
             Ok(())
         }))
-        .handler(JsonProtocol.only(&["ALate", "AFlag"]))
-        .handler(JsonProtocol)
+        .protocol(JsonProtocol.only(&["ALate", "AFlag"]))
+        .protocol(JsonProtocol)
         .build()
         .unwrap();
     // The unrestricted winners are ZEarly and ZExact. They must not hide
@@ -637,19 +646,19 @@ async fn scoped_json_routes_choose_allowed_overlapping_path_and_query_candidates
 async fn nested_json_scopes_intersect_before_choosing_overlapping_candidates() {
     let service = Crucible::builder(route_operations())
         .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
-        .handler(before_fn(|job| {
-            let name = job.operation().unwrap().name;
+        .operation_middleware(before_fn(|job| {
+            let name = job.operation().name;
             job.response_headers_mut()
                 .insert("x-selected-operation", HeaderValue::from_static(name));
             Ok(())
         }))
-        .handler(
+        .protocol(
             JsonProtocol
                 .only(&["ALate", "AFlag", "ZExact"])
                 .except(&["ZExact"])
                 .when(|operation| operation.name != "ZEarly"),
         )
-        .handler(JsonProtocol)
+        .protocol(JsonProtocol)
         .build()
         .unwrap();
     assert_selected_route(&service, "/abc/bcd/cde?mode=on", "ALate").await;
@@ -659,14 +668,14 @@ async fn nested_json_scopes_intersect_before_choosing_overlapping_candidates() {
     // leaves both matching query candidates to the fallback protocol.
     let service = Crucible::builder(route_operations())
         .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
-        .handler(before_fn(|job| {
-            let name = job.operation().unwrap().name;
+        .operation_middleware(before_fn(|job| {
+            let name = job.operation().name;
             job.response_headers_mut()
                 .insert("x-selected-operation", HeaderValue::from_static(name));
             Ok(())
         }))
-        .handler(JsonProtocol.only(&["AFlag"]).only(&["ZExact"]))
-        .handler(JsonProtocol)
+        .protocol(JsonProtocol.only(&["AFlag"]).only(&["ZExact"]))
+        .protocol(JsonProtocol)
         .build()
         .unwrap();
     assert_selected_route(&service, "/flag?mode=on", "ZExact").await;

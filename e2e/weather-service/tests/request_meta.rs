@@ -7,14 +7,14 @@ use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::http::{HeaderValue, Request};
-use crucible::handlers::before_fn;
+use crucible::raw_before_fn;
 use crucible::{Crucible, RequestMeta};
 use serde_json::json;
 use weather_service::MemoryCities;
 
 type Seen = Arc<Mutex<Vec<(String, Option<Instant>)>>>;
 
-/// The weather service with a handler recording each request's id and
+/// The weather service with a middleware recording each request's id and
 /// deadline as the context holds them.
 fn recording(source: Option<crucible::service::RequestIdSource>) -> (Crucible, Seen) {
     let seen: Seen = Arc::default();
@@ -24,7 +24,7 @@ fn recording(source: Option<crucible::service::RequestIdSource>) -> (Crucible, S
         builder = builder.request_id(source);
     }
     let service = builder
-        .handler(before_fn(move |job| {
+        .middleware(raw_before_fn(move |job| {
             let context = job.context();
             record
                 .lock()

@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::Request;
-use crucible::handlers::{LogPolicy, LogRecord, LogSink, ServiceLog};
-use crucible::{Crucible, HandlerExt, InvokeProtocol, JsonProtocol, Operation};
+use crucible::middlewares::{LogPolicy, LogRecord, LogSink, ServiceLog};
+use crucible::{Crucible, InvokeProtocol, JsonProtocol, Operation};
 use serde_json::{Value, json};
 
 mod api {
@@ -43,11 +43,11 @@ impl LogSink for Records {
     }
 }
 
-fn service(log: impl crucible::Handler) -> Crucible {
+fn service(log: impl crucible::Middleware) -> Crucible {
     Crucible::builder(api::operations(Arc::new(Echo)))
-        .handler(log)
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .middleware(log)
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap()
 }
@@ -212,13 +212,13 @@ async fn serialization_faults_are_logged_after_writing_and_scopes_still_apply() 
         .build()
         .unwrap();
     let service = Crucible::builder(operations)
-        .handler(
-            ServiceLog::errors_only()
-                .sink(records.clone())
-                .only(&["Echo"]),
+        .middleware(
+            ServiceLog::new(LogPolicy::off())
+                .operation::<api::Echo>(LogPolicy::errors_only())
+                .sink(records.clone()),
         )
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap();
     let response = service

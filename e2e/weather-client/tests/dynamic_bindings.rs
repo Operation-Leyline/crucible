@@ -62,7 +62,7 @@ impl server::PagesOperation for Dynamic {
 }
 async fn serve() -> client::DynamicClient {
     let service = crucible::Crucible::builder(server::operations(Arc::new(Dynamic)))
-        .handler(crucible::JsonProtocol)
+        .protocol(crucible::JsonProtocol)
         .on_rejection(|_| {
             Box::new(
                 serde_json::from_value::<server::errors::Problem>(json!({"status":422})).unwrap(),

@@ -127,7 +127,7 @@ pub async fn lambda_event_json(
 
 /// [`lambda_event_json`] with what the runtime knows about the invocation:
 /// its id (used unless an HTTP event carries its own request id) and its
-/// deadline, which handlers read from the context.
+/// deadline, which extensions read from the context.
 #[cfg(feature = "lambda")]
 pub async fn lambda_event_json_with(
     service: &Crucible,

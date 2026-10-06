@@ -3,7 +3,7 @@
 //! failure, answered with no detail.
 
 use crate::error::{Error, MAX_SOURCE_DEPTH};
-use crate::handler::{Handler, Hook, Job, Resolution};
+use crate::{Job, Resolution};
 
 type Rule = Box<dyn Fn(&(dyn std::error::Error + 'static)) -> Option<Error> + Send + Sync>;
 
@@ -47,10 +47,10 @@ impl ExceptionTranslator {
     }
 }
 
-impl Handler for ExceptionTranslator {
-    fn after<'a>(&'a self, job: &'a mut Job) -> Hook<'a, ()> {
+impl ExceptionTranslator {
+    pub(crate) fn apply(&self, job: &mut Job) {
         let Some(Resolution::Internal(error)) = job.resolution() else {
-            return Hook::Ready(());
+            return;
         };
         if let Some(translated) = self.translation(error) {
             tracing::debug!(
@@ -60,7 +60,6 @@ impl Handler for ExceptionTranslator {
             );
             job.replace_error(translated);
         }
-        Hook::Ready(())
     }
 }
 

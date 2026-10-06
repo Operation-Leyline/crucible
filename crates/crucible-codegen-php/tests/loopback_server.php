@@ -11,17 +11,7 @@ if ($server === false) { fwrite(STDERR, "listen failed: $message\n"); exit(1); }
 fwrite(STDOUT, 'listening ' . stream_socket_get_name($server, false) . "\n");
 fflush(STDOUT);
 $reads = 0;
-function readExactly($client, int $count, ?HashContext $hash): int
-{
-    $received = 0;
-    while ($received < $count) {
-        $chunk = fread($client, min(65536, $count - $received));
-        if ($chunk === false || ($chunk === '' && feof($client))) break;
-        if ($hash !== null) hash_update($hash, $chunk);
-        $received += strlen($chunk);
-    }
-    return $received;
-}
+require __DIR__ . '/loopback_body.php';
 function respond($client, int $status, array $headers, string $body = ''): void
 {
     $text = "HTTP/1.1 $status " . ($status === 200 ? 'OK' : 'Status') . "\r\nConnection: close\r\nContent-Length: " . strlen($body) . "\r\n";
@@ -46,11 +36,7 @@ while (true) {
     $received = 0;
     $chunked = ($headers['transfer-encoding'] ?? '') === 'chunked';
     if ($chunked) {
-        while (($sizeLine = fgets($client)) !== false && ($length = hexdec(trim(explode(';', $sizeLine)[0]))) > 0) {
-            $received += readExactly($client, (int)$length, $hash);
-            fread($client, 2);
-        }
-        fgets($client);
+        $received = readChunked($client, $hash);
     } elseif (isset($headers['content-length'])) {
         $received = readExactly($client, (int)$headers['content-length'], $hash);
     }

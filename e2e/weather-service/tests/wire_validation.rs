@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::{Body, to_bytes};
 use axum::http::Request;
-use crucible::handlers::{LogRecord, LogSink, Metrics, Recorder, RequestRecord, ServiceLog};
+use crucible::middlewares::{LogRecord, LogSink, Metrics, Recorder, RequestRecord, ServiceLog};
 use crucible::operation::{
     ErrorInfo, Fault, Location, MemberInfo, Redaction, Scalar, Segment, Unit,
 };
@@ -339,10 +339,10 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
         .build()
         .unwrap();
     Crucible::builder(operations)
-        .handler(ServiceLog::errors_only().sink(logs))
-        .handler(Metrics::new(metrics))
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .middleware(ServiceLog::errors_only().sink(logs))
+        .middleware(Metrics::new(metrics))
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap()
 }

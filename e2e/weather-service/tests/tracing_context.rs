@@ -5,7 +5,8 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::Request;
-use crucible::handlers::{LogPolicy, ServiceLog, before_fn};
+use crucible::before_fn;
+use crucible::middlewares::{LogPolicy, ServiceLog};
 use crucible::{Context, Crucible, InvokeProtocol, JsonProtocol};
 use serde_json::{Value, json};
 
@@ -65,17 +66,17 @@ async fn tracing_has_structured_fields_levels_and_request_context_without_duplic
     tracing::subscriber::set_global_default(subscriber).unwrap();
     let service = Crucible::builder(api::operations(Arc::new(Echo)))
         .request_id(|_| Some(axum::http::HeaderValue::from_static("tracing-test")))
-        .handler(ServiceLog::new(
+        .middleware(ServiceLog::new(
             LogPolicy::everything().client_error_level(tracing::Level::WARN),
         ))
-        .handler(before_fn(|job| {
+        .operation_middleware(before_fn(|job| {
             if job.request().headers.contains_key("x-fail") {
                 return Err(crucible::Error::internal("test fault"));
             }
             Ok(())
         }))
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap();
     async {

@@ -1,6 +1,5 @@
-//! Protocols: handlers that also route a request to an operation and write
-//! the response. Several can serve one service (an RPC and a REST one, say);
-//! the first in the chain to claim a request serves it.
+//! Protocols identify an operation, decode its input, and encode its outcome.
+//! Several can serve one service; the first to claim a request serves it.
 
 mod invoke_protocol;
 mod json_protocol;
@@ -13,17 +12,14 @@ pub use invoke_protocol::{Invocation, InvokeProtocol};
 pub use json_protocol::JsonProtocol;
 
 use crate::error::ModelledError;
-use crate::handler::Job;
 use crate::operation::OperationInfo;
 use crate::operations::Operations;
 use crate::validate::Rejection;
+use crate::{Hook, Job, Prepare, Result};
 
 /// Carries serialization diagnostics to completion observers, never the wire.
 #[derive(Debug, Clone)]
 pub(crate) struct SerializationFailure(pub String);
-
-#[derive(Debug, Clone)]
-pub(crate) struct RouteRejection(pub Rejection);
 
 /// Which operation a request is, and the URI labels it carried.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,11 +43,64 @@ pub struct Answers<'a> {
     pub unknown: Option<crate::operation::InternalFn>,
 }
 
-pub trait Protocol: Send + Sync {
-    // The orchestrator runs Handler hooks only for the selected protocol;
-    // its body is read immediately before that handler's before hook.
-    /// The operation this request is, if this protocol serves it.
-    fn route(&self, request: &Parts, operations: &Operations) -> Option<Route>;
+/// Whether a protocol serves this request. A claim fixes the protocol even
+/// when its envelope is malformed or no operation matches.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProtocolMatch {
+    Declined,
+    /// The request belongs to this protocol. `None` means its operation is
+    /// unknown; return an error for a malformed envelope instead.
+    Claimed(Option<Route>),
+}
+
+pub trait Protocol: Send + Sync + 'static {
+    /// Identifies the operation before operation-aware middleware runs.
+    /// Envelope-based protocols may read a bounded body here and retain
+    /// decoded envelope state for `decode`; declining must leave the request
+    /// available to later protocols.
+    fn identify<'a>(
+        &'a self,
+        job: &'a mut Job,
+        operations: &'a Operations,
+    ) -> Hook<'a, Result<ProtocolMatch>> {
+        self.identify_scoped(job, operations, &|_| true)
+    }
+
+    /// Identifies among accepted operations. Envelope-based protocols should
+    /// override this hook so operation scopes apply to asynchronous routing
+    /// too; `identify` delegates here with an unrestricted scope.
+    fn identify_scoped<'a>(
+        &'a self,
+        job: &'a mut Job,
+        operations: &'a Operations,
+        applies: &'a (dyn Fn(&OperationInfo) -> bool + Send + Sync),
+    ) -> Hook<'a, Result<ProtocolMatch>> {
+        let matched = match self.route_scoped(job.request(), operations, applies) {
+            Some(route) => ProtocolMatch::Claimed(Some(route)),
+            // A known operation excluded by scope belongs to later protocols.
+            None if self.route(job.request(), operations).is_some() => ProtocolMatch::Declined,
+            None if self.owns(job.request()) => ProtocolMatch::Claimed(None),
+            None => ProtocolMatch::Declined,
+        };
+        Hook::Ready(Ok(matched))
+    }
+
+    /// Header/URI routing for protocols that need no envelope parsing.
+    /// An asynchronous-only protocol implements `identify_scoped` instead.
+    fn route(&self, request: &Parts, operations: &Operations) -> Option<Route> {
+        let _ = (request, operations);
+        None
+    }
+
+    /// Reads and validates the selected operation's input. The orchestrator
+    /// has prepared its bounded body before this hook runs.
+    fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>>;
+
+    /// Reads model metadata once at service construction.
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        let _ = prepare;
+        Ok(())
+    }
 
     /// Routes among operations accepted by the scope. The default filters
     /// the chosen route; protocols with overlapping candidates should override
@@ -70,14 +119,14 @@ pub trait Protocol: Send + Sync {
         Some(route)
     }
 
-    /// Whether this protocol answers a request no operation matched, because
-    /// the request is in its format. The first protocol in the chain answers
-    /// the rest.
+    /// Claims requests in this format even when no operation matches.
+    /// A claim prevents later protocols from interpreting the same request.
     fn owns(&self, request: &Parts) -> bool {
         let _ = request;
         false
     }
 
-    /// The response for the job's outcome. Called once, after every handler.
+    /// Encodes the outcome after interceptors and operation-aware middleware
+    /// unwind, before transport middleware transforms the response.
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response;
 }

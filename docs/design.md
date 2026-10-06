@@ -131,8 +131,8 @@ consumer's tests, then replaces it.
    service depends on its model package, `crucible-build` generates a trait
    per operation in `build.rs`, and the `crucible` crate runs everything
    around them. Leyline's full model generates and compiles against it. Its
-   own traits reach handlers through `OperationInfo::traits` and
-   `HandlerExt::when_trait`, replacing Leyline's side generators.
+   own traits reach operation-aware middleware through `OperationInfo::traits` and
+   `OperationMiddlewareExt::when_trait`, replacing Leyline's side generators.
 
 ## Client API design
 

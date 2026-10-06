@@ -8,7 +8,8 @@ use std::time::Duration;
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, header::SET_COOKIE};
 use axum::response::Response;
-use crucible::handlers::{Metrics, Recorder, RequestRecord, before_fn};
+use crucible::before_fn;
+use crucible::middlewares::{Metrics, Recorder, RequestRecord};
 use crucible::operation::{Location, MemberInfo, Redaction, Scalar, Segment, Unit};
 use crucible::validate::{Validate, Validator};
 use crucible::{
@@ -178,8 +179,8 @@ fn builder(calls: Arc<Calls>) -> crucible::Builder {
 async fn streaming_direct_invokes_are_rejected_before_implementation_and_http_still_streams() {
     let calls = Arc::new(Calls::default());
     let service = builder(calls.clone())
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap();
     let input = StreamInput {
@@ -242,7 +243,7 @@ async fn http_and_lambda_v2_preserve_cookies_and_repeated_headers_for_normal_and
     ];
     for job_headers in [true, false] {
         let service = weather_service::builder(Arc::new(weather_service::MemoryCities::default()))
-            .handler(before_fn(move |job| {
+            .operation_middleware(before_fn(move |job| {
                 let mut response = Response::new(Body::empty());
                 let headers = if job_headers {
                     job.response_headers_mut()
@@ -303,7 +304,7 @@ async fn http_and_lambda_v2_preserve_cookies_and_repeated_headers_for_normal_and
 #[tokio::test]
 async fn lambda_v2_rejects_non_utf8_cookies_instead_of_emitting_empty_values() {
     let service = weather_service::builder(Arc::new(weather_service::MemoryCities::default()))
-        .handler(before_fn(|job| {
+        .operation_middleware(before_fn(|job| {
             let mut response = Response::new(Body::empty());
             response
                 .headers_mut()
@@ -347,8 +348,8 @@ impl Recorder for Records {
 async fn metrics_record_serialization_failure_actual_validation_status_and_relay_completion() {
     let records = Records::default();
     let service = builder(Arc::new(Calls::default()))
-        .handler(Metrics::new(records.clone()))
-        .handler(before_fn(|job| {
+        .middleware(Metrics::new(records.clone()))
+        .operation_middleware(before_fn(|job| {
             if job.request().headers.contains_key("x-relay") {
                 job.respond(
                     Response::builder()
@@ -359,8 +360,8 @@ async fn metrics_record_serialization_failure_actual_validation_status_and_relay
             }
             Ok(())
         }))
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap();
     for (uri, body, status) in [

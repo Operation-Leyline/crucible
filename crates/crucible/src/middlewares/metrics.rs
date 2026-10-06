@@ -6,8 +6,8 @@
 use axum::response::Response;
 use std::time::Duration;
 
-use crate::handler::{Handler, Job};
 use crate::operation::OperationInfo;
+use crate::{Job, Middleware};
 
 #[derive(Debug, Clone)]
 pub struct RequestRecord<'a> {
@@ -35,7 +35,7 @@ impl<R: Recorder> Metrics<R> {
     }
 }
 
-impl<R: Recorder> Handler for Metrics<R> {
+impl<R: Recorder> Middleware for Metrics<R> {
     fn complete(&self, job: &Job, response: &Response) {
         let operation = job.operation();
         let status = response.status().as_u16();

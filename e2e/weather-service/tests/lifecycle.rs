@@ -1,4 +1,4 @@
-//! Admission, protocol ownership, and cleanup through the public handler API.
+//! Admission, protocol ownership, and cleanup through the public middleware and protocol APIs.
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -9,10 +9,13 @@ use std::time::Duration;
 use axum::body::{Body, Bytes};
 use axum::http::{HeaderValue, Request, header};
 use axum::response::Response;
-use crucible::handlers::{LogSink, ServiceLog, before_fn};
+use crucible::middlewares::{LogSink, ServiceLog};
 use crucible::operation::{OperationInfo, Segment, ServiceInfo, Unit};
 use crucible::protocol::{Answers, Protocol, Route};
-use crucible::{Crucible, Handler, HandlerExt, Hook, Job, JsonProtocol, Operation};
+use crucible::{
+    Crucible, DecodedJob, Hook, Interceptor, Job, JsonProtocol, Operation,
+    OperationAwareMiddleware, OperationJob, ProtocolExt, before_fn,
+};
 use futures_util::stream;
 use serde_json::Value;
 use weather_service::contract;
@@ -84,8 +87,8 @@ impl Observe {
             .push(format!("{}.{phase}", self.name));
     }
 }
-impl Handler for Observe {
-    fn before<'a>(&'a self, _: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+impl OperationAwareMiddleware for Observe {
+    fn before<'a>(&'a self, _: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
         self.event("before");
         Hook::Ready(if self.fail {
             Err(crucible::Error::internal("refused"))
@@ -93,11 +96,11 @@ impl Handler for Observe {
             Ok(())
         })
     }
-    fn after<'a>(&'a self, _: &'a mut Job) -> Hook<'a, ()> {
+    fn after<'a>(&'a self, _: &'a mut OperationJob<'_>) -> Hook<'a, ()> {
         self.event("after");
         Hook::Ready(())
     }
-    fn complete(&self, _: &Job, _: &Response) {
+    fn complete(&self, _: &OperationJob<'_>, _: &Response) {
         self.event("complete");
     }
 }
@@ -111,7 +114,7 @@ fn observe(name: &'static str, events: &Events, fail: bool) -> Observe {
 #[derive(Clone, Default)]
 struct Logs(Arc<Mutex<Vec<u16>>>);
 impl LogSink for Logs {
-    fn write(&self, record: &crucible::handlers::LogRecord<'_>) {
+    fn write(&self, record: &crucible::middlewares::LogRecord<'_>) {
         self.0.lock().unwrap().push(record.status);
     }
 }
@@ -123,9 +126,9 @@ async fn admission_can_reject_or_relay_without_polling_a_pending_body() {
         let events = Events::default();
         let logs = Logs::default();
         let service = Crucible::builder(operations())
-            .handler(ServiceLog::errors_only().sink(logs.clone()))
-            .handler(observe("outer", &events, false))
-            .handler(before_fn(move |job| {
+            .middleware(ServiceLog::errors_only().sink(logs.clone()))
+            .operation_middleware(observe("outer", &events, false))
+            .operation_middleware(before_fn(move |job| {
                 assert!(job.body().is_empty());
                 job.respond(
                     Response::builder()
@@ -135,8 +138,8 @@ async fn admission_can_reject_or_relay_without_polling_a_pending_body() {
                 );
                 Ok(())
             }))
-            .handler(observe("never", &events, false))
-            .handler(JsonProtocol)
+            .operation_middleware(observe("never", &events, false))
+            .protocol(JsonProtocol)
             .build()
             .unwrap();
         let response = tokio::time::timeout(
@@ -163,10 +166,10 @@ async fn body_rejection_unwinds_only_successfully_entered_handlers_and_still_log
     let logs = Logs::default();
     let service = Crucible::builder(operations())
         .body_limit(1)
-        .handler(ServiceLog::errors_only().sink(logs.clone()))
-        .handler(observe("outer", &events, false))
-        .handler(JsonProtocol)
-        .handler(observe("never", &events, false))
+        .middleware(ServiceLog::errors_only().sink(logs.clone()))
+        .operation_middleware(observe("outer", &events, false))
+        .protocol(JsonProtocol)
+        .interceptor(NeverDecoded)
         .build()
         .unwrap();
     let response = service.handle(request("/probe", Body::from("{}"))).await;
@@ -183,10 +186,10 @@ async fn a_failing_before_is_not_unwound_and_later_hooks_never_enter() {
     let events = Events::default();
     let polls = Arc::new(AtomicUsize::new(0));
     let service = Crucible::builder(operations())
-        .handler(observe("outer", &events, false))
-        .handler(observe("failure", &events, true))
-        .handler(observe("never", &events, false))
-        .handler(JsonProtocol)
+        .operation_middleware(observe("outer", &events, false))
+        .operation_middleware(observe("failure", &events, true))
+        .operation_middleware(observe("never", &events, false))
+        .protocol(JsonProtocol)
         .build()
         .unwrap();
     let response = tokio::time::timeout(
@@ -225,20 +228,11 @@ impl Protocol for Reader {
             labels: Vec::new(),
         })
     }
-    fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
-        let mut response = JsonProtocol.write(job, answers);
-        response
-            .headers_mut()
-            .insert("x-protocol", HeaderValue::from_static(self.name));
-        response
-    }
-}
-impl Handler for Reader {
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+    fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
         self.events
             .lock()
             .unwrap()
-            .push(format!("{}.before", self.name));
+            .push(format!("{}.decode", self.name));
         assert_eq!(job.body().as_ref(), b"RAW");
         Hook::Ready(match job.decode_json(b"{}") {
             Ok(input) => {
@@ -248,21 +242,12 @@ impl Handler for Reader {
             Err(error) => Err(error.into()),
         })
     }
-    fn after<'a>(&'a self, _: &'a mut Job) -> Hook<'a, ()> {
-        self.events
-            .lock()
-            .unwrap()
-            .push(format!("{}.after", self.name));
-        Hook::Ready(())
-    }
-    fn complete(&self, _: &Job, _: &Response) {
-        self.events
-            .lock()
-            .unwrap()
-            .push(format!("{}.complete", self.name));
-    }
-    fn as_protocol(&self) -> Option<&dyn Protocol> {
-        Some(self)
+    fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
+        let mut response = JsonProtocol.write(job, answers);
+        response
+            .headers_mut()
+            .insert("x-protocol", HeaderValue::from_static(self.name));
+        response
     }
 }
 fn reader(name: &'static str, path: &'static str, events: &Events) -> Reader {
@@ -274,13 +259,13 @@ fn reader(name: &'static str, path: &'static str, events: &Events) -> Reader {
 }
 
 #[tokio::test]
-async fn only_the_selected_protocol_enters_decodes_and_unwinds() {
+async fn only_the_selected_protocol_decodes_and_writes() {
     let events = Events::default();
     let service = Crucible::builder(operations())
-        .handler(observe("outer", &events, false))
-        .handler(reader("unselected", "/other", &events))
-        .handler(JsonProtocol)
-        .handler(reader("selected", "/raw-probe", &events))
+        .operation_middleware(observe("outer", &events, false))
+        .protocol(reader("unselected", "/other", &events))
+        .protocol(JsonProtocol)
+        .protocol(reader("selected", "/raw-probe", &events))
         .build()
         .unwrap();
     let response = service
@@ -292,10 +277,8 @@ async fn only_the_selected_protocol_enters_decodes_and_unwinds() {
         *events.lock().unwrap(),
         [
             "outer.before",
-            "selected.before",
-            "selected.after",
+            "selected.decode",
             "outer.after",
-            "selected.complete",
             "outer.complete"
         ]
     );
@@ -305,8 +288,8 @@ async fn only_the_selected_protocol_enters_decodes_and_unwinds() {
 async fn scoped_protocols_leave_excluded_routes_to_the_fallback() {
     let events = Events::default();
     let service = Crucible::builder(operations())
-        .handler(reader("excluded", "/raw-probe", &events).only(&["Other"]))
-        .handler(reader("fallback", "/raw-probe", &events))
+        .protocol(reader("excluded", "/raw-probe", &events).only(&["Other"]))
+        .protocol(reader("fallback", "/raw-probe", &events))
         .build()
         .unwrap();
     let response = service
@@ -314,12 +297,9 @@ async fn scoped_protocols_leave_excluded_routes_to_the_fallback() {
         .await;
     assert_eq!(response.status(), 200);
     assert_eq!(response.headers()["x-protocol"], "fallback");
-    assert_eq!(
-        *events.lock().unwrap(),
-        ["fallback.before", "fallback.after", "fallback.complete"]
-    );
+    assert_eq!(*events.lock().unwrap(), ["fallback.decode"]);
     let service = Crucible::builder(operations())
-        .handler(JsonProtocol.only(&["Other"]))
+        .protocol(JsonProtocol.only(&["Other"]))
         .build()
         .unwrap();
     let response = service.handle(request("/probe", Body::from("{}"))).await;
@@ -335,7 +315,7 @@ async fn scoped_protocols_leave_excluded_routes_to_the_fallback() {
 async fn job_response_headers_preserve_repeated_values_and_replace_existing_groups() {
     for answered in [false, true] {
         let service = Crucible::builder(operations())
-            .handler(before_fn(move |job| {
+            .operation_middleware(before_fn(move |job| {
                 job.response_headers_mut()
                     .append(header::SET_COOKIE, HeaderValue::from_static("a=1"));
                 job.response_headers_mut()
@@ -351,7 +331,7 @@ async fn job_response_headers_preserve_repeated_values_and_replace_existing_grou
                 }
                 Ok(())
             }))
-            .handler(JsonProtocol)
+            .protocol(JsonProtocol)
             .build()
             .unwrap();
         let response = service.handle(request("/probe", Body::from("{}"))).await;
@@ -366,8 +346,8 @@ async fn job_response_headers_preserve_repeated_values_and_replace_existing_grou
 }
 
 struct InspectBody;
-impl Handler for InspectBody {
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+impl OperationAwareMiddleware for InspectBody {
+    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
         Hook::wait(async move {
             assert!(job.body().is_empty());
             job.read_body().await?;
@@ -381,8 +361,8 @@ impl Handler for InspectBody {
 #[tokio::test]
 async fn admission_can_explicitly_read_once_before_the_protocol() {
     let service = Crucible::builder(operations())
-        .handler(InspectBody)
-        .handler(JsonProtocol)
+        .operation_middleware(InspectBody)
+        .protocol(JsonProtocol)
         .build()
         .unwrap();
     assert_eq!(
@@ -397,7 +377,7 @@ async fn admission_can_explicitly_read_once_before_the_protocol() {
 #[tokio::test]
 async fn body_transport_failure_is_not_reported_as_a_length_limit_or_leaked() {
     let service = Crucible::builder(operations())
-        .handler(JsonProtocol)
+        .protocol(JsonProtocol)
         .build()
         .unwrap();
     let body = Body::from_stream(stream::once(async {
@@ -415,8 +395,8 @@ async fn body_transport_failure_is_not_reported_as_a_length_limit_or_leaked() {
 }
 
 struct CancelRead;
-impl Handler for CancelRead {
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+impl OperationAwareMiddleware for CancelRead {
+    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
         Hook::wait(async move {
             assert!(
                 tokio::time::timeout(Duration::from_millis(10), job.read_body())
@@ -442,10 +422,10 @@ async fn cancelled_explicit_body_reads_remain_rejected_on_retry() {
     let events = Events::default();
     let polls = Arc::new(AtomicUsize::new(0));
     let service = Crucible::builder(operations())
-        .handler(observe("outer", &events, false))
-        .handler(CancelRead)
-        .handler(observe("never", &events, false))
-        .handler(JsonProtocol)
+        .operation_middleware(observe("outer", &events, false))
+        .operation_middleware(CancelRead)
+        .operation_middleware(observe("never", &events, false))
+        .protocol(JsonProtocol)
         .build()
         .unwrap();
     let response = tokio::time::timeout(
@@ -468,4 +448,11 @@ async fn cancelled_explicit_body_reads_remain_rejected_on_retry() {
             .unwrap()
             .contains("request body reading did not complete")
     );
+}
+
+struct NeverDecoded;
+impl Interceptor for NeverDecoded {
+    fn before<'a>(&'a self, _: &'a mut DecodedJob<'_>) -> Hook<'a, crucible::Result<()>> {
+        panic!("invalid input must never enter the interceptor chain");
+    }
 }

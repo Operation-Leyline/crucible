@@ -1,14 +1,14 @@
-//! The framework, in process: direct invokes, the handler chain and its
+//! The framework, in process: direct invokes, the middleware chain and its
 //! extension points, error translation, the service log. HTTP over a socket
 //! is tools/test-e2e.sh's job.
 
 use std::sync::{Arc, Mutex};
 
-use crucible::handlers::{
-    ExceptionTranslator, Fields, LogPolicy, LogSink, OperationHandler, ServiceLog, before_fn,
-    for_operation,
+use crucible::middlewares::{Fields, LogPolicy, LogSink, ServiceLog};
+use crucible::{
+    Context, Crucible, ExceptionTranslator, InvokeProtocol, JsonProtocol, OperationMiddlewareExt,
+    TypedInterceptor, before_fn, for_operation,
 };
-use crucible::{Context, Crucible, HandlerExt, InvokeProtocol, JsonProtocol};
 use serde_json::{Value, json};
 use weather_service::contract::{self, model};
 use weather_service::{MemoryCities, Weather};
@@ -107,10 +107,12 @@ impl std::error::Error for Database {}
 
 fn failing(translator: ExceptionTranslator) -> Crucible {
     Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
-        .handler(translator)
-        .handler(before_fn(|_| Err(Database("password=hunter2").into())).only(&["Ping"]))
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .exception_translator(translator)
+        .operation_middleware(
+            before_fn(|_| Err(Database("password=hunter2").into())).only(&["Ping"]),
+        )
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap()
 }
@@ -138,17 +140,17 @@ async fn the_exception_translator_maps_failures_to_modelled_errors() {
 }
 
 #[tokio::test]
-async fn scoped_handlers_run_only_where_they_apply() {
+async fn scoped_middleware_run_only_where_they_apply() {
     let service = failing(ExceptionTranslator::new());
     let (status, _) = get(&service, "/status").await;
-    assert_eq!(status, 200, "the failing handler is scoped to Ping");
+    assert_eq!(status, 200, "the failing middleware is scoped to Ping");
 }
 
 #[derive(Clone, Default)]
 struct Records(Arc<Mutex<Vec<Value>>>);
 
 impl LogSink for Records {
-    fn write(&self, record: &crucible::handlers::LogRecord<'_>) {
+    fn write(&self, record: &crucible::middlewares::LogRecord<'_>) {
         self.0
             .lock()
             .unwrap()
@@ -165,9 +167,9 @@ async fn the_service_log_writes_failures_by_default_and_more_where_asked() {
         )
         .sink(records.clone());
     let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
-        .handler(log)
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
+        .middleware(log)
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
         .build()
         .unwrap();
 
@@ -193,10 +195,40 @@ async fn the_service_log_writes_failures_by_default_and_more_where_asked() {
     assert_eq!(records[1]["output"]["city"]["name"], "Bergen");
 }
 
+struct SnapshotProbe(Arc<Mutex<Vec<bool>>>);
+
+impl crucible::Middleware for SnapshotProbe {
+    fn complete(&self, job: &crucible::Job, _: &axum::response::Response) {
+        self.0.lock().unwrap().push(job.input_snapshot().is_some());
+    }
+}
+
+#[tokio::test]
+async fn replacing_an_input_logging_policy_releases_its_snapshot_request() {
+    for (replacement, expected_snapshot) in [
+        (LogPolicy::errors_only(), false),
+        (LogPolicy::everything(), true),
+    ] {
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let log = ServiceLog::errors_only()
+            .operation_named("Ping", LogPolicy::everything())
+            .operation_named("Ping", replacement)
+            .sink(Records::default());
+        let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
+            .middleware(log)
+            .middleware(SnapshotProbe(observed.clone()))
+            .protocol(InvokeProtocol)
+            .build()
+            .unwrap();
+        service.invoke("Ping", json!({})).await;
+        assert_eq!(*observed.lock().unwrap(), [expected_snapshot]);
+    }
+}
+
 struct Audit(Arc<Mutex<Vec<String>>>);
 
 #[crucible::async_trait]
-impl OperationHandler<contract::GetCity> for Audit {
+impl TypedInterceptor<contract::GetCity> for Audit {
     async fn before(&self, input: &model::GetCityInput, context: &Context) -> crucible::Result<()> {
         assert!(!context.request_id().is_empty());
         self.0.lock().unwrap().push(input.city_id.clone());
@@ -205,12 +237,12 @@ impl OperationHandler<contract::GetCity> for Audit {
 }
 
 #[tokio::test]
-async fn typed_operation_handlers_see_their_input() {
+async fn typed_interceptors_see_their_input() {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
-        .handler(JsonProtocol)
-        .handler(InvokeProtocol)
-        .handler(for_operation(Audit(seen.clone())))
+        .protocol(JsonProtocol)
+        .protocol(InvokeProtocol)
+        .interceptor(for_operation(Audit(seen.clone())))
         .build()
         .unwrap();
     service
@@ -218,6 +250,69 @@ async fn typed_operation_handlers_see_their_input() {
         .await;
     service.invoke("Ping", json!({})).await;
     assert_eq!(*seen.lock().unwrap(), ["c-00000007"]);
+}
+
+struct TypedOutcomeProbe(Arc<Mutex<Vec<String>>>);
+
+#[crucible::async_trait]
+impl TypedInterceptor<contract::GetCity> for TypedOutcomeProbe {
+    fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
+        let names: Vec<_> = prepare.operations().map(|op| op.name).collect();
+        assert_eq!(names, ["GetCity"]);
+        Ok(())
+    }
+
+    async fn before(&self, input: &model::GetCityInput, _: &Context) -> crucible::Result<()> {
+        self.0
+            .lock()
+            .unwrap()
+            .push(format!("before:{}", input.city_id));
+        Ok(())
+    }
+
+    async fn failed(&self, error: &crucible::Error, _: &Context) {
+        assert!(
+            error
+                .downcast_ref::<contract::errors::NotFoundError>()
+                .is_some()
+        );
+        self.0.lock().unwrap().push("failed".into());
+    }
+
+    async fn after(&self, output: Option<&model::GetCityOutput>, _: &Context) {
+        self.0.lock().unwrap().push(if output.is_some() {
+            "after:success".into()
+        } else {
+            "after:failure".into()
+        });
+    }
+}
+
+#[tokio::test]
+async fn typed_interceptors_prepare_their_scope_and_observe_success_and_failure() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let service = weather_service::builder(memory())
+        .interceptor(for_operation(TypedOutcomeProbe(seen.clone())))
+        .build()
+        .unwrap();
+    let created = service.invoke("CreateCity", json!({"name":"Lima"})).await;
+    let id = created["output"]["city"]["id"].as_str().unwrap();
+    service.invoke("GetCity", json!({"cityId":id})).await;
+    service
+        .invoke("GetCity", json!({"cityId":"c-99999999"}))
+        .await;
+    service.invoke("GetCity", json!({"cityId":"invalid"})).await;
+    service.invoke("Ping", json!({})).await;
+    assert_eq!(
+        *seen.lock().unwrap(),
+        [
+            format!("before:{id}"),
+            "after:success".into(),
+            "before:c-99999999".into(),
+            "failed".into(),
+            "after:failure".into(),
+        ]
+    );
 }
 
 #[tokio::test]
@@ -352,7 +447,7 @@ struct Audited {
     seen: Arc<Mutex<Vec<String>>>,
 }
 
-impl crucible::Handler for Audited {
+impl crucible::OperationAwareMiddleware for Audited {
     fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
         for op in prepare.operations() {
             let tier = op
@@ -371,8 +466,9 @@ impl crucible::Handler for Audited {
         Ok(())
     }
 
-    fn after<'a>(&'a self, job: &'a mut crucible::Job) -> crucible::Hook<'a, ()> {
-        if let (Some(op), Some(input)) = (job.operation(), job.input_snapshot())
+    fn after<'a>(&'a self, job: &'a mut crucible::OperationJob<'_>) -> crucible::Hook<'a, ()> {
+        let op = job.operation();
+        if let Some(input) = job.input_snapshot()
             && let Some((tier, audited)) = self.table.get(op.name)
         {
             for member in audited {
@@ -387,7 +483,7 @@ impl crucible::Handler for Audited {
 
     fn before<'a>(
         &'a self,
-        job: &'a mut crucible::Job,
+        job: &'a mut crucible::OperationJob<'_>,
     ) -> crucible::Hook<'a, crucible::Result<()>> {
         job.snapshot_input();
         crucible::Hook::Ready(Ok(()))
@@ -395,10 +491,10 @@ impl crucible::Handler for Audited {
 }
 
 #[tokio::test]
-async fn handlers_read_operation_and_member_traits_once_at_build() {
+async fn middleware_read_operation_and_member_traits_once_at_build() {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let service = weather_service::builder(memory())
-        .handler(Audited {
+        .operation_middleware(Audited {
             seen: seen.clone(),
             ..Audited::default()
         })
@@ -413,7 +509,7 @@ async fn handlers_read_operation_and_member_traits_once_at_build() {
 
 struct WantsNumericTier;
 
-impl crucible::Handler for WantsNumericTier {
+impl crucible::OperationAwareMiddleware for WantsNumericTier {
     fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
         for op in prepare.operations() {
             op.trait_as::<u32>("example.weather#tier")
@@ -424,9 +520,9 @@ impl crucible::Handler for WantsNumericTier {
 }
 
 #[tokio::test]
-async fn a_handler_refusing_the_model_fails_the_build() {
+async fn a_middleware_refusing_the_model_fails_the_build() {
     let refused = weather_service::builder(memory())
-        .handler(WantsNumericTier)
+        .operation_middleware(WantsNumericTier)
         .build()
         .err()
         .expect("the build fails");
@@ -439,22 +535,20 @@ async fn a_handler_refusing_the_model_fails_the_build() {
 }
 
 #[tokio::test]
-async fn a_scoped_handler_prepares_only_for_the_operations_it_runs_for() {
-    use crucible::HandlerExt;
-    // CreateCity's tier is text, but this handler never runs for it.
+async fn a_scoped_middleware_prepares_only_for_the_operations_it_runs_for() {
+    // CreateCity's tier is text, but this middleware never runs for it.
     weather_service::builder(memory())
-        .handler(WantsNumericTier.only(&["GetCity", "Ping"]))
+        .operation_middleware(WantsNumericTier.only(&["GetCity", "Ping"]))
         .build()
         .expect("the scope leaves CreateCity out");
 }
 
 #[tokio::test]
 async fn an_inner_scope_cannot_widen_an_outer_one() {
-    use crucible::HandlerExt;
     // The inner scope admits everything, CreateCity included; the outer one
     // leaves CreateCity out, so its text tier is never checked.
     weather_service::builder(memory())
-        .handler(WantsNumericTier.when(|_| true).only(&["GetCity", "Ping"]))
+        .operation_middleware(WantsNumericTier.when(|_| true).only(&["GetCity", "Ping"]))
         .build()
         .expect("the outer scope still leaves CreateCity out");
 }

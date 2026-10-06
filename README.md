@@ -5,7 +5,7 @@ packages from a Smithy model.
 It is built for Leyline, with a shared model layer that preserves HTTP bindings,
 unions, modeled errors, defaults, pagination, and idempotency tokens.
 
-The service framework provides validation, an ordered handler chain, error
+The service framework provides validation, a phased request pipeline, error
 translation, logging, and HTTP or Lambda hosting. Client runtimes provide
 transport, authentication, retries, and pagination using each language's APIs.
 Public clients carry the service name, such as `LeylineClient`. Requests use
@@ -70,7 +70,7 @@ configuration, output conventions, and independent executable tests.
 ## Build a service
 
 The [framework guide](docs/framework.md) explains model packages, generated
-operation traits, handlers, errors, and hosting. The [weather example](e2e/)
+operation traits, middleware, interceptors, errors, and hosting. The [weather example](e2e/)
 contains a model package, a service, and a Rust client tested over HTTP.
 
 See [design and protocol](docs/design.md) for the Smithy-to-IR pipeline and

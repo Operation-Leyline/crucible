@@ -19,7 +19,7 @@ fn layered() -> (Crucible, Arc<Mutex<Vec<String>>>) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let record = seen.clone();
     let service = weather_service::builder(Arc::new(MemoryCities::default()))
-        .layer(MapResponseLayer::new(move |response: Response<Body>| {
+        .tower_layer(MapResponseLayer::new(move |response: Response<Body>| {
             let encoding = response
                 .headers()
                 .get("content-encoding")
@@ -28,7 +28,7 @@ fn layered() -> (Crucible, Arc<Mutex<Vec<String>>>) {
             record.lock().unwrap().push(encoding.to_owned());
             response
         }))
-        .layer(CompressionLayer::new())
+        .tower_layer(CompressionLayer::new())
         .build()
         .unwrap();
     (service, seen)

@@ -179,7 +179,7 @@ S3method(print, crucible_basic_credentials)
 === inst/crucible.json ===
 {
   "generator": "crucible-codegen-r",
-  "generatorVersion": "0.1.0",
+  "generatorVersion": "0.2.0",
   "packageVersion": "0.0.0",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
