@@ -40,7 +40,7 @@ pub use crucible_wire::blob::Blob;
 pub use crucible_wire::{blob, codec, error, number, open, operation, time, validate};
 
 pub use context::{Context, RequestMeta, WithContext};
-pub use error::{Error, FrameworkError, ModelledError, Result};
+pub use error::{Error, FrameworkError, MAX_SOURCE_DEPTH, ModelledError, Result};
 pub use handler::{AsyncHandler, Handler, Hook, Job, Outcome, Prepare, Resolution};
 pub use handlers::HandlerExt;
 pub use operation::{Operation, OperationInfo, ServiceInfo};
