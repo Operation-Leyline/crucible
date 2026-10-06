@@ -183,7 +183,19 @@ ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Js
             encoded += '/'; segment = end + 1;
         } while (true);
         std::size_t start = 0;
-        while ((start = path.find(placeholder, start)) != std::string::npos) { path.replace(start, placeholder.size(), encoded); start += encoded.size(); }
+        std::size_t pos = path.find(placeholder, start);
+        if (pos != std::string::npos) {
+            std::string new_path;
+            new_path.reserve(path.size());
+            do {
+                new_path.append(path, start, pos - start);
+                new_path.append(encoded);
+                start = pos + placeholder.size();
+                pos = path.find(placeholder, start);
+            } while (pos != std::string::npos);
+            new_path.append(path, start, std::string::npos);
+            path = std::move(new_path);
+        }
     }
     std::set<std::string, std::less<>> reserved_query;
     if (const auto question = path.find('?'); question != std::string::npos) {
