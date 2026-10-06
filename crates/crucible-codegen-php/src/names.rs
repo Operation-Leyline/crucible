@@ -192,3 +192,82 @@ pub fn ty(service: &Service, id: &ShapeId, namespace: &str, docs: bool) -> Strin
         _ => format!("\\{namespace}\\{}", service.name_of(id)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_literal() {
+        assert_eq!(literal("foo"), "'foo'");
+        assert_eq!(literal("foo\\bar"), "'foo\\\\bar'");
+        assert_eq!(literal("foo'bar"), "'foo\\'bar'");
+    }
+
+    #[test]
+    fn test_identifier() {
+        assert!(identifier("foo"));
+        assert!(identifier("foo_bar"));
+        assert!(identifier("_foo"));
+        assert!(identifier("_123"));
+        assert!(identifier("Foo123"));
+
+        assert!(!identifier("123foo"));
+        assert!(!identifier("foo-bar"));
+        assert!(!identifier("foo bar"));
+        assert!(!identifier(""));
+    }
+
+    #[test]
+    fn test_reserved() {
+        assert!(reserved("class"));
+        assert!(reserved("CLASS"));
+        assert!(reserved("echo"));
+        assert!(reserved("__DIR__"));
+
+        assert!(!reserved("my_var"));
+        assert!(!reserved("notReserved"));
+    }
+
+    #[test]
+    fn test_field() {
+        assert_eq!(field("this"), "thisValue");
+        assert_eq!(field("GLOBALS"), "GLOBALSValue");
+        assert_eq!(field("message"), "messageValue");
+
+        assert_eq!(field("userId"), "userId");
+        assert_eq!(field("This"), "This");
+    }
+
+    #[test]
+    fn test_constant() {
+        assert_eq!(constant("class"), "class_VALUE");
+        assert_eq!(constant("CLASS"), "CLASS_VALUE");
+
+        assert_eq!(constant("MY_CONSTANT"), "MY_CONSTANT");
+    }
+
+    #[test]
+    fn test_waiter() {
+        assert_eq!(waiter("Ready"), "waitUntilReady");
+        assert_eq!(waiter("ready"), "waitUntilReady");
+        assert_eq!(waiter(""), "waitUntil");
+    }
+
+    #[test]
+    fn test_method() {
+        assert_eq!(method("DescribeInstance"), "describeInstance");
+        assert_eq!(method("describeInstance"), "describeInstance");
+
+        assert_eq!(method("Class"), "classOperation");
+        assert_eq!(method("Echo"), "echoOperation");
+
+        assert_eq!(method("__init"), "__initOperation");
+    }
+
+    #[test]
+    fn test_variant() {
+        assert_eq!(variant("ready"), "Ready");
+        assert_eq!(variant("Ready"), "Ready");
+    }
+}
