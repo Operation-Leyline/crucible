@@ -2,20 +2,18 @@
 //! URI path, query string and headers, the rest in a JSON object body, or a
 //! blob payload as the whole body, raw; errors carry `"__type"`.
 
-use axum::body::Body;
 use axum::http::request::Parts;
-use axum::http::{HeaderName, HeaderValue, StatusCode, header};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use std::borrow::Cow;
 
 use serde_json::Value;
 
 use super::{Answers, BoundValue, Invocation, Protocol, Route};
-use crate::error::{FrameworkError, ModelledError, Result};
+use crate::error::{FrameworkError, Result};
 use crate::operation::{Location, MemberInfo, OperationInfo, Scalar, Segment};
 use crate::operations::Operations;
 use crate::validate::{Rejection, Violation, ViolationKind};
-use crate::{Hook, Job, Resolution};
+use crate::{Hook, Job};
 use crucible_wire::text::{percent_decode, query_values};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -115,114 +113,14 @@ impl Protocol for JsonProtocol {
     }
 
     fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        if super::server_events::has_input(job) {
+            return Hook::wait(super::server_events::decode(job));
+        }
         Hook::Ready(read_input(job))
     }
 
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
-        let operation = job.operation();
-        match job.resolution() {
-            Some(Resolution::Success(output)) => {
-                let op = operation.expect("an output implies an operation");
-                if let Some(stream) = output.stream() {
-                    let mut ignored = Vec::new();
-                    let bindings = match output.write_http(op.output, &mut ignored) {
-                        Ok(bindings) => bindings,
-                        Err(error) => return serialization_failure(error),
-                    };
-                    let Some((member, media_type)) = Location::payload(op.output) else {
-                        return framework_response(&FrameworkError::InternalFailure);
-                    };
-                    let stream = match member.location {
-                        Location::StreamingPayload {
-                            minimum, maximum, ..
-                        } => stream.with_bounds(minimum, maximum),
-                        _ => stream,
-                    };
-                    let mut response =
-                        respond(bindings.status.unwrap_or(op.status), bindings.headers, None);
-                    if response
-                        .extensions()
-                        .get::<super::SerializationFailure>()
-                        .is_some()
-                    {
-                        return response;
-                    }
-                    return match stream.open() {
-                        Ok(body) => {
-                            response
-                                .headers_mut()
-                                .insert(header::CONTENT_TYPE, content_type_header(media_type));
-                            if let Some(length) = stream.length() {
-                                response.headers_mut().insert(
-                                    header::CONTENT_LENGTH,
-                                    HeaderValue::from_str(&length.to_string())
-                                        .expect("integer header"),
-                                );
-                            }
-                            *response.body_mut() = Body::from_stream(body);
-                            response
-                        }
-                        Err(_) => framework_response(&FrameworkError::InternalFailure),
-                    };
-                }
-                if let Some((_, media_type)) = Location::payload(op.output) {
-                    // The payload's bytes are the body, under its own media type.
-                    let mut body = Vec::new();
-                    return match output.write_http(op.output, &mut body) {
-                        Ok(bindings) => respond(
-                            bindings.status.unwrap_or(op.status),
-                            bindings.headers,
-                            (!body.is_empty()).then_some((media_type, body)),
-                        ),
-                        Err(error) => serialization_failure(error),
-                    };
-                }
-                let has_body = op.output.iter().any(|m| m.location == Location::Body);
-                let has_headers = op.output.iter().any(|m| {
-                    matches!(
-                        m.location,
-                        Location::Header(_) | Location::PrefixHeaders(_) | Location::ResponseCode
-                    )
-                });
-                if !has_headers {
-                    // Straight to bytes, with no JSON value in between.
-                    if !has_body {
-                        return respond(op.status, Vec::new(), None);
-                    }
-                    let mut body = Vec::with_capacity(256);
-                    return match output.write_json(&mut body) {
-                        Ok(()) => respond(op.status, Vec::new(), Some((JSON, body))),
-                        Err(error) => serialization_failure(error),
-                    };
-                }
-                // Header members leave the body as it is written.
-                let mut body = Vec::with_capacity(256);
-                match output.write_http(op.output, &mut body) {
-                    Ok(bindings) => respond(
-                        bindings.status.unwrap_or(op.status),
-                        bindings.headers,
-                        has_body.then_some((JSON, body)),
-                    ),
-                    Err(error) => serialization_failure(error),
-                }
-            }
-            Some(Resolution::Modelled(error)) => error_response(error),
-            Some(Resolution::Rejected(rejection)) => error_response(&*(answers.reject)(rejection)),
-            Some(Resolution::Framework(FrameworkError::UnknownOperation))
-                if answers.unknown.is_some() =>
-            {
-                error_response(&*(answers.unknown.expect("checked"))())
-            }
-            Some(Resolution::Framework(error)) => framework_response(&error),
-            Some(Resolution::Internal(_)) => match answers.internal {
-                Some(internal) => error_response(&*internal()),
-                None => framework_response(&FrameworkError::InternalFailure),
-            },
-            // An answered request never reaches the protocol.
-            Some(Resolution::Answered { .. }) | None => {
-                framework_response(&FrameworkError::InternalFailure)
-            }
-        }
+        super::json_response::write(job, answers, super::json_response::Format::Crucible)
     }
 }
 
@@ -267,7 +165,7 @@ fn more_specific(
 /// Reads the input: bound members from the request's labels, query and
 /// headers, the rest from the JSON body, then validates it. A payload is the
 /// body itself, unparsed, whatever its content type.
-fn read_input(job: &mut Job) -> Result<()> {
+pub(super) fn read_input(job: &mut Job) -> Result<()> {
     // A direct invocation is the invoke protocol's to read.
     if job.request().extensions.get::<Invocation>().is_some() || job.input().is_some() {
         return Ok(());
@@ -295,7 +193,7 @@ fn read_input(job: &mut Job) -> Result<()> {
 
 /// The bound members, checked against their kinds. The body is read with
 /// them, in one pass, by `Job::decode_bound`.
-fn bound_members<'a>(
+pub(super) fn bound_members<'a>(
     op: &OperationInfo,
     job: &'a Job,
 ) -> std::result::Result<Vec<(&'static str, BoundValue<'a>)>, Rejection> {
@@ -346,14 +244,25 @@ fn bound_members<'a>(
                 }
                 Ok(BoundValue::Json(Value::Object(values)))
             }
-            (Location::PrefixHeaders(prefix), _) => {
+            (Location::PrefixHeaders(prefix), scalar) => {
                 let mut values = serde_json::Map::new();
                 for (name, value) in &job.request().headers {
                     if let Some(key) = name.as_str().strip_prefix(prefix) {
                         match value.to_str() {
-                            Ok(text) => {
-                                values.insert(key.to_owned(), Value::String(text.to_owned()));
-                            }
+                            Ok(text) => match BoundValue::parse(Cow::Borrowed(text), scalar) {
+                                Ok(BoundValue::Text(text)) => {
+                                    values.insert(key.to_owned(), Value::String(text.into_owned()));
+                                }
+                                Ok(_) => {
+                                    violations.push(malformed(
+                                        name.as_str(),
+                                        "prefix header must be text",
+                                    ));
+                                }
+                                Err(message) => {
+                                    violations.push(malformed(name.as_str(), &message));
+                                }
+                            },
                             Err(_) => {
                                 violations.push(malformed(name.as_str(), "is not visible ASCII"))
                             }
@@ -477,8 +386,6 @@ fn malformed(path: &str, message: &str) -> Violation {
     }
 }
 
-const JSON: &str = "application/json";
-
 /// True for matched literals, false for a known mismatch or missing literal,
 /// and undecidable when the relevant key or value could not be decoded.
 fn literal_queries_match(query: &str, operation: &OperationInfo) -> Option<bool> {
@@ -522,81 +429,6 @@ fn literal_queries_match(query: &str, operation: &OperationInfo) -> Option<bool>
         }
     }
     fully_matched.then_some(true)
-}
-
-fn error_response(error: &dyn ModelledError) -> Response {
-    let mut body = Vec::with_capacity(128);
-    match error.write_http(&mut body) {
-        Ok(bindings) => respond(
-            bindings.status.unwrap_or(error.info().status),
-            bindings.headers,
-            Some((JSON, body)),
-        ),
-        Err(error) => serialization_failure(error),
-    }
-}
-
-fn framework_response(error: &FrameworkError) -> Response {
-    let body = serde_json::json!({ "__type": error.name(), "message": error.message() });
-    respond(error.status(), Vec::new(), Some((JSON, to_bytes(&body))))
-}
-
-fn serialization_failure(error: impl std::fmt::Display) -> Response {
-    let mut response = framework_response(&FrameworkError::InternalFailure);
-    response
-        .extensions_mut()
-        .insert(super::SerializationFailure(error.to_string()));
-    response
-}
-
-fn to_bytes(value: &Value) -> Vec<u8> {
-    serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec())
-}
-
-/// A JSON body's content type costs no allocation; a payload's media type
-/// is checked by lowering, so the fallback is for hand-written descriptions.
-fn content_type_header(content_type: &'static str) -> HeaderValue {
-    if content_type == JSON {
-        HeaderValue::from_static(JSON)
-    } else {
-        HeaderValue::from_str(content_type)
-            .unwrap_or(HeaderValue::from_static("application/octet-stream"))
-    }
-}
-
-/// `body` is the content type and the bytes.
-fn respond(
-    status: u16,
-    headers: Vec<(String, String)>,
-    body: Option<(&'static str, Vec<u8>)>,
-) -> Response {
-    let status = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    let mut response = match body {
-        Some((content_type, body)) => (
-            status,
-            [(header::CONTENT_TYPE, content_type_header(content_type))],
-            body,
-        )
-            .into_response(),
-        None => (status, Body::empty()).into_response(),
-    };
-    for (name, value) in headers {
-        // Generated header names are lowercase, so they parse without copying.
-        let name =
-            HeaderName::from_lowercase(name.as_bytes()).or_else(|_| HeaderName::try_from(name));
-        let name = match name {
-            Ok(name) => name,
-            Err(_) => return serialization_failure("invalid response header name"),
-        };
-        let value = match HeaderValue::try_from(value) {
-            Ok(value) => value,
-            Err(_) => {
-                return serialization_failure(format!("invalid response header value for {name}"));
-            }
-        };
-        response.headers_mut().insert(name, value);
-    }
-    response
 }
 
 /// Validate every query component before routing on literal keys or values.

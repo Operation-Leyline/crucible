@@ -478,15 +478,34 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
     assert!(client.contains(
         "name: \"details\", location: ::crucible_client::operation::Location::TextPayload"
     ));
-    // The server generator does not accept these constructs.
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/error-payloads.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+    .unwrap();
     assert!(
-        Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/error-payloads.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-        .is_err()
+        generate(&service, &Options::default())
+            .unwrap()
+            .contains("Scalar::Base64")
     );
+}
+
+#[test]
+fn rpc_v2_official_models_generate_both_rust_targets() {
+    for fixture in [
+        include_str!("../../crucible-smithy/tests/fixtures/rpcv2-cbor.json"),
+        include_str!("../../crucible-smithy/tests/fixtures/rpcv2-json.json"),
+    ] {
+        let service = Model::from_json(fixture)
+            .unwrap()
+            .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+            .unwrap();
+        let server = generate(&service, &Options::default()).unwrap();
+        let client = generate_client(&service).unwrap();
+        assert!(server.contains("SmithyRpcV2"));
+        assert!(client.contains("SmithyRpcV2"));
+    }
 }
 
 #[test]

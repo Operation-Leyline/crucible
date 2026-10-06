@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
+use crate::OperationMetadata;
 use crate::error::{Error, Result};
 use crate::operation::{Input, Operation, OperationInfo, Output, Segment, ServiceInfo};
 use crate::protocol::BoundValue;
@@ -29,11 +30,20 @@ pub(crate) type DecodeBound = for<'a> fn(
     Option<crucible_wire::stream::ByteStream>,
 ) -> std::result::Result<Box<dyn Input>, Rejection>;
 
+pub(crate) type DecodeEvents = for<'a> fn(
+    &'a [u8],
+    Vec<(&'static str, BoundValue<'a>)>,
+    crucible_wire::event_stream::Incoming,
+) -> std::result::Result<Box<dyn Input>, Rejection>;
+
 pub(crate) struct Entry {
     pub info: &'static OperationInfo,
+    pub metadata: OperationMetadata,
     pub decode: Decode,
     pub decode_json: DecodeJson,
+    pub decode_cbor: DecodeJson,
     pub decode_bound: DecodeBound,
+    pub decode_events: DecodeEvents,
     pub invoke: Invoke,
 }
 
@@ -60,6 +70,11 @@ impl Operations {
 
     pub fn service(&self) -> &'static ServiceInfo {
         self.service
+    }
+
+    /// The effective contract of a registered operation, available during preparation.
+    pub fn metadata(&self, operation: &str) -> Option<&OperationMetadata> {
+        self.entries.get(operation).map(|entry| &entry.metadata)
     }
 
     pub(crate) fn entry(&self, name: &str) -> Option<&Entry> {
@@ -111,9 +126,12 @@ impl OperationsBuilder {
             O::INFO.name,
             Entry {
                 info: O::INFO,
+                metadata: OperationMetadata::of::<O>(),
                 decode: decode::<O>,
                 decode_json: decode_json::<O>,
+                decode_cbor: decode_cbor::<O>,
                 decode_bound: decode_bound::<O>,
+                decode_events: decode_events::<O>,
                 invoke,
             },
         );
@@ -193,6 +211,24 @@ fn decode_json<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>
     Ok(Box::new(input))
 }
 
+fn decode_cbor<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
+    if !O::HAS_INPUT && !bytes.is_empty() {
+        return Err(Rejection::malformed(
+            "",
+            "an operation without input requires an empty body",
+        ));
+    }
+    let bytes = if bytes.is_empty() {
+        b"\xA0".as_slice()
+    } else {
+        bytes
+    };
+    let input: O::Input =
+        crucible_wire::cbor::read(bytes).map_err(|message| Rejection::malformed("", message))?;
+    Validator::check(&input)?;
+    Ok(Box::new(input))
+}
+
 /// The input from its bound members and its JSON body, in one pass.
 fn decode_bound<'a, O: Operation>(
     body: &'a [u8],
@@ -204,6 +240,22 @@ fn decode_bound<'a, O: Operation>(
     if let Some(stream) = stream {
         O::set_input_stream(&mut input, stream);
     }
+    Validator::check(&input)?;
+    Ok(Box::new(input))
+}
+
+fn decode_events<O: Operation>(
+    body: &[u8],
+    bound: Vec<(&'static str, BoundValue<'_>)>,
+    events: crucible_wire::event_stream::Incoming,
+) -> std::result::Result<Box<dyn Input>, Rejection> {
+    let mut input: O::Input = if O::PROTOCOL == crucible_wire::operation::Protocol::SmithyRpcV2Cbor
+    {
+        crucible_wire::cbor::read(body).map_err(|e| Rejection::malformed("", e))?
+    } else {
+        crucible_wire::bound::read_http(body, bound, O::INFO.input).map_err(unreadable)?
+    };
+    O::set_input_events(&mut input, events);
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -221,6 +273,9 @@ impl std::error::Error for MissingOperations {}
 
 struct StreamingOutput<O: Operation>(O::Output);
 impl<O: Operation> Output for StreamingOutput<O> {
+    fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
+        crucible_wire::cbor::write(&self.0, out)
+    }
     fn response_status(&self) -> Option<u16> {
         O::output_status(&self.0)
     }
@@ -243,6 +298,9 @@ impl<O: Operation> Output for StreamingOutput<O> {
         out: &mut Vec<u8>,
     ) -> serde_json::Result<crate::operation::ResponseBindings> {
         crucible_wire::split::write_http(&self.0, members, None, out)
+    }
+    fn events(&self) -> Option<std::io::Result<crucible_wire::event_stream::Outgoing>> {
+        O::output_events(&self.0)
     }
     fn stream(&self) -> Option<crucible_wire::stream::ByteStream> {
         O::output_stream(&self.0)

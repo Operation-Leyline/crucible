@@ -356,6 +356,8 @@ pub mod errors {
     };
 
     impl ::crucible::ModelledError for ConflictError {
+        fn shape_id(&self) -> &'static str { "example.weather#ConflictError" }
+        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ErrorInfo {
             &CONFLICT_ERROR_INFO
         }
@@ -370,6 +372,10 @@ pub mod errors {
 
         fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
             ::crucible::error::write_error_http(self, out)
+        }
+
+        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
+            ::crucible::error::write_error_http_typed(self, type_name, out)
         }
     }
 
@@ -403,6 +409,8 @@ pub mod errors {
     };
 
     impl ::crucible::ModelledError for NotFoundError {
+        fn shape_id(&self) -> &'static str { "example.weather#NotFoundError" }
+        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ErrorInfo {
             &NOT_FOUND_ERROR_INFO
         }
@@ -417,6 +425,10 @@ pub mod errors {
 
         fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
             ::crucible::error::write_error_http(self, out)
+        }
+
+        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
+            ::crucible::error::write_error_http_typed(self, type_name, out)
         }
     }
 
@@ -450,6 +462,8 @@ pub mod errors {
     };
 
     impl ::crucible::ModelledError for ThrottlingError {
+        fn shape_id(&self) -> &'static str { "example.weather#ThrottlingError" }
+        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ErrorInfo {
             &THROTTLING_ERROR_INFO
         }
@@ -464,6 +478,10 @@ pub mod errors {
 
         fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
             ::crucible::error::write_error_http(self, out)
+        }
+
+        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
+            ::crucible::error::write_error_http_typed(self, type_name, out)
         }
     }
 
@@ -503,6 +521,8 @@ pub mod errors {
     };
 
     impl ::crucible::ModelledError for ValidationError {
+        fn shape_id(&self) -> &'static str { "example.weather#ValidationError" }
+        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ErrorInfo {
             &VALIDATION_ERROR_INFO
         }
@@ -517,6 +537,10 @@ pub mod errors {
 
         fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
             ::crucible::error::write_error_http(self, out)
+        }
+
+        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {
+            ::crucible::error::write_error_http_typed(self, type_name, out)
         }
     }
 
@@ -750,6 +774,8 @@ impl ::crucible::Operation for Ping {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[::crucible::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
+    const HAS_INPUT: bool = false;
+    const HAS_OUTPUT: bool = false;
     const INFO: &'static ::crucible::OperationInfo = &PING_OPERATION;
     type Input = ::crucible::operation::Unit;
     type Output = ();

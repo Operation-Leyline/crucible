@@ -280,3 +280,52 @@ fn digest_and_sigv4a_auth_schemes_are_target_capabilities() {
         .to_string();
     assert!(error.contains("name must be a string"), "{error}");
 }
+
+#[test]
+fn rpc_v2_accepts_framed_unions_and_retains_error_status() {
+    for protocol in ["rpcv2Json", "rpcv2Cbor"] {
+        let mut model: Value =
+            serde_json::from_str(include_str!("fixtures/event-streams.json")).unwrap();
+        model["shapes"]["example.events#Events"]["traits"] =
+            json!({format!("smithy.protocols#{protocol}"): {}});
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower_with_capabilities(None, &all())
+            .unwrap();
+        let publish = service
+            .operations
+            .iter()
+            .find(|op| op.name() == "Publish")
+            .unwrap();
+        assert!(
+            publish
+                .request
+                .event_stream
+                .as_ref()
+                .unwrap()
+                .initial_message
+        );
+        assert_eq!(publish.request.body, ["channel"]);
+        let Some(Shape::Structure(error)) = service.shape(&id("example.events#UnavailableError"))
+        else {
+            panic!("error")
+        };
+        assert_eq!(error.error.as_ref().unwrap().status, 503);
+    }
+}
+
+#[test]
+fn invalid_blob_defaults_are_diagnosed_before_generation() {
+    let mut model = dynamic();
+    model["shapes"]["example.dynamic#Input"]["members"]["blob"] =
+        json!({"target":"smithy.api#Blob", "traits":{"smithy.api#default":"invalid!"}});
+    let error = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &all())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("example.dynamic#Input$blob: blob default must be valid base64"),
+        "{error}"
+    );
+}

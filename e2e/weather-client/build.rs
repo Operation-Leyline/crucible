@@ -97,6 +97,32 @@ fn main() {
             .expect("keyword waiter fixture"),
     )
     .unwrap();
+    let fixture = "../../crates/crucible-smithy/tests/fixtures/error-payloads.json";
+    std::fs::write(
+        out.join("wire_server.rs"),
+        crucible_build::Codegen::from_model(fixture)
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
+    let fixture = "../../crates/crucible-codegen-ts/tests/fixtures/auth-header.json";
+    let mut model: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture).unwrap()).unwrap();
+    model["shapes"]["example.auth#AuthHeader"]["traits"]["aws.auth#sigv4"] =
+        serde_json::json!({"name":"example"});
+    model["shapes"]["example.auth#AuthHeader"]["traits"]["smithy.api#auth"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!("aws.auth#sigv4"));
+    model["shapes"]["example.auth#Mixed"]["traits"]["aws.auth#unsignedPayload"] =
+        serde_json::json!({});
+    let path = out.join("auth-server.json");
+    std::fs::write(&path, model.to_string()).unwrap();
+    std::fs::write(
+        out.join("auth_server.rs"),
+        crucible_build::Codegen::from_model(&path).render().unwrap(),
+    )
+    .unwrap();
     wire_extensions(&out);
     event_streams(&out);
 }
@@ -133,6 +159,50 @@ fn event_streams(out: &std::path::Path) {
                 .unwrap_or_else(|error| panic!("{name}: {error}")),
         )
         .unwrap();
+    }
+    for protocol in [
+        "restJson1",
+        "awsJson1_0",
+        "awsJson1_1",
+        "rpcv2Json",
+        "rpcv2Cbor",
+    ] {
+        let mut model = base.clone();
+        let namespace = if protocol.starts_with("rpcv2") {
+            "smithy.protocols"
+        } else {
+            "aws.protocols"
+        };
+        model["shapes"]["example.events#Events"]["traits"] =
+            serde_json::json!({format!("{namespace}#{protocol}"): {}});
+        model["shapes"]["example.events#Events"]["operations"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|op| op["target"] != "example.events#SubscribeChecksums");
+        if protocol == "rpcv2Cbor" {
+            model["shapes"]["example.events#StructuredEvent"]["members"]["stamp"] =
+                serde_json::json!({"target":"smithy.api#Timestamp"});
+            model["shapes"]["example.events#StructuredEvent"]["members"]["blob"] =
+                serde_json::json!({"target":"smithy.api#Blob"});
+            model["shapes"]["example.events#StructuredEvent"]["members"]["big"] =
+                serde_json::json!({"target":"smithy.api#BigInteger"});
+            model["shapes"]["example.events#StructuredEvent"]["members"]["number"] =
+                serde_json::json!({"target":"smithy.api#Double"});
+        }
+        let path = out.join(format!("events_{protocol}.json"));
+        std::fs::write(&path, model.to_string()).unwrap();
+        for (target, codegen) in [
+            ("client", crucible_build::Codegen::client_from_model(&path)),
+            ("server", crucible_build::Codegen::from_model(&path)),
+        ] {
+            std::fs::write(
+                out.join(format!("events_{protocol}_{target}.rs")),
+                codegen
+                    .render()
+                    .unwrap_or_else(|error| panic!("{protocol}/{target}: {error}")),
+            )
+            .unwrap();
+        }
     }
 }
 
@@ -179,12 +249,43 @@ fn wire_extensions(out: &std::path::Path) {
     .unwrap();
     let protocols = "../../crates/crucible-smithy/tests/fixtures/protocol-json.json";
     println!("cargo::rerun-if-changed={protocols}");
-    for protocol in ["restJson1", "awsJson1_0", "awsJson1_1"] {
+    for protocol in [
+        "restJson1",
+        "awsJson1_0",
+        "awsJson1_1",
+        "rpcv2Json",
+        "rpcv2Cbor",
+    ] {
         let mut model: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(protocols).unwrap()).unwrap();
         let service = &mut model["shapes"]["example.json#JsonService"];
-        service["traits"] = serde_json::json!({ format!("aws.protocols#{protocol}"): {} });
-        service["rename"] = serde_json::json!({"example.json#Problem": "ProblemFault"});
+        let namespace = if protocol.starts_with("rpcv2") {
+            "smithy.protocols"
+        } else {
+            "aws.protocols"
+        };
+        service["traits"] = serde_json::json!({ format!("{namespace}#{protocol}"): {} });
+        if !protocol.starts_with("rpcv2") {
+            service["rename"] = serde_json::json!({"example.json#Problem": "ProblemFault"});
+        }
+        if protocol == "rpcv2Cbor" {
+            for shape in ["ValuesInput", "ValuesOutput"] {
+                model["shapes"][format!("example.json#{shape}")]["members"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("document");
+            }
+        }
+        if protocol.starts_with("rpcv2") {
+            for shape in ["ValuesInput", "ValuesOutput"] {
+                model["shapes"][format!("example.json#{shape}")]["members"]["blob"] =
+                    serde_json::json!({"target":"smithy.api#Blob"});
+                model["shapes"][format!("example.json#{shape}")]["members"]["large"] =
+                    serde_json::json!({"target":"smithy.api#BigInteger"});
+                model["shapes"][format!("example.json#{shape}")]["members"]["decimal"] =
+                    serde_json::json!({"target":"smithy.api#BigDecimal"});
+            }
+        }
         let path = out.join(format!("protocol-{protocol}.json"));
         std::fs::write(&path, model.to_string()).unwrap();
         std::fs::write(
@@ -192,6 +293,13 @@ fn wire_extensions(out: &std::path::Path) {
             crucible_build::Codegen::client_from_model(&path)
                 .render()
                 .unwrap_or_else(|error| panic!("{protocol}: {error}")),
+        )
+        .unwrap();
+        std::fs::write(
+            out.join(format!("protocol_{protocol}_server.rs")),
+            crucible_build::Codegen::from_model(&path)
+                .render()
+                .unwrap_or_else(|error| panic!("{protocol} server: {error}")),
         )
         .unwrap();
     }

@@ -18,7 +18,8 @@ use std::task::{Context, Poll};
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use bytes::{Bytes, BytesMut};
+pub use bytes::Bytes;
+use bytes::BytesMut;
 use futures_core::Stream;
 use futures_util::StreamExt;
 use serde::de::DeserializeOwned;
@@ -26,13 +27,14 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Value};
 
 use crate::operation::TimestampFormat;
+use crate::stream::ChunkStream;
 
 /// The media type of an event stream body.
 pub const CONTENT_TYPE: &str = "application/vnd.amazon.eventstream";
 /// The largest headers section a message may carry.
 pub const MAX_HEADERS: usize = 128 * 1024;
 /// The largest payload a message may carry.
-pub const MAX_PAYLOAD: usize = 16 * 1024 * 1024;
+pub const MAX_PAYLOAD: usize = 24 * 1024 * 1024;
 const PRELUDE: usize = 12;
 const TRAILER: usize = 4;
 
@@ -184,7 +186,7 @@ impl Message {
             return frame_error("headers exceed 128 KiB");
         }
         if self.payload.len() > MAX_PAYLOAD {
-            return frame_error("payload exceeds 16 MiB");
+            return frame_error("payload exceeds 24 MiB");
         }
         let total = PRELUDE + headers.len() + self.payload.len() + TRAILER;
         let mut out = Vec::with_capacity(total);
@@ -214,7 +216,11 @@ impl Message {
 /// Headers as they are encoded inside a message: what a chunk signature
 /// hashes for its `:date` header.
 pub fn encode_headers(headers: &[Header], out: &mut Vec<u8>) -> Result<(), FrameError> {
+    let mut names = std::collections::HashSet::new();
     for header in headers {
+        if !names.insert(header.name.as_str()) {
+            return frame_error("duplicate header name");
+        }
         let name = header.name.as_bytes();
         if name.is_empty() || name.len() > 255 {
             return frame_error("header names are 1 to 255 bytes");
@@ -257,14 +263,18 @@ fn decode_headers(mut bytes: &[u8]) -> Result<Vec<Header>, FrameError> {
         Ok(head)
     }
     let mut headers = Vec::new();
+    let mut names = std::collections::HashSet::new();
     while !bytes.is_empty() {
         let length = take(&mut bytes, 1)?[0] as usize;
         if length == 0 {
             return frame_error("a header name is empty");
         }
         let name = std::str::from_utf8(take(&mut bytes, length)?)
-            .map_err(|_| FrameError("a header name is not UTF-8".into()))?
-            .to_owned();
+            .map_err(|_| FrameError("a header name is not UTF-8".into()))?;
+        if !names.insert(name) {
+            return frame_error("duplicate header name");
+        }
+        let name = name.to_owned();
         let kind = take(&mut bytes, 1)?[0];
         let value = match kind {
             0 => HeaderValue::Bool(true),
@@ -309,14 +319,31 @@ fn decode_headers(mut bytes: &[u8]) -> Result<Vec<Header>, FrameError> {
 /// Reassembles messages from arbitrary chunks of a byte stream. Checksums
 /// are verified before a message is returned, and the prelude's as soon as
 /// it arrives, so a corrupt length never makes the decoder wait for data.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MessageDecoder {
     buffer: BytesMut,
+    validate_limits: bool,
+}
+impl Default for MessageDecoder {
+    fn default() -> Self {
+        Self {
+            buffer: BytesMut::new(),
+            validate_limits: true,
+        }
+    }
 }
 
 impl MessageDecoder {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Client receivers validate framing and checksums, but not service-only size limits.
+    pub fn for_response() -> Self {
+        Self {
+            validate_limits: false,
+            ..Self::default()
+        }
     }
 
     pub fn push(&mut self, chunk: &[u8]) {
@@ -342,14 +369,14 @@ impl MessageDecoder {
                 "prelude checksum {prelude:#010x} does not match {actual:#010x}"
             ));
         }
-        if headers > MAX_HEADERS {
+        if self.validate_limits && headers > MAX_HEADERS {
             return frame_error("headers exceed 128 KiB");
         }
         if total < PRELUDE + TRAILER + headers {
             return frame_error("the message is shorter than its headers");
         }
-        if total - PRELUDE - TRAILER - headers > MAX_PAYLOAD {
-            return frame_error("payload exceeds 16 MiB");
+        if self.validate_limits && total - PRELUDE - TRAILER - headers > MAX_PAYLOAD {
+            return frame_error("payload exceeds 24 MiB");
         }
         if self.buffer.len() < total {
             return Ok(None);
@@ -368,7 +395,7 @@ impl MessageDecoder {
     }
 }
 
-/// An event stream union, as the generated client describes it.
+/// An event stream union, as generated server and client markers describe it.
 #[derive(Debug)]
 pub struct EventStreamInfo {
     /// The protocol sends the structure's other members as an
@@ -391,7 +418,13 @@ pub struct EventInfo {
     /// Members bound to headers or to the payload. The others form a JSON
     /// document payload, unless one member is bound to the payload.
     pub members: &'static [EventMember],
+    /// Native document codecs, when the event's document is CBOR.
+    pub encode_document: Option<DocumentEncoder>,
+    pub decode_document: Option<DocumentDecoder>,
 }
+
+pub type DocumentEncoder = fn(&Value) -> Result<Bytes, String>;
+pub type DocumentDecoder = fn(&[u8]) -> Result<Value, String>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct EventMember {
@@ -504,15 +537,21 @@ impl EventStreamInfo {
             Some((EventPayloadKind::Document, Value::Null)) => (self.document_type, Bytes::new()),
             Some((EventPayloadKind::Document, value)) => (
                 self.document_type,
-                serde_json::to_vec(&value)
-                    .map_err(|error| error.to_string())?
-                    .into(),
+                match info.encode_document {
+                    Some(encode) => encode(&value)?,
+                    None => serde_json::to_vec(&value)
+                        .map_err(|error| error.to_string())?
+                        .into(),
+                },
             ),
             None => (
                 self.document_type,
-                serde_json::to_vec(&Value::Object(fields))
-                    .map_err(|error| error.to_string())?
-                    .into(),
+                match info.encode_document {
+                    Some(encode) => encode(&Value::Object(fields))?,
+                    None => serde_json::to_vec(&Value::Object(fields))
+                        .map_err(|error| error.to_string())?
+                        .into(),
+                },
             ),
         };
         message = message.with_header(":content-type", HeaderValue::String(content_type.into()));
@@ -594,7 +633,10 @@ impl EventStreamInfo {
         });
         let mut fields = match payload {
             None if message.payload.is_empty() => Map::new(),
-            None => match serde_json::from_slice(&message.payload) {
+            None => match match info.decode_document {
+                Some(decode) => decode(&message.payload),
+                None => serde_json::from_slice(&message.payload).map_err(|error| error.to_string()),
+            } {
                 Ok(Value::Object(object)) => object,
                 _ => return Err(format!("event `{name}` payload is not a JSON object")),
             },
@@ -608,8 +650,11 @@ impl EventStreamInfo {
                             .to_owned(),
                     ),
                     EventPayloadKind::Document if message.payload.is_empty() => Value::Null,
-                    EventPayloadKind::Document => serde_json::from_slice(&message.payload)
-                        .map_err(|_| format!("event `{name}` payload is not JSON"))?,
+                    EventPayloadKind::Document => match info.decode_document {
+                        Some(decode) => decode(&message.payload)?,
+                        None => serde_json::from_slice(&message.payload)
+                            .map_err(|_| format!("event `{name}` payload is not JSON"))?,
+                    },
                 };
                 if !value.is_null() {
                     fields.insert(member.to_owned(), value);
@@ -829,6 +874,23 @@ impl<T: Send + 'static> EventStream<T> {
             Err(error) => Err(error.map(typed)),
         })))
     }
+
+    /// Server input events are checked as they arrive, before delivery to the operation.
+    #[doc(hidden)]
+    pub fn incoming_validated(events: Incoming) -> Self
+    where
+        T: DeserializeOwned + crate::validate::Validate,
+    {
+        let typed = |value: Value| {
+            let value: T = serde_json::from_value(value).map_err(|e| e.to_string())?;
+            crate::validate::Validator::check(&value).map_err(|error| error.summary())?;
+            Ok(value)
+        };
+        Self::from_source(Box::pin(events.map(move |event| match event {
+            Ok(value) => typed(value).map_err(EventStreamError::Decode),
+            Err(error) => Err(error.map(typed)),
+        })))
+    }
 }
 
 impl<T: Send + 'static> Default for EventStream<T> {
@@ -910,5 +972,131 @@ impl<T> fmt::Debug for EventReceiver<T> {
         f.debug_struct("EventReceiver")
             .field("open", &self.source.is_some())
             .finish()
+    }
+}
+
+/// Incremental event reader shared by clients and servers.
+pub struct Reader {
+    info: &'static EventStreamInfo,
+    chunks: ChunkStream,
+    decoder: MessageDecoder,
+    ended: bool,
+}
+
+impl Reader {
+    pub fn new(info: &'static EventStreamInfo, chunks: ChunkStream) -> Self {
+        Self {
+            info,
+            chunks,
+            decoder: MessageDecoder::for_response(),
+            ended: false,
+        }
+    }
+
+    /// Server receivers also enforce the service-side event frame size limits.
+    pub fn for_request(info: &'static EventStreamInfo, chunks: ChunkStream) -> Self {
+        Self {
+            decoder: MessageDecoder::new(),
+            ..Self::new(info, chunks)
+        }
+    }
+
+    pub async fn next_message(&mut self) -> Option<Result<Message, EventStreamError<Value>>> {
+        loop {
+            if self.ended {
+                return None;
+            }
+            match self.decoder.next_message() {
+                Ok(Some(message)) => {
+                    return Some(Ok(message));
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    self.ended = true;
+                    return Some(Err(EventStreamError::Decode(error.to_string())));
+                }
+            }
+            match self.chunks.next().await {
+                Some(Ok(chunk)) => self.decoder.push(&chunk),
+                Some(Err(error)) => {
+                    self.ended = true;
+                    return Some(Err(EventStreamError::Io(error)));
+                }
+                None => {
+                    self.ended = true;
+                    if !self.decoder.is_empty() {
+                        return Some(Err(EventStreamError::Decode(
+                            "the body ended inside a message".into(),
+                        )));
+                    }
+                    return None;
+                }
+            }
+        }
+    }
+
+    pub async fn next(&mut self) -> Option<Result<Decoded, EventStreamError<Value>>> {
+        let message = self.next_message().await?;
+        let decoded = match message {
+            Ok(message) => self.info.decode(&message).map_err(EventStreamError::Decode),
+            Err(error) => Err(error),
+        };
+        if decoded.is_err() {
+            self.ended = true;
+        }
+        Some(decoded)
+    }
+
+    /// Server inputs accept event messages only; an initial document belongs at the beginning.
+    pub fn into_request_incoming(self) -> Incoming {
+        Box::pin(futures_util::stream::unfold(
+            Some(self),
+            |state| async move {
+                let mut reader = state?;
+                let result = match reader.next().await? {
+                    Ok(Decoded::Event(event)) => Ok(event),
+                    Ok(_) => Err(EventStreamError::Decode(
+                        "request streams accept event messages only".into(),
+                    )),
+                    Err(error) => Err(error),
+                };
+                let more = result.is_ok().then_some(reader);
+                Some((result, more))
+            },
+        ))
+    }
+
+    /// The events, starting with `pending` when the transport already read
+    /// one while looking for an initial response. A modeled exception or
+    /// error ends the stream.
+    pub fn into_incoming(
+        self,
+        pending: Option<Result<Decoded, EventStreamError<Value>>>,
+    ) -> Incoming {
+        Box::pin(futures_util::stream::unfold(
+            Some((self, pending)),
+            |state| async move {
+                let (mut reader, mut pending) = state?;
+                loop {
+                    let next = match pending.take() {
+                        Some(next) => next,
+                        None => reader.next().await?,
+                    };
+                    let error = match next {
+                        Ok(Decoded::Event(event)) => {
+                            return Some((Ok(event), Some((reader, None))));
+                        }
+                        // A late or repeated initial message carries no event.
+                        Ok(Decoded::Initial(_)) => continue,
+                        Ok(Decoded::Exception(error)) => EventStreamError::Exception(error),
+                        Ok(Decoded::Error { code, message }) => {
+                            EventStreamError::Error { code, message }
+                        }
+                        Err(error) => error,
+                    };
+                    return Some((Err(error), None));
+                }
+            },
+        ))
     }
 }

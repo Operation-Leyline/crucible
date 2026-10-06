@@ -68,24 +68,15 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::PrefixHeaders,
         Feature::ResponseCode,
         Feature::Streaming,
+        Feature::EventStreams,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::Sparse,
         Feature::Sets,
-    ])
-}
-
-/// Constructs supported by the generated client and its bundled runtime.
-pub fn client_capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new(capabilities().iter().chain([
         Feature::BasicAuth,
         Feature::ApiKeyAuth,
         Feature::OptionalAuth,
-        Feature::EndpointHostPrefix,
-        Feature::EndpointRules,
-        Feature::Waiters,
         Feature::SigV4,
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
@@ -93,8 +84,19 @@ pub fn client_capabilities() -> crucible_smithy::Capabilities {
         Feature::AwsRestJson1,
         Feature::AwsJson10,
         Feature::AwsJson11,
+        Feature::SmithyRpcV2Json,
+        Feature::SmithyRpcV2Cbor,
+    ])
+}
+
+/// Constructs supported by the generated client and its bundled runtime.
+pub fn client_capabilities() -> crucible_smithy::Capabilities {
+    use crucible_smithy::Feature;
+    crucible_smithy::Capabilities::new(capabilities().iter().chain([
+        Feature::EndpointHostPrefix,
+        Feature::EndpointRules,
+        Feature::Waiters,
         Feature::HttpChecksum,
-        Feature::EventStreams,
     ]))
 }
 
@@ -143,9 +145,10 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
         internal: internal_fn,
     };
     let operations = format!(
-        "{}{}",
+        "{}{}{}",
         info::redactions(service),
-        operations::emit(service, functions, &mut diagnostics)
+        operations::emit(service, functions, &mut diagnostics),
+        events::statics(service, &mut diagnostics, false)
     );
     if !diagnostics.is_empty() {
         return Err(diagnostics);

@@ -144,7 +144,18 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
     let errors: Vec<String> = op
         .errors
         .iter()
-        .map(|id| literal(service.name_of(id)))
+        .map(|id| {
+            let Shape::Structure(shape) = service.shape(id).expect("lowered error") else {
+                unreachable!("error is a structure");
+            };
+            literal(
+                &shape
+                    .error
+                    .as_ref()
+                    .expect("lowered error metadata")
+                    .wire_code,
+            )
+        })
         .collect();
     let resource = op.resource.as_ref().map_or("None".to_owned(), |id| {
         format!("Some({})", literal(service.name_of(id)))
@@ -262,9 +273,13 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         "    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
         op.optional_auth
     );
-    if client {
-        auth.push_str(&client_wire(service, op));
-        auth.push_str(&crate::events::marker_items(service, op));
+    auth.push_str(&wire(service, op));
+    auth.push_str(&crate::events::marker_items(service, op, client));
+    if op.input.is_none() {
+        auth.push_str("    const HAS_INPUT: bool = false;\n");
+    }
+    if op.output.is_none() {
+        auth.push_str("    const HAS_OUTPUT: bool = false;\n");
     }
     if op.unsigned_payload {
         auth.push_str("    const UNSIGNED_PAYLOAD: bool = true;\n");
@@ -279,9 +294,9 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
     out
 }
 
-/// A client marker's protocol and checksum description, when they differ
+/// A marker's protocol and checksum description, when they differ
 /// from the defaults: `crucible.protocols#json` and no checksum.
-fn client_wire(service: &Service, op: &Operation) -> String {
+fn wire(service: &Service, op: &Operation) -> String {
     use crucible_smithy::Protocol;
     use crucible_smithy::ir::{Checksum, ChecksumAlgorithm};
     let mut out = String::new();
@@ -295,6 +310,8 @@ fn client_wire(service: &Service, op: &Operation) -> String {
             "AwsJson11 {{ service: {} }}",
             literal(service.id.name())
         )),
+        Protocol::SmithyRpcV2Json => Some("SmithyRpcV2Json".to_owned()),
+        Protocol::SmithyRpcV2Cbor => Some("SmithyRpcV2Cbor".to_owned()),
         _ => None,
     };
     if let Some(protocol) = protocol {

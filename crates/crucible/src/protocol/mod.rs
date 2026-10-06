@@ -1,15 +1,26 @@
 //! Protocols identify an operation, decode its input, and encode its outcome.
 //! Several can serve one service; the first to claim a request serves it.
 
+mod aws_json_protocol;
 mod invoke_protocol;
 mod json_protocol;
+mod json_response;
+mod rest_json_protocol;
+mod rpc_routing;
+mod rpc_v2_cbor_protocol;
+mod rpc_v2_json_protocol;
+mod server_events;
 
 use axum::http::request::Parts;
 use axum::response::Response;
 
+pub use aws_json_protocol::AwsJsonProtocol;
 pub use crucible_wire::bound::BoundValue;
 pub use invoke_protocol::{Invocation, InvokeProtocol};
 pub use json_protocol::JsonProtocol;
+pub use rest_json_protocol::RestJsonProtocol;
+pub use rpc_v2_cbor_protocol::RpcV2CborProtocol;
+pub use rpc_v2_json_protocol::RpcV2JsonProtocol;
 
 use crate::error::ModelledError;
 use crate::operation::OperationInfo;

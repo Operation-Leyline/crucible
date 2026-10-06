@@ -51,6 +51,22 @@ impl<T: Serialize + DeserializeOwned> Codec<T> for Identity {
     }
 }
 
+/// An optional server document retains an explicitly supplied JSON null.
+pub struct OptionalDocument;
+impl Codec<Option<serde_json::Value>> for OptionalDocument {
+    fn serialize<S: Serializer>(
+        value: &Option<serde_json::Value>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        value.serialize(serializer)
+    }
+    fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<serde_json::Value>, D::Error> {
+        serde_json::Value::deserialize(deserializer).map(Some)
+    }
+}
+
 /// A document used as a dense collection element cannot itself be null.
 pub struct Document;
 impl Codec<serde_json::Value> for Document {
@@ -157,6 +173,9 @@ macro_rules! non_finite {
     ($float:ty, $serialize:ident) => {
         impl Codec<$float> for NonFinite {
             fn serialize<S: Serializer>(value: &$float, serializer: S) -> Result<S::Ok, S::Error> {
+                if !serializer.is_human_readable() {
+                    return serializer.$serialize(*value);
+                }
                 if value.is_nan() {
                     serializer.serialize_str("NaN")
                 } else if value.is_infinite() {
@@ -170,6 +189,9 @@ macro_rules! non_finite {
                 }
             }
             fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<$float, D::Error> {
+                if !deserializer.is_human_readable() {
+                    return <$float>::deserialize(deserializer);
+                }
                 match serde_json::Value::deserialize(deserializer)? {
                     serde_json::Value::Number(number) => number
                         .as_f64()

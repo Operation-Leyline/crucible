@@ -446,6 +446,7 @@ dependencies = [
  "axum",
  "chrono",
  "crucible-wire",
+ "futures-util",
  "http-body-util",
  "lambda_http",
  "lambda_runtime",
@@ -512,6 +513,7 @@ dependencies = [
 name = "crucible-smithy"
 version = "0.2.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "indexmap",
  "jmespath",
@@ -528,6 +530,7 @@ dependencies = [
  "bigdecimal",
  "bytes",
  "chrono",
+ "ciborium",
  "futures-core",
  "futures-util",
  "regex",

@@ -6,12 +6,8 @@ use std::io;
 use std::sync::{Arc, OnceLock};
 
 use bytes::Bytes;
-use crucible_wire::event_stream::{
-    Decoded, EventStreamError, EventStreamInfo, Incoming, Message, MessageDecoder, Outgoing,
-};
-use crucible_wire::stream::ChunkStream;
+use crucible_wire::event_stream::{EventStreamInfo, Message, Outgoing};
 use futures_util::{Stream, StreamExt};
-use serde_json::Value;
 
 use crate::CancellationToken;
 use crate::signing::EventSigner;
@@ -112,93 +108,4 @@ pub(crate) fn body(
     })
 }
 
-/// Messages from a response body, decoded as they complete.
-pub(crate) struct Reader {
-    info: &'static EventStreamInfo,
-    chunks: ChunkStream,
-    decoder: MessageDecoder,
-    ended: bool,
-}
-
-impl Reader {
-    pub(crate) fn new(info: &'static EventStreamInfo, chunks: ChunkStream) -> Self {
-        Self {
-            info,
-            chunks,
-            decoder: MessageDecoder::new(),
-            ended: false,
-        }
-    }
-
-    pub(crate) async fn next(&mut self) -> Option<Result<Decoded, EventStreamError<Value>>> {
-        loop {
-            if self.ended {
-                return None;
-            }
-            match self.decoder.next_message() {
-                Ok(Some(message)) => {
-                    let decoded = self.info.decode(&message);
-                    if decoded.is_err() {
-                        self.ended = true;
-                    }
-                    return Some(decoded.map_err(EventStreamError::Decode));
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    self.ended = true;
-                    return Some(Err(EventStreamError::Decode(error.to_string())));
-                }
-            }
-            match self.chunks.next().await {
-                Some(Ok(chunk)) => self.decoder.push(&chunk),
-                Some(Err(error)) => {
-                    self.ended = true;
-                    return Some(Err(EventStreamError::Io(error)));
-                }
-                None => {
-                    self.ended = true;
-                    if !self.decoder.is_empty() {
-                        return Some(Err(EventStreamError::Decode(
-                            "the body ended inside a message".into(),
-                        )));
-                    }
-                    return None;
-                }
-            }
-        }
-    }
-
-    /// The events, starting with `pending` when the transport already read
-    /// one while looking for an initial response. A modeled exception or
-    /// error ends the stream.
-    pub(crate) fn into_incoming(
-        self,
-        pending: Option<Result<Decoded, EventStreamError<Value>>>,
-    ) -> Incoming {
-        Box::pin(futures_util::stream::unfold(
-            Some((self, pending)),
-            |state| async move {
-                let (mut reader, mut pending) = state?;
-                loop {
-                    let next = match pending.take() {
-                        Some(next) => next,
-                        None => reader.next().await?,
-                    };
-                    let error = match next {
-                        Ok(Decoded::Event(event)) => {
-                            return Some((Ok(event), Some((reader, None))));
-                        }
-                        // A late or repeated initial message carries no event.
-                        Ok(Decoded::Initial(_)) => continue,
-                        Ok(Decoded::Exception(error)) => EventStreamError::Exception(error),
-                        Ok(Decoded::Error { code, message }) => {
-                            EventStreamError::Error { code, message }
-                        }
-                        Err(error) => error,
-                    };
-                    return Some((Err(error), None));
-                }
-            },
-        ))
-    }
-}
+pub(crate) use crucible_wire::event_stream::Reader;
