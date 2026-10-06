@@ -181,9 +181,9 @@ fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rej
 }
 
 /// The input straight from JSON bytes, in one pass: for an input with no
-/// member bound outside the body. An empty body is `{}`.
+/// member bound outside the body. An empty or JSON-whitespace-only body is `{}`.
 fn decode_json<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let bytes = if bytes.is_empty() {
+    let bytes = if crucible_wire::text::empty_json_body(bytes) {
         b"{}".as_slice()
     } else {
         bytes

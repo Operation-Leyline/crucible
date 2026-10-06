@@ -34,6 +34,7 @@ impl Protocol for InvokeProtocol {
         Some(Route {
             operation: entry.info.name,
             labels: Vec::new(),
+            rejection: None,
         })
     }
 

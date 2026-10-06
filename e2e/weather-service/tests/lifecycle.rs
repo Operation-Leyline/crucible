@@ -220,6 +220,7 @@ impl Protocol for Reader {
         _: &crucible::Operations,
     ) -> Option<Route> {
         (request.uri.path() == self.path).then_some(Route {
+            rejection: None,
             operation: "Probe",
             labels: Vec::new(),
         })

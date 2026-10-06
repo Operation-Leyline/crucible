@@ -41,7 +41,9 @@ impl Protocol for JsonProtocol {
         } else {
             rest.split('/').collect()
         };
-        let mut best: Option<(&OperationInfo, Route)> = None;
+        let query = request.uri.query().unwrap_or("");
+        let query_violations = query_violations(query);
+        let mut best: Option<(&OperationInfo, Route, bool)> = None;
         for &op in operations
             .routes(path.len())
             .iter()
@@ -50,14 +52,13 @@ impl Protocol for JsonProtocol {
             if !applies(op) || op.method != request.method.as_str() {
                 continue;
             }
-            let query = request.uri.query().unwrap_or("");
-            if !op.literal_query.iter().all(|(key, expected)| {
-                query_values(query, key)
-                    .any(|value| expected.is_none_or(|expected| value == expected))
-            }) {
-                continue;
-            }
+            let query_matches = match literal_queries_match(query, op) {
+                Some(true) => true,
+                Some(false) => continue,
+                None => false,
+            };
             let mut labels = Vec::new();
+            let mut violations = query_violations.clone();
             if path.len() < op.path.len() {
                 continue;
             }
@@ -73,7 +74,10 @@ impl Protocol for JsonProtocol {
                         if part.is_empty() {
                             return false;
                         }
-                        labels.push((*name, percent_decode(part, false).into_owned()));
+                        match percent_decode(part, false) {
+                            Ok(value) => labels.push((*name, value.into_owned())),
+                            Err(message) => violations.push(malformed(name, &message)),
+                        }
                         true
                     }
                     Segment::GreedyLabel(name) => {
@@ -83,26 +87,31 @@ impl Protocol for JsonProtocol {
                         if joined.is_empty() {
                             return false;
                         }
-                        labels.push((*name, percent_decode(&joined, false).into_owned()));
+                        match percent_decode(&joined, false) {
+                            Ok(value) => labels.push((*name, value.into_owned())),
+                            Err(message) => violations.push(malformed(name, &message)),
+                        }
                         true
                     }
                 }
             }) && cursor == path.len();
             if matched
-                && best
-                    .as_ref()
-                    .is_none_or(|(most, _)| more_specific(op, most))
+                && best.as_ref().is_none_or(|(most, _, most_query_matches)| {
+                    more_specific(op, most, query_matches, *most_query_matches)
+                })
             {
                 best = Some((
                     op,
                     Route {
                         operation: op.name,
                         labels,
+                        rejection: (!violations.is_empty()).then_some(Rejection { violations }),
                     },
+                    query_matches,
                 ));
             }
         }
-        best.map(|(_, route)| route)
+        best.map(|(_, route, _)| route)
     }
 
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
@@ -125,13 +134,17 @@ impl Protocol for JsonProtocol {
                         } => stream.with_bounds(minimum, maximum),
                         _ => stream,
                     };
+                    let mut response =
+                        respond(bindings.status.unwrap_or(op.status), bindings.headers, None);
+                    if response
+                        .extensions()
+                        .get::<super::SerializationFailure>()
+                        .is_some()
+                    {
+                        return response;
+                    }
                     return match stream.open() {
                         Ok(body) => {
-                            let mut response = respond(
-                                bindings.status.unwrap_or(op.status),
-                                bindings.headers,
-                                None,
-                            );
                             response
                                 .headers_mut()
                                 .insert(header::CONTENT_TYPE, content_type_header(media_type));
@@ -211,7 +224,12 @@ impl Protocol for JsonProtocol {
 
 /// Path segments decide specificity before query constraints. A later
 /// literal must not outweigh an earlier literal or non-greedy label.
-fn more_specific(candidate: &OperationInfo, previous: &OperationInfo) -> bool {
+fn more_specific(
+    candidate: &OperationInfo,
+    previous: &OperationInfo,
+    candidate_query_matches: bool,
+    previous_query_matches: bool,
+) -> bool {
     let rank = |segment: &Segment| match segment {
         Segment::Literal(_) => 2,
         Segment::Label(_) => 1,
@@ -222,6 +240,7 @@ fn more_specific(candidate: &OperationInfo, previous: &OperationInfo) -> bool {
         .iter()
         .map(rank)
         .cmp(previous.path.iter().map(rank))
+        .then_with(|| candidate_query_matches.cmp(&previous_query_matches))
         .then_with(|| {
             candidate
                 .literal_query
@@ -298,7 +317,13 @@ fn bound_members<'a>(
                 let mut values = serde_json::Map::new();
                 for pair in query.split('&').filter(|p| !p.is_empty()) {
                     let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
-                    let name = percent_decode(name, true).into_owned();
+                    let name = match percent_decode(name, true) {
+                        Ok(name) => name.into_owned(),
+                        Err(message) => {
+                            violations.push(malformed(member.name, &message));
+                            continue;
+                        }
+                    };
                     if op.literal_query.iter().any(|(key, _)| *key == name)
                         || op
                             .input
@@ -307,7 +332,13 @@ fn bound_members<'a>(
                     {
                         continue;
                     }
-                    let value = Value::String(percent_decode(value, true).into_owned());
+                    let value = match percent_decode(value, true) {
+                        Ok(value) => Value::String(value.into_owned()),
+                        Err(message) => {
+                            violations.push(malformed(&name, &message));
+                            continue;
+                        }
+                    };
                     if matches!(scalar, Scalar::List(_)) {
                         values
                             .entry(name)
@@ -358,7 +389,11 @@ fn bound_members<'a>(
             (Location::TextPayload(_), _) => std::str::from_utf8(job.body())
                 .map(|text| BoundValue::Text(Cow::Borrowed(text)))
                 .map_err(|_| "must be UTF-8 text".to_owned()),
-            (Location::DocumentPayload(_), _) if job.body().trim_ascii().is_empty() => continue,
+            (Location::DocumentPayload(_), _)
+                if crucible_wire::text::empty_json_body(job.body()) =>
+            {
+                continue;
+            }
             (Location::DocumentPayload(_), _) => Ok(BoundValue::RawJson(job.body())),
             (Location::Label, scalar) => {
                 match job.labels().iter().find(|(name, _)| *name == member.name) {
@@ -369,7 +404,7 @@ fn bound_members<'a>(
             (Location::Query(param), Scalar::List(item)) => {
                 let items: std::result::Result<Vec<BoundValue<'a>>, String> =
                     query_values(query, param)
-                        .map(|text| BoundValue::parse(text, *item))
+                        .map(|text| text.and_then(|text| BoundValue::parse(text, *item)))
                         .collect();
                 match items {
                     Ok(items) if items.is_empty() => continue,
@@ -377,7 +412,7 @@ fn bound_members<'a>(
                 }
             }
             (Location::Query(param), scalar) => match query_values(query, param).next() {
-                Some(text) => BoundValue::parse(text, scalar),
+                Some(text) => text.and_then(|text| BoundValue::parse(text, scalar)),
                 None => continue,
             },
             (Location::Header(name), scalar @ Scalar::List(_)) => {
@@ -450,6 +485,51 @@ fn malformed(path: &str, message: &str) -> Violation {
 
 const JSON: &str = "application/json";
 
+/// True for matched literals, false for a known mismatch or missing literal,
+/// and undecidable when the relevant key or value could not be decoded.
+fn literal_queries_match(query: &str, operation: &OperationInfo) -> Option<bool> {
+    let mut fully_matched = true;
+    for (key, expected) in operation.literal_query {
+        let mut key_seen = false;
+        let mut malformed_key = false;
+        let mut malformed_value = false;
+        let mut matched = false;
+        for pair in query.split('&').filter(|pair| !pair.is_empty()) {
+            let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+            let name = match percent_decode(name, true) {
+                Ok(name) => name,
+                Err(_) => {
+                    malformed_key = true;
+                    continue;
+                }
+            };
+            if name != *key {
+                continue;
+            }
+            key_seen = true;
+            match percent_decode(value, true) {
+                Ok(value) if expected.is_none_or(|expected| value == expected) => {
+                    matched = true;
+                    break;
+                }
+                Ok(_) => {}
+                Err(_) => malformed_value = true,
+            }
+        }
+        if matched {
+            continue;
+        }
+        // Once the key is readable, unrelated malformed keys cannot erase
+        // its valid mismatch. Repeated matching values retain any-match semantics.
+        if malformed_value || (!key_seen && malformed_key) {
+            fully_matched = false;
+        } else {
+            return Some(false);
+        }
+    }
+    fully_matched.then_some(true)
+}
+
 fn error_response(error: &dyn ModelledError) -> Response {
     let mut body = Vec::with_capacity(128);
     match error.write_http(&mut body) {
@@ -467,7 +547,7 @@ fn framework_response(error: &FrameworkError) -> Response {
     respond(error.status(), Vec::new(), Some((JSON, to_bytes(&body))))
 }
 
-fn serialization_failure(error: serde_json::Error) -> Response {
+fn serialization_failure(error: impl std::fmt::Display) -> Response {
     let mut response = framework_response(&FrameworkError::InternalFailure);
     response
         .extensions_mut()
@@ -510,9 +590,38 @@ fn respond(
         // Generated header names are lowercase, so they parse without copying.
         let name =
             HeaderName::from_lowercase(name.as_bytes()).or_else(|_| HeaderName::try_from(name));
-        if let (Ok(name), Ok(value)) = (name, HeaderValue::try_from(value)) {
-            response.headers_mut().insert(name, value);
-        }
+        let name = match name {
+            Ok(name) => name,
+            Err(_) => return serialization_failure("invalid response header name"),
+        };
+        let value = match HeaderValue::try_from(value) {
+            Ok(value) => value,
+            Err(_) => {
+                return serialization_failure(format!("invalid response header value for {name}"));
+            }
+        };
+        response.headers_mut().insert(name, value);
     }
     response
+}
+
+/// Validate every query component before routing on literal keys or values.
+/// Otherwise a malformed component could hide a more specific route.
+fn query_violations(query: &str) -> Vec<Violation> {
+    if !query.contains('%') {
+        return Vec::new();
+    }
+    let mut violations = Vec::new();
+    for pair in query.split('&').filter(|pair| !pair.is_empty()) {
+        let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+        match percent_decode(key, true) {
+            Ok(key) => {
+                if let Err(message) = percent_decode(value, true) {
+                    violations.push(malformed(&key, &message));
+                }
+            }
+            Err(message) => violations.push(malformed("query", &message)),
+        }
+    }
+    violations
 }

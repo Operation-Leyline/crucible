@@ -4,19 +4,30 @@ use std::borrow::Cow;
 
 /// The decoded values of query parameter `param`, in order, borrowed from
 /// `query` unless they need decoding. `+` is a space.
-pub fn query_values<'q>(query: &'q str, param: &'q str) -> impl Iterator<Item = Cow<'q, str>> {
+/// Invalid keys and matching values are errors, never normalized identifiers.
+pub fn query_values<'q>(
+    query: &'q str,
+    param: &'q str,
+) -> impl Iterator<Item = Result<Cow<'q, str>, String>> {
     query.split('&').filter_map(move |pair| {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
-        (!pair.is_empty() && percent_decode(key, true) == param)
-            .then(|| percent_decode(value, true))
+        if pair.is_empty() {
+            return None;
+        }
+        match percent_decode(key, true) {
+            Ok(key) if key == param => Some(percent_decode(value, true)),
+            Ok(_) => None,
+            Err(error) => Some(Err(error)),
+        }
     })
 }
 
 /// Percent-decoding, borrowing when there is nothing to decode; `plus` reads
 /// `+` as a space, as query strings do.
-pub fn percent_decode(text: &str, plus: bool) -> Cow<'_, str> {
+/// Rejects malformed escapes and decoded bytes that are not UTF-8.
+pub fn percent_decode(text: &str, plus: bool) -> Result<Cow<'_, str>, String> {
     if !text.bytes().any(|b| b == b'%' || (plus && b == b'+')) {
-        return Cow::Borrowed(text);
+        return Ok(Cow::Borrowed(text));
     }
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -25,20 +36,32 @@ pub fn percent_decode(text: &str, plus: bool) -> Cow<'_, str> {
         match bytes[i] {
             b'+' if plus => out.push(b' '),
             b'%' if i + 2 < bytes.len() => {
-                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3])
+                    .ok()
+                    .filter(|hex| hex.bytes().all(|byte| byte.is_ascii_hexdigit()));
                 match hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
                     Some(byte) => {
                         out.push(byte);
                         i += 2;
                     }
-                    None => out.push(b'%'),
+                    None => return Err("contains an invalid percent escape".to_owned()),
                 }
             }
+            b'%' => return Err("contains an incomplete percent escape".to_owned()),
             byte => out.push(byte),
         }
         i += 1;
     }
-    Cow::Owned(String::from_utf8_lossy(&out).into_owned())
+    String::from_utf8(out)
+        .map(Cow::Owned)
+        .map_err(|_| "must decode to UTF-8 text".to_owned())
+}
+
+/// An absent JSON body contains only the four whitespace bytes JSON allows.
+/// Vertical tabs and form feeds must reach the JSON parser and be rejected.
+pub fn empty_json_body(body: &[u8]) -> bool {
+    body.iter()
+        .all(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
 }
 
 /// A header list: comma-separated, items quoted when they hold a comma or quote.
@@ -110,12 +133,52 @@ mod tests {
 
     #[test]
     fn query_values_decode_only_what_they_must() {
-        let values: Vec<_> = query_values("a=1&b=x%20y&b=z+w&flag", "b").collect();
+        let values: Vec<_> = query_values("a=1&b=x%20y&b=z+w&flag", "b")
+            .collect::<Result<_, _>>()
+            .unwrap();
         assert_eq!(values, ["x y", "z w"]);
         assert!(matches!(
             query_values("a=1", "a").next(),
-            Some(Cow::Borrowed("1"))
+            Some(Ok(Cow::Borrowed("1")))
         ));
+    }
+
+    #[test]
+    fn percent_decoding_rejects_invalid_utf8_and_escapes_without_normalizing_identifiers() {
+        for wire in [
+            "%FF",
+            "%FE",
+            "%C0%AF",
+            "%ED%A0%80",
+            "%",
+            "%F",
+            "%GG",
+            "%aZ",
+            "%+A",
+            "%-1",
+        ] {
+            assert!(percent_decode(wire, false).is_err(), "{wire}");
+        }
+        for (wire, expected) in [("%EF%BF%BD", "�"), ("caf%C3%A9", "café"), ("%2f%2B", "/+")] {
+            assert_eq!(percent_decode(wire, false).unwrap(), expected);
+        }
+        assert!(matches!(
+            percent_decode("café+plain", false),
+            Ok(Cow::Borrowed("café+plain"))
+        ));
+        assert_eq!(percent_decode("a+b%2Bc", true).unwrap(), "a b+c");
+        assert!(query_values("%FF=x", "q").next().unwrap().is_err());
+        assert!(query_values("q=%FF", "q").next().unwrap().is_err());
+    }
+
+    #[test]
+    fn empty_json_body_allows_only_json_whitespace() {
+        for body in [b"".as_slice(), b" \t\n\r"] {
+            assert!(empty_json_body(body));
+        }
+        for body in [b"\x0b".as_slice(), b"\x0c", b"{}", "\u{a0}".as_bytes()] {
+            assert!(!empty_json_body(body));
+        }
     }
 
     #[test]
