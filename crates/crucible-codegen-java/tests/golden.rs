@@ -159,10 +159,15 @@ fn reserved_names_are_diagnostics() {
             .unwrap();
 
         let err = emit(&service, &options()).err();
-        assert!(err.is_some(), "Expected error for name {}, but got Ok", name);
+        assert!(
+            err.is_some(),
+            "Expected error for name {}, but got Ok",
+            name
+        );
         let diagnostics = err.unwrap().to_string();
         assert!(
-            diagnostics.contains("invalid or colliding Java model name") || diagnostics.contains("Java member name collision"),
+            diagnostics.contains("invalid or colliding Java model name")
+                || diagnostics.contains("Java member name collision"),
             "{diagnostics}"
         );
     }
