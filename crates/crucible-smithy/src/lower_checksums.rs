@@ -49,7 +49,7 @@ impl Lowerer<'_> {
                 "@aws.protocols#httpChecksum must configure request or response checksums",
             );
         }
-        if config.request_validation_mode_member.is_some() != !config.response_algorithms.is_empty()
+        if config.request_validation_mode_member.is_some() == config.response_algorithms.is_empty()
         {
             self.diagnostics.push(id, "response checksums require both requestValidationModeMember and responseAlgorithms");
         }

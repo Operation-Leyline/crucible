@@ -269,12 +269,12 @@ fn resolve_property(
         }
     };
     if let Some(length) = &binding.length {
-        if !matches!(service.shape(&target), Some(Shape::Simple(s)) if s.kind == SimpleKind::String)
-            && !matches!(
+        if !(matches!(service.shape(&target), Some(Shape::Simple(s)) if s.kind == SimpleKind::String)
+            || matches!(
                 service.shape(&target),
                 Some(Shape::Enum(_) | Shape::List(_) | Shape::Map(_))
             )
-            && !(target.is_prelude() && target.name() == "String")
+            || target.is_prelude() && target.name() == "String")
         {
             return Err("length refinement requires a string or collection target".into());
         }
