@@ -77,6 +77,19 @@ const KEYWORDS: &[&str] = &[
     "typeof", "unsized", "virtual", "yield",
 ];
 
+pub fn escape_identifier(name: &str) -> String {
+    escape(name)
+}
+
+pub(crate) fn module(name: &str) -> String {
+    escape(&snake(name))
+}
+
+pub(crate) fn file_stem(name: &str) -> String {
+    let m = module(name);
+    m.strip_prefix("r#").unwrap_or(&m).to_owned()
+}
+
 fn escape(name: &str) -> String {
     match name {
         "self" | "super" | "crate" | "Self" => format!("{name}_"),
@@ -126,5 +139,39 @@ mod tests {
         assert_eq!(variant("dataPlane"), "DataPlane");
         assert_eq!(variant("ALL_GRAPHS"), "AllGraphs");
         assert_eq!(variant("2xx"), "V2xx");
+    }
+
+    #[test]
+    fn modules_and_file_stems_handle_keywords() {
+        assert_eq!(module("Type"), "r#type");
+        assert_eq!(file_stem("Type"), "type");
+
+        assert_eq!(module("Match"), "r#match");
+        assert_eq!(file_stem("Match"), "match");
+
+        assert_eq!(module("Return"), "r#return");
+        assert_eq!(file_stem("Return"), "return");
+
+        assert_eq!(module("Mod"), "r#mod");
+        assert_eq!(file_stem("Mod"), "mod");
+
+        assert_eq!(module("Move"), "r#move");
+        assert_eq!(file_stem("Move"), "move");
+
+        assert_eq!(module("Self"), "self_");
+        assert_eq!(file_stem("Self"), "self_");
+
+        assert_eq!(module("Super"), "super_");
+        assert_eq!(file_stem("Super"), "super_");
+
+        assert_eq!(module("Crate"), "crate_");
+        assert_eq!(file_stem("Crate"), "crate_");
+
+        assert_eq!(module("GetCity"), "get_city");
+        assert_eq!(file_stem("GetCity"), "get_city");
+
+        assert_eq!(escape_identifier("type"), "r#type");
+        assert_eq!(escape_identifier("self_"), "self_");
+        assert_eq!(escape_identifier("city"), "city");
     }
 }

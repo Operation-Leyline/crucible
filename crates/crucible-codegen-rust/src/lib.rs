@@ -26,7 +26,8 @@ mod operations;
 mod scaffold;
 mod types;
 
-pub use scaffold::{ScaffoldOptions, Stub, folder, scaffold};
+pub use names::escape_identifier;
+pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffold};
 
 use crucible_smithy::ir::{Service, Shape};
 use crucible_smithy::{Diagnostics, ShapeId};
