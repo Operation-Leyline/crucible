@@ -4,16 +4,48 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: '23 10 * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  # PRs qualify affected consumers; nightly/manual runs retain the full matrix.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      c: ${{ steps.select.outputs.c }}
+      cdk: ${{ steps.select.outputs.cdk }}
+      cpp: ${{ steps.select.outputs.cpp }}
+      csharp: ${{ steps.select.outputs.csharp }}
+      dart: ${{ steps.select.outputs.dart }}
+      e2e: ${{ steps.select.outputs.e2e }}
+      go: ${{ steps.select.outputs.go }}
+      java: ${{ steps.select.outputs.java }}
+      kotlin: ${{ steps.select.outputs.kotlin }}
+      php: ${{ steps.select.outputs.php }}
+      python: ${{ steps.select.outputs.python }}
+      r: ${{ steps.select.outputs.r }}
+      ruby: ${{ steps.select.outputs.ruby }}
+      rust: ${{ steps.select.outputs.rust }}
+      service_cli: ${{ steps.select.outputs.service_cli }}
+      swift: ${{ steps.select.outputs.swift }}
+      terraform: ${{ steps.select.outputs.terraform }}
+      typescript: ${{ steps.select.outputs.typescript }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - id: select
+        run: python3 tools/ci_plan.py
   service-cli:
+    needs: [plan, rust]
+    if: needs.plan.outputs.service_cli == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -30,6 +62,8 @@ jobs:
         env:
           CARGO_BUILD_JOBS: '2'
   cdk:
+    needs: [plan, rust]
+    if: needs.plan.outputs.cdk == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +85,8 @@ jobs:
         env:
           CARGO_BUILD_JOBS: '2'
   terraform:
+    needs: [plan, rust]
+    if: needs.plan.outputs.terraform == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -77,6 +113,8 @@ jobs:
           CARGO_BUILD_JOBS: '2'
           TERRAFORM: '${{ matrix.engine }}'
   c-linux:
+    needs: [plan, rust]
+    if: needs.plan.outputs.c == 'true'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +129,8 @@ jobs:
           CARGO_BUILD_JOBS: '2'
           CMAKE_PREFIX_PATH: ${{ github.workspace }}/target/yyjson/install
   r:
+    needs: [plan, rust]
+    if: needs.plan.outputs.r == 'true'
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -110,6 +150,8 @@ jobs:
         env:
           CARGO_BUILD_JOBS: '2'
   cpp-linux:
+    needs: [plan, rust]
+    if: needs.plan.outputs.cpp == 'true'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -122,6 +164,8 @@ jobs:
           CPP_SANITIZE: '1'
           CARGO_BUILD_JOBS: '2'
   c-windows:
+    needs: [plan, rust]
+    if: needs.plan.outputs.c == 'true'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -157,6 +201,8 @@ jobs:
           CARGO_BUILD_JOBS: '2'
           CMAKE_PREFIX_PATH: ${{ github.workspace }}/target/yyjson/install
   cpp-windows:
+    needs: [plan, rust]
+    if: needs.plan.outputs.cpp == 'true'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -190,6 +236,8 @@ jobs:
         env:
           CARGO_BUILD_JOBS: '2'
   ruby:
+    needs: [plan, rust]
+    if: needs.plan.outputs.ruby == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -203,6 +251,8 @@ jobs:
         with: { ruby-version: '${{ matrix.ruby }}' }
       - run: python3 tools/test-ruby.py
   php:
+    needs: [plan, rust]
+    if: needs.plan.outputs.php == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -220,6 +270,8 @@ jobs:
           coverage: none
       - run: python3 tools/test-php.py
   dart:
+    needs: [plan, rust]
+    if: needs.plan.outputs.dart == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -233,6 +285,8 @@ jobs:
         with: { sdk: '${{ matrix.sdk }}' }
       - run: python3 tools/test-dart.py
   swift-linux:
+    needs: [plan, rust]
+    if: needs.plan.outputs.swift == 'true'
     runs-on: ubuntu-latest
     container: swift:6.0.3-jammy
     steps:
@@ -243,6 +297,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: python3 tools/test-swift.py
   swift-apple:
+    needs: [plan, rust]
+    if: needs.plan.outputs.swift == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -257,6 +313,8 @@ jobs:
         working-directory: ${{ runner.temp }}/crucible-swift/sdk
         run: xcodebuild -scheme Weather -destination 'generic/platform=iOS Simulator' -derivedDataPath '${{ runner.temp }}/swift-ios' CODE_SIGNING_ALLOWED=NO build
   kotlin:
+    needs: [plan, rust]
+    if: needs.plan.outputs.kotlin == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -267,6 +325,8 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - run: python tools/test-kotlin.py
   kotlin-multiplatform:
+    needs: [plan, rust]
+    if: needs.plan.outputs.kotlin == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -299,6 +359,8 @@ jobs:
       - name: Consume published JVM, JavaScript, and host-native artifacts
         run: python tools/test-kotlin-multiplatform.py ${{ matrix.flags }}
   kotlin-android:
+    needs: [plan, rust]
+    if: needs.plan.outputs.kotlin == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -327,6 +389,8 @@ jobs:
           disable-animations: true
           script: python tools/test-kotlin-android.py
   csharp:
+    needs: [plan, rust]
+    if: needs.plan.outputs.csharp == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -337,6 +401,8 @@ jobs:
         with: { dotnet-version: '8.0.x' }
       - run: python tools/test-csharp.py
   java:
+    needs: [plan, rust]
+    if: needs.plan.outputs.java == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -347,6 +413,8 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - run: python tools/test-java.py
   go:
+    needs: [plan, rust]
+    if: needs.plan.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -357,6 +425,8 @@ jobs:
         with: { go-version: '1.24.x', cache: false }
       - run: python tools/test-go.py
   python:
+    needs: [plan, rust]
+    if: needs.plan.outputs.python == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -368,6 +438,8 @@ jobs:
       - run: python -m pip install 'httpx>=0.28,<1' 'jmespath==1.0.1' mypy build
       - run: python tools/test-python.py
   rust:
+    needs: plan
+    if: needs.plan.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -382,6 +454,8 @@ jobs:
 
   # The generated TypeScript client, compiled and run against a fake fetch.
   typescript:
+    needs: [plan, rust]
+    if: needs.plan.outputs.typescript == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -395,6 +469,8 @@ jobs:
   # The example service (e2e/): built the way a real one is, tested in
   # process, then served and driven by the generated TypeScript client.
   e2e:
+    needs: [plan, rust]
+    if: needs.plan.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -407,3 +483,23 @@ jobs:
       - run: cargo fmt --all --check --manifest-path e2e/Cargo.toml
       - run: cargo clippy --manifest-path e2e/Cargo.toml --all-targets --locked -- -D warnings
       - run: bash tools/test-e2e.sh
+
+  # A stable aggregate reports failures while allowing intentionally omitted jobs.
+  ci:
+    if: always()
+    needs: [plan, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check selected jobs
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ["RESULTS"])
+          failed = [name for name, job in results.items() if job["result"] not in {"success", "skipped"}]
+          if results["plan"]["result"] != "success" or results["rust"]["result"] != "success":
+              failed.append("required planner/Rust gate")
+          if failed:
+              raise SystemExit("CI failed: " + ", ".join(failed))
+          PY
