@@ -10,6 +10,9 @@ use crate::operation::ErrorInfo;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Maximum depth of error source traversal to protect against cycles.
+pub const MAX_SOURCE_DEPTH: usize = 64;
+
 /// Any error. Like `anyhow::Error` it is not itself a `std::error::Error`,
 /// so every error type converts into it with `?`.
 pub struct Error {
@@ -36,11 +39,13 @@ impl Error {
         self.inner.downcast_ref::<E>()
     }
 
-    /// This error and its sources, for a log line.
+    /// This error and its sources, for a log line. Traversal depth is bounded
+    /// by [`MAX_SOURCE_DEPTH`] to protect against cycles in source chains.
     pub fn chain(&self) -> String {
         let mut text = self.inner.to_string();
         let mut source = self.inner.source();
-        while let Some(next) = source {
+        for _ in 0..MAX_SOURCE_DEPTH {
+            let Some(next) = source else { break };
             text.push_str(": ");
             text.push_str(&next.to_string());
             source = next.source();
@@ -161,4 +166,141 @@ pub fn write_error_http<E: ModelledError + serde::Serialize>(
 ) -> serde_json::Result<crate::operation::ResponseBindings> {
     let info = error.info();
     crate::split::write_http(error, info.members, Some(info.name), out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug)]
+    struct SimpleError(&'static str);
+
+    impl fmt::Display for SimpleError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str(self.0)
+        }
+    }
+
+    impl std::error::Error for SimpleError {}
+
+    #[derive(Debug)]
+    struct NestedError {
+        msg: &'static str,
+        source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
+    }
+
+    impl fmt::Display for NestedError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str(self.msg)
+        }
+    }
+
+    impl std::error::Error for NestedError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            self.source
+                .as_deref()
+                .map(|s| s as &(dyn std::error::Error + 'static))
+        }
+    }
+
+    #[derive(Debug)]
+    struct CyclicError;
+
+    impl fmt::Display for CyclicError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("loop")
+        }
+    }
+
+    impl std::error::Error for CyclicError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(self)
+        }
+    }
+
+    #[derive(Debug)]
+    struct CycleA;
+    #[derive(Debug)]
+    struct CycleB;
+    static CYCLE_A: CycleA = CycleA;
+    static CYCLE_B: CycleB = CycleB;
+
+    impl fmt::Display for CycleA {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("node_a")
+        }
+    }
+
+    impl std::error::Error for CycleA {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(&CYCLE_B)
+        }
+    }
+
+    impl fmt::Display for CycleB {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("node_b")
+        }
+    }
+
+    impl std::error::Error for CycleB {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(&CYCLE_A)
+        }
+    }
+
+    #[test]
+    fn chain_with_no_source() {
+        let error = Error::internal("standalone");
+        assert_eq!(error.chain(), "standalone");
+    }
+
+    #[test]
+    fn chain_with_sources() {
+        let leaf = SimpleError("leaf");
+        let middle = NestedError {
+            msg: "middle",
+            source: Some(Box::new(leaf)),
+        };
+        let root = NestedError {
+            msg: "root",
+            source: Some(Box::new(middle)),
+        };
+        let error = Error::new(root);
+        assert_eq!(error.chain(), "root: middle: leaf");
+    }
+
+    #[test]
+    fn chain_terminates_on_self_referential_cycle() {
+        let error = Error::new(CyclicError);
+        let chain = error.chain();
+        assert_eq!(chain.matches(": loop").count(), MAX_SOURCE_DEPTH);
+        assert!(chain.starts_with("loop: loop"));
+    }
+
+    #[test]
+    fn chain_terminates_on_mutual_cycle() {
+        let error = Error::new(CycleA);
+        let chain = error.chain();
+        let total_sources = chain.matches(": node_a").count() + chain.matches(": node_b").count();
+        assert_eq!(total_sources, MAX_SOURCE_DEPTH);
+        assert!(chain.starts_with("node_a: node_b: node_a"));
+    }
+
+    #[test]
+    fn chain_bounds_deep_error_hierarchy() {
+        let mut current = NestedError {
+            msg: "leaf",
+            source: None,
+        };
+        for _ in 0..100 {
+            current = NestedError {
+                msg: "step",
+                source: Some(Box::new(current)),
+            };
+        }
+        let error = Error::new(current);
+        let chain = error.chain();
+        assert_eq!(chain.matches(": ").count(), MAX_SOURCE_DEPTH);
+    }
 }
