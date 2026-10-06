@@ -143,3 +143,27 @@ fn streams_outside_the_http_payload_are_diagnosed() {
     let error = emit(&service, &options()).err().unwrap();
     assert!(format!("{error:?}").contains("not the streaming payload"));
 }
+
+#[test]
+fn reserved_names_are_diagnostics() {
+    for name in ["class", "enum"] {
+        let mut model: serde_json::Value = serde_json::from_str(include_str!(
+            "../../crucible-smithy/tests/fixtures/weather.json"
+        ))
+        .unwrap();
+        model["shapes"]["example.weather#Weather"]["rename"] =
+            serde_json::json!({ "example.weather#CitySummary": name });
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+
+        let err = emit(&service, &options()).err();
+        assert!(err.is_some(), "Expected error for name {}, but got Ok", name);
+        let diagnostics = err.unwrap().to_string();
+        assert!(
+            diagnostics.contains("invalid or colliding Java model name") || diagnostics.contains("Java member name collision"),
+            "{diagnostics}"
+        );
+    }
+}
