@@ -312,7 +312,7 @@ impl Transport {
                         .map(|(info, events)| (info, events, deadline, cancellation.clone())),
                 )
                 .await?;
-            let response = match self.config.http.execute(request).await {
+            let mut response = match self.config.http.execute(request).await {
                 Ok(response) => response,
                 Err(error) => {
                     if replayable && retry_safe && attempt < retry.max_attempts {
@@ -324,7 +324,7 @@ impl Transport {
                 }
             };
             let status = response.status().as_u16();
-            let response_headers = response.headers().clone();
+            let response_headers = std::mem::take(response.headers_mut());
             if let (true, Some(events)) = ((200..300).contains(&status), O::OUTPUT_EVENTS) {
                 let mut stream = guarded_stream(
                     ByteStream::new(response.bytes_stream())
