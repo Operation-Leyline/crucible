@@ -164,7 +164,7 @@ Rules are not run repeatedly on an unchanged failure.
 | `Middleware` | `Job`, operation not yet selected | `Job` and mutable encoded `Response` | Headers, transport rejection, body wrappers, final-status observation |
 | `OperationAwareMiddleware` | `OperationJob`, operation guaranteed | `OperationJob`, outcome available | Model-driven authentication, admission, relay, audit of invalid input |
 | `Interceptor` | `DecodedJob`, validated input and operation guaranteed | `OperationJob`, outcome available | Typed authorization, invocation policy, outcome inspection and error changes |
-| `TypedInterceptor<O>` | `&O::Input` and `&Context` | Optional `&O::Output`, or `failed(&Error, &Context)` | One operation's typed extension |
+| `TypedInterceptor<O>` | `&O::Input` and `&Context` | `after(Option<&O::Output>, &Context)`; on failure, `failed(&Error, &Context)` runs first | One operation's typed extension |
 
 `OperationJob` and `DecodedJob` cannot be constructed by consumers and do not
 expose unrestricted decoding or input replacement. Operation-aware middleware
@@ -246,9 +246,11 @@ occurs after encoding. Tower is not required for application extension interface
 A protocol implements `identify`, `decode`, and `write`. Identification returns
 `ProtocolMatch::Declined` or `Claimed(Option<Route>)`. The first claim fixes
 the protocol even if its envelope is malformed or its operation is unknown;
-a claimed invalid request never falls through to another protocol. An error
-from identification is answered by that protocol. With no claim, the first
-registered protocol writes the unknown-operation response.
+a claimed invalid request never falls through to another protocol. Use
+`Claimed(None)` for an unknown operation and return `Err(rejection.into())`
+for a malformed envelope. An error from identification is answered by that
+protocol. With no claim, the first registered protocol writes the
+unknown-operation response.
 
 Header/URI protocols can implement synchronous `route`, `route_scoped`, and
 `owns`; default identification uses them. Filter scoped candidates before

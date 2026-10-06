@@ -40,7 +40,7 @@ pub struct Job {
 }
 
 impl Job {
-    /// The operation serving the request; `None` when no protocol claimed it.
+    /// The selected operation; `None` before selection or for an unknown operation.
     pub fn operation(&self) -> Option<&'static OperationInfo> {
         self.context.operation()
     }
@@ -63,10 +63,7 @@ impl Job {
         &self.body
     }
 
-    /// Reads the body once, enforcing the configured limit. Admission extensions
-    /// normally inspect headers without reading; call this explicitly when they
-    /// need body bytes. Later calls reuse the bytes or the same rejection.
-    /// HTTP streaming payloads stay lazy; direct invocations always buffer JSON.
+    /// Applies the selected operation limit to buffered bytes and future reads.
     pub(crate) fn select_body_limit(&mut self, limit: usize) -> Result<()> {
         self.body_limit = limit;
         if self.body.len() > limit {
@@ -99,6 +96,10 @@ impl Job {
         Ok(())
     }
 
+    /// Reads the body once, enforcing the configured limit. Admission extensions
+    /// normally inspect headers without reading; call this explicitly when they
+    /// need body bytes. Later calls reuse the bytes or the same rejection.
+    /// HTTP streaming payloads stay lazy; direct invocations always buffer JSON.
     pub async fn read_body(&mut self) -> Result<()> {
         if let Some(error) = &self.body_read_error {
             return Err(error.clone().into());
@@ -190,8 +191,10 @@ impl Job {
     }
 
     /// Answers the request with `response` as it is: the remaining `before`
-    /// hooks, decoding and the operation are skipped, `after` hooks run (this
-    /// extension's included) and see [`Resolution::Answered`], and the protocol
+    /// hooks, decoding and the operation are skipped, and entered `after` hooks
+    /// run (this extension's included). Operation-aware and interceptor return
+    /// hooks see [`Resolution::Answered`]; native transport hooks inspect their
+    /// supplied response because it has been moved out of the job. The protocol
     /// does not rewrite it. For a response from elsewhere: relaying a request
     /// forwarded to another region, or a cached answer. Headers from
     /// [`Job::response_headers_mut`] are still added, and `x-request-id`

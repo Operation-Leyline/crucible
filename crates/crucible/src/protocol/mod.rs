@@ -48,6 +48,8 @@ pub struct Answers<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProtocolMatch {
     Declined,
+    /// The request belongs to this protocol. `None` means its operation is
+    /// unknown; return an error for a malformed envelope instead.
     Claimed(Option<Route>),
 }
 

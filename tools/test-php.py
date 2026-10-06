@@ -16,6 +16,7 @@ def composer(*args, **kwargs):
     run(*command, "--no-interaction", "--no-plugins", "--no-scripts", *args, **kwargs)
 
 def qualify(output):
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/loopback_framing.php"))
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
         str(qualification_model(output)), "--out", str(package), "--package-name", "example/weather-client",

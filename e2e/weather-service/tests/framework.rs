@@ -195,6 +195,36 @@ async fn the_service_log_writes_failures_by_default_and_more_where_asked() {
     assert_eq!(records[1]["output"]["city"]["name"], "Bergen");
 }
 
+struct SnapshotProbe(Arc<Mutex<Vec<bool>>>);
+
+impl crucible::Middleware for SnapshotProbe {
+    fn complete(&self, job: &crucible::Job, _: &axum::response::Response) {
+        self.0.lock().unwrap().push(job.input_snapshot().is_some());
+    }
+}
+
+#[tokio::test]
+async fn replacing_an_input_logging_policy_releases_its_snapshot_request() {
+    for (replacement, expected_snapshot) in [
+        (LogPolicy::errors_only(), false),
+        (LogPolicy::everything(), true),
+    ] {
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let log = ServiceLog::errors_only()
+            .operation_named("Ping", LogPolicy::everything())
+            .operation_named("Ping", replacement)
+            .sink(Records::default());
+        let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
+            .middleware(log)
+            .middleware(SnapshotProbe(observed.clone()))
+            .protocol(InvokeProtocol)
+            .build()
+            .unwrap();
+        service.invoke("Ping", json!({})).await;
+        assert_eq!(*observed.lock().unwrap(), [expected_snapshot]);
+    }
+}
+
 struct Audit(Arc<Mutex<Vec<String>>>);
 
 #[crucible::async_trait]

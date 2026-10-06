@@ -12,7 +12,7 @@ use tracing::Level;
 use serde_json::{Map, Value, json};
 
 use crate::operation::{MemberInfo, Operation};
-use crate::{Hook, Job, Middleware, Resolution};
+use crate::{Hook, Job, Middleware, Prepare, Resolution};
 
 /// Which members of a structure a record carries.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -282,6 +282,15 @@ impl ServiceLog {
 }
 
 impl Middleware for ServiceLog {
+    fn prepare(&mut self, _: &Prepare<'_>) -> Result<(), String> {
+        self.snapshots = self.default.input != Fields::None
+            || self
+                .operations
+                .values()
+                .any(|policy| policy.input != Fields::None);
+        Ok(())
+    }
+
     fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crate::Result<()>> {
         // The input is consumed by the operation, so a policy that logs it
         // asks for a copy first.
