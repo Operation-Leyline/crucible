@@ -59,6 +59,10 @@ def affected_groups(paths):
             # by other languages (for example Python auth and Java waiters).
             if "/tests/" in path and path.endswith(".json") and "/tests/golden/" not in path:
                 selected.update(MODEL_GROUPS)
+                # A fixture may be shared, but its owning generator's native
+                # harness must also see the changed model before release.
+                language = parts[1].removeprefix("crucible-codegen-")
+                selected.update(GENERATORS.get(language, set()))
                 continue
             crate = parts[1]
             if crate == "crucible-client":

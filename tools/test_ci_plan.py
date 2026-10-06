@@ -65,7 +65,8 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-codegen-python/tests/new-shared-model.json",
         ):
             with self.subTest(path=path):
-                self.assertEqual(affected_groups([path]), MODEL_GROUPS)
+                owner = path.split("/")[1].removeprefix("crucible-codegen-")
+                self.assertEqual(affected_groups([path]), MODEL_GROUPS | {owner})
 
     def test_shared_changes_do_not_hide_explicit_language_changes(self):
         paths = ["Cargo.lock", "crates/crucible-codegen-kotlin/src/lib.rs"]
