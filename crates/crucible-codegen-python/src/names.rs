@@ -89,6 +89,56 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_literal() {
+        assert_eq!(literal("foo"), "\"foo\"");
+        assert_eq!(literal("foo\nbar"), "\"foo\\nbar\"");
+        assert_eq!(literal("foo\"bar"), "\"foo\\\"bar\"");
+    }
+
+    #[test]
+    fn test_identifier() {
+        assert!(identifier("foo"));
+        assert!(identifier("_foo"));
+        assert!(identifier("foo_bar"));
+        assert!(identifier("foo123"));
+        assert!(!identifier("123foo"));
+        assert!(!identifier("foo-bar"));
+        assert!(!identifier("foo bar"));
+        assert!(!identifier(""));
+    }
+
+    #[test]
+    fn test_keyword() {
+        assert!(keyword("False"));
+        assert!(keyword("class"));
+        assert!(keyword("yield"));
+        assert!(!keyword("foo"));
+        assert!(!keyword("Class"));
+        assert!(!keyword(""));
+    }
+
+    #[test]
+    fn test_field() {
+        assert_eq!(field("fooBar"), "foo_bar");
+        assert_eq!(field("FooBar"), "foo_bar");
+        assert_eq!(field("XMLHTTPRequest"), "xmlhttp_request");
+        assert_eq!(field("foo123Bar"), "foo123_bar");
+        assert_eq!(field("class"), "class_");
+        assert_eq!(field("self"), "self_");
+        assert_eq!(field("_unknown"), "_unknown_");
+        assert_eq!(field("field"), "field_");
+    }
+
+    #[test]
+    fn test_enum_member() {
+        assert_eq!(enum_member("fooBar"), "FOO_BAR");
+        assert_eq!(enum_member("FooBar"), "FOO_BAR");
+        assert_eq!(enum_member("XMLHTTPRequest"), "XMLHTTP_REQUEST");
+        assert_eq!(enum_member("class"), "CLASS_");
+        assert_eq!(enum_member("_unknown"), "VALUE_UNKNOWN_");
+    }
+
+    #[test]
     fn reserved_member_spellings_remain_accessible() {
         assert_eq!(field("__value"), "member__value");
         assert_eq!(field("__init__"), "member__init__");
