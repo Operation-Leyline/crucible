@@ -97,6 +97,54 @@ async fn deadlines_and_cancellation_include_stalled_credentials() {
     ));
 }
 
+#[tokio::test(start_paused = true)]
+async fn expired_deadlines_do_not_poll_credentials() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    // Stay between timer ticks so a zero budget cannot rely on timer readiness.
+    tokio::time::advance(Duration::from_nanos(1)).await;
+    for configured in [false, true] {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let token = crate::Token::provider(move || {
+            observed.fetch_add(1, Ordering::SeqCst);
+            std::future::ready(None)
+        });
+        let timeout = if configured {
+            Duration::ZERO
+        } else {
+            Duration::from_secs(1)
+        };
+        let transport = Transport::new(
+            Config::new("http://localhost")
+                .token(token)
+                .timeout(timeout),
+        );
+        let mut options = CallOptions {
+            timeout: (!configured).then_some(Duration::ZERO),
+            cancellation: None,
+        };
+        assert!(matches!(
+            transport
+                .send_with_options::<Probe, Known>(&Unit {}, &options)
+                .await,
+            Err(Error::Timeout)
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        let cancellation = crate::CancellationToken::new();
+        cancellation.cancel();
+        options.cancellation = Some(cancellation);
+        assert!(matches!(
+            transport
+                .send_with_options::<Probe, Known>(&Unit {}, &options)
+                .await,
+            Err(Error::Cancelled)
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+    }
+}
+
 #[tokio::test]
 async fn body_digests_cover_empty_writes_and_raw_bytes() {
     let transport = Transport::new(Config::new("http://localhost").content_sha256(true));
