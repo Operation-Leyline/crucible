@@ -98,6 +98,7 @@ fn main() {
     )
     .unwrap();
     let fixture = "../../crates/crucible-smithy/tests/fixtures/error-payloads.json";
+    println!("cargo::rerun-if-changed={fixture}");
     std::fs::write(
         out.join("wire_server.rs"),
         crucible_build::Codegen::from_model(fixture)
@@ -106,6 +107,7 @@ fn main() {
     )
     .unwrap();
     let fixture = "../../crates/crucible-codegen-ts/tests/fixtures/auth-header.json";
+    println!("cargo::rerun-if-changed={fixture}");
     let mut model: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(fixture).unwrap()).unwrap();
     model["shapes"]["example.auth#AuthHeader"]["traits"]["aws.auth#sigv4"] =

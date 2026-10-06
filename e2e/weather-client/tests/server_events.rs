@@ -31,7 +31,7 @@ macro_rules! service {
             }
             impl server::ChatOperation for Service {
                 async fn chat(&self, input: server::model::ChatInput) -> crucible::Result<server::model::ChatOutput> {
-                    assert_eq!(input.room.as_deref(), Some("room"));
+                    assert!(input.room.as_deref().is_none_or(|room| room == "room"));
                     let receiver = input.events.unwrap().open()?;
                     let events = futures_util::stream::unfold(receiver, |mut receiver| async move {
                         let event = match receiver.recv().await {
@@ -242,8 +242,72 @@ async fn response_events_arrive_while_the_request_source_is_open() {
 }
 
 #[tokio::test]
+async fn cbor_initial_request_accepts_empty_payload_and_map() {
+    use crucible_client::event_stream::{HeaderValue, Message, MessageDecoder};
+    let endpoint = cbor::serve().await;
+    // Raw HTTP tests also need the runtime's TLS provider when run alone.
+    drop(Config::new(&endpoint));
+    let http = reqwest::Client::new();
+    for initial in [bytes::Bytes::new(), bytes::Bytes::from_static(b"\xA0")] {
+        let mut body = Message::new(initial)
+            .with_header(":message-type", HeaderValue::String("event".into()))
+            .with_header(":event-type", HeaderValue::String("initial-request".into()))
+            .with_header(
+                ":content-type",
+                HeaderValue::String("application/cbor".into()),
+            )
+            .encode()
+            .unwrap()
+            .to_vec();
+        body.extend_from_slice(
+            &Message::new(bytes::Bytes::from_static(b"\xA0"))
+                .with_header(":message-type", HeaderValue::String("event".into()))
+                .with_header(":event-type", HeaderValue::String("ping".into()))
+                .with_header(
+                    ":content-type",
+                    HeaderValue::String("application/cbor".into()),
+                )
+                .encode()
+                .unwrap(),
+        );
+        let source = futures_util::stream::iter([Ok::<_, std::io::Error>(body)]);
+        let response = http
+            .post(format!("{endpoint}/service/Events/operation/Chat"))
+            .header("smithy-protocol", "rpc-v2-cbor")
+            .header("content-type", crucible_client::event_stream::CONTENT_TYPE)
+            .body(reqwest::Body::wrap_stream(source))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers()["smithy-protocol"], "rpc-v2-cbor");
+        let mut frames = MessageDecoder::for_response();
+        frames.push(&response.bytes().await.unwrap());
+        assert_eq!(
+            frames
+                .next_message()
+                .unwrap()
+                .unwrap()
+                .string(":event-type"),
+            Some("initial-response")
+        );
+        assert_eq!(
+            frames
+                .next_message()
+                .unwrap()
+                .unwrap()
+                .string(":event-type"),
+            Some("ping")
+        );
+        assert!(frames.next_message().unwrap().is_none());
+        assert!(frames.is_empty());
+    }
+}
+
+#[tokio::test]
 async fn rpc_rejects_missing_or_wrong_initial_request() {
     let endpoint = json::serve().await;
+    drop(Config::new(&endpoint));
     let http = reqwest::Client::new();
     for body in [
         bytes::Bytes::new(),

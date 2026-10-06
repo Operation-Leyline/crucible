@@ -91,8 +91,17 @@ impl Codec<crate::time::Timestamp> for Timestamp {
         if deserializer.is_human_readable() {
             return crate::time::epoch_seconds::deserialize(deserializer);
         }
-        let ciborium::tag::Required::<f64, 1>(seconds) = Deserialize::deserialize(deserializer)?;
-        crate::time::epoch_seconds::parse(&seconds.to_string())
+        let ciborium::tag::Required::<Value, 1>(seconds) = Deserialize::deserialize(deserializer)?;
+        let seconds = match seconds {
+            Value::Integer(seconds) => i128::from(seconds).to_string(),
+            Value::Float(seconds) => seconds.to_string(),
+            _ => {
+                return Err(serde::de::Error::custom(
+                    "timestamp requires an integer or float",
+                ));
+            }
+        };
+        crate::time::epoch_seconds::parse(&seconds)
             .ok_or_else(|| serde::de::Error::custom("timestamp out of range"))
     }
 }

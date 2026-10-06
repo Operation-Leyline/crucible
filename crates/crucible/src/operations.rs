@@ -251,6 +251,11 @@ fn decode_events<O: Operation>(
 ) -> std::result::Result<Box<dyn Input>, Rejection> {
     let mut input: O::Input = if O::PROTOCOL == crucible_wire::operation::Protocol::SmithyRpcV2Cbor
     {
+        let body = if body.is_empty() {
+            b"\xA0".as_slice()
+        } else {
+            body
+        };
         crucible_wire::cbor::read(body).map_err(|e| Rejection::malformed("", e))?
     } else {
         crucible_wire::bound::read_http(body, bound, O::INFO.input).map_err(unreadable)?

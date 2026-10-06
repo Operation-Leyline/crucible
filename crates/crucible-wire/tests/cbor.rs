@@ -91,6 +91,44 @@ fn normative_decimal_and_integer_tags_decode() {
 }
 
 #[test]
+fn tag_one_timestamps_accept_integer_and_float_payloads() {
+    #[derive(Debug, Deserialize)]
+    struct Timestamp(
+        #[serde(with = "crucible_wire::codec::Adapter::<cbor::Timestamp>")]
+        crucible_wire::time::Timestamp,
+    );
+    for (bytes, seconds, nanos) in [
+        (vec![0xc1, 0x00], 0, 0),
+        (vec![0xc1, 0x18, 0x18], 24, 0),
+        (vec![0xc1, 0x20], -1, 0),
+        (vec![0xc1, 0xf9, 0xb4, 0x00], -1, 750_000_000),
+        (vec![0xc1, 0xfa, 0x3e, 0x80, 0x00, 0x00], 0, 250_000_000),
+        (
+            vec![0xc1, 0xfb, 0x3f, 0xd0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+            0,
+            250_000_000,
+        ),
+    ] {
+        assert_eq!(
+            cbor::read::<Timestamp>(&bytes).unwrap().0,
+            chrono::DateTime::from_timestamp(seconds, nanos).unwrap(),
+            "{bytes:x?}"
+        );
+    }
+    for invalid in [
+        vec![0xc1, 0x61, b'0'],
+        vec![0xc1, 0xf5],
+        vec![0xc1, 0xf6],
+        vec![0xc0, 0x00],
+        vec![0xc1, 0xf9, 0x7c, 0x00],
+        vec![0xc1, 0xf9, 0x7e, 0x00],
+        vec![0xc1, 0x1b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+    ] {
+        assert!(cbor::read::<Timestamp>(&invalid).is_err(), "{invalid:x?}");
+    }
+}
+
+#[test]
 fn rpc_json_big_numbers_obey_the_protocol_grammar() {
     #[derive(Deserialize)]
     struct Integer(
