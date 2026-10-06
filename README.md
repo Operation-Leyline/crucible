@@ -76,3 +76,10 @@ contains a model package, a service, and a Rust client tested over HTTP.
 See [design and protocol](docs/design.md) for the Smithy-to-IR pipeline and
 wire rules, and [agent instructions](AGENTS.md) for repository boundaries and
 development commands.
+
+## Release Crucible
+
+PRs run Rust checks, core HTTP integration, and affected Linux consumers.
+The complete language, OS, and runtime-version matrix runs when manually
+releasing a new Crucible version. See [version releases](docs/releases.md)
+for the version-bump PR and GitHub tag/release procedure.

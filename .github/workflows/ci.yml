@@ -4,9 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
-  schedule:
-    - cron: '23 10 * * *'
-  workflow_dispatch:
+  # The manual version-release workflow calls this with the full matrix.
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
@@ -16,10 +15,11 @@ permissions:
   contents: read
 
 jobs:
-  # PRs qualify affected consumers; nightly/manual runs retain the full matrix.
+  # PRs qualify affected Linux consumers; manual releases use the full matrix.
   plan:
     runs-on: ubuntu-latest
     outputs:
+      full: ${{ steps.select.outputs.full }}
       c: ${{ steps.select.outputs.c }}
       cdk: ${{ steps.select.outputs.cdk }}
       cpp: ${{ steps.select.outputs.cpp }}
@@ -49,7 +49,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["ubuntu-latest", "windows-latest"]' || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -90,7 +90,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        engine: [terraform, tofu]
+        engine: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["terraform", "tofu"]' || '["terraform"]') }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -134,7 +134,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        r: ['4.1.3', release]
+        r: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["4.1.3", "release"]' || '["release"]') }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -165,7 +165,7 @@ jobs:
           CARGO_BUILD_JOBS: '2'
   c-windows:
     needs: [plan, rust]
-    if: needs.plan.outputs.c == 'true'
+    if: needs.plan.outputs.c == 'true' && needs.plan.outputs.full == 'true'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -202,7 +202,7 @@ jobs:
           CMAKE_PREFIX_PATH: ${{ github.workspace }}/target/yyjson/install
   cpp-windows:
     needs: [plan, rust]
-    if: needs.plan.outputs.cpp == 'true'
+    if: needs.plan.outputs.cpp == 'true' && needs.plan.outputs.full == 'true'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -241,7 +241,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ruby: ['3.3', '4.0']
+        ruby: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["3.3", "4.0"]' || '["3.3"]') }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -256,7 +256,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php: ['8.3', '8.5']
+        php: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["8.3", "8.5"]' || '["8.3"]') }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -275,7 +275,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        sdk: ['3.6.2', stable]
+        sdk: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["3.6.2", "stable"]' || '["3.6.2"]') }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -298,7 +298,7 @@ jobs:
       - run: python3 tools/test-swift.py
   swift-apple:
     needs: [plan, rust]
-    if: needs.plan.outputs.swift == 'true'
+    if: needs.plan.outputs.swift == 'true' && needs.plan.outputs.full == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -330,13 +330,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            flags: ''
-          - os: macos-14
-            flags: '--native'
-          - os: windows-latest
-            flags: '--native'
+        include: ${{ fromJSON(needs.plan.outputs.full == 'true' && '[{"os":"ubuntu-latest","flags":""},{"os":"macos-14","flags":"--native"},{"os":"windows-latest","flags":"--native"}]' || '[{"os":"ubuntu-latest","flags":""}]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -349,10 +343,20 @@ jobs:
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
-        with: { gradle-version: '8.13' }
+        with:
+          gradle-version: '8.13'
+          # Trusted PRs need to save task results for their next commit, too.
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      # setup-gradle caches ~/.gradle, but the native compiler keeps its
+      # distribution, LLVM/sysroots and commonization results in ~/.konan.
+      - uses: actions/cache@v4
+        if: matrix.flags == '--native'
+        with:
+          path: ~/.konan
+          key: konan-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('crates/crucible-codegen-kotlin/runtime/build.gradle.kts', 'crates/crucible-codegen-kotlin/tests/multiplatform/build.gradle.kts') }}
       - name: Check pinned Gradle launcher precedence
         if: runner.os == 'Windows'
         run: python -m unittest discover -s tools -p "test_kotlin_tools.py"
@@ -360,7 +364,7 @@ jobs:
         run: python tools/test-kotlin-multiplatform.py ${{ matrix.flags }}
   kotlin-android:
     needs: [plan, rust]
-    if: needs.plan.outputs.kotlin == 'true'
+    if: needs.plan.outputs.kotlin == 'true' && needs.plan.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -117,7 +117,9 @@ def qualify(output, native=False):
         str(model_path), "--out", str(sdk),
         "--group-id", "example", "--artifact-id", "weather-kotlin-mpp", "--package-name", "example.weather",
         "--package-version", "0.0.0-test", "--content-sha256")
-    gradle = [executable, "--no-daemon", "--console=plain", "--max-workers=2"]
+    # Generated packages use fresh directories; Gradle's task cache can still
+    # reuse unchanged compiler inputs from the previous qualification run.
+    gradle = [executable, "--no-daemon", "--console=plain", "--max-workers=2", "--build-cache"]
     if not native:
         gradle.append("-Pcrucible.native=false")
     targets = ["Jvm", "Js", "KotlinMultiplatform"]

@@ -470,7 +470,11 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
                 override val contentLength: Long? = stream.contentLength
                 override suspend fun writeTo(channel: ByteWriteChannel) {
                     val source=stream.openChannel()
-                    try {source.copyTo(channel)} catch(error: Exception) {throw stream.failure ?: error} finally{source.cancel(null)}
+                    try {
+                        source.copyTo(channel)
+                        // Ktor's copyTo can return normally when the source failed before copying began.
+                        source.closedCause?.let { throw it }
+                    } catch(error: Exception) {throw stream.failure ?: error} finally{source.cancel(null)}
                 }
             }) else if (payload != null) setBody(object : OutgoingContent.ByteArrayContent() {
                 override fun bytes(): ByteArray = payload
