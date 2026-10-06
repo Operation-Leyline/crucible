@@ -176,6 +176,10 @@ Generated operations also expose `*_with_options(input, CallOptions)` (omit
 `cancel()` ends all calls sharing that token with `Error::Cancelled`. Deadline
 expiry returns `Error::Timeout`; neither condition retries. A generated helper
 receives a deterministic numeric suffix if its name collides with an operation.
+An already-expired budget, including `Duration::ZERO`, returns `Error::Timeout`
+before polling credential providers or dispatching a request. A zero timeout
+does not disable the total-call deadline. Leave both the client budget and the
+call override unset to run without a total-call deadline.
 
 ```rust
 use std::time::Duration;

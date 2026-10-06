@@ -165,6 +165,13 @@ labels, `null` versus absent, document values, blobs (base64 in a JSON body,
 raw bytes as a payload), error type identification, and empty bodies for
 Unit output.
 
+The Rust server rejects invalid percent escapes and decoded URI bytes that are
+not UTF-8. Literal-query routing retains valid constraints even when another
+query component is malformed. Invalid modeled output headers become observable
+serialization failures. Empty JSON input bodies, including bodies containing
+only space, tab, CR, or LF, follow the same rule with and without HTTP bindings;
+raw payload bytes remain unchanged. See [framework validation](framework.md#errors).
+
 Blob payloads preserve raw bytes. String payloads use UTF-8 text; structures,
 unions and documents use the selected protocol's document encoding. Error
 payloads require a discriminator outside the body: `X-Crucible-Error` for

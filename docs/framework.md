@@ -100,10 +100,14 @@ src/
 Each operation file holds one `impl XOperation for Service`; there is no
 dispatch module, and `contract::operations(..)` still refuses to build while
 any operation lacks one. `crucible scaffold <model.json>` writes a stub for
-every operation that has no file yet, in its resource's folder, and adds the
-`mod` lines that reach it; it never overwrites a file. (`--out` is the
+every operation that has no file yet, in its resource's folder, and adds missing
+`mod` declarations without replacing existing operation code. (`--out` is the
 operations folder, `src/operations` by default; `--service-type` the
-implementing type, `crate::operations::Service` by default.) crucible's own
+implementing type, `crate::operations::Service` by default.) With that default,
+a newly created root `mod.rs` also declares `pub struct Service;`; existing
+service types are preserved. Custom service types must be declared by the
+application. Rust keyword identifiers are escaped in module declarations and
+generated stubs. Crucible's own
 built-ins follow the same rule: `middlewares::ServiceLog` is
 `middlewares/service_log.rs`, `JsonProtocol` is `protocol/json_protocol.rs`.
 
@@ -187,6 +191,7 @@ Crucible::builder(contract::operations(Arc::new(service)))
 ```
 
 `defaults()` adds the error-only service log and both built-in protocols.
+It does not add authentication, admission policies, interceptors, or metrics.
 `Middleware`, `OperationAwareMiddleware`, and `Interceptor` return `Hook::Ready`
 for synchronous work and `Hook::wait` for asynchronous work. The corresponding
 `AsyncMiddleware`, `AsyncOperationAwareMiddleware`, and `AsyncInterceptor`
@@ -262,9 +267,10 @@ retain it in context attributes for `decode`, avoiding a second parse. A
 protocol declining a request must leave it available to later protocols.
 
 - `JsonProtocol` implements `crucible.protocols#json` (`smithy/crucible.smithy`):
-  HTTP bindings, a JSON body, errors with `"__type"`. An input payload is
-  the body unparsed, whatever its content type; an output payload is
-  written raw under the blob's media type, and an absent one sends no body.
+  HTTP bindings, a JSON body, errors with `"__type"`. Blob and text payloads
+  use the whole body as bytes or UTF-8 text; structure, union, and document
+  payloads are decoded as JSON. Payloads use their target's media type or
+  the protocol default. An absent output payload sends no body.
 - `InvokeProtocol` serves direct invocations: an operation called by name
   with its whole input as JSON, answered `{"output": ..}` or
   `{"error": {"__type": .., ..}}`. A payload blob is base64 there, like any
@@ -318,9 +324,14 @@ is a broken constraint naming the member.
 
 Invalid percent escapes and URI components that do not decode to UTF-8 are
 malformed requests. Query strings read `+` as a space; path labels preserve it.
-An empty JSON body, including one containing only spaces, tabs, CR or LF,
-is read as `{}` with or without HTTP bindings. Other whitespace bytes are
-invalid JSON. Raw text and blob payloads retain every byte.
+Malformed query data does not erase readable literal-query constraints: a
+known mismatch excludes that operation. Among equally specific paths, fully
+matched literals take precedence over candidates whose relevant components
+are malformed. Path specificity and operation scopes still apply first.
+An ordinary JSON object input body containing zero bytes or only spaces, tabs,
+CR or LF is read as `{}` with or without HTTP bindings. An empty JSON payload
+is absent instead; required-member validation still applies. Other whitespace
+bytes are invalid JSON. Raw text and blob payloads retain every byte.
 
 A buffered request body over the limit is refused during reading, as the
 validation error. Other body transport failures report a malformed request
@@ -344,15 +355,17 @@ an error itself reads it from `Context::try_current()`.
 
 ## The service log
 
-`ServiceLog` emits one typed `LogRecord` per selected request through its
-`LogSink`, after protocol serialization. It records the actual protocol
-response status, including serialization failures. The record contains the
+`ServiceLog` emits one typed `LogRecord` per request enabled by its policy
+through its `LogSink`, after native response middleware finishes. It records
+the response status, including serialization failures and middleware changes.
+Before operation selection, records use `operation: "unknown"` and the default
+policy. The record contains the
 request id, operation, status, outcome, latency, error type, and optional
 payload fields. By default it records failures only.
 
 Place `ServiceLog` first in the transport middleware registry, with failure logging enabled
-for every operation whose failures should be recorded. A missing, disabled,
-or scoped-out service log emits no failure record. A service log placed after
+for every operation whose failures should be recorded. A missing service log or
+a policy with failures disabled emits no failure record. A service log placed after
 transport middleware whose `before` hook fails never runs its completion hook, so it
 cannot record that failure's cause. Protocols provide no fallback error log.
 The default `TracingSink` also requires an installed subscriber whose filters
@@ -404,42 +417,19 @@ failure, including headers on modelled errors and streaming responses.
 
 ### Migrating existing services
 
-Custom protocols constructing `Route` must set `rejection: None` for valid
-requests, or supply a malformed-request rejection for invalid URI data.
-Callers of `crucible_wire::text::percent_decode` and `query_values` must handle
-their fallible results; invalid escapes and UTF-8 no longer become identifiers.
-
-Regenerate Rust services and clients with the matching Crucible runtime.
-`MemberInfo::sensitive` is replaced by recursive `redaction` metadata, and
-`OperationInfo` now includes `literal_query`. Update custom log sinks from
-`&serde_json::Value` to `&LogRecord<'_>`. If constructing `LogPolicy` directly,
-set `client_error_level`; its constructors default to INFO. Move custom
-post-serialization observers to `Middleware::complete` when appropriate.
-Replace `.handler` registrations with `.middleware`, `.operation_middleware`,
-`.protocol`, or `.interceptor` according to the view required. Replace
-`OperationHandler<O>` with `TypedInterceptor<O>`. Register exception rules using
-`.exception_translator`, and existing Tower layers with `.tower_layer`.
-Keep audit and admission outside decoding when they must observe invalid inputs.
-
-Before-protocol middleware that inspects `Job::body()` must await
-`Job::read_body()` first. Keep admission middleware that needs only headers
-before that read. Move streaming direct-invoke callers to HTTP. Test both
-hosts and early rejection paths before upgrading a service.
-
-Deploy generated code, middleware and runtime together. Roll back together using
-the previous dependency revision. This change does not require stored-data
-migration. Consumers should release and bump their pinned Crucible revision
-deliberately; changing this repository does not deploy Leyline or Pigeon.
+See [Migrating to Crucible 0.2](migrating-0.2.md) for the registration and import
+changes, protocol hooks, typed interceptors, validation checklist, and rollback.
 
 ## Metrics
 
 The `Metrics` middleware builds a `RequestRecord` per request (operation,
 latency, status, class, error) and hands it to a `Recorder` the service
 supplies. Place it early in the chain so its completion hook runs for requests a
-later extension refuses. It records in `complete`, using the serialized
+later extension refuses. It records in `complete`, using the final native
 response's status and including serialization in latency. A serialization
 failure therefore records an internal failure even if the operation
-succeeded. Tower layers and delivery of streaming bytes happen afterward.
+succeeded. Native middleware status changes are reflected in the record.
+Tower layers and delivery of streaming bytes happen afterward.
 There are no built-in metric names yet: this is
 plumbing.
 
