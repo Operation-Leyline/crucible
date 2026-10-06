@@ -33,6 +33,10 @@ TOOLS = {
     "tools/test-kotlin-multiplatform.py": {"kotlin"},
     "tools/test_kotlin_tools.py": {"kotlin"},
     "tools/install-yyjson.py": {"c"},
+    # Planner-only edits exercise selection contracts and the live skip/aggregate
+    # path without rebuilding native consumers whose sources did not change.
+    "tools/ci_plan.py": {"e2e"},
+    "tools/test_ci_plan.py": {"e2e"},
 }
 
 
@@ -41,6 +45,10 @@ def affected_groups(paths):
     for path in paths:
         parts = Path(path).parts
         if len(parts) >= 2 and parts[0] == "crates":
+            # Models live in several generator test directories but are reused
+            # by other languages (for example Python auth and Java waiters).
+            if "/tests/" in path and path.endswith(".json") and "/tests/golden/" not in path:
+                return set(GROUPS)
             crate = parts[1]
             if crate == "crucible-client":
                 selected.update({"e2e", "service_cli"})

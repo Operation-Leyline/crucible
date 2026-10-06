@@ -39,10 +39,25 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-cli/src/main.rs", "e2e/weather-service/src/main.rs",
             "tests/conformance/http.json", "Cargo.toml", "Cargo.lock",
             "tools/sdk_test_support.py", ".github/workflows/ci.yml",
-            "tools/ci_plan.py", "new-generator/runtime.js",
+            "new-generator/runtime.js",
         ):
             with self.subTest(path=path):
                 self.assertEqual(affected_groups([path]), GROUPS)
+
+    def test_cross_language_models_select_every_consumer(self):
+        for path in (
+            "crates/crucible-codegen-python/tests/auth.json",
+            "crates/crucible-codegen-java/tests/waiters.json",
+            "crates/crucible-codegen-java/tests/streaming.json",
+            "crates/crucible-codegen-kotlin/tests/fixtures/streaming.json",
+            "crates/crucible-codegen-python/tests/new-shared-model.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), GROUPS)
+
+    def test_planner_only_edits_keep_contract_and_http_gates(self):
+        self.assertEqual(affected_groups(["tools/ci_plan.py", "tools/test_ci_plan.py"]),
+                         {"rust", "e2e"})
 
     def test_rust_client_still_qualifies_generated_cli(self):
         self.assertEqual(affected_groups(["crates/crucible-client/src/transport.rs"]),
