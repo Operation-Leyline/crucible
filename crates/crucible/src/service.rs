@@ -147,7 +147,7 @@ impl Crucible {
     /// The handler chain around the operation, under the layers.
     async fn dispatch(&self, request: Request<Body>) -> Response {
         let inner = &self.inner;
-        let (parts, body) = request.into_parts();
+        let (mut parts, body) = request.into_parts();
         let routed = inner.protocols.iter().find_map(|&index| {
             let protocol = inner.handlers[index].as_protocol()?;
             protocol
@@ -176,6 +176,11 @@ impl Crucible {
             .filter(|id| !id.is_empty() && id.len() <= MAX_REQUEST_ID && id.to_str().is_ok())
             .unwrap_or_else(request_id);
         let deadline = meta.and_then(|meta| meta.deadline);
+        if let Some(rejection) = route.as_ref().and_then(|route| route.rejection.clone()) {
+            parts
+                .extensions
+                .insert(crate::protocol::RouteRejection(rejection));
+        }
         let parts = Arc::new(parts);
         let context = Arc::new(Context::new(
             id,
@@ -257,6 +262,15 @@ impl Crucible {
         for (index, handler) in handlers.iter().enumerate() {
             if index != protocol && handler.as_protocol().is_some() {
                 continue;
+            }
+            if index == protocol
+                && let Some(rejection) = job
+                    .request()
+                    .extensions
+                    .get::<crate::protocol::RouteRejection>()
+            {
+                job.outcome = Some(Outcome::Failed(rejection.0.clone().into()));
+                break;
             }
             if index == protocol
                 && let Err(error) = job.read_body().await

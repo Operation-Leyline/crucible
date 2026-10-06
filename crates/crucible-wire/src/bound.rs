@@ -148,7 +148,7 @@ fn read_excluding<'a, T: DeserializeOwned>(
     bound: Vec<(&'static str, BoundValue<'a>)>,
     names: Vec<&'static str>,
 ) -> Result<T, serde_json::Error> {
-    if body.iter().all(u8::is_ascii_whitespace) {
+    if text::empty_json_body(body) {
         return T::deserialize(BoundOnly { bound });
     }
     let mut json = serde_json::Deserializer::from_slice(body);

@@ -215,6 +215,9 @@ ordinary handlers with nothing private. On top of the trait:
   input) for a new wire format. A router with overlapping candidates should
   override `Protocol::route_scoped` to filter candidates before ranking them.
   Its default checks only the selected route; `JsonProtocol` filters first.
+  A malformed URI can claim an operation with `Route::rejection`, preserving
+  its operation context. The orchestrator rejects it at protocol entry, before
+  reading the body, after earlier admission handlers have run.
 - **Sinks and recorders**: `LogSink` takes service-log records, `Recorder`
   takes metrics records.
 - **Exception rules**: `ExceptionTranslator::translate::<E>` by type, or
@@ -304,6 +307,12 @@ request from a broken constraint.
 A required member that is missing (a payload sent as an empty body, say)
 is a broken constraint naming the member.
 
+Invalid percent escapes and URI components that do not decode to UTF-8 are
+malformed requests. Query strings read `+` as a space; path labels preserve it.
+An empty JSON body, including one containing only spaces, tabs, CR or LF,
+is read as `{}` with or without HTTP bindings. Other whitespace bytes are
+invalid JSON. Raw text and blob payloads retain every byte.
+
 A buffered request body over the limit is refused during reading, as the
 validation error. Other body transport failures report a malformed request
 without exposing the underlying I/O error.
@@ -381,8 +390,15 @@ camelCase JSON layout for consumers that need it. Serialization-failure
 records carry an internal cause but the response retains a fixed message.
 Completion describes the response produced by the protocol; it does not
 claim successful delivery or include subsequent tower-layer transformations.
+Invalid modelled response header names or values also produce a serialization
+failure, including headers on modelled errors and streaming responses.
 
 ### Migrating existing services
+
+Custom protocols constructing `Route` must set `rejection: None` for valid
+requests, or supply a malformed-request rejection for invalid URI data.
+Callers of `crucible_wire::text::percent_decode` and `query_values` must handle
+their fallible results; invalid escapes and UTF-8 no longer become identifiers.
 
 Regenerate Rust services and clients with the matching Crucible runtime.
 `MemberInfo::sensitive` is replaced by recursive `redaction` metadata, and

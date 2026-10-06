@@ -415,6 +415,105 @@ fn routing_compares_path_segments_before_query_and_greedy_labels() {
     }
 }
 
+#[tokio::test]
+async fn malformed_uri_components_claim_their_route_and_reject_before_calling_it() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let service = Crucible::builder(route_operations())
+        .on_rejection(|rejection| {
+            assert!(rejection.is_malformed());
+            Box::new(Invalid(rejection.summary()))
+        })
+        .handler(before_fn(|job| {
+            let operation = job.operation().unwrap().name;
+            job.response_headers_mut()
+                .insert("x-selected-operation", HeaderValue::from_static(operation));
+            Ok(())
+        }))
+        .handler(JsonProtocol)
+        .handler(before_fn(move |_| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }))
+        .build()
+        .unwrap();
+    for (uri, operation, field) in [
+        ("/abc/bcd/%FF", "ZEarly", "x"),
+        ("/abc/bcd/%", "ZEarly", "x"),
+        ("/greedy/a/%FE/tail", "Greedy", "x"),
+        ("/greedy/a/%GG/tail", "Greedy", "x"),
+        ("/flag?mode=%FF", "ZExact", "mode"),
+        ("/flag?%GG=on", "ZExact", "query"),
+        ("/flag?mode=on&ignored=%FE", "ZExact", "ignored"),
+    ] {
+        let response = service
+            .handle(Request::post(uri).body(Body::from("{}")).unwrap())
+            .await;
+        assert_eq!(response.status(), 400, "{uri}");
+        assert_eq!(
+            response.headers()["x-selected-operation"],
+            operation,
+            "{uri}"
+        );
+        let body: Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert!(
+            body["message"].as_str().unwrap().starts_with(field),
+            "{body}"
+        );
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_selected_route(&service, "/abc/bcd/%EF%BF%BD", "ZEarly").await;
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let pending = futures_util::stream::pending::<Result<axum::body::Bytes, std::io::Error>>();
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        service.handle(
+            Request::post("/abc/bcd/%FF")
+                .body(Body::from_stream(pending))
+                .unwrap(),
+        ),
+    )
+    .await
+    .expect("malformed routing must not wait for request body bytes");
+    assert_eq!(response.status(), 400);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn malformed_modeled_queries_are_rejected_and_valid_unicode_is_preserved() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = service(calls.clone());
+    for uri in [
+        "/bindings?q=%FF",
+        "/bindings?q=%FE",
+        "/bindings?q=%",
+        "/bindings?%FF=value",
+    ] {
+        let (status, body) = answer(
+            &service,
+            Request::post(uri)
+                .header("x-required", "header")
+                .body(Body::from(r#"{"bodyDisplay":"body"}"#))
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, 400, "{uri}: {body}");
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let (status, body) = answer(
+        &service,
+        Request::post("/bindings?q=caf%C3%A9+%EF%BF%BD%2B")
+            .header("x-required", "header")
+            .body(Body::from(r#"{"bodyDisplay":"body"}"#))
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["observed"]["queryDisplay"], "café �+");
+}
+
 async fn assert_selected_route(service: &Crucible, uri: &str, expected: &str) {
     let response = service
         .handle(Request::post(uri).body(Body::from("{}")).unwrap())

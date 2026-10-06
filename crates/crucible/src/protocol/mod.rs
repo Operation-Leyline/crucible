@@ -22,12 +22,18 @@ use crate::validate::Rejection;
 #[derive(Debug, Clone)]
 pub(crate) struct SerializationFailure(pub String);
 
+#[derive(Debug, Clone)]
+pub(crate) struct RouteRejection(pub Rejection);
+
 /// Which operation a request is, and the URI labels it carried.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Route {
     pub operation: &'static str,
     /// Label names (from the model) and their decoded values.
     pub labels: Vec<(&'static str, String)>,
+    /// A malformed URI still claims its route, so it cannot fall through to
+    /// another operation or become an unknown-operation response.
+    pub rejection: Option<Rejection>,
 }
 
 /// Builds the response errors are answered with.
