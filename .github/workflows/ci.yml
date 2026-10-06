@@ -349,10 +349,20 @@ jobs:
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
-        with: { gradle-version: '8.13' }
+        with:
+          gradle-version: '8.13'
+          # Trusted PRs need to save task results for their next commit, too.
+          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      # setup-gradle caches ~/.gradle, but the native compiler keeps its
+      # distribution, LLVM/sysroots and commonization results in ~/.konan.
+      - uses: actions/cache@v4
+        if: matrix.flags == '--native'
+        with:
+          path: ~/.konan
+          key: konan-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('crates/crucible-codegen-kotlin/runtime/build.gradle.kts', 'crates/crucible-codegen-kotlin/tests/multiplatform/build.gradle.kts') }}
       - name: Check pinned Gradle launcher precedence
         if: runner.os == 'Windows'
         run: python -m unittest discover -s tools -p "test_kotlin_tools.py"
