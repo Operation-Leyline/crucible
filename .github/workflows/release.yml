@@ -1,0 +1,56 @@
+name: Release Crucible
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Merged workspace version to release (for example 0.1.1)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crucible-release
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - name: Verify the merged version and unused release tag
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo 'Release the merged version from main.' >&2
+            exit 1
+          fi
+          python3 tools/crucible_release.py check "$RELEASE_VERSION"
+          if git show-ref --verify --quiet "refs/tags/v$RELEASE_VERSION"; then
+            echo "v$RELEASE_VERSION already exists." >&2
+            exit 1
+          fi
+  qualify:
+    needs: preflight
+    uses: ./.github/workflows/ci.yml
+  publish:
+    needs: [preflight, qualify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the tested commit as a GitHub tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          # Create the ref atomically: a tag appearing during qualification
+          # must not redirect the release to an untested commit.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f "ref=refs/tags/v$RELEASE_VERSION" -f "sha=$GITHUB_SHA"
+          gh release create "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --title "Crucible $RELEASE_VERSION" --generate-notes

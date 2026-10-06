@@ -12,6 +12,12 @@ GROUPS = frozenset({
     "ruby", "php", "dart", "swift", "kotlin", "csharp", "java", "go",
     "python", "typescript",
 })
+# Rust checks include every generator's unit/golden tests. Real HTTP and the
+# dependency-free TS runtime cover the server path on every shared-code PR.
+CORE_GROUPS = frozenset({"rust", "e2e", "typescript"})
+# Model/wire-description changes also compile representative native SDKs.
+# The complete language/platform matrix runs on the scheduled/manual tier.
+MODEL_GROUPS = CORE_GROUPS | {"python", "go"}
 GENERATORS = {
     "cli": {"service_cli"},
     "infra": {"cdk", "terraform"},
@@ -37,6 +43,10 @@ TOOLS = {
     # path without rebuilding native consumers whose sources did not change.
     "tools/ci_plan.py": {"e2e"},
     "tools/test_ci_plan.py": {"e2e"},
+    ".github/workflows/ci.yml": CORE_GROUPS,
+    ".github/workflows/release.yml": CORE_GROUPS,
+    "tools/crucible_release.py": {"e2e"},
+    "tools/test_crucible_release.py": {"e2e"},
 }
 
 
@@ -48,27 +58,35 @@ def affected_groups(paths):
             # Models live in several generator test directories but are reused
             # by other languages (for example Python auth and Java waiters).
             if "/tests/" in path and path.endswith(".json") and "/tests/golden/" not in path:
-                return set(GROUPS)
+                selected.update(MODEL_GROUPS)
+                continue
             crate = parts[1]
             if crate == "crucible-client":
                 selected.update({"e2e", "service_cli"})
             elif crate == "crucible-cli-runtime":
                 selected.add("service_cli")
+            elif crate in {"crucible", "crucible-wire", "crucible-build", "crucible-cli", "crucible-codegen-rust"}:
+                selected.update(CORE_GROUPS)
+                if crate == "crucible-cli":
+                    selected.add("service_cli")
+            elif crate in {"crucible-smithy", "crucible-codegen-common"}:
+                selected.update(MODEL_GROUPS)
             elif crate.startswith("crucible-codegen-"):
                 language = crate.removeprefix("crucible-codegen-")
-                # Rust server generation and common wire descriptions can
-                # change the Weather service or every bundled SDK runtime.
                 if language not in GENERATORS:
                     return set(GROUPS)
                 selected.update(GENERATORS[language])
             else:
-                # Framework, wire, build, CLI and Smithy changes affect the
-                # generator/server used by independent native consumers.
+                # New crates must not silently lose their native qualification.
                 return set(GROUPS)
         elif path in TOOLS:
             selected.update(TOOLS[path])
         elif path.startswith("tools/cpp-vcpkg/"):
             selected.update({"c", "cpp"})
+        elif path.startswith("e2e/"):
+            selected.update(CORE_GROUPS)
+        elif path.startswith("tests/conformance/") or path in {"Cargo.toml", "Cargo.lock", "tools/sdk_test_support.py"}:
+            selected.update(MODEL_GROUPS)
         elif path.startswith("docs/") and path.endswith(".md"):
             continue
         elif path in {"README.md", "AGENTS.md", "CLAUDE.md", "LICENSE"}:
@@ -83,7 +101,7 @@ def select_groups(event_name, event, diff):
     if event_name in {"schedule", "workflow_dispatch"}:
         return set(GROUPS)
     if event_name == "push":
-        # PRs qualify affected native consumers; nightly catches interactions
+        # PRs qualify affected native consumers; full runs catch interactions
         # on main. Keep immediate merged-code Rust and HTTP integration proof.
         return {"rust", "e2e"}
     if event_name != "pull_request":
@@ -119,12 +137,17 @@ def main():
         event = {}
     groups = select_groups(os.environ.get("GITHUB_EVENT_NAME", ""), event, changed_paths)
     outputs = "".join(f"{group}={str(group in groups).lower()}\n" for group in sorted(GROUPS))
+    # Unknown paths/diff failures still select all Linux consumers on PRs, but
+    # only explicit full runs spend minutes on the extra platforms/versions.
+    full = os.environ.get("GITHUB_EVENT_NAME", "") not in {"pull_request", "push"}
+    outputs += f"full={str(full).lower()}\n"
     print(outputs, end="")
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
         output.write(outputs)
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(summary).open("a", encoding="utf-8") as output:
             output.write("Selected CI groups: " + ", ".join(sorted(groups)) + "\n")
+            output.write("Qualification tier: " + ("full" if full else "PR/core") + "\n")
 
 
 if __name__ == "__main__":

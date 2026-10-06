@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from ci_plan import GROUPS, affected_groups, changed_paths, select_groups
+from ci_plan import CORE_GROUPS, GROUPS, MODEL_GROUPS, affected_groups, changed_paths, select_groups
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,20 +31,32 @@ class PlanTests(unittest.TestCase):
             with self.subTest(language=language):
                 self.assertEqual(affected_groups([f"crates/crucible-codegen-{language}/src/lib.rs"]), expected)
 
-    def test_shared_changes_select_every_consumer(self):
+    def test_server_changes_keep_core_http_gates(self):
         for path in (
-            "crates/crucible-smithy/src/ir.rs", "crates/crucible/src/lib.rs",
+            "crates/crucible/src/lib.rs",
             "crates/crucible-wire/src/lib.rs", "crates/crucible-build/src/lib.rs",
-            "crates/crucible-codegen-common/src/lib.rs", "crates/crucible-codegen-rust/src/lib.rs",
-            "crates/crucible-cli/src/main.rs", "e2e/weather-service/src/main.rs",
-            "tests/conformance/http.json", "Cargo.toml", "Cargo.lock",
-            "tools/sdk_test_support.py", ".github/workflows/ci.yml",
-            "new-generator/runtime.js",
+            "crates/crucible-codegen-rust/src/lib.rs", "e2e/weather-service/src/main.rs",
+            ".github/workflows/ci.yml", ".github/workflows/release.yml",
         ):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), CORE_GROUPS)
+        self.assertEqual(affected_groups(["crates/crucible-cli/src/main.rs"]), CORE_GROUPS | {"service_cli"})
+
+    def test_shared_model_changes_keep_representative_native_consumers(self):
+        for path in (
+            "crates/crucible-smithy/src/ir.rs", "crates/crucible-codegen-common/src/lib.rs",
+            "tests/conformance/http.json", "Cargo.toml", "Cargo.lock",
+            "tools/sdk_test_support.py",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), MODEL_GROUPS)
+
+    def test_unknown_paths_keep_all_linux_consumers(self):
+        for path in ("new-generator/runtime.js", "crates/crucible-new/src/lib.rs"):
             with self.subTest(path=path):
                 self.assertEqual(affected_groups([path]), GROUPS)
 
-    def test_cross_language_models_select_every_consumer(self):
+    def test_cross_language_models_keep_representative_consumers(self):
         for path in (
             "crates/crucible-codegen-python/tests/auth.json",
             "crates/crucible-codegen-java/tests/waiters.json",
@@ -53,7 +65,12 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-codegen-python/tests/new-shared-model.json",
         ):
             with self.subTest(path=path):
-                self.assertEqual(affected_groups([path]), GROUPS)
+                self.assertEqual(affected_groups([path]), MODEL_GROUPS)
+
+    def test_shared_changes_do_not_hide_explicit_language_changes(self):
+        paths = ["Cargo.lock", "crates/crucible-codegen-kotlin/src/lib.rs"]
+        for ordered in (paths, paths[::-1]):
+            self.assertEqual(affected_groups(ordered), MODEL_GROUPS | {"kotlin"})
 
     def test_planner_only_edits_keep_contract_and_http_gates(self):
         self.assertEqual(affected_groups(["tools/ci_plan.py", "tools/test_ci_plan.py"]),
@@ -83,7 +100,7 @@ class PlanTests(unittest.TestCase):
         diff = Mock(return_value=["crates/crucible-codegen-java/src/lib.rs"])
         self.assertEqual(select_groups("pull_request", EVENT, diff), {"rust", "java"})
         diff.assert_called_once_with("a" * 40, "b" * 40)
-        for name, expected in (("push", {"rust", "e2e"}), ("schedule", GROUPS),
+        for name, expected in (("push", {"rust", "e2e"}), ("workflow_call", GROUPS),
                                ("workflow_dispatch", GROUPS), ("unknown", GROUPS)):
             self.assertEqual(select_groups(name, {}, diff), expected)
         for event in ({}, None, {"pull_request": {"base": {"sha": "--bad"}, "head": {"sha": "b" * 40}}}):
@@ -124,12 +141,12 @@ class PlanTests(unittest.TestCase):
             event = Path(directory) / "event.json"
             event.write_text(json.dumps({}))
             output = Path(directory) / "output"
-            env = dict(os.environ, GITHUB_EVENT_NAME="schedule", GITHUB_EVENT_PATH=str(event),
+            env = dict(os.environ, GITHUB_EVENT_NAME="workflow_dispatch", GITHUB_EVENT_PATH=str(event),
                        GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(Path(directory) / "summary"))
             subprocess.run([sys.executable, str(ROOT / "tools/ci_plan.py")],
                            env=env, check=True, capture_output=True)
             self.assertEqual(dict(line.split("=") for line in output.read_text().splitlines()),
-                             {group: "true" for group in GROUPS})
+                             {**{group: "true" for group in GROUPS}, "full": "true"})
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         jobs = re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)", workflow.split("jobs:\n", 1)[1],
                           re.MULTILINE | re.DOTALL)
@@ -144,6 +161,43 @@ class PlanTests(unittest.TestCase):
             self.assertIn(job, gate)
             seen.add(group)
         self.assertEqual(seen, GROUPS)
+
+    def test_pr_platform_matrices_are_bounded_and_release_retains_every_platform(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+
+        def selected_jobs(groups, full):
+            selected = ["plan", "ci"]
+            for name, body in jobs.items():
+                if name in {"plan", "ci"}:
+                    continue
+                condition = re.search(r"^    if: (.+)$", body, re.MULTILINE).group(1)
+                group = re.search(r"outputs\.(\w+) == 'true'", condition).group(1)
+                if group not in groups or ("outputs.full" in condition and not full):
+                    continue
+                matrix = re.search(r"full == 'true' && '([^']+)' \|\| '([^']+)'", body)
+                variants = json.loads(matrix.group(1 if full else 2)) if matrix else [None]
+                selected.extend((name, variant) for variant in variants)
+            return selected
+
+        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 5)
+        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 7)
+        self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 5)
+        # The pre-existing full matrix has 31 test jobs plus planner/aggregate.
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 33)
+        for name, variant in selected_jobs(GROUPS, False)[2:]:
+            self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
+            if isinstance(variant, dict):
+                self.assertEqual(variant, {"os": "ubuntu-latest", "flags": ""})
+        release = (ROOT / ".github/workflows/release.yml").read_text()
+        self.assertNotIn("schedule:", workflow)
+        self.assertIn("workflow_call:", workflow)
+        self.assertIn("workflow_dispatch:", release)
+        self.assertIn("uses: ./.github/workflows/ci.yml", release)
+        self.assertIn("needs: [preflight, qualify]", release)
+        self.assertIn('-f "sha=$GITHUB_SHA"', release)
+        self.assertIn("--verify-tag", release)
 
 
 if __name__ == "__main__":
