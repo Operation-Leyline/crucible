@@ -306,6 +306,109 @@ fn scaffold_plans_a_file_per_operation_in_a_folder_per_resource() {
 }
 
 #[test]
+fn scaffold_escapes_keyword_identifiers_in_modules_and_preserves_file_stems() {
+    let model = r#"{
+        "smithy": "2.0",
+        "shapes": {
+            "example#Service": {
+                "type": "service",
+                "version": "2026-01-01",
+                "operations": [
+                    { "target": "example#Type" },
+                    { "target": "example#Self" }
+                ],
+                "resources": [
+                    { "target": "example#Match" },
+                    { "target": "example#Super" }
+                ],
+                "traits": {
+                    "crucible.protocols#json": {}
+                }
+            },
+            "example#Match": {
+                "type": "resource",
+                "operations": [
+                    { "target": "example#Return" },
+                    { "target": "example#Move" }
+                ]
+            },
+            "example#Super": {
+                "type": "resource",
+                "operations": [
+                    { "target": "example#Crate" }
+                ]
+            },
+            "example#Type": {
+                "type": "operation",
+                "traits": { "smithy.api#http": { "method": "GET", "uri": "/type" } }
+            },
+            "example#Self": {
+                "type": "operation",
+                "traits": { "smithy.api#http": { "method": "GET", "uri": "/self" } }
+            },
+            "example#Return": {
+                "type": "operation",
+                "traits": { "smithy.api#http": { "method": "GET", "uri": "/return" } }
+            },
+            "example#Move": {
+                "type": "operation",
+                "traits": { "smithy.api#http": { "method": "GET", "uri": "/move" } }
+            },
+            "example#Crate": {
+                "type": "operation",
+                "traits": { "smithy.api#http": { "method": "GET", "uri": "/crate" } }
+            }
+        }
+    }"#;
+    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+    let stubs = crucible_codegen_rust::scaffold(&service, &Default::default());
+
+    let mut paths: Vec<String> = stubs
+        .iter()
+        .map(|stub| stub.path().to_string_lossy().replace('\\', "/"))
+        .collect();
+    paths.sort();
+    assert_eq!(
+        paths,
+        [
+            "match/move.rs",
+            "match/return.rs",
+            "service/self_.rs",
+            "service/type.rs",
+            "super_/crate_.rs",
+        ]
+    );
+
+    let type_stub = stubs.iter().find(|stub| stub.file_stem == "type").unwrap();
+    assert_eq!(type_stub.module, "r#type");
+    assert_eq!(type_stub.file_stem, "type");
+    assert_eq!(type_stub.folder, "service");
+    assert!(
+        type_stub
+            .contents
+            .contains("impl TypeOperation for Service {")
+    );
+    assert!(type_stub.contents.contains("async fn r#type(&self)"));
+
+    let self_stub = stubs.iter().find(|stub| stub.file_stem == "self_").unwrap();
+    assert_eq!(self_stub.module, "self_");
+    assert_eq!(self_stub.file_stem, "self_");
+    assert!(
+        self_stub
+            .contents
+            .contains("impl SelfOperation for Service {")
+    );
+    assert!(self_stub.contents.contains("async fn self_(&self)"));
+
+    let crate_stub = stubs
+        .iter()
+        .find(|stub| stub.file_stem == "crate_")
+        .unwrap();
+    assert_eq!(crate_stub.module, "crate_");
+    assert_eq!(crate_stub.folder, "super_");
+}
+
+#[test]
 fn aws_json_protocols_describe_their_wire_in_client_markers() {
     use crucible_smithy::Protocol;
     let model = Model::from_json(include_str!(

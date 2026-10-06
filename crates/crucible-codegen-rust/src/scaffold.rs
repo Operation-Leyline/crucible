@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use crucible_smithy::ir::{Operation, Service};
 
-use crate::names::{function, snake};
+use crate::names::{self, function};
 use crate::operations::{input_type, output_type};
 
 /// Where the generated contract and the implementing type live, as paths
@@ -45,25 +45,29 @@ impl Default for ScaffoldOptions {
 pub struct Stub {
     /// The folder under `operations/`: `service`, or the resource's.
     pub folder: String,
-    /// The module (and file stem): the operation's name in snake_case.
+    /// The Rust module identifier: the operation's name in snake_case,
+    /// escaped for Rust (`r#type`, `self_`).
     pub module: String,
+    /// The file stem on disk: e.g. `type` for `r#type`.
+    pub file_stem: String,
     pub contents: String,
 }
 
 impl Stub {
     /// The file, relative to the `operations` folder.
     pub fn path(&self) -> PathBuf {
-        PathBuf::from(&self.folder).join(format!("{}.rs", self.module))
+        PathBuf::from(&self.folder).join(format!("{}.rs", self.file_stem))
     }
 }
 
 /// The folder an operation's file goes in: its binding resource's name in
-/// snake_case, or `service` for an operation the service binds.
+/// snake_case (with non-raw keywords suffixed), or `service` for an
+/// operation the service binds.
 pub fn folder(operation: &Operation) -> String {
     operation
         .resource
         .as_ref()
-        .map_or_else(|| "service".to_owned(), |id| snake(id.name()))
+        .map_or_else(|| "service".to_owned(), |id| file_stem(id.name()))
 }
 
 /// A stub for every operation, in model order.
@@ -73,10 +77,23 @@ pub fn scaffold(service: &Service, options: &ScaffoldOptions) -> Vec<Stub> {
         .iter()
         .map(|operation| Stub {
             folder: folder(operation),
-            module: snake(operation.name()),
+            module: module_name(operation.name()),
+            file_stem: file_stem(operation.name()),
             contents: stub(service, operation, options),
         })
         .collect()
+}
+
+/// The Rust identifier for a module name: keywords escaped as raw
+/// identifiers (`r#type`), and non-raw keywords suffixed (`self_`).
+pub fn module_name(name: &str) -> String {
+    names::module(name)
+}
+
+/// The file stem on disk: keyword escapes stripped (`type` for `r#type`),
+/// suffixes preserved (`self_`).
+pub fn file_stem(name: &str) -> String {
+    names::file_stem(name)
 }
 
 fn stub(service: &Service, operation: &Operation, options: &ScaffoldOptions) -> String {
