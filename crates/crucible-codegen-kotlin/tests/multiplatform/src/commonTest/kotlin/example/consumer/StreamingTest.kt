@@ -91,6 +91,9 @@ class StreamingTest {
             assertEquals(0, lengths.size)
             client.sized { body = ByteStream.once(text("abc"), contentLength = 3) }
             assertEquals(listOf<Long?>(3), lengths)
+
+            // The check happens inside the coroutine, so assertFailsWith must await it properly, or it surfaces as a background crash.
+            // In Ktor, exceptions during piping are rethrown to the caller.
             assertTrue(assertFailsWith<IllegalArgumentException> { client.sized { body = ByteStream.once(text("ab"), contentLength = 3) } }.message!!.contains("ended before"))
             assertTrue(assertFailsWith<IllegalArgumentException> { client.sized { body = ByteStream.replay(3) { text("abcd") } } }.message!!.contains("exceeds"))
             client.upload { body = ByteStream.once(text("unknown length")) }
