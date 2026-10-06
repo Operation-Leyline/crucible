@@ -240,6 +240,8 @@ async fn rpc_errors_require_the_full_matching_shape_id() {
 #[tokio::test]
 async fn aws_rpc_claims_bad_targets_without_falling_through() {
     let endpoint = aws10::serve().await;
+    // Raw reqwest clients need the runtime's TLS provider even over HTTP.
+    drop(Config::new(&endpoint));
     let http = reqwest::Client::new();
     for target in [
         None,
@@ -278,6 +280,7 @@ async fn aws_rpc_claims_bad_targets_without_falling_through() {
 #[tokio::test]
 async fn rpc_v2_rejects_cross_protocol_headers_and_preserves_prefix_routing() {
     let endpoint = rpc_json::serve().await;
+    drop(Config::new(&endpoint));
     let http = reqwest::Client::new();
     for target in ["x-amz-target", "x-amzn-target"] {
         let response = http
@@ -321,6 +324,7 @@ async fn rpc_v2_rejects_cross_protocol_headers_and_preserves_prefix_routing() {
 #[tokio::test]
 async fn cbor_trailing_or_truncated_documents_are_rejected() {
     let endpoint = rpc_cbor::serve().await;
+    drop(Config::new(&endpoint));
     for body in [vec![0xa0, 0xa0], vec![0xa1], vec![0xff]] {
         let response = reqwest::Client::new()
             .post(format!("{endpoint}/service/JsonService/operation/Echo"))

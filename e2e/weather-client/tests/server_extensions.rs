@@ -113,6 +113,8 @@ async fn resolved_auth_contract_is_available_before_decoding() {
         .build()
         .unwrap();
     let endpoint = serve(service).await;
+    // Raw reqwest clients need the runtime's TLS provider even over HTTP.
+    drop(Config::new(&endpoint));
     for operation in ["mixed", "basic", "api", "public", "optional"] {
         let response = reqwest::get(format!("{endpoint}/{operation}"))
             .await
