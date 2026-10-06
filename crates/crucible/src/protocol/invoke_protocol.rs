@@ -113,7 +113,12 @@ impl InvokeProtocol {
             .input
             .iter()
             .chain(operation.output)
-            .any(|member| matches!(member.location, Location::StreamingPayload { .. }))
+            .any(|member| {
+                matches!(
+                    member.location,
+                    Location::StreamingPayload { .. } | Location::EventStream
+                )
+            })
         {
             return Err(Rejection::malformed(
                 "",

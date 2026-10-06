@@ -178,3 +178,14 @@ payloads require a discriminator outside the body: `X-Crucible-Error` for
 Crucible or `X-Amzn-Errortype` for AWS restJson1. These are separate target
 capabilities, so lowering support does not imply client or server support.
 A blob in a label, query parameter or ordinary header remains a diagnostic.
+
+
+The Rust server and client share native CBOR model codecs in `crucible-wire`.
+Smithy RPC v2 uses `Smithy-Protocol` and service/operation paths instead of AWS
+JSON target headers. RPC v2 honors modeled error status codes, uses full error
+shape ids, and ignores HTTP member bindings and timestamp-format overrides.
+Its JSON arbitrary-precision numbers are strings; CBOR uses native byte strings
+and numeric tags. Streaming unions use the shared event framing and protocol
+specific document codecs. Raw streaming blobs remain unsupported for RPC v2.
+See [server protocols](framework.md#protocols) and the
+[Rust client guide](clients/rust.md#smithy-rpc-v2).

@@ -41,6 +41,7 @@ pub mod logging;
 pub mod middleware;
 pub mod middlewares;
 mod operation_job;
+mod operation_metadata;
 pub mod operation_middleware;
 pub mod operations;
 mod outcome;
@@ -53,7 +54,9 @@ pub mod service;
 // What the server shares with clients lives in crucible-wire, re-exported
 // at the paths generated code names.
 pub use crucible_wire::blob::Blob;
-pub use crucible_wire::{blob, codec, error, number, open, operation, time, validate};
+pub use crucible_wire::event_stream;
+pub use crucible_wire::event_stream::{EventReceiver, EventStream, EventStreamError};
+pub use crucible_wire::{blob, cbor, codec, error, number, open, operation, time, validate};
 
 pub use async_interceptor::AsyncInterceptor;
 pub use async_middleware::AsyncMiddleware;
@@ -70,11 +73,15 @@ pub use job::Job;
 pub use middleware::Middleware;
 pub use operation::{Operation, OperationInfo, ServiceInfo};
 pub use operation_job::OperationJob;
+pub use operation_metadata::OperationMetadata;
 pub use operation_middleware::OperationAwareMiddleware;
 pub use operations::{MissingOperations, Operations};
 pub use outcome::Outcome;
 pub use prepare::Prepare;
-pub use protocol::{InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch};
+pub use protocol::{
+    AwsJsonProtocol, InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch, RestJsonProtocol,
+    RpcV2CborProtocol, RpcV2JsonProtocol,
+};
 pub use resolution::Resolution;
 pub use scoped::{InterceptorExt, OperationMiddlewareExt, ProtocolExt, Scoped};
 pub use service::{BuildError, Builder, Crucible, Endpoint, RequestIdSource};

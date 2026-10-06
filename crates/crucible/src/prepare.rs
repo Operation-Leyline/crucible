@@ -5,15 +5,17 @@ use crate::operation::{OperationInfo, ServiceInfo};
 #[derive(Clone, Copy)]
 pub struct Prepare<'a> {
     service: &'static ServiceInfo,
+    registry: &'a crate::Operations,
     scope: Option<&'a (dyn Fn(&OperationInfo) -> bool + 'a)>,
     /// The scope this one narrows: an operation must pass both.
     outer: Option<&'a Prepare<'a>>,
 }
 
 impl<'a> Prepare<'a> {
-    pub(crate) fn new(service: &'static ServiceInfo) -> Self {
+    pub(crate) fn new(registry: &'a crate::Operations) -> Self {
         Self {
-            service,
+            service: registry.service(),
+            registry,
             scope: None,
             outer: None,
         }
@@ -21,6 +23,13 @@ impl<'a> Prepare<'a> {
 
     pub fn service(&self) -> &'static ServiceInfo {
         self.service
+    }
+
+    /// Effective metadata for an operation in this extension's scope.
+    pub fn metadata(&self, operation: &OperationInfo) -> Option<&crate::OperationMetadata> {
+        self.applies(operation)
+            .then(|| self.registry.metadata(operation.name))
+            .flatten()
     }
 
     /// Whether the extension runs for `operation`.
@@ -47,6 +56,7 @@ impl<'a> Prepare<'a> {
     {
         Prepare {
             service: self.service,
+            registry: self.registry,
             scope: Some(scope),
             outer: Some(self),
         }

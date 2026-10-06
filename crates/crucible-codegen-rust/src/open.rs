@@ -63,6 +63,7 @@ pub(crate) fn union(
     name: &str,
     union: &Structure,
     boxed: &BTreeSet<ShapeId>,
+    client: bool,
 ) {
     let unknown = unknown_variant(union.members.iter().map(|member| member.name.as_str()));
     doc(out, "", union.docs.as_deref());
@@ -93,7 +94,10 @@ pub(crate) fn union(
     } else {
         ""
     };
-    out.push_str(&format!("    /// An arm introduced by a newer service.\n    {unknown}(::crucible::UnknownUnion),\n}}\nimpl ::crucible::open::Union for {name} {{\n{ignore}    fn deserialize_member<'de, D: ::crucible::__private::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {{\n        match name.as_str() {{\n"));
+    if client {
+        out.push_str(&format!("    /// An arm introduced by a newer service.\n    {unknown}(::crucible::UnknownUnion),\n"));
+    }
+    out.push_str(&format!("}}\nimpl ::crucible::open::Union for {name} {{\n{ignore}    fn deserialize_member<'de, D: ::crucible::__private::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {{\n        match name.as_str() {{\n"));
     for member in &union.members {
         let decode = if let Some(mut codec) = crate::types::codec(service, member) {
             if boxed.contains(&id.with_member(&member.name)) {
@@ -109,7 +113,12 @@ pub(crate) fn union(
             variant(&member.name)
         ));
     }
-    out.push_str(&format!("            _ => ::crucible::__private::serde::Deserialize::deserialize(value).map(|value| Self::{unknown}(::crucible::UnknownUnion {{ name, value }})),\n        }}\n    }}\n    fn serialize_member<S: ::crucible::__private::serde::ser::SerializeMap>(&self, map: &mut S) -> ::std::result::Result<(), S::Error> {{\n        match self {{\n"));
+    if client {
+        out.push_str(&format!("            _ => ::crucible::__private::serde::Deserialize::deserialize(value).map(|value| Self::{unknown}(::crucible::UnknownUnion {{ name, value }})),\n"));
+    } else {
+        out.push_str("            _ => Err(::crucible::__private::serde::de::Error::custom(\"unknown union member\")),\n");
+    }
+    out.push_str("        }\n    }\n    fn serialize_member<S: ::crucible::__private::serde::ser::SerializeMap>(&self, map: &mut S) -> ::std::result::Result<(), S::Error> {\n        match self {\n");
     for member in &union.members {
         let value = if let Some(mut codec) = crate::types::codec(service, member) {
             if boxed.contains(&id.with_member(&member.name)) {
@@ -131,7 +140,10 @@ pub(crate) fn union(
         .map(|member| literal(&member.wire_name))
         .collect::<Vec<_>>()
         .join(", ");
-    out.push_str(&format!("            Self::{unknown}(value) => ::crucible::open::serialize_unknown(value, &[{known}], map),\n        }}\n    }}\n}}\n"));
+    if client {
+        out.push_str(&format!("            Self::{unknown}(value) => ::crucible::open::serialize_unknown(value, &[{known}], map),\n"));
+    }
+    out.push_str("        }\n    }\n}\n");
     serde_impls(out, name, "union");
 }
 

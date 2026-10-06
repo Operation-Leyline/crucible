@@ -123,8 +123,12 @@ pub(crate) fn emit(
                     );
                 }
             }
-            Shape::Union(union) if client => {
-                crate::open::union(&mut out, service, id, name, union, &boxed)
+            Shape::Union(union)
+                if client
+                    || union.streaming
+                    || service.protocol_settings.ignore_unknown_union_type =>
+            {
+                crate::open::union(&mut out, service, id, name, union, &boxed, client)
             }
             Shape::Union(union) => {
                 doc(&mut out, "", union.docs.as_deref());
@@ -289,6 +293,12 @@ pub(crate) fn member_field(
             .to_owned(),
         );
     }
+    if crate::events::is_event_stream(service, &member.target) {
+        if !optional && default.is_none() {
+            serde.push("default".to_owned());
+        }
+        serde.push("skip_serializing".to_owned());
+    }
     if let Some(value) = default {
         let inner = format!("super::{prefix}");
         match default_expr(service, member, value, &inner) {
@@ -321,7 +331,16 @@ pub(crate) fn member_field(
     {
         serde.push("deserialize_with = \"::crucible::field::required\"".to_owned());
     }
-    if let Some(mut codec) = crate::types::codec(service, member) {
+    if !client
+        && optional
+        && service.protocol_settings.omit_null_structure_members
+        && crate::types::simple_kind(service, &member.target) == Some(SimpleKind::Document)
+    {
+        serde.push(
+            "with = \"::crucible::codec::Adapter::<::crucible::codec::OptionalDocument>\""
+                .to_owned(),
+        );
+    } else if let Some(mut codec) = crate::types::codec(service, member) {
         if boxed {
             codec = format!("::crucible::codec::Boxed<{codec}>");
         }
@@ -378,6 +397,10 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
         (Shape::Simple(simple), _) => match (simple.kind, value) {
             (SimpleKind::Boolean, Value::Bool(b)) => Some(b.to_string()),
             (SimpleKind::String, Value::String(s)) => Some(format!("{}.to_owned()", literal(s))),
+            (SimpleKind::Blob, Value::String(s)) => Some(format!(
+                "::crucible::Blob::from_base64({}).expect(\"validated blob default\")",
+                literal(s)
+            )),
             (SimpleKind::Float | SimpleKind::Double, Value::Number(n)) => {
                 let text = n.to_string();
                 Some(if text.contains(['.', 'e', 'E']) {

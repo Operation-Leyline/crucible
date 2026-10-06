@@ -1398,6 +1398,22 @@ impl<'m> Lowerer<'m> {
             .or_else(|| target_traits.and_then(|t| t.get(&smithy("default"))))
             .filter(|value| !value.is_null())
             .cloned();
+        if self
+            .model
+            .get(&member.target)
+            .is_some_and(|target| target.kind == Kind::Blob)
+            && let Some(default) = &default
+        {
+            use base64::Engine;
+            if default.as_str().is_none_or(|text| {
+                base64::engine::general_purpose::STANDARD
+                    .decode(text)
+                    .is_err()
+            }) {
+                self.diagnostics
+                    .push(member_id, "blob default must be valid base64");
+            }
+        }
         let format = self
             .explicit_timestamp_format(&member.traits)
             .or_else(|| target_traits.and_then(|t| self.explicit_timestamp_format(t)))
@@ -1465,7 +1481,7 @@ impl<'m> Lowerer<'m> {
         };
         let status = if let Some(value) = query_error {
             value.get("httpResponseCode").and_then(Value::as_u64)
-        } else if self.protocol.uses_http_bindings() {
+        } else if self.protocol.uses_http_bindings() || self.protocol.is_rpc_v2() {
             shape
                 .traits
                 .get(&smithy("httpError"))

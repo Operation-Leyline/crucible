@@ -190,7 +190,9 @@ Crucible::builder(contract::operations(Arc::new(service)))
     .build()?
 ```
 
-`defaults()` adds the error-only service log and both built-in protocols.
+`defaults()` adds the error-only service log, the HTTP protocol selected by
+the registered operations, and `InvokeProtocol`. Empty services use
+`JsonProtocol` as their HTTP default.
 It does not add authentication, admission policies, interceptors, or metrics.
 `Middleware`, `OperationAwareMiddleware`, and `Interceptor` return `Hook::Ready`
 for synchronous work and `Hook::wait` for asynchronous work. The corresponding
@@ -271,6 +273,18 @@ protocol declining a request must leave it available to later protocols.
   use the whole body as bytes or UTF-8 text; structure, union, and document
   payloads are decoded as JSON. Payloads use their target's media type or
   the protocol default. An absent output payload sends no body.
+- `RestJsonProtocol` implements `aws.protocols#restJson1`: HTTP bindings and
+  JSON documents, with errors identified by `X-Amzn-Errortype`.
+- `AwsJsonProtocol::v10()` and `AwsJsonProtocol::v11()` implement AWS JSON
+  1.0 and 1.1: `POST /`, `X-Amz-Target: Service.Operation`, and the version's
+  `application/x-amz-json-*` media type. HTTP binding traits are ignored.
+- `RpcV2JsonProtocol` and `RpcV2CborProtocol` implement Smithy RPC v2:
+  `POST /service/Service/operation/Operation`, with an optional runtime path
+  prefix and `Smithy-Protocol: rpc-v2-json` or `rpc-v2-cbor`. Both reject AWS
+  target headers. Errors carry their full Smithy shape id in `__type`.
+  CBOR preserves native byte strings, tag-1 timestamps, bignums, decimal
+  fractions, and non-finite floating-point values. An absent input or output
+  type uses an empty body; an empty modeled structure still uses a document.
 - `InvokeProtocol` serves direct invocations: an operation called by name
   with its whole input as JSON, answered `{"output": ..}` or
   `{"error": {"__type": .., ..}}`. A payload blob is base64 there, like any
@@ -280,6 +294,46 @@ protocol declining a request must leave it available to later protocols.
   forge one. Operations with streaming input or output payloads are refused
   before their implementation runs; invoke envelopes cannot carry these
   streams. Call those operations through HTTP.
+
+### Model-driven authentication
+
+`Prepare::metadata(operation)`, `OperationJob::metadata()`, and
+`DecodedJob::metadata()` expose the registered `OperationMetadata`: the wire
+protocol, effective auth schemes, optional-auth and unsigned-payload flags,
+input/output presence, and event-stream descriptions. Context retains it after
+selection through `Context::operation_metadata()`.
+
+Server generation accepts bearer, Basic, API-key, optional-auth, and SigV4
+metadata. Install `OperationAwareMiddleware` to verify credentials or signatures
+before decoding. `defaults()` does not authenticate requests. Providers can add
+custom authentication, signing policy, routing, and serialization through the
+middleware and `Protocol` interfaces; AWS service names are not special cases
+inside the orchestrator. Signed event-stream envelopes require a custom
+protocol that verifies chunk signatures before exposing the enclosed events.
+Protocol extensions can use `Job::take_body_stream()` and `decode_events()`
+to retain generated input decoding and validation. HTTP checksums remain a
+client capability.
+
+### Event streams
+
+HTTP protocols accept streaming unions as AWS event-stream frames. Inputs stay
+lazy and obey the operation's body limit. Each event is deserialized and
+validated when the operation reads it. Frame checksums and malformed messages
+are checked by the shared wire reader. REST protocols bind other input members
+to the URI or headers; RPC protocols receive an `initial-request` document first
+and send an `initial-response` document before response events. RPC v2 rejects
+content-length on event-stream requests.
+
+Generated server inputs and outputs use `EventStream<Union>`. Read inputs with
+`open()` and `recv()`; produce outputs with `new`, `try_new`, or `from_events`.
+A modeled error arm becomes an exception frame and ends the response stream.
+Source and encoding failures become a sanitized error frame. CBOR RPC v2 event
+documents use the same native model codecs as buffered calls. Direct invocation
+refuses streaming input or output. Lambda HTTP adapters buffer bodies and do
+not provide interactive streaming; use the native HTTP host for streaming calls.
+
+Response-body consumption happens after pipeline completion. Completion hooks
+observe the response becoming ready, not the last event leaving the connection.
 
 ## Errors
 

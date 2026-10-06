@@ -86,6 +86,13 @@ impl std::error::Error for Internal {}
 /// An error shape from the model. Generated for every `@error` structure.
 pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     fn info(&self) -> &'static ErrorInfo;
+    /// Original Smithy shape id, independent of service-local Rust renames.
+    fn shape_id(&self) -> &'static str {
+        self.info().name
+    }
+    fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
+        crate::cbor::write_typed(&self.to_json(), self.shape_id(), out)
+    }
     fn response_status(&self) -> u16 {
         self.info().status
     }
@@ -106,6 +113,16 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     ) -> serde_json::Result<crate::operation::ResponseBindings> {
         let info = self.info();
         crate::split::write_http(&self.to_json(), info.members, Some(info.name), out)
+    }
+
+    /// Serializes with the discriminator chosen by the serving protocol.
+    /// Payload bytes are retained; protocols put their discriminator in a header.
+    fn write_http_typed(
+        &self,
+        type_name: Option<&'static str>,
+        out: &mut Vec<u8>,
+    ) -> serde_json::Result<crate::operation::ResponseBindings> {
+        crate::split::write_http(&self.to_json(), self.info().members, type_name, out)
     }
 }
 
@@ -166,6 +183,15 @@ pub fn write_error_http<E: ModelledError + serde::Serialize>(
 ) -> serde_json::Result<crate::operation::ResponseBindings> {
     let info = error.info();
     crate::split::write_http(error, info.members, Some(info.name), out)
+}
+
+/// A generated error with its serving protocol's discriminator, in one pass.
+pub fn write_error_http_typed<E: ModelledError + serde::Serialize>(
+    error: &E,
+    type_name: Option<&'static str>,
+    out: &mut Vec<u8>,
+) -> serde_json::Result<crate::operation::ResponseBindings> {
+    crate::split::write_http(error, error.info().members, type_name, out)
 }
 
 #[cfg(test)]

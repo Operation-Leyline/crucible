@@ -207,8 +207,9 @@ Run `cargo test -p crucible-codegen-rust -p crucible-client -p crucible-wire`,
 then `bash tools/test-e2e.sh` for the generated client over the weather service.
 The E2E client tests also drive generated clients for the shared
 `error-payloads`, `checksums` (with its vectors), and `protocol-json` fixtures
-(once per AWS JSON protocol) against loopback HTTP servers, since the server
-framework serves only `crucible.protocols#json`. The `event-streams` fixture runs
+(once per AWS JSON protocol) against loopback HTTP peers. Native server tests
+also cover AWS JSON and REST JSON, RPC v2 JSON/CBOR, and event streams in
+`tests/server_protocols.rs` and `tests/server_events.rs`. The `event-streams` fixture runs
 the same way under `restJson1`, `awsJson1_0`, and SigV4 (`tests/event_streams.rs`),
 and `crucible-wire` decodes the published framing vectors in
 `tests/conformance/event-streams.json`.
@@ -366,9 +367,11 @@ Each event is one AWS event stream message (`application/vnd.amazon.eventstream`
 with `:message-type`, `:event-type`, and `:content-type` headers. `@eventHeader`
 members are typed headers: booleans, byte, short, integer, long, blob, string
 (and enum), and timestamps in milliseconds. An `@eventPayload` blob or string
-is the raw payload, and a structure is its JSON document. Without an
-`@eventPayload`, the remaining members form a JSON document. Prelude and message
-CRC32s are verified; headers are limited to 128 KiB and payloads to 16 MiB.
+is the raw payload, and a structure uses the protocol document format. Without an
+`@eventPayload`, the remaining members form a protocol document (CBOR for
+RPC v2 CBOR, JSON otherwise). Prelude and message
+CRC32s are verified. The server limits headers to 128 KiB and payloads to
+24 MiB; clients do not enforce these service-side size limits.
 With `restJson1` and `crucible.protocols#json`, the operation's other members
 use HTTP bindings. With `awsJson1_0` and `awsJson1_1`, they are sent as an
 `initial-request` message before the first event. An `initial-response`
@@ -391,8 +394,10 @@ the default client. An application can enable that feature and pass its own
 client to `Config::http_client`; that path is untested. Sent events are not checked against model constraints, timestamps in
 headers keep millisecond precision, and `Config::content_sha256` adds no digest
 to an unsigned event stream. Generation refuses a modeled error in an input event
-stream. The server framework does not serve event streams; server generation
-reports `event-streams` as unsupported.
+stream. The native server serves event streams and validates each input event
+as it is read. Server middleware remains responsible for authenticating signed
+requests; signed event-stream envelopes need a custom protocol that verifies
+chunk signatures.
 
 This adds `Location::EventStream` and the defaulted `Operation::INPUT_EVENTS`,
 `OUTPUT_EVENTS`, `input_events`, and `set_output_events` items to
@@ -471,6 +476,31 @@ Header strings whose target has `@mediaType`, including list elements and
 `@httpPrefixHeaders` values, travel base64-encoded. The public model holds the
 decoded text. A response header that is not base64 of UTF-8 text is
 `Error::Decode`.
+
+### Smithy RPC v2
+
+Rust service and client generation support `smithy.protocols#rpcv2Json` and
+`smithy.protocols#rpcv2Cbor`. Calls use `POST` with
+`/service/Service/operation/Operation` and a matching `Smithy-Protocol` header.
+The transport supplies the buffered or event-stream `Accept` and `Content-Type`
+headers. Unit operations send no body or serialization media type; empty
+modeled structures still send a document. Successful responses use status 200.
+The client rejects a missing or mismatched response protocol header.
+
+RPC v2 ignores HTTP member bindings, `jsonName`, and timestamp-format overrides.
+JSON timestamps use epoch seconds and arbitrary-precision numbers use strings.
+CBOR blobs are byte strings, timestamps use tag 1, and arbitrary-precision
+integers and decimals use their CBOR tags. Non-finite floats remain native CBOR
+numbers. Error types use full Smithy shape ids and modeled `httpError` statuses;
+AWS error headers are ignored.
+
+Streaming unions use event-stream frames, with initial request and response
+documents in JSON or CBOR. Raw streaming blobs remain unsupported. The server
+`defaults()` selects the modeled protocol. Regenerate service and client
+contracts together with matching runtime and generator versions; handwritten
+`EventInfo` descriptions must include the document codec fields (`None` for
+JSON event documents). See the
+[framework guide](../framework.md#protocols) for authentication and hosting.
 
 ### AWS JSON protocols
 

@@ -33,7 +33,12 @@ vectors. Credential chains and caching are tracked per language guide.
 Status: Smithy RPC v2 CBOR and JSON, HTTP Digest, and SigV4a are lowered in
 `crucible-smithy` (official Smithy RPC v2 protocol tests as fixtures) and
 implemented in PHP and C#, which run those vectors, RFC 7616 and AWS SigV4a
-vectors, and verifying loopback servers. Other targets do not declare them yet.
+vectors, and verifying loopback servers. Rust now supports RPC v2 JSON/CBOR in
+both service and client generation, with buffered and event-stream loopback
+tests in `e2e/weather-client/tests/server_{protocols,events}.rs` and native CBOR
+codec tests in `crates/crucible-wire/tests/cbor.rs`. This does not qualify Rust
+against the full official protocol suite. HTTP Digest and SigV4a remain PHP/C#
+capabilities; other targets still refuse RPC v2.
 
 AWS XML protocols: Java and Ruby implement `restXml` (including
 `noErrorWrapping`), `awsQuery`, and `ec2Query`. Their native gates run 312
@@ -52,8 +57,10 @@ with SigV4 chunk signatures, and are tested over loopback HTTP/1.1 for input,
 output, and bidirectional streams, modeled and unmodeled stream errors,
 backpressure, cancellation, and deadlines. Limits: HTTP/2-only services are
 untested in Rust; browser Fetch cannot stream request events interactively; the
-server framework does not serve event streams; other targets do not declare the
-capability.
+native Rust server now serves and lazily validates event streams, including
+interactive bidirectional calls and RPC v2 initial JSON/CBOR documents. Signed
+server envelopes require a custom protocol to verify chunk signatures, and
+Lambda adapters buffer bodies. Other client targets do not declare the capability.
 
 ## Integration rules
 

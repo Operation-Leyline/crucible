@@ -40,7 +40,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             });
         out.push_str(&format!("\nstatic __CRUCIBLE_CLIENT_METADATA: ::std::sync::LazyLock<::crucible::ServiceMetadata> = ::std::sync::LazyLock::new(|| ::crucible::ServiceMetadata::from_json({}).expect(\"compiler validated client metadata\"));\n", literal(&schema.to_string())));
     }
-    out.push_str(&crate::events::statics(service, diagnostics));
+    out.push_str(&crate::events::statics(service, diagnostics, true));
     let mut methods = String::new();
     let mut names: std::collections::BTreeSet<String> = service
         .operations
@@ -142,7 +142,7 @@ fn error_type(op: &Operation) -> String {
     format!("{}Error", op.name())
 }
 
-fn wire_error<'a>(service: &'a Service, op: &Operation, name: &str) -> &'a str {
+fn wire_error(service: &Service, op: &Operation, name: &str) -> String {
     let id = op
         .errors
         .iter()
@@ -152,11 +152,15 @@ fn wire_error<'a>(service: &'a Service, op: &Operation, name: &str) -> &'a str {
     else {
         unreachable!("error structure")
     };
-    &shape
+    if service.protocol.is_rpc_v2() {
+        return id.to_string();
+    }
+    shape
         .error
         .as_ref()
         .expect("modeled error metadata")
         .wire_code
+        .clone()
 }
 
 /// `enum GetCityError`: one variant per declared error, decoded by the
@@ -179,11 +183,13 @@ fn error_enum(service: &Service, op: &Operation) -> String {
     let arms: String = errors
         .iter()
         .map(|error| {
-            format!(
+            if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor {
+                format!("            {} => ::crucible::cbor::read(body).ok().map(Self::{error}),\n", literal(&wire_error(service, op, error)))
+            } else { format!(
                 "            {} => ::crucible::decode_modelled_at(status, &errors::{}, headers, body).map(Self::{error}),\n",
-                literal(wire_error(service,op,error)),
+                literal(&wire_error(service,op,error)),
                 info_static(error)
-            )
+            ) }
         })
         .collect();
     let (info_body, display_body) = if errors.is_empty() {
@@ -211,8 +217,20 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             format!("match self {{\n{display}        }}"),
         )
     };
+    let fallback = if service.protocol.is_rpc_v2() {
+        "type_name?".to_owned()
+    } else {
+        format!(
+            "type_name.or_else(|| ::crucible::by_status(status, &[{}]))?",
+            infos.join(", ")
+        )
+    };
     let decode_body = if errors.is_empty() {
         "        let _ = (status, type_name, headers, body);\n        None\n".to_owned()
+    } else if service.protocol.is_rpc_v2() {
+        format!(
+            "        let _ = (status, headers);\n        let name = {fallback};\n        match name {{\n{arms}            _ => None,\n        }}\n"
+        )
     } else {
         format!(
             "        let name = match type_name {{\n            Some(name) => name,\n            None => ::crucible::by_status(status, &[{}])?,\n        }};\n        match name {{\n{arms}            _ => None,\n        }}\n",
@@ -227,16 +245,17 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             .map(|error| {
                 format!(
                     "{} => Some(&errors::{}),",
-                    literal(wire_error(service, op, error)),
+                    literal(&wire_error(service, op, error)),
                     info_static(error)
                 )
             })
             .collect::<Vec<_>>()
             .join(" ");
-        format!(
-            "let name = type_name.or_else(|| ::crucible::by_status(status, &[{}]))?; match name {{ {arms} _ => None }}",
-            infos.join(", ")
-        )
+        if service.protocol.is_rpc_v2() {
+            format!("let _ = status; let name = {fallback}; match name {{ {arms} _ => None }}")
+        } else {
+            format!("let name = {fallback}; match name {{ {arms} _ => None }}")
+        }
     };
     out.push_str(&format!(
         "impl ::crucible::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible::operation::ErrorInfo> {{\n        {classify}\n    }}\n}}\n\n"

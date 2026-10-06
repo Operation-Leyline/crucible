@@ -6,6 +6,7 @@
 
 pub mod blob;
 pub mod bound;
+pub mod cbor;
 pub mod codec;
 pub mod error;
 pub mod event_stream;

@@ -1,5 +1,7 @@
 //! Text on the wire: query strings, header lists, percent-encoding.
 
+use crate::operation::Scalar;
+use serde_json::Value;
 use std::borrow::Cow;
 
 /// The decoded values of query parameter `param`, in order, borrowed from
@@ -125,6 +127,43 @@ pub fn join_header(items: impl IntoIterator<Item = String>) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// A bound member's value as the text of one label, query value or header
+/// item: timestamps in the binding's format, media-type strings in base64.
+pub fn scalar_text(value: &Value, scalar: Scalar) -> String {
+    use crate::operation::TimestampFormat;
+    let format = match scalar {
+        Scalar::DateTime => Some(TimestampFormat::DateTime),
+        Scalar::EpochSeconds => Some(TimestampFormat::EpochSeconds),
+        Scalar::HttpDate => Some(TimestampFormat::HttpDate),
+        Scalar::Timestamp { text, .. } => Some(text),
+        Scalar::Base64 => {
+            use base64::Engine;
+            return base64::engine::general_purpose::STANDARD.encode(crate::split::text(value));
+        }
+        _ => None,
+    };
+    match format.and_then(|format| Some((crate::time::from_json(value)?, format))) {
+        Some((time, format)) => crate::time::format(&time, format),
+        None => crate::split::text(value),
+    }
+}
+
+/// A header member's text: a list's items joined as a header list.
+pub fn header_text(value: &Value, scalar: Scalar) -> String {
+    match (value, scalar) {
+        // REST protocols send HTTP dates unquoted despite their commas.
+        (Value::Array(items), Scalar::List(item)) if item.http_date() => items
+            .iter()
+            .map(|value| scalar_text(value, *item))
+            .collect::<Vec<_>>()
+            .join(", "),
+        (Value::Array(items), Scalar::List(item)) => {
+            join_header(items.iter().map(|value| scalar_text(value, *item)))
+        }
+        (value, scalar) => scalar_text(value, scalar),
+    }
 }
 
 #[cfg(test)]

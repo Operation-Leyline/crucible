@@ -181,7 +181,9 @@ impl Crucible {
             labels: Vec::new(),
             decode: None,
             decode_json: None,
+            decode_cbor: None,
             decode_bound: None,
+            decode_events: None,
             input: None,
             outcome: None,
             error_revision: 0,
@@ -310,10 +312,13 @@ impl Crucible {
             .entry(route.operation)
             .ok_or_else(|| Error::internal("protocol selected an unregistered operation"))?;
         job.context.select_operation(entry.info);
+        job.context.select_metadata(entry.metadata);
         job.labels = route.labels;
         job.decode = Some(entry.decode);
         job.decode_json = Some(entry.decode_json);
+        job.decode_cbor = Some(entry.decode_cbor);
         job.decode_bound = Some(entry.decode_bound);
+        job.decode_events = Some(entry.decode_events);
         let limit = inner
             .body_limits
             .get(entry.info.id)
@@ -443,9 +448,39 @@ impl Builder {
         self
     }
     pub fn defaults(self) -> Self {
-        self.middleware(ServiceLog::errors_only())
-            .protocol(JsonProtocol)
-            .protocol(InvokeProtocol)
+        use crate::operation::Protocol as Wire;
+        use crate::protocol::{
+            AwsJsonProtocol, RestJsonProtocol, RpcV2CborProtocol, RpcV2JsonProtocol,
+        };
+        let mut formats = Vec::new();
+        for entry in self.operations.entries.values() {
+            if !formats.contains(&entry.metadata.protocol) {
+                formats.push(entry.metadata.protocol);
+            }
+        }
+        if formats.is_empty() {
+            formats.push(Wire::CrucibleJson);
+        }
+        use crate::ProtocolExt;
+        let mut builder = self.middleware(ServiceLog::errors_only());
+        for format in formats {
+            let names: Vec<_> = builder
+                .operations
+                .entries
+                .values()
+                .filter(|entry| entry.metadata.protocol == format)
+                .map(|entry| entry.info.name)
+                .collect();
+            builder = match format {
+                Wire::CrucibleJson => builder.protocol(JsonProtocol.only(&names)),
+                Wire::AwsRestJson1 => builder.protocol(RestJsonProtocol.only(&names)),
+                Wire::AwsJson10 { .. } => builder.protocol(AwsJsonProtocol::v10().only(&names)),
+                Wire::AwsJson11 { .. } => builder.protocol(AwsJsonProtocol::v11().only(&names)),
+                Wire::SmithyRpcV2Json => builder.protocol(RpcV2JsonProtocol.only(&names)),
+                Wire::SmithyRpcV2Cbor => builder.protocol(RpcV2CborProtocol.only(&names)),
+            };
+        }
+        builder.protocol(InvokeProtocol)
     }
 
     /// Wraps the whole service in a tower layer, outside the phased pipeline:
@@ -521,7 +556,7 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Result<Crucible, BuildError> {
-        let prepare = Prepare::new(self.operations.service);
+        let prepare = Prepare::new(&self.operations);
         for middleware in &mut self.middleware {
             middleware.prepare(&prepare).map_err(BuildError::Prepare)?;
         }

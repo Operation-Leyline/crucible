@@ -1,0 +1,30 @@
+use crate::operation::{AuthScheme, Operation, Protocol};
+
+/// Effective wire and authentication settings retained after type-erased registration.
+/// These describe the model; middleware remains responsible for enforcing authentication.
+#[derive(Debug, Clone, Copy)]
+pub struct OperationMetadata {
+    pub protocol: Protocol,
+    pub auth_schemes: Option<&'static [AuthScheme]>,
+    pub optional_auth: bool,
+    pub unsigned_payload: bool,
+    pub has_input: bool,
+    pub has_output: bool,
+    pub input_events: Option<&'static crate::event_stream::EventStreamInfo>,
+    pub output_events: Option<&'static crate::event_stream::EventStreamInfo>,
+}
+
+impl OperationMetadata {
+    pub(crate) fn of<O: Operation>() -> Self {
+        Self {
+            protocol: O::PROTOCOL,
+            auth_schemes: O::AUTH_SCHEMES,
+            optional_auth: O::OPTIONAL_AUTH,
+            unsigned_payload: O::UNSIGNED_PAYLOAD,
+            has_input: O::HAS_INPUT,
+            has_output: O::HAS_OUTPUT,
+            input_events: O::INPUT_EVENTS,
+            output_events: O::OUTPUT_EVENTS,
+        }
+    }
+}

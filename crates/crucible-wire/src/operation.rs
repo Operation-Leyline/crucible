@@ -21,10 +21,12 @@ pub trait Operation: Send + Sync + 'static {
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = None;
     const OPTIONAL_AUTH: bool = false;
     const UNSIGNED_PAYLOAD: bool = false;
-    /// The wire protocol a client speaks. Servers serve `crucible.protocols#json`.
+    /// The modeled wire protocol. Server defaults select the corresponding implementation.
     const PROTOCOL: Protocol = Protocol::CrucibleJson;
     /// The operation's modeled HTTP checksum behavior, for clients.
     const CHECKSUM: Option<Checksum> = None;
+    const HAS_INPUT: bool = true;
+    const HAS_OUTPUT: bool = true;
     fn output_status(_output: &Self::Output) -> Option<u16> {
         None
     }
@@ -36,9 +38,9 @@ pub trait Operation: Send + Sync + 'static {
     }
     fn set_input_stream(_input: &mut Self::Input, _stream: crate::stream::ByteStream) {}
     fn set_output_stream(_output: &mut Self::Output, _stream: crate::stream::ByteStream) {}
-    /// The event stream the input sends, when it has one (clients only).
+    /// The event stream the input sends, when it has one.
     const INPUT_EVENTS: Option<&'static crate::event_stream::EventStreamInfo> = None;
-    /// The event stream the output receives, when it has one (clients only).
+    /// The event stream the output receives, when it has one.
     const OUTPUT_EVENTS: Option<&'static crate::event_stream::EventStreamInfo> = None;
     fn input_events(
         _input: &Self::Input,
@@ -46,6 +48,12 @@ pub trait Operation: Send + Sync + 'static {
         None
     }
     fn set_output_events(_output: &mut Self::Output, _events: crate::event_stream::Incoming) {}
+    fn set_input_events(_input: &mut Self::Input, _events: crate::event_stream::Incoming) {}
+    fn output_events(
+        _output: &Self::Output,
+    ) -> Option<std::io::Result<crate::event_stream::Outgoing>> {
+        None
+    }
     type Input: DeserializeOwned + Serialize + Validate + Send + Sync + 'static;
     type Output: Serialize + Send + Sync + 'static;
 }
@@ -321,7 +329,7 @@ pub enum TimestampFormat {
     HttpDate,
 }
 
-/// The protocol a generated client speaks, chosen once from the model.
+/// The protocol a generated client or server speaks, chosen once from the model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protocol {
     /// `crucible.protocols#json`: HTTP bindings, `__type` or
@@ -331,15 +339,28 @@ pub enum Protocol {
     AwsRestJson1,
     /// `aws.protocols#awsJson1_0`: every member in a JSON body POSTed to `/`
     /// with `X-Amz-Target: {service}.{operation}`.
-    AwsJson10 { service: &'static str },
+    AwsJson10 {
+        service: &'static str,
+    },
     /// `aws.protocols#awsJson1_1`, as `AwsJson10` with its own content type.
-    AwsJson11 { service: &'static str },
+    AwsJson11 {
+        service: &'static str,
+    },
+    SmithyRpcV2Json,
+    SmithyRpcV2Cbor,
 }
 
 impl Protocol {
     /// Whether errors and messages follow the AWS JSON conventions.
     pub fn aws(self) -> bool {
-        !matches!(self, Self::CrucibleJson)
+        matches!(
+            self,
+            Self::AwsRestJson1 | Self::AwsJson10 { .. } | Self::AwsJson11 { .. }
+        )
+    }
+
+    pub fn rpc_v2(self) -> bool {
+        matches!(self, Self::SmithyRpcV2Json | Self::SmithyRpcV2Cbor)
     }
 }
 
@@ -491,6 +512,12 @@ pub struct ResponseBindings {
 
 /// An operation's output, seen by handlers without knowing its type.
 pub trait Output: Any + Send + Sync {
+    fn events(&self) -> Option<std::io::Result<crate::event_stream::Outgoing>> {
+        None
+    }
+    fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
+        crate::cbor::write(&self.to_json(), out)
+    }
     fn response_status(&self) -> Option<u16> {
         None
     }
@@ -525,6 +552,9 @@ pub trait Output: Any + Send + Sync {
 }
 
 impl<T: Serialize + Any + Send + Sync> Output for T {
+    fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
+        crate::cbor::write(self, out)
+    }
     fn to_json(&self) -> Value {
         serde_json::to_value(self).unwrap_or(Value::Null)
     }

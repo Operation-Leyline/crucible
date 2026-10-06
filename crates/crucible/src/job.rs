@@ -29,6 +29,8 @@ pub struct Job {
     pub(crate) labels: Vec<(&'static str, String)>,
     pub(crate) decode: Option<Decode>,
     pub(crate) decode_json: Option<DecodeJson>,
+    pub(crate) decode_cbor: Option<DecodeJson>,
+    pub(crate) decode_events: Option<crate::operations::DecodeEvents>,
     pub(crate) decode_bound: Option<crate::operations::DecodeBound>,
     pub(crate) input: Option<Box<dyn Input>>,
     pub(crate) outcome: Option<Outcome>,
@@ -82,6 +84,7 @@ impl Job {
                     matches!(
                         member.location,
                         crate::operation::Location::StreamingPayload { .. }
+                            | crate::operation::Location::EventStream
                     )
                 })
             })
@@ -107,6 +110,22 @@ impl Job {
         let Some(body) = self.raw_body.take() else {
             return Ok(());
         };
+        if self
+            .context
+            .operation_metadata()
+            .is_some_and(|m| m.input_events.is_some())
+            && self
+                .request
+                .extensions
+                .get::<crate::protocol::Invocation>()
+                .is_none()
+        {
+            self.body_stream = Some(
+                crucible_wire::stream::ByteStream::new(body.into_data_stream())
+                    .with_maximum(self.body_limit),
+            );
+            return Ok(());
+        }
         let payload = self
             .operation()
             .and_then(|op| crucible_wire::operation::Location::payload(op.input));
@@ -223,6 +242,34 @@ impl Job {
     pub fn decode_json(&self, bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
         match self.decode_json {
             Some(decode) => decode(bytes),
+            None => Err(Rejection::malformed("", "no operation serves this request")),
+        }
+    }
+
+    /// Reads and validates the selected operation from one CBOR document.
+    pub fn decode_cbor(&self, bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
+        match self.decode_cbor {
+            Some(decode) => decode(bytes),
+            None => Err(Rejection::malformed("", "no operation serves this request")),
+        }
+    }
+
+    /// Opens the prepared streaming body for a protocol extension. Call
+    /// `read_body` first; ownership prevents a second decoder from consuming it.
+    pub fn take_body_stream(&mut self) -> Option<crucible_wire::stream::ByteStream> {
+        self.body_stream.take()
+    }
+
+    /// Attaches a protocol's received events to the typed input and validates
+    /// its initial document and HTTP bindings. Individual events remain lazy.
+    pub fn decode_events<'a>(
+        &self,
+        document: &'a [u8],
+        bound: Vec<(&'static str, crate::protocol::BoundValue<'a>)>,
+        events: crucible_wire::event_stream::Incoming,
+    ) -> std::result::Result<Box<dyn Input>, Rejection> {
+        match self.decode_events {
+            Some(decode) => decode(document, bound, events),
             None => Err(Rejection::malformed("", "no operation serves this request")),
         }
     }

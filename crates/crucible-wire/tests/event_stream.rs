@@ -114,13 +114,43 @@ fn a_corrupt_prelude_fails_before_its_length_is_awaited() {
 }
 
 #[test]
+fn service_size_limits_do_not_apply_to_client_receivers() {
+    let mut prelude = Vec::new();
+    prelude.extend_from_slice(&(25 * 1024 * 1024_u32 + 16).to_be_bytes());
+    prelude.extend_from_slice(&0_u32.to_be_bytes());
+    prelude.extend_from_slice(&crc32(&prelude).to_be_bytes());
+    let mut server = MessageDecoder::new();
+    server.push(&prelude);
+    assert!(server.next_message().is_err());
+    let mut client = MessageDecoder::for_response();
+    client.push(&prelude);
+    assert!(client.next_message().unwrap().is_none());
+}
+
+#[test]
+fn duplicate_event_headers_are_rejected_on_send_and_receive() {
+    let message = Message::default()
+        .with_header("a", HeaderValue::Bool(true))
+        .with_header("a", HeaderValue::Bool(false));
+    assert!(message.encode().is_err());
+    let headers = [1, b'a', 0, 1, b'a', 1];
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&22_u32.to_be_bytes());
+    bytes.extend_from_slice(&6_u32.to_be_bytes());
+    bytes.extend_from_slice(&crc32(&bytes).to_be_bytes());
+    bytes.extend_from_slice(&headers);
+    bytes.extend_from_slice(&crc32(&bytes).to_be_bytes());
+    assert!(Message::decode(&bytes).is_err());
+}
+
+#[test]
 fn oversized_and_invalid_headers_are_refused_when_encoding() {
     let long = Message::new(Bytes::new()).with_header("x".repeat(256), HeaderValue::Bool(true));
     assert!(long.encode().is_err());
     let value =
         Message::new(Bytes::new()).with_header("x", HeaderValue::Bytes(vec![0; 65536].into()));
     assert!(value.encode().is_err());
-    let payload = Message::new(vec![0; 16 * 1024 * 1024 + 1]);
+    let payload = Message::new(vec![0; crucible_wire::event_stream::MAX_PAYLOAD + 1]);
     assert!(payload.encode().is_err());
 }
 
@@ -129,6 +159,8 @@ static EVENTS: EventStreamInfo = EventStreamInfo {
     document_type: "application/json",
     events: &[
         EventInfo {
+            encode_document: None,
+            decode_document: None,
             name: "message",
             json: "message",
             error: false,
@@ -168,6 +200,8 @@ static EVENTS: EventStreamInfo = EventStreamInfo {
             ],
         },
         EventInfo {
+            encode_document: None,
+            decode_document: None,
             name: "data",
             json: "data",
             error: false,
@@ -178,12 +212,16 @@ static EVENTS: EventStreamInfo = EventStreamInfo {
             }],
         },
         EventInfo {
+            encode_document: None,
+            decode_document: None,
             name: "structured",
             json: "structured",
             error: false,
             members: &[],
         },
         EventInfo {
+            encode_document: None,
+            decode_document: None,
             name: "throttled",
             json: "throttled",
             error: true,

@@ -9,6 +9,7 @@ use tracing::instrument::WithSubscriber;
 use axum::http::request::Parts;
 use axum::http::{Extensions, HeaderMap, HeaderValue};
 
+use crate::OperationMetadata;
 use crate::operation::OperationInfo;
 
 tokio::task_local! {
@@ -29,6 +30,7 @@ pub struct Context {
     /// Visible ASCII by construction, so `request_id` reads it as text.
     request_id: HeaderValue,
     operation: OnceLock<&'static OperationInfo>,
+    operation_metadata: OnceLock<OperationMetadata>,
     received: Instant,
     deadline: Mutex<Option<Instant>>,
     /// Shared with the job, not copied: one request head per request.
@@ -52,6 +54,7 @@ impl Context {
         Self {
             request_id,
             operation: operation.map_or_else(OnceLock::new, OnceLock::from),
+            operation_metadata: OnceLock::new(),
             received: Instant::now(),
             deadline: Mutex::new(None),
             request,
@@ -99,6 +102,18 @@ impl Context {
     /// The operation serving the request; `None` when no operation does.
     pub fn operation(&self) -> Option<&'static OperationInfo> {
         self.operation.get().copied()
+    }
+
+    /// Effective protocol and authentication settings after operation identification.
+    /// Authentication schemes are metadata, not proof that credentials were verified.
+    pub fn operation_metadata(&self) -> Option<&OperationMetadata> {
+        self.operation_metadata.get()
+    }
+
+    pub(crate) fn select_metadata(&self, metadata: OperationMetadata) {
+        self.operation_metadata
+            .set(metadata)
+            .expect("metadata selected once");
     }
 
     pub(crate) fn select_operation(&self, operation: &'static OperationInfo) {

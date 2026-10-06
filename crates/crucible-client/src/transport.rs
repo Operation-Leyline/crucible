@@ -16,6 +16,7 @@ use crucible_wire::operation::{
     Segment,
 };
 use crucible_wire::split;
+use crucible_wire::text::{header_text, scalar_text as text};
 use http::{HeaderMap, HeaderName, HeaderValue, Method};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -249,7 +250,7 @@ impl Transport {
             None => None,
         };
         let streaming = O::input_stream(input).is_some() || input_events.is_some();
-        let (url, bound_headers, body, plan) = self.prepare_at(
+        let (url, mut bound_headers, mut body, plan) = self.prepare_at(
             info,
             input,
             endpoint
@@ -259,6 +260,38 @@ impl Transport {
             O::CHECKSUM,
             streaming,
         )?;
+        if O::PROTOCOL.rpc_v2() {
+            bound_headers.insert(
+                "smithy-protocol",
+                HeaderValue::from_static(if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
+                    "rpc-v2-cbor"
+                } else {
+                    "rpc-v2-json"
+                }),
+            );
+            bound_headers.insert(
+                http::header::ACCEPT,
+                HeaderValue::from_static(if O::OUTPUT_EVENTS.is_some() {
+                    crucible_wire::event_stream::CONTENT_TYPE
+                } else if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
+                    "application/cbor"
+                } else {
+                    "application/json"
+                }),
+            );
+            body = if !O::HAS_INPUT {
+                None
+            } else if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
+                let mut encoded = Vec::new();
+                crucible_wire::cbor::write(input, &mut encoded).map_err(Error::Invalid)?;
+                Some(("application/cbor", encoded.into()))
+            } else {
+                Some((
+                    JSON,
+                    body.map_or_else(|| Bytes::from_static(b"{}"), |(_, body)| body),
+                ))
+            };
+        }
         let mut headers = endpoint
             .as_ref()
             .map_or_else(HeaderMap::new, |endpoint| endpoint.headers.clone());
@@ -329,7 +362,29 @@ impl Transport {
             };
             let status = response.status().as_u16();
             let response_headers = std::mem::take(response.headers_mut());
-            if let (true, Some(events)) = ((200..300).contains(&status), O::OUTPUT_EVENTS) {
+            if O::PROTOCOL.rpc_v2() {
+                let expected = if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
+                    "rpc-v2-cbor"
+                } else {
+                    "rpc-v2-json"
+                };
+                if response_headers.get_all("smithy-protocol").iter().count() != 1
+                    || response_headers
+                        .get("smithy-protocol")
+                        .and_then(|h| h.to_str().ok())
+                        != Some(expected)
+                {
+                    return Err(Error::Decode(format!(
+                        "malformed RPC v2 response (HTTP {status}): smithy-protocol does not match request"
+                    )));
+                }
+            }
+            let success = if O::PROTOCOL.rpc_v2() {
+                status == 200
+            } else {
+                (200..300).contains(&status)
+            };
+            if let (true, Some(events)) = (success, O::OUTPUT_EVENTS) {
                 let mut stream = guarded_stream(
                     ByteStream::new(response.bytes_stream())
                         .open()
@@ -367,12 +422,15 @@ impl Transport {
                         bound.push((member.name, BoundValue::Json(Value::Null)));
                     }
                 }
-                let mut output: O::Output =
-                    bound::read(&initial, bound).map_err(|e| Error::Decode(e.to_string()))?;
+                let mut output: O::Output = if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
+                    crucible_wire::cbor::read(&initial).map_err(Error::Decode)?
+                } else {
+                    bound::read(&initial, bound).map_err(|e| Error::Decode(e.to_string()))?
+                };
                 O::set_output_events(&mut output, reader.into_incoming(pending));
                 return Ok(output);
             }
-            if (200..300).contains(&status)
+            if success
                 && info
                     .output
                     .iter()
@@ -425,7 +483,7 @@ impl Transport {
                     return Err(Error::Transport(error));
                 }
             };
-            if (200..300).contains(&status) {
+            if success {
                 if let Some((algorithm, expected)) = response_checksum(&plan, &response_headers) {
                     let actual = crate::checksum::digest(algorithm, &bytes)
                         .expect("planned algorithms are supported");
@@ -850,6 +908,15 @@ where
     O: Operation,
     O::Output: DeserializeOwned,
 {
+    if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
+        if !O::HAS_OUTPUT && !body.is_empty() {
+            return Err(Error::Decode(
+                "operation without output received a body".to_owned(),
+            ));
+        }
+        return crucible_wire::cbor::read(if body.is_empty() { b"\xA0" } else { body })
+            .map_err(Error::Decode);
+    }
     read_response(status, members, headers, body, || body.clone()).map_err(Error::Decode)
 }
 
@@ -970,20 +1037,42 @@ fn decode_error<E: OperationErrors>(
     headers: &HeaderMap,
     body: &[u8],
 ) -> Error<E> {
-    let mut envelope: Option<Value> = serde_json::from_slice(body).ok();
+    let mut envelope: Option<Value> = if protocol == Protocol::SmithyRpcV2Cbor {
+        crucible_wire::cbor::error_envelope(body)
+    } else {
+        serde_json::from_slice(body).ok()
+    };
     let header = if protocol.aws() {
         "x-amzn-errortype"
     } else {
         "x-crucible-error"
     };
-    let header_name = headers.get(header).and_then(|value| value.to_str().ok());
+    let header_name = if protocol.rpc_v2() {
+        None
+    } else {
+        headers.get(header).and_then(|value| value.to_str().ok())
+    };
     let body_name = envelope.as_ref().and_then(|e| {
         e.get("__type")
             .and_then(Value::as_str)
             .or_else(|| protocol.aws().then(|| e.get("code")?.as_str()).flatten())
     });
+    if protocol.rpc_v2()
+        && body_name.is_none_or(|name| {
+            name.split_once('#').is_none_or(|(namespace, shape)| {
+                namespace.is_empty() || shape.is_empty() || shape.contains(['#', ':'])
+            })
+        })
+    {
+        return Error::Decode(format!(
+            "malformed RPC v2 error response (HTTP {status}): missing full error shape id"
+        ));
+    }
     // `aws.protocols#ThrottlingError:http://...`: the shape name alone.
     let type_name = header_name.or(body_name).map(|name| {
+        if protocol.rpc_v2() {
+            return name.to_owned();
+        }
         let name = name.split(':').next().unwrap_or(name);
         name.rsplit('#').next().unwrap_or(name).to_owned()
     });
@@ -1086,43 +1175,6 @@ fn verified_stream(
             }
         },
     )))
-}
-
-/// A bound member's value as the text of one label, query value or header
-/// item: timestamps in the binding's format, media-type strings in base64.
-fn text(value: &Value, scalar: Scalar) -> String {
-    use crucible_wire::operation::TimestampFormat;
-    let format = match scalar {
-        Scalar::DateTime => Some(TimestampFormat::DateTime),
-        Scalar::EpochSeconds => Some(TimestampFormat::EpochSeconds),
-        Scalar::HttpDate => Some(TimestampFormat::HttpDate),
-        Scalar::Timestamp { text, .. } => Some(text),
-        Scalar::Base64 => {
-            use base64::Engine;
-            return base64::engine::general_purpose::STANDARD.encode(split::text(value));
-        }
-        _ => None,
-    };
-    match format.and_then(|format| Some((crucible_wire::time::from_json(value)?, format))) {
-        Some((time, format)) => crucible_wire::time::format(&time, format),
-        None => split::text(value),
-    }
-}
-
-/// A header member's text: a list's items joined as a header list.
-fn header_text(value: &Value, scalar: Scalar) -> String {
-    match (value, scalar) {
-        // REST protocols send HTTP dates unquoted despite their commas.
-        (Value::Array(items), Scalar::List(item)) if item.http_date() => items
-            .iter()
-            .map(|value| text(value, *item))
-            .collect::<Vec<_>>()
-            .join(", "),
-        (Value::Array(items), Scalar::List(item)) => {
-            crucible_wire::text::join_header(items.iter().map(|value| text(value, *item)))
-        }
-        (value, scalar) => text(value, scalar),
-    }
 }
 
 // Keep the fallback status policy aligned with every client runtime.

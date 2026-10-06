@@ -52,7 +52,9 @@ pub fn write_typed<T: Serialize + ?Sized>(
     Ok(taken
         .into_iter()
         .filter_map(|(member, value)| match member.location {
-            Location::Header(header) => Some((header, text(&value))),
+            Location::Header(header) => {
+                Some((header, crate::text::header_text(&value, member.scalar)))
+            }
             _ => None,
         })
         .collect())
@@ -77,7 +79,10 @@ pub fn write_http<T: Serialize + ?Sized>(
     let mut result = ResponseBindings::default();
     for (member, value) in taken {
         match member.location {
-            Location::Header(name) => result.headers.push((name.to_owned(), text(&value))),
+            Location::Header(name) => result.headers.push((
+                name.to_owned(),
+                crate::text::header_text(&value, member.scalar),
+            )),
             Location::PrefixHeaders(prefix) => {
                 let values = value.as_object().ok_or_else(|| {
                     <serde_json::Error as ser::Error>::custom("prefix headers must be a map")
@@ -90,7 +95,10 @@ pub fn write_http<T: Serialize + ?Sized>(
                             "prefix header values must be strings",
                         )
                     })?;
-                    result.headers.push((name, value.to_owned()));
+                    result.headers.push((
+                        name,
+                        crate::text::header_text(&Value::String(value.to_owned()), member.scalar),
+                    ));
                 }
             }
             Location::ResponseCode => {

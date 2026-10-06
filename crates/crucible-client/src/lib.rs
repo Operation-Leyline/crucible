@@ -47,7 +47,7 @@ pub use crucible_wire::field::Field;
 pub use crucible_wire::open::UnknownUnion;
 pub use crucible_wire::operation::{Checksum, ChecksumAlgorithm, Protocol};
 pub use crucible_wire::operation::{Operation, OperationInfo};
-pub use crucible_wire::{blob, codec, error, number, operation, time, validate};
+pub use crucible_wire::{blob, cbor, codec, error, number, operation, time, validate};
 pub use crucible_wire::{field, open};
 pub use metadata::{OperationMetadata, ServiceMetadata};
 pub use paginate::Paginator;

@@ -33,6 +33,12 @@ impl<'a> OperationJob<'a> {
         self.job.service()
     }
 
+    pub fn metadata(&self) -> &crate::OperationMetadata {
+        self.context()
+            .operation_metadata()
+            .expect("identified metadata")
+    }
+
     pub fn context(&self) -> &Arc<Context> {
         self.job.context()
     }
