@@ -163,4 +163,19 @@ mod tests {
         assert_eq!(super::literal("\0x"), "std::string(\"\\000x\", 2)");
         assert_eq!(super::literal("é"), "\"é\"");
     }
+
+    #[test]
+    fn detects_cpp_keywords() {
+        assert!(super::keyword("alignas"));
+        assert!(super::keyword("bool"));
+        assert!(super::keyword("class"));
+        assert!(super::keyword("return"));
+        assert!(super::keyword("while"));
+
+        assert!(!super::keyword("align"));
+        assert!(!super::keyword("Bool"));
+        assert!(!super::keyword("CLASS"));
+        assert!(!super::keyword("my_variable"));
+        assert!(!super::keyword("hello"));
+    }
 }
