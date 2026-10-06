@@ -205,7 +205,11 @@ impl Transport {
         };
         let expired = async {
             match deadline {
-                Some(deadline) => tokio::time::sleep_until(deadline).await,
+                // An expired budget must be ready even between timer ticks.
+                Some(deadline) if deadline > tokio::time::Instant::now() => {
+                    tokio::time::sleep_until(deadline).await;
+                }
+                Some(_) => (),
                 None => std::future::pending().await,
             }
         };
