@@ -610,7 +610,9 @@ jobs:
       matrix:
         # Provisioning is host-specific: PRs that change it and full runs
         # qualify every host; other PRs qualify Linux (tools/ci_plan.py).
-        os: ${{ fromJSON(needs.plan.outputs.onboarding_hosts) }}
+        # The fallback keeps a skipped plan (draft PRs) from failing to expand
+        # the matrix, which GitHub evaluates before the job's `if`.
+        os: ${{ fromJSON(needs.plan.outputs.onboarding_hosts || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }

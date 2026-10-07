@@ -294,6 +294,12 @@ class PlanTests(unittest.TestCase):
         self.assertIn("types: [opened, synchronize, reopened, ready_for_review]", workflow)
         for name in ("plan", "ci"):
             self.assertIn("!github.event.pull_request.draft", jobs[name])
+        # Drafts skip plan, so every matrix built from its outputs needs a
+        # literal fallback; fromJSON('') fails the whole run.
+        for name, body in jobs.items():
+            for expression in re.findall(r"fromJSON\((.*)\) \}\}", body):
+                with self.subTest(job=name):
+                    self.assertRegex(expression, r"\|\| '\[")
         # PR-ref caches are invisible to other PRs; saving them only evicts main's.
         save_on_main = "save-if: \"${{ github.ref == 'refs/heads/main' }}\""
         for name, body in jobs.items():
