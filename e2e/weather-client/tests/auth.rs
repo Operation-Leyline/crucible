@@ -38,8 +38,10 @@ async fn generated_sigv4_refreshes_after_interceptors_and_obeys_endpoint_scope()
         .aws_credentials(Identity::provider(move || {
             let attempt = count.fetch_add(1, Ordering::SeqCst) + 1;
             async move {
-                let mut value =
-                    crucible_client_runtime_rust::AwsCredentials::new(format!("key{attempt}"), "secret");
+                let mut value = crucible_client_runtime_rust::AwsCredentials::new(
+                    format!("key{attempt}"),
+                    "secret",
+                );
                 value.session_token = Some(format!("session{attempt}"));
                 Some(value)
             }

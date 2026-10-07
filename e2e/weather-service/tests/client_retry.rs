@@ -7,7 +7,9 @@ use axum::Router;
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::post;
 use crucible_client_runtime_rust::operation::{ErrorInfo, Fault};
-use crucible_client_runtime_rust::{Config, Error, Operation, OperationErrors, OperationInfo, Retry, Transport};
+use crucible_client_runtime_rust::{
+    Config, Error, Operation, OperationErrors, OperationInfo, Retry, Transport,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use weather_service::contract::model::StatusInput;
@@ -86,9 +88,9 @@ impl OperationErrors for Modelled {
         Self::classify(status, name).map(Self)
     }
     fn classify(status: u16, name: Option<&str>) -> Option<&'static ErrorInfo> {
-        match name
-            .or_else(|| crucible_client_runtime_rust::by_status(status, &[&ORDINARY, &TRANSIENT, &THROTTLED]))?
-        {
+        match name.or_else(|| {
+            crucible_client_runtime_rust::by_status(status, &[&ORDINARY, &TRANSIENT, &THROTTLED])
+        })? {
             "Ordinary" => Some(&ORDINARY),
             "Transient" => Some(&TRANSIENT),
             "Throttled" => Some(&THROTTLED),
