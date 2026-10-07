@@ -9,8 +9,11 @@ including JSON and Net::HTTP.
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-cargo run -p crucible-cli -- generate ruby model.json \
+crucible generate ruby smithy \
   --out generated/client --package-name weather_client --module-name Weather \
   --package-version 0.1.0 --endpoint https://weather.example --content-sha256
 cd generated/client

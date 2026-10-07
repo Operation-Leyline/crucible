@@ -27,10 +27,10 @@ For standalone command-line tools, see [generating a service CLI](clients/cli.md
 | `c` | [C](clients/c.md) | CMake; `python tools/test-c.py` |
 | `r` | [R](clients/r.md) | R source package; `python tools/test-r.py` |
 
-Run repository commands from its root. Install the target's prerequisites as
-listed in its guide. The CLI can also be installed from this checkout with
-`cargo install --path crates/crucible-cli --locked`; examples using `crucible`
-assume that executable is on `PATH`.
+Run repository qualification commands from its root. Install the target's
+prerequisites as listed in its guide. Install the CLI once from your pinned
+Crucible checkout with `cargo install --path crates/crucible-cli --locked`.
+Examples using `crucible` assume that executable is on `PATH`.
 
 ## Catching service errors
 
@@ -55,7 +55,7 @@ validate a model for its intended language before generation:
 
 ```sh
 crucible capabilities
-crucible check model.json --target python
+crucible check smithy --target python
 ```
 
 Each emitter also checks capabilities when called as a library. A feature accepted
@@ -69,8 +69,46 @@ installed-consumer checks, artifact manifests, and publication recipes.
 
 ## Preparing a model
 
-Use the `crucible.protocols#json` service trait and bearer authentication where
-needed. Rust model packages can take the definitions as the
+Pass a Smithy source directory or a single `.smithy` file directly to `check`
+or `generate`. Run source-generation commands from your service's model
+project. For example, when your service model lives under `smithy/`:
+
+```sh
+crucible check smithy --target ts
+crucible generate ts smithy --out generated/weather \
+  --package-name @example/weather --endpoint https://api.example.com
+```
+
+The language guides use Weather package names and call examples. Supply your
+Weather service sources or adapt those names and calls to your own service.
+The Crucible repository's `smithy/` directory contains trait definitions;
+it does not contain the Weather service.
+
+The CLI runs the pinned official Smithy compiler, imports Crucible's protocol
+and standard errors, and applies `flattenAndRemoveMixins`. It manages the
+matching Java runtime on first use and caches it for later builds. You do not
+need a `smithy-build.json`, a model-publishing Cargo crate, or a separate Java
+installation. Compiler artifacts use a temporary directory and are removed
+after generation. `--service` selects one service when your sources define
+several; `--protocol` selects one declared protocol.
+
+Non-Rust client generators emit native package metadata and a bundled runtime. The
+language guide's npm, pip, Go, Maven, or other native commands build and consume
+that package. To regenerate during a native build, call `crucible generate`
+from a task or script in your source project before the native compile or
+package step. Keep that script and your Smithy sources outside the generated
+output directory, because regeneration replaces it. Pin the CLI version in
+your toolchain or CI setup.
+
+Rust clients also support automatic generation during Cargo builds through
+[`crucible_build::client_from_smithy`](clients/rust.md#generating-a-client).
+
+### Using an existing Smithy build
+
+A prepared JSON AST remains accepted and requires no compiler or Java runtime.
+Use this path when you already publish model projections or need custom imports
+and Smithy transforms. Use the `crucible.protocols#json` service trait and bearer
+authentication where needed. Rust model packages can take the definitions as the
 [`crucible-traits` Cargo dependency](../smithy/README.md), with a build-script
 helper for IDE indexing. [The protocol definition](../smithy/crucible.smithy) is also distributed in
 the `crucible-traits` jar on `traits-v<version>` releases. For a Gradle Smithy

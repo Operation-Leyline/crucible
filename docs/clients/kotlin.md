@@ -13,8 +13,11 @@ and Android callers who do not need Gradle Multiplatform metadata.
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-cargo run -p crucible-cli -- generate kotlin model.json \
+crucible generate kotlin smithy \
   --out generated/client --group-id example --artifact-id weather-client \
   --package-name example.weather --package-version 0.1.0 \
   --endpoint https://api.example --content-sha256

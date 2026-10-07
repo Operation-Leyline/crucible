@@ -9,8 +9,11 @@ runtime on the native VM and in browsers, with no Flutter dependency.
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-cargo run -p crucible-cli -- generate dart model.json \
+crucible generate dart smithy \
   --out generated/client --package-name weather_client \
   --package-version 0.1.0 --endpoint https://api.example --content-sha256
 cd generated/client

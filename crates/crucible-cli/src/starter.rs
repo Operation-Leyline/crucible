@@ -8,6 +8,7 @@ pub(crate) fn create(
     revision: Option<&str>,
     runtime: Option<&Path>,
     smithy_version: Option<&str>,
+    client: bool,
 ) -> Result<(), String> {
     if name.is_empty()
         || name.len() > 64
@@ -63,14 +64,24 @@ pub(crate) fn create(
             )
         })
     };
+    let runtime_package = if client {
+        "crucible-client"
+    } else {
+        "crucible"
+    };
+    let runtime_features = if client {
+        ""
+    } else {
+        ", default-features = false, features = [\"http\"]"
+    };
     let mut manifest = format!(
         "[package]\nname = {}\nversion = \"0.1.0\"\nedition = \"2024\"\n\n\
          [package.metadata.smithy]\nsources = [\"smithy\"]\n\n\
-         [dependencies]\ncrucible = {{ {}, default-features = false, features = [\"http\"] }}\n\
+         [dependencies]\n{runtime_package} = {{ {}{runtime_features} }}\n\
          tokio = {{ version = \"1\", features = [\"rt-multi-thread\", \"macros\", \"net\"] }}\n\n\
          [build-dependencies]\ncrucible-build = {{ {}{} }}\n",
         quoted(name),
-        dependency("crucible")?,
+        dependency(runtime_package)?,
         dependency("crucible-build")?,
         if smithy_version.is_some() {
             ", default-features = false"
@@ -78,34 +89,53 @@ pub(crate) fn create(
             ""
         }
     );
+    let helper = if client {
+        "client_from_smithy"
+    } else {
+        "from_smithy"
+    };
     let build = if let Some(version) = smithy_version {
         manifest.push_str(&format!(
             "smithy-tooling = {{ git = \"https://github.com/Operation-Leyline/smithy-tooling\", tag = {} }}\n",
             quoted(&format!("smithy-{version}-wrapper-0.3.0"))
         ));
-        "fn main() {\n    crucible_build::from_smithy_with(\"smithy\", |config, out| {\n        smithy_tooling::build(config, out)\n    })\n    .generate();\n}\n"
+        format!(
+            "fn main() {{\n    crucible_build::{helper}_with(\"smithy\", |config, out| {{\n        smithy_tooling::build(config, out)\n    }})\n    .generate();\n}}\n"
+        )
     } else {
-        "fn main() {\n    crucible_build::from_smithy(\"smithy\").generate();\n}\n"
+        format!("fn main() {{\n    crucible_build::{helper}(\"smithy\").generate();\n}}\n")
     };
-    let files = [
+    let mut files = vec![
         ("Cargo.toml", manifest.as_str()),
-        ("build.rs", build),
+        ("build.rs", build.as_str()),
         (".gitignore", "/target/\n"),
-        ("README.md", include_str!("starter/README.md")),
         ("smithy/hello.smithy", include_str!("starter/hello.smithy")),
-        ("src/main.rs", include_str!("starter/main.rs")),
-        ("src/contract.rs", "crucible::include_service!();\n"),
-        (
-            "src/operations/mod.rs",
-            "mod service;\n\npub struct Service;\n",
-        ),
-        ("src/operations/service/mod.rs", "mod say_hello;\n"),
-        (
-            "src/operations/service/say_hello.rs",
-            include_str!("starter/say_hello.rs"),
-        ),
-        ("hello.http", include_str!("starter/hello.http")),
     ];
+    let example =
+        include_str!("starter/client_hello.rs").replace("hello_client", &name.replace('-', "_"));
+    if client {
+        files.extend([
+            ("README.md", include_str!("starter/client_README.md")),
+            ("src/lib.rs", "crucible_client::include_client!();\n"),
+            ("examples/hello.rs", example.as_str()),
+        ]);
+    } else {
+        files.extend([
+            ("README.md", include_str!("starter/README.md")),
+            ("src/main.rs", include_str!("starter/main.rs")),
+            ("src/contract.rs", "crucible::include_service!();\n"),
+            (
+                "src/operations/mod.rs",
+                "mod service;\n\npub struct Service;\n",
+            ),
+            ("src/operations/service/mod.rs", "mod say_hello;\n"),
+            (
+                "src/operations/service/say_hello.rs",
+                include_str!("starter/say_hello.rs"),
+            ),
+            ("hello.http", include_str!("starter/hello.http")),
+        ]);
+    }
     for (relative, contents) in files {
         let path = out.join(relative);
         std::fs::create_dir_all(path.parent().expect("a starter file has a parent"))

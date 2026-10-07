@@ -11,6 +11,9 @@ import subprocess
 import tempfile
 import time
 import urllib.parse
+import zipfile
+
+from package_starter import package
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,7 +46,7 @@ def request(endpoint, body, path="/hello", method=None):
             return response.status, json.load(response), {name.lower(): value for name, value in response.headers.items()}
 
 
-def serve(binary, env, log, field="message", empty=False, internal=False):
+def serve(binary, env, log, field="message", empty=False, internal=False, client=None):
     with log.open("w", encoding="utf-8") as output:
         process = subprocess.Popen([str(binary)], env={**env, "CRUCIBLE_ADDR": "127.0.0.1:0"}, stdout=output, stderr=subprocess.STDOUT)
         try:
@@ -83,6 +86,10 @@ def serve(binary, env, log, field="message", empty=False, internal=False):
                 if body == b"{":
                     assert response["reason"] == "cannotParse", response
             print("Fresh starter: HTTP 200 and modeled HTTP 400 responses passed")
+            if client:
+                result = run(["cargo", "run", "--offline", "--example", "hello", "--", endpoint], client, env)
+                assert result.stdout.strip() == "Hello, World!", result.stdout
+                print("Fresh Rust client calls the independent Hello service over HTTP")
             if internal:
                 status, response, headers = request(endpoint, b'{"name":"Fail"}')
                 assert status == 500 and response["__type"] == "InternalServerException", (status, response)
@@ -98,6 +105,85 @@ def serve(binary, env, log, field="message", empty=False, internal=False):
                 process.wait(timeout=10)
 
 
+def qualify_client(cli, directory, env, source):
+    project = directory / "hello client"
+    run([str(cli), "new", "greeting-sdk", "--client", "--out", str(project), "--runtime-path", str(ROOT)])
+    original = {path.relative_to(project): path.read_bytes() for path in project.rglob("*") if path.is_file()}
+    failed = run([str(cli), "new", "greeting-sdk", "--client", "--out", str(project)], success=False)
+    assert "empty directory" in failed.stderr
+    assert original == {path.relative_to(project): path.read_bytes() for path in project.rglob("*") if path.is_file()}
+    run(["cargo", "build", "--examples"], project, env)
+    run(["cargo", "fmt", "--all", "--check"], project, env)
+    model = project / "smithy/hello.smithy"
+    # Clients of external services must not inherit server rejection requirements.
+    model.write_text(source.replace("errors: [ValidationException, InternalServerException, UnknownOperationException]", "errors: []"), encoding="utf-8")
+    run(["cargo", "build", "--offline", "--examples"], project, env)
+    model.write_text(source.replace("message: String", "salutation: String"), encoding="utf-8")
+    failed = run(["cargo", "build", "--offline", "--examples"], project, env, success=False)
+    assert "message" in failed.stderr and "salutation" in failed.stderr, failed.stderr
+    model.write_text(source.replace("name: String", "name: DefinitelyNotAShape"), encoding="utf-8")
+    failed = run(["cargo", "build", "--offline"], project, env, success=False)
+    assert "DefinitelyNotAShape" in failed.stderr, failed.stderr
+    model.write_text(source, encoding="utf-8")
+    # Exercise the explicit compiler seam without reaching a remote tooling tag.
+    manifest = project / "Cargo.toml"
+    manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, path =') +
+                        f'smithy-tooling = {{ path = {json.dumps(str(ROOT / "vendor/smithy-tooling"))} }}\n', encoding="utf-8")
+    (project / "build.rs").write_text('fn main() { crucible_build::client_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out)).generate(); }\n', encoding="utf-8")
+    run(["cargo", "clippy", "--offline", "--all-targets", "--", "-D", "warnings"], project, env)
+    # A separate downstream crate must see the generated public library API.
+    consumer = directory / "client consumer"
+    (consumer / "src").mkdir(parents=True)
+    (consumer / "Cargo.toml").write_text('[package]\nname = "client-consumer"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\n' +
+                                        f'greeting-sdk = {{ path = {json.dumps(str(project))} }}\n', encoding="utf-8")
+    (consumer / "src/main.rs").write_text('use greeting_sdk::{HelloServiceClient, model::SayHelloInput};\nfn main() { let _ = std::mem::size_of::<HelloServiceClient>(); let _ = SayHelloInput::builder().name("World").build(); }\n', encoding="utf-8")
+    run(["cargo", "run", "--offline"], consumer, env)
+    print("Client regeneration, diagnostics, explicit compiler and independent Cargo consumer passed")
+    return project
+
+
+def qualify_model_package(directory, env, source):
+    project = directory / "shared contract"
+    (project / "src").mkdir(parents=True)
+    (project / "smithy").mkdir()
+    (project / "src/lib.rs").write_text("", encoding="utf-8")
+    (project / "Cargo.toml").write_text('[package]\nname = "shared-model"\nversion = "0.1.0"\nedition = "2024"\nlinks = "shared_model"\n[build-dependencies]\n' +
+                                       f'crucible-build = {{ path = {json.dumps(str(ROOT / "crates/crucible-build"))} }}\n', encoding="utf-8")
+    (project / "build.rs").write_text('fn main() { crucible_build::publish_model_from_smithy("smithy"); }\n', encoding="utf-8")
+    model = project / "smithy/hello.smithy"
+    model.write_text(source, encoding="utf-8")
+    consumer = directory / "shared client"
+    (consumer / "src").mkdir(parents=True)
+    (consumer / "Cargo.toml").write_text('[package]\nname = "shared-client"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\n' +
+                                        f'shared-model = {{ path = {json.dumps(str(project))} }}\n' +
+                                        f'crucible-client = {{ path = {json.dumps(str(ROOT / "crates/crucible-client"))} }}\n[build-dependencies]\n' +
+                                        f'crucible-build = {{ path = {json.dumps(str(ROOT / "crates/crucible-build"))}, default-features = false }}\n', encoding="utf-8")
+    (consumer / "build.rs").write_text('fn main() { crucible_build::client("shared_model").generate(); }\n', encoding="utf-8")
+    client_source = 'crucible_client::include_client!();\npub fn message(output: model::SayHelloOutput) -> String { output.message }\n'
+    (consumer / "src/lib.rs").write_text(client_source, encoding="utf-8")
+    run(["cargo", "build", "--offline"], consumer, env)
+    models = list(Path(env["CARGO_TARGET_DIR"]).glob("debug/build/shared-model-*/out/smithy/model.json"))
+    assert len(models) == 1, models
+    ast = models[0]
+    before = ast.read_bytes(), ast.stat().st_mtime_ns
+    model.write_text(source + "\n// Recompile an unchanged contract.\n", encoding="utf-8")
+    run(["cargo", "build", "--offline"], consumer, env)
+    assert before == (ast.read_bytes(), ast.stat().st_mtime_ns), "published AST must stay stable when its contents do"
+    model.write_text(source.replace("message: String", "salutation: String"), encoding="utf-8")
+    failed = run(["cargo", "build", "--offline"], consumer, env, success=False)
+    assert "message" in failed.stderr and "salutation" in failed.stderr, failed.stderr
+    assert '"salutation"' in ast.read_text(), "model edits must reach dependents"
+    (consumer / "src/lib.rs").write_text(client_source.replace("output.message", "output.salutation"), encoding="utf-8")
+    run(["cargo", "build", "--offline"], consumer, env)
+    # Compile/publish with default features disabled and an explicit compiler too.
+    manifest = project / "Cargo.toml"
+    manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, path =') +
+                        f'smithy-tooling = {{ path = {json.dumps(str(ROOT / "vendor/smithy-tooling"))} }}\n', encoding="utf-8")
+    (project / "build.rs").write_text('fn main() { crucible_build::publish_model_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out)); }\n', encoding="utf-8")
+    run(["cargo", "build", "--offline"], consumer, env)
+    print("One-line shared model publication, stable AST and downstream regeneration passed")
+
+
 def main():
     run(["python", "tools/sync_smithy_tooling.py", "--verify-local"])
     run(["cargo", "build", "-p", "crucible-cli", "--locked"])
@@ -105,6 +191,19 @@ def main():
     cli = target / "debug" / ("crucible.exe" if os.name == "nt" else "crucible")
     with tempfile.TemporaryDirectory(prefix="crucible-onboarding-") as temporary:
         directory = Path(temporary)
+        archive = package(cli, directory / "archives", revision="test-revision", client=True)
+        before = archive.read_bytes()
+        assert before == package(cli, directory / "archives", revision="test-revision", client=True).read_bytes()
+        with zipfile.ZipFile(archive) as contents:
+            assert "hello-client/src/lib.rs" in contents.namelist()
+            assert "hello-client/examples/hello.rs" in contents.namelist()
+            assert 'rev = "test-revision"' in contents.read("hello-client/Cargo.toml").decode()
+            assert "client_from_smithy" in contents.read("hello-client/build.rs").decode()
+        selected = directory / "selected compiler client"
+        run([str(cli), "new", "selected-client", "--client", "--out", str(selected), "--crucible-rev", "test-revision", "--smithy-version", "1.74.0"])
+        selected_manifest = (selected / "Cargo.toml").read_text()
+        assert 'smithy-1.74.0-wrapper-0.3.0' in selected_manifest and 'default-features = false' in selected_manifest
+        assert 'client_from_smithy_with' in (selected / "build.rs").read_text()
         project = directory / "hello service"
         run([str(cli), "new", "hello-service", "--out", str(project), "--runtime-path", str(ROOT)])
         files = {path.relative_to(project): hashlib.sha256(path.read_bytes()).digest() for path in project.rglob("*") if path.is_file()}
@@ -116,9 +215,12 @@ def main():
             env.pop(variable, None)
         run(["cargo", "build"], project, env)
         assert list((directory / "runtime cache").rglob("distribution.zip"))
+        source = (project / "smithy/hello.smithy").read_text(encoding="utf-8")
+        client = qualify_client(cli, directory, env, source)
         env.update(SMITHY_OFFLINE="1", CARGO_NET_OFFLINE="true")
+        qualify_model_package(directory, env, source)
         binary = directory / "consumer target/debug" / ("hello-service.exe" if os.name == "nt" else "hello-service")
-        serve(binary, env, directory / "server.log")
+        serve(binary, env, directory / "server.log", client=client)
         run(["cargo", "fmt", "--all", "--check"], project, env)
         model = project / "smithy/hello.smithy"
         source = model.read_text(encoding="utf-8")

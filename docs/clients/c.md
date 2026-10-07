@@ -10,8 +10,11 @@ records the generator, service, package version, and schema digest in
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-crucible generate c model.json --out sdk \
+crucible generate c smithy --out sdk \
   --package-name weather_client --prefix weather --package-version 0.1.0 \
   --endpoint https://api.example.com --content-sha256
 cmake -S sdk -B build -DCMAKE_INSTALL_PREFIX="$PWD/installed"

@@ -2,12 +2,15 @@
 
 [All clients](../clients.md) · [Repository overview](../../README.md)
 
-Generate a typed Python 3.11+ package from a prepared Smithy JSON AST:
+Generate a typed Python 3.11+ package from your Smithy sources:
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-cargo run -p crucible-cli -- generate python model.json \
+crucible generate python smithy \
   --out target/python-sdk --package-name example-sdk --module-name example_sdk \
   --endpoint https://api.example.com --content-sha256
 python -m pip install ./target/python-sdk

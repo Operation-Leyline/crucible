@@ -51,6 +51,7 @@ jobs:
         run: |
           cargo build -p crucible-cli --locked
           python3 tools/package_starter.py --cli target/debug/crucible
+          python3 tools/package_starter.py --cli target/debug/crucible --client
         env:
           CARGO_BUILD_JOBS: '2'
       - uses: actions/download-artifact@v4
@@ -68,4 +69,5 @@ jobs:
             -f "ref=refs/tags/v$RELEASE_VERSION" -f "sha=$GITHUB_SHA"
           gh release create "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "Crucible $RELEASE_VERSION" --generate-notes \
-            "dist/hello-service-v$RELEASE_VERSION.zip" dist/smithy-cargo-0.1.0.zip
+            "dist/hello-service-v$RELEASE_VERSION.zip" \
+            "dist/hello-client-v$RELEASE_VERSION.zip" dist/smithy-cargo-0.1.0.zip

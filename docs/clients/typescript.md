@@ -9,11 +9,11 @@ The package declares TypeScript `>=5.7 <7` as a build dependency.
 
 ## Generating and installing
 
-From this repository:
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-cargo run -p crucible-cli -- generate ts \
-  crates/crucible-smithy/tests/fixtures/weather.json \
+crucible generate ts smithy \
   --out target/weather-ts --package-name @example/weather \
   --endpoint http://127.0.0.1:3000 --middleware content-sha256
 cd target/weather-ts
@@ -29,8 +29,7 @@ directory. Set `--package-version` for distribution, `--client-name` to override
 Install the built package directory or archive in your application; generation
 and `npm pack` do not publish it.
 
-For another service, replace the fixture with its prepared Smithy JSON model.
-Use `--service` when that model defines multiple services. Package metadata
+Use `--service` when the sources define multiple services. Package metadata
 records the generator and service versions. The packaged `crucible.json` manifest
 also records `generatorVersion`, `service`, `serviceVersion`, and `schemaSha256`:
 the SHA-256 digest of the shared lowered wire schema.

@@ -20,7 +20,7 @@ struct Cli {
 
 #[derive(Args)]
 struct Source {
-    /// A Smithy JSON AST, built with the flattenAndRemoveMixins transform.
+    /// A Smithy source directory, .smithy file, or compiled JSON AST.
     model: PathBuf,
     /// The service to lower, when the model defines several.
     #[arg(long)]
@@ -32,10 +32,13 @@ struct Source {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Create a single-crate Hello service that builds and runs immediately.
+    /// Create a single-crate Hello service or Rust client with Smithy generation.
     New {
         /// Cargo package name, for example hello-service.
         name: String,
+        /// Create a Rust client library with a runnable Hello example.
+        #[arg(long)]
+        client: bool,
         /// Destination directory; defaults to the package name. Must be empty.
         #[arg(long)]
         out: Option<PathBuf>,
@@ -469,10 +472,16 @@ enum MiddlewareArg {
 
 fn main() -> ExitCode {
     let result = match Cli::parse().command {
-        Command::New { name, out, crucible_rev, runtime_path, smithy_version } => {
+        Command::New { name, client, out, crucible_rev, runtime_path, smithy_version } => {
             let out = out.unwrap_or_else(|| PathBuf::from(&name));
-            starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), smithy_version.as_deref())
-                .map(|()| println!("Created {}. Open {} in RustRover and Run, or: cd {} && cargo run", name, out.display(), out.display()))
+            starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), smithy_version.as_deref(), client)
+                .map(|()| {
+                    if client {
+                        println!("Created {}. Build with: cd {} && cargo build; call a Hello service with: cargo run --example hello -- <endpoint>", name, out.display());
+                    } else {
+                        println!("Created {}. Open {} in RustRover and Run, or: cd {} && cargo run", name, out.display(), out.display());
+                    }
+                })
         },
         Command::Check { source, target } => lower_with_capabilities(
             &source, &target.map(ClientLanguage::capabilities).unwrap_or_default(),
@@ -546,8 +555,22 @@ fn lower_infrastructure(source: &Source) -> Result<Service, String> {
 }
 
 fn load_model(source: &Source) -> Result<Model, String> {
-    let json = std::fs::read_to_string(&source.model)
-        .map_err(|error| format!("cannot read {}: {error}", source.model.display()))?;
+    let workspace;
+    let model = if source.model.is_dir()
+        || source
+            .model
+            .extension()
+            .is_some_and(|extension| extension == "smithy")
+    {
+        workspace = tempfile::tempdir()
+            .map_err(|error| format!("cannot create Smithy compilation directory: {error}"))?;
+        crucible_build::compile_smithy(&source.model, workspace.path())
+            .map_err(|error| error.to_string())?
+    } else {
+        source.model.clone()
+    };
+    let json = std::fs::read_to_string(&model)
+        .map_err(|error| format!("cannot read {}: {error}", model.display()))?;
     Model::from_json(&json).map_err(|error| error.to_string())
 }
 
