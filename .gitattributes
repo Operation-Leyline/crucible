@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# Preserve the imported compiler snapshot, including upstream license bytes.
+vendor/smithy-tooling/** -text
