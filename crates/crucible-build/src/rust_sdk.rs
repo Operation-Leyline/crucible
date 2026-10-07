@@ -20,6 +20,12 @@ impl<'a> RustSdk<'a> {
         }
     }
 
+    /// Replace all native generator options for advanced configuration.
+    pub fn options(mut self, options: RustOptions) -> Self {
+        self.options = options;
+        self
+    }
+
     /// Cargo package name; defaults to the service-derived SDK name.
     pub fn package(mut self, package: &str) -> Self {
         self.options.package_name = Some(package.into());

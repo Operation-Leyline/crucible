@@ -107,8 +107,45 @@ The default features are `smithy` and `rust`. A Java-only source producer uses
 an already assembled AST only needs `features = ["java"]` with defaults disabled.
 Neither loads the Rust emitter or client runtime.
 
-`rust_client` and `java_client` are convenience methods. The shared interface
-accepts each language's native options through `crucible_build::clients`:
+Every native client target has a feature-gated fluent helper:
+
+| Feature | Model helper | Native package settings |
+| --- | --- | --- |
+| `rust` | `rust_client` | Cargo package, version, runtime source |
+| `ts` | `ts_client` | npm package, version, client name, middleware, package JSON |
+| `python` | `python_client` | Distribution package, import module, version |
+| `go` | `go_client` | Module path, Go package |
+| `java` | `java_client` | Group ID, artifact ID, Java package, version |
+| `csharp` | `csharp_client` | NuGet package ID, namespace, version |
+| `kotlin` | `kotlin_client` | Group ID, artifact ID, Kotlin package, version |
+| `swift` | `swift_client` | Swift package, import module, version |
+| `dart` | `dart_client` | Pub package, version |
+| `php` | `php_client` | Composer package, namespace, version |
+| `ruby` | `ruby_client` | Gem package, module, version |
+| `cpp` | `cpp_client` | CMake package, namespace, version |
+| `c` | `c_client` | CMake package, symbol prefix, version |
+| `r` | `r_client` | R package, version |
+
+For example, enable `swift` and add this generation call to the same model build:
+
+```rust
+model.swift_client("swift")
+    .package("MyServiceSDK")
+    .version("0.1.0")
+    .generate_into("../target/swift-sdk");
+```
+
+Swift's `.package(...)` also selects the import module unless you set an explicit
+`.module_name(...)`. Other module or namespace settings are independent of the
+package name. Versioned native packages default to the producer's
+`CARGO_PKG_VERSION` (Rust retains its existing generator default). Go uses module
+paths and release tags, so its helper has no artificial `.version(...)` setting.
+All helpers support `generate`, `try_generate`, `generate_into`, and
+`try_generate_into`. Endpoint and content SHA-256 settings follow the target's
+native options; TypeScript exposes its middleware settings instead.
+
+All fluent helpers also accept `.options(...)` to replace all native settings.
+The shared interface remains available through `crucible_build::clients`:
 
 ```rust
 use crucible_build::clients::{Client, JavaOptions};

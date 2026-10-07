@@ -49,10 +49,82 @@ impl ModelPackage {
         crate::RustSdk::new(self, name)
     }
 
-    /// Generate a Maven SDK package. Enable the build helper's `java` feature.
+    /// Generate a Gradle/Maven SDK package. Enable the build helper's `java` feature.
     #[cfg(feature = "java")]
     pub fn java_client(&self, name: &str) -> crate::JavaSdk<'_> {
         crate::JavaSdk::new(self, name)
+    }
+
+    /// Configure a named TypeScript SDK. Enable the `ts` feature.
+    #[cfg(feature = "ts")]
+    pub fn ts_client(&self, name: &str) -> crate::TsSdk<'_> {
+        crate::TsSdk::new(self, name)
+    }
+
+    /// Configure a named Python SDK. Enable the `python` feature.
+    #[cfg(feature = "python")]
+    pub fn python_client(&self, name: &str) -> crate::PythonSdk<'_> {
+        crate::PythonSdk::new(self, name)
+    }
+
+    /// Configure a named Go SDK. Enable the `go` feature.
+    #[cfg(feature = "go")]
+    pub fn go_client(&self, name: &str) -> crate::GoSdk<'_> {
+        crate::GoSdk::new(self, name)
+    }
+
+    /// Configure a named C# SDK. Enable the `csharp` feature.
+    #[cfg(feature = "csharp")]
+    pub fn csharp_client(&self, name: &str) -> crate::CsharpSdk<'_> {
+        crate::CsharpSdk::new(self, name)
+    }
+
+    /// Configure a named Kotlin SDK. Enable the `kotlin` feature.
+    #[cfg(feature = "kotlin")]
+    pub fn kotlin_client(&self, name: &str) -> crate::KotlinSdk<'_> {
+        crate::KotlinSdk::new(self, name)
+    }
+
+    /// Configure a named Swift SDK. Enable the `swift` feature.
+    #[cfg(feature = "swift")]
+    pub fn swift_client(&self, name: &str) -> crate::SwiftSdk<'_> {
+        crate::SwiftSdk::new(self, name)
+    }
+
+    /// Configure a named Dart SDK. Enable the `dart` feature.
+    #[cfg(feature = "dart")]
+    pub fn dart_client(&self, name: &str) -> crate::DartSdk<'_> {
+        crate::DartSdk::new(self, name)
+    }
+
+    /// Configure a named PHP SDK. Enable the `php` feature.
+    #[cfg(feature = "php")]
+    pub fn php_client(&self, name: &str) -> crate::PhpSdk<'_> {
+        crate::PhpSdk::new(self, name)
+    }
+
+    /// Configure a named Ruby SDK. Enable the `ruby` feature.
+    #[cfg(feature = "ruby")]
+    pub fn ruby_client(&self, name: &str) -> crate::RubySdk<'_> {
+        crate::RubySdk::new(self, name)
+    }
+
+    /// Configure a named C++ SDK. Enable the `cpp` feature.
+    #[cfg(feature = "cpp")]
+    pub fn cpp_client(&self, name: &str) -> crate::CppSdk<'_> {
+        crate::CppSdk::new(self, name)
+    }
+
+    /// Configure a named C SDK. Enable the `c` feature.
+    #[cfg(feature = "c")]
+    pub fn c_client(&self, name: &str) -> crate::CSdk<'_> {
+        crate::CSdk::new(self, name)
+    }
+
+    /// Configure a named R SDK. Enable the `r` feature.
+    #[cfg(feature = "r")]
+    pub fn r_client(&self, name: &str) -> crate::RSdk<'_> {
+        crate::RSdk::new(self, name)
     }
 
     /// The compiled AST path for integrations that need the model artifact.
