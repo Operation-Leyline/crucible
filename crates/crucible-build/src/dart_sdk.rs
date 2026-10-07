@@ -15,7 +15,7 @@ impl<'a> DartSdk<'a> {
             model,
             name: name.into(),
             options: DartOptions {
-                package_name: format!("{}_sdk", crate::sdk_builder::native_snake(name)),
+                package_name: format!("{}_sdk", crate::output_builder::native_snake(name)),
                 package_version: std::env::var("CARGO_PKG_VERSION")
                     .unwrap_or_else(|_| "0.1.0".into()),
                 endpoint: None,
@@ -54,5 +54,5 @@ impl<'a> DartSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(Dart);
+    crate::output_builder::generation_methods!(Dart);
 }

@@ -66,5 +66,5 @@ impl<'a> CsharpSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(Csharp);
+    crate::output_builder::generation_methods!(Csharp);
 }

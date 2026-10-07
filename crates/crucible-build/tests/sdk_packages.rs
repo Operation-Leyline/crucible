@@ -14,6 +14,16 @@ fn package_probe() {
     };
     let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    if mode == "resolve" {
+        let artifact = crucible_build::artifact("source_model", "rust");
+        assert_eq!(artifact.target, "rust");
+        assert_eq!(
+            artifact.path,
+            fs::canonicalize(out.join("outputs/rust")).unwrap()
+        );
+        assert!(artifact.files.contains(&"Cargo.toml".into()));
+        return;
+    }
     if mode == "dependent" {
         let package = crucible_build::model_dependency("source_model");
         let artifact = package.rust_client("separate-rust").generate();
@@ -26,19 +36,20 @@ fn package_probe() {
         return;
     }
     if mode == "policy" {
-        let old = fs::read(out.join("crucible-sdks.json")).unwrap();
+        let old = fs::read(out.join("crucible-artifacts.json")).unwrap();
         let result = crucible_build::model_from_json("model.json")
             .policy("missing.toml")
             .try_compile_with(|_, _| panic!("AST must not invoke compiler"));
         assert!(result.is_err());
-        assert_eq!(old, fs::read(out.join("crucible-sdks.json")).unwrap());
+        assert_eq!(old, fs::read(out.join("crucible-artifacts.json")).unwrap());
         return;
     }
     if mode == "empty" {
         let package = crucible_build::model_from_json("model.json").compile();
         package.publish();
         let index: serde_json::Value =
-            serde_json::from_slice(&fs::read(out.join("crucible-sdks.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(out.join("crucible-artifacts.json")).unwrap())
+                .unwrap();
         assert_eq!(index["artifacts"], serde_json::json!([]));
         return;
     }
@@ -80,7 +91,7 @@ fn package_probe() {
             .rust_client("../escape")
             .try_generate()
             .unwrap_err()
-            .contains("invalid SDK output")
+            .contains("invalid output")
     );
     #[cfg(feature = "java")]
     {
@@ -136,6 +147,11 @@ fn probe(root: &std::path::Path, mode: &str) -> String {
         .env("CARGO_MANIFEST_DIR", root)
         .env("OUT_DIR", root.join("build-output"))
         .env("DEP_SOURCE_MODEL_MODEL", root.join("model.json"))
+        .env(
+            "DEP_SOURCE_MODEL_ARTIFACT_RUST",
+            fs::canonicalize(root.join("build-output/outputs/rust"))
+                .unwrap_or_else(|_| root.join("build-output/outputs/rust")),
+        )
         .output()
         .unwrap();
     assert!(
@@ -156,13 +172,15 @@ fn one_compile_publishes_named_variants_with_stable_sources_and_explicit_export(
     fs::write(root.join("model.json"), WEATHER).unwrap();
     let stdout = probe(root, "producer");
     assert!(
-        stdout.contains("cargo::metadata=model=") && stdout.contains("cargo::metadata=sdk_rust=")
+        stdout.contains("cargo::metadata=model=")
+            && stdout.contains("cargo::metadata=artifact_rust=")
     );
-    let source = root.join("build-output/sdks/rust/src/lib.rs");
+    let source = root.join("build-output/outputs/rust/src/lib.rs");
     let modified = fs::metadata(&source).unwrap().modified().unwrap();
     probe(root, "producer");
     assert_eq!(modified, fs::metadata(source).unwrap().modified().unwrap());
-    let index = root.join("build-output/crucible-sdks.json");
+    let index = root.join("build-output/crucible-artifacts.json");
+    probe(root, "resolve");
     let export = root.join("export/rust");
     crucible_build::export_artifact(&index, "rust", &export).unwrap();
     assert!(export.join("src/lib.rs").is_file());
@@ -179,7 +197,7 @@ fn a_separate_sdk_package_generates_from_its_model_dependency_without_compilatio
     let directory = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("model.json"), WEATHER).unwrap();
     let stdout = probe(directory.path(), "dependent");
-    assert!(stdout.contains("cargo::metadata=sdk_separate_rust="));
+    assert!(stdout.contains("cargo::metadata=artifact_separate_rust="));
 }
 
 #[test]
@@ -192,7 +210,7 @@ fn artifact_export_rejects_paths_outside_the_generated_package_before_writing() 
     fs::write(root.join("export/keep"), "keep").unwrap();
     let artifact = crucible_build::Artifact {
         name: "java".into(),
-        language: "java".into(),
+        target: "java".into(),
         path: root.join("source"),
         files: vec!["../private".into()],
     };

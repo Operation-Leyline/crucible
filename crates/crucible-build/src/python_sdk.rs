@@ -11,7 +11,7 @@ pub struct PythonSdk<'a> {
 
 impl<'a> PythonSdk<'a> {
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
-        let native_name = format!("{}_sdk", crate::sdk_builder::native_snake(name));
+        let native_name = format!("{}_sdk", crate::output_builder::native_snake(name));
         Self {
             model,
             name: name.into(),
@@ -62,5 +62,5 @@ impl<'a> PythonSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(Python);
+    crate::output_builder::generation_methods!(Python);
 }

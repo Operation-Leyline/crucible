@@ -54,5 +54,5 @@ impl<'a> RSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(R);
+    crate::output_builder::generation_methods!(R);
 }

@@ -27,8 +27,12 @@ fn main() {
     fs::create_dir_all(sdk.join("src")).unwrap();
     fs::write(sdk.join("src/Client.java"), format!("// {name}\n")).unwrap();
     let path = sdk.to_str().unwrap().replace('\\', "\\\\").replace('"', "\\\"");
-    fs::write(out.join("crucible-sdks.json"), format!(
-        r#"{{"version":1,"artifacts":[{{"name":"java","language":"java","path":"{path}","files":["pom.xml","src/Client.java"]}}]}}"#
+    let api = out.join("api");
+    fs::create_dir_all(&api).unwrap();
+    fs::write(api.join("openapi.json"), format!("{{\"title\":\"{name}\"}}\n")).unwrap();
+    let api_path = api.to_str().unwrap().replace('\\', "\\\\").replace('"', "\\\"");
+    fs::write(out.join("crucible-artifacts.json"), format!(
+        r#"{{"version":1,"artifacts":[{{"name":"java","target":"java","path":"{path}","files":["pom.xml","src/Client.java"]}},{{"name":"api","target":"openapi","path":"{api_path}","files":["openapi.json"]}}]}}"#
     )).unwrap();
     let count = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("build-count");
     let old = fs::read_to_string(&count).unwrap_or_default();
@@ -58,7 +62,7 @@ fn workspace(root: &Path) {
 
 fn export(root: &Path, package: &str, artifact: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_crucible"))
-        .args(["export-sdk", artifact, "--manifest-path"])
+        .args(["export-artifact", artifact, "--manifest-path"])
         .arg(root.join("Cargo.toml"))
         .args(["--package", package, "--out"])
         .arg(root.join("exported java"))
@@ -106,6 +110,24 @@ fn exports_exact_producer_and_works_when_cargo_reuses_cached_build_script() {
 }
 
 #[test]
+fn exports_non_client_artifacts_from_the_same_cached_producer() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    workspace(root);
+    successful(export(root, "model-two", "java"));
+    successful(export(root, "model-two", "api"));
+    assert_eq!(
+        fs::read_to_string(root.join("exported java/openapi.json")).unwrap(),
+        "{\"title\":\"model-two\"}\n"
+    );
+    assert!(!root.join("exported java/pom.xml").exists());
+    assert_eq!(
+        fs::read_to_string(root.join("model-two/build-count")).unwrap(),
+        "x"
+    );
+}
+
+#[test]
 fn failed_build_or_unknown_artifact_preserves_existing_sdk() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
@@ -127,7 +149,7 @@ fn failed_build_or_unknown_artifact_preserves_existing_sdk() {
     let failed = export(root, "model-one", "java");
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("broken producer"));
-    assert!(String::from_utf8_lossy(&failed.stderr).contains("SDK output was not exported"));
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("output was not exported"));
     assert_eq!(
         fs::read(root.join("exported java/pom.xml")).unwrap(),
         original
@@ -135,7 +157,7 @@ fn failed_build_or_unknown_artifact_preserves_existing_sdk() {
 }
 
 #[test]
-fn missing_package_or_sdk_registry_is_actionable_without_modifying_output() {
+fn missing_package_or_artifact_registry_is_actionable_without_modifying_output() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
     workspace(root);
@@ -147,13 +169,14 @@ fn missing_package_or_sdk_registry_is_actionable_without_modifying_output() {
     let ordinary = export(root, "ordinary", "java");
     assert!(!ordinary.status.success());
     assert!(
-        String::from_utf8_lossy(&ordinary.stderr).contains("generate named SDKs in its build.rs")
+        String::from_utf8_lossy(&ordinary.stderr)
+            .contains("generate named outputs in its build.rs")
     );
     fs::remove_file(root.join("model-one/build.rs")).unwrap();
     fs::write(root.join("model-one/build.rs"), "fn main() {}\n").unwrap();
     let unregistered = export(root, "model-one", "java");
     assert!(!unregistered.status.success());
-    assert!(String::from_utf8_lossy(&unregistered.stderr).contains("has no SDK artifact registry"));
+    assert!(String::from_utf8_lossy(&unregistered.stderr).contains("has no artifact registry"));
     assert_eq!(
         fs::read_to_string(root.join("exported java/existing")).unwrap(),
         "keep me"

@@ -21,7 +21,7 @@
 //! Cargo, Gradle or Maven; generation does not publish them to remote registries.
 //! A separate SDK producer can use [`model_dependency`] without recompiling
 //! Smithy. `.generate()` keeps artifacts under OUT_DIR for explicit export with
-//! `crucible export-sdk`. `.generate_into()` also publishes a stable native
+//! `crucible export-artifact`. `.generate_into()` also publishes a stable native
 //! package path and watches its generated files so deleted exports regenerate.
 //!
 //! Defaults enable `smithy` and `rust`. Select `java` or other native client
@@ -92,9 +92,9 @@ mod artifact_index;
 #[cfg(feature = "c")]
 mod c_sdk;
 #[cfg(feature = "cdk")]
-mod cdk_sdk;
+mod cdk_output;
 #[cfg(feature = "cli")]
-mod cli_sdk;
+mod cli_output;
 #[cfg(feature = "cpp")]
 mod cpp_sdk;
 #[cfg(feature = "csharp")]
@@ -110,20 +110,8 @@ mod kotlin_sdk;
 mod model_builder;
 mod model_package;
 #[cfg(feature = "openapi")]
-mod openapi_sdk;
-#[cfg(feature = "php")]
-mod php_sdk;
-#[cfg(any(feature = "cdk", feature = "terraform"))]
-mod provisioning_bindings;
-#[cfg(feature = "python")]
-mod python_sdk;
-#[cfg(feature = "r")]
-mod r_sdk;
-#[cfg(feature = "ruby")]
-mod ruby_sdk;
-#[cfg(feature = "rust")]
-mod rust_sdk;
-mod sdk;
+mod openapi_output;
+mod output;
 #[cfg(any(
     feature = "ts",
     feature = "python",
@@ -142,11 +130,23 @@ mod sdk;
     feature = "terraform",
     feature = "cli"
 ))]
-mod sdk_builder;
+mod output_builder;
+#[cfg(feature = "php")]
+mod php_sdk;
+#[cfg(any(feature = "cdk", feature = "terraform"))]
+mod provisioning_bindings;
+#[cfg(feature = "python")]
+mod python_sdk;
+#[cfg(feature = "r")]
+mod r_sdk;
+#[cfg(feature = "ruby")]
+mod ruby_sdk;
+#[cfg(feature = "rust")]
+mod rust_sdk;
 #[cfg(feature = "swift")]
 mod swift_sdk;
 #[cfg(feature = "terraform")]
-mod terraform_sdk;
+mod terraform_output;
 #[cfg(feature = "ts")]
 mod ts_sdk;
 pub use artifact::Artifact;
@@ -154,9 +154,9 @@ pub use artifact_index::export_artifact;
 #[cfg(feature = "c")]
 pub use c_sdk::CSdk;
 #[cfg(feature = "cdk")]
-pub use cdk_sdk::CdkSdk;
+pub use cdk_output::CdkOutput;
 #[cfg(feature = "cli")]
-pub use cli_sdk::CliSdk;
+pub use cli_output::CliOutput;
 #[cfg(feature = "cpp")]
 pub use cpp_sdk::CppSdk;
 pub use crucible_codegen as clients;
@@ -174,7 +174,8 @@ pub use kotlin_sdk::KotlinSdk;
 pub use model_builder::ModelBuilder;
 pub use model_package::ModelPackage;
 #[cfg(feature = "openapi")]
-pub use openapi_sdk::OpenApiSdk;
+pub use openapi_output::OpenApiOutput;
+pub use output::Output;
 #[cfg(feature = "php")]
 pub use php_sdk::PhpSdk;
 #[cfg(feature = "python")]
@@ -185,9 +186,8 @@ pub use r_sdk::RSdk;
 pub use ruby_sdk::RubySdk;
 #[cfg(feature = "rust")]
 pub use rust_sdk::RustSdk;
-pub use sdk::Sdk;
 #[cfg(feature = "terraform")]
-pub use terraform_sdk::TerraformSdk;
+pub use terraform_output::TerraformOutput;
 
 #[cfg(feature = "swift")]
 pub use swift_sdk::SwiftSdk;
@@ -210,7 +210,7 @@ pub use smithy::from_smithy_with;
 pub use smithy::publish_model_from_smithy;
 pub use smithy::publish_model_from_smithy_with;
 
-/// Compile a source-only Smithy package and select named SDK outputs.
+/// Compile a source-only Smithy package and select named generated outputs.
 pub fn smithy(sources: impl AsRef<Path>) -> ModelBuilder {
     ModelBuilder::new(sources.as_ref(), false)
 }
@@ -220,32 +220,32 @@ pub fn model_from_json(model: impl AsRef<Path>) -> ModelBuilder {
     ModelBuilder::new(model.as_ref(), true)
 }
 
-/// Generate SDKs in a separate package using its model dependency's AST.
+/// Generate outputs in a separate package using its model dependency's AST.
 pub fn model_dependency(links: &str) -> ModelPackage {
     model_from_json(published(links)).compile()
 }
 
-/// Resolve a named SDK output published by a direct model dependency.
+/// Resolve a named artifact published by a direct model dependency.
 pub fn artifact(links: &str, name: &str) -> Artifact {
     artifact::validate_name(name).unwrap_or_else(|message| panic!("crucible: {message}"));
     let variable = format!(
-        "DEP_{}_SDK_{}",
+        "DEP_{}_ARTIFACT_{}",
         links.to_ascii_uppercase().replace('-', "_"),
         name.to_ascii_uppercase().replace('-', "_")
     );
     let path = std::env::var_os(&variable).map(PathBuf::from).unwrap_or_else(|| panic!(
-        "crucible: {variable} is not set. Depend directly on the model package with links = {links:?} and generate its named SDK {name:?}"
+        "crucible: {variable} is not set. Depend directly on the model package with links = {links:?} and generate its named output {name:?}"
     ));
     let index_path = path
         .parent()
         .and_then(Path::parent)
-        .expect("SDK artifact parent")
-        .join("crucible-sdks.json");
+        .expect("artifact parent")
+        .join("crucible-artifacts.json");
     let artifact = artifact_index::load(&index_path, name)
         .unwrap_or_else(|message| panic!("crucible: {message}"));
     assert_eq!(
         artifact.path, path,
-        "crucible: SDK registry does not match Cargo metadata"
+        "crucible: artifact registry does not match Cargo metadata"
     );
     artifact
 }

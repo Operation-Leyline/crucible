@@ -93,7 +93,7 @@ For model-owned Rust and Java SDK outputs, compile once with
 `crucible_build::smithy("model").compile()`, publish the model, and add a
 named generation call per SDK variant. Another package can generate from
 `crucible_build::model_dependency("<links>")` without assembling Smithy again.
-See [building named SDK packages](sdk-builds.md) for feature selection, native
+See [building named SDK packages](build-outputs.md) for feature selection, native
 package export, and direct service/SDK integration.
 
 ## Generated code
@@ -119,7 +119,7 @@ The service normally owns this build script and includes the bindings in a local
 Rust module, as shown below. A separate contract crate is optional when multiple
 Rust crates need to share the generated server API. A reusable Rust SDK package
 can own client inclusion so applications import its service-named client.
-The [named SDK guide](sdk-builds.md#consuming-the-rust-sdk-and-service-contract)
+The [named SDK guide](build-outputs.md#consuming-the-rust-sdk-and-service-contract)
 shows how to wire both directly by hand.
 
 The service implements the trait. Grouping is free: one type can implement
@@ -606,7 +606,7 @@ The [client index](clients.md) links every other language.
 For a reusable SDK, `model.rust_client("rust").generate_into("../target/rust-sdk")`
 creates a complete Cargo package with its runtime declared automatically. An
 application depends on that package normally and imports configuration and
-errors through the SDK. See [building named SDK packages](sdk-builds.md) for
+errors through the SDK. See [building named SDK packages](build-outputs.md) for
 model-owned and separate-producer layouts.
 
 For generation directly inside an existing Rust crate,

@@ -11,7 +11,7 @@ pub struct CSdk<'a> {
 
 impl<'a> CSdk<'a> {
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
-        let native_name = format!("{}_sdk", crate::sdk_builder::native_snake(name));
+        let native_name = format!("{}_sdk", crate::output_builder::native_snake(name));
         Self {
             model,
             name: name.into(),
@@ -62,5 +62,5 @@ impl<'a> CSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(C);
+    crate::output_builder::generation_methods!(C);
 }

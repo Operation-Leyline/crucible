@@ -38,7 +38,7 @@ limits, and validation. [Client setup and conformance](docs/clients.md) defines
 the common model preparation and retry contract. Generation and local HTTP
 tests are separate from package publication and authenticated deployment proof.
 
-For a workspace producing several SDKs, see [building named SDK packages](docs/sdk-builds.md).
+For a workspace producing several SDKs, see [building named SDK packages](docs/build-outputs.md).
 Compile once in the model package or generate in a separate SDK package from
 its model dependency. Rust applications consume a Cargo SDK package; Java
 applications consume the exported Maven package.

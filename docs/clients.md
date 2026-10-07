@@ -10,7 +10,7 @@ and representation limits.
 
 For standalone command-line tools, see [generating a service CLI](clients/cli.md).
 For several named SDK variants or separate model and SDK modules, see
-[building named SDK packages](sdk-builds.md).
+[building named SDK packages](build-outputs.md).
 
 | Target | Guide | Package / qualification command |
 |---|---|---|
@@ -98,8 +98,8 @@ Non-Rust client generators emit native package metadata and a bundled runtime. T
 language guide's npm, pip, Go, Maven, or other native commands build and consume
 that package. To regenerate during a native build, call `crucible generate`
 from a task or script before the native compile or package step. Alternatively,
-generate named SDKs from Cargo and use `crucible export-sdk` to expose the native
-package. See [building named SDK packages](sdk-builds.md) for both model-owned
+generate named SDKs from Cargo and use `crucible export-artifact` to expose the native
+package. See [building named SDK packages](build-outputs.md) for both model-owned
 and separate SDK producers. Pin the CLI version in your toolchain or CI setup.
 
 Rust clients also support automatic generation during Cargo builds through

@@ -1,7 +1,7 @@
-# Building named SDK packages
+# Building named model outputs
 
-Compile a Smithy model once and select several named SDK outputs from `build.rs`.
-Each output has its own language and package settings. A separate SDK package
+Compile a Smithy model once and select named clients, documents, infrastructure packages, and CLIs from `build.rs`.
+Each output has its own target and native settings. A separate producer package
 can also generate from a model dependency's compiled AST.
 
 ## Organizing the workspace
@@ -74,9 +74,8 @@ fn main() {
 ```
 
 `compile()` assembles and lowers the model once. `publish()` exposes the compiled
-`model.json` through Cargo metadata. SDK generation writes complete native
-packages under `OUT_DIR/sdks/<name>` and records them in `crucible-sdks.json`.
-`generate_into` also exports the package to a stable path relative to the build
+`model.json` through Cargo metadata. Generation writes artifacts under `OUT_DIR/outputs/<name>` and records them in `crucible-artifacts.json`.
+`generate_into` also exports the artifact to a stable path relative to the build
 script's Cargo manifest. Cargo watches model inputs and exported generated files;
 edits to the model or deletion of an export trigger regeneration. Native build
 directories do not trigger model compilation.
@@ -221,10 +220,17 @@ Author, repository, and license default to the producer's Cargo metadata and
 must be explicitly supplied when that metadata is absent. `.try_config(...)`
 reports file errors without panicking.
 
+Client jobs retain SDK-specific builders such as `RustSdk` and `JavaSdk`.
+Non-client jobs use `OpenApiOutput`, `CdkOutput`, `TerraformOutput`, and
+`CliOutput`. The generic job is `Output`; every generation method returns an
+`Artifact` with a `target` identifier such as `rust`, `openapi`, or `cdk`.
+Cargo publishes paths as `artifact_<name>`, which direct dependent build scripts
+resolve with `crucible_build::artifact(links, name)`.
+
 All these outputs share named artifact discovery, stable file publication,
 export tracking, and the four generation methods with client SDKs. Advanced
 integrations can use `model.output(name, crucible_build::outputs::Generator::...)`
-with native configuration values. `crucible export-sdk` accepts their output
+with native configuration values. `crucible export-artifact` accepts their output
 names too. Server bindings retain their direct fluent
 `crucible_build::service("weather_model").generate()` API inside the service
 crate.
@@ -326,7 +332,7 @@ local Rust module. See the [framework guide](framework.md) for service setup.
 Run the pinned CLI from your workspace:
 
 ```sh
-crucible export-sdk java --manifest-path Cargo.toml \
+crucible export-artifact java --manifest-path Cargo.toml \
   --package weather-model --out target/java-sdk
 gradle -p target/java-sdk build
 ```

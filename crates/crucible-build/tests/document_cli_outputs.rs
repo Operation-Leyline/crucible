@@ -37,7 +37,7 @@ fn document_cli_probe() {
         .options(OpenApiOptions::default())
         .endpoint(endpoint)
         .generate_into("exports/openapi");
-    assert_eq!(document.language, "openapi");
+    assert_eq!(document.target, "openapi");
     assert_eq!(document.files, ["openapi.json"]);
     let service = Model::from_json(WEATHER)
         .unwrap()
@@ -58,7 +58,7 @@ fn document_cli_probe() {
     assert!(json["paths"]["/cities"]["post"].is_object());
 
     let default_cli = model.cli("weather").generate_into("exports/cli");
-    assert_eq!(default_cli.language, "cli");
+    assert_eq!(default_cli.target, "cli");
     for file in ["Cargo.toml", "schema.json", "src/client.rs", "src/main.rs"] {
         assert!(default_cli.path.join(file).is_file(), "{file}");
     }

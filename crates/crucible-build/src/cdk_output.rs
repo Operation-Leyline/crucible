@@ -6,14 +6,14 @@ use crate::ModelPackage;
 use crate::provisioning_bindings::ProvisioningBindings;
 
 /// Publishing metadata and bindings for a named jsii/CDK construct package.
-pub struct CdkSdk<'a> {
+pub struct CdkOutput<'a> {
     model: &'a ModelPackage,
     name: String,
     options: CdkOptions,
     bindings: ProvisioningBindings,
 }
 
-impl<'a> CdkSdk<'a> {
+impl<'a> CdkOutput<'a> {
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         Self {
             model,
@@ -114,5 +114,5 @@ impl<'a> CdkSdk<'a> {
         ))
     }
 
-    crate::sdk_builder::output_generation_methods!();
+    crate::output_builder::output_generation_methods!();
 }

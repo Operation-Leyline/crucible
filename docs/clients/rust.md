@@ -11,7 +11,7 @@ and an async runtime such as Tokio.
 ## Generating a client
 
 For shared Smithy models, named SDKs, and application packages, follow
-[building named SDK packages](../sdk-builds.md). It supports Rust and Java
+[building named SDK packages](../build-outputs.md). It supports Rust and Java
 outputs from one compilation. Servers generate their bindings in their own
 crate; Rust SDK packages expose a reusable client library. The named Rust
 artifact contains `Cargo.toml` and `src/lib.rs`, with its matching runtime

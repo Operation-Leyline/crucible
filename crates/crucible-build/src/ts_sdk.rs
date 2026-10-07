@@ -68,5 +68,5 @@ impl<'a> TsSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(Ts);
+    crate::output_builder::generation_methods!(Ts);
 }

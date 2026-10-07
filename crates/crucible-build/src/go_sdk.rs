@@ -16,7 +16,7 @@ impl<'a> GoSdk<'a> {
             name: name.into(),
             options: GoOptions {
                 module_path: format!("example.com/{name}-sdk"),
-                package_name: format!("{}_sdk", crate::sdk_builder::native_snake(name)),
+                package_name: format!("{}_sdk", crate::output_builder::native_snake(name)),
                 endpoint: None,
                 content_sha256: false,
             },
@@ -53,5 +53,5 @@ impl<'a> GoSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(Go);
+    crate::output_builder::generation_methods!(Go);
 }

@@ -30,7 +30,7 @@ fn fluent_probe() {
                 .try_generate_into(concat!("exports/", $name))
                 .unwrap();
             let generic = package.sdk(concat!("raw-", $name), $native).generate();
-            assert_eq!(fluent.language, generic.language);
+            assert_eq!(fluent.target, generic.target);
             assert_eq!(fluent.files, generic.files);
             for path in &fluent.files {
                 assert_eq!(
@@ -343,7 +343,7 @@ fn every_enabled_fluent_target_emits_the_native_options_and_exports_a_package() 
         String::from_utf8_lossy(&output.stderr)
     );
     let index: serde_json::Value = serde_json::from_slice(
-        &fs::read(root.path().join("build-output/crucible-sdks.json")).unwrap(),
+        &fs::read(root.path().join("build-output/crucible-artifacts.json")).unwrap(),
     )
     .unwrap();
     assert!(!index["artifacts"].as_array().unwrap().is_empty());

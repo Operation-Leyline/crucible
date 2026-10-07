@@ -5,9 +5,9 @@ use std::path::PathBuf;
 use crucible_codegen::{Client, Generator};
 use crucible_smithy::ir::Service;
 
-use crate::{Artifact, Sdk};
+use crate::{Artifact, Output};
 
-/// A compiled model and its named SDK outputs for one Cargo package build.
+/// A compiled model and its named generated outputs for one Cargo package build.
 pub struct ModelPackage {
     pub(crate) model: PathBuf,
     pub(crate) service: Service,
@@ -49,7 +49,7 @@ impl ModelPackage {
             policy,
         };
         // OUT_DIR survives rebuilds: reset membership so removed generation
-        // calls cannot leave previously published SDK variants discoverable.
+        // calls cannot leave previously published output variants discoverable.
         package.write_index()?;
         Ok(package)
     }
@@ -82,13 +82,13 @@ impl ModelPackage {
     }
 
     /// Select a language and native options for a named SDK output.
-    pub fn sdk(&self, name: &str, client: Client) -> Sdk<'_> {
+    pub fn sdk(&self, name: &str, client: Client) -> Output<'_> {
         self.output(name, Generator::Client(client))
     }
 
     /// Select a native client, document, infrastructure package or CLI output.
-    pub fn output(&self, name: &str, generator: Generator) -> Sdk<'_> {
-        Sdk {
+    pub fn output(&self, name: &str, generator: Generator) -> Output<'_> {
+        Output {
             model: self,
             name: name.into(),
             generator,
@@ -181,26 +181,26 @@ impl ModelPackage {
 
     /// Configure a named OpenAPI document output. Enable the `openapi` feature.
     #[cfg(feature = "openapi")]
-    pub fn openapi(&self, name: &str) -> crate::OpenApiSdk<'_> {
-        crate::OpenApiSdk::new(self, name)
+    pub fn openapi(&self, name: &str) -> crate::OpenApiOutput<'_> {
+        crate::OpenApiOutput::new(self, name)
     }
 
     /// Configure a named CDK construct library output. Enable the `cdk` feature.
     #[cfg(feature = "cdk")]
-    pub fn cdk(&self, name: &str) -> crate::CdkSdk<'_> {
-        crate::CdkSdk::new(self, name)
+    pub fn cdk(&self, name: &str) -> crate::CdkOutput<'_> {
+        crate::CdkOutput::new(self, name)
     }
 
     /// Configure a named Terraform/OpenTofu provider output. Enable the `terraform` feature.
     #[cfg(feature = "terraform")]
-    pub fn terraform(&self, name: &str) -> crate::TerraformSdk<'_> {
-        crate::TerraformSdk::new(self, name)
+    pub fn terraform(&self, name: &str) -> crate::TerraformOutput<'_> {
+        crate::TerraformOutput::new(self, name)
     }
 
     /// Configure a named service CLI output. Enable the `cli` feature.
     #[cfg(feature = "cli")]
-    pub fn cli(&self, name: &str) -> crate::CliSdk<'_> {
-        crate::CliSdk::new(self, name)
+    pub fn cli(&self, name: &str) -> crate::CliOutput<'_> {
+        crate::CliOutput::new(self, name)
     }
 
     /// The compiled AST path for integrations that need the model artifact.
@@ -210,7 +210,7 @@ impl ModelPackage {
 
     pub(crate) fn write_index(&self) -> Result<(), String> {
         crate::artifact_index::write(
-            &self.output.join("crucible-sdks.json"),
+            &self.output.join("crucible-artifacts.json"),
             &self.artifacts.borrow(),
         )
     }

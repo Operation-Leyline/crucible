@@ -25,7 +25,7 @@ fn bindings(path: &str) -> ProvisioningBindings {
 }
 
 fn equivalent(typed: &Artifact, generic: &Artifact, export: &str) {
-    assert_eq!(typed.language, generic.language);
+    assert_eq!(typed.target, generic.target);
     assert_eq!(typed.files, generic.files);
     for path in &typed.files {
         let expected = fs::read(generic.path.join(path)).unwrap();
@@ -300,7 +300,7 @@ fn failed_generation_preserves_exports() {
         "malformed-resource",
     ] {
         assert!(
-            !Path::new("build-output/sdks").join(name).exists(),
+            !Path::new("build-output/outputs").join(name).exists(),
             "{name}"
         );
     }
@@ -371,8 +371,8 @@ fn typed_provisioning_outputs_match_native_emitters_and_track_configuration() {
             "{log}"
         );
     }
-    assert!(log.contains("cargo::metadata=sdk_constructs="));
-    assert!(log.contains("cargo::metadata=sdk_provider="));
+    assert!(log.contains("cargo::metadata=artifact_constructs="));
+    assert!(log.contains("cargo::metadata=artifact_provider="));
     assert!(root.path().join("exports/cdk/src/index.ts").is_file());
     assert!(root.path().join("exports/terraform/main.go").is_file());
 

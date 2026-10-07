@@ -28,7 +28,7 @@ pub enum Generator {
 
 impl Generator {
     /// Stable output identifier used by artifact registries and build adapters.
-    pub fn language(&self) -> &'static str {
+    pub fn target(&self) -> &'static str {
         match self {
             Self::Client(client) => client.language(),
             #[cfg(feature = "openapi")]

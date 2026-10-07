@@ -1,4 +1,4 @@
-// Each adapter configures native options; publication and export stay in Sdk.
+// Each adapter configures native options; publication and export stay in Output.
 #[cfg(any(
     feature = "ts",
     feature = "python",
