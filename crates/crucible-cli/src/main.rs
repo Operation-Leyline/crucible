@@ -149,6 +149,17 @@ impl ClientLanguage {
 
 #[derive(Subcommand)]
 enum Target {
+    /// An OpenAPI 3.1 JSON document for a REST JSON service.
+    Openapi {
+        #[command(flatten)]
+        source: Source,
+        /// The JSON file to write.
+        #[arg(long)]
+        out: PathBuf,
+        /// The API server URL, including any deployment path prefix.
+        #[arg(long)]
+        endpoint: Option<String>,
+    },
     /// A jsii-compatible CDK construct library for explicitly selected resources.
     Cdk {
         #[command(flatten)]
@@ -542,6 +553,23 @@ fn load_model(source: &Source) -> Result<Model, String> {
 
 fn generate(target: Target) -> Result<(), String> {
     match target {
+        Target::Openapi {
+            source,
+            out,
+            endpoint,
+        } => {
+            let service =
+                lower_with_capabilities(&source, &crucible_codegen_openapi::capabilities())?;
+            let document = crucible_codegen_openapi::generate(
+                &service,
+                &crucible_codegen_openapi::Options { endpoint },
+            )
+            .map_err(|diagnostics| format!("cannot generate OpenAPI:\n{diagnostics}"))?;
+            std::fs::write(&out, document)
+                .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+            println!("wrote {}", out.display());
+            Ok(())
+        }
         Target::Cdk {
             source,
             bindings,

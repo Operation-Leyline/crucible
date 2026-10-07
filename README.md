@@ -110,6 +110,14 @@ See [design and protocol](docs/design.md) for the Smithy-to-IR pipeline and
 wire rules, and [agent instructions](AGENTS.md) for repository boundaries and
 development commands.
 
+Export a model's REST JSON contract as an OpenAPI 3.1 document:
+
+```sh
+cargo run -p crucible-cli -- generate openapi model.json --out openapi.json --endpoint https://api.example.com
+```
+
+See [OpenAPI generation](docs/openapi.md) for supported bindings and diagnostics.
+
 ## Release Crucible
 
 PRs run Rust checks, core HTTP integration, and affected Linux consumers.

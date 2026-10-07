@@ -19,6 +19,8 @@ CORE_GROUPS = frozenset({"rust", "e2e", "typescript", "onboarding"})
 # The complete language/platform matrix runs on the scheduled/manual tier.
 MODEL_GROUPS = CORE_GROUPS | {"python", "go"}
 GENERATORS = {
+    # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.
+    "openapi": set(),
     "cli": {"service_cli"},
     "infra": {"cdk", "terraform"},
     "cdk": {"cdk"},

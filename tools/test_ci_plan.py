@@ -42,6 +42,10 @@ class PlanTests(unittest.TestCase):
                 self.assertEqual(affected_groups([path]), CORE_GROUPS)
         self.assertEqual(affected_groups(["crates/crucible-cli/src/main.rs"]), CORE_GROUPS | {"service_cli"})
 
+    def test_openapi_export_keeps_its_rust_qualification(self):
+        self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/src/lib.rs"]), {"rust"})
+        self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/tests/golden/weather.openapi.json"]), {"rust"})
+
     def test_onboarding_and_editor_integration_paths_keep_their_gates(self):
         for path in ("smithy/errors.smithy", "vendor/smithy-tooling/src/runtime.rs"):
             self.assertEqual(affected_groups([path]), CORE_GROUPS)

@@ -39,6 +39,7 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-codegen-rust` | IR → the Rust code a service plugs into the framework, or a client (one file each) |
 | `crucible-build` | build scripts: model packages publish their AST, services and clients generate from it |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
+| `crucible-codegen-openapi` | IR → OpenAPI 3.1 JSON for supported REST JSON wire contracts |
 | `crucible-codegen-common` | compact descriptions of already-lowered wire semantics for bundled client runtimes |
 | `crucible-codegen-infra` | explicit provisioning bindings resolved against the shared resource IR |
 | `crucible-codegen-cdk` | jsii-compatible CDK constructs and literal-input validation; existing provider lifecycle stays external |

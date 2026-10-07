@@ -48,7 +48,8 @@ status codes. They differ where restJson1 is AWS-shaped:
 
 Smithy's HTTP binding validators are part of core Smithy and still run. What
 the switch gives up is Smithy's OpenAPI converter, which only knows AWS
-protocols. crucible can emit OpenAPI from its IR when one is needed.
+protocols. Crucible [emits OpenAPI from its IR](openapi.md) for supported REST
+JSON services. OpenAPI is a downstream export; SDKs still consume the IR directly.
 
 ## Pipeline
 
