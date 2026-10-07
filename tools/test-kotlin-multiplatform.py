@@ -209,4 +209,5 @@ if __name__ == "__main__":
         qualify(args.output.resolve(), args.native)
     else:
         with tempfile.TemporaryDirectory(prefix="crucible-kotlin-mpp-") as directory:
-            qualify(Path(directory), args.native)
+            # macOS exposes temporary directories through the /var symlink.
+            qualify(Path(directory).resolve(), args.native)
