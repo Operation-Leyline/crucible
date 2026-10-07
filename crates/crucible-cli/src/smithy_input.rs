@@ -32,22 +32,8 @@ pub(crate) fn assemble(source: &Path, out: &Path) -> Result<(), String> {
         return Err(format!("{} is not a Smithy directory", source.display()));
     }
     let temporary = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let root = temporary.path();
-    let imports = root.join("imports");
-    crucible_traits::write_models(&imports).map_err(|error| error.to_string())?;
-    let config = root.join("smithy-build.json");
-    let contents = serde_json::to_vec_pretty(&serde_json::json!({
-        "version": "1.0", "sources": [source],
-        "imports": [imports.join("crucible.smithy"), imports.join("errors.smithy")],
-        "projections": {"crucible": {
-            "transforms": [{"name": "flattenAndRemoveMixins"}], "plugins": {"model": {}}
-        }}
-    }))
-    .map_err(|error| error.to_string())?;
-    std::fs::write(&config, contents).map_err(|error| error.to_string())?;
-    let compiled = root.join("compiled");
-    smithy_tooling::build(&config, &compiled).map_err(|error| error.to_string())?;
-    std::fs::copy(compiled.join("crucible/model/model.json"), out)
+    let model = crucible_build::compile_smithy(&source, temporary.path())
         .map_err(|error| error.to_string())?;
+    std::fs::copy(model, out).map_err(|error| error.to_string())?;
     Ok(())
 }

@@ -37,18 +37,31 @@ behavior.
 
 ## Model packages
 
-Services can select `crucible.toml` with `.policy("crucible.toml")` on the
-build helper. API conventions run after model lowering and before generation.
-Config changes trigger another Cargo build check. Compatibility is a separate
-old/new contract comparison in CI. See [API policy and compatibility](api-policy.md).
+Services and clients can select `crucible.toml` with `.policy("crucible.toml")`
+on the build helper. API conventions run after model lowering and before
+generation. Config changes trigger another Cargo build check. Compatibility is
+a separate old/new contract comparison in CI. See
+[API policy and compatibility](api-policy.md).
 
-A model package holds the Smithy files and the JSON AST its own smithy build
-produces (with `flattenAndRemoveMixins`). The AST is checked in and CI keeps
-it fresh, so building a service needs no JVM. It is a Cargo crate with
-`links = "<name>"`. Its build script publishes the AST's path
-(`crucible_build::publish_model`), and a service's build script reads it from
-`DEP_<NAME>_MODEL`. "This service depends on leyline-model 1.4" is then an
-ordinary, version-pinned Cargo dependency.
+A model package is a Cargo crate with `links = "<name>"` holding shared Smithy
+sources. Its build script compiles and publishes the AST with:
+
+```rust
+fn main() {
+    crucible_build::publish_model_from_smithy("smithy");
+}
+```
+
+The helper manages the pinned compiler, imports Crucible definitions, flattens
+mixins, and keeps a stable AST under `OUT_DIR`. The service and client depend
+on this package and read the AST from `DEP_<NAME>_MODEL`, using
+`crucible_build::service("<name>")` or `crucible_build::client("<name>")`.
+"This service depends on leyline-model 1.4" is an ordinary, version-pinned
+Cargo dependency.
+
+Alternatively, check in a precompiled JSON AST and keep it fresh in CI. Publish
+its path with `crucible_build::publish_model("model.json")`; that layout needs
+no JVM when building the service or client.
 
 ## Generated code
 
@@ -558,6 +571,11 @@ settles member bindings and constraints for both sides. Client models use
 server models keep server nullability and closed enums and unions. See the
 [Rust model migration](clients/rust.md#migrating-client-models) when updating
 existing consumers.
+
+For a standalone client, `crucible new hello-client --client` creates a library
+whose build script calls `crucible_build::client_from_smithy("smithy").generate()`.
+It uses the same managed compiler as the service starter, and needs no separate
+model package or hand-written Smithy build configuration.
 
 The generated file holds `model`, `errors`, the operation markers, and per
 operation an error enum (`GetCityError`) of the errors it declares, plus

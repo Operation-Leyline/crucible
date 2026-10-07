@@ -9,8 +9,11 @@ macOS 12 and iOS 15; the same package builds on Linux.
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-cargo run -p crucible-cli -- generate swift model.json \
+crucible generate swift smithy \
   --out generated/client --package-name WeatherClient --module-name Weather \
   --package-version 0.1.0 --endpoint https://api.example --content-sha256
 swift build --package-path generated/client

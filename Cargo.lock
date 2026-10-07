@@ -487,6 +487,7 @@ name = "crucible-cli"
 version = "0.3.0"
 dependencies = [
  "clap",
+ "crucible-build",
  "crucible-codegen-c",
  "crucible-codegen-cdk",
  "crucible-codegen-cli",
@@ -508,10 +509,8 @@ dependencies = [
  "crucible-codegen-ts",
  "crucible-policy",
  "crucible-smithy",
- "crucible-traits",
  "serde",
  "serde_json",
- "smithy-tooling",
  "tempfile",
 ]
 

@@ -2,12 +2,15 @@
 
 [All clients](../clients.md) · [Repository overview](../../README.md)
 
-Generate a Go 1.24+ module from the Smithy JSON projection:
+Generate a Go 1.24+ module from your Smithy sources:
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-cargo run -p crucible-cli -- generate go model.json \
+crucible generate go smithy \
   --out target/go-sdk --module-path example.com/weather --package-name weather \
   --endpoint https://api.example.com --content-sha256
 cd target/go-sdk

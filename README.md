@@ -40,17 +40,22 @@ tests are separate from package publication and authenticated deployment proof.
 
 ## Generate a client
 
-From this checkout, with Rust installed:
+Install the CLI from a pinned Crucible checkout, then run it from your service's
+model project:
 
 ```sh
-cargo run -p crucible-cli -- check model.json
-cargo run -p crucible-cli -- generate ts model.json \
+cargo install --path crates/crucible-cli --locked
+# From your model project:
+crucible check smithy --target ts
+crucible generate ts smithy \
   --out generated/weather --package-name @example/weather \
   --endpoint https://api.example.com --middleware content-sha256
 ```
 
-`model.json` is a Smithy JSON AST using `crucible.protocols#json`, built with
-`flattenAndRemoveMixins`. See [preparing a model](docs/clients.md#preparing-a-model).
+`smithy` is your source directory; a single `.smithy` file also works. The CLI
+manages the official compiler, Crucible imports and mixin flattening. An existing
+compiled `model.json` is still accepted. See
+[preparing a model](docs/clients.md#preparing-a-model).
 Use `generate <target> --help` for the options of another language. Generation
 owns its output directory; change the model or generator and regenerate.
 
@@ -104,6 +109,14 @@ To create another package name from this checkout:
 ```sh
 cargo run -p crucible-cli -- new my-service
 ```
+
+For a Rust client library with the same Smithy build setup, use
+`crucible new my-client --client`. Its build script calls
+`crucible_build::client_from_smithy("smithy")` and selects the same policy hook.
+Shared model crates
+can compile and publish their contract with
+`crucible_build::publish_model_from_smithy("smithy")`. See the
+[Rust client guide](docs/clients/rust.md#generating-a-client).
 
 The [framework guide](docs/framework.md) explains model packages, generated
 operation traits, middleware, interceptors, errors, and hosting. The [weather example](e2e/)
