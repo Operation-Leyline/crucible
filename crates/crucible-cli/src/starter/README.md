@@ -26,6 +26,32 @@ to export the assembled model for `crucible diff old.json new.json --config
 crucible.toml`. Compatibility checks compare contracts in CI; ordinary builds
 check the current model without fetching another revision.
 
+## API compatibility in GitHub Actions
+
+The starter includes `.github/workflows/api-diff.yml`. It compares the pull
+request's base and head contracts using the proposed `crucible.toml`. Both
+revisions build separately and export their assembled Smithy models; breaking
+findings fail the job and appear in its summary and `api-diff-report` artifact.
+
+Configure repository variable `CRUCIBLE_APP_ID` and secret
+`CRUCIBLE_APP_PRIVATE_KEY` for the existing `crucible-ci-read` GitHub App. Its
+Operation-Leyline installation must allow Contents: read on `crucible` and
+`crucible-actions`. The workflow checks out the private actions with an App
+token, so consuming repositories may belong to another organization.
+
+Run `cargo build` and commit `Cargo.lock` before using the workflow. The baseline
+commit must also contain a buildable service and lockfile; a missing baseline
+model fails rather than skipping compatibility. The checker uses the same
+Crucible tag or `--crucible-rev` as the generated Cargo dependencies. Keep that
+workflow pin in sync when upgrading Crucible. The shared actions are pinned
+independently to a reviewed commit.
+
+Cargo dependencies are fetched with the App token, then builds run offline
+without persisted Git credentials. Custom private compiler dependencies need
+their own read authentication. Fork PRs do not receive repository secrets.
+
+## Runtime and compiler settings
+
 Set `CRUCIBLE_ADDR` to change the listening address (default `127.0.0.1:8080`).
 `SMITHY_TOOLING_CACHE` changes the runtime cache location. After the first build,
 `SMITHY_OFFLINE=1` prevents the helper from downloading; use `cargo --offline`

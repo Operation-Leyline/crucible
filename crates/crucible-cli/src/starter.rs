@@ -87,10 +87,16 @@ pub(crate) fn create(
     } else {
         "fn main() {\n    crucible_build::from_smithy(\"smithy\")\n        .policy(\"crucible.toml\")\n        .generate();\n}\n"
     };
+    let checker_ref = revision
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("v{}", env!("CARGO_PKG_VERSION")));
+    let workflow =
+        include_str!("starter/api-diff.yml").replace("__CRUCIBLE_REF__", &quoted(&checker_ref));
     let files = [
         ("Cargo.toml", manifest.as_str()),
         ("build.rs", build),
         ("crucible.toml", include_str!("starter/crucible.toml")),
+        (".github/workflows/api-diff.yml", workflow.as_str()),
         (".gitignore", "/target/\n"),
         ("README.md", include_str!("starter/README.md")),
         ("smithy/hello.smithy", include_str!("starter/hello.smithy")),

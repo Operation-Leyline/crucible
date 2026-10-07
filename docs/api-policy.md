@@ -152,6 +152,17 @@ An exception does not suppress model validity errors.
 
 ## Using the shared GitHub workflow
 
+New service starters include `.github/workflows/api-diff.yml`. Configure
+`CRUCIBLE_APP_ID` and `CRUCIBLE_APP_PRIVATE_KEY` for `crucible-ci-read`, whose
+installation reads both private tooling repositories. The workflow checks out
+the shared actions with an App token and runs them locally, including for
+services in other organizations. Commit the generated service's `Cargo.lock`;
+the PR baseline must also contain a buildable service and lockfile.
+
+The starter checker pin matches its Cargo dependency tag or `--crucible-rev`.
+Update both when upgrading Crucible. Private dependencies are fetched before
+the two builds; those builds run offline without persisted Git credentials.
+
 The [crucible-actions repository](https://github.com/Operation-Leyline/crucible-actions)
 contains `setup-crucible`, the `api-diff` composite action, a reusable workflow,
 and a caller template. Pin both the workflow and checker to reviewed commits.
