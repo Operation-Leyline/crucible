@@ -114,6 +114,15 @@ impl Model {
         self.lower_selected(service, &Capabilities::default(), None, true)
     }
 
+    /// Lower resource metadata with an explicitly selected declared protocol.
+    pub fn lower_infrastructure_with_protocol(
+        &self,
+        service: Option<&ShapeId>,
+        protocol: Protocol,
+    ) -> Result<ir::Service, Error> {
+        self.lower_selected(service, &Capabilities::default(), Some(protocol), true)
+    }
+
     fn lower_selected(
         &self,
         service: Option<&ShapeId>,

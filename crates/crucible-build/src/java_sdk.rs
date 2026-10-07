@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::{Artifact, ModelPackage};
 
-/// Native Maven package settings for a named Java SDK variant.
+/// Native Gradle/Maven package settings for a named Java SDK variant.
 pub struct JavaSdk<'a> {
     model: &'a ModelPackage,
     name: String,
@@ -25,6 +25,12 @@ impl<'a> JavaSdk<'a> {
                 content_sha256: false,
             },
         }
+    }
+
+    /// Replace all native generator options for advanced configuration.
+    pub fn options(mut self, options: JavaOptions) -> Self {
+        self.options = options;
+        self
     }
 
     /// Java package containing models and the service-named client.

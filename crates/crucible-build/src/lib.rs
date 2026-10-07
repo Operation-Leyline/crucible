@@ -1,4 +1,4 @@
-//! Compile a model once and generate named native SDK outputs. Enable the
+//! Compile a model once and generate named client and other model outputs. Enable the
 //! `java` feature for this example; other clients have matching opt-in features.
 //!
 //! ```ignore
@@ -25,8 +25,11 @@
 //! package path and watches its generated files so deleted exports regenerate.
 //!
 //! Defaults enable `smithy` and `rust`. Select `java` or other native client
-//! features explicitly. With defaults disabled, AST publication and model
-//! compilation remain usable without any Rust emitter dependency.
+//! features explicitly. Each native target has a matching fluent helper such as
+//! `swift_client`, `python_client`, or `ts_client`. Select `openapi`, `cdk`,
+//! `terraform`, or `cli` for named non-client outputs. With defaults disabled,
+//! AST publication and model compilation remain usable without any Rust emitter
+//! dependency. The `cli` target generates a Rust executable and uses the Rust emitter.
 //!
 //! ## Legacy source-only Rust integration
 //!
@@ -86,23 +89,110 @@ use crucible_smithy::ShapeId;
 
 mod artifact;
 mod artifact_index;
+#[cfg(feature = "c")]
+mod c_sdk;
+#[cfg(feature = "cdk")]
+mod cdk_sdk;
+#[cfg(feature = "cli")]
+mod cli_sdk;
+#[cfg(feature = "cpp")]
+mod cpp_sdk;
+#[cfg(feature = "csharp")]
+mod csharp_sdk;
+#[cfg(feature = "dart")]
+mod dart_sdk;
+#[cfg(feature = "go")]
+mod go_sdk;
 #[cfg(feature = "java")]
 mod java_sdk;
+#[cfg(feature = "kotlin")]
+mod kotlin_sdk;
 mod model_builder;
 mod model_package;
+#[cfg(feature = "openapi")]
+mod openapi_sdk;
+#[cfg(feature = "php")]
+mod php_sdk;
+#[cfg(any(feature = "cdk", feature = "terraform"))]
+mod provisioning_bindings;
+#[cfg(feature = "python")]
+mod python_sdk;
+#[cfg(feature = "r")]
+mod r_sdk;
+#[cfg(feature = "ruby")]
+mod ruby_sdk;
 #[cfg(feature = "rust")]
 mod rust_sdk;
 mod sdk;
+#[cfg(any(
+    feature = "ts",
+    feature = "python",
+    feature = "go",
+    feature = "csharp",
+    feature = "kotlin",
+    feature = "swift",
+    feature = "dart",
+    feature = "php",
+    feature = "ruby",
+    feature = "cpp",
+    feature = "c",
+    feature = "r",
+    feature = "openapi",
+    feature = "cdk",
+    feature = "terraform",
+    feature = "cli"
+))]
+mod sdk_builder;
+#[cfg(feature = "swift")]
+mod swift_sdk;
+#[cfg(feature = "terraform")]
+mod terraform_sdk;
+#[cfg(feature = "ts")]
+mod ts_sdk;
 pub use artifact::Artifact;
 pub use artifact_index::export_artifact;
+#[cfg(feature = "c")]
+pub use c_sdk::CSdk;
+#[cfg(feature = "cdk")]
+pub use cdk_sdk::CdkSdk;
+#[cfg(feature = "cli")]
+pub use cli_sdk::CliSdk;
+#[cfg(feature = "cpp")]
+pub use cpp_sdk::CppSdk;
 pub use crucible_codegen as clients;
+pub use crucible_codegen as outputs;
+#[cfg(feature = "csharp")]
+pub use csharp_sdk::CsharpSdk;
+#[cfg(feature = "dart")]
+pub use dart_sdk::DartSdk;
+#[cfg(feature = "go")]
+pub use go_sdk::GoSdk;
 #[cfg(feature = "java")]
 pub use java_sdk::JavaSdk;
+#[cfg(feature = "kotlin")]
+pub use kotlin_sdk::KotlinSdk;
 pub use model_builder::ModelBuilder;
 pub use model_package::ModelPackage;
+#[cfg(feature = "openapi")]
+pub use openapi_sdk::OpenApiSdk;
+#[cfg(feature = "php")]
+pub use php_sdk::PhpSdk;
+#[cfg(feature = "python")]
+pub use python_sdk::PythonSdk;
+#[cfg(feature = "r")]
+pub use r_sdk::RSdk;
+#[cfg(feature = "ruby")]
+pub use ruby_sdk::RubySdk;
 #[cfg(feature = "rust")]
 pub use rust_sdk::RustSdk;
 pub use sdk::Sdk;
+#[cfg(feature = "terraform")]
+pub use terraform_sdk::TerraformSdk;
+
+#[cfg(feature = "swift")]
+pub use swift_sdk::SwiftSdk;
+#[cfg(feature = "ts")]
+pub use ts_sdk::TsSdk;
 
 mod smithy;
 #[cfg(all(feature = "smithy", feature = "rust"))]

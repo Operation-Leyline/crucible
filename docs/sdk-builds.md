@@ -107,8 +107,45 @@ The default features are `smithy` and `rust`. A Java-only source producer uses
 an already assembled AST only needs `features = ["java"]` with defaults disabled.
 Neither loads the Rust emitter or client runtime.
 
-`rust_client` and `java_client` are convenience methods. The shared interface
-accepts each language's native options through `crucible_build::clients`:
+Every native client target has a feature-gated fluent helper:
+
+| Feature | Model helper | Native package settings |
+| --- | --- | --- |
+| `rust` | `rust_client` | Cargo package, version, runtime source |
+| `ts` | `ts_client` | npm package, version, client name, middleware, package JSON |
+| `python` | `python_client` | Distribution package, import module, version |
+| `go` | `go_client` | Module path, Go package |
+| `java` | `java_client` | Group ID, artifact ID, Java package, version |
+| `csharp` | `csharp_client` | NuGet package ID, namespace, version |
+| `kotlin` | `kotlin_client` | Group ID, artifact ID, Kotlin package, version |
+| `swift` | `swift_client` | Swift package, import module, version |
+| `dart` | `dart_client` | Pub package, version |
+| `php` | `php_client` | Composer package, namespace, version |
+| `ruby` | `ruby_client` | Gem package, module, version |
+| `cpp` | `cpp_client` | CMake package, namespace, version |
+| `c` | `c_client` | CMake package, symbol prefix, version |
+| `r` | `r_client` | R package, version |
+
+For example, enable `swift` and add this generation call to the same model build:
+
+```rust
+model.swift_client("swift")
+    .package("MyServiceSDK")
+    .version("0.1.0")
+    .generate_into("../target/swift-sdk");
+```
+
+Swift's `.package(...)` also selects the import module unless you set an explicit
+`.module_name(...)`. Other module or namespace settings are independent of the
+package name. Versioned native packages default to the producer's
+`CARGO_PKG_VERSION` (Rust retains its existing generator default). Go uses module
+paths and release tags, so its helper has no artificial `.version(...)` setting.
+All helpers support `generate`, `try_generate`, `generate_into`, and
+`try_generate_into`. Endpoint and content SHA-256 settings follow the target's
+native options; TypeScript exposes its middleware settings instead.
+
+All fluent helpers also accept `.options(...)` to replace all native settings.
+The shared interface remains available through `crucible_build::clients`:
 
 ```rust
 use crucible_build::clients::{Client, JavaOptions};
@@ -130,6 +167,67 @@ fn main() {
 The CLI and Cargo helpers use the same `crucible-codegen` client interface and
 output writer. Language generators consume the lowered IR; build adapters own
 model preparation and artifact discovery.
+
+## Generating documents, infrastructure packages and a CLI
+
+The same model supports named non-client outputs. Enable the matching
+`openapi`, `cdk`, `terraform`, or `cli` feature. `all-outputs` enables these
+and all native clients; `all-clients` continues to select clients only.
+
+```rust
+model.openapi("api")
+    .endpoint("https://api.example.com")
+    .generate_into("../target/openapi");
+
+model.cdk("constructs")
+    .bindings("provisioning.json")
+    .config("cdk-package.json")
+    .generate_into("../target/cdk");
+
+model.terraform("provider")
+    .bindings("provisioning.json")
+    .module_path("example.com/weather-provider")
+    .provider_name("weather")
+    .provider_address("registry.terraform.io/example/weather")
+    .generate_into("../target/terraform");
+
+model.cli("weather")
+    .package("weather-cli")
+    .version("0.1.0")
+    .generate_into("../target/cli");
+```
+
+OpenAPI exports a directory containing `openapi.json`. It supports the existing
+REST JSON subset and reports unsupported wire semantics before replacing an
+existing document. The CLI exports a standalone Cargo package. Its runtime
+paths default to the build helper's matching Crucible source checkout; use
+`.runtime_path(...)` to select another local checkout. Generation verifies that
+both Rust client and CLI runtime manifests exist. The CLI target uses the Rust
+emitter even when the build helper's `rust` feature is disabled.
+
+CDK and Terraform lazily lower the resource projection from the same assembled
+model; ordinary SDKs keep the operation-only projection. They require explicit provisioning bindings in the same format as
+the CLI generators. `.bindings(...)` watches and reads a JSON file relative to
+the producer's Cargo manifest; `.bindings_value(...)` accepts parsed bindings.
+The existing binding resolver and emitters diagnose unsupported resources and
+lifecycle policies. CDK constructs connect to an existing provider; generating
+them does not implement that provider's lifecycle.
+
+CDK `.config(...)` loads the existing publishing metadata JSON and watches it
+for changes; later fluent setters override its fields. You can instead use
+`.package(...)`, `.version(...)`, `.author(...)`, `.repository_url(...)`,
+`.license(...)`, and `.targets(...)`, or replace all settings with `.options(...)`.
+Author, repository, and license default to the producer's Cargo metadata and
+must be explicitly supplied when that metadata is absent. `.try_config(...)`
+reports file errors without panicking.
+
+All these outputs share named artifact discovery, stable file publication,
+export tracking, and the four generation methods with client SDKs. Advanced
+integrations can use `model.output(name, crucible_build::outputs::Generator::...)`
+with native configuration values. `crucible export-sdk` accepts their output
+names too. Server bindings retain their direct fluent
+`crucible_build::service("weather_model").generate()` API inside the service
+crate.
 
 ## Generating in a separate SDK package
 

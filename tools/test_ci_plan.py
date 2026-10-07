@@ -35,7 +35,7 @@ class PlanTests(unittest.TestCase):
         for path in (
             "crates/crucible-policy/src/lib.rs",
             "crates/crucible/src/lib.rs",
-            "crates/crucible-wire/src/lib.rs", "crates/crucible-build/src/lib.rs",
+            "crates/crucible-wire/src/lib.rs",
             "crates/crucible-codegen-rust/src/lib.rs", "e2e/weather-service/src/main.rs",
             ".github/workflows/ci.yml", ".github/workflows/release.yml",
         ):
@@ -51,7 +51,7 @@ class PlanTests(unittest.TestCase):
         for path in ("smithy/errors.smithy", "vendor/smithy-tooling/src/runtime.rs"):
             self.assertEqual(affected_groups([path]), CORE_GROUPS)
         self.assertEqual(affected_groups(["ide/smithy-cargo/src/main/resources/META-INF/plugin.xml"]), {"rust", "editor"})
-        self.assertEqual(affected_groups(["crates/crucible-build/Cargo.toml"]), CORE_GROUPS | {"editor"})
+        self.assertEqual(affected_groups(["crates/crucible-build/Cargo.toml"]), SDK_GROUPS | {"editor"})
         self.assertEqual(affected_groups(["crates/crucible-cli/src/starter/hello.smithy"]), CORE_GROUPS | {"editor", "service_cli"})
 
     def test_shared_model_changes_keep_representative_native_consumers(self):
@@ -63,10 +63,11 @@ class PlanTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(affected_groups([path]), MODEL_GROUPS | ({"editor"} if path == "Cargo.toml" else set()))
 
-    def test_shared_client_engine_keeps_representative_sdk_consumers(self):
+    def test_shared_output_engine_keeps_native_output_consumers(self):
         for path in (
             "crates/crucible-codegen/src/client.rs",
             "crates/crucible-codegen/src/output.rs",
+            "crates/crucible-codegen/src/generator.rs",
             "crates/crucible-codegen/Cargo.toml",
             "crates/crucible-codegen/tests/adapters.rs",
             "crates/crucible-codegen/tests/weather.json",
@@ -77,6 +78,22 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-codegen/src/client.rs",
             "crates/crucible-codegen-kotlin/src/lib.rs",
         ]), SDK_GROUPS | {"kotlin"})
+
+    def test_shared_build_helpers_keep_sdk_infrastructure_and_cli_consumers(self):
+        for path in (
+            "crates/crucible-build/src/lib.rs",
+            "crates/crucible-build/src/sdk_builder.rs",
+            "crates/crucible-build/src/cdk_sdk.rs",
+            "crates/crucible-build/src/terraform_sdk.rs",
+            "crates/crucible-build/src/cli_sdk.rs",
+            "crates/crucible-build/src/openapi_sdk.rs",
+            "crates/crucible-build/src/rust_sdk.rs",
+            "crates/crucible-build/tests/outputs.rs",
+            "crates/crucible-build/tests/bindings.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), SDK_GROUPS)
+                self.assertTrue({"cdk", "terraform", "service_cli"}.issubset(affected_groups([path])))
 
     def test_rust_gate_exercises_sdk_features_and_minimal_build_helpers(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()

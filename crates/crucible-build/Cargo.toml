@@ -1,6 +1,6 @@
 [package]
 name = "crucible-build"
-description = "Compile Smithy sources and generate Rust service contracts and native client SDKs from Cargo builds"
+description = "Compile Smithy sources and generate services, client SDKs, documents, infrastructure and CLI outputs from Cargo builds"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -23,6 +23,11 @@ rust = ["dep:crucible-codegen-rust", "crucible-codegen/rust"]
 smithy = ["dep:smithy-tooling"]
 all-clients = ["crucible-codegen/all-clients", "rust", "java", "ts", "python", "go", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 java = ["crucible-codegen/java"]
+all-outputs = ["all-clients", "openapi", "cdk", "terraform", "cli"]
+openapi = ["crucible-codegen/openapi"]
+cdk = ["crucible-codegen/cdk"]
+terraform = ["crucible-codegen/terraform"]
+cli = ["crucible-codegen/cli"]
 ts = ["crucible-codegen/ts"]
 python = ["crucible-codegen/python"]
 go = ["crucible-codegen/go"]

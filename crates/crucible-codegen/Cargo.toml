@@ -1,6 +1,6 @@
 [package]
 name = "crucible-codegen"
-description = "Shared native client generation and artifact output"
+description = "Shared native package, schema and infrastructure generation"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,11 @@ repository.workspace = true
 default = ["rust"]
 rust = ["dep:crucible-codegen-rust"]
 all-clients = ["rust", "ts", "python", "go", "java", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+all-outputs = ["all-clients", "openapi", "cdk", "terraform", "cli"]
+openapi = ["dep:crucible-codegen-openapi"]
+cdk = ["dep:crucible-codegen-infra", "dep:crucible-codegen-cdk"]
+terraform = ["dep:crucible-codegen-infra", "dep:crucible-codegen-terraform"]
+cli = ["dep:crucible-codegen-cli"]
 ts = ["dep:crucible-codegen-ts"]
 python = ["dep:crucible-codegen-python"]
 go = ["dep:crucible-codegen-go"]
@@ -27,6 +32,11 @@ r = ["dep:crucible-codegen-r"]
 
 [dependencies]
 crucible-smithy.workspace = true
+crucible-codegen-openapi = { workspace = true, optional = true }
+crucible-codegen-infra = { workspace = true, optional = true }
+crucible-codegen-cdk = { workspace = true, optional = true }
+crucible-codegen-terraform = { workspace = true, optional = true }
+crucible-codegen-cli = { workspace = true, optional = true }
 crucible-codegen-rust = { workspace = true, optional = true }
 crucible-codegen-ts = { workspace = true, optional = true }
 crucible-codegen-python = { workspace = true, optional = true }
