@@ -2,6 +2,65 @@ use super::*;
 use crucible_wire::operation::Fault;
 use crucible_wire::operation::{OperationInfo, Unit};
 
+const fn response_header(scalar: Scalar) -> MemberInfo {
+    MemberInfo {
+        name: "names",
+        location: Location::Header("x-names"),
+        scalar,
+        redaction: &crucible_wire::operation::Redaction::Public,
+        traits: &[],
+    }
+}
+
+#[test]
+fn repeated_response_header_lines_preserve_list_values() {
+    static MEMBERS: [MemberInfo; 1] = [response_header(Scalar::List(&Scalar::String))];
+    for (lines, expected) in [
+        (vec!["a", "b"], vec!["a", "b"]),
+        (vec!["a, b"], vec!["a", "b"]),
+        (vec!["a", "\"b,c\", d"], vec!["a", "b,c", "d"]),
+    ] {
+        let mut headers = HeaderMap::new();
+        for line in &lines {
+            headers.append("x-names", HeaderValue::from_str(line).unwrap());
+        }
+        let output: Value = read_response(200, &MEMBERS, &headers, b"{}", Bytes::new).unwrap();
+        assert_eq!(output["names"], serde_json::json!(expected));
+    }
+}
+
+#[test]
+fn non_ascii_response_headers_are_decode_errors() {
+    static SCALAR: [MemberInfo; 1] = [response_header(Scalar::String)];
+    static LIST: [MemberInfo; 1] = [response_header(Scalar::List(&Scalar::String))];
+    for (members, valid_first) in [(&SCALAR, false), (&LIST, false), (&LIST, true)] {
+        let mut headers = HeaderMap::new();
+        if valid_first {
+            headers.append("x-names", HeaderValue::from_static("a"));
+        }
+        headers.append("x-names", HeaderValue::from_bytes(b"\xff").unwrap());
+        let error =
+            decode_output::<Probe, Known>(200, members, &headers, &Bytes::from_static(b"{}"))
+                .unwrap_err();
+        assert!(matches!(error, Error::Decode(message) if message.contains("x-names")));
+    }
+}
+
+#[test]
+fn absent_response_headers_and_scalar_first_line_are_preserved() {
+    static SCALAR: [MemberInfo; 1] = [response_header(Scalar::String)];
+    static LIST: [MemberInfo; 1] = [response_header(Scalar::List(&Scalar::String))];
+    let mut headers = HeaderMap::new();
+    for members in [&SCALAR, &LIST] {
+        let output: Value = read_response(200, members, &headers, b"{}", Bytes::new).unwrap();
+        assert_eq!(output, serde_json::json!({}));
+    }
+    headers.append("x-names", HeaderValue::from_static("a"));
+    headers.append("x-names", HeaderValue::from_static("b"));
+    let output: Value = read_response(200, &SCALAR, &headers, b"{}", Bytes::new).unwrap();
+    assert_eq!(output["names"], "a");
+}
+
 #[derive(Debug)]
 struct Known;
 static ERROR: ErrorInfo = ErrorInfo {

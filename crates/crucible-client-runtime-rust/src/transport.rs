@@ -1007,8 +1007,31 @@ fn header_members<'h>(
             bound.push((member.name, BoundValue::Json(Value::Object(values))));
         }
         if let Location::Header(name) = member.location {
-            if let Some(value) = headers.get(name).and_then(|value| value.to_str().ok()) {
-                let value = BoundValue::parse(Cow::Borrowed(value), member.scalar)
+            if matches!(member.scalar, Scalar::List(_)) {
+                let mut fields = headers.get_all(name).iter().peekable();
+                if fields.peek().is_none() {
+                    continue;
+                }
+                // Repeated field lines contribute items just like comma-separated values.
+                let mut items = Vec::new();
+                for field in fields {
+                    let text = field
+                        .to_str()
+                        .map_err(|_| format!("{name}: is not visible ASCII"))?;
+                    let BoundValue::List(field_items) =
+                        BoundValue::parse(Cow::Borrowed(text), member.scalar)
+                            .map_err(|message| format!("{name}: {message}"))?
+                    else {
+                        unreachable!("list scalar parses as a list");
+                    };
+                    items.extend(field_items);
+                }
+                bound.push((member.name, BoundValue::List(items)));
+            } else if let Some(value) = headers.get(name) {
+                let text = value
+                    .to_str()
+                    .map_err(|_| format!("{name}: is not visible ASCII"))?;
+                let value = BoundValue::parse(Cow::Borrowed(text), member.scalar)
                     .map_err(|message| format!("{name}: {message}"))?;
                 bound.push((member.name, value));
             }
