@@ -20,7 +20,7 @@ def package(cli, destination, revision=None):
         command = [str(cli), "new", "hello-service", "--out", str(project)]
         if revision:
             command.extend(["--crucible-rev", revision])
-        subprocess.run(command, check=True)
+        subprocess.run(command, check=True, timeout=300)
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
             for path in sorted(project.rglob("*")):
                 if path.is_file():

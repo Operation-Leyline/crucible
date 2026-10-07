@@ -197,19 +197,22 @@ fn a_pattern_the_rust_regex_crate_cannot_run_is_a_diagnostic() {
 #[test]
 fn a_configured_error_that_is_not_an_error_fails_generation() {
     let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
-    let options = Options {
-        validation_error: Some("example.weather#CitySummary".parse().unwrap()),
-        internal_error: Some("example.weather#Missing".parse().unwrap()),
-        ..Options::default()
-    };
-    let diagnostics = generate(&service, &options).unwrap_err();
-    let messages: Vec<String> = diagnostics.iter().map(ToString::to_string).collect();
-    assert_eq!(messages.len(), 2, "{messages:?}");
-    assert!(
-        messages
-            .iter()
-            .all(|m| m.contains("is not an @error structure"))
-    );
+    for require_rejection in [false, true] {
+        let options = Options {
+            require_rejection,
+            validation_error: Some("example.weather#CitySummary".parse().unwrap()),
+            internal_error: Some("example.weather#Missing".parse().unwrap()),
+            ..Options::default()
+        };
+        let diagnostics = generate(&service, &options).unwrap_err();
+        let messages: Vec<String> = diagnostics.iter().map(ToString::to_string).collect();
+        assert_eq!(messages.len(), 2, "{messages:?}");
+        assert!(
+            messages
+                .iter()
+                .all(|m| m.contains("is not an @error structure"))
+        );
+    }
 }
 
 #[test]
@@ -218,17 +221,25 @@ fn a_configured_validation_error_crucible_cannot_fill_fails_generation() {
         model["shapes"]["example.weather#ConflictError"]["members"]["reason"] =
             json!({ "target": "smithy.api#String", "traits": { "smithy.api#required": {} } });
     });
-    let options = Options {
-        validation_error: Some("example.weather#ConflictError".parse().unwrap()),
-        ..Options::default()
-    };
-    let diagnostics = generate(&service, &options).unwrap_err();
-    assert!(
-        diagnostics
-            .iter()
-            .any(|d| d.message.contains("on_rejection")),
-        "{diagnostics}"
-    );
+    for require_rejection in [false, true] {
+        let options = Options {
+            require_rejection,
+            validation_error: Some("example.weather#ConflictError".parse().unwrap()),
+            ..Options::default()
+        };
+        let diagnostics = generate(&service, &options).unwrap_err();
+        assert_eq!(diagnostics.len(), 1, "{diagnostics}");
+        assert_eq!(
+            diagnostics.to_string().contains("custom_rejections()"),
+            require_rejection
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("on_rejection")),
+            "{diagnostics}"
+        );
+    }
 }
 
 #[test]
