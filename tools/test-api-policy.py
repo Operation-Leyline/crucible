@@ -46,6 +46,7 @@ def main():
         command = ["cargo", "check", "--offline", "--manifest-path", str(consumer / "Cargo.toml")]
         run(command, environment)
         assert exported.read_bytes() == fixture.read_bytes()
+        assert exported.stat().st_mtime_ns == (consumer / "model.json").stat().st_mtime_ns
         assert count.read_text() == "1"
         run(command, environment)
         assert count.read_text() == "1", "Unchanged policy/model should reuse Cargo's cached build"

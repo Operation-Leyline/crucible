@@ -202,6 +202,16 @@ impl Codegen {
                     path.display()
                 )
             });
+            // Copy preserves the source timestamp on Windows but not Linux.
+            // A newer watched export would invalidate Cargo's own build result.
+            let modified = std::fs::metadata(&self.model)
+                .and_then(|metadata| metadata.modified())
+                .expect("crucible: cannot read model timestamp");
+            std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .and_then(|file| file.set_modified(modified))
+                .expect("crucible: cannot preserve model export timestamp");
             println!("cargo::rerun-if-changed={}", path.display());
         }
     }
