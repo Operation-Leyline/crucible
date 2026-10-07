@@ -83,6 +83,8 @@ pub struct Codegen {
     service: Option<ShapeId>,
     options: Options,
     side: Side,
+    policy: Option<PathBuf>,
+    model_output: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +102,8 @@ impl Codegen {
             service: None,
             options: Options::default(),
             side: Side::Server,
+            policy: None,
+            model_output: None,
         }
     }
 
@@ -114,6 +118,20 @@ impl Codegen {
     /// The service to generate, when the model defines several.
     pub fn named(mut self, id: &str) -> Self {
         self.service = Some(parse(id));
+        self
+    }
+
+    /// Select a required policy file relative to this package's Cargo.toml.
+    /// A workspace can share one file by selecting it explicitly in each build script.
+    pub fn policy(mut self, path: impl AsRef<Path>) -> Self {
+        self.policy = Some(absolute(path.as_ref()));
+        self
+    }
+
+    /// Export the assembled AST for compatibility checks. Prefer a path in OUT_DIR
+    /// for normal builds; CI can select a stable path through CRUCIBLE_MODEL_OUT.
+    pub fn model_output(mut self, path: impl AsRef<Path>) -> Self {
+        self.model_output = Some(absolute(path.as_ref()));
         self
     }
 
@@ -154,6 +172,10 @@ impl Codegen {
     /// fails the build with every reason listed.
     pub fn generate(self) {
         println!("cargo::rerun-if-changed={}", self.model.display());
+        if let Some(policy) = &self.policy {
+            println!("cargo::rerun-if-changed={}", policy.display());
+        }
+        println!("cargo::rerun-if-env-changed=CRUCIBLE_MODEL_OUT");
         let code = self
             .render()
             .unwrap_or_else(|message| panic!("crucible: {message}"));
@@ -164,6 +186,34 @@ impl Codegen {
             Side::Client => "crucible_client.rs",
         };
         std::fs::write(out.join(file), code).expect("crucible: cannot write the generated code");
+        let model_output = self.model_output.clone().or_else(|| {
+            std::env::var_os("CRUCIBLE_MODEL_OUT")
+                .map(PathBuf::from)
+                .map(|path| absolute(&path))
+        });
+        if let Some(path) = model_output {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)
+                    .expect("crucible: cannot create model export directory");
+            }
+            std::fs::copy(&self.model, &path).unwrap_or_else(|error| {
+                panic!(
+                    "crucible: cannot export model to {}: {error}",
+                    path.display()
+                )
+            });
+            // Copy preserves the source timestamp on Windows but not Linux.
+            // A newer watched export would invalidate Cargo's own build result.
+            let modified = std::fs::metadata(&self.model)
+                .and_then(|metadata| metadata.modified())
+                .expect("crucible: cannot read model timestamp");
+            std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .and_then(|file| file.set_modified(modified))
+                .expect("crucible: cannot preserve model export timestamp");
+            println!("cargo::rerun-if-changed={}", path.display());
+        }
     }
 
     /// The generated code, or why there is none.
@@ -178,6 +228,33 @@ impl Codegen {
         let service = model
             .lower_with_capabilities(self.service.as_ref(), &capabilities)
             .map_err(|error| error.to_string())?;
+        if let Some(policy) = &self.policy {
+            let config = crucible_policy::Config::load(policy)?;
+            let report = crucible_policy::check(&service, &config);
+            for finding in &report.findings {
+                if let Some(reason) = &finding.exception {
+                    println!(
+                        "cargo::warning=excepted[{}] {}: {}",
+                        finding.rule,
+                        finding.shape,
+                        reason.replace(['\n', '\r'], " ")
+                    );
+                }
+                if finding.severity == crucible_policy::Severity::Warning
+                    && finding.exception.is_none()
+                {
+                    println!(
+                        "cargo::warning=[{}] {}: {}",
+                        finding.rule,
+                        finding.shape,
+                        finding.message.replace(['\n', '\r'], " ")
+                    );
+                }
+            }
+            if report.has_errors() {
+                return Err(report.to_string());
+            }
+        }
         let generated = match self.side {
             Side::Server => crucible_codegen_rust::generate(&service, &self.options),
             Side::Client => crucible_codegen_rust::generate_client(&service),

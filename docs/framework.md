@@ -37,6 +37,11 @@ behavior.
 
 ## Model packages
 
+Services can select `crucible.toml` with `.policy("crucible.toml")` on the
+build helper. API conventions run after model lowering and before generation.
+Config changes trigger another Cargo build check. Compatibility is a separate
+old/new contract comparison in CI. See [API policy and compatibility](api-policy.md).
+
 A model package holds the Smithy files and the JSON AST its own smithy build
 produces (with `flattenAndRemoveMixins`). The AST is checked in and CI keeps
 it fresh, so building a service needs no JVM. It is a Cargo crate with

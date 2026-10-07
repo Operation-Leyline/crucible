@@ -83,13 +83,14 @@ pub(crate) fn create(
             "smithy-tooling = {{ git = \"https://github.com/Operation-Leyline/smithy-tooling\", tag = {} }}\n",
             quoted(&format!("smithy-{version}-wrapper-0.3.0"))
         ));
-        "fn main() {\n    crucible_build::from_smithy_with(\"smithy\", |config, out| {\n        smithy_tooling::build(config, out)\n    })\n    .generate();\n}\n"
+        "fn main() {\n    crucible_build::from_smithy_with(\"smithy\", |config, out| {\n        smithy_tooling::build(config, out)\n    })\n    .policy(\"crucible.toml\")\n    .generate();\n}\n"
     } else {
-        "fn main() {\n    crucible_build::from_smithy(\"smithy\").generate();\n}\n"
+        "fn main() {\n    crucible_build::from_smithy(\"smithy\")\n        .policy(\"crucible.toml\")\n        .generate();\n}\n"
     };
     let files = [
         ("Cargo.toml", manifest.as_str()),
         ("build.rs", build),
+        ("crucible.toml", include_str!("starter/crucible.toml")),
         (".gitignore", "/target/\n"),
         ("README.md", include_str!("starter/README.md")),
         ("smithy/hello.smithy", include_str!("starter/hello.smithy")),

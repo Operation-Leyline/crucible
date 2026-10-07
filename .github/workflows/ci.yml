@@ -456,6 +456,9 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
       - run: cargo test --all-features --locked
+      - run: python tools/test-api-policy.py
+        env:
+          CARGO_BUILD_JOBS: '2'
       # Native consumer checks share the separate example workspace.
       - run: cargo metadata --manifest-path e2e/Cargo.toml --locked --format-version 1 > /dev/null
       - run: python -m unittest discover -s tools -p "test_*.py"

@@ -13,6 +13,7 @@ service HelloService {
     errors: [ValidationException, InternalServerException, UnknownOperationException]
 }
 
+/// Return a greeting for the supplied name.
 @http(method: "POST", uri: "/hello", code: 200)
 operation SayHello {
     input: SayHelloInput
