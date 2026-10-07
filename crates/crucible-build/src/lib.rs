@@ -136,6 +136,13 @@ impl Codegen {
         self
     }
 
+    /// The modelled HTTP 404 error for an unmatched route. Server side only.
+    /// By default, uses `crucible.errors#UnknownOperationException` when declared.
+    pub fn unknown_operation_error(mut self, id: &str) -> Self {
+        self.options.unknown_operation_error = Some(parse(id));
+        self
+    }
+
     /// An advanced service supplies `Crucible::builder(...).on_rejection(...)`
     /// itself. Disable the early rejection-error check for that service.
     pub fn custom_rejections(mut self) -> Self {

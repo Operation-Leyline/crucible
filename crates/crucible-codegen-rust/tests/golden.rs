@@ -11,6 +11,20 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
+fn standard_exception_models_and_answer_functions_match_the_golden_file() {
+    let source = include_str!("../../crucible-smithy/tests/fixtures/standard-service-errors.json");
+    let service = Model::from_json(source).unwrap().lower(None).unwrap();
+    let code = generate(&service, &Options::default()).unwrap();
+    // The existing registration tests cover empty services; this snapshot
+    // records the shared exception types, wire metadata and response factories.
+    let errors = code
+        .split("/// The service, as the framework sees it.")
+        .next()
+        .unwrap();
+    matches_golden(&format!("{}\n", errors.trim_end()), "standard_errors.rs");
+}
+
+#[test]
 fn empty_services_can_generate_their_declared_rejection_errors() {
     let source = include_str!("../../crucible-smithy/tests/fixtures/empty-service-errors.json");
     let service = Model::from_json(source).unwrap().lower(None).unwrap();
@@ -42,7 +56,7 @@ fn high_level_services_diagnose_missing_rejection_errors_before_startup() {
     .unwrap_err()
     .to_string();
     assert!(diagnostics.contains(&service.id.to_string()));
-    assert!(diagnostics.contains("errors: [ValidationError]"));
+    assert!(diagnostics.contains("errors: [ValidationException]"));
     assert!(diagnostics.contains("custom_rejections()"));
     // The existing JSON-AST path can still supply its own runtime handler.
     assert!(generate(&service, &Options::default()).is_ok());

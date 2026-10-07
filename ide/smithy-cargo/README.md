@@ -30,7 +30,7 @@ are exposed as synthetic source libraries, with resolve scopes drawn from each
 package's Cargo dependencies. Definition packages also see the consumer's
 implicit prelude, so `@trait` can classify a custom trait correctly.
 
-Verify the integration by Ctrl-clicking `String`, `@json`, and `ValidationError`
+Verify the integration by Ctrl-clicking `String`, `@json`, and `ValidationException`
 in the starter. The valid model should have no error annotations. Generated
 copies under `src/smithy-ide` are unnecessary and should be removed when
 migrating; duplicate copied definitions can otherwise confuse resolution.

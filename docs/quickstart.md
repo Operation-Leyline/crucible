@@ -14,8 +14,11 @@ Open `hello.http` and send the first request. The result is HTTP 200:
 ```
 
 The second request omits the required name and returns HTTP 400 with a modeled
-`ValidationError`. Both validation and internal errors are declared in the
-service model, so generated clients know that they are possible responses.
+`ValidationException`, with reason `fieldValidationFailed` and a field detail
+for `name`. An unmatched method or path returns `UnknownOperationException`
+(404), and unexpected failures use `InternalServerException` (500). These
+errors are declared in the service model, so generated clients know that they
+are possible responses. Error responses include `x-request-id`.
 
 ## The project
 
@@ -88,5 +91,5 @@ source folders through `[package.metadata.smithy].sources`.
 
 Build scripts do not generate editor copies in the source tree. The Cargo
 editor integration reads dependency metadata and indexes the selected files.
-After Cargo reloads, Ctrl-click `String`, `@json`, and `ValidationError` to
+After Cargo reloads, Ctrl-click `String`, `@json`, and `ValidationException` to
 verify that the editor resolves the selected prelude and Crucible definitions.

@@ -1,0 +1,136 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.empty#Empty": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "errors": [
+        {
+          "target": "crucible.errors#ValidationException"
+        },
+        {
+          "target": "crucible.errors#InternalServerException"
+        },
+        {
+          "target": "crucible.errors#UnknownOperationException"
+        }
+      ]
+    },
+    "crucible.errors#ValidationException": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "reason": {
+          "target": "crucible.errors#ValidationExceptionReason",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "fieldList": {
+          "target": "crucible.errors#ValidationExceptionFieldList"
+        }
+      }
+    },
+    "crucible.errors#ValidationExceptionReason": {
+      "type": "enum",
+      "members": {
+        "UNKNOWN_OPERATION": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "unknownOperation"
+          }
+        },
+        "CANNOT_PARSE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "cannotParse"
+          }
+        },
+        "FIELD_VALIDATION_FAILED": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "fieldValidationFailed"
+          }
+        },
+        "OTHER": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "other"
+          }
+        }
+      }
+    },
+    "crucible.errors#ValidationExceptionFieldList": {
+      "type": "list",
+      "member": {
+        "target": "crucible.errors#ValidationExceptionField"
+      }
+    },
+    "crucible.errors#ValidationExceptionField": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "crucible.errors#InternalServerException": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "server",
+        "smithy.api#httpError": 500,
+        "smithy.api#retryable": {}
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "retryAfterSeconds": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpHeader": "Retry-After"
+          }
+        }
+      }
+    },
+    "crucible.errors#UnknownOperationException": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 404
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      }
+    }
+  }
+}

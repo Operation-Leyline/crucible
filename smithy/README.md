@@ -23,7 +23,7 @@ For RustRover, use the [Smithy Cargo companion](../ide/smithy-cargo/README.md)
 alongside the Smithy language plugin. This crate declares its definitions in
 `package.metadata.smithy.models`, so the editor indexes the resolved dependency
 without a generated copy in your source tree. Reload Cargo and Ctrl-click
-`@json` or `ValidationError` to verify resolution.
+`@json` or `ValidationException` to verify resolution.
 
 `MODEL` exposes the source as `&str`; `VERSION` exposes the Cargo package
 version. `write_model` creates parent directories, replaces stale content,
@@ -31,7 +31,9 @@ and leaves identical content untouched. It only writes a model file: Smithy
 assembly and validation remain separate build steps. Include the written file
 as an import when assembling a model that uses these traits.
 
-`ERRORS` supplies `crucible.errors#ValidationError` and `InternalError`;
+`ERRORS` supplies `crucible.errors#ValidationException`, `InternalServerException`,
+and `UnknownOperationException`. The earlier `ValidationError` and `InternalError`
+shapes remain available for existing service contracts;
 `write_models(directory)` writes both the protocol and error definitions for
 assembly. Write them under `OUT_DIR`. The one-crate build helper does this
 automatically. Include these errors in the service's `errors` declaration so

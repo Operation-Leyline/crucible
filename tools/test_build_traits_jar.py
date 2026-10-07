@@ -18,6 +18,9 @@ class TraitsJar(unittest.TestCase):
                 self.assertIn("namespace crucible.protocols", model)
                 self.assertIn("structure json {}", model)
                 self.assertIn("structure strict {}", model)
+                errors = archive.read("META-INF/smithy/errors.smithy").decode()
+                for name in ["ValidationException", "InternalServerException", "UnknownOperationException"]:
+                    self.assertIn(f"structure {name}", errors)
 
 
 if __name__ == "__main__":

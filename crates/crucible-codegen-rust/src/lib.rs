@@ -37,7 +37,7 @@ pub(crate) const DERIVE_ENUM: &str = "#[derive(Debug, Clone, Copy, PartialEq, Eq
 
 const ALLOW: &str = "#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]\n";
 
-/// Which errors the generated code fills in itself. Both are optional:
+/// Which errors the generated code fills in itself. These are optional:
 /// without a validation error crucible can fill, the service gives the
 /// builder `on_rejection`; without an internal error, internal failures are
 /// answered with the protocol's own `InternalFailure`.
@@ -53,6 +53,12 @@ pub struct Options {
     /// be an error whose only required member is `message`, or generation
     /// fails.
     pub internal_error: Option<ShapeId>,
+    /// The error returned when no operation matches. Unset, uses the reachable
+    /// `crucible.errors#UnknownOperationException` shape. A configured error must
+    /// be a client error with status 404 whose required members Crucible can fill.
+    /// Without it, the validation error's `unknownOperation` reason or the
+    /// protocol's own unknown-operation response is used.
+    pub unknown_operation_error: Option<ShapeId>,
     /// Every structure an input reaches refuses members it does not define.
     /// Without it, only structures with `@crucible.protocols#strict` do.
     pub strict_inputs: bool,
@@ -113,6 +119,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     check_patterns(service, &mut diagnostics);
     let configured_validation = options.validation_error.as_ref();
     let configured_internal = options.internal_error.as_ref();
+    let configured_unknown = options.unknown_operation_error.as_ref();
     let validation_ok = errors::configured_error(
         service,
         configured_validation,
@@ -125,14 +132,28 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
         "internal error",
         &mut diagnostics,
     );
+    let unknown_ok = errors::configured_error(
+        service,
+        configured_unknown,
+        "unknown-operation error",
+        &mut diagnostics,
+    );
     let validation = errors::validation_error(service, configured_validation);
     let internal = errors::internal_error(service, configured_internal);
+    let unknown = errors::unknown_operation_error(service, configured_unknown);
     let reject = errors::reject(service, validation.as_ref());
     let internal_fn = errors::internal(service, internal.as_ref());
+    let unknown_fn = errors::unknown_operation(service, unknown.as_ref(), &mut diagnostics);
+    if let (Some(id), true, None) = (&unknown, unknown_ok, &unknown_fn) {
+        diagnostics.push(
+            id,
+            "the unknown-operation error has required members besides `message` and `requestId`",
+        );
+    }
     if options.require_rejection && reject.is_none() && configured_validation.is_none() {
         diagnostics.push(&service.id,
             "the service needs a fillable validation error before it can start; \
-             add `use crucible.errors#ValidationError` and `errors: [ValidationError]` \
+             add `use crucible.errors#ValidationException` and `errors: [ValidationException]` \
              to the service, or call `.validation_error(\"namespace#Error\")` for a declared \
              custom error; services with their own `on_rejection` handler can use `.custom_rejections()`");
     }
@@ -155,7 +176,11 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     }
     let functions = operations::Functions {
         classify: errors::classify(service),
-        unknown: errors::unknown(service, validation.as_ref()),
+        unknown: if unknown.is_some() {
+            unknown_fn
+        } else {
+            errors::unknown(service, validation.as_ref())
+        },
         reject,
         internal: internal_fn,
     };

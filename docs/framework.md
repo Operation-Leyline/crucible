@@ -27,8 +27,9 @@ script calls `crucible_build::from_smithy("smithy").generate()`. The helper
 provides the pinned compiler, imports Crucible definitions, watches the model,
 and writes the AST and generated contract under `OUT_DIR`.
 
-The starter declares `crucible.errors#ValidationError` (HTTP 400) and
-`crucible.errors#InternalError` (HTTP 500) as service errors. The high-level
+The starter declares `crucible.errors#ValidationException` (HTTP 400),
+`crucible.errors#InternalServerException` (HTTP 500), and
+`crucible.errors#UnknownOperationException` (HTTP 404) as service errors. The high-level
 helper diagnoses an unfillable or missing validation error before startup.
 Advanced services that supply their own `on_rejection` handler can call
 `.custom_rejections()`. Existing JSON-AST build helpers retain that advanced
@@ -379,13 +380,31 @@ A request that breaks the model becomes the service's validation error. The
 generator fills it when it can: `message`, a `fieldList` of `path`/`name`
 plus `message`, and the standard `reason` enum (`cannotParse` for a request
 that does not read as its input, `fieldValidationFailed` for a broken
-constraint). When that enum also has `unknownOperation`, a request no
+constraint). A declared `crucible.errors#UnknownOperationException` answers
+an unmatched route as a modelled 404. It takes precedence over the validation
+error's `unknownOperation` reason. A custom routing error can be selected with
+`.unknown_operation_error("namespace#Error")` in the build helper, or
+`generate rust --unknown-operation-error namespace#Error` in the CLI; it must
+be a reachable client error with HTTP status 404 and fillable required members
+(`message` and `requestId`). Other 404 errors are never selected implicitly.
+Without a dedicated routing error, when that enum also has `unknownOperation`, a request no
 operation serves gets the validation error with that reason (400), as the
 standard asks; without it, the protocol answers its own `UnknownOperation`
 (404). The values match in any casing (`cannotParse`, `cannot_parse`), so a
 model keeps its own enum convention. Otherwise the service gives the builder
 `on_rejection(|rejection| ..)`, and `Violation::kind` tells a malformed
 request from a broken constraint.
+
+The shared exception models follow the API Standards exception names and
+structured validation fields: required `message` and `reason`, plus an optional
+`fieldList` of `name` and `message`. `InternalServerException` is retryable and
+has an optional `Retry-After` header. Crucible supplies `x-request-id` on error
+responses and fills internal errors with a fixed safe message. The standalone
+`UnknownOperationException` (404) is an intentional Crucible choice; the API
+Standards otherwise classify unknown operations as validation errors (400).
+The earlier `ValidationError` and `InternalError` shapes remain available for
+existing contracts. New services declare the exception shapes explicitly;
+updating an existing service's error names or statuses changes its wire contract.
 
 A required member that is missing (a payload sent as an empty body, say)
 is a broken constraint naming the member.
