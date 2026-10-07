@@ -18,7 +18,9 @@ go fmt ./...
 go test ./...
 ```
 
-The generator owns and replaces the output directory. The module has no
+Generation tracks its files in `.crucible`, updates generated files, and removes
+obsolete generated files. Handwritten files and native build directories survive
+regeneration. Keep the ownership manifest. The module has no
 third-party dependencies. Publish it using ordinary Go module tags; its
 `crucible.json` records generator and service versions plus the SHA-256 of the
 lowered wire description. The module path is explicit and independent of the

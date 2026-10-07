@@ -38,6 +38,11 @@ limits, and validation. [Client setup and conformance](docs/clients.md) defines
 the common model preparation and retry contract. Generation and local HTTP
 tests are separate from package publication and authenticated deployment proof.
 
+For a workspace producing several SDKs, see [building named SDK packages](docs/sdk-builds.md).
+Compile once in the model package or generate in a separate SDK package from
+its model dependency. Rust applications consume a Cargo SDK package; Java
+applications consume the exported Maven package.
+
 ## Generate a client
 
 Install the CLI from a pinned Crucible checkout, then run it from your service's
@@ -57,7 +62,9 @@ manages the official compiler, Crucible imports and mixin flattening. An existin
 compiled `model.json` is still accepted. See
 [preparing a model](docs/clients.md#preparing-a-model).
 Use `generate <target> --help` for the options of another language. Generation
-owns its output directory; change the model or generator and regenerate.
+records the files it owns in `.crucible`, preserves handwritten files and native
+build directories, and removes obsolete generated files. Change the model or
+generator and regenerate.
 
 ## Generate infrastructure packages
 

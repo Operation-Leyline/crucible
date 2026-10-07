@@ -9,6 +9,8 @@ and representation limits.
 ## Language guides
 
 For standalone command-line tools, see [generating a service CLI](clients/cli.md).
+For several named SDK variants or separate model and SDK modules, see
+[building named SDK packages](sdk-builds.md).
 
 | Target | Guide | Package / qualification command |
 |---|---|---|
@@ -95,10 +97,10 @@ several; `--protocol` selects one declared protocol.
 Non-Rust client generators emit native package metadata and a bundled runtime. The
 language guide's npm, pip, Go, Maven, or other native commands build and consume
 that package. To regenerate during a native build, call `crucible generate`
-from a task or script in your source project before the native compile or
-package step. Keep that script and your Smithy sources outside the generated
-output directory, because regeneration replaces it. Pin the CLI version in
-your toolchain or CI setup.
+from a task or script before the native compile or package step. Alternatively,
+generate named SDKs from Cargo and use `crucible export-sdk` to expose the native
+package. See [building named SDK packages](sdk-builds.md) for both model-owned
+and separate SDK producers. Pin the CLI version in your toolchain or CI setup.
 
 Rust clients also support automatic generation during Cargo builds through
 [`crucible_build::client_from_smithy`](clients/rust.md#generating-a-client).
@@ -156,8 +158,12 @@ For a ready model in this checkout, use
 Each target has `generate <target> --help`. Target identity, endpoint, and body
 digest configuration are explicit; no runtime checks a Leyline operation name.
 
-Generation replaces the target directory. Rust's CLI target writes one file;
-its normal package integration uses `build.rs`. Pin the generator and runtime
+Native client generation tracks its generated files in `.crucible`. Regeneration
+updates those files and removes obsolete generated files, preserving handwritten
+files and native dependency/build directories. Keep that manifest; existing
+files outside its ownership are never silently replaced. Rust's direct CLI
+target writes one file; its normal package integration uses `build.rs`.
+Pin the generator and runtime
 versions, preserve package provenance, and regenerate instead of editing output.
 A lowered-schema digest identifies the emitted wire description, not the original
 Smithy source tree. Provenance fields differ by target; see its package output.

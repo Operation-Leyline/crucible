@@ -474,12 +474,15 @@ dependencies = [
 name = "crucible-build"
 version = "0.3.0"
 dependencies = [
+ "crucible-codegen",
  "crucible-codegen-rust",
  "crucible-policy",
  "crucible-smithy",
  "crucible-traits",
+ "serde",
  "serde_json",
  "smithy-tooling",
+ "tempfile",
 ]
 
 [[package]]
@@ -488,6 +491,7 @@ version = "0.3.0"
 dependencies = [
  "clap",
  "crucible-build",
+ "crucible-codegen",
  "crucible-codegen-c",
  "crucible-codegen-cdk",
  "crucible-codegen-cli",
@@ -548,6 +552,29 @@ dependencies = [
  "sha2",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "crucible-codegen"
+version = "0.3.0"
+dependencies = [
+ "crucible-codegen-c",
+ "crucible-codegen-cpp",
+ "crucible-codegen-csharp",
+ "crucible-codegen-dart",
+ "crucible-codegen-go",
+ "crucible-codegen-java",
+ "crucible-codegen-kotlin",
+ "crucible-codegen-php",
+ "crucible-codegen-python",
+ "crucible-codegen-r",
+ "crucible-codegen-ruby",
+ "crucible-codegen-rust",
+ "crucible-codegen-swift",
+ "crucible-codegen-ts",
+ "crucible-smithy",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

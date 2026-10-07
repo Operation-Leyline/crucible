@@ -1,3 +1,20 @@
+//! Compile a model once and generate named native SDK outputs. Enable the
+//! `java` feature for this example; other clients have matching opt-in features.
+//!
+//! ```ignore
+//! fn main() {
+//!     let model = crucible_build::smithy("model").compile();
+//!     model.publish();
+//!     model.rust_client("rust").generate();
+//!     model.java_client("java").package("example.sdk").generate();
+//! }
+//! ```
+//!
+//! A separate SDK producer can use [`model_dependency`] without recompiling
+//! Smithy. [`artifact`] binds a model-owned Rust output to an SDK package, whose
+//! small inclusion hook is hidden from applications. Native packages can be
+//! exported with `crucible export-sdk` and built with their native toolchains.
+//!
 //! Compile a service's Smithy sources and generate its Rust contract:
 //!
 //! ```ignore
@@ -46,6 +63,22 @@ use std::path::{Path, PathBuf};
 use crucible_codegen_rust::Options;
 use crucible_smithy::{Model, ShapeId};
 
+mod artifact;
+mod artifact_index;
+#[cfg(feature = "java")]
+mod java_sdk;
+mod model_builder;
+mod model_package;
+mod sdk;
+pub use artifact::Artifact;
+pub use artifact_index::export_artifact;
+pub use crucible_codegen as clients;
+#[cfg(feature = "java")]
+pub use java_sdk::JavaSdk;
+pub use model_builder::ModelBuilder;
+pub use model_package::ModelPackage;
+pub use sdk::Sdk;
+
 mod smithy;
 #[cfg(feature = "smithy")]
 pub use smithy::client_from_smithy;
@@ -59,6 +92,46 @@ pub use smithy::from_smithy_with;
 #[cfg(feature = "smithy")]
 pub use smithy::publish_model_from_smithy;
 pub use smithy::publish_model_from_smithy_with;
+
+/// Compile a source-only Smithy package and select named SDK outputs.
+pub fn smithy(sources: impl AsRef<Path>) -> ModelBuilder {
+    ModelBuilder::new(sources.as_ref(), false)
+}
+
+/// Use a compiled AST without invoking a Smithy compiler.
+pub fn model_from_json(model: impl AsRef<Path>) -> ModelBuilder {
+    ModelBuilder::new(model.as_ref(), true)
+}
+
+/// Generate SDKs in a separate package using its model dependency's AST.
+pub fn model_dependency(links: &str) -> ModelPackage {
+    model_from_json(published(links)).compile()
+}
+
+/// Resolve a named SDK output published by a direct model dependency.
+pub fn artifact(links: &str, name: &str) -> Artifact {
+    artifact::validate_name(name).unwrap_or_else(|message| panic!("crucible: {message}"));
+    let variable = format!(
+        "DEP_{}_SDK_{}",
+        links.to_ascii_uppercase().replace('-', "_"),
+        name.to_ascii_uppercase().replace('-', "_")
+    );
+    let path = std::env::var_os(&variable).map(PathBuf::from).unwrap_or_else(|| panic!(
+        "crucible: {variable} is not set. Depend directly on the model package with links = {links:?} and generate its named SDK {name:?}"
+    ));
+    let index_path = path
+        .parent()
+        .and_then(Path::parent)
+        .expect("SDK artifact parent")
+        .join("crucible-sdks.json");
+    let artifact = artifact_index::load(&index_path, name)
+        .unwrap_or_else(|message| panic!("crucible: {message}"));
+    assert_eq!(
+        artifact.path, path,
+        "crucible: SDK registry does not match Cargo metadata"
+    );
+    artifact
+}
 
 /// From a model package's `build.rs`: makes `path` (a Smithy JSON AST built
 /// with the `flattenAndRemoveMixins` transform) the model its dependents
@@ -202,6 +275,12 @@ impl Codegen {
             Side::Client => "crucible_client_runtime_rust.rs",
         };
         std::fs::write(out.join(file), code).expect("crucible: cannot write the generated code");
+        if self.side == Side::Client {
+            println!(
+                "cargo::rustc-env=CRUCIBLE_CLIENT_SOURCE={}",
+                out.join(file).display()
+            );
+        }
         let model_output = self.model_output.clone().or_else(|| {
             std::env::var_os("CRUCIBLE_MODEL_OUT")
                 .map(PathBuf::from)
@@ -245,31 +324,7 @@ impl Codegen {
             .lower_with_capabilities(self.service.as_ref(), &capabilities)
             .map_err(|error| error.to_string())?;
         if let Some(policy) = &self.policy {
-            let config = crucible_policy::Config::load(policy)?;
-            let report = crucible_policy::check(&service, &config);
-            for finding in &report.findings {
-                if let Some(reason) = &finding.exception {
-                    println!(
-                        "cargo::warning=excepted[{}] {}: {}",
-                        finding.rule,
-                        finding.shape,
-                        reason.replace(['\n', '\r'], " ")
-                    );
-                }
-                if finding.severity == crucible_policy::Severity::Warning
-                    && finding.exception.is_none()
-                {
-                    println!(
-                        "cargo::warning=[{}] {}: {}",
-                        finding.rule,
-                        finding.shape,
-                        finding.message.replace(['\n', '\r'], " ")
-                    );
-                }
-            }
-            if report.has_errors() {
-                return Err(report.to_string());
-            }
+            check_policy(&service, policy)?;
         }
         let generated = match self.side {
             Side::Server => crucible_codegen_rust::generate(&service, &self.options),
@@ -297,4 +352,31 @@ fn absolute(path: &Path) -> PathBuf {
     let root =
         std::env::var_os("CARGO_MANIFEST_DIR").map_or_else(|| PathBuf::from("."), PathBuf::from);
     root.join(path)
+}
+
+fn check_policy(service: &crucible_smithy::ir::Service, policy: &Path) -> Result<(), String> {
+    let config = crucible_policy::Config::load(policy)?;
+    let report = crucible_policy::check(service, &config);
+    for finding in &report.findings {
+        if let Some(reason) = &finding.exception {
+            println!(
+                "cargo::warning=excepted[{}] {}: {}",
+                finding.rule,
+                finding.shape,
+                reason.replace(['\n', '\r'], " ")
+            );
+        }
+        if finding.severity == crucible_policy::Severity::Warning && finding.exception.is_none() {
+            println!(
+                "cargo::warning=[{}] {}: {}",
+                finding.rule,
+                finding.shape,
+                finding.message.replace(['\n', '\r'], " ")
+            );
+        }
+    }
+    if report.has_errors() {
+        return Err(report.to_string());
+    }
+    Ok(())
 }

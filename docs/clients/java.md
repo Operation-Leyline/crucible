@@ -6,6 +6,13 @@ Generate a Java 17+ Maven package:
 
 ## Generating and installing
 
+For Java SDK generation from `build.rs`, including multiple named variants or
+a separate SDK producer consuming a model dependency, see
+[building named SDK packages](../sdk-builds.md). Enable `crucible-build`'s
+`java` feature, configure Maven coordinates per output, then use
+`crucible export-sdk` before Maven builds the package. Direct CLI generation
+also remains supported:
+
 Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
 JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 
@@ -17,7 +24,9 @@ crucible generate java smithy \
 mvn -f target/java-sdk/pom.xml package
 ```
 
-The generator owns and replaces its output directory. Set `--package-version`
+The generator tracks its files in `.crucible`. Regeneration updates generated
+files and removes obsolete generated files while preserving handwritten files
+and native build directories. Keep the ownership manifest. Set `--package-version`
 to the Maven artifact version. The jar includes the lowered wire description
 and `crucible.json` with generator/service versions and a wire-schema SHA-256.
 The runtime uses JDK HTTP and Gson; Maven declares the dependency.

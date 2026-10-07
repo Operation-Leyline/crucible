@@ -1,0 +1,49 @@
+[package]
+name = "crucible-codegen"
+description = "Shared native client generation and artifact output"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+all-clients = ["ts", "python", "go", "java", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+ts = ["dep:crucible-codegen-ts"]
+python = ["dep:crucible-codegen-python"]
+go = ["dep:crucible-codegen-go"]
+java = ["dep:crucible-codegen-java"]
+csharp = ["dep:crucible-codegen-csharp"]
+kotlin = ["dep:crucible-codegen-kotlin"]
+swift = ["dep:crucible-codegen-swift"]
+dart = ["dep:crucible-codegen-dart"]
+php = ["dep:crucible-codegen-php"]
+ruby = ["dep:crucible-codegen-ruby"]
+cpp = ["dep:crucible-codegen-cpp"]
+c = ["dep:crucible-codegen-c"]
+r = ["dep:crucible-codegen-r"]
+
+[dependencies]
+crucible-smithy.workspace = true
+crucible-codegen-rust.workspace = true
+crucible-codegen-ts = { workspace = true, optional = true }
+crucible-codegen-python = { workspace = true, optional = true }
+crucible-codegen-go = { workspace = true, optional = true }
+crucible-codegen-java = { workspace = true, optional = true }
+crucible-codegen-csharp = { workspace = true, optional = true }
+crucible-codegen-kotlin = { workspace = true, optional = true }
+crucible-codegen-swift = { workspace = true, optional = true }
+crucible-codegen-dart = { workspace = true, optional = true }
+crucible-codegen-php = { workspace = true, optional = true }
+crucible-codegen-ruby = { workspace = true, optional = true }
+crucible-codegen-cpp = { workspace = true, optional = true }
+crucible-codegen-c = { workspace = true, optional = true }
+crucible-codegen-r = { workspace = true, optional = true }
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

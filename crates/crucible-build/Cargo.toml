@@ -1,6 +1,6 @@
 [package]
 name = "crucible-build"
-description = "Compile Smithy sources and generate Rust services and clients from Cargo builds"
+description = "Compile Smithy sources and generate Rust service contracts and native client SDKs from Cargo builds"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,15 +9,34 @@ repository.workspace = true
 
 [dependencies]
 crucible-codegen-rust.workspace = true
+crucible-codegen.workspace = true
 crucible-smithy.workspace = true
 crucible-policy.workspace = true
 crucible-traits.workspace = true
 serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
 smithy-tooling = { workspace = true, optional = true }
 
 [features]
 default = ["smithy"]
 smithy = ["dep:smithy-tooling"]
+all-clients = ["crucible-codegen/all-clients", "java", "ts", "python", "go", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+java = ["crucible-codegen/java"]
+ts = ["crucible-codegen/ts"]
+python = ["crucible-codegen/python"]
+go = ["crucible-codegen/go"]
+csharp = ["crucible-codegen/csharp"]
+kotlin = ["crucible-codegen/kotlin"]
+swift = ["crucible-codegen/swift"]
+dart = ["crucible-codegen/dart"]
+php = ["crucible-codegen/php"]
+ruby = ["crucible-codegen/ruby"]
+cpp = ["crucible-codegen/cpp"]
+c = ["crucible-codegen/c"]
+r = ["crucible-codegen/r"]
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3"
