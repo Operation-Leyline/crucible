@@ -115,9 +115,9 @@ enum Command {
         /// The operations folder.
         #[arg(long, default_value = "src/operations")]
         out: PathBuf,
-        /// The module the generated contract is included in.
-        #[arg(long, default_value = "crate::contract")]
-        contract: String,
+        /// Override the derived service namespace (default: crate::<service_name>).
+        #[arg(long)]
+        contract: Option<String>,
         /// The type that implements every operation.
         #[arg(long, default_value = "crate::operations::Service")]
         service_type: String,
@@ -1193,7 +1193,7 @@ fn summary(service: &Service) -> String {
     if !custom.is_empty() {
         out.push_str("  custom traits:\n");
         for (id, uses) in custom {
-            out.push_str(&format!("    {id} ×{uses}\n"));
+            out.push_str(&format!("    {id} Ã—{uses}\n"));
         }
     }
     out

@@ -61,7 +61,7 @@ fn a_custom_404_requires_explicit_selection_and_can_include_request_id() {
     )
     .unwrap();
     assert!(code.contains("Box::new(errors::ResourceNotFoundException"));
-    assert!(code.contains("request_id: ::crucible::Context::try_current()"));
+    assert!(code.contains("request_id: ::crucible_server_runtime_rust::Context::try_current()"));
 }
 
 #[test]

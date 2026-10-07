@@ -12,7 +12,7 @@ use crucible_client_runtime_rust::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use weather_service::contract::model::StatusInput;
+use weather_service::weather::StatusInput;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

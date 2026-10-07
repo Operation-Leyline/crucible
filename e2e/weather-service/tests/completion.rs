@@ -8,16 +8,18 @@ use std::time::Duration;
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, header::SET_COOKIE};
 use axum::response::Response;
-use crucible::before_fn;
-use crucible::middlewares::{Metrics, Recorder, RequestRecord};
-use crucible::operation::{Location, MemberInfo, Redaction, Scalar, Segment, Unit};
-use crucible::validate::{Validate, Validator};
-use crucible::{
+use crucible_server_runtime_rust::before_fn;
+use crucible_server_runtime_rust::middlewares::{Metrics, Recorder, RequestRecord};
+use crucible_server_runtime_rust::operation::{
+    Location, MemberInfo, Redaction, Scalar, Segment, Unit,
+};
+use crucible_server_runtime_rust::validate::{Validate, Validator};
+use crucible_server_runtime_rust::{
     ByteStream, Crucible, InvokeProtocol, JsonProtocol, Operation, OperationInfo, ServiceInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use weather_service::contract;
+use weather_service::weather;
 
 const BODY: MemberInfo = MemberInfo {
     name: "body",
@@ -44,14 +46,14 @@ static UPLOAD: OperationInfo = OperationInfo {
     method: "PUT",
     path: &[Segment::Literal("upload")],
     input: &[BODY, TAG],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static DOWNLOAD: OperationInfo = OperationInfo {
     id: "test.completion#Download",
     name: "Download",
     path: &[Segment::Literal("download")],
     output: &[BODY],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static BROKEN: OperationInfo = OperationInfo {
     id: "test.completion#Broken",
@@ -64,19 +66,19 @@ static BROKEN: OperationInfo = OperationInfo {
         redaction: &Redaction::Public,
         traits: &[],
     }],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static FAULT: OperationInfo = OperationInfo {
     id: "test.completion#Fault",
     name: "Fault",
     path: &[Segment::Literal("fault")],
     errors: &["ConflictError"],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static SERVICE: ServiceInfo = ServiceInfo {
     id: "test.completion#Service",
     operations: &[&UPLOAD, &DOWNLOAD, &BROKEN, &FAULT],
-    ..contract::SERVICE
+    ..weather::SERVICE
 };
 
 #[derive(Serialize, Deserialize)]
@@ -137,9 +139,9 @@ struct Calls {
     downloads: AtomicUsize,
 }
 const BYTES: &[u8] = &[0xff, 0, 1];
-fn builder(calls: Arc<Calls>) -> crucible::Builder {
+fn builder(calls: Arc<Calls>) -> crucible_server_runtime_rust::Builder {
     let downloads = calls.clone();
-    let operations = crucible::Operations::builder(&SERVICE)
+    let operations = crucible_server_runtime_rust::Operations::builder(&SERVICE)
         .add::<Upload, _>(calls, |calls, input| {
             Box::pin(async move {
                 calls.uploads.fetch_add(1, Ordering::SeqCst);
@@ -160,7 +162,7 @@ fn builder(calls: Arc<Calls>) -> crucible::Builder {
         .add::<Broken, _>(Arc::new(()), |_, _| Box::pin(async { Ok(BrokenOutput) }))
         .add::<Fault, _>(Arc::new(()), |_, _| {
             Box::pin(async {
-                Err(contract::errors::ConflictError {
+                Err(weather::ConflictError {
                     message: "modelled conflict".into(),
                 }
                 .into())
@@ -169,7 +171,7 @@ fn builder(calls: Arc<Calls>) -> crucible::Builder {
         .build()
         .unwrap();
     Crucible::builder(operations).on_rejection(|rejection| {
-        Box::new(contract::errors::ConflictError {
+        Box::new(weather::ConflictError {
             message: rejection.summary(),
         })
     })
@@ -290,7 +292,7 @@ async fn http_and_lambda_v2_preserve_cookies_and_repeated_headers_for_normal_and
             .collect();
         assert_eq!(values, [b"first".as_slice(), "café".as_bytes()]);
         assert_eq!(response.headers()["x-single"].as_bytes(), "séul".as_bytes());
-        let event = crucible::host::lambda_event(&service, http_v2_event())
+        let event = crucible_server_runtime_rust::host::lambda_event(&service, http_v2_event())
             .await
             .unwrap();
         assert_eq!(event["cookies"], json!(expected));
@@ -319,7 +321,7 @@ async fn lambda_v2_rejects_non_utf8_cookies_instead_of_emitting_empty_values() {
         .await;
     assert_eq!(response.headers()[SET_COOKIE].as_bytes(), &[0x80]);
     assert!(
-        crucible::host::lambda_event(&service, http_v2_event())
+        crucible_server_runtime_rust::host::lambda_event(&service, http_v2_event())
             .await
             .is_err()
     );

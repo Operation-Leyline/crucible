@@ -148,7 +148,7 @@ impl LogSink for TracingSink {
     fn write(&self, record: &LogRecord<'_>) {
         macro_rules! emit {
             ($level:expr) => {
-                tracing::event!(target: "crucible::service_log", $level,
+                tracing::event!(target: "crucible_server_runtime_rust::service_log", $level,
                     request_id = record.request_id, operation = record.operation,
                     status = record.status, outcome = record.outcome,
                     latency_ms = record.latency_ms, error_type = record.error,

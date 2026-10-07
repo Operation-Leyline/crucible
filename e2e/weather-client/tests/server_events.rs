@@ -6,51 +6,52 @@ macro_rules! service {
         #[allow(dead_code)]
         mod $module {
             pub mod client { include!(concat!(env!("OUT_DIR"), $client)); }
-            pub mod server { include!(concat!(env!("OUT_DIR"), $server)); }
+            mod generated_server { include!(concat!(env!("OUT_DIR"), $server)); }
+            pub use generated_server::events as server;
             struct Service;
             impl server::PublishOperation for Service {
-                async fn publish(&self, input: server::model::PublishInput) -> crucible::Result<server::model::PublishOutput> {
+                async fn publish(&self, input: server::PublishInput) -> crucible_server_runtime_rust::Result<server::PublishOutput> {
                     assert_eq!(input.channel, "room");
                     let mut accepted = 0;
                     let mut events = input.events.open()?;
                     while events.recv().await.map_err(|e| std::io::Error::other(e.to_string()))?.is_some() { accepted += 1; }
-                    Ok(server::model::PublishOutput { accepted })
+                    Ok(server::PublishOutput { accepted })
                 }
             }
             impl server::SubscribeOperation for Service {
-                async fn subscribe(&self, input: server::model::SubscribeInput) -> crucible::Result<server::model::SubscribeOutput> {
-                    Ok(server::model::SubscribeOutput {
+                async fn subscribe(&self, input: server::SubscribeInput) -> crucible_server_runtime_rust::Result<server::SubscribeOutput> {
+                    Ok(server::SubscribeOutput {
                         channel: Some(input.channel),
-                        events: crucible::EventStream::from_events([
-                            server::model::ServerEvents::Structured(serde_json::from_value(serde_json::json!({"text":"response", "at":0.25})).unwrap()),
-                            server::model::ServerEvents::Throttled(server::errors::ThrottledError { message: Some("slow down".into()), retry_after_seconds: Some(2) }),
-                            server::model::ServerEvents::Ping(server::model::Ping {}),
+                        events: crucible_server_runtime_rust::EventStream::from_events([
+                            server::ServerEvents::Structured(serde_json::from_value(serde_json::json!({"text":"response", "at":0.25})).unwrap()),
+                            server::ServerEvents::Throttled(server::ThrottledError { message: Some("slow down".into()), retry_after_seconds: Some(2) }),
+                            server::ServerEvents::Ping(server::Ping {}),
                         ]),
                     })
                 }
             }
             impl server::ChatOperation for Service {
-                async fn chat(&self, input: server::model::ChatInput) -> crucible::Result<server::model::ChatOutput> {
+                async fn chat(&self, input: server::ChatInput) -> crucible_server_runtime_rust::Result<server::ChatOutput> {
                     assert!(input.room.as_deref().is_none_or(|room| room == "room"));
                     let receiver = input.events.unwrap().open()?;
                     let events = futures_util::stream::unfold(receiver, |mut receiver| async move {
                         let event = match receiver.recv().await {
-                            Ok(Some(server::model::ClientEvents::Structured(event))) => Ok(server::model::ServerEvents::Structured(event)),
-                            Ok(Some(server::model::ClientEvents::Ping(event))) => Ok(server::model::ServerEvents::Ping(event)),
+                            Ok(Some(server::ClientEvents::Structured(event))) => Ok(server::ServerEvents::Structured(event)),
+                            Ok(Some(server::ClientEvents::Ping(event))) => Ok(server::ServerEvents::Ping(event)),
                             Ok(None) => return None,
                             other => Err(std::io::Error::other(format!("unexpected event: {other:?}"))),
                         };
                         Some((event, receiver))
                     });
-                    Ok(server::model::ChatOutput { events: Some(crucible::EventStream::try_new(events)) })
+                    Ok(server::ChatOutput { events: Some(crucible_server_runtime_rust::EventStream::try_new(events)) })
                 }
             }
             pub async fn serve() -> String {
-                let service = crucible::Crucible::builder(server::operations(std::sync::Arc::new(Service))).defaults()
-                    .on_rejection(|rejection| Box::new(server::errors::UnavailableError { message: Some(rejection.summary()) })).build().unwrap();
+                let service = crucible_server_runtime_rust::Crucible::builder(server::operations(std::sync::Arc::new(Service))).defaults()
+                    .on_rejection(|rejection| Box::new(server::UnavailableError { message: Some(rejection.summary()) })).build().unwrap();
                 let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
                 let endpoint = format!("http://{}", listener.local_addr().unwrap());
-                tokio::spawn(crucible::host::http_on(service, listener));
+                tokio::spawn(crucible_server_runtime_rust::host::http_on(service, listener));
                 endpoint
             }
         }

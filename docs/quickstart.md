@@ -24,10 +24,9 @@ are possible responses. Error responses include `x-request-id`.
 
 ```text
 Cargo.toml
-build.rs                              from_smithy("smithy").generate()
+build.rs                              rust_service_from_smithy("smithy").generate()
 smithy/hello.smithy                    the API
-src/main.rs                           HTTP hosting
-src/contract.rs                       includes the generated contract
+src/main.rs                           includes hello_service and hosts HTTP
 src/operations/mod.rs                 your service type
 src/operations/service/say_hello.rs    the Hello implementation
 hello.http                            requests you can run in RustRover
@@ -57,7 +56,7 @@ the assembled AST is under `OUT_DIR/smithy/compiled/crucible/model/model.json`.
 
 ## Versioning and offline builds
 
-The starter pins both `crucible` and `crucible-build` to the CLI's matching
+The starter pins both `crucible-server-runtime-rust` and `crucible-build` to the CLI's matching
 release tag and ships its tested Smithy 1.74.0 compiler snapshot. Commit
 `Cargo.lock`. Change the Crucible tag deliberately to upgrade this set.
 
@@ -69,7 +68,7 @@ crucible new my-service --smithy-version 1.73.0
 
 That starter disables the default compiler in `crucible-build`, adds an
 immutable `smithy-1.73.0-wrapper-0.3.0` tooling dependency, and selects it through
-`from_smithy_with`. Its prelude and compiler come from the same release.
+`rust_service_from_smithy_with`. Its prelude and compiler come from the same release.
 Only published tooling tags can be selected; the build does not invent or
 silently upgrade versions. Selecting a version means also having read access
 to the private `smithy-tooling` repository.

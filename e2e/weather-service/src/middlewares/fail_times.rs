@@ -3,10 +3,10 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-use crucible::validate::Rejection;
-use crucible::{Hook, OperationAwareMiddleware, OperationJob};
+use crucible_server_runtime_rust::validate::Rejection;
+use crucible_server_runtime_rust::{Hook, OperationAwareMiddleware, OperationJob};
 
-use crate::contract::errors::ThrottlingError;
+use crate::weather::ThrottlingError;
 
 /// `x-fail-times: N` with `x-fail-key: K` answers the first N requests under
 /// that key with a throttling error. Middleware outside the operation,
@@ -18,13 +18,16 @@ pub struct FailTimes {
 
 /// It never waits, so it answers its hook at once rather than as a future.
 impl OperationAwareMiddleware for FailTimes {
-    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut OperationJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         Hook::Ready(self.check(job))
     }
 }
 
 impl FailTimes {
-    fn check(&self, job: &OperationJob<'_>) -> crucible::Result<()> {
+    fn check(&self, job: &OperationJob<'_>) -> crucible_server_runtime_rust::Result<()> {
         let header = |name: &str| {
             job.request()
                 .headers

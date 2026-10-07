@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::Request;
-use crucible::{Blob, Crucible};
+use crucible_server_runtime_rust::{Blob, Crucible};
 use serde_json::{Value, json};
 use weather_service::MemoryCities;
-use weather_service::contract;
+use weather_service::weather;
 
 fn service() -> Crucible {
     weather_service::service(Arc::new(MemoryCities::default()))
@@ -135,7 +135,7 @@ async fn a_payload_is_validated_like_any_member() {
 #[tokio::test]
 async fn the_body_limit_still_applies_to_a_payload() {
     let service = weather_service::builder(Arc::new(MemoryCities::default()))
-        .operation_body_limit::<contract::PutCityPhoto>(16)
+        .operation_body_limit::<weather::PutCityPhoto>(16)
         .build()
         .unwrap();
     let id = city(&service).await;

@@ -59,10 +59,10 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
                 )
             };
             format!(
-                "::crucible::operation::MemberInfo {{ name: {}, location: ::crucible::operation::Location::{location}, scalar: ::crucible::operation::Scalar::{scalar}, redaction: {}, traits: {} }}",
+                "::crucible_server_runtime_rust::operation::MemberInfo {{ name: {}, location: ::crucible_server_runtime_rust::operation::Location::{location}, scalar: ::crucible_server_runtime_rust::operation::Scalar::{scalar}, redaction: {}, traits: {} }}",
                 literal(&member.wire_name),
                 if structure.sensitive() {
-                    "&::crucible::operation::Redaction::Sensitive".to_owned()
+                    "&::crucible_server_runtime_rust::operation::Redaction::Sensitive".to_owned()
                 } else { redaction_member(service, member, "__redaction::") },
                 custom_traits(&member.traits)
             )
@@ -111,7 +111,7 @@ fn scalar(
         Some(Shape::IntEnum(_)) => "Integer".to_owned(),
         Some(Shape::Enum(_)) if base64 => "Base64".to_owned(),
         Some(Shape::List(list)) => format!(
-            "List(&::crucible::operation::Scalar::{})",
+            "List(&::crucible_server_runtime_rust::operation::Scalar::{})",
             scalar(service, &list.member, timestamp, base64)
         ),
         Some(Shape::Simple(simple)) => match simple.kind {
@@ -129,7 +129,7 @@ fn scalar(
                     format(text)
                 } else {
                     return format!(
-                        "Timestamp {{ text: ::crucible::operation::TimestampFormat::{}, json: ::crucible::operation::TimestampFormat::{} }}",
+                        "Timestamp {{ text: ::crucible_server_runtime_rust::operation::TimestampFormat::{}, json: ::crucible_server_runtime_rust::operation::TimestampFormat::{} }}",
                         format(text),
                         format(json)
                     );
@@ -147,7 +147,7 @@ fn scalar(
 
 fn redaction_member(service: &Service, member: &Member, prefix: &str) -> String {
     if service.sensitive(member) {
-        "&::crucible::operation::Redaction::Sensitive".to_owned()
+        "&::crucible_server_runtime_rust::operation::Redaction::Sensitive".to_owned()
     } else {
         let index = service
             .shapes
@@ -162,7 +162,7 @@ fn redaction_member(service: &Service, member: &Member, prefix: &str) -> String 
 pub(crate) fn redactions(service: &Service) -> String {
     let mut out = String::from("#[allow(dead_code, unused_imports)]\nmod __redaction {\n");
     if !service.shapes.is_empty() {
-        out.push_str("    use ::crucible::operation::Redaction;\n");
+        out.push_str("    use ::crucible_server_runtime_rust::operation::Redaction;\n");
     }
     for (index, shape) in service.shapes.values().enumerate() {
         let policy = if shape.sensitive() {

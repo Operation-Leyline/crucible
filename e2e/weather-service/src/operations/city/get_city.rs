@@ -2,14 +2,17 @@
 
 use std::collections::BTreeMap;
 
-use crucible::WithContext;
+use crucible_server_runtime_rust::WithContext;
 
-use crate::contract::errors::NotFoundError;
-use crate::contract::{GetCityOperation, model};
 use crate::operations::Weather;
+use crate::weather::NotFoundError;
+use crate::weather::{GetCityInput, GetCityOperation, GetCityOutput, Sky};
 
 impl GetCityOperation for Weather {
-    async fn get_city(&self, input: model::GetCityInput) -> crucible::Result<model::GetCityOutput> {
+    async fn get_city(
+        &self,
+        input: GetCityInput,
+    ) -> crucible_server_runtime_rust::Result<GetCityOutput> {
         let Some(city) = self.cities.get(&input.city_id).await? else {
             return Err(NotFoundError {
                 message: "no such city".to_owned(),
@@ -18,13 +21,10 @@ impl GetCityOperation for Weather {
             .into());
         };
         // Echoes the query timestamp, so a test can see it arrive intact.
-        let forecast = input.at.map(|at| {
-            BTreeMap::from([(
-                model::Sky::Clear,
-                serde_json::json!({ "at": at.to_rfc3339() }),
-            )])
-        });
-        Ok(model::GetCityOutput {
+        let forecast = input
+            .at
+            .map(|at| BTreeMap::from([(Sky::Clear, serde_json::json!({ "at": at.to_rfc3339() }))]));
+        Ok(GetCityOutput {
             city,
             forecast,
             // An operation can model the request-id header itself; the

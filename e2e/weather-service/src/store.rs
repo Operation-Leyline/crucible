@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Mutex;
 
-use crate::contract::model::{CitySummary, Photo};
+use crate::weather::{CitySummary, Photo};
 
 /// What a store needs to create a city; it assigns the id and timestamps.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,13 +22,17 @@ pub struct StoredPhoto {
     pub caption: Option<String>,
 }
 
-#[crucible::async_trait]
+#[crucible_server_runtime_rust::async_trait]
 pub trait CityStore: Send + Sync + 'static {
-    async fn get(&self, id: &str) -> crucible::Result<Option<CitySummary>>;
+    async fn get(&self, id: &str) -> crucible_server_runtime_rust::Result<Option<CitySummary>>;
 
     /// Creates a city, or returns the one an earlier request with the same
     /// `token` created. A name already taken is [`NameTaken`].
-    async fn create(&self, city: NewCity, token: Option<&str>) -> crucible::Result<CitySummary>;
+    async fn create(
+        &self,
+        city: NewCity,
+        token: Option<&str>,
+    ) -> crucible_server_runtime_rust::Result<CitySummary>;
 
     /// Cities after `after` in id order, at most `limit`, whose name is one
     /// of `names` when any are given.
@@ -37,12 +41,16 @@ pub trait CityStore: Send + Sync + 'static {
         after: Option<&str>,
         limit: usize,
         names: &[String],
-    ) -> crucible::Result<Vec<CitySummary>>;
+    ) -> crucible_server_runtime_rust::Result<Vec<CitySummary>>;
 
     /// Replaces the photo of city `id`, which exists.
-    async fn put_photo(&self, id: &str, photo: StoredPhoto) -> crucible::Result<()>;
+    async fn put_photo(
+        &self,
+        id: &str,
+        photo: StoredPhoto,
+    ) -> crucible_server_runtime_rust::Result<()>;
 
-    async fn photo(&self, id: &str) -> crucible::Result<Option<StoredPhoto>>;
+    async fn photo(&self, id: &str) -> crucible_server_runtime_rust::Result<Option<StoredPhoto>>;
 }
 
 /// The store's own error for a taken name; the service's exception
@@ -74,13 +82,17 @@ struct Memory {
     next_id: u32,
 }
 
-#[crucible::async_trait]
+#[crucible_server_runtime_rust::async_trait]
 impl CityStore for MemoryCities {
-    async fn get(&self, id: &str) -> crucible::Result<Option<CitySummary>> {
+    async fn get(&self, id: &str) -> crucible_server_runtime_rust::Result<Option<CitySummary>> {
         Ok(self.state.lock().unwrap().cities.get(id).cloned())
     }
 
-    async fn create(&self, city: NewCity, token: Option<&str>) -> crucible::Result<CitySummary> {
+    async fn create(
+        &self,
+        city: NewCity,
+        token: Option<&str>,
+    ) -> crucible_server_runtime_rust::Result<CitySummary> {
         let mut memory = self.state.lock().unwrap();
         if let Some(id) = token.and_then(|token| memory.tokens.get(token)) {
             return Ok(memory.cities[id].clone());
@@ -113,7 +125,7 @@ impl CityStore for MemoryCities {
         after: Option<&str>,
         limit: usize,
         names: &[String],
-    ) -> crucible::Result<Vec<CitySummary>> {
+    ) -> crucible_server_runtime_rust::Result<Vec<CitySummary>> {
         let memory = self.state.lock().unwrap();
         Ok(memory
             .cities
@@ -125,13 +137,17 @@ impl CityStore for MemoryCities {
             .collect())
     }
 
-    async fn put_photo(&self, id: &str, photo: StoredPhoto) -> crucible::Result<()> {
+    async fn put_photo(
+        &self,
+        id: &str,
+        photo: StoredPhoto,
+    ) -> crucible_server_runtime_rust::Result<()> {
         let mut memory = self.state.lock().unwrap();
         memory.photos.insert(id.to_owned(), photo);
         Ok(())
     }
 
-    async fn photo(&self, id: &str) -> crucible::Result<Option<StoredPhoto>> {
+    async fn photo(&self, id: &str) -> crucible_server_runtime_rust::Result<Option<StoredPhoto>> {
         Ok(self.state.lock().unwrap().photos.get(id).cloned())
     }
 }

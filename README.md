@@ -99,7 +99,7 @@ build script is:
 
 ```rust
 fn main() {
-    crucible_build::from_smithy("smithy")
+    crucible_build::rust_service_from_smithy("smithy")
         .policy("crucible.toml")
         .generate();
 }
@@ -107,6 +107,9 @@ fn main() {
 
 Edit `smithy/hello.smithy` and `src/operations/service/say_hello.rs`. Cargo
 validates the model and regenerates the contract when the model changes.
+The Rust server depends on `crucible-server-runtime-rust`. Include the generated
+API at crate root: a Smithy `HelloService` produces `hello_service`, exposing
+its models, exceptions and operation traits directly.
 The starter declares modeled validation and internal errors, and returns
 HTTP 400 for invalid requests. See [the quick start](docs/quickstart.md) for
 editor integration, version pins, and adding an operation.

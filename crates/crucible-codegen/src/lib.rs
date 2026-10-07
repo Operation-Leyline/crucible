@@ -3,6 +3,7 @@ mod client;
 mod file;
 mod generator;
 mod output;
+mod server;
 
 pub use client::Client;
 #[cfg(feature = "c")]
@@ -40,6 +41,8 @@ pub use crucible_codegen_r::Options as ROptions;
 #[cfg(feature = "ruby")]
 pub use crucible_codegen_ruby::Options as RubyOptions;
 #[cfg(feature = "rust")]
+pub use crucible_codegen_rust::Options as RustServerOptions;
+#[cfg(feature = "rust")]
 pub use crucible_codegen_rust::{ClientOptions as RustOptions, RuntimeDependency};
 #[cfg(feature = "swift")]
 pub use crucible_codegen_swift::Options as SwiftOptions;
@@ -52,3 +55,4 @@ pub use crucible_codegen_ts::Options as TsOptions;
 pub use file::File;
 pub use generator::Generator;
 pub use output::write;
+pub use server::Server;

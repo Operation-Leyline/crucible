@@ -7,10 +7,10 @@ use std::sync::{
 use axum::body::{Body, Bytes};
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::response::Response;
-use crucible::operation::{OperationInfo, Segment, ServiceInfo, Unit};
-use crucible::protocol::{Answers, ProtocolMatch, Route};
-use crucible::validate::{Rejection, Validate, Validator};
-use crucible::{
+use crucible_server_runtime_rust::operation::{OperationInfo, Segment, ServiceInfo, Unit};
+use crucible_server_runtime_rust::protocol::{Answers, ProtocolMatch, Route};
+use crucible_server_runtime_rust::validate::{Rejection, Validate, Validator};
+use crucible_server_runtime_rust::{
     Crucible, DecodedJob, ExceptionTranslator, Hook, Interceptor, InvokeProtocol, Job,
     JsonProtocol, Middleware, Operation, OperationAwareMiddleware, OperationJob, Operations,
     Protocol, ProtocolExt, Resolution, raw_before_fn,
@@ -18,7 +18,7 @@ use crucible::{
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use weather_service::contract;
+use weather_service::weather;
 
 type Events = Arc<Mutex<Vec<String>>>;
 fn record(events: &Events, event: impl Into<String>) {
@@ -58,9 +58,9 @@ static SERVICE: ServiceInfo = ServiceInfo {
     operations: &[&INFO],
     errors: &[],
     classify: |_| None,
-    reject: contract::SERVICE.reject,
-    internal: contract::SERVICE.internal,
-    unknown: contract::SERVICE.unknown,
+    reject: weather::SERVICE.reject,
+    internal: weather::SERVICE.internal,
+    unknown: weather::SERVICE.unknown,
 };
 struct Probe;
 impl Operation for Probe {
@@ -102,7 +102,10 @@ struct Transport {
     events: Events,
 }
 impl Middleware for Transport {
-    fn before<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut Job,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         assert!(job.operation().is_none());
         job.context().set_attribute(Marker);
         record(&self.events, "transport.before");
@@ -130,7 +133,10 @@ struct Admission {
     events: Events,
 }
 impl OperationAwareMiddleware for Admission {
-    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut OperationJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         assert_eq!(job.operation().id, INFO.id);
         assert!(
             job.context().attribute::<Marker>().is_some(),
@@ -154,7 +160,10 @@ struct Invocation {
     events: Events,
 }
 impl Interceptor for Invocation {
-    fn before<'a>(&'a self, job: &'a mut DecodedJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut DecodedJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         let input = job
             .input()
             .as_any()
@@ -187,7 +196,10 @@ impl Protocol for Http {
         record(&self.events, "identify");
         JsonProtocol.route(request, operations)
     }
-    fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+    fn decode<'a>(
+        &'a self,
+        job: &'a mut Job,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         record(&self.events, "decode");
         JsonProtocol.decode(job)
     }
@@ -360,7 +372,7 @@ impl Protocol for Rpc {
         job: &'a mut Job,
         operations: &'a Operations,
         applies: &'a (dyn Fn(&OperationInfo) -> bool + Send + Sync),
-    ) -> Hook<'a, crucible::Result<ProtocolMatch>> {
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<ProtocolMatch>> {
         if job.request().uri.path() != "/rpc" {
             return Hook::Ready(Ok(ProtocolMatch::Declined));
         }
@@ -387,7 +399,10 @@ impl Protocol for Rpc {
             })))
         })
     }
-    fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+    fn decode<'a>(
+        &'a self,
+        job: &'a mut Job,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         self.decoded.fetch_add(1, Ordering::SeqCst);
         let result = (|| {
             let envelope = job
@@ -420,7 +435,10 @@ impl Protocol for Fallback {
             rejection: None,
         })
     }
-    fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+    fn decode<'a>(
+        &'a self,
+        job: &'a mut Job,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         JsonProtocol.decode(job)
     }
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
@@ -624,7 +642,10 @@ async fn a_scoped_invoke_protocol_leaves_known_excluded_operations_to_the_next_p
 
 struct Snapshot;
 impl OperationAwareMiddleware for Snapshot {
-    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut OperationJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         job.snapshot_input();
         Hook::Ready(Ok(()))
     }
@@ -635,7 +656,10 @@ impl OperationAwareMiddleware for Snapshot {
 }
 struct RefuseInvocation;
 impl Interceptor for RefuseInvocation {
-    fn before<'a>(&'a self, _: &'a mut DecodedJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        _: &'a mut DecodedJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         Hook::Ready(Err(
             Rejection::constraint("", "invocation policy refused").into()
         ))
@@ -680,10 +704,10 @@ async fn service_modeled_errors_from_transport_middleware_keep_their_status_befo
     let weather = Arc::new(weather_service::Weather::new(Arc::new(
         weather_service::MemoryCities::default(),
     )));
-    let service = Crucible::builder(contract::operations(weather))
+    let service = Crucible::builder(weather::operations(weather))
         .middleware(raw_before_fn(|job| {
             assert!(job.operation().is_none());
-            Err(contract::errors::NotFoundError {
+            Err(weather::NotFoundError {
                 message: "transport resource absent".into(),
                 resource_id: None,
             }

@@ -67,7 +67,7 @@ pub(crate) fn create(
     let runtime_package = if client {
         "crucible-client-runtime-rust"
     } else {
-        "crucible"
+        "crucible-server-runtime-rust"
     };
     let runtime_features = if client {
         ""
@@ -92,7 +92,7 @@ pub(crate) fn create(
     let helper = if client {
         "client_from_smithy"
     } else {
-        "from_smithy"
+        "rust_service_from_smithy"
     };
     let build = if let Some(version) = smithy_version {
         manifest.push_str(&format!(
@@ -129,7 +129,6 @@ pub(crate) fn create(
         files.extend([
             ("README.md", include_str!("starter/README.md")),
             ("src/main.rs", include_str!("starter/main.rs")),
-            ("src/contract.rs", "crucible::include_service!();\n"),
             (
                 "src/operations/mod.rs",
                 "mod service;\n\npub struct Service;\n",

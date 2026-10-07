@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use axum::body::Body;
 use axum::http::{Request, Response};
 use base64::Engine;
-use crucible::Crucible;
+use crucible_server_runtime_rust::Crucible;
 use serde_json::{Value, json};
 use tower::util::MapResponseLayer;
 use tower_http::compression::CompressionLayer;
@@ -89,7 +89,9 @@ async fn lambda_http_events_run_the_same_layers() {
         },
         "isBase64Encoded": false
     });
-    let answered = crucible::host::lambda_event(&service, event).await.unwrap();
+    let answered = crucible_server_runtime_rust::host::lambda_event(&service, event)
+        .await
+        .unwrap();
     assert_eq!(answered["statusCode"], 404, "{answered}");
     assert_eq!(
         answered["headers"]["content-encoding"], "gzip",

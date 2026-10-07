@@ -4,18 +4,20 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::{Body, to_bytes};
 use axum::http::Request;
-use crucible::middlewares::{LogRecord, LogSink, Metrics, Recorder, RequestRecord, ServiceLog};
-use crucible::operation::{
+use crucible_server_runtime_rust::middlewares::{
+    LogRecord, LogSink, Metrics, Recorder, RequestRecord, ServiceLog,
+};
+use crucible_server_runtime_rust::operation::{
     ErrorInfo, Fault, Location, MemberInfo, Redaction, Scalar, Segment, Unit,
 };
-use crucible::validate::{Validate, Validator};
-use crucible::{
+use crucible_server_runtime_rust::validate::{Validate, Validator};
+use crucible_server_runtime_rust::{
     ByteStream, Crucible, InvokeProtocol, JsonProtocol, ModelledError, Operation, OperationInfo,
     ServiceInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use weather_service::contract;
+use weather_service::weather;
 
 const fn member(name: &'static str, location: Location) -> MemberInfo {
     MemberInfo {
@@ -34,26 +36,26 @@ static BODY_ONLY: OperationInfo = OperationInfo {
     path: &[Segment::Literal("body")],
     input: &[BODY],
     output: &[BODY],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static BOUND: OperationInfo = OperationInfo {
     name: "Bound",
     path: &[Segment::Literal("bound")],
     input: &[BODY, HEADER],
     output: &[BODY],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static REQUIRED: OperationInfo = OperationInfo {
     name: "Required",
     path: &[Segment::Literal("required")],
     input: &[BODY],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static REQUIRED_BOUND: OperationInfo = OperationInfo {
     name: "RequiredBound",
     path: &[Segment::Literal("required-bound")],
     input: &[BODY, HEADER],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static QUERIES: OperationInfo = OperationInfo {
     name: "Queries",
@@ -69,14 +71,14 @@ static QUERIES: OperationInfo = OperationInfo {
         member("queries", Location::Body),
         member("tags", Location::Body),
     ],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static HEADERS: OperationInfo = OperationInfo {
     name: "Headers",
     path: &[Segment::Literal("headers")],
     output: &[BODY, HEADER, PREFIX],
     errors: &["HeaderError"],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static STREAM: OperationInfo = OperationInfo {
     name: "Stream",
@@ -94,14 +96,14 @@ static STREAM: OperationInfo = OperationInfo {
         HEADER,
         PREFIX,
     ],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static TEXT: OperationInfo = OperationInfo {
     name: "Text",
     path: &[Segment::Literal("text")],
     input: &[member("body", Location::TextPayload("text/plain"))],
     output: &[BODY],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static BLOB: OperationInfo = OperationInfo {
     name: "Blob",
@@ -111,7 +113,7 @@ static BLOB: OperationInfo = OperationInfo {
         Location::Payload("application/octet-stream"),
     )],
     output: &[BODY],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static DOCUMENT: OperationInfo = OperationInfo {
     name: "Document",
@@ -121,7 +123,7 @@ static DOCUMENT: OperationInfo = OperationInfo {
         Location::DocumentPayload("application/json"),
     )],
     output: &[BODY],
-    ..*contract::Ping::INFO
+    ..*weather::Ping::INFO
 };
 static SERVICE: ServiceInfo = ServiceInfo {
     operations: &[
@@ -141,7 +143,7 @@ static SERVICE: ServiceInfo = ServiceInfo {
             .downcast_ref::<HeaderError>()
             .map(|error| error as &dyn ModelledError)
     },
-    ..contract::SERVICE
+    ..weather::SERVICE
 };
 
 #[derive(Serialize, Deserialize)]
@@ -178,7 +180,7 @@ impl Validate for TextBody {
 }
 #[derive(Serialize, Deserialize)]
 struct BlobBody {
-    body: crucible::Blob,
+    body: crucible_server_runtime_rust::Blob,
 }
 impl Validate for BlobBody {
     fn validate(&self, _: &mut Validator) {}
@@ -294,7 +296,7 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
         };
         (header, prefix)
     };
-    let operations = crucible::Operations::builder(&SERVICE)
+    let operations = crucible_server_runtime_rust::Operations::builder(&SERVICE)
         .add::<BodyOnly, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .add::<Bound, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .add::<Required, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
@@ -308,7 +310,7 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
         .add::<Headers, _>(Arc::new((headers, mode)), |state, _| {
             Box::pin(async move {
                 let (header, prefix) = (state.0)();
-                if crucible::Context::current()
+                if crucible_server_runtime_rust::Context::current()
                     .headers()
                     .contains_key("x-error")
                 {

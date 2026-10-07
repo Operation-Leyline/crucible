@@ -1,13 +1,13 @@
 //! ListCities.
 
-use crate::contract::{ListCitiesOperation, model};
 use crate::operations::Weather;
+use crate::weather::{ListCitiesInput, ListCitiesOperation, ListCitiesOutput};
 
 impl ListCitiesOperation for Weather {
     async fn list_cities(
         &self,
-        input: model::ListCitiesInput,
-    ) -> crucible::Result<model::ListCitiesOutput> {
+        input: ListCitiesInput,
+    ) -> crucible_server_runtime_rust::Result<ListCitiesOutput> {
         let size = input.max_results.unwrap_or(100) as usize;
         // The fixture's cities have no tags, so a tag filters by name.
         let names = input.tags.unwrap_or_default();
@@ -20,7 +20,7 @@ impl ListCitiesOperation for Weather {
             cities.truncate(size);
             cities.last().map(|city| city.id.clone())
         });
-        Ok(model::ListCitiesOutput {
+        Ok(ListCitiesOutput {
             cities,
             next_token: next_token.flatten(),
         })

@@ -2,22 +2,26 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::Request;
-use crucible::middlewares::{LogPolicy, LogRecord, LogSink, ServiceLog};
-use crucible::{Crucible, InvokeProtocol, JsonProtocol, Operation};
+use crucible_server_runtime_rust::middlewares::{LogPolicy, LogRecord, LogSink, ServiceLog};
+use crucible_server_runtime_rust::{Crucible, InvokeProtocol, JsonProtocol, Operation};
 use serde_json::{Value, json};
 
-mod api {
+mod generated_api {
     include!(concat!(env!("OUT_DIR"), "/observability.rs"));
 }
+use generated_api::observability as api;
 mod client {
     include!(concat!(env!("OUT_DIR"), "/observability_client.rs"));
 }
 
 struct Echo;
 impl api::EchoOperation for Echo {
-    async fn echo(&self, input: api::model::Payload) -> crucible::Result<api::model::Payload> {
+    async fn echo(
+        &self,
+        input: api::Payload,
+    ) -> crucible_server_runtime_rust::Result<api::Payload> {
         if input.profile.as_ref().and_then(|p| p.name.as_deref()) == Some("fail") {
-            return Err(api::errors::SecretError {
+            return Err(api::SecretError {
                 profile: input.profile,
                 message: Some("conflict".into()),
             }
@@ -27,7 +31,10 @@ impl api::EchoOperation for Echo {
     }
 }
 impl api::OtherOperation for Echo {
-    async fn other(&self, input: api::model::Payload) -> crucible::Result<api::model::Payload> {
+    async fn other(
+        &self,
+        input: api::Payload,
+    ) -> crucible_server_runtime_rust::Result<api::Payload> {
         Ok(input)
     }
 }
@@ -43,7 +50,7 @@ impl LogSink for Records {
     }
 }
 
-fn service(log: impl crucible::Middleware) -> Crucible {
+fn service(log: impl crucible_server_runtime_rust::Middleware) -> Crucible {
     Crucible::builder(api::operations(Arc::new(Echo)))
         .middleware(log)
         .protocol(JsonProtocol)
@@ -101,7 +108,9 @@ async fn literal_queries_select_the_operation_and_the_generated_client_sends_the
     }
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    let server = tokio::spawn(crucible::host::http_on(service, listener));
+    let server = tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service, listener,
+    ));
     let client =
         client::ObservabilityClient::new(crucible_client_runtime_rust::Config::new(endpoint));
     let payload = || serde_json::from_value::<client::model::Payload>(json!({})).unwrap();
@@ -115,20 +124,21 @@ async fn literal_queries_select_the_operation_and_the_generated_client_sends_the
 
 #[test]
 fn exact_query_values_outrank_any_value_matches() {
-    use crucible::protocol::Protocol;
+    use crucible_server_runtime_rust::protocol::Protocol;
 
     struct AnyMode;
     impl Operation for AnyMode {
-        const INFO: &'static crucible::OperationInfo = &crucible::OperationInfo {
-            literal_query: &[("mode", None)],
-            ..*api::Echo::INFO
-        };
-        type Input = api::model::Payload;
-        type Output = api::model::Payload;
+        const INFO: &'static crucible_server_runtime_rust::OperationInfo =
+            &crucible_server_runtime_rust::OperationInfo {
+                literal_query: &[("mode", None)],
+                ..*api::Echo::INFO
+            };
+        type Input = api::Payload;
+        type Output = api::Payload;
     }
 
     // Echo sorts before Other, so a tie would incorrectly select Echo.
-    let operations = crucible::Operations::builder(&api::SERVICE)
+    let operations = crucible_server_runtime_rust::Operations::builder(&api::SERVICE)
         .add::<AnyMode, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .add::<api::Other, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .build()
@@ -148,7 +158,7 @@ fn exact_query_values_outrank_any_value_matches() {
 
 #[tokio::test]
 async fn malformed_query_data_preserves_valid_literals_and_rejection_operation_context() {
-    use crucible::protocol::Protocol;
+    use crucible_server_runtime_rust::protocol::Protocol;
 
     let operations = api::operations(Arc::new(Echo));
     for (uri, expected) in [
@@ -199,15 +209,15 @@ impl serde::Serialize for BrokenOutput {
 }
 struct BrokenEcho;
 impl Operation for BrokenEcho {
-    const INFO: &'static crucible::OperationInfo = api::Echo::INFO;
-    type Input = api::model::Payload;
+    const INFO: &'static crucible_server_runtime_rust::OperationInfo = api::Echo::INFO;
+    type Input = api::Payload;
     type Output = BrokenOutput;
 }
 
 #[tokio::test]
 async fn serialization_faults_are_logged_after_writing_and_scopes_still_apply() {
     let records = Records::default();
-    let operations = crucible::Operations::builder(&api::SERVICE)
+    let operations = crucible_server_runtime_rust::Operations::builder(&api::SERVICE)
         .add::<BrokenEcho, _>(Arc::new(()), |_, _| Box::pin(async { Ok(BrokenOutput) }))
         .add::<api::Other, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .build()

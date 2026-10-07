@@ -1,6 +1,6 @@
 # crucible — agent instructions
 
-crucible is a service framework for Smithy-modelled APIs (`crates/crucible`)
+crucible is a service framework for Smithy-modelled APIs (`crates/crucible-server-runtime-rust`, the Rust server runtime)
 plus the generators that plug an API into it. `CLAUDE.md` is a one-line
 `@AGENTS.md` import: edit this file. Read `docs/framework.md` before changing
 the framework or the Rust codegen, `docs/design.md` before changing the model
@@ -31,7 +31,7 @@ reviewed by CodeRabbit; never push to main.
 
 | Crate | Owns |
 |---|---|
-| `crucible` | the framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
+| `crucible-server-runtime-rust` | the Rust server framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client-runtime-rust` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |

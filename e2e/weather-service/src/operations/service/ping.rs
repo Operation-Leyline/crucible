@@ -1,10 +1,10 @@
 //! Ping.
 
-use crate::contract::PingOperation;
 use crate::operations::Weather;
+use crate::weather::PingOperation;
 
 impl PingOperation for Weather {
-    async fn ping(&self) -> crucible::Result<()> {
+    async fn ping(&self) -> crucible_server_runtime_rust::Result<()> {
         Ok(())
     }
 }

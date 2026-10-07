@@ -1,17 +1,19 @@
 //! Payload bindings and effective authentication metadata in a native service.
 use std::sync::{Arc, Mutex};
 
-use crucible::{Hook, OperationAwareMiddleware, OperationJob, Prepare, Result};
 use crucible_client_runtime_rust::{Config, Error, Retry};
+use crucible_server_runtime_rust::{Hook, OperationAwareMiddleware, OperationJob, Prepare, Result};
 
 #[allow(dead_code)]
-mod auth {
+mod generated_auth {
     include!(concat!(env!("OUT_DIR"), "/auth_server.rs"));
 }
+use generated_auth::auth_header as auth;
 #[allow(dead_code)]
-mod wire {
+mod generated_wire {
     include!(concat!(env!("OUT_DIR"), "/wire_server.rs"));
 }
+use generated_wire::wire;
 #[allow(dead_code)]
 mod client {
     include!(concat!(env!("OUT_DIR"), "/wire_client.rs"));
@@ -34,9 +36,9 @@ unit!(PublicOperation, public);
 unit!(OptionalOperation, optional);
 
 impl wire::TextOperation for Service {
-    async fn text(&self, input: wire::model::TextInput) -> Result<wire::model::TextOutput> {
+    async fn text(&self, input: wire::TextInput) -> Result<wire::TextOutput> {
         if input.text.as_deref() == Some("error") {
-            return Err(wire::errors::TextError {
+            return Err(wire::TextError {
                 details: Some("invalid text".into()),
             }
             .into());
@@ -46,7 +48,7 @@ impl wire::TextOperation for Service {
             &["{\"a\":1}".to_owned(), "{\"b\":2}".to_owned()]
         );
         assert_eq!(input.extras.as_ref().unwrap()["one"], "{\"c\":3}");
-        Ok(wire::model::TextOutput {
+        Ok(wire::TextOutput {
             text: input.text,
             meta: input.meta,
             extras: input.extras,
@@ -54,11 +56,8 @@ impl wire::TextOperation for Service {
     }
 }
 impl wire::DocumentOperation for Service {
-    async fn document(
-        &self,
-        input: wire::model::DocumentInput,
-    ) -> Result<wire::model::DocumentOutput> {
-        Ok(wire::model::DocumentOutput {
+    async fn document(&self, input: wire::DocumentInput) -> Result<wire::DocumentOutput> {
+        Ok(wire::DocumentOutput {
             document: input.document,
         })
     }
@@ -92,26 +91,29 @@ impl OperationAwareMiddleware for Policy {
     }
 }
 
-async fn serve(service: crucible::Crucible) -> String {
+async fn serve(service: crucible_server_runtime_rust::Crucible) -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    tokio::spawn(crucible::host::http_on(service, listener));
+    tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service, listener,
+    ));
     endpoint
 }
 
 #[tokio::test]
 async fn resolved_auth_contract_is_available_before_decoding() {
     let seen = Arc::new(Mutex::new(Vec::new()));
-    let service = crucible::Crucible::builder(auth::operations(Arc::new(Service)))
-        .defaults()
-        .operation_middleware(Policy(seen.clone()))
-        .on_rejection(|_| {
-            Box::new(wire::errors::TextError {
-                details: Some("invalid input".into()),
+    let service =
+        crucible_server_runtime_rust::Crucible::builder(auth::operations(Arc::new(Service)))
+            .defaults()
+            .operation_middleware(Policy(seen.clone()))
+            .on_rejection(|_| {
+                Box::new(wire::TextError {
+                    details: Some("invalid input".into()),
+                })
             })
-        })
-        .build()
-        .unwrap();
+            .build()
+            .unwrap();
     let endpoint = serve(service).await;
     // Raw reqwest clients need the runtime's TLS provider even over HTTP.
     drop(Config::new(&endpoint));
@@ -129,15 +131,16 @@ async fn resolved_auth_contract_is_available_before_decoding() {
 
 #[tokio::test]
 async fn text_document_error_payloads_and_media_headers_round_trip() {
-    let service = crucible::Crucible::builder(wire::operations(Arc::new(Service)))
-        .defaults()
-        .on_rejection(|_| {
-            Box::new(wire::errors::TextError {
-                details: Some("invalid input".into()),
+    let service =
+        crucible_server_runtime_rust::Crucible::builder(wire::operations(Arc::new(Service)))
+            .defaults()
+            .on_rejection(|_| {
+                Box::new(wire::TextError {
+                    details: Some("invalid input".into()),
+                })
             })
-        })
-        .build()
-        .unwrap();
+            .build()
+            .unwrap();
     let client = client::WireClient::new(Config::new(serve(service).await).retry(Retry::none()));
     let meta = vec!["{\"a\":1}".into(), "{\"b\":2}".into()];
     let extras = std::collections::BTreeMap::from([("one".into(), "{\"c\":3}".into())]);

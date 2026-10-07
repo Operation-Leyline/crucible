@@ -14,7 +14,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use serde_json::json;
 use weather_service::{CityStore, MemoryCities, NewCity, service};
 
-async fn send(service: &crucible::Crucible, request: Request<Body>) -> usize {
+async fn send(service: &crucible_server_runtime_rust::Crucible, request: Request<Body>) -> usize {
     let response = service.handle(request).await;
     axum::body::to_bytes(response.into_body(), usize::MAX)
         .await

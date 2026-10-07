@@ -1,4 +1,4 @@
-//! Errors. An implementation returns `crucible::Result<T>` and may fail with
+//! Errors. An implementation returns `crucible_server_runtime_rust::Result<T>` and may fail with
 //! anything: a modelled error, or any other error through `?`. The framework
 //! decides afterwards what reaches the caller (see `docs/framework.md`).
 

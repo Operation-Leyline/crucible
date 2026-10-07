@@ -5,8 +5,8 @@
 //!
 //! ```ignore
 //! #[tokio::main]
-//! async fn main() -> Result<(), crucible::host::BoxError> {
-//!     crucible::host::run(service).await
+//! async fn main() -> Result<(), crucible_server_runtime_rust::host::BoxError> {
+//!     crucible_server_runtime_rust::host::run(service).await
 //! }
 //! ```
 

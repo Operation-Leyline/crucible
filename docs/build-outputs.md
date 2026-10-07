@@ -274,8 +274,26 @@ export tracking, and the four generation methods with client SDKs. Advanced
 integrations can use `model.output(name, crucible_build::outputs::Generator::...)`
 with native configuration values. `crucible export-artifact` accepts their output
 names too. Server bindings retain their direct fluent
-`crucible_build::service("weather_model").generate()` API inside the service
+`crucible_build::rust_service("weather_model").generate()` API inside the service
 crate.
+
+### Server output targets
+
+Server bindings have a separate `Server` interface from client SDKs. Today its
+only target is Rust; future languages can add native server emitters without
+changing the client interface or the model compiler. Advanced producers can
+export Rust bindings as a named artifact:
+
+```rust
+use crucible_build::outputs::{Server, RustServerOptions};
+
+model.output("rust-bindings", Server::Rust(RustServerOptions::default()).into())
+    .generate_into("../target/server-bindings");
+```
+
+The artifact target is `rust-server`, containing `crucible_service.rs`. For a
+normal Rust service, prefer `rust_service` or `rust_service_from_smithy` in its
+own build script: those helpers connect directly to `include_service!()`.
 
 ## Generating in a separate SDK package
 
@@ -337,29 +355,31 @@ inheritance. Both retain a registry version for publishing the generated SDK.
 The default uses the generator's matching Crucible revision automatically.
 
 Generate server bindings directly inside the server crate. Its manifest depends
-normally on `weather-model` and `crucible`, with `crucible-build` as a build
+normally on `weather-model` and `crucible-server-runtime-rust`, with `crucible-build` as a build
 dependency:
 
 ```rust
 // service/build.rs
 fn main() {
-    crucible_build::service("weather_model").generate();
+    crucible_build::rust_service("weather_model").generate();
 }
 ```
 
 ```rust
-// service/src/contract.rs
-crucible::include_service!();
+// service/src/lib.rs or service/src/main.rs
+crucible_server_runtime_rust::include_service!();
 ```
 
-Declare `mod contract;` in the service's `main.rs` or `lib.rs`. Handlers then use
-`crate::contract::GetCityOperation` and `crate::contract::operations(...)`.
+For Smithy `service Weather`, this declares `pub mod weather`. Handlers import
+`crate::weather::{GetCityInput, GetCityOutput, GetCityOperation, NotFoundError}`
+and register with `crate::weather::operations(...)`. Models and exceptions share
+the service namespace; no handwritten wrapper is required.
 The helper generates request/response models, modeled errors, operation traits,
 and the registry together. It consumes the model dependency's published AST;
 it does not invoke the Smithy compiler again.
 
 A server can also compile sources directly, using
-`crucible_build::from_smithy("../smithy/model").generate()` in its build script
+`crucible_build::rust_service_from_smithy("../smithy/model").generate()` in its build script
 with the same inclusion hook. That setup needs no model Cargo package.
 The inclusion macro connects Cargo's generated build output to Rust's module
 system without exposing an output filename or writing generated code into the
@@ -367,7 +387,7 @@ source tree.
 
 A separate contract crate is optional when several Rust crates need to share
 the generated server API. A regular server only needs the build helper and its
-local Rust module. See the [framework guide](framework.md) for service setup.
+generated service namespace. See the [framework guide](framework.md) for service setup.
 
 ## Exporting and building a native package
 

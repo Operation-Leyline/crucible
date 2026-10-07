@@ -91,7 +91,13 @@ fn empty_services_do_not_import_unused_redaction_types() {
         generate_client(&service).unwrap(),
         generate(&service, &Options::default()).unwrap(),
     ] {
-        assert!(code.contains("mod __redaction {\n}"));
+        assert!(
+            code.lines()
+                .map(str::trim)
+                .collect::<Vec<_>>()
+                .join("\n")
+                .contains("mod __redaction {\n}")
+        );
         assert!(!code.contains("operation::Redaction;"));
     }
 }
@@ -167,7 +173,7 @@ fn a_sensitive_blob_payload_is_redacted_from_logs() {
     let code = generate(&service, &Options::default()).unwrap();
     assert!(
         code.contains(
-            "name: \"photo\", location: ::crucible::operation::Location::Payload(\"image/jpeg\"), scalar: ::crucible::operation::Scalar::Json, redaction: &::crucible::operation::Redaction::Sensitive"
+            "name: \"photo\", location: ::crucible_server_runtime_rust::operation::Location::Payload(\"image/jpeg\"), scalar: ::crucible_server_runtime_rust::operation::Scalar::Json, redaction: &::crucible_server_runtime_rust::operation::Redaction::Sensitive"
         ),
         "{code}"
     );
@@ -282,7 +288,7 @@ fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one(
 #[test]
 fn strict_structures_refuse_unknown_members_on_the_server_only() {
     let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
-    let strict = "#[serde(deny_unknown_fields)]\n    pub struct ";
+    let strict = "#[serde(deny_unknown_fields)]\n        pub struct ";
     let marked = generate(&service, &Options::default()).unwrap();
     assert!(marked.contains(&format!("{strict}CreateCityInput")));
     assert!(
@@ -370,20 +376,22 @@ fn scaffold_plans_a_file_per_operation_in_a_folder_per_resource() {
     assert!(
         get_city
             .contents
-            .contains("use crate::contract::{model, GetCityOperation};")
+            .contains("use crate::weather::{GetCityInput, GetCityOperation, GetCityOutput};")
     );
     assert!(
         get_city
             .contents
             .contains("impl GetCityOperation for Service {")
     );
-    assert!(get_city.contents.contains(
-        "async fn get_city(&self, input: model::GetCityInput) -> crucible::Result<model::GetCityOutput>"
-    ));
+    assert!(
+        get_city
+            .contents
+            .contains("async fn get_city(&self, input: GetCityInput) -> Result<GetCityOutput>")
+    );
     let ping = stubs.iter().find(|stub| stub.module == "ping").unwrap();
     assert!(
         ping.contents
-            .contains("use crate::contract::PingOperation;"),
+            .contains("use crate::weather::{PingOperation};"),
         "{}",
         ping.contents
     );

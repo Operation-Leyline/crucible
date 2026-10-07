@@ -1,5 +1,5 @@
 //! The `errors` module: a struct per modelled error, implementing
-//! `crucible::ModelledError`, and the service-wide error functions the
+//! `crucible_server_runtime_rust::ModelledError`, and the service-wide error functions the
 //! framework calls (classify, reject, internal).
 
 use crucible_smithy::ir::{Fault, Member, Service, Shape, SimpleKind, Structure};
@@ -27,8 +27,9 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
 pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostics) -> String {
     let boxed = boxed_members(service);
     let builders = crate::builders::names(service);
-    let mut out =
-        String::from("use ::crucible::operation::{ErrorInfo, Fault};\nuse super::__redaction;\n");
+    let mut out = String::from(
+        "use ::crucible_server_runtime_rust::operation::{ErrorInfo, Fault};\nuse super::__redaction;\n",
+    );
     let mut defaults = String::new();
     for (id, structure) in error_shapes(service) {
         let name = service.name_of(id);
@@ -78,11 +79,11 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
         ));
         let status = error.response_code.as_ref().and_then(|name| structure.member(name)).map_or(String::new(), |member| {
             let rust = crate::names::field(&member.name);
-            let get = if client && member.optional_on_client() { format!("self.{rust}.value().map(|value| ::crucible::operation::response_status(i64::from(*value))).unwrap_or({})", error.status) } else if !client && member.optional_on_server() { format!("self.{rust}.as_ref().map(|value| ::crucible::operation::response_status(i64::from(*value))).unwrap_or({})", error.status) } else { format!("::crucible::operation::response_status(i64::from(self.{rust}))") };
+            let get = if client && member.optional_on_client() { format!("self.{rust}.value().map(|value| ::crucible_server_runtime_rust::operation::response_status(i64::from(*value))).unwrap_or({})", error.status) } else if !client && member.optional_on_server() { format!("self.{rust}.as_ref().map(|value| ::crucible_server_runtime_rust::operation::response_status(i64::from(*value))).unwrap_or({})", error.status) } else { format!("::crucible_server_runtime_rust::operation::response_status(i64::from(self.{rust}))") };
             format!("    fn response_status(&self) -> u16 {{ {get} }}\n\n")
         });
         out.push_str(&format!(
-            "impl ::crucible::ModelledError for {name} {{\n    fn shape_id(&self) -> &'static str {{ {} }}\n    fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> {{ ::crucible::cbor::write_typed(self, self.shape_id(), out) }}\n{status}    fn info(&self) -> &'static ErrorInfo {{\n        &{}\n    }}\n\n    fn to_json(&self) -> ::crucible::__private::serde_json::Value {{\n        ::crucible::__private::serde_json::to_value(self).unwrap_or_default()\n    }}\n\n    fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {{\n        ::crucible::error::write_error(self, out)\n    }}\n\n    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {{\n        ::crucible::error::write_error_http(self, out)\n    }}\n\n    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible::__private::serde_json::Result<::crucible::operation::ResponseBindings> {{\n        ::crucible::error::write_error_http_typed(self, type_name, out)\n    }}\n}}\n\n",
+            "impl ::crucible_server_runtime_rust::ModelledError for {name} {{\n    fn shape_id(&self) -> &'static str {{ {} }}\n    fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> {{ ::crucible_server_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }}\n{status}    fn info(&self) -> &'static ErrorInfo {{\n        &{}\n    }}\n\n    fn to_json(&self) -> ::crucible_server_runtime_rust::__private::serde_json::Value {{\n        ::crucible_server_runtime_rust::__private::serde_json::to_value(self).unwrap_or_default()\n    }}\n\n    fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {{\n        ::crucible_server_runtime_rust::error::write_error(self, out)\n    }}\n\n    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::crucible_server_runtime_rust::operation::ResponseBindings> {{\n        ::crucible_server_runtime_rust::error::write_error_http(self, out)\n    }}\n\n    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::crucible_server_runtime_rust::operation::ResponseBindings> {{\n        ::crucible_server_runtime_rust::error::write_error_http_typed(self, type_name, out)\n    }}\n}}\n\n",
             literal(&id.to_string()),
             info_static(name)
         ));
@@ -123,7 +124,7 @@ pub(crate) fn info_static(name: &str) -> String {
 /// `fn classify(..)`: the modelled error inside a boxed error, by downcast.
 pub(crate) fn classify(service: &Service) -> String {
     let mut out = String::from(
-        "fn classify<'a>(error: &'a (dyn ::std::error::Error + 'static)) -> ::std::option::Option<&'a dyn ::crucible::ModelledError> {\n",
+        "fn classify<'a>(error: &'a (dyn ::std::error::Error + 'static)) -> ::std::option::Option<&'a dyn ::crucible_server_runtime_rust::ModelledError> {\n",
     );
     for (id, _) in error_shapes(service) {
         out.push_str(&format!(
@@ -163,7 +164,7 @@ pub(crate) fn reject(service: &Service, validation: Option<&ShapeId>) -> Option<
         _ => None,
     })?;
     Some(format!(
-        "fn reject(rejection: &::crucible::validate::Rejection) -> ::std::boxed::Box<dyn ::crucible::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
+        "fn reject(rejection: &::crucible_server_runtime_rust::validate::Rejection) -> ::std::boxed::Box<dyn ::crucible_server_runtime_rust::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
         service.name_of(id),
         fields.join(",\n        ")
     ))
@@ -206,7 +207,7 @@ pub(crate) fn unknown_operation(
         _ => None,
     })?;
     Some(format!(
-        "fn unknown() -> ::std::boxed::Box<dyn ::crucible::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
+        "fn unknown() -> ::std::boxed::Box<dyn ::crucible_server_runtime_rust::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
         service.name_of(id),
         fields.join(",\n        ")
     ))
@@ -231,7 +232,7 @@ pub(crate) fn unknown(service: &Service, validation: Option<&ShapeId>) -> Option
         _ => None,
     })?;
     Some(format!(
-        "fn unknown() -> ::std::boxed::Box<dyn ::crucible::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
+        "fn unknown() -> ::std::boxed::Box<dyn ::crucible_server_runtime_rust::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
         service.name_of(id),
         fields.join(",\n        ")
     ))
@@ -276,7 +277,7 @@ pub(crate) fn internal(service: &Service, internal: Option<&ShapeId>) -> Option<
         _ => None,
     })?;
     Some(format!(
-        "fn internal() -> ::std::boxed::Box<dyn ::crucible::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
+        "fn internal() -> ::std::boxed::Box<dyn ::crucible_server_runtime_rust::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
         service.name_of(id),
         fields.join(",\n        ")
     ))
@@ -291,8 +292,7 @@ fn fill(
     structure: &Structure,
     value: impl Fn(&Member) -> Option<String>,
 ) -> Option<Vec<String>> {
-    const REQUEST_ID: &str =
-        "::crucible::Context::try_current().map(|context| context.request_id().to_owned())";
+    const REQUEST_ID: &str = "::crucible_server_runtime_rust::Context::try_current().map(|context| context.request_id().to_owned())";
     structure
         .members
         .iter()

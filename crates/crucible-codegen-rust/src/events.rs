@@ -60,10 +60,10 @@ pub(crate) fn statics(service: &Service, diagnostics: &mut Diagnostics, client: 
                         ty
                     }).as_str()
                 } else { "" };
-                let encode = if native { format!("Some(::crucible::cbor::event_encode::<{document}>)") } else { "None".to_owned() };
-                let decode = if native { format!("Some(::crucible::cbor::event_decode::<{document}>)") } else { "None".to_owned() };
+                let encode = if native { format!("Some(::crucible_server_runtime_rust::cbor::event_encode::<{document}>)") } else { "None".to_owned() };
+                let decode = if native { format!("Some(::crucible_server_runtime_rust::cbor::event_decode::<{document}>)") } else { "None".to_owned() };
                 format!(
-                    "::crucible::event_stream::EventInfo {{ name: {}, json: {}, error: {}, members: &[{}], encode_document: {encode}, decode_document: {decode} }}",
+                    "::crucible_server_runtime_rust::event_stream::EventInfo {{ name: {}, json: {}, error: {}, members: &[{}], encode_document: {encode}, decode_document: {decode} }}",
                     literal(&arm.name),
                     literal(&arm.wire_name),
                     target.error.is_some(),
@@ -72,7 +72,7 @@ pub(crate) fn statics(service: &Service, diagnostics: &mut Diagnostics, client: 
             })
             .collect();
         out.push_str(&format!(
-            "\nstatic {}: ::crucible::event_stream::EventStreamInfo = ::crucible::event_stream::EventStreamInfo {{\n    initial_message: {},\n    document_type: {},\n    events: &[\n        {},\n    ],\n}};\n",
+            "\nstatic {}: ::crucible_server_runtime_rust::event_stream::EventStreamInfo = ::crucible_server_runtime_rust::event_stream::EventStreamInfo {{\n    initial_message: {},\n    document_type: {},\n    events: &[\n        {},\n    ],\n}};\n",
             info_static(service, id),
             !service.protocol.uses_http_bindings(),
             literal(if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor { "application/cbor" } else { "application/json" }),
@@ -88,11 +88,11 @@ fn members(service: &Service, structure: &Structure) -> Vec<String> {
         .iter()
         .filter_map(|member| {
             let binding = match member.event_binding? {
-                EventBinding::Header => format!("Header(::crucible::event_stream::EventHeaderKind::{})", header_kind(service, member)),
-                EventBinding::Payload => format!("Payload(::crucible::event_stream::EventPayloadKind::{})", payload_kind(service, member)),
+                EventBinding::Header => format!("Header(::crucible_server_runtime_rust::event_stream::EventHeaderKind::{})", header_kind(service, member)),
+                EventBinding::Payload => format!("Payload(::crucible_server_runtime_rust::event_stream::EventPayloadKind::{})", payload_kind(service, member)),
             };
             Some(format!(
-                "::crucible::event_stream::EventMember {{ name: {}, json: {}, binding: ::crucible::event_stream::EventBinding::{binding} }}",
+                "::crucible_server_runtime_rust::event_stream::EventMember {{ name: {}, json: {}, binding: ::crucible_server_runtime_rust::event_stream::EventBinding::{binding} }}",
                 literal(&member.name),
                 literal(&member.wire_name)
             ))
@@ -110,7 +110,7 @@ fn header_kind(service: &Service, member: &Member) -> String {
             SimpleKind::Long => "Long".to_owned(),
             SimpleKind::Blob => "Blob".to_owned(),
             SimpleKind::Timestamp => format!(
-                "Timestamp(::crucible::operation::TimestampFormat::{})",
+                "Timestamp(::crucible_server_runtime_rust::operation::TimestampFormat::{})",
                 match service.document_timestamp_format(member) {
                     TimestampFormat::DateTime => "DateTime",
                     TimestampFormat::EpochSeconds => "EpochSeconds",
@@ -150,7 +150,7 @@ pub(crate) fn marker_items(service: &Service, op: &Operation, client: bool) -> S
             member.optional_on_server()
         };
         let direction = if input { "INPUT" } else { "OUTPUT" };
-        out.push_str(&format!("    const {direction}_EVENTS: Option<&'static ::crucible::event_stream::EventStreamInfo> = Some(&{});\n", info_static(service, &binding.target)));
+        out.push_str(&format!("    const {direction}_EVENTS: Option<&'static ::crucible_server_runtime_rust::event_stream::EventStreamInfo> = Some(&{});\n", info_static(service, &binding.target)));
         if input == client {
             let get = if optional {
                 format!(
@@ -162,10 +162,10 @@ pub(crate) fn marker_items(service: &Service, op: &Operation, client: bool) -> S
             };
             let direction = if input { "input" } else { "output" };
             let ty = if input { "Input" } else { "Output" };
-            out.push_str(&format!("    fn {direction}_events(value: &Self::{ty}) -> Option<::std::io::Result<::crucible::event_stream::Outgoing>> {{ {get} }}\n"));
+            out.push_str(&format!("    fn {direction}_events(value: &Self::{ty}) -> Option<::std::io::Result<::crucible_server_runtime_rust::event_stream::Outgoing>> {{ {get} }}\n"));
         } else {
             let stream = format!(
-                "::crucible::EventStream::{}(events)",
+                "::crucible_server_runtime_rust::EventStream::{}(events)",
                 if client {
                     "incoming"
                 } else {
@@ -176,7 +176,7 @@ pub(crate) fn marker_items(service: &Service, op: &Operation, client: bool) -> S
                 format!(
                     "{}({stream})",
                     if client {
-                        "::crucible::Field::Value"
+                        "::crucible_server_runtime_rust::Field::Value"
                     } else {
                         "Some"
                     }
@@ -186,7 +186,7 @@ pub(crate) fn marker_items(service: &Service, op: &Operation, client: bool) -> S
             };
             let direction = if input { "input" } else { "output" };
             let ty = if input { "Input" } else { "Output" };
-            out.push_str(&format!("    fn set_{direction}_events(value: &mut Self::{ty}, events: ::crucible::event_stream::Incoming) {{ value.{rust} = {set}; }}\n"));
+            out.push_str(&format!("    fn set_{direction}_events(value: &mut Self::{ty}, events: ::crucible_server_runtime_rust::event_stream::Incoming) {{ value.{rust} = {set}; }}\n"));
         }
     }
     out
