@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 crucible-codegen-rust.workspace = true
 crucible-smithy.workspace = true
+crucible-policy.workspace = true
 crucible-traits.workspace = true
 serde_json.workspace = true
 smithy-tooling = { workspace = true, optional = true }

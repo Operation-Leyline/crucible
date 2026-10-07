@@ -149,7 +149,11 @@ def main():
         run(["cargo", "clean"], project, env)
         run(["cargo", "build", "--offline"], project, env)
         serve(binary, env, directory / "clean-rebuilt.log")
-        model.write_text(source[:source.index("@http")].replace("operations: [SayHello]", "operations: []"), encoding="utf-8")
+        before_operation = source[:source.index("@http")].rstrip().splitlines()
+        # Documentation belongs to the removed operation, not to the preceding service.
+        while before_operation and before_operation[-1].lstrip().startswith("///"):
+            before_operation.pop()
+        model.write_text("\n".join(before_operation).replace("operations: [SayHello]", "operations: []") + "\n", encoding="utf-8")
         (project / "src/operations/mod.rs").write_text("pub struct Service;\n", encoding="utf-8")
         run(["cargo", "clippy", "--all-targets", "--offline", "--", "-D", "warnings"], project, env)
         run(["cargo", "build", "--offline"], project, env)

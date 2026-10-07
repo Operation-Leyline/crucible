@@ -33,6 +33,7 @@ class PlanTests(unittest.TestCase):
 
     def test_server_changes_keep_core_http_gates(self):
         for path in (
+            "crates/crucible-policy/src/lib.rs",
             "crates/crucible/src/lib.rs",
             "crates/crucible-wire/src/lib.rs", "crates/crucible-build/src/lib.rs",
             "crates/crucible-codegen-rust/src/lib.rs", "e2e/weather-service/src/main.rs",

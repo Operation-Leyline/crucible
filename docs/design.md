@@ -97,6 +97,12 @@ reach, keyed by shape id. Lowering settles, once:
 Raw `traits` maps stay on the service, operations, shapes and members, so a
 project's own traits reach emitters intact.
 
+`crucible-policy` consumes this same IR for configured build-time API conventions
+and directional contract comparisons. `crucible-build` invokes static policy
+before generation; `crucible diff` and the shared GitHub action compare two
+lowered services. Policy does not re-read the AST or override subset validation.
+See [API policy and compatibility](api-policy.md).
+
 `Model::lower` preserves the operation contract for SDKs and servers without
 resource-only shapes or provisioning diagnostics. Infrastructure generators
 opt in through `Model::lower_infrastructure`, which also preserves the resource graph,

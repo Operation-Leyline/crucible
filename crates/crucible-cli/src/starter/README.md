@@ -16,6 +16,16 @@ Edit `smithy/hello.smithy` to change the API, and
 validates the model and regenerates the contract on the next build. Generated
 files stay in `target`; do not edit them. `build.rs` is the complete build setup.
 
+`crucible.toml` selects naming, path, and documentation rules checked during
+every Cargo build. Error findings fail the build; warning findings are shown
+without blocking it. `build.rs` selects the required file with
+`.policy("crucible.toml")`. Removing that file fails the build.
+
+CI can set `CRUCIBLE_MODEL_OUT` to an absolute file under its temporary directory
+to export the assembled model for `crucible diff old.json new.json --config
+crucible.toml`. Compatibility checks compare contracts in CI; ordinary builds
+check the current model without fetching another revision.
+
 Set `CRUCIBLE_ADDR` to change the listening address (default `127.0.0.1:8080`).
 `SMITHY_TOOLING_CACHE` changes the runtime cache location. After the first build,
 `SMITHY_OFFLINE=1` prevents the helper from downloading; use `cargo --offline`

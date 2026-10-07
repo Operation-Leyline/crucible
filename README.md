@@ -71,6 +71,11 @@ configuration, output conventions, and independent executable tests.
 
 ## Build a service
 
+Configure build-time naming, path, and documentation rules in `crucible.toml`,
+then compare API revisions in CI with `crucible diff`. See
+[API policy and compatibility](docs/api-policy.md) for setup, configuration,
+exceptions, and the shared GitHub workflow.
+
 Download `hello-service-v0.3.0.zip` from the matching [Crucible release](https://github.com/Operation-Leyline/crucible/releases),
 extract it, and open the folder in RustRover. Run `src/main.rs`, then send the
 request in `hello.http`. Rust and read access to this private repository are
