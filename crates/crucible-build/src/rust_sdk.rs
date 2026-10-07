@@ -32,11 +32,17 @@ impl<'a> RustSdk<'a> {
         self
     }
 
-    /// Pin the runtime dependency to a specific Crucible Git revision.
-    pub fn runtime_git(mut self, repository: &str, revision: &str) -> Self {
+    /// Pin the runtime revision and declare its native Cargo version requirement.
+    pub fn runtime_git(
+        mut self,
+        repository: &str,
+        revision: &str,
+        version_requirement: &str,
+    ) -> Self {
         self.options.runtime = RuntimeDependency::Git {
             repository: repository.into(),
             revision: revision.into(),
+            version_requirement: version_requirement.into(),
         };
         self
     }

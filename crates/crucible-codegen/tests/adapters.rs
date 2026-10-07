@@ -17,6 +17,7 @@ fn adapters_preserve_every_native_emitters_output() {
         runtime: crucible_codegen::RuntimeDependency::Git {
             repository: "https://github.com/Operation-Leyline/crucible".into(),
             revision: "a".repeat(40),
+            version_requirement: ">=0.1.0, <0.2.0".into(),
         },
     };
     let expected: Vec<File> = crucible_codegen_rust::emit_client_package(&service, &rust_options)

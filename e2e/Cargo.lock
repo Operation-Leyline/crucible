@@ -536,7 +536,9 @@ dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
  "regex",
+ "semver",
  "serde_json",
+ "url",
 ]
 
 [[package]]

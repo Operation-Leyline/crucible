@@ -7,6 +7,6 @@ rust-version = "1.85"
 description = "Rust SDK for example.weather#Weather"
 
 [dependencies]
-crucible-client-runtime-rust = { version = "0.3.0", git = "https://github.com/Operation-Leyline/crucible", rev = "0123456789abcdef0123456789abcdef01234567" }
+crucible-client-runtime-rust = { version = "9.8.7", git = "https://github.com/Operation-Leyline/crucible", rev = "0123456789abcdef0123456789abcdef01234567" }
 
 [workspace]

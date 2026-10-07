@@ -20,6 +20,7 @@ fn explicit() -> ClientOptions {
         runtime: RuntimeDependency::Git {
             repository: "https://github.com/Operation-Leyline/crucible".into(),
             revision: "0123456789abcdef0123456789abcdef01234567".into(),
+            version_requirement: "9.8.7".into(),
         },
     }
 }
@@ -77,6 +78,10 @@ fn native_package_manifest_and_public_api_match_explicit_source_goldens() {
     assert_eq!(manifest["package"]["name"].as_str(), Some("weather-sdk"));
     assert_eq!(manifest["package"]["version"].as_str(), Some("1.2.3"));
     assert!(manifest["workspace"].is_table());
+    assert_eq!(
+        manifest["dependencies"]["crucible-client-runtime-rust"]["version"].as_str(),
+        Some("9.8.7")
+    );
 }
 
 #[test]
@@ -85,6 +90,10 @@ fn automatic_runtime_pins_the_embedded_crucible_commit_without_local_paths() {
     let manifest: toml::Value = toml::from_str(&files[0].contents).unwrap();
     assert_eq!(manifest["package"]["name"].as_str(), Some("weather-sdk"));
     let dependency = &manifest["dependencies"]["crucible-client-runtime-rust"];
+    assert_eq!(
+        dependency["version"].as_str(),
+        Some(env!("CARGO_PKG_VERSION"))
+    );
     assert_eq!(
         dependency["git"].as_str(),
         Some("https://github.com/Operation-Leyline/crucible")
@@ -112,6 +121,7 @@ fn options_are_diagnosed_before_any_package_files_are_returned() {
     options.runtime = RuntimeDependency::Git {
         repository: "not a URL".into(),
         revision: "main".into(),
+        version_requirement: "9.8.7".into(),
     };
     let diagnostics = emit_client_package(&service(), &options).unwrap_err();
     assert_eq!(diagnostics.len(), 3);
@@ -124,10 +134,17 @@ fn options_are_diagnosed_before_any_package_files_are_returned() {
         RuntimeDependency::Git {
             repository: "".into(),
             revision: "main".into(),
+            version_requirement: "9.8.7".into(),
         },
         RuntimeDependency::Git {
             repository: "https://example.test/repo".into(),
             revision: "\nmain".into(),
+            version_requirement: "9.8.7".into(),
+        },
+        RuntimeDependency::Git {
+            repository: "https://example.test/repo".into(),
+            revision: "main".into(),
+            version_requirement: "not a version".into(),
         },
         RuntimeDependency::Path(PathBuf::from("relative/runtime")),
     ] {
@@ -140,10 +157,16 @@ fn options_are_diagnosed_before_any_package_files_are_returned() {
     assert!(emit_client_package(&service(), &options).is_err());
     fs::write(
         directory.path().join("Cargo.toml"),
-        "[package]\nname = 'unrelated'\n",
+        "[package]\nname = 'unrelated'\nversion = '9.8.7'\n[lib]\npath = 'lib.rs'\n",
     )
     .unwrap();
-    assert!(emit_client_package(&service(), &options).is_err());
+    fs::write(directory.path().join("lib.rs"), "").unwrap();
+    let diagnostics = emit_client_package(&service(), &options).unwrap_err();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("must name the crucible-client-runtime-rust")
+    );
 }
 
 #[test]
@@ -153,27 +176,81 @@ fn local_paths_and_git_urls_roundtrip_through_quoted_toml() {
     fs::create_dir(&path).unwrap();
     fs::write(
         path.join("Cargo.toml"),
-        "[package]\nname = 'crucible-client-runtime-rust'\n",
+        "[package]\nname = 'crucible-client-runtime-rust'\nversion = '9.8.7'\n[lib]\npath = 'lib.rs'\n",
     )
     .unwrap();
     let mut options = explicit();
     options.runtime = RuntimeDependency::Path(path.clone());
+    fs::write(path.join("lib.rs"), "").unwrap();
     let files = emit_client_package(&service(), &options).unwrap();
     let manifest: toml::Value = toml::from_str(&files[0].contents).unwrap();
     assert_eq!(
         manifest["dependencies"]["crucible-client-runtime-rust"]["path"].as_str(),
         path.to_str()
     );
+    assert_eq!(
+        manifest["dependencies"]["crucible-client-runtime-rust"]["version"].as_str(),
+        Some("9.8.7")
+    );
     let repository = "https://example.test/\"quoted\".git";
     options.runtime = RuntimeDependency::Git {
         repository: repository.into(),
         revision: "test-reference".into(),
+        version_requirement: ">=9.8.7, <10.0.0".into(),
     };
     let files = emit_client_package(&service(), &options).unwrap();
     let manifest: toml::Value = toml::from_str(&files[0].contents).unwrap();
     assert_eq!(
         manifest["dependencies"]["crucible-client-runtime-rust"]["git"].as_str(),
         Some(repository)
+    );
+    assert_eq!(
+        manifest["dependencies"]["crucible-client-runtime-rust"]["version"].as_str(),
+        Some(">=9.8.7, <10.0.0")
+    );
+}
+
+#[test]
+fn local_runtime_uses_its_effective_workspace_version_without_building() {
+    let directory = tempfile::tempdir().unwrap();
+    let runtime = directory.path().join("runtime");
+    fs::create_dir(&runtime).unwrap();
+    fs::write(
+        directory.path().join("Cargo.toml"),
+        "[workspace]\nmembers = ['runtime']\n[workspace.package]\nversion = '9.8.7'\n",
+    )
+    .unwrap();
+    fs::write(runtime.join("Cargo.toml"), "[package]\nname = 'crucible-client-runtime-rust'\nversion.workspace = true\nbuild = 'build.rs'\n[lib]\npath = 'lib.rs'\n[dependencies]\nnever-fetched = { git = 'https://example.invalid/metadata-must-not-fetch' }\n").unwrap();
+    fs::write(runtime.join("lib.rs"), "").unwrap();
+    fs::write(
+        runtime.join("build.rs"),
+        "compile_error!(\"metadata must not build the runtime\");",
+    )
+    .unwrap();
+    let mut options = explicit();
+    options.runtime = RuntimeDependency::Path(runtime);
+    let files = emit_client_package(&service(), &options).unwrap();
+    let manifest: toml::Value = toml::from_str(&files[0].contents).unwrap();
+    assert_eq!(
+        manifest["dependencies"]["crucible-client-runtime-rust"]["version"].as_str(),
+        Some("9.8.7")
+    );
+    assert!(!directory.path().join("Cargo.lock").exists());
+    assert!(!directory.path().join("target").exists());
+}
+
+#[test]
+fn invalid_local_runtime_workspace_is_a_cargo_metadata_diagnostic() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("Cargo.toml"), "[package]\nname = 'crucible-client-runtime-rust'\nversion.workspace = true\n[lib]\npath = 'lib.rs'\n").unwrap();
+    fs::write(directory.path().join("lib.rs"), "").unwrap();
+    let mut options = explicit();
+    options.runtime = RuntimeDependency::Path(directory.path().into());
+    let diagnostics = emit_client_package(&service(), &options).unwrap_err();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("cannot read local runtime Cargo metadata")
     );
 }
 

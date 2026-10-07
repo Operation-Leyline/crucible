@@ -115,7 +115,11 @@ fn runtime(dependency: &RuntimeDependency) -> Result<String, String> {
         RuntimeDependency::Git {
             repository,
             revision,
+            version_requirement,
         } => {
+            semver::VersionReq::parse(version_requirement).map_err(|error| {
+                format!("invalid runtime Git version requirement {version_requirement:?}: {error}")
+            })?;
             if repository.is_empty()
                 || repository.chars().any(char::is_control)
                 || repository.trim() != repository
@@ -137,7 +141,7 @@ fn runtime(dependency: &RuntimeDependency) -> Result<String, String> {
             }
             Ok(format!(
                 "{{ version = {}, git = {}, rev = {} }}",
-                literal(env!("CARGO_PKG_VERSION")),
+                literal(version_requirement),
                 literal(repository),
                 literal(revision)
             ))
@@ -152,27 +156,65 @@ fn runtime(dependency: &RuntimeDependency) -> Result<String, String> {
             if text.chars().any(char::is_control) {
                 return Err("local runtime path must contain no control characters".into());
             }
-            let manifest = std::fs::read_to_string(path.join("Cargo.toml"))
-                .map_err(|error| format!("cannot read local runtime Cargo.toml: {error}"))?;
-            let manifest: toml::Value = toml::from_str(&manifest)
-                .map_err(|error| format!("invalid local runtime Cargo.toml: {error}"))?;
-            if manifest
-                .get("package")
-                .and_then(|package| package.get("name"))
-                .and_then(toml::Value::as_str)
-                != Some(RUNTIME)
-            {
-                return Err(format!(
-                    "local runtime path must name the {RUNTIME} Cargo package"
-                ));
-            }
+            let version = local_runtime_version(path)?;
             Ok(format!(
                 "{{ version = {}, path = {} }}",
-                literal(env!("CARGO_PKG_VERSION")),
+                literal(&version),
                 literal(text)
             ))
         }
     }
+}
+
+fn local_runtime_version(path: &std::path::Path) -> Result<String, String> {
+    let manifest = path
+        .join("Cargo.toml")
+        .canonicalize()
+        .map_err(|error| format!("cannot locate local runtime Cargo.toml: {error}"))?;
+    // Cargo owns workspace inheritance. Metadata without dependency resolution
+    // reads the effective package version without fetching or building anything.
+    let output =
+        std::process::Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+            .args([
+                "metadata",
+                "--no-deps",
+                "--offline",
+                "--format-version",
+                "1",
+                "--manifest-path",
+            ])
+            .arg(&manifest)
+            .output()
+            .map_err(|error| format!("cannot read local runtime Cargo metadata: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "cannot read local runtime Cargo metadata: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("invalid local runtime Cargo metadata: {error}"))?;
+    let package = metadata["packages"]
+        .as_array()
+        .and_then(|packages| {
+            packages.iter().find(|package| {
+                package["manifest_path"].as_str().is_some_and(|path| {
+                    std::path::Path::new(path).canonicalize().ok().as_ref() == Some(&manifest)
+                })
+            })
+        })
+        .ok_or("local runtime Cargo metadata does not contain the selected package")?;
+    if package["name"].as_str() != Some(RUNTIME) {
+        return Err(format!(
+            "local runtime path must name the {RUNTIME} Cargo package"
+        ));
+    }
+    let version = package["version"]
+        .as_str()
+        .ok_or("local runtime Cargo metadata has no package version")?;
+    semver::Version::parse(version)
+        .map_err(|error| format!("invalid local runtime Cargo package version: {error}"))?;
+    Ok(version.into())
 }
 
 fn literal(value: &str) -> String {

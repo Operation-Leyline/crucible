@@ -184,6 +184,12 @@ weather-sdk = { path = "../target/rust-sdk" }
 use weather_sdk::{Config, WeatherClient, model::GetCityInput};
 ```
 
+For a custom runtime, `.runtime_git(repository, revision, version_requirement)`
+selects its Git source and Cargo version requirement. `.runtime_path(path)`
+reads the local runtime package's effective version, including workspace
+inheritance. Both retain a registry version for publishing the generated SDK.
+The default uses the generator's matching Crucible revision automatically.
+
 Generate server bindings directly inside the server crate. Its manifest depends
 normally on `weather-model` and `crucible`, with `crucible-build` as a build
 dependency:
