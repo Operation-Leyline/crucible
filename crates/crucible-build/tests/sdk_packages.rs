@@ -1,3 +1,5 @@
+#![cfg(all(feature = "rust", feature = "smithy"))]
+
 use std::cell::Cell;
 use std::fs;
 use std::path::PathBuf;
@@ -48,6 +50,19 @@ fn package_probe() {
     });
     package.publish();
     let rust = package.rust_client("rust").generate();
+    let git = package
+        .rust_client("rust-git")
+        .runtime_git(
+            "https://github.com/Operation-Leyline/crucible",
+            &"a".repeat(40),
+            ">=0.1.0, <0.2.0",
+        )
+        .generate();
+    assert!(
+        fs::read_to_string(git.path.join("Cargo.toml"))
+            .unwrap()
+            .contains("version = \">=0.1.0, <0.2.0\"")
+    );
     assert!(
         fs::read_to_string(rust.path.join("src/lib.rs"))
             .unwrap()

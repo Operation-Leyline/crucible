@@ -13,6 +13,7 @@ pub struct Artifact {
 
 impl Artifact {
     /// Bind a published Rust SDK to a scaffolded SDK package's inclusion hook.
+    #[cfg(feature = "rust")]
     pub fn include_client(&self) {
         assert_eq!(
             self.language, "rust",

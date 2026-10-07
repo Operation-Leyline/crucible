@@ -6,32 +6,35 @@ can also generate from a model dependency's compiled AST.
 
 ## Organizing the workspace
 
-Keep model sources, generated package integration, and applications separate:
+Keep model sources and applications separate; export complete SDK packages under
+an ignored build directory:
 
 ```text
 smithy/                 Cargo package weather-model, links = "weather_model"
   model/service.smithy
   build.rs
   src/lib.rs            minimal Cargo library; no generated client API
-sdks/
-  rust/                 Cargo package weather-sdk, exposing the generated API
-  java/                 optional separate Java generation package
+target/
+  rust-sdk/             generated Cargo package weather-sdk
+  java-sdk/             generated Gradle/Maven Java package
 service/                Cargo package with generated bindings and handwritten handlers
   build.rs              generate server models, traits, and operation registry
   src/contract.rs       include those bindings inside the service crate
-client/                 application depending on weather-sdk
+client/                 independent Cargo workspace depending on target/rust-sdk
 ```
 
 The model package needs a minimal Cargo target such as `src/lib.rs`; Smithy
-sources can live entirely under `model/`. Cargo resolves package manifests before
-running build scripts, so Rust packages have committed
-manifests and small integration files. Generated sources and native build outputs
-stay under ignored build directories. Do not commit them in an application
-workspace.
+sources can live entirely under `model/`. Cargo resolves dependency manifests
+before running build scripts. Build the model or service first to create the Rust
+SDK manifest, then build its consumer. Keep that consumer outside the producer's
+Cargo workspace so a clean checkout can build the producer before the SDK exists.
+Generated sources and native build outputs stay ignored. Do not commit them in
+an application workspace.
 
 Use the same pinned Crucible revision for the CLI, build helpers, framework,
-and Rust runtime. The [service template](https://github.com/Operation-Leyline/crucible-service-template)
-demonstrates a model producer, Rust SDK package, Java SDK export, and server
+and Rust runtime. The generated Cargo manifest pins its runtime automatically to
+the generator's Crucible revision. The [service template](https://github.com/Operation-Leyline/crucible-service-template)
+demonstrates a model producer, complete Rust and Java SDK packages, and server
 bindings generated directly inside the service crate.
 
 ## Generating outputs from the model package
@@ -51,26 +54,32 @@ Pin that dependency to your chosen Crucible revision. In `smithy/build.rs`:
 fn main() {
     let model = crucible_build::smithy("model").compile();
     model.publish();
-    model.rust_client("rust").generate();
+    model.rust_client("rust")
+        .package("weather-sdk")
+        .version("0.1.0")
+        .generate_into("../target/rust-sdk");
     model.java_client("java")
         .group_id("example.weather")
         .artifact_id("weather-client")
         .package("example.weather.sdk")
         .version("0.1.0")
-        .generate();
+        .generate_into("../target/java-sdk");
     model.java_client("java-internal")
         .group_id("example.weather")
         .artifact_id("weather-client-internal")
         .package("example.weather.internal")
         .version("0.1.0")
-        .generate();
+        .generate_into("../target/java-internal-sdk");
 }
 ```
 
 `compile()` assembles and lowers the model once. `publish()` exposes the compiled
-`model.json` through Cargo metadata. SDK generation writes separate source
-bundles under `OUT_DIR/sdks/<name>` and records them in `crucible-sdks.json`.
-Cargo watches the model inputs and regenerates outputs when they change.
+`model.json` through Cargo metadata. SDK generation writes complete native
+packages under `OUT_DIR/sdks/<name>` and records them in `crucible-sdks.json`.
+`generate_into` also exports the package to a stable path relative to the build
+script's Cargo manifest. Cargo watches model inputs and exported generated files;
+edits to the model or deletion of an export trigger regeneration. Native build
+directories do not trigger model compilation.
 
 Output names start with a lowercase letter and contain lowercase letters,
 digits, or hyphens. Names must be unique within a producer. `java` and
@@ -88,10 +97,15 @@ For an already compiled AST, use `model_from_json("model.json")` instead of
 
 ### Selecting other languages
 
-Enable only the required build-helper features: `ts`, `python`, `go`, `java`,
+Enable only the required build-helper features: `rust`, `ts`, `python`, `go`, `java`,
 `csharp`, `kotlin`, `swift`, `dart`, `php`, `ruby`, `cpp`, `c`, or `r`.
 `all-clients` enables all native client generators. Each target still checks its
 supported Smithy capabilities before emitting output.
+
+The default features are `smithy` and `rust`. A Java-only source producer uses
+`default-features = false, features = ["smithy", "java"]`; a Java producer reading
+an already assembled AST only needs `features = ["java"]` with defaults disabled.
+Neither loads the Rust emitter or client runtime.
 
 `rust_client` and `java_client` are convenience methods. The shared interface
 accepts each language's native options through `crucible_build::clients`:
@@ -152,34 +166,29 @@ use `model.rust_client("rust").generate()` with the same input.
 
 ## Consuming the Rust SDK and service contract
 
-The named Rust artifact contains generated `src/lib.rs`, with models, errors,
-operation descriptions, and the service-named client. It is a source bundle;
-it does not contain a standalone `Cargo.toml`. A small Cargo SDK package supplies
-its manifest and inclusion hook.
+The named Rust artifact includes `Cargo.toml` and generated `src/lib.rs`, with
+models, errors, operation descriptions, and the service-named client. Its manifest
+declares the matching Rust runtime dependency automatically. The SDK re-exports
+runtime configuration and error types; `runtime` exposes the full runtime API.
+Consumers need no build script or inclusion macro:
 
-For the model-owned Rust output, `sdks/rust/Cargo.toml` depends normally on
-`weather-model` and `crucible-client-runtime-rust`, and has `crucible-build` as
-a build dependency. Its integration files are:
+```toml
+# client/Cargo.toml
+[workspace]
 
-```rust
-// sdks/rust/build.rs
-fn main() {
-    crucible_build::artifact("weather_model", "rust").include_client();
-}
+[dependencies]
+weather-sdk = { path = "../target/rust-sdk" }
 ```
 
 ```rust
-// sdks/rust/src/lib.rs
-crucible_client_runtime_rust::include_client!();
+use weather_sdk::{Config, WeatherClient, model::GetCityInput};
 ```
 
-For the separate Rust SDK producer pattern, the returned artifact can be bound
-with `model.rust_client("rust").generate().include_client()` in its own build
-script. Both patterns expose the SDK through ordinary imports:
-
-```rust
-use weather_sdk::{WeatherClient, model::GetCityInput};
-```
+For a custom runtime, `.runtime_git(repository, revision, version_requirement)`
+selects its Git source and Cargo version requirement. `.runtime_path(path)`
+reads the local runtime package's effective version, including workspace
+inheritance. Both retain a registry version for publishing the generated SDK.
+The default uses the generator's matching Crucible revision automatically.
 
 Generate server bindings directly inside the server crate. Its manifest depends
 normally on `weather-model` and `crucible`, with `crucible-build` as a build
@@ -221,7 +230,7 @@ Run the pinned CLI from your workspace:
 ```sh
 crucible export-sdk java --manifest-path Cargo.toml \
   --package weather-model --out target/java-sdk
-mvn -f target/java-sdk/pom.xml install
+gradle -p target/java-sdk build
 ```
 
 `java` is the output name, not a language selector. For the separate producer
@@ -234,9 +243,21 @@ environment settings such as `CARGO_TARGET_DIR` and `CARGO_BUILD_JOBS`. It does
 not search arbitrary target directories. Failed builds or unknown output names
 leave an existing export untouched.
 
-Java exports include a Maven project and native runtime sources. Maven builds
-and installs its JAR; another Java application consumes its configured Maven
-coordinates. Generation and export do not publish packages to a remote registry.
+Java exports include Gradle and Maven metadata and native runtime sources. An
+application can use a Gradle composite build to consume the SDK directly:
+
+```kotlin
+// examples/java/settings.gradle.kts
+includeBuild("../../target/java-sdk")
+```
+
+```kotlin
+// examples/java/build.gradle.kts
+dependencies { implementation("example.weather:weather-client:0.1.0") }
+```
+
+The template includes a pinned Gradle wrapper. Alternatively, Maven builds and
+installs the same JAR. Generation and export do not publish packages to a remote registry.
 See the [Java guide](clients/java.md) and [SDK releases](sdk-releases.md) for
 native consumption and publication.
 

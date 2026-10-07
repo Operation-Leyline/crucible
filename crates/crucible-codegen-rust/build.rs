@@ -1,0 +1,79 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+fn main() {
+    println!("cargo::rerun-if-changed=build.rs");
+    let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest"));
+    let candidate = manifest.join("../..");
+    let Ok(workspace) = candidate.canonicalize() else {
+        return;
+    };
+    // A packaged or vendored emitter must not inherit a consumer repository's
+    // revision. Only the actual Crucible source workspace supplies provenance.
+    let repository_matches = fs::read_to_string(workspace.join("Cargo.toml"))
+        .ok()
+        .is_some_and(|manifest| {
+            manifest.lines().any(|line| {
+                line.trim() == "repository = \"https://github.com/Operation-Leyline/crucible\""
+            })
+        });
+    if !repository_matches
+        || !workspace
+            .join("crates/crucible-client-runtime-rust/Cargo.toml")
+            .is_file()
+        || !workspace
+            .join("crates/crucible-codegen-rust/Cargo.toml")
+            .is_file()
+        || !workspace.join("Cargo.toml").is_file()
+    {
+        return;
+    }
+    let Some(top) = git(&workspace, &["rev-parse", "--show-toplevel"]) else {
+        return;
+    };
+    if Path::new(&top).canonicalize().ok().as_ref() != Some(&workspace) {
+        return;
+    }
+    let Some(revision) = git(&workspace, &["rev-parse", "HEAD"]) else {
+        return;
+    };
+    if revision.len() != 40 || !revision.bytes().all(|c| c.is_ascii_hexdigit()) {
+        return;
+    }
+    // --git-path resolves linked worktree HEADs and their shared branch refs.
+    watch(&workspace, "HEAD");
+    watch(&workspace, "packed-refs");
+    if let Some(reference) = git(&workspace, &["symbolic-ref", "--quiet", "HEAD"]) {
+        watch(&workspace, &reference);
+    }
+    println!("cargo::rustc-env=CRUCIBLE_GENERATOR_REVISION={revision}");
+}
+
+fn watch(workspace: &Path, name: &str) {
+    if let Some(path) = git(workspace, &["rev-parse", "--git-path", name]) {
+        let path = PathBuf::from(path);
+        let absolute = if path.is_absolute() {
+            path
+        } else {
+            workspace.join(path)
+        };
+        if absolute.is_file() {
+            println!("cargo::rerun-if-changed={}", absolute.display());
+        }
+    }
+}
+
+fn git(workspace: &Path, arguments: &[&str]) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(workspace)
+        .args(arguments)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let result = String::from_utf8(output.stdout).ok()?;
+    Some(result.trim().into())
+}

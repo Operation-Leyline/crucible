@@ -274,7 +274,10 @@ async fn cbor_initial_request_accepts_empty_payload_and_map() {
         let response = http
             .post(format!("{endpoint}/service/Events/operation/Chat"))
             .header("smithy-protocol", "rpc-v2-cbor")
-            .header("content-type", crucible_client_runtime_rust::event_stream::CONTENT_TYPE)
+            .header(
+                "content-type",
+                crucible_client_runtime_rust::event_stream::CONTENT_TYPE,
+            )
             .body(reqwest::Body::wrap_stream(source))
             .send()
             .await
@@ -327,7 +330,10 @@ async fn rpc_rejects_missing_or_wrong_initial_request() {
         let response = http
             .post(format!("{endpoint}/service/Events/operation/Publish"))
             .header("smithy-protocol", "rpc-v2-json")
-            .header("content-type", crucible_client_runtime_rust::event_stream::CONTENT_TYPE)
+            .header(
+                "content-type",
+                crucible_client_runtime_rust::event_stream::CONTENT_TYPE,
+            )
             .body(reqwest::Body::wrap_stream(stream))
             .send()
             .await

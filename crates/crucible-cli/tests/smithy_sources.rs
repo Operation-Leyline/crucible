@@ -266,22 +266,41 @@ fn a_single_source_file_supports_check_and_generation_without_server_errors() {
             .unwrap(),
     );
     assert!(String::from_utf8_lossy(&checked.stdout).contains("example.greeting#Greeting"));
-    let output = directory.path().join("client.rs");
+    let output = directory.path().join("client-sdk");
+    let runtime = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../crucible-client-runtime-rust")
+        .canonicalize()
+        .unwrap();
     successful(
         cli()
             .args(["generate", "rust"])
             .arg(&source)
             .arg("--client")
+            .args([
+                "--package-name",
+                "greeting-client",
+                "--package-version",
+                "1.2.3",
+            ])
+            .arg("--runtime-path")
+            .arg(&runtime)
             .arg("--out")
             .arg(&output)
             .output()
             .unwrap(),
     );
     assert!(
-        fs::read_to_string(output)
+        fs::read_to_string(output.join("src/lib.rs"))
             .unwrap()
             .contains("GreetingClient")
     );
+    let manifest = fs::read_to_string(output.join("Cargo.toml")).unwrap();
+    assert!(manifest.contains("crucible-client-runtime-rust"));
+    assert!(manifest.contains("[workspace]"));
+    assert!(manifest.contains("name = \"greeting-client\""));
+    assert!(manifest.contains("version = \"1.2.3\""));
+    assert!(manifest.contains("path = "));
+    assert!(!output.join("build.rs").exists());
 }
 
 #[test]

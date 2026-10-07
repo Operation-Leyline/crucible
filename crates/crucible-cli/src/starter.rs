@@ -84,7 +84,7 @@ pub(crate) fn create(
         dependency(runtime_package)?,
         dependency("crucible-build")?,
         if smithy_version.is_some() {
-            ", default-features = false"
+            ", default-features = false, features = [\"rust\"]"
         } else {
             ""
         }

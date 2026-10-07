@@ -26,7 +26,7 @@ def main():
         (consumer / "Cargo.toml").write_text(
             '[package]\nname = "policy-consumer"\nversion = "0.0.0"\nedition = "2024"\n'
             '[workspace]\n[build-dependencies]\n'
-            f'crucible-build = {{ path = {dependency}, default-features = false }}\n', encoding="utf-8")
+            f'crucible-build = {{ path = {dependency}, default-features = false, features = ["rust"] }}\n', encoding="utf-8")
         (consumer / "src/main.rs").write_text("fn main() {}\n", encoding="utf-8")
         (consumer / "build.rs").write_text('''fn main() {
     let path = std::env::var("POLICY_TEST_COUNT").unwrap();

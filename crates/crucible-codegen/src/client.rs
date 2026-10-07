@@ -5,7 +5,8 @@ use crate::File;
 
 /// A client target and its native package configuration.
 pub enum Client {
-    Rust,
+    #[cfg(feature = "rust")]
+    Rust(crucible_codegen_rust::ClientOptions),
     #[cfg(feature = "ts")]
     Ts(crucible_codegen_ts::Options),
     #[cfg(feature = "python")]
@@ -37,8 +38,9 @@ pub enum Client {
 impl Client {
     /// Stable target identifier used by artifact registries and build adapters.
     pub fn language(&self) -> &'static str {
-        match self {
-            Self::Rust => "rust",
+        match *self {
+            #[cfg(feature = "rust")]
+            Self::Rust(_) => "rust",
             #[cfg(feature = "ts")]
             Self::Ts(_) => "ts",
             #[cfg(feature = "python")]
@@ -70,8 +72,9 @@ impl Client {
 
     /// Capabilities used when lowering a model for this target.
     pub fn capabilities(&self) -> Capabilities {
-        match self {
-            Self::Rust => crucible_codegen_rust::client_capabilities(),
+        match *self {
+            #[cfg(feature = "rust")]
+            Self::Rust(_) => crucible_codegen_rust::client_capabilities(),
             #[cfg(feature = "ts")]
             Self::Ts(_) => crucible_codegen_ts::capabilities(),
             #[cfg(feature = "python")]
@@ -104,15 +107,20 @@ impl Client {
     /// Generate native source files, without changing an output directory.
     pub fn emit(&self, service: &Service) -> Result<Vec<File>, Diagnostics> {
         service.require_capabilities(&self.capabilities())?;
-        match self {
-            Self::Rust => crucible_codegen_rust::generate_client(service).map(|contents| {
-                vec![File {
-                    path: "src/lib.rs".into(),
-                    contents,
-                }]
-            }),
+        match *self {
+            #[cfg(feature = "rust")]
+            Self::Rust(ref options) => crucible_codegen_rust::emit_client_package(service, options)
+                .map(|files| {
+                    files
+                        .into_iter()
+                        .map(|file| File {
+                            path: file.path,
+                            contents: file.contents,
+                        })
+                        .collect()
+                }),
             #[cfg(feature = "ts")]
-            Self::Ts(options) => crucible_codegen_ts::emit(service, options).map(|files| {
+            Self::Ts(ref options) => crucible_codegen_ts::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {
@@ -122,17 +130,19 @@ impl Client {
                     .collect()
             }),
             #[cfg(feature = "python")]
-            Self::Python(options) => crucible_codegen_python::emit(service, options).map(|files| {
-                files
-                    .into_iter()
-                    .map(|file| File {
-                        path: file.path,
-                        contents: file.contents,
-                    })
-                    .collect()
-            }),
+            Self::Python(ref options) => {
+                crucible_codegen_python::emit(service, options).map(|files| {
+                    files
+                        .into_iter()
+                        .map(|file| File {
+                            path: file.path,
+                            contents: file.contents,
+                        })
+                        .collect()
+                })
+            }
             #[cfg(feature = "go")]
-            Self::Go(options) => crucible_codegen_go::emit(service, options).map(|files| {
+            Self::Go(ref options) => crucible_codegen_go::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {
@@ -142,7 +152,7 @@ impl Client {
                     .collect()
             }),
             #[cfg(feature = "java")]
-            Self::Java(options) => crucible_codegen_java::emit(service, options).map(|files| {
+            Self::Java(ref options) => crucible_codegen_java::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {
@@ -152,37 +162,43 @@ impl Client {
                     .collect()
             }),
             #[cfg(feature = "csharp")]
-            Self::Csharp(options) => crucible_codegen_csharp::emit(service, options).map(|files| {
-                files
-                    .into_iter()
-                    .map(|file| File {
-                        path: file.path,
-                        contents: file.contents,
-                    })
-                    .collect()
-            }),
+            Self::Csharp(ref options) => {
+                crucible_codegen_csharp::emit(service, options).map(|files| {
+                    files
+                        .into_iter()
+                        .map(|file| File {
+                            path: file.path,
+                            contents: file.contents,
+                        })
+                        .collect()
+                })
+            }
             #[cfg(feature = "kotlin")]
-            Self::Kotlin(options) => crucible_codegen_kotlin::emit(service, options).map(|files| {
-                files
-                    .into_iter()
-                    .map(|file| File {
-                        path: file.path,
-                        contents: file.contents,
-                    })
-                    .collect()
-            }),
+            Self::Kotlin(ref options) => {
+                crucible_codegen_kotlin::emit(service, options).map(|files| {
+                    files
+                        .into_iter()
+                        .map(|file| File {
+                            path: file.path,
+                            contents: file.contents,
+                        })
+                        .collect()
+                })
+            }
             #[cfg(feature = "swift")]
-            Self::Swift(options) => crucible_codegen_swift::emit(service, options).map(|files| {
-                files
-                    .into_iter()
-                    .map(|file| File {
-                        path: file.path,
-                        contents: file.contents,
-                    })
-                    .collect()
-            }),
+            Self::Swift(ref options) => {
+                crucible_codegen_swift::emit(service, options).map(|files| {
+                    files
+                        .into_iter()
+                        .map(|file| File {
+                            path: file.path,
+                            contents: file.contents,
+                        })
+                        .collect()
+                })
+            }
             #[cfg(feature = "dart")]
-            Self::Dart(options) => crucible_codegen_dart::emit(service, options).map(|files| {
+            Self::Dart(ref options) => crucible_codegen_dart::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {
@@ -192,7 +208,7 @@ impl Client {
                     .collect()
             }),
             #[cfg(feature = "php")]
-            Self::Php(options) => crucible_codegen_php::emit(service, options).map(|files| {
+            Self::Php(ref options) => crucible_codegen_php::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {
@@ -202,7 +218,7 @@ impl Client {
                     .collect()
             }),
             #[cfg(feature = "ruby")]
-            Self::Ruby(options) => crucible_codegen_ruby::emit(service, options).map(|files| {
+            Self::Ruby(ref options) => crucible_codegen_ruby::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {
@@ -212,7 +228,7 @@ impl Client {
                     .collect()
             }),
             #[cfg(feature = "cpp")]
-            Self::Cpp(options) => crucible_codegen_cpp::emit(service, options).map(|files| {
+            Self::Cpp(ref options) => crucible_codegen_cpp::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {
@@ -222,7 +238,7 @@ impl Client {
                     .collect()
             }),
             #[cfg(feature = "c")]
-            Self::C(options) => crucible_codegen_c::emit(service, options).map(|files| {
+            Self::C(ref options) => crucible_codegen_c::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {
@@ -232,7 +248,7 @@ impl Client {
                     .collect()
             }),
             #[cfg(feature = "r")]
-            Self::R(options) => crucible_codegen_r::emit(service, options).map(|files| {
+            Self::R(ref options) => crucible_codegen_r::emit(service, options).map(|files| {
                 files
                     .into_iter()
                     .map(|file| File {

@@ -19,7 +19,7 @@ CORE_GROUPS = frozenset({"rust", "e2e", "typescript", "onboarding"})
 # The complete language/platform matrix runs on the scheduled/manual tier.
 MODEL_GROUPS = CORE_GROUPS | {"python", "go"}
 # The shared SDK engine owns every client adapter and native package output.
-# Representative consumers include Java, the build facade's Maven output.
+# Representative consumers include Java, the build facade's native output.
 SDK_GROUPS = MODEL_GROUPS | {"java"}
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.

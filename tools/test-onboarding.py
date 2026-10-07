@@ -127,7 +127,7 @@ def qualify_client(cli, directory, env, source):
     model.write_text(source, encoding="utf-8")
     # Exercise the explicit compiler seam without reaching a remote tooling tag.
     manifest = project / "Cargo.toml"
-    manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, path =') +
+    manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, features = ["rust"], path =') +
                         f'smithy-tooling = {{ path = {json.dumps(str(ROOT / "vendor/smithy-tooling"))} }}\n', encoding="utf-8")
     (project / "build.rs").write_text('fn main() { crucible_build::client_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out)).policy("crucible.toml").generate(); }\n', encoding="utf-8")
     run(["cargo", "clippy", "--offline", "--all-targets", "--", "-D", "warnings"], project, env)
@@ -157,7 +157,7 @@ def qualify_model_package(directory, env, source):
     (consumer / "Cargo.toml").write_text('[package]\nname = "shared-client"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\n' +
                                         f'shared-model = {{ path = {json.dumps(str(project))} }}\n' +
                                         f'crucible-client-runtime-rust = {{ path = {json.dumps(str(ROOT / "crates/crucible-client-runtime-rust"))} }}\n[build-dependencies]\n' +
-                                        f'crucible-build = {{ path = {json.dumps(str(ROOT / "crates/crucible-build"))}, default-features = false }}\n', encoding="utf-8")
+                                        f'crucible-build = {{ path = {json.dumps(str(ROOT / "crates/crucible-build"))}, default-features = false, features = ["rust"] }}\n', encoding="utf-8")
     (consumer / "build.rs").write_text('fn main() { crucible_build::client("shared_model").generate(); }\n', encoding="utf-8")
     client_source = 'crucible_client_runtime_rust::include_client!();\npub fn message(output: model::SayHelloOutput) -> String { output.message }\n'
     (consumer / "src/lib.rs").write_text(client_source, encoding="utf-8")

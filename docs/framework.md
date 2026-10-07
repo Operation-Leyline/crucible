@@ -603,6 +603,13 @@ host, so they move with the service; `into_router()` gives an
 For package setup, calls, and runtime limits, see the [Rust client guide](clients/rust.md).
 The [client index](clients.md) links every other language.
 
+For a reusable SDK, `model.rust_client("rust").generate_into("../target/rust-sdk")`
+creates a complete Cargo package with its runtime declared automatically. An
+application depends on that package normally and imports configuration and
+errors through the SDK. See [building named SDK packages](sdk-builds.md) for
+model-owned and separate-producer layouts.
+
+For generation directly inside an existing Rust crate,
 `crucible_build::client("<links>")` generates a client from the same model
 package, into `crucible_client_runtime_rust::include_client!()`. The client uses
 `crucible-client-runtime-rust`, which re-exports the shared `crucible-wire` runtime. The IR

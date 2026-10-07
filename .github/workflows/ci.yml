@@ -462,6 +462,8 @@ jobs:
         run: |
           cargo check -p crucible-build --no-default-features --locked
           cargo check -p crucible-codegen --no-default-features --locked
+          cargo check -p crucible-build --no-default-features --features java --locked
+          cargo tree -p crucible-build --no-default-features --features java --edges normal,build | (! grep crucible-codegen-rust)
       - run: python tools/test-api-policy.py
         env:
           CARGO_BUILD_JOBS: '2'

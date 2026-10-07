@@ -199,7 +199,7 @@ fn waiter_method(service: &Service, op: &Operation, waiter: &str, method: &str) 
     )
 }
 
-fn error_type(op: &Operation) -> String {
+pub(crate) fn error_type(op: &Operation) -> String {
     format!("{}Error", op.name())
 }
 

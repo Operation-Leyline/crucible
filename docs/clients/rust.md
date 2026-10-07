@@ -14,9 +14,11 @@ For shared Smithy models, named SDKs, and application packages, follow
 [building named SDK packages](../sdk-builds.md). It supports Rust and Java
 outputs from one compilation. Servers generate their bindings in their own
 crate; Rust SDK packages expose a reusable client library. The named Rust
-artifact contains `src/lib.rs`;
-the integration package supplies its Cargo manifest and runtime dependency.
-The single-crate and AST-based options below remain supported.
+artifact contains `Cargo.toml` and `src/lib.rs`, with its matching runtime
+dependency declared automatically. The SDK re-exports `Config`, `Error`, `Token`,
+and other runtime APIs. Consumer crates depend on that package normally, with no
+build script or inclusion macro. The single-crate and AST-based options below
+remain supported for generating directly inside an existing crate.
 
 Create a Rust client library with a Smithy model and runnable example:
 
@@ -111,17 +113,20 @@ crucible_client_runtime_rust::include_client!();
 
 For an already compiled JSON AST without a separate model package, call
 `crucible_build::Codegen::client_from_model("model.json").generate()` in
-`build.rs`. To inspect generated source directly:
+`build.rs`. To generate a complete Cargo SDK directly:
 
 ```sh
 cargo run -p crucible-cli -- generate rust \
   crates/crucible-smithy/tests/fixtures/weather.json \
-  --client --out target/weather-client.rs
+  --client --package-name weather-client --out target/weather-client
 ```
 
-`generate rust --client` writes a Rust file. `new --client` creates the Cargo
-package. Include the model/build inputs when distributing a generated client;
-generation does not publish it.
+`generate rust --client` writes a complete Cargo package. Consumers import
+`weather_client::{Config, WeatherClient}` through an ordinary Cargo dependency.
+Use `--package-version` to set its version. `--runtime-path` selects an absolute
+local runtime crate for development; the default pins the generator's matching
+Crucible Git revision. `new --client` creates a crate that owns both Smithy inputs
+and generation. Generation does not publish either package.
 
 ### Migrating the runtime crate name
 
@@ -141,7 +146,7 @@ The example below uses the generated weather client and needs Tokio's `macros`
 and `rt-multi-thread` features in the application:
 
 ```rust
-use crucible_client_runtime_rust::{Config, Token};
+use weather_client::{Config, Token};
 use weather_client::{WeatherClient, model::{GetCityInput, ListCitiesInput}};
 
 #[tokio::main]
@@ -171,7 +176,7 @@ on every attempt, so refreshed credentials are picked up.
 
 Structures use public snake_case fields. Smithy `long` is `i64`, `integer` is
 `i32`, document values use `serde_json::Value`, and blobs use
-`crucible_client_runtime_rust::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
+`weather_client::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
 Use `Model::builder()` for ordinary construction. Fluent member methods accept
 native values and collections; string methods also accept `&str`. Unspecified
 optional members stay absent. `build()` returns the model directly when all
@@ -186,7 +191,7 @@ set those states explicitly. Builder setters use the modeled snake_case name;
 reserved method names receive a `member_` prefix and a numeric suffix if needed.
 Builder type names also receive a suffix when a model uses the same name.
 
-Members that Smithy permits clients to omit use `crucible_client_runtime_rust::Field<T>`.
+Members that Smithy permits clients to omit use `weather_client::Field<T>`.
 This includes every member of an `@input` structure and members marked
 `@clientOptional`, even when the server requires them. `Field::Absent` omits the
 member, `Field::Null` writes JSON null, and `Field::Value(value)` writes a value.
@@ -202,7 +207,7 @@ Named string enums
 retain unmodeled strings in `UnknownValue(String)`, including enum map keys.
 They implement `Clone`, but no longer `Copy`; `as_str()` borrows from the enum.
 Unions retain an unmodeled arm in
-`UnknownValue(crucible_client_runtime_rust::UnknownUnion { name, value })`, where `value` is
+`UnknownValue(weather_client::UnknownUnion { name, value })`, where `value` is
 `serde_json::Value`. The generated variant receives a numeric suffix if its
 name would collide with a modeled variant. A modeled arm named `unknown` remains
 a normal modeled arm. Malformed known arms still fail decoding, and an unknown
@@ -224,7 +229,7 @@ Each operation error enum converts into it with `From`, as does each individual
 modeled exception. Use it when several operations need one error type:
 
 ```rust
-use crucible_client_runtime_rust::Error;
+use weather_client::Error;
 use weather_client::{GetCityError, WeatherException};
 
 fn service_error(error: Error<GetCityError>) -> Error<WeatherException> {
@@ -275,7 +280,7 @@ call override unset to run without a total-call deadline.
 
 ```rust
 use std::time::Duration;
-use crucible_client_runtime_rust::{CallOptions, CancellationToken};
+use weather_client::{CallOptions, CancellationToken};
 
 let cancellation = CancellationToken::new();
 let options = CallOptions {
@@ -349,7 +354,7 @@ Use it when adapting an existing optional value; it cannot infer explicit null.
 For example, with the generated weather models:
 
 ```rust
-use crucible_client_runtime_rust::Field;
+use weather_client::Field;
 use weather_client::model::{ListCitiesInput, Sky};
 
 let previous_limit: Option<i32> = Some(50);

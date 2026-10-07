@@ -12,7 +12,7 @@ publish = false
 repository = "https://github.com/Operation-Leyline/crucible"
 
 [workspace.dependencies]
-crucible-codegen = { path = "crates/crucible-codegen" }
+crucible-codegen = { path = "crates/crucible-codegen", default-features = false }
 crucible = { path = "crates/crucible" }
 crucible-wire = { path = "crates/crucible-wire" }
 crucible-client-runtime-rust = { path = "crates/crucible-client-runtime-rust" }

@@ -2,16 +2,19 @@
 
 [All clients](../clients.md) · [Repository overview](../../README.md)
 
-Generate a Java 17+ Maven package:
+Generate a Java 17+ package with Gradle and Maven build metadata.
 
 ## Generating and installing
 
 For Java SDK generation from `build.rs`, including multiple named variants or
 a separate SDK producer consuming a model dependency, see
 [building named SDK packages](../sdk-builds.md). Enable `crucible-build`'s
-`java` feature, configure Maven coordinates per output, then use
-`crucible export-sdk` before Maven builds the package. Direct CLI generation
-also remains supported:
+`java` feature and configure package coordinates per output. Use
+`.generate_into("../target/java-sdk")` to export automatically during the model
+build, then consume the package through a Gradle composite build. The
+[service template](https://github.com/Operation-Leyline/crucible-service-template)
+includes a Gradle wrapper and runnable Java example. `crucible export-sdk` and
+direct CLI generation also remain supported:
 
 Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
 JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
@@ -21,15 +24,18 @@ crucible generate java smithy \
   --out target/java-sdk --group-id example --artifact-id weather-client \
   --package-name example.weather --endpoint https://api.example.com \
   --content-sha256
-mvn -f target/java-sdk/pom.xml package
+gradle -p target/java-sdk build
 ```
 
 The generator tracks its files in `.crucible`. Regeneration updates generated
 files and removes obsolete generated files while preserving handwritten files
 and native build directories. Keep the ownership manifest. Set `--package-version`
-to the Maven artifact version. The jar includes the lowered wire description
+to the artifact version. The jar includes the lowered wire description
 and `crucible.json` with generator/service versions and a wire-schema SHA-256.
-The runtime uses JDK HTTP and Gson; Maven declares the dependency.
+The runtime uses JDK HTTP and Gson; both native builds declare the dependency.
+The generated Gradle build uses `java-library` and `maven-publish`; its project
+name matches the configured artifact ID for composite dependency substitution.
+The retained `pom.xml` supports Maven consumers as well.
 Arbitrary precision numbers use `java.math.BigInteger` and `BigDecimal`.
 Integer enums are open records with an `int value()` and named constants.
 Sets use `Set<T>` and reject duplicate wire values; sparse lists and maps

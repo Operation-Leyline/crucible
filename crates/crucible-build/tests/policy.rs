@@ -1,3 +1,5 @@
+#![cfg(feature = "rust")]
+
 use std::path::PathBuf;
 
 use crucible_build::Codegen;
