@@ -496,6 +496,7 @@ dependencies = [
  "crucible-codegen-infra",
  "crucible-codegen-java",
  "crucible-codegen-kotlin",
+ "crucible-codegen-openapi",
  "crucible-codegen-php",
  "crucible-codegen-python",
  "crucible-codegen-r",
@@ -650,6 +651,14 @@ dependencies = [
  "crucible-smithy",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "crucible-codegen-openapi"
+version = "0.3.0"
+dependencies = [
+ "crucible-smithy",
+ "serde_json",
 ]
 
 [[package]]
