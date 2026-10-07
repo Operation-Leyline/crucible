@@ -5,6 +5,7 @@ use std::process::ExitCode;
 mod output;
 mod policy;
 mod scaffold;
+mod smithy_input;
 mod starter;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -63,7 +64,9 @@ enum Command {
     },
     /// Compare an old contract with a proposed one, reporting compatibility findings.
     Diff {
+        /// Baseline Smithy source directory or assembled JSON model.
         old: PathBuf,
+        /// Proposed Smithy source directory or assembled JSON model.
         new: PathBuf,
         #[arg(long)]
         service: Option<ShapeId>,
@@ -72,6 +75,14 @@ enum Command {
         /// Print a machine-readable report, including excepted findings.
         #[arg(long)]
         json: bool,
+    },
+    // The compiler helper emits Cargo directives. Isolate assembly so diff's
+    // stdout remains a JSON report when used by CI.
+    #[command(name = "_assemble-model", hide = true)]
+    AssembleModel {
+        source: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
     },
     /// Print the tested extended Smithy capabilities of each client as JSON.
     Capabilities,
@@ -498,6 +509,7 @@ fn main() -> ExitCode {
             Ok(())
         }),
         Command::Diff { old, new, service, config, json } => policy::diff(&old, &new, service.as_ref(), config.as_deref(), json),
+        Command::AssembleModel { source, out } => smithy_input::assemble(&source, &out),
         Command::Capabilities => {
             let capabilities: BTreeMap<_, _> = ClientLanguage::ALL.into_iter().map(|target| (
                 target.to_possible_value().expect("every language has a CLI name").get_name().to_owned(),

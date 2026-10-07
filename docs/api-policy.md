@@ -92,8 +92,21 @@ depend on the CI diff to select changed shapes.
 
 ## Comparing contracts
 
-Compare assembled Smithy JSON ASTs using their respective source revisions
-and pinned compiler versions:
+Compare the Smithy source directories from two revisions directly:
+
+```sh
+crucible diff before/smithy after/smithy --config crucible.toml --json
+```
+
+The CLI assembles both directories with its pinned official Smithy compiler,
+imports the bundled Crucible traits and errors, and flattens mixins before
+lowering. Compilation uses temporary directories outside the sources and does
+not need a Cargo service, generated code, or lockfile. Each source directory
+must contain its API and any additional model dependencies. Invalid Smithy or
+missing directories fail with compiler diagnostics. The managed Java runtime
+is downloaded and checksum-verified on first use, then cached.
+
+Assembled Smithy JSON ASTs remain supported:
 
 ```sh
 crucible check new.json --target rust --config crucible.toml
@@ -154,17 +167,15 @@ An exception does not suppress model validity errors.
 
 The [crucible-actions repository](https://github.com/Operation-Leyline/crucible-actions)
 contains `setup-crucible`, the `api-diff` composite action, a reusable workflow,
-and a caller template. Pin both the workflow and checker to reviewed commits.
+and a caller template. Pin both the action and checker to reviewed commits.
 Select the PR base revision for regression checks or a released tag to preserve
 compatibility with the published contract. No baseline means a failed check.
 
-For checked-in ASTs, select their path and omit `build-command`.
-For a single-crate service, the workflow sets `CRUCIBLE_MODEL_OUT` and runs
-the configured build command in each revision. The build helper exports the
-assembled AST there after successful generation. Build exactly the intended
-service package: exporting several generators to one path can overwrite it.
-Older build helpers must use a separate assembly command or a checked-in AST;
-they cannot provide the new export hook retroactively.
+Pass `before` and `after` as Smithy directories relative to the runner workspace,
+plus `config` pointing to the proposed policy file. The action assembles and
+compares those directories; it does not run service builds or require an export
+script. JSON AST paths are also accepted. Older service build helpers do not
+affect this source-directory comparison.
 
 The action uploads JSON and Markdown reports even for breaking findings and
 adds the report to the run summary. Ordinary PR builds enforce static policy;

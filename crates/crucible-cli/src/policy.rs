@@ -22,8 +22,7 @@ pub(crate) fn diff(
 }
 
 fn load(path: &Path, service: Option<&ShapeId>) -> Result<Service, String> {
-    let json = std::fs::read_to_string(path)
-        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let json = crate::smithy_input::read(path)?;
     let model = Model::from_json(&json).map_err(|error| format!("{}: {error}", path.display()))?;
     // Lower all recognized semantics. The comparator diagnoses its own coverage;
     // generator-specific capability limits must not hide a contract change.
