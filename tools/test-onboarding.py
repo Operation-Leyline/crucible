@@ -33,7 +33,7 @@ def request(endpoint, body):
         return response.status, json.load(response)
 
 
-def serve(binary, env, log, field="message"):
+def serve(binary, env, log, field="message", empty=False):
     with log.open("w", encoding="utf-8") as output:
         process = subprocess.Popen([str(binary)], env={**env, "CRUCIBLE_ADDR": "127.0.0.1:0"}, stdout=output, stderr=subprocess.STDOUT)
         try:
@@ -50,6 +50,11 @@ def serve(binary, env, log, field="message"):
                     raise AssertionError(f"starter exited before listening:\n{text}")
                 time.sleep(0.05)
             assert endpoint, log.read_text()
+            if empty:
+                status, response = request(endpoint, b"{}")
+                assert status == 404 and response["__type"] == "UnknownOperation", (status, response)
+                print("Empty service starts and returns HTTP 404 UnknownOperation")
+                return
             assert request(endpoint, b'{"name":"World"}') == (200, {field: "Hello, World!"})
             for body in [b"{}", b'{"name":""}', b"{", b""]:
                 status, response = request(endpoint, body)
@@ -107,6 +112,11 @@ def main():
         run(["cargo", "clean"], project, env)
         run(["cargo", "build", "--offline"], project, env)
         serve(binary, env, directory / "clean-rebuilt.log")
+        model.write_text(source[:source.index("@http")].replace("operations: [SayHello]", "operations: []"), encoding="utf-8")
+        (project / "src/operations/mod.rs").write_text("pub struct Service;\n", encoding="utf-8")
+        run(["cargo", "clippy", "--all-targets", "--offline", "--", "-D", "warnings"], project, env)
+        run(["cargo", "build", "--offline"], project, env)
+        serve(binary, env, directory / "empty-service.log", empty=True)
         assert files.keys() | {Path("Cargo.lock")} == {path.relative_to(project) for path in project.rglob("*") if path.is_file()}
         print("Model edits, early diagnostics, safe creation, clean offline rebuild and source-tree isolation passed")
 

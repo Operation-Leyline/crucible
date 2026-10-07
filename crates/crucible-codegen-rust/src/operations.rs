@@ -387,10 +387,11 @@ fn service_info(service: &Service, functions: &Functions) -> String {
         }
     };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible::ServiceInfo = ::crucible::ServiceInfo {{\n    id: {},\n    version: {},\n    operations: &[\n        {},\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible::ServiceInfo = ::crucible::ServiceInfo {{\n    id: {},\n    version: {},\n    operations: &[\n        {}{}\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),
+        if operations.is_empty() { "" } else { "," },
         errors.join(", "),
         option(functions.reject.is_some(), "reject"),
         option(functions.internal.is_some(), "internal"),
@@ -432,8 +433,13 @@ fn registration(service: &Service) -> String {
         .iter()
         .map(|op| format!("\n        .{}(implementation.clone())", function(op.name())))
         .collect();
+    let implementation = if service.operations.is_empty() {
+        "_implementation"
+    } else {
+        "implementation"
+    };
     out.push_str(&format!(
-        "/// Every operation, served by one type: checked at compile time.\npub fn operations<T>(implementation: ::std::sync::Arc<T>) -> ::crucible::Operations\nwhere\n    T: {},\n{{\n    builder(){calls}\n        .build()\n        .expect(\"every operation is registered\")\n}}\n",
+        "/// Every operation, served by one type: checked at compile time.\npub fn operations<T>({implementation}: ::std::sync::Arc<T>) -> ::crucible::Operations\nwhere\n    T: {},\n{{\n    builder(){calls}\n        .build()\n        .expect(\"every operation is registered\")\n}}\n",
         bounds.join(" + ")
     ));
     out

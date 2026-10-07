@@ -11,6 +11,24 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
+fn empty_services_can_generate_their_declared_rejection_errors() {
+    let source = include_str!("../../crucible-smithy/tests/fixtures/empty-service-errors.json");
+    let service = Model::from_json(source).unwrap().lower(None).unwrap();
+    let code = generate(
+        &service,
+        &Options {
+            require_rejection: true,
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    assert!(code.contains("pub struct ValidationError"));
+    assert!(code.contains("pub struct InternalError"));
+    assert!(code.contains("reject: Some(reject)"));
+    assert!(code.contains("internal: Some(internal)"));
+}
+
+#[test]
 fn high_level_services_diagnose_missing_rejection_errors_before_startup() {
     let model = include_str!("../../../tests/conformance/empty-service.json");
     let service = Model::from_json(model).unwrap().lower(None).unwrap();
