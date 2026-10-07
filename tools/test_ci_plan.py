@@ -10,7 +10,8 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from ci_plan import CORE_GROUPS, GROUPS, MODEL_GROUPS, SDK_GROUPS, affected_groups, changed_paths, select_groups
+from ci_plan import (ALL_HOSTS, CORE_GROUPS, GROUPS, MODEL_GROUPS, SDK_GROUPS, affected_groups,
+                     changed_paths, onboarding_hosts, select_groups)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -164,13 +165,28 @@ class PlanTests(unittest.TestCase):
         diff = Mock(return_value=["crates/crucible-codegen-java/src/lib.rs"])
         self.assertEqual(select_groups("pull_request", EVENT, diff), {"rust", "java"})
         diff.assert_called_once_with("a" * 40, "b" * 40)
-        for name, expected in (("push", {"rust", "e2e", "onboarding"}), ("workflow_call", GROUPS),
+        for name, expected in (("push", {"rust", "e2e"}), ("workflow_call", GROUPS),
                                ("workflow_dispatch", GROUPS), ("unknown", GROUPS)):
             self.assertEqual(select_groups(name, {}, diff), expected)
         for event in ({}, None, {"pull_request": {"base": {"sha": "--bad"}, "head": {"sha": "b" * 40}}}):
             self.assertEqual(select_groups("pull_request", event, diff), GROUPS)
         for error in (OSError("missing git"), subprocess.CalledProcessError(1, "git")):
             self.assertEqual(select_groups("pull_request", EVENT, Mock(side_effect=error)), GROUPS)
+
+    def test_onboarding_qualifies_every_host_only_when_provisioning_changes(self):
+        def hosts(*paths):
+            return onboarding_hosts("pull_request", EVENT, Mock(return_value=list(paths)))
+        self.assertEqual(hosts("crates/crucible-server-runtime-rust/src/lib.rs"), ["ubuntu-latest"])
+        self.assertEqual(hosts("e2e/weather-service/src/main.rs", "smithy/errors.smithy"), ["ubuntu-latest"])
+        for path in ("tools/test-onboarding.py", "tools/package_starter.py",
+                     "crates/crucible-cli/src/starter/hello.smithy", "vendor/smithy-tooling/src/runtime.rs"):
+            with self.subTest(path=path):
+                self.assertEqual(hosts("README.md", path), ALL_HOSTS)
+        self.assertEqual(onboarding_hosts("pull_request", {}, Mock()), ALL_HOSTS)
+        self.assertEqual(onboarding_hosts("pull_request", EVENT, Mock(side_effect=OSError())), ALL_HOSTS)
+        self.assertEqual(onboarding_hosts("push", {}, Mock()), ["ubuntu-latest"])
+        for name in ("workflow_dispatch", "workflow_call", "schedule"):
+            self.assertEqual(onboarding_hosts(name, {}, Mock()), ALL_HOSTS)
 
     def test_three_dot_diff_excludes_new_base_changes_and_keeps_deleted_paths(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -210,7 +226,8 @@ class PlanTests(unittest.TestCase):
             subprocess.run([sys.executable, str(ROOT / "tools/ci_plan.py")],
                            env=env, check=True, capture_output=True)
             self.assertEqual(dict(line.split("=") for line in output.read_text().splitlines()),
-                             {**{group: "true" for group in GROUPS}, "full": "true"})
+                             {**{group: "true" for group in GROUPS}, "full": "true",
+                              "onboarding_hosts": json.dumps(ALL_HOSTS, separators=(",", ":"))})
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         jobs = re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)", workflow.split("jobs:\n", 1)[1],
                           re.MULTILINE | re.DOTALL)
@@ -241,12 +258,16 @@ class PlanTests(unittest.TestCase):
                 if group not in groups or ("outputs.full" in condition and not full):
                     continue
                 matrix = re.search(r"full == 'true' && '([^']+)' \|\| '([^']+)'", body)
-                variants = json.loads(matrix.group(1 if full else 2)) if matrix else [None]
+                if "outputs.onboarding_hosts" in body:
+                    # Unrelated PRs; provisioning PRs select every host.
+                    variants = ALL_HOSTS if full else ALL_HOSTS[:1]
+                else:
+                    variants = json.loads(matrix.group(1 if full else 2)) if matrix else [None]
                 selected.extend((name, variant) for variant in variants)
             return selected
 
-        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 8)
-        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 10)
+        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 6)
+        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 8)
         self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 5)
         # The pre-existing full matrix has 31 test jobs plus planner/aggregate.
         self.assertEqual(len(selected_jobs(GROUPS, True)), 37)
@@ -254,6 +275,9 @@ class PlanTests(unittest.TestCase):
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):
                 self.assertEqual(variant, {"os": "ubuntu-latest", "flags": ""})
+        for name, variant in selected_jobs(GROUPS, False)[2:]:
+            if name == "onboarding":
+                self.assertEqual(variant, "ubuntu-latest")
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertNotIn("schedule:", workflow)
         self.assertIn("workflow_call:", workflow)
@@ -262,6 +286,26 @@ class PlanTests(unittest.TestCase):
         self.assertIn("needs: [preflight, qualify]", release)
         self.assertIn('-f "sha=$GITHUB_SHA"', release)
         self.assertIn("--verify-tag", release)
+
+    def test_runs_are_bounded_and_prs_do_not_evict_main_caches(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        self.assertIn("types: [opened, synchronize, reopened, ready_for_review]", workflow)
+        for name in ("plan", "ci"):
+            self.assertIn("!github.event.pull_request.draft", jobs[name])
+        # Drafts skip plan, so every matrix built from its outputs needs a
+        # literal fallback; fromJSON('') fails the whole run.
+        for name, body in jobs.items():
+            for expression in re.findall(r"fromJSON\((.*)\) \}\}", body):
+                with self.subTest(job=name):
+                    self.assertRegex(expression, r"\|\| '\[")
+        # PR-ref caches are invisible to other PRs; saving them only evicts main's.
+        save_on_main = "save-if: \"${{ github.ref == 'refs/heads/main' }}\""
+        for name, body in jobs.items():
+            with self.subTest(job=name):
+                self.assertRegex(body, r"(?m)^    timeout-minutes: \d+$")
+                self.assertEqual(body.count("Swatinem/rust-cache@v2"), body.count(save_on_main))
 
 
 if __name__ == "__main__":

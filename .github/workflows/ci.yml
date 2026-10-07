@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+    # Drafts run nothing; marking a PR ready for review qualifies it.
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
   # The manual version-release workflow calls this with the full matrix.
@@ -17,7 +19,9 @@ permissions:
 jobs:
   # PRs qualify affected Linux consumers; manual releases use the full matrix.
   plan:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       full: ${{ steps.select.outputs.full }}
       c: ${{ steps.select.outputs.c }}
@@ -40,6 +44,7 @@ jobs:
       swift: ${{ steps.select.outputs.swift }}
       terraform: ${{ steps.select.outputs.terraform }}
       typescript: ${{ steps.select.outputs.typescript }}
+      onboarding_hosts: ${{ steps.select.outputs.onboarding_hosts }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false, fetch-depth: 0 }
@@ -49,6 +54,7 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.service_cli == 'true'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       matrix:
         os: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["ubuntu-latest", "windows-latest"]' || '["ubuntu-latest"]') }}
@@ -58,6 +64,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
       - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
       - run: python tools/test-cli.py
@@ -67,12 +74,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.cdk == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: ". -> target/cdk-consumer-rust" }
+        with: { workspaces: ". -> target/cdk-consumer-rust", save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-node@v4
         with: { node-version: '24' }
       - uses: actions/setup-python@v5
@@ -90,6 +98,7 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.terraform == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         engine: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["terraform", "tofu"]' || '["terraform"]') }}
@@ -98,6 +107,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-go@v5
         with: { go-version: '1.26.x', cache: false }
       - uses: hashicorp/setup-terraform@v3
@@ -118,11 +128,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.c == 'true'
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native-jammy, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: sudo apt-get update && sudo apt-get install -y gcc cmake libcurl4-openssl-dev libssl-dev
       - run: python3 tools/install-yyjson.py --root target/yyjson --prefix target/yyjson/install
       - run: python3 tools/test-c.py
@@ -134,6 +146,7 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.r == 'true'
     runs-on: ubuntu-22.04
+    timeout-minutes: 40
     strategy:
       matrix:
         r: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["4.1.3", "release"]' || '["release"]') }}
@@ -142,6 +155,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native-jammy, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: ${{ matrix.r }}
@@ -155,11 +169,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.cpp == 'true'
     runs-on: ubuntu-22.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native-jammy, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: sudo apt-get update && sudo apt-get install -y g++ cmake libcurl4-openssl-dev libssl-dev
       - run: python3 tools/test-cpp.py
         env:
@@ -169,11 +185,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.c == 'true' && needs.plan.outputs.full == 'true'
     runs-on: windows-2022
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/checkout@v4
         with:
           repository: microsoft/vcpkg
@@ -206,11 +224,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.cpp == 'true' && needs.plan.outputs.full == 'true'
     runs-on: windows-2022
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/checkout@v4
         with:
           repository: microsoft/vcpkg
@@ -241,6 +261,7 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.ruby == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         ruby: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["3.3", "4.0"]' || '["3.3"]') }}
@@ -249,6 +270,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: ruby/setup-ruby@v1
         with: { ruby-version: '${{ matrix.ruby }}' }
       - run: python3 tools/test-ruby.py
@@ -256,6 +278,7 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.php == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         php: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["8.3", "8.5"]' || '["8.3"]') }}
@@ -264,6 +287,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '${{ matrix.php }}'
@@ -275,6 +299,7 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.dart == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         sdk: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["3.6.2", "stable"]' || '["3.6.2"]') }}
@@ -283,6 +308,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: dart-lang/setup-dart@v1
         with: { sdk: '${{ matrix.sdk }}' }
       - run: python3 tools/test-dart.py
@@ -290,6 +316,7 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.swift == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     container: swift:6.0.3-jammy
     steps:
       - uses: actions/checkout@v4
@@ -297,16 +324,19 @@ jobs:
       - run: apt-get update && apt-get install -y build-essential curl python3
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: python3 tools/test-swift.py
   swift-apple:
     needs: [plan, rust]
     if: needs.plan.outputs.swift == 'true' && needs.plan.outputs.full == 'true'
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: swift --version
       - run: python3 tools/test-swift.py
         env:
@@ -318,11 +348,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.kotlin == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
       - run: python tools/test-kotlin.py
@@ -334,12 +366,13 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.full == 'true' && '[{"os":"ubuntu-latest","flags":""},{"os":"macos-14","flags":"--native"},{"os":"windows-latest","flags":"--native"}]' || '[{"os":"ubuntu-latest","flags":""}]') }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - uses: actions/setup-java@v5
@@ -354,25 +387,42 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       # setup-gradle caches ~/.gradle, but the native compiler keeps its
       # distribution, LLVM/sysroots and commonization results in ~/.konan.
-      - uses: actions/cache@v4
+      # Downloaded archives are already unpacked under ~/.konan/dependencies.
+      - uses: actions/cache/restore@v4
+        id: konan
         if: matrix.flags == '--native'
         with:
-          path: ~/.konan
-          key: konan-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('crates/crucible-codegen-kotlin/runtime/build.gradle.kts', 'crates/crucible-codegen-kotlin/tests/multiplatform/build.gradle.kts') }}
+          path: |
+            ~/.konan
+            !~/.konan/dependencies/cache
+          key: konan-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('crates/crucible-codegen-kotlin/runtime/build.gradle.kts', 'crates/crucible-codegen-kotlin/tests/multiplatform/build.gradle.kts') }}
       - name: Check pinned Gradle launcher precedence
         if: runner.os == 'Windows'
         run: python -m unittest discover -s tools -p "test_kotlin_tools.py"
       - name: Consume published JVM, JavaScript, and host-native artifacts
         run: python tools/test-kotlin-multiplatform.py ${{ matrix.flags }}
+      # Archiving ~/.konan on Windows can outlast the build; bound it so a slow
+      # upload never cancels a passing qualification.
+      - uses: actions/cache/save@v4
+        if: matrix.flags == '--native' && steps.konan.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+        timeout-minutes: 15
+        continue-on-error: true
+        with:
+          path: |
+            ~/.konan
+            !~/.konan/dependencies/cache
+          key: konan-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('crates/crucible-codegen-kotlin/runtime/build.gradle.kts', 'crates/crucible-codegen-kotlin/tests/multiplatform/build.gradle.kts') }}
   kotlin-android:
     needs: [plan, rust]
     if: needs.plan.outputs.kotlin == 'true' && needs.plan.outputs.full == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
@@ -398,11 +448,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.csharp == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
       - run: python tools/test-csharp.py
@@ -410,11 +462,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.java == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
       - run: python tools/test-java.py
@@ -422,11 +476,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.go == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-go@v5
         with: { go-version: '1.24.x', cache: false }
       - run: python tools/test-go.py
@@ -434,11 +490,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.python == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
       - run: python -m pip install 'httpx>=0.28,<1' 'jmespath==1.0.1' mypy build
@@ -447,12 +505,14 @@ jobs:
     needs: plan
     if: needs.plan.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
         with: { components: "rustfmt, clippy" }
       - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
       # Java named SDK variants and every client adapter are feature gated.
@@ -476,11 +536,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.typescript == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: bash tools/test-ts.sh
@@ -491,12 +553,13 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.e2e == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { workspaces: ". -> target\ne2e -> target" }
+        with: { workspaces: ". -> target\ne2e -> target", save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: cargo fmt --all --check --manifest-path e2e/Cargo.toml
@@ -507,6 +570,7 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.editor == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -540,17 +604,22 @@ jobs:
     needs: [plan, rust]
     if: needs.plan.outputs.onboarding == 'true'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        # Provisioning is host-specific, so relevant PRs qualify every host.
-        os: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+        # Provisioning is host-specific: PRs that change it and full runs
+        # qualify every host; other PRs qualify Linux (tools/ci_plan.py).
+        # The fallback keeps a skipped plan (draft PRs) from failing to expand
+        # the matrix, which GitHub evaluates before the job's `if`.
+        os: ${{ fromJSON(needs.plan.outputs.onboarding_hosts || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
         with: { components: rustfmt }
       - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
       - run: python tools/test-onboarding.py
@@ -559,9 +628,10 @@ jobs:
 
   # A stable aggregate reports failures while allowing intentionally omitted jobs.
   ci:
-    if: always()
+    if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     needs: [plan, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, e2e, onboarding, editor]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Check selected jobs
         env:
