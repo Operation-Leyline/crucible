@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::Service;
 
@@ -45,11 +43,7 @@ pub fn emit_client_package(
         literal(&format!("Rust SDK for {}", service.id)),
         dependency.expect("validated runtime")
     );
-    let declared: BTreeSet<_> = service
-        .operations
-        .iter()
-        .flat_map(|op| [op.name().to_owned(), crate::client::error_type(op)])
-        .collect();
+    let declared = crate::client_api::declared_names(service);
     let exports: Vec<_> = [
         "AwsCredentials",
         "BasicCredentials",
@@ -84,7 +78,7 @@ pub fn emit_client_package(
     .filter(|name| !declared.contains(*name))
     .collect();
     // Always expose the complete runtime under a namespace. Top-level shortcuts
-    // omit names occupied by operation markers so valid model names still work.
+    // omit names occupied by generated API types so valid model names still work.
     let api = format!(
         "\n/// Shared runtime configuration and transport types for this SDK.\npub use ::crucible_client_runtime_rust as runtime;\npub use ::crucible_client_runtime_rust::{{{}}};\n",
         exports.join(", ")

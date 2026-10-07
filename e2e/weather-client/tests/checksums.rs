@@ -84,7 +84,7 @@ async fn request_checksums_response_validation_and_overrides() {
     let endpoint = server(mode.clone(), seen.clone()).await;
     let client = checksum::ChecksumsClient::new(config(&endpoint, &validated));
     let last = || seen.lock().unwrap().last().cloned().unwrap();
-    let input = checksum::model::Input::builder().data(data.clone()).build();
+    let input = checksum::Input::builder().data(data.clone()).build();
 
     // Content-MD5: the legacy trait, and a required checksum with no algorithm member.
     client.legacy(input.clone()).await.unwrap();
@@ -98,7 +98,7 @@ async fn request_checksums_response_validation_and_overrides() {
         Some(vectors.base64["MD5"].as_str())
     );
     client
-        .legacy(checksum::model::Input::builder().build())
+        .legacy(checksum::Input::builder().build())
         .await
         .unwrap();
     assert_eq!(
@@ -127,9 +127,9 @@ async fn request_checksums_response_validation_and_overrides() {
     );
 
     for (name, expected) in &vectors.base64 {
-        let selected = checksum::model::Input::builder()
+        let selected = checksum::Input::builder()
             .data(data.clone())
-            .algorithm(checksum::model::Algorithm::from_string(name.clone()))
+            .algorithm(checksum::Algorithm::from_string(name.clone()))
             .build();
         client.flexible(selected).await.unwrap();
         let header = format!("x-amz-checksum-{}", name.to_lowercase());
@@ -156,16 +156,16 @@ async fn request_checksums_response_validation_and_overrides() {
 
     // A caller's own checksum header is sent unchanged.
     *mode.lock().unwrap() = "unmodeled";
-    let explicit = checksum::model::Input::builder()
+    let explicit = checksum::Input::builder()
         .data(data.clone())
         .checksum("supplied")
         .build();
     client.flexible(explicit).await.unwrap();
     assert_eq!(last().header("x-amz-checksum-crc32"), Some("supplied"));
 
-    let unsupported = checksum::model::Input::builder()
+    let unsupported = checksum::Input::builder()
         .data(data.clone())
-        .algorithm(checksum::model::Algorithm::Xxhash64)
+        .algorithm(checksum::Algorithm::Xxhash64)
         .build();
     let error = client.flexible(unsupported).await.unwrap_err();
     assert!(matches!(&error, Error::Invalid(message) if message.contains("XXHASH64")));
@@ -211,7 +211,7 @@ async fn checksums_cover_the_bytes_interceptors_send_and_keep_theirs() {
         config(&endpoint, &validated).interceptor(Replace(vectors.input_utf8.clone().into())),
     );
     hooked
-        .legacy(checksum::model::Input::builder().build())
+        .legacy(checksum::Input::builder().build())
         .await
         .unwrap();
     let request = seen.lock().unwrap().last().cloned().unwrap();
@@ -223,7 +223,7 @@ async fn checksums_cover_the_bytes_interceptors_send_and_keep_theirs() {
     let supplied =
         checksum::ChecksumsClient::new(config(&endpoint, &validated).interceptor(Supply));
     supplied
-        .legacy(checksum::model::Input::builder().build())
+        .legacy(checksum::Input::builder().build())
         .await
         .unwrap();
     let request = seen.lock().unwrap().last().cloned().unwrap();
@@ -251,7 +251,7 @@ async fn streamed_bodies_are_verified_as_they_are_read() {
 
     // An optional checksum cannot be computed before a stream is sent: none is.
     let output = client
-        .flexible(streaming::model::Input::builder().data(body()).build())
+        .flexible(streaming::Input::builder().data(body()).build())
         .await
         .unwrap();
     let request = seen.lock().unwrap().last().cloned().unwrap();
@@ -273,7 +273,7 @@ async fn streamed_bodies_are_verified_as_they_are_read() {
 
     *mode.lock().unwrap() = "bad";
     let output = client
-        .flexible(streaming::model::Input::builder().data(body()).build())
+        .flexible(streaming::Input::builder().data(body()).build())
         .await
         .unwrap();
     let error = drain(&output.data).await.unwrap_err();
@@ -281,9 +281,9 @@ async fn streamed_bodies_are_verified_as_they_are_read() {
 
     // A chosen algorithm needs a caller-supplied value for a stream.
     let chosen = || {
-        streaming::model::Input::builder()
+        streaming::Input::builder()
             .data(body())
-            .algorithm(streaming::model::Algorithm::Crc32)
+            .algorithm(streaming::Algorithm::Crc32)
     };
     let error = client.flexible(chosen().build()).await.unwrap_err();
     assert!(matches!(&error, Error::Invalid(message) if message.contains("x-amz-checksum-crc32")));
@@ -299,7 +299,7 @@ async fn streamed_bodies_are_verified_as_they_are_read() {
     );
     // A legacy MD5 checksum is required, so a stream without one fails.
     let error = client
-        .legacy(streaming::model::Input::builder().data(body()).build())
+        .legacy(streaming::Input::builder().data(body()).build())
         .await
         .unwrap_err();
     assert!(matches!(&error, Error::Invalid(message) if message.contains("content-md5")));

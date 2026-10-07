@@ -1,5 +1,5 @@
 use crucible_client_runtime_rust::Config;
-use hello_client::{HelloServiceClient, model::SayHelloInput};
+use hello_client::{HelloServiceClient, SayHelloInput};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

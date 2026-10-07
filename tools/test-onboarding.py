@@ -136,7 +136,7 @@ def qualify_client(cli, directory, env, source):
     (consumer / "src").mkdir(parents=True)
     (consumer / "Cargo.toml").write_text('[package]\nname = "client-consumer"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\n' +
                                         f'greeting-sdk = {{ path = {json.dumps(str(project))} }}\n', encoding="utf-8")
-    (consumer / "src/main.rs").write_text('use greeting_sdk::{HelloServiceClient, model::SayHelloInput};\nfn main() { let _ = std::mem::size_of::<HelloServiceClient>(); let _ = SayHelloInput::builder().name("World").build(); }\n', encoding="utf-8")
+    (consumer / "src/main.rs").write_text('use greeting_sdk::{HelloServiceClient, SayHelloInput};\nfn main() { let _ = std::mem::size_of::<HelloServiceClient>(); let _ = SayHelloInput::builder().name("World").build(); }\n', encoding="utf-8")
     run(["cargo", "run", "--offline"], consumer, env)
     print("Client regeneration, diagnostics, explicit compiler and independent Cargo consumer passed")
     return project
@@ -159,7 +159,7 @@ def qualify_model_package(directory, env, source):
                                         f'crucible-client-runtime-rust = {{ path = {json.dumps(str(ROOT / "crates/crucible-client-runtime-rust"))} }}\n[build-dependencies]\n' +
                                         f'crucible-build = {{ path = {json.dumps(str(ROOT / "crates/crucible-build"))}, default-features = false, features = ["rust"] }}\n', encoding="utf-8")
     (consumer / "build.rs").write_text('fn main() { crucible_build::client("shared_model").generate(); }\n', encoding="utf-8")
-    client_source = 'crucible_client_runtime_rust::include_client!();\npub fn message(output: model::SayHelloOutput) -> String { output.message }\n'
+    client_source = 'crucible_client_runtime_rust::include_client!();\npub fn message(output: SayHelloOutput) -> String { output.message }\n'
     (consumer / "src/lib.rs").write_text(client_source, encoding="utf-8")
     run(["cargo", "build", "--offline"], consumer, env)
     models = list(Path(env["CARGO_TARGET_DIR"]).glob("debug/build/shared-model-*/out/smithy/model.json"))

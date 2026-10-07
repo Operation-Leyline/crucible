@@ -140,6 +140,23 @@ Rust clients and service CLI packages, and refresh Cargo lockfiles. Cargo build
 scripts regenerate clients under `OUT_DIR` automatically. Runtime APIs and
 behavior are unchanged.
 
+### Migrating flat SDK imports
+
+Generated models and modeled exceptions now live beside the service client.
+Replace `weather_sdk::model::GetCityInput` with `weather_sdk::GetCityInput`,
+and `weather_sdk::errors::NotFoundError` with `weather_sdk::NotFoundError`.
+The implementation modules are private. This applies both to complete Cargo
+SDK packages and to APIs included with `include_client!()`.
+
+Regenerate the SDK and update consumer imports together. Generated CLI packages
+must also be regenerated. Model names that collide with operation markers,
+operation error enums, or the service client produce a generation diagnostic;
+use a service `rename` entry to resolve the conflict.
+
+In complete SDK packages, modeled names take precedence over runtime shortcuts.
+For example, when the model defines `Config`, use `weather_sdk::runtime::Config`
+for runtime configuration. The full runtime remains available as `runtime`.
+
 ## Calling operations
 
 The example below uses the generated weather client and needs Tokio's `macros`
@@ -147,7 +164,7 @@ and `rt-multi-thread` features in the application:
 
 ```rust
 use weather_client::{Config, Token};
-use weather_client::{WeatherClient, model::{GetCityInput, ListCitiesInput}};
+use weather_client::{GetCityInput, ListCitiesInput, WeatherClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -355,7 +372,7 @@ For example, with the generated weather models:
 
 ```rust
 use weather_client::Field;
-use weather_client::model::{ListCitiesInput, Sky};
+use weather_client::{ListCitiesInput, Sky};
 
 let previous_limit: Option<i32> = Some(50);
 let input = ListCitiesInput {
@@ -445,7 +462,7 @@ also a `Stream`. `recv()` yields events in order, `Ok(None)` at the end, or one
 `EventStreamError`, after which the stream has ended:
 
 - `Exception(union)`: a modeled error, as the union's error member, for example
-  `ServerEvents::Throttled(errors::ThrottledError)`.
+  `ServerEvents::Throttled(ThrottledError)`.
 - `Error { code, message }`: an `error` message, or an exception type the client
   does not know.
 - `Decode(message)`: invalid framing, a checksum mismatch, or an event that does

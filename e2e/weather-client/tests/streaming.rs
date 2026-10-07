@@ -157,7 +157,7 @@ async fn large_upload_and_download_remain_streamed() {
         dropped: Arc::new(AtomicUsize::new(0)),
     });
     client
-        .upload(client::model::UploadInput { body: source })
+        .upload(client::UploadInput { body: source })
         .await
         .unwrap();
     assert_eq!(state.bytes.load(Ordering::SeqCst), 64 * 1024 * 1024);
@@ -179,7 +179,7 @@ async fn one_shot_never_retries_but_factory_opens_once_per_attempt() {
     )]));
     assert!(
         client
-            .upload(client::model::UploadInput { body: once })
+            .upload(client::UploadInput { body: once })
             .await
             .is_err()
     );
@@ -192,7 +192,7 @@ async fn one_shot_never_retries_but_factory_opens_once_per_attempt() {
     });
     assert!(
         client
-            .upload(client::model::UploadInput { body: replay })
+            .upload(client::UploadInput { body: replay })
             .await
             .is_err()
     );
@@ -241,7 +241,7 @@ async fn streaming_digests_and_required_lengths_are_explicit() {
     let (endpoint, state) = serve(false, false).await;
     let client = client::StreamingClient::new(Config::new(endpoint).content_sha256(true));
     let missing = client
-        .upload(client::model::UploadInput {
+        .upload(client::UploadInput {
             body: ByteStream::from_bytes("abc"),
         })
         .await
@@ -251,9 +251,6 @@ async fn streaming_digests_and_required_lengths_are_explicit() {
     let body = ByteStream::from_bytes("abc")
         .with_sha256("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
         .unwrap();
-    client
-        .sized(client::model::SizedInput { body })
-        .await
-        .unwrap();
+    client.sized(client::SizedInput { body }).await.unwrap();
     assert_eq!(state.bytes.load(Ordering::SeqCst), 3);
 }

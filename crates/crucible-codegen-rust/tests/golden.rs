@@ -559,12 +559,16 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
     assert!(client.contains("Some(::crucible_client_runtime_rust::operation::Checksum::Md5)"));
     assert!(client.contains("request_algorithm_member: Some(\"algorithm\"), validation_mode_member: Some(\"validation\")"));
     assert!(client.contains("ChecksumAlgorithm::Crc64Nvme"));
-    let service = Model::from_json(include_str!(
+    let mut ast: Value = serde_json::from_str(include_str!(
         "../../crucible-smithy/tests/fixtures/error-payloads.json"
     ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
     .unwrap();
+    // Flat SDK types need distinct names for the exception and operation enum.
+    ast["shapes"]["example.wire#Wire"]["rename"] = json!({"example.wire#TextError": "TextFault"});
+    let service = Model::from_json(&ast.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
+        .unwrap();
     let client = generate_client(&service).unwrap();
     assert!(client.contains("Location::TextPayload(\"text/plain\")"));
     assert!(client.contains("Location::DocumentPayload(\"application/json\")"));

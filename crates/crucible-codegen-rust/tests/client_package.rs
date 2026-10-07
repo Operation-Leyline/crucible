@@ -280,6 +280,34 @@ fn operation_names_do_not_collide_with_runtime_shortcuts() {
 }
 
 #[test]
+fn model_and_exception_names_take_precedence_over_runtime_shortcuts() {
+    for (shape, shortcut) in [
+        ("CityId", "Config"),
+        ("NotFoundError", "Error"),
+        ("Location", "Field"),
+    ] {
+        let mut ast: serde_json::Value = serde_json::from_str(WEATHER).unwrap();
+        ast["shapes"]["example.weather#Weather"]["rename"] =
+            serde_json::json!({format!("example.weather#{shape}"): shortcut});
+        let service = Model::from_json(&ast.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        let files = emit_client_package(&service, &explicit()).unwrap();
+        let exports = files[1]
+            .contents
+            .rsplit_once("pub use ::crucible_client_runtime_rust::{")
+            .unwrap()
+            .1;
+        assert!(
+            !exports
+                .split([',', '}', ';', ' '])
+                .any(|name| name == shortcut)
+        );
+    }
+}
+
+#[test]
 fn an_independent_cargo_application_depends_only_on_the_generated_sdk() {
     let directory = tempfile::tempdir().unwrap();
     let sdk = directory.path().join("sdk");
@@ -291,11 +319,27 @@ fn an_independent_cargo_application_depends_only_on_the_generated_sdk() {
     let mut options = explicit();
     options.runtime = RuntimeDependency::Path(runtime);
     save(&sdk, &emit_client_package(&service(), &options).unwrap());
+    let mut ast: serde_json::Value = serde_json::from_str(WEATHER).unwrap();
+    ast["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({
+        "example.weather#CityId": "Config",
+        "example.weather#NotFoundError": "Error",
+        "example.weather#Location": "Field",
+    });
+    let renamed = Model::from_json(&ast.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let mut renamed_options = options.clone();
+    renamed_options.package_name = Some("renamed-weather-sdk".into());
+    save(
+        &directory.path().join("renamed-sdk"),
+        &emit_client_package(&renamed, &renamed_options).unwrap(),
+    );
     assert!(!sdk.join("build.rs").exists());
     fs::create_dir_all(consumer.join("src")).unwrap();
-    fs::write(consumer.join("Cargo.toml"), "[package]\nname = 'independent-sdk-consumer'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\nweather-sdk = { path = '../sdk' }\n[workspace]\n").unwrap();
+    fs::write(consumer.join("Cargo.toml"), "[package]\nname = 'independent-sdk-consumer'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\nweather-sdk = { path = '../sdk' }\nrenamed-weather-sdk = { path = '../renamed-sdk' }\n[workspace]\n").unwrap();
     fs::write(consumer.join("src/main.rs"), r#"
-use weather_sdk::{CallOptions, Config, Error, GetCityError, Token, WeatherClient, model::GetCityInput, runtime};
+use weather_sdk::{CallOptions, Config, Error, GetCityError, Token, WeatherClient, GetCityInput, runtime};
 fn main() {
     let client = WeatherClient::new(Config::new("http://localhost:8080").token(Token::fixed("secret")));
     let future = client.get_city(GetCityInput::builder().city_id("seattle").build());
@@ -303,6 +347,12 @@ fn main() {
     let _: Option<Error<GetCityError>> = None;
     let _ = CallOptions::default();
     let _ = runtime::CancellationToken::new();
+    let id: renamed_weather_sdk::Config = "seattle".into();
+    let client = renamed_weather_sdk::WeatherClient::new(renamed_weather_sdk::runtime::Config::new("http://localhost:8080"));
+    drop(client.get_city(renamed_weather_sdk::GetCityInput::builder().city_id(id).build()));
+    let _: Option<renamed_weather_sdk::Error> = None;
+    let _: Option<renamed_weather_sdk::Field> = None;
+    let _: Option<renamed_weather_sdk::runtime::Error<renamed_weather_sdk::GetCityError>> = None;
 }
 "#).unwrap();
     let target =

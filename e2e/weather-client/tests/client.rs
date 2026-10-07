@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use chrono::{TimeZone, Utc};
 use crucible_client_runtime_rust::{Config, Error, Field, Retry, Token};
-use weather_client::model::{
+use weather_client::{
     Coordinates, CreateCityInput, GetCityInput, GetCityPhotoInput, ListCitiesInput, Location,
     PutCityPhotoInput, Sky, StatusInput,
 };

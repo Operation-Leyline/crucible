@@ -56,7 +56,7 @@ async fn dot_only_labels_are_rejected_before_transport() {
     );
     for key in [".", ".."] {
         let error = client
-            .get_item(fixture::model::GetItemInput::builder().key(key).build())
+            .get_item(fixture::GetItemInput::builder().key(key).build())
             .await
             .unwrap_err();
         assert!(matches!(error, Error::Invalid(ref message) if message.contains("dot-only")));
@@ -66,8 +66,8 @@ async fn dot_only_labels_are_rejected_before_transport() {
 
 #[test]
 fn client_optional_defaults_stay_absent_and_dense_strings_reject_null() {
-    let value: fixture::model::Values = serde_json::from_str("{}").unwrap();
+    let value: fixture::Values = serde_json::from_str("{}").unwrap();
     assert_eq!(value.optional_default, Field::Absent);
-    assert!(serde_json::from_str::<fixture::model::Values>(r#"{"strings":[null]}"#).is_err());
-    assert!(serde_json::from_str::<fixture::model::Values>(r#"{"mapping":{"key":null}}"#).is_err());
+    assert!(serde_json::from_str::<fixture::Values>(r#"{"strings":[null]}"#).is_err());
+    assert!(serde_json::from_str::<fixture::Values>(r#"{"mapping":{"key":null}}"#).is_err());
 }

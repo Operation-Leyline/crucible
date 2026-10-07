@@ -53,8 +53,8 @@ async fn serve(
     });
     (config, task)
 }
-fn input() -> sdk::model::Input {
-    sdk::model::Input::builder().account("customer").build()
+fn input() -> sdk::Input {
+    sdk::Input::builder().account("customer").build()
 }
 fn options() -> WaiterOptions {
     let mut options = WaiterOptions::new(Duration::from_secs(3));
@@ -116,7 +116,7 @@ async fn generated_waiter_reserves_budget_for_one_final_http_poll() {
 #[tokio::test]
 async fn generated_waiter_normalizes_model_names_timestamps_and_exact_numbers() {
     let (config,requests) = serve(vec![(200,r#"{"wire-status":"READY","time":"Thu, 01 Jan 1970 00:00:00 GMT","amount":9007199254740992.000000001}"#)]).await;
-    let input = sdk::model::Input::builder()
+    let input = sdk::Input::builder()
         .account("customer")
         .time(chrono::DateTime::from_timestamp(0, 0).unwrap())
         .build();
@@ -189,7 +189,7 @@ async fn waiter_deadline_cancellation_and_invalid_endpoint_stop_before_extra_pol
     let client = sdk::ServiceClient::new(config);
     assert!(matches!(
         client
-            .read(sdk::model::Input::builder().account("evil.name").build())
+            .read(sdk::Input::builder().account("evil.name").build())
             .await,
         Err(Error::Invalid(_))
     ));

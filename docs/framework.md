@@ -636,8 +636,9 @@ whose build script calls `crucible_build::client_from_smithy("smithy").generate(
 It uses the same managed compiler as the service starter, and needs no separate
 model package or hand-written Smithy build configuration.
 
-The generated file holds `model`, `errors`, the operation markers, and per
-operation an error enum (`GetCityError`) of the errors it declares, plus
+The generated file exposes models and modeled exceptions directly beside the
+client, with private serde implementation modules. It also exposes an operation
+marker and an error enum (`GetCityError`) for each operation, plus
 a service-named client (`WeatherClient`, for example) with one async method per
 operation and `*_pages` for `@paginated` ones.
 
