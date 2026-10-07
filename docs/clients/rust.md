@@ -23,7 +23,9 @@ release. Its complete build script is:
 
 ```rust
 fn main() {
-    crucible_build::client_from_smithy("smithy").generate();
+    crucible_build::client_from_smithy("smithy")
+        .policy("crucible.toml")
+        .generate();
 }
 ```
 
@@ -33,6 +35,8 @@ service's sources; Cargo compiles the model and regenerates the client on model
 edits. Generated files stay under `OUT_DIR`. The helper manages the official
 Smithy compiler, Crucible imports, mixin flattening and matching Java runtime.
 Client generation does not require the server's rejection-error declarations.
+The starter also checks naming, path and documentation conventions through its
+`crucible.toml`; see [API policy and compatibility](../api-policy.md).
 
 Run a Hello service created with `crucible new hello-service`, then call it:
 

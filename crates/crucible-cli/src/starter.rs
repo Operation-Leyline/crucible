@@ -100,14 +100,17 @@ pub(crate) fn create(
             quoted(&format!("smithy-{version}-wrapper-0.3.0"))
         ));
         format!(
-            "fn main() {{\n    crucible_build::{helper}_with(\"smithy\", |config, out| {{\n        smithy_tooling::build(config, out)\n    }})\n    .generate();\n}}\n"
+            "fn main() {{\n    crucible_build::{helper}_with(\"smithy\", |config, out| {{\n        smithy_tooling::build(config, out)\n    }})\n    .policy(\"crucible.toml\")\n    .generate();\n}}\n"
         )
     } else {
-        format!("fn main() {{\n    crucible_build::{helper}(\"smithy\").generate();\n}}\n")
+        format!(
+            "fn main() {{\n    crucible_build::{helper}(\"smithy\")\n        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
+        )
     };
     let mut files = vec![
         ("Cargo.toml", manifest.as_str()),
         ("build.rs", build.as_str()),
+        ("crucible.toml", include_str!("starter/crucible.toml")),
         (".gitignore", "/target/\n"),
         ("smithy/hello.smithy", include_str!("starter/hello.smithy")),
     ];

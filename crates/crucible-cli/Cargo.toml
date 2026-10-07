@@ -15,6 +15,7 @@ path = "src/main.rs"
 crucible-build.workspace = true
 crucible-codegen-cli.workspace = true
 crucible-smithy.workspace = true
+crucible-policy.workspace = true
 crucible-codegen-rust.workspace = true
 crucible-codegen-ts.workspace = true
 crucible-codegen-openapi.workspace = true

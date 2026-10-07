@@ -1,0 +1,21 @@
+schema_version = 1
+
+[rules.naming]
+severity = "error"
+operations = "PascalCase"
+shapes = "PascalCase"
+members = "camelCase"
+
+[rules.paths]
+severity = "error"
+segment_case = "kebab-case"
+parameter_case = "camelCase"
+
+[rules.documentation]
+severity = "warning"
+targets = ["operations"]
+
+[compatibility]
+severity = "error"
+wire = true
+sdk_source = true

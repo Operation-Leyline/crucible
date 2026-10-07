@@ -34,6 +34,7 @@ GENERATORS = {
     )},
 }
 TOOLS = {
+    "tools/test-api-policy.py": CORE_GROUPS,
     "tools/test-onboarding.py": {"onboarding"},
     "tools/package_starter.py": {"onboarding"},
     "tools/sync_smithy_tooling.py": {"onboarding"},
@@ -81,7 +82,7 @@ def affected_groups(paths):
                 selected.update({"e2e", "service_cli"})
             elif crate == "crucible-cli-runtime":
                 selected.add("service_cli")
-            elif crate in {"crucible", "crucible-wire", "crucible-build", "crucible-cli", "crucible-codegen-rust"}:
+            elif crate in {"crucible", "crucible-wire", "crucible-build", "crucible-policy", "crucible-cli", "crucible-codegen-rust"}:
                 selected.update(CORE_GROUPS)
                 if crate == "crucible-cli":
                     selected.add("service_cli")

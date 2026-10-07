@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 mod output;
+mod policy;
 mod scaffold;
 mod starter;
 
@@ -59,6 +60,21 @@ enum Command {
         /// Check the capabilities of a particular generated client.
         #[arg(long, value_enum)]
         target: Option<ClientLanguage>,
+        /// Run project policy rules in addition to the supported-subset check.
+        #[arg(long)]
+        config: Option<PathBuf>,
+    },
+    /// Compare an old contract with a proposed one, reporting compatibility findings.
+    Diff {
+        old: PathBuf,
+        new: PathBuf,
+        #[arg(long)]
+        service: Option<ShapeId>,
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Print a machine-readable report, including excepted findings.
+        #[arg(long)]
+        json: bool,
     },
     /// Print the tested extended Smithy capabilities of each client as JSON.
     Capabilities,
@@ -471,7 +487,13 @@ enum MiddlewareArg {
 }
 
 fn main() -> ExitCode {
-    let result = match Cli::parse().command {
+    run(Cli::parse().command)
+}
+
+// Keep parsing separate from dispatch: their debug-build stack frames together
+// can exceed Windows' main-thread stack as the CLI's target portfolio grows.
+fn run(command: Command) -> ExitCode {
+    let result = match command {
         Command::New { name, client, out, crucible_rev, runtime_path, smithy_version } => {
             let out = out.unwrap_or_else(|| PathBuf::from(&name));
             starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), smithy_version.as_deref(), client)
@@ -483,9 +505,14 @@ fn main() -> ExitCode {
                     }
                 })
         },
-        Command::Check { source, target } => lower_with_capabilities(
+        Command::Check { source, target, config } => lower_with_capabilities(
             &source, &target.map(ClientLanguage::capabilities).unwrap_or_default(),
-        ).map(|service| print!("{}", summary(&service))),
+        ).and_then(|service| {
+            if let Some(path) = config { policy::check(&service, &path)?; }
+            print!("{}", summary(&service));
+            Ok(())
+        }),
+        Command::Diff { old, new, service, config, json } => policy::diff(&old, &new, service.as_ref(), config.as_deref(), json),
         Command::Capabilities => {
             let capabilities: BTreeMap<_, _> = ClientLanguage::ALL.into_iter().map(|target| (
                 target.to_possible_value().expect("every language has a CLI name").get_name().to_owned(),

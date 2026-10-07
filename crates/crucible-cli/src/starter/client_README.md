@@ -20,6 +20,11 @@ the model and regenerates the client on the next build. Update the example
 to call your service. Generated files stay under Cargo's `OUT_DIR`.
 `build.rs` is the complete generation setup.
 
+The build script selects `crucible.toml` to check naming, path and documentation
+conventions. Adjust the policy to your API. Error findings stop the build;
+warning findings remain visible without blocking it. Existing APIs can use
+reviewed exceptions while adopting a convention.
+
 The runtime and build helper use the same Crucible release. Commit `Cargo.lock`
 and update their pins together. `SMITHY_TOOLING_CACHE` selects the Java runtime
 cache. After provisioning once, use `SMITHY_OFFLINE=1` and `cargo build --offline`

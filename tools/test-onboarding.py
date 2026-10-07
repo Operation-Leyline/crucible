@@ -129,7 +129,7 @@ def qualify_client(cli, directory, env, source):
     manifest = project / "Cargo.toml"
     manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, path =') +
                         f'smithy-tooling = {{ path = {json.dumps(str(ROOT / "vendor/smithy-tooling"))} }}\n', encoding="utf-8")
-    (project / "build.rs").write_text('fn main() { crucible_build::client_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out)).generate(); }\n', encoding="utf-8")
+    (project / "build.rs").write_text('fn main() { crucible_build::client_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out)).policy("crucible.toml").generate(); }\n', encoding="utf-8")
     run(["cargo", "clippy", "--offline", "--all-targets", "--", "-D", "warnings"], project, env)
     # A separate downstream crate must see the generated public library API.
     consumer = directory / "client consumer"
@@ -199,6 +199,8 @@ def main():
             assert "hello-client/examples/hello.rs" in contents.namelist()
             assert 'rev = "test-revision"' in contents.read("hello-client/Cargo.toml").decode()
             assert "client_from_smithy" in contents.read("hello-client/build.rs").decode()
+            assert "hello-client/crucible.toml" in contents.namelist()
+            assert '.policy("crucible.toml")' in contents.read("hello-client/build.rs").decode()
         selected = directory / "selected compiler client"
         run([str(cli), "new", "selected-client", "--client", "--out", str(selected), "--crucible-rev", "test-revision", "--smithy-version", "1.74.0"])
         selected_manifest = (selected / "Cargo.toml").read_text()
@@ -251,7 +253,11 @@ def main():
         run(["cargo", "clean"], project, env)
         run(["cargo", "build", "--offline"], project, env)
         serve(binary, env, directory / "clean-rebuilt.log")
-        model.write_text(source[:source.index("@http")].replace("operations: [SayHello]", "operations: []"), encoding="utf-8")
+        before_operation = source[:source.index("@http")].rstrip().splitlines()
+        # Documentation belongs to the removed operation, not to the preceding service.
+        while before_operation and before_operation[-1].lstrip().startswith("///"):
+            before_operation.pop()
+        model.write_text("\n".join(before_operation).replace("operations: [SayHello]", "operations: []") + "\n", encoding="utf-8")
         (project / "src/operations/mod.rs").write_text("pub struct Service;\n", encoding="utf-8")
         run(["cargo", "clippy", "--all-targets", "--offline", "--", "-D", "warnings"], project, env)
         run(["cargo", "build", "--offline"], project, env)
