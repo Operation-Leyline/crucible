@@ -7,8 +7,11 @@ uses `HttpClient` and `System.Text.Json` without external packages.
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-cargo run -p crucible-cli -- generate csharp model.json \
+crucible generate csharp smithy \
   --out generated/client --namespace Example.Weather --package-id Example.Weather \
   --package-version 0.1.0 --endpoint https://api.example --content-sha256
 dotnet pack generated/client/Client.csproj

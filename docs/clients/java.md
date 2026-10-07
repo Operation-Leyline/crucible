@@ -6,8 +6,11 @@ Generate a Java 17+ Maven package:
 
 ## Generating and installing
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-cargo run -p crucible-cli -- generate java model.json \
+crucible generate java smithy \
   --out target/java-sdk --group-id example --artifact-id weather-client \
   --package-name example.weather --endpoint https://api.example.com \
   --content-sha256

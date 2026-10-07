@@ -10,10 +10,65 @@ and an async runtime such as Tokio.
 
 ## Generating a client
 
-For normal Cargo integration, depend on a model package that publishes its
-Smithy AST. The [framework guide](../framework.md#model-packages) describes that
-package. A sibling `weather-model` package with `links = "weather_model"` can
-be consumed as follows:
+Create a Rust client library with a Smithy model and runnable example:
+
+```sh
+crucible new hello-client --client
+cd hello-client
+cargo build
+```
+
+The starter pins `crucible-client` and `crucible-build` to the CLI's matching
+release. Its complete build script is:
+
+```rust
+fn main() {
+    crucible_build::client_from_smithy("smithy")
+        .policy("crucible.toml")
+        .generate();
+}
+```
+
+`src/lib.rs` exports the generated API with
+`crucible_client::include_client!()`. Replace `smithy/hello.smithy` with your
+service's sources; Cargo compiles the model and regenerates the client on model
+edits. Generated files stay under `OUT_DIR`. The helper manages the official
+Smithy compiler, Crucible imports, mixin flattening and matching Java runtime.
+Client generation does not require the server's rejection-error declarations.
+The starter also checks naming, path and documentation conventions through its
+`crucible.toml`; see [API policy and compatibility](../api-policy.md).
+
+Run a Hello service created with `crucible new hello-service`, then call it:
+
+```sh
+cargo run --example hello -- http://127.0.0.1:8080
+```
+
+The example prints `Hello, World!`. The same `--crucible-rev`, `--runtime-path`
+and `--smithy-version` options work for service and client starters. See the
+[quick start](../quickstart.md#versioning-and-offline-builds) for compiler
+selection and offline caching. An explicit compiler uses
+`client_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out))`.
+
+### Sharing a model package
+
+When several packages share a contract, compile and publish it once from a
+model package. Set `links = "weather_model"` in that package's manifest,
+depend on `crucible-build` in `[build-dependencies]`, and use:
+
+```rust
+// weather-model/build.rs
+fn main() {
+    crucible_build::publish_model_from_smithy("smithy");
+}
+```
+
+This replaces hand-written compiler configuration, bundled import copying,
+AST stabilization and `publish_model` wiring. Use
+`publish_model_from_smithy_with` for an explicitly selected compiler, or keep
+`publish_model("model.json")` when the AST is already compiled. See
+[model packages](../framework.md#model-packages) for the Cargo metadata contract.
+A sibling client consumes the published model as follows:
 
 ```toml
 # weather-client/Cargo.toml
@@ -46,7 +101,7 @@ fn main() {
 crucible_client::include_client!();
 ```
 
-Without a separate model package, call
+For an already compiled JSON AST without a separate model package, call
 `crucible_build::Codegen::client_from_model("model.json").generate()` in
 `build.rs`. To inspect generated source directly:
 
@@ -56,9 +111,9 @@ cargo run -p crucible-cli -- generate rust \
   --client --out target/weather-client.rs
 ```
 
-The CLI writes a Rust file, not a Cargo package. Package the client crate with
-Cargo, including the model/build inputs its build script needs. Generation
-does not publish it.
+`generate rust --client` writes a Rust file. `new --client` creates the Cargo
+package. Include the model/build inputs when distributing a generated client;
+generation does not publish it.
 
 ## Calling operations
 

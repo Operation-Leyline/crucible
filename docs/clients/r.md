@@ -17,8 +17,11 @@ Windows. Registered C routines supply a monotonic clock for deadlines and the
 CRC32, CRC32C, and CRC64-NVME checksums.
 The generated package declares its dependencies in `DESCRIPTION`.
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-crucible generate r model.json --out generated/weather \
+crucible generate r smithy --out generated/weather \
   --package-name weather.client --package-version 0.1.0 --content-sha256
 R CMD build generated/weather
 R CMD INSTALL weather.client_0.1.0.tar.gz

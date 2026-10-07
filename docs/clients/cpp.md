@@ -9,8 +9,11 @@ Linux and Visual Studio 2022 on Windows.
 
 ## Generating and installing a package
 
+Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
+JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+
 ```sh
-crucible generate cpp model.json --out sdk \
+crucible generate cpp smithy --out sdk \
   --package-name weather_client --namespace example::weather \
   --package-version 0.1.0 --content-sha256
 cmake -S sdk -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/sdk

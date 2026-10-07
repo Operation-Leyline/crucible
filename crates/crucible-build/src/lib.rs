@@ -4,16 +4,23 @@
 //! fn main() { crucible_build::from_smithy("smithy").generate(); }
 //! ```
 //!
+//! A standalone Rust client uses the same compiler setup:
+//!
+//! ```ignore
+//! fn main() { crucible_build::client_from_smithy("smithy").generate(); }
+//! ```
+//!
 //! The default compiler and matching runtime are managed by the build helper.
 //! Larger applications can share their contract through separate packages:
 //!
-//! A **model package** holds Smithy sources and the JSON AST its smithy
-//! build produces. Its manifest sets `links = "<name>"`, and its `build.rs`
-//! publishes the AST:
+//! A **model package** holds Smithy sources. Its manifest sets
+//! `links = "<name>"`, and its `build.rs` compiles and publishes the AST:
 //!
 //! ```ignore
-//! fn main() { crucible_build::publish_model("model/model.json"); }
+//! fn main() { crucible_build::publish_model_from_smithy("smithy"); }
 //! ```
+//!
+//! For a precompiled AST, use `publish_model("model/model.json")` instead.
 //!
 //! A **service package** depends on the model package and generates the code
 //! that plugs it into crucible:
@@ -41,8 +48,17 @@ use crucible_smithy::{Model, ShapeId};
 
 mod smithy;
 #[cfg(feature = "smithy")]
+pub use smithy::client_from_smithy;
+pub use smithy::client_from_smithy_with;
+#[cfg(feature = "smithy")]
+pub use smithy::compile_smithy;
+pub use smithy::compile_smithy_with;
+#[cfg(feature = "smithy")]
 pub use smithy::from_smithy;
 pub use smithy::from_smithy_with;
+#[cfg(feature = "smithy")]
+pub use smithy::publish_model_from_smithy;
+pub use smithy::publish_model_from_smithy_with;
 
 /// From a model package's `build.rs`: makes `path` (a Smithy JSON AST built
 /// with the `flattenAndRemoveMixins` transform) the model its dependents
