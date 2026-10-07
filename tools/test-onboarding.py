@@ -2,14 +2,15 @@
 """Qualify a fresh, independent single-crate service through real HTTP."""
 
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
+import socket
 import subprocess
 import tempfile
 import time
-import urllib.error
-import urllib.request
+import urllib.parse
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,13 +25,22 @@ def run(arguments, cwd=ROOT, env=None, success=True, quiet=False):
 
 
 def request(endpoint, body, path="/hello", method=None):
-    request = urllib.request.Request(endpoint + path, data=body, method=method, headers={"Content-Type": "application/json"})
-    try:
-        response = urllib.request.urlopen(request, timeout=10)
-    except urllib.error.HTTPError as error:
-        response = error
-    with response:
-        return response.status, json.load(response), {name.lower(): value for name, value in response.headers.items()}
+    address = urllib.parse.urlsplit(endpoint)
+    # urllib sends headers and body separately. An early routing rejection can
+    # close the connection between writes, causing a Windows reset before the
+    # client reads the response. These small fixtures fit in one request write.
+    message = (
+        f"{method or 'POST'} {path} HTTP/1.1\r\n"
+        f"Host: {address.netloc}\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n\r\n"
+    ).encode("ascii") + body
+    with socket.create_connection((address.hostname, address.port), timeout=10) as connection:
+        connection.sendall(message)
+        with http.client.HTTPResponse(connection) as response:
+            response.begin()
+            return response.status, json.load(response), {name.lower(): value for name, value in response.headers.items()}
 
 
 def serve(binary, env, log, field="message", empty=False, internal=False):
