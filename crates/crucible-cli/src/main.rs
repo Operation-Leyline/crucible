@@ -440,6 +440,10 @@ enum Target {
         /// service's one server error with status 500.
         #[arg(long)]
         internal_error: Option<ShapeId>,
+        /// The modelled HTTP 404 error for an unmatched route; defaults to
+        /// crucible.errors#UnknownOperationException when declared.
+        #[arg(long)]
+        unknown_operation_error: Option<ShapeId>,
         /// Every structure an input reaches refuses unknown members.
         #[arg(long)]
         strict_inputs: bool,
@@ -990,6 +994,7 @@ fn generate(target: Target) -> Result<(), String> {
             client,
             validation_error,
             internal_error,
+            unknown_operation_error,
             strict_inputs,
         } => {
             let capabilities = if client {
@@ -1001,6 +1006,7 @@ fn generate(target: Target) -> Result<(), String> {
             let options = crucible_codegen_rust::Options {
                 validation_error,
                 internal_error,
+                unknown_operation_error,
                 strict_inputs,
                 ..Default::default()
             };

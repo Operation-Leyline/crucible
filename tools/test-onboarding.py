@@ -23,17 +23,17 @@ def run(arguments, cwd=ROOT, env=None, success=True, quiet=False):
     return result
 
 
-def request(endpoint, body):
-    request = urllib.request.Request(endpoint + "/hello", data=body, headers={"Content-Type": "application/json"})
+def request(endpoint, body, path="/hello", method=None):
+    request = urllib.request.Request(endpoint + path, data=body, method=method, headers={"Content-Type": "application/json"})
     try:
         response = urllib.request.urlopen(request, timeout=10)
     except urllib.error.HTTPError as error:
         response = error
     with response:
-        return response.status, json.load(response)
+        return response.status, json.load(response), {name.lower(): value for name, value in response.headers.items()}
 
 
-def serve(binary, env, log, field="message", empty=False):
+def serve(binary, env, log, field="message", empty=False, internal=False):
     with log.open("w", encoding="utf-8") as output:
         process = subprocess.Popen([str(binary)], env={**env, "CRUCIBLE_ADDR": "127.0.0.1:0"}, stdout=output, stderr=subprocess.STDOUT)
         try:
@@ -50,16 +50,35 @@ def serve(binary, env, log, field="message", empty=False):
                     raise AssertionError(f"starter exited before listening:\n{text}")
                 time.sleep(0.05)
             assert endpoint, log.read_text()
+            for path, method in [("/", "GET"), ("/hello", "GET"), ("/missing", "POST")]:
+                status, response, headers = request(endpoint, b"{", path, method)
+                assert status == 404 and response["__type"] == "UnknownOperationException", (status, response)
+                assert headers["x-crucible-error"] == "UnknownOperationException", headers
+                assert headers["x-request-id"], headers
             if empty:
-                status, response = request(endpoint, b"{}")
-                assert status == 404 and response["__type"] == "UnknownOperation", (status, response)
-                print("Empty service starts and returns HTTP 404 UnknownOperation")
+                status, response, headers = request(endpoint, b"{}")
+                assert status == 404 and response["__type"] == "UnknownOperationException", (status, response)
+                assert headers["x-crucible-error"] == "UnknownOperationException", headers
+                print("Empty service starts and returns modeled HTTP 404 UnknownOperationException")
                 return
-            assert request(endpoint, b'{"name":"World"}') == (200, {field: "Hello, World!"})
+            assert request(endpoint, b'{"name":"World"}')[:2] == (200, {field: "Hello, World!"})
             for body in [b"{}", b'{"name":""}', b"{", b""]:
-                status, response = request(endpoint, body)
-                assert status == 400 and response["__type"] == "ValidationError", (body, status, response)
+                status, response, headers = request(endpoint, body)
+                assert status == 400 and response["__type"] == "ValidationException", (body, status, response)
+                assert response["reason"] in ["cannotParse", "fieldValidationFailed"], response
+                assert headers["x-crucible-error"] == "ValidationException" and headers["x-request-id"], headers
+                if body in [b"{}", b'{"name":""}']:
+                    assert response["reason"] == "fieldValidationFailed", response
+                    assert response["fieldList"][0]["name"] == "name", response
+                if body == b"{":
+                    assert response["reason"] == "cannotParse", response
             print("Fresh starter: HTTP 200 and modeled HTTP 400 responses passed")
+            if internal:
+                status, response, headers = request(endpoint, b'{"name":"Fail"}')
+                assert status == 500 and response["__type"] == "InternalServerException", (status, response)
+                assert "internal-secret" not in json.dumps(response), response
+                assert headers["x-crucible-error"] == "InternalServerException" and headers["x-request-id"], headers
+                print("InternalServerException preserves request id and hides the internal cause")
         finally:
             process.terminate()
             try:
@@ -93,6 +112,14 @@ def main():
         run(["cargo", "fmt", "--all", "--check"], project, env)
         model = project / "smithy/hello.smithy"
         source = model.read_text(encoding="utf-8")
+        handler = project / "src/operations/service/say_hello.rs"
+        handler_source = handler.read_text(encoding="utf-8")
+        signature = "async fn say_hello(&self, input: SayHelloInput) -> crucible::Result<SayHelloOutput> {"
+        assert signature in handler_source
+        handler.write_text(handler_source.replace(signature, signature + '\n        if input.name == "Fail" { return Err(std::io::Error::other("internal-secret").into()); }'), encoding="utf-8")
+        run(["cargo", "build", "--offline"], project, env)
+        serve(binary, env, directory / "internal-error.log", internal=True)
+        handler.write_text(handler_source, encoding="utf-8")
         model.write_text(source.replace("message: String", "salutation: String"), encoding="utf-8")
         failed = run(["cargo", "build", "--offline"], project, env, success=False)
         assert "message" in failed.stderr and "salutation" in failed.stderr, failed.stderr
@@ -103,7 +130,7 @@ def main():
         model.write_text(source.replace("name: String", "name: DefinitelyNotAShape"), encoding="utf-8")
         failed = run(["cargo", "build", "--offline"], project, env, success=False)
         assert "DefinitelyNotAShape" in failed.stderr, failed.stderr
-        model.write_text(source.replace("errors: [ValidationError, InternalError]", "errors: [InternalError]"), encoding="utf-8")
+        model.write_text(source.replace("errors: [ValidationException, InternalServerException, UnknownOperationException]", "errors: [InternalServerException, UnknownOperationException]"), encoding="utf-8")
         failed = run(["cargo", "build", "--offline"], project, env, success=False)
         assert "the service needs a fillable validation error" in failed.stderr, failed.stderr
         model.write_text(source, encoding="utf-8")

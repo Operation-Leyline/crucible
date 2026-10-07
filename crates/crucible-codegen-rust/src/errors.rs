@@ -169,6 +169,49 @@ pub(crate) fn reject(service: &Service, validation: Option<&ShapeId>) -> Option<
     ))
 }
 
+/// The explicitly selected error, or the shared error if the service reaches it.
+/// Do not select arbitrary 404 errors: those can represent missing resources.
+pub(crate) fn unknown_operation_error(
+    service: &Service,
+    configured: Option<&ShapeId>,
+) -> Option<ShapeId> {
+    if let Some(id) = configured {
+        return Some(id.clone());
+    }
+    let id = ShapeId::new("crucible.errors", "UnknownOperationException");
+    matches!(service.shape(&id), Some(Shape::Structure(s)) if s.error.is_some()).then_some(id)
+}
+
+/// Fill the modelled routing error through the existing service answer hook.
+pub(crate) fn unknown_operation(
+    service: &Service,
+    unknown: Option<&ShapeId>,
+    diagnostics: &mut Diagnostics,
+) -> Option<String> {
+    let id = unknown?;
+    let Some(Shape::Structure(structure)) = service.shape(id) else {
+        return None;
+    };
+    let error = structure.error.as_ref()?;
+    if error.fault != Fault::Client || error.status != 404 {
+        diagnostics.push(
+            id,
+            "the unknown-operation error must be a client error with HTTP status 404",
+        );
+    }
+    let fields = fill(service, structure, |member| match member.name.as_str() {
+        "message" if simple_kind(service, &member.target) == Some(SimpleKind::String) => {
+            Some("\"No operation matches the request's method and path.\".to_owned()".to_owned())
+        }
+        _ => None,
+    })?;
+    Some(format!(
+        "fn unknown() -> ::std::boxed::Box<dyn ::crucible::ModelledError> {{\n    ::std::boxed::Box::new(errors::{} {{\n        {}\n    }})\n}}\n",
+        service.name_of(id),
+        fields.join(",\n        ")
+    ))
+}
+
 /// `fn unknown()`: the validation error a request no operation serves gets,
 /// when the error's `reason` enum has the standard `unknownOperation` value
 /// and nothing else required is left unfilled. Without it, the protocol

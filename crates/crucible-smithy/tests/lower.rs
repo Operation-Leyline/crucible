@@ -5,6 +5,29 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("fixtures/weather.json");
 
 #[test]
+fn standard_service_exceptions_lower_without_operations() {
+    let source = include_str!("fixtures/standard-service-errors.json");
+    let service = Model::from_json(source).unwrap().lower(None).unwrap();
+    assert!(service.operations.is_empty());
+    for (name, status, fault, retryable) in [
+        ("UnknownOperationException", 404, Fault::Client, false),
+        ("ValidationException", 400, Fault::Client, false),
+        ("InternalServerException", 500, Fault::Server, true),
+    ] {
+        let Shape::Structure(shape) = service
+            .shape(&ShapeId::new("crucible.errors", name))
+            .unwrap()
+        else {
+            panic!("error structure")
+        };
+        let error = shape.error.as_ref().unwrap();
+        assert_eq!(error.status, status);
+        assert_eq!(error.fault, fault);
+        assert_eq!(error.retryable.is_some(), retryable);
+    }
+}
+
+#[test]
 fn service_errors_remain_reachable_without_operations() {
     let source = include_str!("fixtures/empty-service-errors.json");
     let service = Model::from_json(source).unwrap().lower(None).unwrap();

@@ -6,7 +6,10 @@ Smithy runtime; later builds reuse its cache. Rust and access to the private
 Crucible repository are the prerequisites.
 
 Open `hello.http` and send the first request. It returns `{"message":"Hello, World!"}`.
-The second returns HTTP 400 with `ValidationError` because `name` is required.
+The second returns HTTP 400 with `ValidationException`, reason
+`fieldValidationFailed`, because `name` is required. The third returns the
+modelled `UnknownOperationException` (404). Unexpected failures use
+`InternalServerException` (500). Each error response carries `x-request-id`.
 
 Edit `smithy/hello.smithy` to change the API, and
 `src/operations/service/say_hello.rs` to change its implementation. Cargo

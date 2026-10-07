@@ -39,6 +39,7 @@ class CargoTraits(unittest.TestCase):
             model = (installed / "crucible.smithy").read_text(encoding="utf-8")
             with zipfile.ZipFile(build_traits_jar.build(directory / "jar")) as archive:
                 self.assertEqual(model, archive.read("META-INF/smithy/crucible.smithy").decode())
+                self.assertEqual((installed / "errors.smithy").read_text(encoding="utf-8"), archive.read("META-INF/smithy/errors.smithy").decode())
 
             consumer = directory / "consumer"
             (consumer / "src").mkdir(parents=True)
@@ -54,6 +55,11 @@ fn main() -> std::io::Result<()> {
     assert!(crucible_traits::MODEL.contains("namespace crucible.protocols"));
     assert!(crucible_traits::MODEL.contains("structure json {}"));
     assert!(crucible_traits::MODEL.contains("structure strict {}"));
+    for name in ["ValidationException", "InternalServerException", "UnknownOperationException"] {
+        assert!(crucible_traits::ERRORS.contains(&format!("structure {name}")));
+    }
+    crucible_traits::write_models("smithy-imports")?;
+    assert_eq!(std::fs::read("smithy-imports/errors.smithy")?, crucible_traits::ERRORS.as_bytes());
     let path = std::path::Path::new("src/smithy-ide/crucible.smithy");
     crucible_traits::write_model(path)?;
     assert_eq!(std::fs::read(path)?, crucible_traits::MODEL.as_bytes());

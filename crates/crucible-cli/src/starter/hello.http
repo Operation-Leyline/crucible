@@ -4,8 +4,11 @@ Content-Type: application/json
 
 {"name":"World"}
 
-### Missing required name (400 ValidationError)
+### Missing required name (400 ValidationException)
 POST http://127.0.0.1:8080/hello
 Content-Type: application/json
 
 {}
+
+### Unmatched route (404 UnknownOperationException)
+GET http://127.0.0.1:8080/
