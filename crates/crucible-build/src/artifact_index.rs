@@ -28,15 +28,15 @@ pub(crate) fn load(path: &Path, name: &str) -> Result<Artifact, String> {
     crate::artifact::validate_name(name)?;
     let text = std::fs::read_to_string(path).map_err(|e| {
         format!(
-            "cannot read SDK registry {}: {e}; the producer must generate named SDK outputs",
+            "cannot read artifact registry {}: {e}; the producer must generate named outputs",
             path.display()
         )
     })?;
     let index: ArtifactIndex =
-        serde_json::from_str(&text).map_err(|e| format!("invalid SDK registry: {e}"))?;
+        serde_json::from_str(&text).map_err(|e| format!("invalid artifact registry: {e}"))?;
     if index.version != 1 {
         return Err(format!(
-            "unsupported SDK registry version {}",
+            "unsupported artifact registry version {}",
             index.version
         ));
     }
@@ -46,7 +46,7 @@ pub(crate) fn load(path: &Path, name: &str) -> Result<Artifact, String> {
         .find(|artifact| artifact.name == name)
         .ok_or_else(|| {
             format!(
-                "SDK artifact {name:?} was not generated; available outputs: {}",
+                "artifact {name:?} was not generated; available outputs: {}",
                 index
                     .artifacts
                     .iter()
@@ -58,7 +58,7 @@ pub(crate) fn load(path: &Path, name: &str) -> Result<Artifact, String> {
     Ok(artifact.clone())
 }
 
-/// Export one named SDK from a Cargo producer's generated artifact index.
+/// Export one named artifact from a Cargo producer's generated artifact index.
 pub fn export_artifact(
     index: impl AsRef<Path>,
     name: &str,

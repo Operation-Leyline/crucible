@@ -68,5 +68,5 @@ impl<'a> KotlinSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(Kotlin);
+    crate::output_builder::generation_methods!(Kotlin);
 }

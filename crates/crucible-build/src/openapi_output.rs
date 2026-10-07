@@ -3,13 +3,13 @@ use crucible_codegen::{Generator, OpenApiOptions};
 use crate::ModelPackage;
 
 /// OpenAPI document settings for a named output directory.
-pub struct OpenApiSdk<'a> {
+pub struct OpenApiOutput<'a> {
     model: &'a ModelPackage,
     name: String,
     options: OpenApiOptions,
 }
 
-impl<'a> OpenApiSdk<'a> {
+impl<'a> OpenApiOutput<'a> {
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         Self {
             model,
@@ -34,5 +34,5 @@ impl<'a> OpenApiSdk<'a> {
         Ok((self.model, self.name, Generator::OpenApi(self.options)))
     }
 
-    crate::sdk_builder::output_generation_methods!();
+    crate::output_builder::output_generation_methods!();
 }

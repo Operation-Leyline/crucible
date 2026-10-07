@@ -105,6 +105,13 @@ The config names the npm package, version, author, repository, license, and opti
 jsii Python, Java, .NET, and Go targets. The fixture demonstrates every target.
 Generation does not publish packages or infer registry ownership.
 
+From a Cargo build script, enable `crucible-build`'s `cdk` feature and use
+`model.cdk("constructs")` with `.bindings(...)` and publishing settings.
+`.python(distribution, module)`, `.java(package, group_id, artifact_id)`,
+`.dotnet(namespace, package_id)`, and `.go(module, package)` select optional
+jsii language packages within the same output. See [building model outputs](build-outputs.md#cdk-language-packages)
+for a complete example and the separate native packaging step.
+
 The package contains `Cfn<Resource>` classes, props interfaces, named nested
 property structs, string attributes, and internal validation. Public types follow
 jsii restrictions. Enums are strings with validation so unresolved CDK string

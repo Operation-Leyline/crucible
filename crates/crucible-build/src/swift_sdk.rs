@@ -12,7 +12,7 @@ pub struct SwiftSdk<'a> {
 
 impl<'a> SwiftSdk<'a> {
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
-        let module = format!("{}Sdk", crate::sdk_builder::native_pascal(name));
+        let module = format!("{}Sdk", crate::output_builder::native_pascal(name));
         Self {
             model,
             name: name.into(),
@@ -69,5 +69,5 @@ impl<'a> SwiftSdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(Swift);
+    crate::output_builder::generation_methods!(Swift);
 }

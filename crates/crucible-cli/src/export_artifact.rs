@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 use clap::Args as ClapArgs;
 use serde_json::Value;
 
-/// Build a Cargo model package and export one of its named SDK artifacts.
+/// Build a Cargo model package and export one of its named artifacts.
 #[derive(ClapArgs)]
 pub(crate) struct Args {
     /// The artifact name declared by the producer's build script.
@@ -13,10 +13,10 @@ pub(crate) struct Args {
     /// The producer workspace or package manifest.
     #[arg(long, default_value = "Cargo.toml")]
     pub(crate) manifest_path: PathBuf,
-    /// The workspace package that publishes the SDK artifact.
+    /// The workspace package that publishes the artifact.
     #[arg(long)]
     pub(crate) package: String,
-    /// Destination for the generated native SDK package.
+    /// Destination for the generated artifact directory.
     #[arg(long)]
     pub(crate) out: PathBuf,
 }
@@ -92,7 +92,7 @@ pub(crate) fn run(args: &Args) -> Result<(), String> {
     }
     if !build.status.success() {
         return Err(format!(
-            "Cargo build for {:?} failed ({}); SDK output was not exported",
+            "Cargo build for {:?} failed ({}); output was not exported",
             args.package, build.status,
         ));
     }
@@ -100,7 +100,7 @@ pub(crate) fn run(args: &Args) -> Result<(), String> {
         1 => outputs.pop_first().expect("one Cargo build-script output"),
         0 => {
             return Err(format!(
-                "package {:?} did not publish SDK artifacts; generate named SDKs in its build.rs first",
+                "package {:?} did not publish artifacts; generate named outputs in its build.rs first",
                 args.package,
             ));
         }
@@ -111,10 +111,10 @@ pub(crate) fn run(args: &Args) -> Result<(), String> {
             ));
         }
     };
-    let index = out_dir.join("crucible-sdks.json");
+    let index = out_dir.join("crucible-artifacts.json");
     if !index.is_file() {
         return Err(format!(
-            "package {:?} has no SDK artifact registry at {}; generate named SDKs in its build.rs first",
+            "package {:?} has no artifact registry at {}; generate named outputs in its build.rs first",
             args.package,
             index.display(),
         ));

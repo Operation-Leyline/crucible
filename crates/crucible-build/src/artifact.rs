@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Artifact {
     pub name: String,
-    pub language: String,
+    /// Generator target, such as `rust`, `openapi`, or `cdk`.
+    pub target: String,
     pub path: PathBuf,
     pub files: Vec<String>,
 }
@@ -16,7 +17,7 @@ impl Artifact {
     #[cfg(feature = "rust")]
     pub fn include_client(&self) {
         assert_eq!(
-            self.language, "rust",
+            self.target, "rust",
             "crucible: include_client needs a Rust SDK artifact"
         );
         let source = self.path.join("src/lib.rs");
@@ -36,7 +37,7 @@ impl Artifact {
     pub fn export(&self, output: impl AsRef<Path>) -> Result<(), String> {
         validate_name(&self.name)?;
         let root = std::fs::canonicalize(&self.path)
-            .map_err(|e| format!("cannot read SDK {}: {e}", self.name))?;
+            .map_err(|e| format!("cannot read artifact {}: {e}", self.name))?;
         let mut files = Vec::new();
         for relative in &self.files {
             let path = Path::new(relative);
@@ -46,11 +47,11 @@ impl Artifact {
                     .any(|c| !matches!(c, std::path::Component::Normal(_)))
                 || relative.contains('\\')
             {
-                return Err(format!("invalid SDK artifact path {relative:?}"));
+                return Err(format!("invalid artifact path {relative:?}"));
             }
             let source = std::fs::canonicalize(root.join(path)).map_err(|e| e.to_string())?;
             if !source.starts_with(&root) {
-                return Err(format!("SDK artifact path escapes its output: {relative}"));
+                return Err(format!("artifact path escapes its output: {relative}"));
             }
             let contents = std::fs::read_to_string(&source).map_err(|e| e.to_string())?;
             files.push(crucible_codegen::File {
@@ -70,7 +71,7 @@ pub(crate) fn validate_name(name: &str) -> Result<(), String> {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
     {
         return Err(format!(
-            "invalid SDK output name {name:?}; use a lowercase letter followed by lowercase letters, digits or hyphens"
+            "invalid output name {name:?}; use a lowercase letter followed by lowercase letters, digits or hyphens"
         ));
     }
     Ok(())

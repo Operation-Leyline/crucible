@@ -8,12 +8,12 @@ Generate a Java 17+ package with Gradle and Maven build metadata.
 
 For Java SDK generation from `build.rs`, including multiple named variants or
 a separate SDK producer consuming a model dependency, see
-[building named SDK packages](../sdk-builds.md). Enable `crucible-build`'s
+[building named SDK packages](../build-outputs.md). Enable `crucible-build`'s
 `java` feature and configure package coordinates per output. Use
 `.generate_into("../target/java-sdk")` to export automatically during the model
 build, then consume the package through a Gradle composite build. The
 [service template](https://github.com/Operation-Leyline/crucible-service-template)
-includes a Gradle wrapper and runnable Java example. `crucible export-sdk` and
+includes a Gradle wrapper and runnable Java example. `crucible export-artifact` and
 direct CLI generation also remain supported:
 
 Use your service's `smithy/` source directory, a `.smithy` file, or a prepared

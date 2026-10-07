@@ -11,8 +11,8 @@ pub struct RubySdk<'a> {
 
 impl<'a> RubySdk<'a> {
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
-        let native_name = format!("{}_sdk", crate::sdk_builder::native_snake(name));
-        let module = format!("{}Sdk", crate::sdk_builder::native_pascal(name));
+        let native_name = format!("{}_sdk", crate::output_builder::native_snake(name));
+        let module = format!("{}Sdk", crate::output_builder::native_pascal(name));
         Self {
             model,
             name: name.into(),
@@ -63,5 +63,5 @@ impl<'a> RubySdk<'a> {
         self
     }
 
-    crate::sdk_builder::generation_methods!(Ruby);
+    crate::output_builder::generation_methods!(Ruby);
 }

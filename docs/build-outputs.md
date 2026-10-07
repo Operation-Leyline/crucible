@@ -1,7 +1,7 @@
-# Building named SDK packages
+# Building named model outputs
 
-Compile a Smithy model once and select several named SDK outputs from `build.rs`.
-Each output has its own language and package settings. A separate SDK package
+Compile a Smithy model once and select named clients, documents, infrastructure packages, and CLIs from `build.rs`.
+Each output has its own target and native settings. A separate producer package
 can also generate from a model dependency's compiled AST.
 
 ## Organizing the workspace
@@ -74,9 +74,8 @@ fn main() {
 ```
 
 `compile()` assembles and lowers the model once. `publish()` exposes the compiled
-`model.json` through Cargo metadata. SDK generation writes complete native
-packages under `OUT_DIR/sdks/<name>` and records them in `crucible-sdks.json`.
-`generate_into` also exports the package to a stable path relative to the build
+`model.json` through Cargo metadata. Generation writes artifacts under `OUT_DIR/outputs/<name>` and records them in `crucible-artifacts.json`.
+`generate_into` also exports the artifact to a stable path relative to the build
 script's Cargo manifest. Cargo watches model inputs and exported generated files;
 edits to the model or deletion of an export trigger regeneration. Native build
 directories do not trigger model compilation.
@@ -221,10 +220,59 @@ Author, repository, and license default to the producer's Cargo metadata and
 must be explicitly supplied when that metadata is absent. `.try_config(...)`
 reports file errors without panicking.
 
+### CDK language packages
+
+One CDK output produces a TypeScript/jsii construct library. JavaScript and
+TypeScript consumption is built in; add optional language packages fluently:
+
+```rust
+model.cdk("constructs")
+    .package("@example/weather-cdk")
+    .version("0.1.0")
+    .author("Example publisher")
+    .repository_url("https://github.com/example/weather")
+    .license("Apache-2.0")
+    .bindings("provisioning.json")
+    .python("example-weather-cdk", "example_weather_cdk")
+    .java("com.example.weather", "com.example", "weather-cdk")
+    .dotnet("Example.Weather", "Example.Weather")
+    .go("example.com/weather-cdk", "weathercdk")
+    .generate_into("../target/cdk");
+```
+
+Each language setter replaces only that language's coordinates and preserves
+other targets, including targets loaded by `.config(...)`. `.targets(...)`
+replaces the complete target set; `.options(...)` replaces all publishing settings.
+All language packages share the construct library's version. For a second Java
+variant, configure another named CDK output with a distinct npm package, Java
+coordinates, and output directory.
+
+`generate_into` emits the project and its target configuration. Build and package
+the configured bindings with the [jsii toolchain](https://aws.github.io/jsii/overview/toolchain/):
+
+```sh
+cd target/cdk
+npm install
+npm run build
+npm run package
+```
+
+Packages appear under `dist/`; packaging needs the configured languages' native
+build tools. jsii packages use the JavaScript implementation and require Node.js
+when consumed. Rust, Swift, and other service SDK languages are independent of
+the [supported jsii languages](https://aws.github.io/jsii/overview/features/).
+
+Client jobs retain SDK-specific builders such as `RustSdk` and `JavaSdk`.
+Non-client jobs use `OpenApiOutput`, `CdkOutput`, `TerraformOutput`, and
+`CliOutput`. The generic job is `Output`; every generation method returns an
+`Artifact` with a `target` identifier such as `rust`, `openapi`, or `cdk`.
+Cargo publishes paths as `artifact_<name>`, which direct dependent build scripts
+resolve with `crucible_build::artifact(links, name)`.
+
 All these outputs share named artifact discovery, stable file publication,
 export tracking, and the four generation methods with client SDKs. Advanced
 integrations can use `model.output(name, crucible_build::outputs::Generator::...)`
-with native configuration values. `crucible export-sdk` accepts their output
+with native configuration values. `crucible export-artifact` accepts their output
 names too. Server bindings retain their direct fluent
 `crucible_build::service("weather_model").generate()` API inside the service
 crate.
@@ -326,7 +374,7 @@ local Rust module. See the [framework guide](framework.md) for service setup.
 Run the pinned CLI from your workspace:
 
 ```sh
-crucible export-sdk java --manifest-path Cargo.toml \
+crucible export-artifact java --manifest-path Cargo.toml \
   --package weather-model --out target/java-sdk
 gradle -p target/java-sdk build
 ```

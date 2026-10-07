@@ -5,13 +5,13 @@ use crucible_codegen::{CliOptions, Generator};
 use crate::ModelPackage;
 
 /// Native Cargo package settings for a service's generated CLI.
-pub struct CliSdk<'a> {
+pub struct CliOutput<'a> {
     model: &'a ModelPackage,
     name: String,
     options: CliOptions,
 }
 
-impl<'a> CliSdk<'a> {
+impl<'a> CliOutput<'a> {
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         // Use this helper's checkout, not the model producer's manifest directory.
         // Cargo Git dependencies retain the matching runtime crates alongside it.
@@ -78,7 +78,7 @@ impl<'a> CliSdk<'a> {
         Ok((self.model, self.name, Generator::Cli(self.options)))
     }
 
-    crate::sdk_builder::output_generation_methods!();
+    crate::output_builder::output_generation_methods!();
 }
 
 fn validate_runtime(root: &Path) -> Result<(), String> {

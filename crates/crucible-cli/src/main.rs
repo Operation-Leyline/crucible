@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-mod export_sdk;
+mod export_artifact;
 mod output;
 mod policy;
 mod scaffold;
@@ -35,8 +35,8 @@ struct Source {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Export a named SDK artifact from a Cargo model package.
-    ExportSdk(export_sdk::Args),
+    /// Export a named artifact from a Cargo model package.
+    ExportArtifact(export_artifact::Args),
     /// Create a single-crate Hello service or Rust client with Smithy generation.
     New {
         /// Cargo package name, for example hello-service.
@@ -514,7 +514,7 @@ fn main() -> ExitCode {
 // can exceed Windows' main-thread stack as the CLI's target portfolio grows.
 fn run(command: Command) -> ExitCode {
     let result = match command {
-        Command::ExportSdk(args) => export_sdk::run(&args),
+        Command::ExportArtifact(args) => export_artifact::run(&args),
         Command::New { name, client, out, crucible_rev, runtime_path, smithy_version } => {
             let out = out.unwrap_or_else(|| PathBuf::from(&name));
             starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), smithy_version.as_deref(), client)

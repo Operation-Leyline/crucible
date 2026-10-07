@@ -6,14 +6,14 @@ use crate::ModelPackage;
 use crate::provisioning_bindings::ProvisioningBindings;
 
 /// Native Terraform/OpenTofu provider settings and explicit lifecycle bindings.
-pub struct TerraformSdk<'a> {
+pub struct TerraformOutput<'a> {
     model: &'a ModelPackage,
     name: String,
     options: TerraformOptions,
     bindings: ProvisioningBindings,
 }
 
-impl<'a> TerraformSdk<'a> {
+impl<'a> TerraformOutput<'a> {
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         Self {
             model,
@@ -75,5 +75,5 @@ impl<'a> TerraformSdk<'a> {
         ))
     }
 
-    crate::sdk_builder::output_generation_methods!();
+    crate::output_builder::output_generation_methods!();
 }
