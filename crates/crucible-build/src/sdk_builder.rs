@@ -1,4 +1,18 @@
 // Each adapter configures native options; publication and export stay in Sdk.
+#[cfg(any(
+    feature = "ts",
+    feature = "python",
+    feature = "go",
+    feature = "csharp",
+    feature = "kotlin",
+    feature = "swift",
+    feature = "dart",
+    feature = "php",
+    feature = "ruby",
+    feature = "cpp",
+    feature = "c",
+    feature = "r"
+))]
 macro_rules! generation_methods {
     ($variant:ident) => {
         /// Generate and publish the named native SDK under OUT_DIR.
@@ -33,6 +47,20 @@ macro_rules! generation_methods {
         }
     };
 }
+#[cfg(any(
+    feature = "ts",
+    feature = "python",
+    feature = "go",
+    feature = "csharp",
+    feature = "kotlin",
+    feature = "swift",
+    feature = "dart",
+    feature = "php",
+    feature = "ruby",
+    feature = "cpp",
+    feature = "c",
+    feature = "r"
+))]
 pub(crate) use generation_methods;
 
 #[cfg(any(
@@ -61,3 +89,47 @@ pub(crate) fn native_pascal(name: &str) -> String {
         })
         .collect()
 }
+
+#[cfg(any(
+    feature = "openapi",
+    feature = "cdk",
+    feature = "terraform",
+    feature = "cli"
+))]
+macro_rules! output_generation_methods {
+    () => {
+        /// Generate and publish the named output under OUT_DIR.
+        pub fn generate(self) -> crate::Artifact {
+            self.try_generate()
+                .unwrap_or_else(|message| panic!("crucible: {message}"))
+        }
+
+        /// Generate without panicking on invalid settings or unsupported semantics.
+        pub fn try_generate(self) -> Result<crate::Artifact, String> {
+            let (model, name, generator) = self.prepare()?;
+            model.output(&name, generator).try_generate()
+        }
+
+        /// Generate under OUT_DIR and export relative to the producer's manifest.
+        pub fn generate_into(self, output: impl AsRef<std::path::Path>) -> crate::Artifact {
+            self.try_generate_into(output)
+                .unwrap_or_else(|message| panic!("crucible: {message}"))
+        }
+
+        /// Fallible equivalent of named output generation and export.
+        pub fn try_generate_into(
+            self,
+            output: impl AsRef<std::path::Path>,
+        ) -> Result<crate::Artifact, String> {
+            let (model, name, generator) = self.prepare()?;
+            model.output(&name, generator).try_generate_into(output)
+        }
+    };
+}
+#[cfg(any(
+    feature = "openapi",
+    feature = "cdk",
+    feature = "terraform",
+    feature = "cli"
+))]
+pub(crate) use output_generation_methods;

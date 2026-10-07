@@ -1,13 +1,13 @@
-use crucible_codegen::Client;
+use crucible_codegen::Generator;
 use std::path::Path;
 
 use crate::{Artifact, ModelPackage};
 
-/// A named SDK generation job using an already lowered model.
+/// A named output generation job using an already lowered model.
 pub struct Sdk<'a> {
     pub(crate) model: &'a ModelPackage,
     pub(crate) name: String,
-    pub(crate) client: Client,
+    pub(crate) generator: Generator,
 }
 
 impl Sdk<'_> {
@@ -82,16 +82,23 @@ impl Sdk<'_> {
                 self.name
             ));
         }
+        let service = match &self.generator {
+            #[cfg(feature = "cdk")]
+            Generator::Cdk { .. } => self.model.infrastructure()?,
+            #[cfg(feature = "terraform")]
+            Generator::Terraform { .. } => self.model.infrastructure()?,
+            _ => &self.model.service,
+        };
         let files = self
-            .client
-            .emit(&self.model.service)
+            .generator
+            .emit(service)
             .map_err(|e| format!("SDK {}: {e}", self.name))?;
         let output = self.model.output.join("sdks").join(&self.name);
         crucible_codegen::write(&output, &files)
             .map_err(|e| format!("cannot write SDK {}: {e}", self.name))?;
         let artifact = Artifact {
             name: self.name,
-            language: self.client.language().into(),
+            language: self.generator.language().into(),
             path: std::fs::canonicalize(output).map_err(|e| e.to_string())?,
             files: files.into_iter().map(|file| file.path).collect(),
         };

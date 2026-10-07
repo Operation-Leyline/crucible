@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crucible_codegen::Client;
+use crucible_codegen::{Client, Generator};
 use crucible_smithy::ir::Service;
 
 use crate::{Artifact, Sdk};
@@ -13,20 +13,67 @@ pub struct ModelPackage {
     pub(crate) service: Service,
     pub(crate) output: PathBuf,
     pub(crate) artifacts: RefCell<BTreeMap<String, Artifact>>,
+    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    model_ast: crucible_smithy::Model,
+    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    infrastructure: std::cell::OnceCell<Result<Service, String>>,
+    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    selected_protocol: Option<crucible_smithy::Protocol>,
+    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    policy: Option<PathBuf>,
 }
 
 impl ModelPackage {
-    pub(crate) fn new(model: PathBuf, service: Service, output: PathBuf) -> Result<Self, String> {
+    pub(crate) fn new(
+        model: PathBuf,
+        service: Service,
+        output: PathBuf,
+        #[cfg(any(feature = "cdk", feature = "terraform"))] model_ast: crucible_smithy::Model,
+        #[cfg(any(feature = "cdk", feature = "terraform"))] selected_protocol: Option<
+            crucible_smithy::Protocol,
+        >,
+        #[cfg(any(feature = "cdk", feature = "terraform"))] policy: Option<PathBuf>,
+    ) -> Result<Self, String> {
         let package = Self {
             model,
             service,
             output,
             artifacts: RefCell::new(BTreeMap::new()),
+            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            model_ast,
+            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            infrastructure: std::cell::OnceCell::new(),
+            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            selected_protocol,
+            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            policy,
         };
         // OUT_DIR survives rebuilds: reset membership so removed generation
         // calls cannot leave previously published SDK variants discoverable.
         package.write_index()?;
         Ok(package)
+    }
+
+    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    pub(crate) fn infrastructure(&self) -> Result<&Service, String> {
+        // Provisioning diagnostics must not prevent operation-only SDK outputs.
+        // Cache this separate lowering so all infrastructure variants share it.
+        self.infrastructure
+            .get_or_init(|| {
+                let service = match self.selected_protocol {
+                    Some(protocol) => self
+                        .model_ast
+                        .lower_infrastructure_with_protocol(Some(&self.service.id), protocol),
+                    None => self.model_ast.lower_infrastructure(Some(&self.service.id)),
+                }
+                .map_err(|error| error.to_string())?;
+                if let Some(policy) = &self.policy {
+                    crate::check_policy(&service, policy)?;
+                }
+                Ok(service)
+            })
+            .as_ref()
+            .map_err(Clone::clone)
     }
 
     /// Publish the compiled AST through this package's Cargo `links` metadata.
@@ -36,10 +83,15 @@ impl ModelPackage {
 
     /// Select a language and native options for a named SDK output.
     pub fn sdk(&self, name: &str, client: Client) -> Sdk<'_> {
+        self.output(name, Generator::Client(client))
+    }
+
+    /// Select a native client, document, infrastructure package or CLI output.
+    pub fn output(&self, name: &str, generator: Generator) -> Sdk<'_> {
         Sdk {
             model: self,
             name: name.into(),
-            client,
+            generator,
         }
     }
 
@@ -125,6 +177,30 @@ impl ModelPackage {
     #[cfg(feature = "r")]
     pub fn r_client(&self, name: &str) -> crate::RSdk<'_> {
         crate::RSdk::new(self, name)
+    }
+
+    /// Configure a named OpenAPI document output. Enable the `openapi` feature.
+    #[cfg(feature = "openapi")]
+    pub fn openapi(&self, name: &str) -> crate::OpenApiSdk<'_> {
+        crate::OpenApiSdk::new(self, name)
+    }
+
+    /// Configure a named CDK construct library output. Enable the `cdk` feature.
+    #[cfg(feature = "cdk")]
+    pub fn cdk(&self, name: &str) -> crate::CdkSdk<'_> {
+        crate::CdkSdk::new(self, name)
+    }
+
+    /// Configure a named Terraform/OpenTofu provider output. Enable the `terraform` feature.
+    #[cfg(feature = "terraform")]
+    pub fn terraform(&self, name: &str) -> crate::TerraformSdk<'_> {
+        crate::TerraformSdk::new(self, name)
+    }
+
+    /// Configure a named service CLI output. Enable the `cli` feature.
+    #[cfg(feature = "cli")]
+    pub fn cli(&self, name: &str) -> crate::CliSdk<'_> {
+        crate::CliSdk::new(self, name)
     }
 
     /// The compiled AST path for integrations that need the model artifact.

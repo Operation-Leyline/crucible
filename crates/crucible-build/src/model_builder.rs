@@ -102,10 +102,20 @@ impl ModelBuilder {
             None => model.lower_with_capabilities(self.service.as_ref(), &capabilities),
         }
         .map_err(|e| e.to_string())?;
-        if let Some(policy) = self.policy {
+        if let Some(policy) = &self.policy {
             println!("cargo::rerun-if-changed={}", policy.display());
-            crate::check_policy(&service, &policy)?;
+            crate::check_policy(&service, policy)?;
         }
-        ModelPackage::new(path, service, output)
+        ModelPackage::new(
+            path,
+            service,
+            output,
+            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            model,
+            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            self.protocol,
+            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            self.policy,
+        )
     }
 }
