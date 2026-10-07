@@ -220,6 +220,48 @@ Author, repository, and license default to the producer's Cargo metadata and
 must be explicitly supplied when that metadata is absent. `.try_config(...)`
 reports file errors without panicking.
 
+### CDK language packages
+
+One CDK output produces a TypeScript/jsii construct library. JavaScript and
+TypeScript consumption is built in; add optional language packages fluently:
+
+```rust
+model.cdk("constructs")
+    .package("@example/weather-cdk")
+    .version("0.1.0")
+    .author("Example publisher")
+    .repository_url("https://github.com/example/weather")
+    .license("Apache-2.0")
+    .bindings("provisioning.json")
+    .python("example-weather-cdk", "example_weather_cdk")
+    .java("com.example.weather", "com.example", "weather-cdk")
+    .dotnet("Example.Weather", "Example.Weather")
+    .go("example.com/weather-cdk", "weathercdk")
+    .generate_into("../target/cdk");
+```
+
+Each language setter replaces only that language's coordinates and preserves
+other targets, including targets loaded by `.config(...)`. `.targets(...)`
+replaces the complete target set; `.options(...)` replaces all publishing settings.
+All language packages share the construct library's version. For a second Java
+variant, configure another named CDK output with a distinct npm package, Java
+coordinates, and output directory.
+
+`generate_into` emits the project and its target configuration. Build and package
+the configured bindings with the [jsii toolchain](https://aws.github.io/jsii/overview/toolchain/):
+
+```sh
+cd target/cdk
+npm install
+npm run build
+npm run package
+```
+
+Packages appear under `dist/`; packaging needs the configured languages' native
+build tools. jsii packages use the JavaScript implementation and require Node.js
+when consumed. Rust, Swift, and other service SDK languages are independent of
+the [supported jsii languages](https://aws.github.io/jsii/overview/features/).
+
 Client jobs retain SDK-specific builders such as `RustSdk` and `JavaSdk`.
 Non-client jobs use `OpenApiOutput`, `CdkOutput`, `TerraformOutput`, and
 `CliOutput`. The generic job is `Output`; every generation method returns an

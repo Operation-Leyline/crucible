@@ -73,6 +73,45 @@ impl<'a> CdkOutput<'a> {
         self
     }
 
+    /// Configure a Python distribution and import module; retain other targets.
+    pub fn python(mut self, distribution: &str, module: &str) -> Self {
+        self.options.targets.python = Some(crucible_codegen::cdk::Python {
+            dist_name: distribution.into(),
+            module: module.into(),
+        });
+        self
+    }
+
+    /// Configure a Java package and Maven coordinates; retain other targets.
+    pub fn java(mut self, package: &str, group_id: &str, artifact_id: &str) -> Self {
+        self.options.targets.java = Some(crucible_codegen::cdk::Java {
+            package: package.into(),
+            maven: crucible_codegen::cdk::Maven {
+                group_id: group_id.into(),
+                artifact_id: artifact_id.into(),
+            },
+        });
+        self
+    }
+
+    /// Configure a .NET namespace and NuGet package ID; retain other targets.
+    pub fn dotnet(mut self, namespace: &str, package_id: &str) -> Self {
+        self.options.targets.dotnet = Some(crucible_codegen::cdk::DotNet {
+            namespace: namespace.into(),
+            package_id: package_id.into(),
+        });
+        self
+    }
+
+    /// Configure a Go module path and package name; retain other targets.
+    pub fn go(mut self, module: &str, package: &str) -> Self {
+        self.options.targets.go = Some(crucible_codegen::cdk::Go {
+            module_name: module.into(),
+            package_name: package.into(),
+        });
+        self
+    }
+
     /// Read CDK publishing metadata now; later setters can override its fields.
     pub fn config(self, path: impl AsRef<Path>) -> Self {
         self.try_config(path)
