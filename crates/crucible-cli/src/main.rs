@@ -4,6 +4,7 @@ use std::process::ExitCode;
 
 mod output;
 mod scaffold;
+mod starter;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use crucible_smithy::ir::{Service, Shape, Traits};
@@ -31,6 +32,23 @@ struct Source {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Create a single-crate Hello service that builds and runs immediately.
+    New {
+        /// Cargo package name, for example hello-service.
+        name: String,
+        /// Destination directory; defaults to the package name. Must be empty.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Pin a Crucible commit instead of this CLI's matching release tag.
+        #[arg(long, conflicts_with = "runtime_path")]
+        crucible_rev: Option<String>,
+        /// Use a local Crucible checkout for development and qualification.
+        #[arg(long)]
+        runtime_path: Option<PathBuf>,
+        /// Select an upstream Smithy X.Y.Z release instead of the tested default.
+        #[arg(long)]
+        smithy_version: Option<String>,
+    },
     /// Load a model and report every construct crucible cannot generate from.
     Check {
         #[command(flatten)]
@@ -436,6 +454,11 @@ enum MiddlewareArg {
 
 fn main() -> ExitCode {
     let result = match Cli::parse().command {
+        Command::New { name, out, crucible_rev, runtime_path, smithy_version } => {
+            let out = out.unwrap_or_else(|| PathBuf::from(&name));
+            starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), smithy_version.as_deref())
+                .map(|()| println!("Created {}. Open {} in RustRover and Run, or: cd {} && cargo run", name, out.display(), out.display()))
+        },
         Command::Check { source, target } => lower_with_capabilities(
             &source, &target.map(ClientLanguage::capabilities).unwrap_or_default(),
         ).map(|service| print!("{}", summary(&service))),
@@ -979,6 +1002,7 @@ fn generate(target: Target) -> Result<(), String> {
                 validation_error,
                 internal_error,
                 strict_inputs,
+                ..Default::default()
             };
             let code = if client {
                 crucible_codegen_rust::generate_client(&service)

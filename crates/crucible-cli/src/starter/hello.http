@@ -1,0 +1,11 @@
+### Hello (200)
+POST http://127.0.0.1:8080/hello
+Content-Type: application/json
+
+{"name":"World"}
+
+### Missing required name (400 ValidationError)
+POST http://127.0.0.1:8080/hello
+Content-Type: application/json
+
+{}

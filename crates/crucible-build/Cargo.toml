@@ -1,6 +1,6 @@
 [package]
 name = "crucible-build"
-description = "Build-script support: model packages publish their Smithy model, services generate code from it"
+description = "Compile Smithy sources and generate Rust services and clients from Cargo builds"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,13 @@ repository.workspace = true
 [dependencies]
 crucible-codegen-rust.workspace = true
 crucible-smithy.workspace = true
+crucible-traits.workspace = true
+serde_json.workspace = true
+smithy-tooling = { workspace = true, optional = true }
+
+[features]
+default = ["smithy"]
+smithy = ["dep:smithy-tooling"]
 
 [lints]
 workspace = true

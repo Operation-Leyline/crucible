@@ -1,0 +1,124 @@
+{
+  "artifacts": [
+    {
+      "artifact": "smithy-build",
+      "checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-build/1.74.0/smithy-build-1.74.0.jar.sha256",
+      "dependencies": [
+        "smithy-model",
+        "smithy-utils"
+      ],
+      "jar": "vendor/runtime/smithy-build.jar",
+      "license_notice_source_artifact": "smithy-build",
+      "pom_checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-build/1.74.0/smithy-build-1.74.0.pom.sha256",
+      "pom_sha256": "b956f43d5ba9765cbd89a7463ee767622a59f06667533babcaade0b500bb0082",
+      "pom_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-build/1.74.0/smithy-build-1.74.0.pom",
+      "sha256": "1c74e9f6c0e0b79a1d5c169351775f266a43bea9698bd70906feff8080070d52",
+      "url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-build/1.74.0/smithy-build-1.74.0.jar",
+      "version": "1.74.0"
+    },
+    {
+      "artifact": "smithy-cli",
+      "checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-cli/1.74.0/smithy-cli-1.74.0.jar.sha256",
+      "dependencies": [
+        "smithy-build",
+        "smithy-diff",
+        "smithy-model",
+        "smithy-syntax"
+      ],
+      "jar": "vendor/runtime/smithy-cli.jar",
+      "license_notice_source_artifact": "smithy-cli",
+      "pom_checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-cli/1.74.0/smithy-cli-1.74.0.pom.sha256",
+      "pom_sha256": "399c47549ce2bc98f7b5d5f3e31e0071b2905c1bcd2d2864daa6138323d583d0",
+      "pom_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-cli/1.74.0/smithy-cli-1.74.0.pom",
+      "sha256": "9c19ad1c5195a47011e7fb471fafae5ff48e5346d474fe6cb3aeeae35fc3f066",
+      "url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-cli/1.74.0/smithy-cli-1.74.0.jar",
+      "version": "1.74.0"
+    },
+    {
+      "artifact": "smithy-diff",
+      "checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-diff/1.74.0/smithy-diff-1.74.0.jar.sha256",
+      "dependencies": [
+        "smithy-model",
+        "smithy-utils"
+      ],
+      "jar": "vendor/runtime/smithy-diff.jar",
+      "license_notice_source_artifact": "smithy-diff",
+      "pom_checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-diff/1.74.0/smithy-diff-1.74.0.pom.sha256",
+      "pom_sha256": "76a6b9a9d41c5e7bfc37d192688cdc0d5223a29c3a15ce29fbdbdb9fa726e610",
+      "pom_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-diff/1.74.0/smithy-diff-1.74.0.pom",
+      "sha256": "bd36834e6e44c43c6ae06f25f952b92c5d3dc606a7b447d2614c893e5b33d1b6",
+      "url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-diff/1.74.0/smithy-diff-1.74.0.jar",
+      "version": "1.74.0"
+    },
+    {
+      "artifact": "smithy-jmespath",
+      "checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-jmespath/1.74.0/smithy-jmespath-1.74.0.jar.sha256",
+      "dependencies": [
+        "smithy-utils"
+      ],
+      "jar": "vendor/runtime/smithy-jmespath.jar",
+      "license_notice_source_artifact": "smithy-jmespath",
+      "pom_checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-jmespath/1.74.0/smithy-jmespath-1.74.0.pom.sha256",
+      "pom_sha256": "3a8bbaad79dadc0dbbcf2d5760d8b862ad75fefc3ecd714223e84dca89ded938",
+      "pom_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-jmespath/1.74.0/smithy-jmespath-1.74.0.pom",
+      "sha256": "2abf99938ae88132c976d73880d42d75018ea9c68bab08c9e48d205306a381d6",
+      "url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-jmespath/1.74.0/smithy-jmespath-1.74.0.jar",
+      "version": "1.74.0"
+    },
+    {
+      "artifact": "smithy-model",
+      "checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-model/1.74.0/smithy-model-1.74.0.jar.sha256",
+      "dependencies": [
+        "smithy-jmespath",
+        "smithy-utils"
+      ],
+      "jar": "vendor/smithy-model.jar",
+      "license_notice_source_artifact": "smithy-model",
+      "pom_checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-model/1.74.0/smithy-model-1.74.0.pom.sha256",
+      "pom_sha256": "6d90eecbf1a5bff6d4670c9af514511713922ec9c6edae7c28a1974c627452bb",
+      "pom_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-model/1.74.0/smithy-model-1.74.0.pom",
+      "sha256": "5bd61bdc656e6c51cb0bfbcf4f83868c9bf1a8b828564decd8ade0fc51e1723f",
+      "url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-model/1.74.0/smithy-model-1.74.0.jar",
+      "version": "1.74.0"
+    },
+    {
+      "artifact": "smithy-syntax",
+      "checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-syntax/1.74.0/smithy-syntax-1.74.0.jar.sha256",
+      "dependencies": [
+        "smithy-model",
+        "smithy-utils"
+      ],
+      "jar": "vendor/runtime/smithy-syntax.jar",
+      "license_notice_source_artifact": "smithy-syntax",
+      "pom_checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-syntax/1.74.0/smithy-syntax-1.74.0.pom.sha256",
+      "pom_sha256": "74b35683c7ef4f01036d877a50ca723baccbbc6c105ef63918a5513eb343bb82",
+      "pom_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-syntax/1.74.0/smithy-syntax-1.74.0.pom",
+      "sha256": "acd93e90178d8852005a5ef2214fe31c733a388ff430df35f5bf4448d1de99dd",
+      "url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-syntax/1.74.0/smithy-syntax-1.74.0.jar",
+      "version": "1.74.0"
+    },
+    {
+      "artifact": "smithy-utils",
+      "checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-utils/1.74.0/smithy-utils-1.74.0.jar.sha256",
+      "dependencies": [],
+      "jar": "vendor/runtime/smithy-utils.jar",
+      "license_notice_source_artifact": "smithy-utils",
+      "pom_checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-utils/1.74.0/smithy-utils-1.74.0.pom.sha256",
+      "pom_sha256": "374b8683817e03073ef393080e192a004fcde3d83df4f8c2aadf4831a9d17f11",
+      "pom_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-utils/1.74.0/smithy-utils-1.74.0.pom",
+      "sha256": "1d89fa0624ebf8e0f3032cc6b8283ee58335d3ee43e1826b24b1e951b3bdf8d2",
+      "url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-utils/1.74.0/smithy-utils-1.74.0.jar",
+      "version": "1.74.0"
+    }
+  ],
+  "runtime_artifacts": [
+    "smithy-build",
+    "smithy-cli",
+    "smithy-diff",
+    "smithy-jmespath",
+    "smithy-model",
+    "smithy-syntax",
+    "smithy-utils"
+  ],
+  "version": "1.74.0"
+}

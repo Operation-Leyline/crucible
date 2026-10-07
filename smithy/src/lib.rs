@@ -18,6 +18,16 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The complete `crucible.protocols` model, including `json` and `strict`.
 pub const MODEL: &str = include_str!("../crucible.smithy");
 
+/// Reusable errors a service explicitly includes in its error contract.
+pub const ERRORS: &str = include_str!("../errors.smithy");
+
+/// Writes the protocol traits and reusable errors as separate model imports.
+pub fn write_models(directory: impl AsRef<Path>) -> io::Result<()> {
+    let directory = directory.as_ref();
+    write_model(directory.join("crucible.smithy"))?;
+    write_source(&directory.join("errors.smithy"), ERRORS)
+}
+
 /// Writes the bundled model to `path`, creating parent directories as needed.
 ///
 /// Existing files are replaced when their content differs. An unchanged model
@@ -25,9 +35,12 @@ pub const MODEL: &str = include_str!("../crucible.smithy");
 /// Use a path under the model package's source root for IDE indexing, or pass
 /// the resulting file to a Smithy build as a model import.
 pub fn write_model(path: impl AsRef<Path>) -> io::Result<()> {
-    let path = path.as_ref();
+    write_source(path.as_ref(), MODEL)
+}
+
+fn write_source(path: &Path, model: &str) -> io::Result<()> {
     match std::fs::read(path) {
-        Ok(existing) if existing == MODEL.as_bytes() => return Ok(()),
+        Ok(existing) if existing == model.as_bytes() => return Ok(()),
         Ok(_) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),
@@ -38,5 +51,5 @@ pub fn write_model(path: impl AsRef<Path>) -> io::Result<()> {
     {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, MODEL)
+    std::fs::write(path, model)
 }

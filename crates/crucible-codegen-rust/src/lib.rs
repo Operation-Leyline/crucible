@@ -56,6 +56,10 @@ pub struct Options {
     /// Every structure an input reaches refuses members it does not define.
     /// Without it, only structures with `@crucible.protocols#strict` do.
     pub strict_inputs: bool,
+    /// Fail generation if the model cannot supply a request rejection error.
+    /// Enabled by the single-crate Smithy build helper. Advanced services that
+    /// provide their own `on_rejection` handler leave this disabled.
+    pub require_rejection: bool,
 }
 
 /// The generated file's contents.
@@ -125,6 +129,13 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     let internal = errors::internal_error(service, configured_internal);
     let reject = errors::reject(service, validation.as_ref());
     let internal_fn = errors::internal(service, internal.as_ref());
+    if options.require_rejection && reject.is_none() {
+        diagnostics.push(&service.id,
+            "the service needs a fillable validation error before it can start; \
+             add `use crucible.errors#ValidationError` and `errors: [ValidationError]` \
+             to the service, or call `.validation_error(\"namespace#Error\")` for a declared \
+             custom error; services with their own `on_rejection` handler can use `.custom_rejections()`");
+    }
     if let (Some(id), true, None) = (configured_validation, validation_ok, &reject) {
         diagnostics.push(
             id,

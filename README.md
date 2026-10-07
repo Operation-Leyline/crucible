@@ -71,6 +71,32 @@ configuration, output conventions, and independent executable tests.
 
 ## Build a service
 
+Download `hello-service-v0.3.0.zip` from the matching [Crucible release](https://github.com/Operation-Leyline/crucible/releases),
+extract it, and open the folder in RustRover. Run `src/main.rs`, then send the
+request in `hello.http`. Rust and read access to this private repository are
+the prerequisites. The first build provisions the pinned Smithy runtime;
+subsequent builds use its cache.
+
+The starter is one Cargo crate. Its complete build script is:
+
+```rust
+fn main() {
+    crucible_build::from_smithy("smithy").generate();
+}
+```
+
+Edit `smithy/hello.smithy` and `src/operations/service/say_hello.rs`. Cargo
+validates the model and regenerates the contract when the model changes.
+The starter declares modeled validation and internal errors, and returns
+HTTP 400 for invalid requests. See [the quick start](docs/quickstart.md) for
+editor integration, version pins, and adding an operation.
+
+To create another package name from this checkout:
+
+```sh
+cargo run -p crucible-cli -- new my-service
+```
+
 The [framework guide](docs/framework.md) explains model packages, generated
 operation traits, middleware, interceptors, errors, and hosting. The [weather example](e2e/)
 contains a model package, a service, and a Rust client tested over HTTP.

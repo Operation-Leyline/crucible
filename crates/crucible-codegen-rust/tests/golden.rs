@@ -11,6 +11,39 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
+fn high_level_services_diagnose_missing_rejection_errors_before_startup() {
+    let model = include_str!("../../../tests/conformance/empty-service.json");
+    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+    let diagnostics = generate(
+        &service,
+        &Options {
+            require_rejection: true,
+            ..Options::default()
+        },
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(diagnostics.contains(&service.id.to_string()));
+    assert!(diagnostics.contains("errors: [ValidationError]"));
+    assert!(diagnostics.contains("custom_rejections()"));
+    // The existing JSON-AST path can still supply its own runtime handler.
+    assert!(generate(&service, &Options::default()).is_ok());
+}
+
+#[test]
+fn requiring_a_rejection_error_preserves_a_valid_services_generated_code() {
+    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let options = Options {
+        require_rejection: true,
+        ..Options::default()
+    };
+    assert_eq!(
+        generate(&service, &options).unwrap(),
+        generate(&service, &Options::default()).unwrap()
+    );
+}
+
+#[test]
 fn empty_services_do_not_import_unused_redaction_types() {
     let model = include_str!("../../../tests/conformance/empty-service.json");
     let service = Model::from_json(model).unwrap().lower(None).unwrap();

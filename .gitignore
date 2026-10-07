@@ -9,4 +9,5 @@ dist/
 /.venv-sdk/
 __pycache__/
 .mypy_cache/
+/.sdk/
 *.egg-info/

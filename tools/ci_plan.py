@@ -10,11 +10,11 @@ import subprocess
 GROUPS = frozenset({
     "rust", "e2e", "service_cli", "cdk", "terraform", "c", "cpp", "r",
     "ruby", "php", "dart", "swift", "kotlin", "csharp", "java", "go",
-    "python", "typescript",
+    "python", "typescript", "onboarding", "editor",
 })
 # Rust checks include every generator's unit/golden tests. Real HTTP and the
 # dependency-free TS runtime cover the server path on every shared-code PR.
-CORE_GROUPS = frozenset({"rust", "e2e", "typescript"})
+CORE_GROUPS = frozenset({"rust", "e2e", "typescript", "onboarding"})
 # Model/wire-description changes also compile representative native SDKs.
 # The complete language/platform matrix runs on the scheduled/manual tier.
 MODEL_GROUPS = CORE_GROUPS | {"python", "go"}
@@ -32,6 +32,11 @@ GENERATORS = {
     )},
 }
 TOOLS = {
+    "tools/test-onboarding.py": {"onboarding"},
+    "tools/package_starter.py": {"onboarding"},
+    "tools/sync_smithy_tooling.py": {"onboarding"},
+    "tools/test_smithy_snapshot.py": {"onboarding"},
+    "tools/build_traits_jar.py": CORE_GROUPS,
     **{f"tools/test-{name}.py": groups for name, groups in GENERATORS.items()},
     "tools/test-ts.sh": {"typescript", "e2e"},
     "tools/test-e2e.sh": {"e2e"},
@@ -53,6 +58,11 @@ TOOLS = {
 def affected_groups(paths):
     selected = {"rust"}
     for path in paths:
+        if path.startswith("ide/smithy-cargo/"):
+            selected.add("editor")
+            continue
+        if path in {"Cargo.toml", "crates/crucible-build/Cargo.toml", "smithy/Cargo.toml", "vendor/smithy-tooling/Cargo.toml"} or path.startswith("crates/crucible-cli/src/starter"):
+            selected.add("editor")
         parts = Path(path).parts
         if len(parts) >= 2 and parts[0] == "crates":
             # Models live in several generator test directories but are reused
@@ -87,6 +97,8 @@ def affected_groups(paths):
             selected.update(TOOLS[path])
         elif path.startswith("tools/cpp-vcpkg/"):
             selected.update({"c", "cpp"})
+        elif path.startswith(("smithy/", "vendor/smithy-tooling/")):
+            selected.update(CORE_GROUPS)
         elif path.startswith("e2e/"):
             selected.update(CORE_GROUPS)
         elif path.startswith("tests/conformance/") or path in {"Cargo.toml", "Cargo.lock", "tools/sdk_test_support.py"}:
@@ -107,7 +119,7 @@ def select_groups(event_name, event, diff):
     if event_name == "push":
         # PRs qualify affected native consumers; full runs catch interactions
         # on main. Keep immediate merged-code Rust and HTTP integration proof.
-        return {"rust", "e2e"}
+        return {"rust", "e2e", "onboarding"}
     if event_name != "pull_request":
         return set(GROUPS)
     try:
