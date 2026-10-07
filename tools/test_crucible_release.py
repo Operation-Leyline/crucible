@@ -9,7 +9,7 @@ class ReleaseTests(unittest.TestCase):
     def fixture(self, root):
         (root / "crates/crucible").mkdir(parents=True)
         (root / "crates/crucible/Cargo.toml").write_text('[package]\nname = "crucible"\nversion.workspace = true\n')
-        (root / "Cargo.toml").write_text('[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
+        (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "smithy"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
         (root / "e2e").mkdir()
         lock = '''version = 4
 
@@ -54,6 +54,24 @@ version = "0.1.0"
             with self.assertRaisesRegex(ValueError, "expected 0.1.0"):
                 prepare(root, "0.2.0")
             self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_member_outside_crates_is_checked_and_bumped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            (root / "smithy").mkdir()
+            (root / "smithy/Cargo.toml").write_text(
+                '[package]\nname = "crucible-traits"\nversion.workspace = true\n'
+            )
+            with self.assertRaisesRegex(ValueError, "missing workspace packages.*crucible-traits"):
+                check(root, "0.1.0")
+            for path in (root / "Cargo.lock", root / "e2e/Cargo.lock"):
+                with path.open("a") as lock:
+                    lock.write('\n[[package]]\nname = "crucible-traits"\nversion = "0.1.0"\n')
+            prepare(root, "0.2.0")
+            check(root, "0.2.0")
+            for path in (root / "Cargo.lock", root / "e2e/Cargo.lock"):
+                self.assertIn('name = "crucible-traits"\nversion = "0.2.0"', path.read_text())
 
     def test_mismatched_release_and_non_increasing_versions_fail(self):
         with tempfile.TemporaryDirectory() as directory:

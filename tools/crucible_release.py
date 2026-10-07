@@ -19,9 +19,15 @@ def version_tuple(version):
 def workspace(root):
     manifest = root / "Cargo.toml"
     content = manifest.read_text(encoding="utf-8")
-    version = tomllib.loads(content)["workspace"]["package"]["version"]
+    workspace_config = tomllib.loads(content)["workspace"]
+    version = workspace_config["package"]["version"]
     packages = set()
-    for path in sorted((root / "crates").glob("*/Cargo.toml")):
+    manifests = {
+        path
+        for member in workspace_config["members"]
+        for path in root.glob(f"{member}/Cargo.toml")
+    }
+    for path in sorted(manifests):
         package = tomllib.loads(path.read_text(encoding="utf-8"))["package"]
         if package["version"] != {"workspace": True}:
             raise ValueError(f"{path} does not inherit the workspace version")

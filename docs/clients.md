@@ -54,7 +54,9 @@ installed-consumer checks, artifact manifests, and publication recipes.
 ## Preparing a model
 
 Use the `crucible.protocols#json` service trait and bearer authentication where
-needed. [The protocol definition](../smithy/crucible.smithy) is distributed in
+needed. Rust model packages can take the definitions as the
+[`crucible-traits` Cargo dependency](../smithy/README.md), with a build-script
+helper for IDE indexing. [The protocol definition](../smithy/crucible.smithy) is also distributed in
 the `crucible-traits` jar on `traits-v<version>` releases. For a Gradle Smithy
 build, configure the artifact repository and dependency:
 
