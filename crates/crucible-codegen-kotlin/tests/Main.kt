@@ -2,6 +2,7 @@ package example.weather
 
 import example.weather.model.BuilderDefaults
 import example.weather.model.ValidationError
+import example.weather.model.ThrottlingError
 import example.weather.model.Sky
 import example.weather.model.PutCityPhotoInput
 import example.weather.model.Location

@@ -170,7 +170,7 @@ public final class XmlProtocolTest {
     NEXT.set((exchange, body) -> new Reply(503, Map.of(), "<ErrorResponse><Error><Code>SlowDown</Code><Message>later</Message></Error></ErrorResponse>"));
     try { client.greetingWithErrors(); throw new AssertionError("unmodeled error expected"); }
     catch (ServiceError error) {
-      check(error.getClass() == ServiceError.class && error.errorName().equals("SlowDown") && error.getMessage().equals("later"), "unmodeled code");
+      check(error.getClass() == RestXmlException.class && error.errorName().equals("SlowDown") && error.getMessage().equals("later"), "unmodeled code");
     }
     // S3-style services send the <Error> element without the ErrorResponse wrapper.
     var config = new example.nowrap.ClientConfig();

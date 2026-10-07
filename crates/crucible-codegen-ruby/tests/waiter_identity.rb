@@ -82,7 +82,7 @@ end
 end
 exchange(WaiterQuery, :QueryIdentityClient, [xml_error('UnmodeledWire')], 1) do |client|
   error = rejects(WaiterQuery::Runtime::ServiceError) { client.query_read }
-  check(error.instance_of?(WaiterQuery::Runtime::ServiceError) && error.metadata.name == 'UnmodeledWire', 'unmodeled wire error retained')
+  check(error.instance_of?(WaiterQuery::QueryIdentityException) && error.metadata.name == 'UnmodeledWire', 'unmodeled wire error retained')
 end
 exchange(WaiterQuery, :QueryIdentityClient, [xml_error('UnmodeledWire'), success], 2) do |client|
   client.wait_until_by_unknown(**options)
@@ -93,7 +93,7 @@ exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized')], 1) do |cl
 end
 exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized', 'not-an-integer')], 1) do |client|
   error = rejects(WaiterQuery::Runtime::ServiceError) { client.query_read }
-  check(error.instance_of?(WaiterQuery::Runtime::ServiceError) && error.metadata.name == 'Customized', 'malformed model decoding retains generic wire error')
+  check(error.instance_of?(WaiterQuery::QueryIdentityException) && error.metadata.name == 'Customized', 'malformed model decoding retains generic wire error')
 end
 exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized', 'not-an-integer'), success], 2) do |client|
   client.wait_until_by_wire(**options)

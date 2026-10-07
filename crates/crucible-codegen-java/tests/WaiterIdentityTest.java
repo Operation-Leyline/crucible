@@ -100,7 +100,7 @@ public final class WaiterIdentityTest {
       calls(2);
 
       ServiceError unknown = queryError(query, xml("UnmodeledWire", "7"));
-      check(unknown.getClass() == ServiceError.class && "UnmodeledWire".equals(unknown.errorName()), "unmodeled wire name");
+      check(unknown.getClass() == QueryIdentityException.class && "UnmodeledWire".equals(unknown.errorName()), "unmodeled wire name");
       plan(xml("UnmodeledWire", "7"), success);
       query.waitUntilByUnknown(OPTIONS);
       calls(2);
@@ -110,7 +110,7 @@ public final class WaiterIdentityTest {
       check(byWire.lastError() instanceof CustomCodeError && "Customized".equals(((ServiceError) byWire.lastError()).errorName()), "wire code is not a modeled waiter identity");
 
       ServiceError malformed = queryError(query, xml("Customized", "not-an-integer"));
-      check(malformed.getClass() == ServiceError.class && "Customized".equals(malformed.errorName()), "malformed modeled error retains generic wire metadata");
+      check(malformed.getClass() == QueryIdentityException.class && "Customized".equals(malformed.errorName()), "malformed modeled error retains generic wire metadata");
       plan(xml("Customized", "not-an-integer"), success);
       query.waitUntilByWire(OPTIONS);
       calls(2);
