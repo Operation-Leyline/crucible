@@ -160,6 +160,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -241,9 +242,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         entry.push_str(&format!("require_relative '{package}/runtime/{name}'\n"));
         files.push(File {
             path: format!("lib/{package}/runtime/{name}.rb"),
-            contents: source.replace("CrucibleGenerated", module),
+            contents: crucible_codegen_common::service_exception_runtime(service, source)
+                .replace("CrucibleGenerated", module),
         });
     }
+    let exception = crucible_codegen_common::service_exception_name(service);
+    entry.push_str(&format!(
+        "module {module}\n  {exception} = Runtime::{exception}\nend\n"
+    ));
     for file in &files {
         if let Some(model) = file.path.strip_prefix(&format!("lib/{package}/models/")) {
             entry.push_str(&format!(

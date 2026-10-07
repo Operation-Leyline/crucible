@@ -10,5 +10,6 @@ module CrucibleGenerated
         super(metadata.message)
       end
     end
+    class ServiceException < ServiceError; end
   end
 end

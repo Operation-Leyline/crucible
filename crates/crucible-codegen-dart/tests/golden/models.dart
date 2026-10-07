@@ -46,7 +46,7 @@ final class CitySummary implements wire.WireModel {
     return object;
   }
 }
-final class ConflictError extends errors.ServiceError implements wire.WireModel {
+final class ConflictError extends errors.WeatherException implements wire.WireModel {
   final core.String message;
   const ConflictError({required this.message, errors.ErrorMetadata metadata = const errors.ErrorMetadata()}) : super(metadata);
   factory ConflictError.fromWire(core.Object? value, wire.WireContext context, {errors.ErrorMetadata metadata = const errors.ErrorMetadata()}) {
@@ -321,7 +321,7 @@ final class LocationUnknownVariant extends Location {
     return <core.String, core.Object?>{name: value.value};
   }
 }
-final class NotFoundError extends errors.ServiceError implements wire.WireModel {
+final class NotFoundError extends errors.WeatherException implements wire.WireModel {
   final core.String message;
   final core.String? _resourceId;
   final wire.Field<core.String>? _resourceIdPresence;
@@ -455,7 +455,7 @@ final class StatusOutput implements wire.WireModel {
   }
 }
 typedef Tags = core.List<core.String>;
-final class ThrottlingError extends errors.ServiceError implements wire.WireModel {
+final class ThrottlingError extends errors.WeatherException implements wire.WireModel {
   final core.String message;
   final core.int? _retryAfter;
   final wire.Field<core.int>? _retryAfterPresence;
@@ -478,7 +478,7 @@ final class ThrottlingError extends errors.ServiceError implements wire.WireMode
     return object;
   }
 }
-final class ValidationError extends errors.ServiceError implements wire.WireModel {
+final class ValidationError extends errors.WeatherException implements wire.WireModel {
   final core.String message;
   final ValidationReason reason;
   final ValidationFieldList? _fieldList;

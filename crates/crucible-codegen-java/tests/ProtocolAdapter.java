@@ -140,7 +140,8 @@ public final class ProtocolAdapter {
       result.addProperty("error", false);
     } catch (InvocationTargetException failure) {
       if (!(failure.getCause() instanceof ServiceError error)) throw failure;
-      boolean modeled = error.getClass() != ServiceError.class;
+      boolean modeled = target != null && ModelRegistry.classes().get(target) != null
+          && ModelRegistry.classes().get(target).isInstance(error);
       result.add("params", modeled && target != null ? params(target, runtime.encode(target, error, null), null) : JsonNull.INSTANCE);
       result.addProperty("error", true);
     }

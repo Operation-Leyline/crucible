@@ -23,6 +23,7 @@ pub fn enum_constant(name: &str) -> String {
     }
 }
 pub fn emit(service: &Service, options: &Options) -> Vec<File> {
+    let exception = crucible_codegen_common::service_exception_name(service);
     let module = &options.module_name;
     let runtime = format!("::{module}::Runtime");
     let mut files = Vec::new();
@@ -36,7 +37,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             Shape::Structure(structure) => {
                 let error = structure.error.is_some();
                 let parent = if error {
-                    format!(" < {runtime}::ServiceError")
+                    format!(" < {runtime}::{exception}")
                 } else {
                     String::new()
                 };

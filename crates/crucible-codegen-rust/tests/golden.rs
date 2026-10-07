@@ -11,6 +11,14 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
+fn service_exception_uses_rust_type_spelling() {
+    let mut service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    service.id = crucible_smithy::ShapeId::new("example.weather", "weather_api");
+    let source = generate_client(&service).unwrap();
+    assert!(source.contains("pub enum WeatherApiException"));
+}
+
+#[test]
 fn standard_exception_models_and_answer_functions_match_the_golden_file() {
     let source = include_str!("../../crucible-smithy/tests/fixtures/standard-service-errors.json");
     let service = Model::from_json(source).unwrap().lower(None).unwrap();

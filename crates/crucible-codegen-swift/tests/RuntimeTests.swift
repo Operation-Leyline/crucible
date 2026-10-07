@@ -171,7 +171,7 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         }
         let client = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: transport, maxAttempts: 2, baseDelay: 0))
         do { _ = try await client.ping(); XCTFail("Expected error") }
-        catch let error as any ServiceError {
+        catch let error as any WeatherException {
             XCTAssertTrue(error.metadata.throttling); XCTAssertEqual(error.metadata.name, "ThrottlingError")
             XCTAssertEqual(error.metadata.requestID, "header"); XCTAssertEqual(error.metadata.status, 429)
         }
@@ -255,7 +255,7 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         let redirect = try WeatherClient(ClientConfig(endpoint: fixture + "/redirect", maxAttempts: 1))
         defer { redirect.close() }
         do { _ = try await redirect.ping(); XCTFail("Redirect followed") }
-        catch let error as any ServiceError { XCTAssertEqual(error.metadata.status, 302) }
+        catch let error as any WeatherException { XCTAssertEqual(error.metadata.status, 302) }
         let discard = try WeatherClient(ClientConfig(endpoint: fixture + "/discard", timeout: 1))
         defer { discard.close() }
         _ = try await discard.ping()

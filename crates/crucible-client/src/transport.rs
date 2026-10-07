@@ -80,6 +80,25 @@ pub struct ServiceError<E> {
 }
 
 impl<E> Error<E> {
+    /// Converts the modeled error kind while preserving response metadata and
+    /// every non-modeled failure. Generated service enums implement `From`
+    /// for each operation's error enum.
+    pub fn map_service<F>(self, map: impl FnOnce(E) -> F) -> Error<F> {
+        match self {
+            Self::Service(error) => Error::Service(ServiceError {
+                error: map(error.error),
+                metadata: error.metadata,
+            }),
+            Self::Unknown(error) => Error::Unknown(error),
+            Self::Transport(error) => Error::Transport(error),
+            Self::Invalid(message) => Error::Invalid(message),
+            Self::Decode(message) => Error::Decode(message),
+            Self::Timeout => Error::Timeout,
+            Self::ChecksumMismatch(algorithm) => Error::ChecksumMismatch(algorithm),
+            Self::Cancelled => Error::Cancelled,
+        }
+    }
+
     pub fn metadata(&self) -> Option<&ResponseMetadata> {
         match self {
             Self::Service(error) => Some(&error.metadata),

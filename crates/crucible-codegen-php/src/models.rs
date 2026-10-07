@@ -5,6 +5,7 @@ use crate::{
 use crucible_smithy::ir::{Service, Shape};
 
 pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
+    let exception = crucible_codegen_common::service_exception_name(service);
     let mut files = Vec::new();
     let runtime = format!("\\{namespace}\\Runtime");
     let header = format!("<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\n");
@@ -22,7 +23,7 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
             Shape::Structure(structure) => {
                 let error = structure.error.is_some();
                 let base = if error {
-                    format!(" extends {runtime}\\ServiceError")
+                    format!(" extends \\{namespace}\\{exception}")
                 } else {
                     String::new()
                 };

@@ -91,6 +91,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let mut diagnostics = Diagnostics::default();
     let client_name = format!("{}Client", service.id.name());
     if service.version.contains('\0')
@@ -385,7 +386,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("R/{name}.R"),
-            contents: source.into(),
+            contents: crucible_codegen_common::service_exception_runtime(service, source),
         });
     }
     files.push(File {

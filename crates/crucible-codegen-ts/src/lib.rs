@@ -199,11 +199,19 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let mut diagnostics = Diagnostics::default();
     let client = options
         .client_name
         .clone()
         .unwrap_or_else(|| format!("{}Client", service.id.name()));
+    let exception = crucible_codegen_common::service_exception_name(service);
+    if client == exception {
+        diagnostics.push(
+            &service.id,
+            format!("client name collides with generated service exception `{exception}`"),
+        );
+    }
     for id in service.shapes.keys().filter(|id| !id.is_prelude()) {
         let name = service.name_of(id);
         if RUNTIME_EXPORTS.contains(&name) || name == client {
@@ -254,7 +262,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         contents,
     };
     Ok(vec![
-        file("src/runtime.ts", RUNTIME.replace("\r\n", "\n")),
+        file(
+            "src/runtime.ts",
+            crucible_codegen_common::service_exception_runtime(service, RUNTIME)
+                .replace("\r\n", "\n"),
+        ),
         file(
             "src/query.ts",
             include_str!("../runtime/query.ts").replace("\r\n", "\n"),
@@ -277,7 +289,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ),
         file(
             "src/events.ts",
-            include_str!("../runtime/events.ts").replace("\r\n", "\n"),
+            crucible_codegen_common::service_exception_runtime(
+                service,
+                include_str!("../runtime/events.ts"),
+            )
+            .replace("\r\n", "\n"),
         ),
         file("src/models.ts", models::emit(service)),
         file("src/errors.ts", errors),

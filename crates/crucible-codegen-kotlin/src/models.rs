@@ -13,6 +13,7 @@ pub fn variant(name: &str) -> String {
 }
 
 pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String) {
+    let exception = crucible_codegen_common::service_exception_name(service);
     let mut files = Vec::new();
     let mut encode = String::from(
         "    fun encode(target: String, value: Any, codec: JsonCodec): kotlinx.serialization.json.JsonElement = when (target) {\n",
@@ -176,7 +177,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 models.push_str(&format!(
                     "){} {{\n",
                     if s.error.is_some() {
-                        format!(" : {package}.ServiceError()")
+                        format!(" : {package}.{exception}()")
                     } else {
                         String::new()
                     }

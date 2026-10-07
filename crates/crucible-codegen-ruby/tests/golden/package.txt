@@ -35,6 +35,9 @@ require_relative 'weather_client/runtime/http_request'
 require_relative 'weather_client/runtime/http_response'
 require_relative 'weather_client/runtime/net_http_transport'
 require_relative 'weather_client/runtime/client_runtime'
+module Weather
+  WeatherException = Runtime::WeatherException
+end
 require_relative 'weather_client/models/city_summary'
 require_relative 'weather_client/models/conflict_error'
 require_relative 'weather_client/models/coordinates'
@@ -143,7 +146,7 @@ end
 === lib/weather_client/models/conflict_error.rb ===
 # frozen_string_literal: true
 module Weather
-    class ConflictError < ::Weather::Runtime::ServiceError
+    class ConflictError < ::Weather::Runtime::WeatherException
       attr_reader :message_value
       def initialize(message_value:, metadata: ::Weather::Runtime::ErrorMetadata.new)
         super(metadata)
@@ -468,7 +471,7 @@ end
 === lib/weather_client/models/not_found_error.rb ===
 # frozen_string_literal: true
 module Weather
-    class NotFoundError < ::Weather::Runtime::ServiceError
+    class NotFoundError < ::Weather::Runtime::WeatherException
       attr_reader :message_value
       attr_reader :resource_id
       def initialize(message_value:, resource_id: ::Weather::Runtime::UNSET, metadata: ::Weather::Runtime::ErrorMetadata.new)
@@ -670,7 +673,7 @@ end
 === lib/weather_client/models/throttling_error.rb ===
 # frozen_string_literal: true
 module Weather
-    class ThrottlingError < ::Weather::Runtime::ServiceError
+    class ThrottlingError < ::Weather::Runtime::WeatherException
       attr_reader :message_value
       attr_reader :retry_after
       def initialize(message_value:, retry_after: ::Weather::Runtime::UNSET, metadata: ::Weather::Runtime::ErrorMetadata.new)
@@ -698,7 +701,7 @@ end
 === lib/weather_client/models/validation_error.rb ===
 # frozen_string_literal: true
 module Weather
-    class ValidationError < ::Weather::Runtime::ServiceError
+    class ValidationError < ::Weather::Runtime::WeatherException
       attr_reader :message_value
       attr_reader :reason
       attr_reader :field_list

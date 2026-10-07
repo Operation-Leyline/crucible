@@ -8,7 +8,7 @@ from pathlib import Path
 import unittest
 
 import httpx
-from weather_client import AsyncWeatherClient, WeatherClient, UNSET, ServiceError, CreateCityInput, ListCitiesInput, CitySummary, ListCitiesOutput
+from weather_client import AsyncWeatherClient, WeatherClient, UNSET, ServiceError, WeatherException, CreateCityInput, ListCitiesInput, CitySummary, ListCitiesOutput
 from weather_client import models as m
 from weather_client.runtime import _Codec, SyncClient, AsyncClientBase, NetworkError
 
@@ -19,6 +19,7 @@ SERIALIZATION_CASES = json.loads((ROOT / "tests/conformance/serialization.json")
 
 
 def assert_error_metadata(test, error, case):
+    test.assertIsInstance(error, WeatherException)
     test.assertEqual(error.name, case["error"])
     test.assertEqual(error.message, case["message"])
     test.assertEqual(error.metadata.status, case["status"])
@@ -46,6 +47,24 @@ CLASSES = {name: ServiceError for name in ("Ordinary", "Transient", "Throttled")
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_service_exception_covers_known_unknown_and_malformed_errors(self):
+        cases = [(429, {"__type": "ThrottlingError", "message": "throttled"}),
+                 (499, {"__type": "FutureException", "message": "future"}),
+                 (400, {"__type": "ValidationError", "message": "invalid", "reason": {}})]
+        for status, body in cases:
+            with self.subTest(status=status), httpx.Client(transport=httpx.MockTransport(
+                    lambda request: httpx.Response(status, json=body, headers={"x-request-id": "base-id"}))) as http:
+                client = WeatherClient(http=http, max_attempts=1)
+                with self.assertRaises(WeatherException) as caught:
+                    client.ping()
+                self.assertIsInstance(caught.exception, ServiceError)
+                if status == 429:
+                    self.assertIsInstance(caught.exception, m.ThrottlingError)
+                self.assertEqual(caught.exception.metadata.status, status)
+                self.assertEqual(caught.exception.metadata.request_id, "base-id")
+        self.assertTrue(issubclass(m.ConflictError, WeatherException))
+        self.assertFalse(issubclass(NetworkError, WeatherException))
+
     def test_renamed_pagination_tokens_remain_native_fields(self):
         import copy
         seen = []

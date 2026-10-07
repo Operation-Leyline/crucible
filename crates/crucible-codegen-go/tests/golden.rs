@@ -1,5 +1,32 @@
 use crucible_codegen_go::{Options, emit};
 use crucible_smithy::Model;
+
+#[test]
+fn service_exception_is_exported_with_go_type_spelling() {
+    let mut service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    service.id = crucible_smithy::ShapeId::new("example.weather", "weather_api");
+    let files = emit(
+        &service,
+        &Options {
+            module_path: "example.com/weather".into(),
+            package_name: "weather".into(),
+            endpoint: None,
+            content_sha256: false,
+        },
+    )
+    .unwrap();
+    let runtime = &files
+        .iter()
+        .find(|file| file.path == "runtime.go")
+        .unwrap()
+        .contents;
+    assert!(runtime.contains("type WeatherApiException interface"));
+}
 use std::{fs, path::Path};
 
 #[test]

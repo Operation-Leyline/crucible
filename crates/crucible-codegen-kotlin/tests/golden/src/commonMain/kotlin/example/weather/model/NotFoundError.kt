@@ -4,7 +4,7 @@ package example.weather.model
 class `NotFoundError` internal constructor(
     val `messageValue`: kotlin.String,
     internal val __crucibleField1: example.weather.OptionalValue<kotlin.String>,
-) : example.weather.ServiceError() {
+) : example.weather.WeatherException() {
     val `resourceId`: kotlin.String? get() = __crucibleField1.value
     fun hasResourceId(): kotlin.Boolean = __crucibleField1.present
     companion object {

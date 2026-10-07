@@ -160,10 +160,11 @@ impl<'a> Layout<'a> {
         }
     }
     pub fn emit(&self) -> Vec<File> {
+        let exception = crucible_codegen_common::service_exception_name(self.service);
         let ns = &self.options.namespace;
         let runtime = format!("::{ns}::runtime");
         let mut header = format!(
-            "#pragma once\n#include \"runtime/codec.hpp\"\n#include <compare>\n#include <exception>\n#include <variant>\n\nnamespace {ns}::models {{\n"
+            "#pragma once\n#include \"runtime/codec.hpp\"\n#include <compare>\n#include <exception>\n#include <variant>\n\nnamespace {ns} {{ using {exception} = runtime::{exception}; }}\nnamespace {ns}::models {{\n"
         );
         let mut source = format!(
             "#include \"{}/models.hpp\"\n\nnamespace {ns}::runtime {{\n",
@@ -182,7 +183,7 @@ impl<'a> Layout<'a> {
                     header.push_str(&format!(
                         "\nstruct {name}{} {{\n",
                         if error {
-                            format!(" : {runtime}::ServiceError")
+                            format!(" : {runtime}::{exception}")
                         } else {
                             String::new()
                         }
@@ -218,7 +219,7 @@ impl<'a> Layout<'a> {
                     }
                     let mut initializers = Vec::new();
                     if error {
-                        initializers.push(format!("{runtime}::ServiceError(std::move(metadata))"));
+                        initializers.push(format!("{runtime}::{exception}(std::move(metadata))"));
                     }
                     initializers.extend(
                         structure

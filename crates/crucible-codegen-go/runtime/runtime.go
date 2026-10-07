@@ -123,6 +123,11 @@ type ResponseMetadata struct {
 	Headers   http.Header
 	Body      []byte
 }
+type ServiceException interface {
+    error
+    serviceException()
+}
+
 type ServiceError struct {
 	Name       string
 	Message    string
@@ -130,6 +135,8 @@ type ServiceError struct {
 	Retryable  bool
 	Throttling bool
 }
+
+func (*ServiceError) serviceException() {}
 
 func (e *ServiceError) Error() string { return e.Name + ": " + e.Message }
 

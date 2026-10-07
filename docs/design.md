@@ -140,6 +140,15 @@ Name the public client after the Smithy service (`LeylineClient`, for example).
 Use the target language's spelling conventions for function-based APIs, such as
 C prefixes and R constructors. Shared runtime types can keep generic names.
 
+Give modeled SDK exceptions a service-wide type named after the service
+(`LeylineException`). Inheritance-based targets extend this type from the
+shared `ServiceError` base; unknown and malformed error responses use it too.
+Network, cancellation, checksum and other local failures keep their own types.
+Swift uses a service protocol, Go a service interface, R a condition class,
+and Rust a service enum with conversions from operation error enums. C retains
+its service-prefixed error representation. These are public SDK types, not
+Smithy structure inheritance or changes to protocol error codes.
+
 The shared IR defines wire behavior, not one public API for every language.
 Generate top-level model types in normal packages or modules. Ordinary request
 construction, response access, and pagination should use the language's native

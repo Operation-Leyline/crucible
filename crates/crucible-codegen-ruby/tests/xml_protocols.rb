@@ -109,7 +109,7 @@ errors = [
    '<ErrorResponse><Error><Code>ComplexError</Code><TopLevel>Top</TopLevel><Nested><Foo>bar</Foo></Nested></Error><RequestId>body-id</RequestId></ErrorResponse>',
    ->(error) { error.is_a?(RestXml::ComplexError) && error.header == 'Header' && error.top_level == 'Top' && error.nested.foo == 'bar' && error.metadata.request_id == 'header-id' }],
   [503, {}, '<ErrorResponse><Error><Code>SlowDown</Code><Message>later</Message></Error></ErrorResponse>',
-   ->(error) { error.instance_of?(r::ServiceError) && error.metadata.name == 'SlowDown' && error.metadata.message == 'later' }],
+   ->(error) { error.instance_of?(RestXml::RestXmlException) && error.metadata.name == 'SlowDown' && error.metadata.message == 'later' }],
 ]
 errors.each do |status, headers, body, expected|
   xml = client(RestXml, :RestXmlClient) { r::HttpResponse.new(status, headers: headers, body: body) }

@@ -2,6 +2,42 @@
 use crucible_smithy::ir::{Bindings, Fault, Member, Service, Shape, SimpleKind, TimestampFormat};
 use serde_json::{Value, json};
 
+/// Public service identity shared by exception classes, protocols and interfaces.
+pub fn service_exception_name(service: &Service) -> String {
+    format!("{}Exception", service.id.name())
+}
+
+/// Specializes the named exception slot in a bundled runtime template.
+/// Only call this on runtime source, never on model data or generated literals.
+pub fn service_exception_runtime(service: &Service, source: &str) -> String {
+    service_exception_runtime_named(&service_exception_name(service), source)
+}
+
+/// Uses a target language's spelling of the public service exception name.
+pub fn service_exception_runtime_named(name: &str, source: &str) -> String {
+    source
+        .replace("\r\n", "\n")
+        .replace("ServiceException", name)
+}
+
+pub fn check_service_exception_name(service: &Service) -> Result<(), crucible_smithy::Diagnostics> {
+    let name = service_exception_name(service);
+    let mut diagnostics = crucible_smithy::Diagnostics::default();
+    for id in service.shapes.keys().filter(|id| !id.is_prelude()) {
+        if service.name_of(id).eq_ignore_ascii_case(&name) {
+            diagnostics.push(
+                id,
+                format!("model name collides with generated service exception `{name}`"),
+            );
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 fn member(service: &Service, m: &Member, field: &impl Fn(&str) -> String) -> Value {
     let mut value = json!({"target": m.target.to_string(), "attribute": field(&m.name),
         "required": m.required, "default": service.document_wire_default(m), "optional": m.optional_on_client(),
@@ -188,6 +224,33 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn service_exception_identity_and_renamed_model_collisions() {
+        let source = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+        let service = crucible_smithy::Model::from_json(source)
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        assert_eq!(super::service_exception_name(&service), "WeatherException");
+        assert_eq!(
+            super::service_exception_runtime(&service, "class ServiceException : ServiceError {}"),
+            "class WeatherException : ServiceError {}"
+        );
+        let mut model: serde_json::Value = serde_json::from_str(source).unwrap();
+        model["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({
+            "example.weather#NotFoundError": "WeatherException"
+        });
+        let service = crucible_smithy::Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        assert!(
+            super::check_service_exception_name(&service)
+                .unwrap_err()
+                .to_string()
+                .contains("example.weather#NotFoundError")
+        );
+    }
     #[test]
     fn unique_items_lists_use_the_same_runtime_uniqueness_marker_as_sets() {
         use crucible_smithy::{Capabilities, Feature, Model};

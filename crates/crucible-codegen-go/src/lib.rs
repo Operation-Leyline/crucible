@@ -137,8 +137,10 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let mut errors = Diagnostics::default();
     let client_name = format!("{}Client", exported(service.id.name()));
+    let exception = exported(&crucible_codegen_common::service_exception_name(service));
     if options.package_name.is_empty()
         || !options
             .package_name
@@ -248,6 +250,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     .map(str::to_string)
     .collect();
     names.insert(client_name.clone());
+    names.insert(exception.clone());
     names.insert(format!("New{client_name}"));
     let mut methods = BTreeSet::new();
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
@@ -467,7 +470,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     }
                 }
                 if s.error.is_some() {
-                    models.push_str(&format!("func (e *{name}) Error() string {{ return e.Metadata.Error() }}\nfunc (e *{name}) Unwrap() error {{ return e.Metadata }}\n"));
+                    models.push_str(&format!("func (*{name}) serviceException() {{}}\nfunc (e *{name}) Error() string {{ return e.Metadata.Error() }}\nfunc (e *{name}) Unwrap() error {{ return e.Metadata }}\n"));
                 }
                 models.push('\n');
             }
@@ -553,9 +556,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             path: "runtime.go".into(),
             contents: format!(
                 "{header}{}",
-                include_str!("../runtime/runtime.go")
-                    .replace("\r\n", "\n")
-                    .replacen("package sdk\n", "", 1)
+                crucible_codegen_common::service_exception_runtime_named(
+                    &exception,
+                    include_str!("../runtime/runtime.go")
+                )
+                .replace("\r\n", "\n")
+                .replacen("package sdk\n", "", 1)
             ),
         },
         File {

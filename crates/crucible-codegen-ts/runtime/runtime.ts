@@ -512,6 +512,9 @@ export class ServiceError extends Error {
   }
 }
 
+/** Base for every error response from this service. */
+export class ServiceException extends ServiceError {}
+
 /** The request never got a response: DNS, connection, TLS or CORS. */
 export class NetworkError extends Error {
   constructor(readonly cause: unknown) {
@@ -945,7 +948,7 @@ export class Transport {
       ? this.#errors[name] : undefined;
     if (spec === undefined) {
       const message = stringField(body, "message") ?? (aws?stringField(body,"Message"):undefined) ?? `${operation.name} failed with HTTP ${response.status}`;
-      return new ServiceError(name ?? "UnknownError", message, metadata, response.status >= 500 ? "server" : "client");
+      return new ServiceException(name ?? "UnknownError", message, metadata, response.status >= 500 ? "server" : "client");
     }
     let fields: Record<string, unknown>;
     try {
@@ -956,7 +959,7 @@ export class Transport {
       fields = fromWire(spec.schema, body) as Record<string, unknown>;
     } catch (error) {
       if (!(error instanceof TypeError || error instanceof RangeError || error instanceof DOMException)) throw error;
-      return new ServiceError(name!, stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`,
+      return new ServiceException(name!, stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`,
         metadata, spec.fault ?? (response.status >= 500 ? "server" : "client"), spec.retryable);
     }
     return spec.create(fields, metadata);

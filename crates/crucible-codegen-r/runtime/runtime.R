@@ -233,7 +233,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
     object <- if (is.null(traits$payload)) .crucible_document(body, target) else { value <- json_object(); value[traits$payload[[1L]]] <- list(.crucible_payload(target, traits, response$body)); value }
     .crucible_codec(.crucible_apply_headers(target, traits, response, object), target)
   }, error = function(e) NULL)
-  error <- .crucible_condition(c(if (!is.null(model)) shape$name, 'crucible_service_error'), message, metadata = metadata, model = model)
+  error <- .crucible_condition(c(if (!is.null(model)) shape$name, 'ServiceException', 'crucible_service_error'), message, metadata = metadata, model = model)
   error
 }
 .crucible_media <- function(value, bindings, member, encode) {

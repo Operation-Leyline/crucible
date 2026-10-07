@@ -339,3 +339,21 @@ fn waiter_methods_cannot_collide_with_operations() {
             .any(|d| d.message.contains("waiter method name collision"))
     );
 }
+
+#[test]
+fn service_exception_cannot_shadow_runtime_failures() {
+    let mut service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    service.id = crucible_smithy::ShapeId::new("example.weather", "Network");
+    assert!(
+        emit(&service, &options())
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("Dart runtime export")
+    );
+}

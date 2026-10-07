@@ -430,6 +430,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let mut diagnostics = Diagnostics::default();
     for (name, value) in [
         ("package name", &options.package_name),
@@ -572,7 +573,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("{source}/{name}.swift"),
-            contents: contents.replace("\r\n", "\n"),
+            contents: crucible_codegen_common::service_exception_runtime(service, contents)
+                .replace("\r\n", "\n"),
         });
     }
     files.push(File { path: "Package.swift".into(), contents: format!("// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: {},\n    platforms: [.macOS(.v12), .iOS(.v15)],\n    products: [.library(name: {}, targets: [{}])],\n    dependencies: [.package(url: \"https://github.com/apple/swift-crypto.git\", from: \"3.10.0\")],\n    targets: [.target(name: {}, dependencies: [.product(name: \"Crypto\", package: \"swift-crypto\")], resources: [.process(\"Resources\")])]\n)\n", literal(&options.package_name), literal(&options.module_name), literal(&options.module_name), literal(&options.module_name)) });

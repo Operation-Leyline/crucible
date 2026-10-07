@@ -219,7 +219,7 @@ static class Program
         {
             using var client = new WeatherClient(new() { Endpoint = server.Endpoint });
             try { await client.GetCityAsync(new() { CityId = "x" }); throw new Exception("error missing"); }
-            catch (ServiceError e) { Check(e.ErrorName == "FutureError" && e.RequestId == "wire", "malformed metadata"); }
+            catch (ServiceError e) { Check(e is WeatherException, "unknown service exception base"); Check(e.ErrorName == "FutureError" && e.RequestId == "wire", "malformed metadata"); }
         }
     }
     static async Task Payloads()
@@ -265,7 +265,7 @@ static class Program
             try { await client.PingAsync(); throw new Exception("malformed modeled error ignored"); }
             catch (ServiceError error)
             {
-                Check(error.GetType() == typeof(ServiceError), "malformed modeled fields did not use generic error");
+                Check(error.GetType() == typeof(WeatherException), "malformed modeled fields did not use generic error");
                 Check(error.ErrorName == "ValidationError" && error.StatusCode == 400 && error.RequestId == "malformed-id" && error.Headers["x-error-detail"] == "retained", "malformed error lost HTTP metadata");
                 Check(!error.Retryable && !error.Throttling && server.Attempts == 1, "ordinary malformed error retried");
             }
@@ -315,7 +315,7 @@ static class Program
                 try { await Call(runtime); throw new Exception("null numeric list error ignored"); }
                 catch (ServiceError error)
                 {
-                    Check(error.GetType() == typeof(ServiceError) && error.ErrorName == "NumericListError" && error.StatusCode == status && error.RequestId == "numeric-id" && error.Headers["x-error-detail"] == "retained", "numeric list failure lost HTTP metadata");
+                    Check(error.GetType() == typeof(WeatherException) && error.ErrorName == "NumericListError" && error.StatusCode == status && error.RequestId == "numeric-id" && error.Headers["x-error-detail"] == "retained", "numeric list failure lost HTTP metadata");
                     Check(error.Retryable == throttling && error.Throttling == throttling && server.Attempts == 1, "numeric list failure lost retry traits or attempt limit");
                 }
             }

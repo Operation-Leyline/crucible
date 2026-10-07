@@ -31,13 +31,14 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
 }
 
 pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
+    let exception = crucible_codegen_common::service_exception_name(service);
     let mut out = String::new();
     for (id, structure) in error_shapes(service) {
         let name = service.name_of(id);
         let error = structure.error.as_ref().expect("filtered to errors");
         out.push('\n');
         doc(&mut out, "", structure.docs.as_deref());
-        out.push_str(&format!("export class {name} extends ServiceError {{\n"));
+        out.push_str(&format!("export class {name} extends {exception} {{\n"));
         for member in &structure.members {
             if INHERITED.contains(&member.name.as_str()) {
                 diagnostics.push(
@@ -82,7 +83,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         ));
     }
     let mut header = String::from(crate::HEADER);
-    header.push_str("import { ServiceError } from \"./runtime.js\";\n");
+    header.push_str(&format!("import {{ {exception} }} from \"./runtime.js\";\nexport {{ {exception} }} from \"./runtime.js\";\n"));
     header.push_str(&crate::names::runtime_types(&out, &["ResponseMetadata"]));
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");

@@ -4,7 +4,7 @@ package example.weather.model
 class `ThrottlingError` internal constructor(
     val `messageValue`: kotlin.String,
     internal val __crucibleField1: example.weather.OptionalValue<kotlin.Int>,
-) : example.weather.ServiceError() {
+) : example.weather.WeatherException() {
     val `retryAfter`: kotlin.Int? get() = __crucibleField1.value
     fun hasRetryAfter(): kotlin.Boolean = __crucibleField1.present
     companion object {

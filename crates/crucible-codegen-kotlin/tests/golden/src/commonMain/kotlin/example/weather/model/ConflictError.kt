@@ -3,7 +3,7 @@ package example.weather.model
 
 class `ConflictError` internal constructor(
     val `messageValue`: kotlin.String,
-) : example.weather.ServiceError() {
+) : example.weather.WeatherException() {
     companion object {
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`ConflictError` = Builder().apply(block).build()
     }

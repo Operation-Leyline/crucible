@@ -112,6 +112,10 @@ class ServiceError(Exception):
             raise AttributeError(name) from None
 
 
+class ServiceException(ServiceError):
+    """Base for every error response from this service."""
+
+
 class NetworkError(Exception):
     """Transport failed before a complete response could be read."""
 
@@ -765,7 +769,7 @@ class _Base:
                                     httpx.Headers(response.headers), body)
         converted: dict[str, Any] = {}
         error: dict[str, Any] = {}
-        cls = ServiceError
+        cls = ServiceException
         if target is not None:
             shape = self._codec.shapes[target]
             error = shape["error"]

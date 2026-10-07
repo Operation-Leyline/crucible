@@ -204,6 +204,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -242,7 +243,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/client_runtime.cpp"),
         ),
     ] {
-        let mut contents = source.replace("crucible_generated", &options.namespace);
+        let mut contents = crucible_codegen_common::service_exception_runtime(service, source)
+            .replace("crucible_generated", &options.namespace);
         let path = if name.ends_with(".hpp") {
             format!("include/{package}/runtime/{name}")
         } else {

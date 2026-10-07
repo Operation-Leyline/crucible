@@ -71,6 +71,7 @@ public:
 #include <exception>
 #include <variant>
 
+namespace example::weather { using WeatherException = runtime::WeatherException; }
 namespace example::weather::models {
 struct CitySummary;
 struct ConflictError;
@@ -105,9 +106,9 @@ struct CitySummary {
     explicit CitySummary(std::string id, std::string name, std::int64_t population, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> updated_at = {}, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> created_at = {}) : id(std::move(id)), name(std::move(name)), population(std::move(population)), updated_at(std::move(updated_at)), created_at(std::move(created_at)) {}
 };
 
-struct ConflictError : ::example::weather::runtime::ServiceError {
+struct ConflictError : ::example::weather::runtime::WeatherException {
     std::string message;
-    explicit ConflictError(std::string message, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::ServiceError(std::move(metadata)), message(std::move(message)) {}
+    explicit ConflictError(std::string message, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::WeatherException(std::move(metadata)), message(std::move(message)) {}
 };
 
 struct Coordinates {
@@ -178,10 +179,10 @@ struct ListCitiesOutput {
     explicit ListCitiesOutput(std::vector<::example::weather::models::CitySummary> cities, ::example::weather::runtime::Field<std::string> next_token = {}) : cities(std::move(cities)), next_token(std::move(next_token)) {}
 };
 
-struct NotFoundError : ::example::weather::runtime::ServiceError {
+struct NotFoundError : ::example::weather::runtime::WeatherException {
     std::string message;
     ::example::weather::runtime::Field<std::string> resource_id;
-    explicit NotFoundError(std::string message, ::example::weather::runtime::Field<std::string> resource_id = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::ServiceError(std::move(metadata)), message(std::move(message)), resource_id(std::move(resource_id)) {}
+    explicit NotFoundError(std::string message, ::example::weather::runtime::Field<std::string> resource_id = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::WeatherException(std::move(metadata)), message(std::move(message)), resource_id(std::move(resource_id)) {}
 };
 
 struct PhotoSummary {
@@ -211,10 +212,10 @@ struct StatusOutput {
     explicit StatusOutput() {}
 };
 
-struct ThrottlingError : ::example::weather::runtime::ServiceError {
+struct ThrottlingError : ::example::weather::runtime::WeatherException {
     std::string message;
     ::example::weather::runtime::Field<std::int32_t> retry_after;
-    explicit ThrottlingError(std::string message, ::example::weather::runtime::Field<std::int32_t> retry_after = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::ServiceError(std::move(metadata)), message(std::move(message)), retry_after(std::move(retry_after)) {}
+    explicit ThrottlingError(std::string message, ::example::weather::runtime::Field<std::int32_t> retry_after = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::WeatherException(std::move(metadata)), message(std::move(message)), retry_after(std::move(retry_after)) {}
 };
 
 struct ValidationField {
@@ -233,12 +234,12 @@ struct ValidationReason {
     static ValidationReason known_other() { return ValidationReason{"other"}; }
 };
 
-struct ValidationError : ::example::weather::runtime::ServiceError {
+struct ValidationError : ::example::weather::runtime::WeatherException {
     std::string message;
     ::example::weather::models::ValidationReason reason;
     ::example::weather::runtime::Field<std::vector<::example::weather::models::ValidationField>> field_list;
     ::example::weather::runtime::Field<std::string> request_id;
-    explicit ValidationError(std::string message, ::example::weather::models::ValidationReason reason, ::example::weather::runtime::Field<std::vector<::example::weather::models::ValidationField>> field_list = {}, ::example::weather::runtime::Field<std::string> request_id = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::ServiceError(std::move(metadata)), message(std::move(message)), reason(std::move(reason)), field_list(std::move(field_list)), request_id(std::move(request_id)) {}
+    explicit ValidationError(std::string message, ::example::weather::models::ValidationReason reason, ::example::weather::runtime::Field<std::vector<::example::weather::models::ValidationField>> field_list = {}, ::example::weather::runtime::Field<std::string> request_id = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::WeatherException(std::move(metadata)), message(std::move(message)), reason(std::move(reason)), field_list(std::move(field_list)), request_id(std::move(request_id)) {}
 };
 }
 

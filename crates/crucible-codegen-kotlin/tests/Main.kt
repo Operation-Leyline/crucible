@@ -2,6 +2,7 @@ package example.weather
 
 import example.weather.model.BuilderDefaults
 import example.weather.model.ValidationError
+import example.weather.model.ThrottlingError
 import example.weather.model.Sky
 import example.weather.model.PutCityPhotoInput
 import example.weather.model.Location
@@ -269,6 +270,18 @@ private suspend fun httpBehavior() {
     }.use { server -> WeatherClient(server.config()).use { it.retryUnsafe(); check(malformed.get() == 2) } }
 }
 private suspend fun failures() = coroutineScope {
+    for ((status, body) in listOf(
+        429 to """{"__type":"ThrottlingError","message":"throttled"}""",
+        499 to """{"__type":"FutureException","message":"future"}""",
+        400 to """{"__type":"ValidationError","message":"bad","reason":{}}""")) {
+        Server { exchange -> exchange.responseHeaders.add("x-request-id", "base-id"); response(exchange, status, body) }.use { server ->
+            WeatherClient(server.config()).use { client ->
+                try { client.ping(); error("error response accepted") }
+                catch (error: WeatherException) { check(error.status == status && error.requestId == "base-id"); if (status == 429) check(error is ThrottlingError) }
+            }
+        }
+    }
+
     val count = AtomicInteger()
     Server { exchange -> count.incrementAndGet(); response(exchange, 200, "invalid") }.use { server ->
         WeatherClient(server.config()).use { client ->

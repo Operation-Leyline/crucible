@@ -289,7 +289,9 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 }
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    let exception = crucible_codegen_common::service_exception_name(service);
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let client_name = format!("{}Client", service.id.name());
     let mut diagnostics = Diagnostics::default();
     if !options.package_name.split('.').all(identifier) {
@@ -522,7 +524,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push_str("    }\n");
             }
             Shape::Structure(s) | Shape::Union(s)=>{
-                models.push_str(&format!("    public final class {name}{} {{\n",if s.error.is_some(){format!(" extends {package}.ServiceError")}else{String::new()}));
+                models.push_str(&format!("    public final class {name}{} {{\n",if s.error.is_some(){format!(" extends {package}.{exception}")}else{String::new()}));
                 if s.error.is_some(){models.push_str("        private static final long serialVersionUID = 1L;\n");}
                 for m in &s.members {
                     let t=ty(service,&m.target,package); let f=field(&m.name);
@@ -703,6 +705,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/OptionalValue.java"),
         ),
         ("ServiceError", include_str!("../runtime/ServiceError.java")),
+        (
+            exception.as_str(),
+            include_str!("../runtime/ServiceException.java"),
+        ),
         ("NetworkError", include_str!("../runtime/NetworkError.java")),
         ("UnknownUnion", include_str!("../runtime/UnknownUnion.java")),
         ("ByteStream", include_str!("../runtime/ByteStream.java")),
@@ -717,7 +723,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             format!("{source}/{name}.java"),
             format!(
                 "{header}{}",
-                body.replace("\r\n", "\n")
+                crucible_codegen_common::service_exception_runtime(service, body)
+                    .replace("\r\n", "\n")
                     .replace("Models.Unit", &format!("{package}.model.Unit"))
             ),
         ));

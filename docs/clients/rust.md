@@ -144,6 +144,23 @@ Unknown errors also retain their type name, message, and retry classification.
 Other variants are `Unknown`, `Transport`, `Invalid`, `Decode`, `Timeout`,
 `Cancelled`, and `ChecksumMismatch`.
 
+The generated `WeatherException` enum contains every modeled service error.
+Each operation error enum converts into it with `From`, as does each individual
+modeled exception. Use it when several operations need one error type:
+
+```rust
+use crucible_client::Error;
+use weather_client::{GetCityError, WeatherException};
+
+fn service_error(error: Error<GetCityError>) -> Error<WeatherException> {
+    error.map_service(WeatherException::from)
+}
+```
+
+The conversion preserves the response status, request ID, headers, unknown
+errors and retry classification. Transport and other local failures retain
+their existing variants in the outer `Error` enum.
+
 When upgrading, regenerate clients and change patterns such as
 `Error::Service(CreateCityError::ConflictError(error))` to
 `Error::Service(ServiceError { error: CreateCityError::ConflictError(error), .. })`.
