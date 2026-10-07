@@ -20,6 +20,7 @@ check(native_input.name == 'Oslo' && native_input.location.nil? && native_input.
 native_page = Weather::ListCitiesOutput.new(cities: [Weather::CitySummary.new(id: 'c', name: 'Oslo', population: 7)])
 check(native_page.cities.instance_of?(Array) && native_page.cities.map(&:name) == ['Oslo'], 'Native response collections and readers')
 check(!Weather.const_defined?(:Models, false), 'No artificial model container')
+check(ConflictError < WeatherException, "Modeled error shares the public service base")
 class Fake
   attr_reader :requests, :closed
   def initialize(&handler)
@@ -151,10 +152,10 @@ client.create_city(input)
 check(fake.requests.size == 2 && fake.requests[0].body == fake.requests[1].body && input.client_token.equal?(UNSET), 'Stable bytes and caller ownership')
 check(token_calls == 1 && fake.requests[0].body.include?('deterministic-idempotency-token'), 'Configured idempotency token generated once and reused on retry')
 fake = Fake.new { HttpResponse.new(429, headers: {'x-request-id' => 'header'}, body: '{"__type":"ThrottlingError","message":42}') }
-error = rejects(ServiceError) { sdk(fake, max_attempts: 2).ping }
+error = rejects(WeatherException) { sdk(fake, max_attempts: 2).ping }
 check(error.metadata.status == 429 && error.metadata.throttling && error.metadata.request_id == 'header' && fake.requests.size == 2, 'Malformed error retains metadata')
 fake = Fake.new { HttpResponse.new(429, headers: {'x-request-id' => 'unicode'}, body: '{"__type":"ThrottlingError","message":"\udc00"}') }
-error = rejects(ServiceError) { sdk(fake, max_attempts: 2).ping }
+error = rejects(WeatherException) { sdk(fake, max_attempts: 2).ping }
 check(error.metadata.status == 429 && error.metadata.throttling && error.metadata.request_id == 'unicode' && fake.requests.size == 2, 'Malformed Unicode error retains wire metadata')
 fake = Fake.new { HttpResponse.new(200, body: '{bad') }
 rejects { sdk(fake).get_city(GetCityInput.new(city_id: 'x')) }
@@ -195,7 +196,7 @@ client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'bad-le
 check(client.get_city_photo(GetCityPhotoInput.new(city_id: 'x')).photo == 'complete', 'Malformed Content-Length retries')
 client.close
 client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'not-modified', max_attempts: 1))
-check(rejects(ServiceError) { client.get_city(GetCityInput.new(city_id: 'x')) }.metadata.status == 304, 'Bodyless 304 retains wire status')
+check(rejects(WeatherException) { client.get_city(GetCityInput.new(city_id: 'x')) }.metadata.status == 304, 'Bodyless 304 retains wire status')
 client.close
 client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'partial', base_delay: 0))
 check(client.get_city_photo(GetCityPhotoInput.new(city_id: 'x')).photo == 'complete', 'Partial body retry')
@@ -218,7 +219,7 @@ client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'discar
 client.ping
 client.close
 client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'redirect', max_attempts: 1))
-check(rejects(ServiceError) { client.ping }.metadata.status == 302, 'Redirect refusal')
+check(rejects(WeatherException) { client.ping }.metadata.status == 302, 'Redirect refusal')
 client.close
 token = 0
 client = Weather::WeatherClient.new(ClientConfig.new(endpoint: fixture + 'echo', token: -> { (token += 1).to_s }, base_delay: 0))

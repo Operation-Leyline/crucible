@@ -418,7 +418,7 @@ std::pair<ErrorMetadata, std::exception_ptr> ClientRuntime::failure(const Json& 
         }
         catch (const std::invalid_argument&) { /* Preserve metadata if modeled members are malformed. */ }
     }
-    return {metadata, std::make_exception_ptr(ServiceError(metadata))};
+    return {metadata, std::make_exception_ptr(ServiceException(metadata))};
 }
 double ClientRuntime::retry_delay(unsigned attempt, const std::optional<std::string>& value) const {
     if (value) {

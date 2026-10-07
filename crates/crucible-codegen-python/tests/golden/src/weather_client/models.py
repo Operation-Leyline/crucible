@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, TypeAlias
-from .runtime import UNSET, Unset, OpenEnum, ServiceError
+from .runtime import UNSET, Unset, OpenEnum, WeatherException
 
 CityId: TypeAlias = str
 
@@ -21,7 +21,7 @@ class CitySummary:
     updated_at: datetime | None | Unset = field(default=UNSET, repr=True)
     created_at: datetime | None | Unset = field(default=UNSET, repr=True)
 
-class ConflictError(ServiceError):
+class ConflictError(WeatherException):
     message: str
 
 @dataclass(kw_only=True)
@@ -81,7 +81,7 @@ class Location:
     unknown: None | None | Unset = field(default=UNSET, repr=True)
     _unknown: tuple[str, Any] | Unset = field(default=UNSET, repr=False)
 
-class NotFoundError(ServiceError):
+class NotFoundError(WeatherException):
     message: str
     resource_id: str | Unset
 
@@ -117,13 +117,13 @@ class StatusOutput:
 
 Tags: TypeAlias = list["str"]
 
-class ThrottlingError(ServiceError):
+class ThrottlingError(WeatherException):
     message: str
     retry_after: int | Unset
 
 Thumbnail: TypeAlias = bytes
 
-class ValidationError(ServiceError):
+class ValidationError(WeatherException):
     message: str
     reason: ValidationReason | Unset
     field_list: ValidationFieldList | Unset

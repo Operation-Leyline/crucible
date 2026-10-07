@@ -117,7 +117,7 @@ int main() {
     check(WeatherClient(config(fake)).get_city(GetCityInput("a/b *?#é", Field<Timestamp>::of(Timestamp::parse("2026-10-01T00:00:00Z")))).request_id.value() == "bound", "Bound response header");
     fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{429, {{"x-request-id", "header"}}, R"({"__type":"ThrottlingError","message":42})"}; });
     auto settings = config(fake); settings.max_attempts = 2;
-    const auto malformed = rejects<ServiceError>([&] { (void)WeatherClient(settings).ping(); });
+    const auto malformed = rejects<WeatherException>([&] { (void)WeatherClient(settings).ping(); });
     check(malformed.metadata().throttling && malformed.metadata().request_id == "header" && fake->requests.size() == 2, "Malformed modeled error retains metadata");
     fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) { return HttpResponse{200, {}, "{bad"}; });
     (void)rejects([&] { (void)WeatherClient(config(fake)).get_city(GetCityInput("x")); });
@@ -163,7 +163,7 @@ int main() {
         native.close();
     }
     settings = config(); settings.endpoint = endpoint + "not-modified"; settings.max_attempts = 1;
-    check(rejects<ServiceError>([&] { (void)WeatherClient(settings).get_city(GetCityInput("x")); }).metadata().status == 304, "Bodyless 304");
+    check(rejects<WeatherException>([&] { (void)WeatherClient(settings).get_city(GetCityInput("x")); }).metadata().status == 304, "Bodyless 304");
     settings = config(); settings.endpoint = endpoint + "empty-header"; settings.headers = {{"x-empty", ""}};
     (void)WeatherClient(settings).ping();
     settings = config(); settings.endpoint = endpoint + "stall"; settings.timeout = 0.15;
@@ -179,7 +179,7 @@ int main() {
     settings = config(); settings.endpoint = endpoint + "discard"; settings.timeout = 0.5;
     (void)WeatherClient(settings).ping();
     settings = config(); settings.endpoint = endpoint + "redirect"; settings.max_attempts = 1;
-    check(rejects<ServiceError>([&] { (void)WeatherClient(settings).ping(); }).metadata().status == 302, "Redirect refusal");
+    check(rejects<WeatherException>([&] { (void)WeatherClient(settings).ping(); }).metadata().status == 302, "Redirect refusal");
     unsigned token = 0;
     settings = config(); settings.endpoint = endpoint + "echo"; settings.token = [&] { return std::to_string(++token); };
     (void)WeatherClient(settings).create_city(CreateCityInput("x"));

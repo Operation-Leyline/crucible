@@ -39,6 +39,7 @@ type ConflictError struct {
 }
 func (m *ConflictError) SetMessage(value string) { m.Message = value }
 func (m *ConflictError) GetMessage() string { return m.Message }
+func (*ConflictError) serviceException() {}
 func (e *ConflictError) Error() string { return e.Metadata.Error() }
 func (e *ConflictError) Unwrap() error { return e.Metadata }
 
@@ -206,6 +207,7 @@ func (m *NotFoundError) SetResourceId(value string) { m.ResourceId = Some(value)
 func (m *NotFoundError) GetResourceId() string { if m != nil && m.ResourceId.Set && !m.ResourceId.Null { return m.ResourceId.Value }; var zero string; return zero }
 func (m *NotFoundError) HasResourceId() bool { return m != nil && m.ResourceId.Set }
 func (m *NotFoundError) IsNullResourceId() bool { return m != nil && m.ResourceId.Set && m.ResourceId.Null }
+func (*NotFoundError) serviceException() {}
 func (e *NotFoundError) Error() string { return e.Metadata.Error() }
 func (e *NotFoundError) Unwrap() error { return e.Metadata }
 
@@ -280,6 +282,7 @@ func (m *ThrottlingError) SetRetryAfter(value int32) { m.RetryAfter = Some(value
 func (m *ThrottlingError) GetRetryAfter() int32 { if m != nil && m.RetryAfter.Set && !m.RetryAfter.Null { return m.RetryAfter.Value }; var zero int32; return zero }
 func (m *ThrottlingError) HasRetryAfter() bool { return m != nil && m.RetryAfter.Set }
 func (m *ThrottlingError) IsNullRetryAfter() bool { return m != nil && m.RetryAfter.Set && m.RetryAfter.Null }
+func (*ThrottlingError) serviceException() {}
 func (e *ThrottlingError) Error() string { return e.Metadata.Error() }
 func (e *ThrottlingError) Unwrap() error { return e.Metadata }
 
@@ -306,6 +309,7 @@ func (m *ValidationError) SetRequestId(value string) { m.RequestId = Some(value)
 func (m *ValidationError) GetRequestId() string { if m != nil && m.RequestId.Set && !m.RequestId.Null { return m.RequestId.Value }; var zero string; return zero }
 func (m *ValidationError) HasRequestId() bool { return m != nil && m.RequestId.Set }
 func (m *ValidationError) IsNullRequestId() bool { return m != nil && m.RequestId.Set && m.RequestId.Null }
+func (*ValidationError) serviceException() {}
 func (e *ValidationError) Error() string { return e.Metadata.Error() }
 func (e *ValidationError) Unwrap() error { return e.Metadata }
 

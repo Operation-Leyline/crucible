@@ -1278,7 +1278,7 @@ final class ClientRuntime {
       name = text(shape(target), "name");
     }
     JsonObject traits = target == null ? new JsonObject() : shape(target).getAsJsonObject("error");
-    ServiceError error = new ServiceError();
+    ServiceError error = new ServiceException();
     if (target != null) {
       try {
         JsonObject typedValues = envelope != null

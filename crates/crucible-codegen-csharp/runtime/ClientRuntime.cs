@@ -817,7 +817,7 @@ internal sealed partial class ClientRuntime : IDisposable
         string? target;
         if (name is not null) target = candidates.Find(id => ErrorCode(id) == name);
         else { var matches = candidates.Where(id => Shape(id)["error"]!["status"]!.GetValue<int>() == status).ToList(); target = matches.Count == 1 ? matches[0] : null; }
-        ServiceError error = new();
+        ServiceError error = new ServiceException();
         var metadata = target is null ? null : Shape(target)["error"];
         if (target is not null)
         {

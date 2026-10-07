@@ -385,7 +385,7 @@ public final class ClientTest {
       try {
         new WeatherClient(server.config()).ping();
         throw new AssertionError("unknown error ignored");
-      } catch (ServiceError error) {
+      } catch (WeatherException error) {
         check(
             error.errorName().equals("FutureError") && error.requestId().equals("req"),
             "unknown error metadata");
@@ -702,7 +702,7 @@ public final class ClientTest {
           try {
             new WeatherClient(config).ping();
             check(limit == 2, "terminal malformed error must fail");
-          } catch (ServiceError error) {
+          } catch (WeatherException error) {
             check(limit == 1, "malformed error prevented retry");
             check(error.errorName().equals(test.get("error").getAsString()), "error name");
             check(error.getMessage().equals(test.get("message").getAsString()), "error message");

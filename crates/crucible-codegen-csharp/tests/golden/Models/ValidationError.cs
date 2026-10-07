@@ -2,7 +2,7 @@
 #nullable enable
 namespace Example.Weather.Models;
 
-public sealed class @ValidationError : global::Example.Weather.ServiceError {
+public sealed class @ValidationError : global::Example.Weather.WeatherException {
     public string @MessageValue { get; set; } = default!;
     public global::Example.Weather.Models.@ValidationReason @Reason { get; set; } = default!;
     public global::Example.Weather.Optional<global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>> @FieldListPresence { get; set; }

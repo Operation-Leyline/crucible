@@ -144,7 +144,7 @@ void main() {
   test('malformed modeled errors retain retry metadata; malformed success does not retry', () async {
     final fake = Fake((_, request, read) => response(429, '{"__type":"ThrottlingError","message":42,"requestId":"body"}', {'x-request-id':'header'}));
     try { await client(fake, maxAttempts:2).ping(); fail('Expected error'); }
-    on ServiceError catch(error) {
+    on WeatherException catch(error) {
       expect(error.metadata.status, 429); expect(error.metadata.requestId, 'header'); expect(error.metadata.throttling, isTrue);
     }
     expect(fake.requests, hasLength(2));

@@ -73,7 +73,7 @@ internal sealed partial class ClientRuntime
         var matches = type is null ? [] : op["errors"]!.AsArray().Select(n => Text(n)!)
             .Where(id => type.Contains('#') ? id == type : Text(Shape(id)["name"]) == type).ToList();
         var target = matches.Count == 1 ? matches[0] : null;
-        ServiceError error = new();
+        ServiceError error = new ServiceException();
         var metadata = target is null ? null : Shape(target)["error"];
         if (target is not null)
         {

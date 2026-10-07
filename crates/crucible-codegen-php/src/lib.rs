@@ -183,6 +183,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -344,12 +345,24 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("src/Runtime/{name}.php"),
-            contents: source.replace("CrucibleGenerated", namespace),
+            contents: crucible_codegen_common::service_exception_runtime(service, source)
+                .replace("CrucibleGenerated", namespace),
         });
     }
     files.push(File {
         path: format!("src/{}Client.php", service.id.name()),
         contents: client::emit(service, options),
+    });
+    files.push(File {
+        path: format!(
+            "src/{}.php",
+            crucible_codegen_common::service_exception_name(service)
+        ),
+        contents: crucible_codegen_common::service_exception_runtime(
+            service,
+            include_str!("../runtime/ServiceException.php"),
+        )
+        .replace("CrucibleGenerated", namespace),
     });
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)

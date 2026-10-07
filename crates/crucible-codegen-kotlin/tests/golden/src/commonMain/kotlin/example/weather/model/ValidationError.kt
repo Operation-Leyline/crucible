@@ -6,7 +6,7 @@ class `ValidationError` internal constructor(
     val `reason`: example.weather.model.`ValidationReason`,
     internal val __crucibleField2: example.weather.OptionalValue<example.weather.model.`ValidationFieldList`>,
     internal val __crucibleField3: example.weather.OptionalValue<kotlin.String>,
-) : example.weather.ServiceError() {
+) : example.weather.WeatherException() {
     val `fieldList`: example.weather.model.`ValidationFieldList`? get() = __crucibleField2.value
     fun hasFieldList(): kotlin.Boolean = __crucibleField2.present
     val `requestIdValue`: kotlin.String? get() = __crucibleField3.value

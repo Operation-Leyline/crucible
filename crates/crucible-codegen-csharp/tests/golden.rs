@@ -140,3 +140,21 @@ fn streams_outside_the_http_payload_are_diagnosed() {
     let error = emit(&service, &options()).err().unwrap();
     assert!(format!("{error:?}").contains("not the streaming payload"));
 }
+
+#[test]
+fn service_exception_cannot_shadow_runtime_failures() {
+    let mut service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    service.id = crucible_smithy::ShapeId::new("example.weather", "Waiter");
+    assert!(
+        emit(&service, &options())
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("C# runtime export")
+    );
+}

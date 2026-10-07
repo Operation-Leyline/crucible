@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { ConflictError, NetworkError, ServiceError, Sky, ThrottlingError, WeatherClient } from "./generated/src/index.js";
+import { ConflictError, NetworkError, ServiceError, WeatherException, Sky, ThrottlingError, WeatherClient } from "./generated/src/index.js";
 import type { Middleware } from "./generated/src/index.js";
 import { Transport, blob, fromWire, string, toWire } from "./generated/src/runtime.js";
 import type { OperationSpec } from "./generated/src/runtime.js";
@@ -88,6 +88,7 @@ test("a body failure never replays an unsafe operation", async () => {
   } }, { middleware: [], bearer: false }, {});
   const error = await transport.send({ name: "Unsafe", method: "POST", path: ["unsafe"], errors: [], retrySafe: false, output: { body: true } }, {}).catch(e => e);
   assert.ok(error instanceof NetworkError);
+  assert.ok(!(error instanceof WeatherException));
   assert.equal(calls, 1);
 });
 
@@ -188,6 +189,7 @@ test("errors decode to their class by status when unambiguous", async () => {
   const error = await new WeatherClient({ fetch }).createCity({ name: "Oslo" }).catch(e => e);
   assert.ok(error instanceof ConflictError);
   assert.ok(error instanceof ServiceError);
+  assert.ok(error instanceof WeatherException);
   assert.equal(error.message, "taken");
   assert.equal(error.$metadata.status, 409);
   assert.equal(error.$metadata.requestId, "req-9");
@@ -216,6 +218,7 @@ test("an unknown error keeps status and message", async () => {
   const { fetch } = fake(json(418, { message: "teapot" }));
   const error = await new WeatherClient({ fetch }).ping().catch(e => e);
   assert.ok(error instanceof ServiceError);
+  assert.ok(error instanceof WeatherException);
   assert.equal(error.name, "UnknownError");
   assert.equal(error.message, "teapot");
 });
@@ -225,6 +228,7 @@ test("network failures retry when safe, then surface as NetworkError", async () 
   const error = await new WeatherClient({ fetch, retry: quick }).ping().catch(e => e);
   assert.equal(sent.length, 3);
   assert.ok(error instanceof NetworkError);
+  assert.ok(!(error instanceof WeatherException));
 });
 
 test("an aborted request is not retried", async () => {
@@ -321,4 +325,14 @@ test("a blob in a JSON body is standard padded base64", () => {
 test("enums are values and types", () => {
   const sky: Sky = Sky.CLOUDY;
   assert.equal(sky, "cloudy");
+});
+
+test("malformed modeled fields retain the service base and retry metadata", async () => {
+  const { fetch } = fake(json(429, { __type: "ThrottlingError", message: 42 }, { "x-request-id": "base-id" }));
+  const error = await new WeatherClient({ fetch, retry: false }).createCity({ name: "Oslo" }).catch(e => e);
+  assert.ok(error instanceof WeatherException);
+  assert.ok(error instanceof ServiceError);
+  assert.equal(error.$metadata.requestId, "base-id");
+  assert.equal(error.$metadata.status, 429);
+  assert.deepEqual(error.$retryable, { throttling: true });
 });

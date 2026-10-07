@@ -1090,6 +1090,93 @@ mod __redaction {
 }
 
 
+/// All modeled errors from Weather. Unknown and transport failures remain in `crucible_client::Error`.
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub enum WeatherException {
+    ConflictError(errors::ConflictError),
+    NotFoundError(errors::NotFoundError),
+    ThrottlingError(errors::ThrottlingError),
+    ValidationError(errors::ValidationError),
+}
+impl From<errors::ConflictError> for WeatherException {
+    fn from(error: errors::ConflictError) -> Self { Self::ConflictError(error) }
+}
+impl From<errors::NotFoundError> for WeatherException {
+    fn from(error: errors::NotFoundError) -> Self { Self::NotFoundError(error) }
+}
+impl From<errors::ThrottlingError> for WeatherException {
+    fn from(error: errors::ThrottlingError) -> Self { Self::ThrottlingError(error) }
+}
+impl From<errors::ValidationError> for WeatherException {
+    fn from(error: errors::ValidationError) -> Self { Self::ValidationError(error) }
+}
+impl ::std::fmt::Display for WeatherException {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result { match self { Self::ConflictError(error) => ::std::fmt::Display::fmt(error, f),Self::NotFoundError(error) => ::std::fmt::Display::fmt(error, f),Self::ThrottlingError(error) => ::std::fmt::Display::fmt(error, f),Self::ValidationError(error) => ::std::fmt::Display::fmt(error, f), } }
+}
+impl ::std::error::Error for WeatherException {}
+impl From<CreateCityError> for WeatherException {
+    fn from(error: CreateCityError) -> Self {
+        match error {
+            CreateCityError::ConflictError(error) => Self::ConflictError(error),
+            CreateCityError::ThrottlingError(error) => Self::ThrottlingError(error),
+            CreateCityError::ValidationError(error) => Self::ValidationError(error),
+        }
+    }
+}
+impl From<GetCityError> for WeatherException {
+    fn from(error: GetCityError) -> Self {
+        match error {
+            GetCityError::NotFoundError(error) => Self::NotFoundError(error),
+            GetCityError::ThrottlingError(error) => Self::ThrottlingError(error),
+            GetCityError::ValidationError(error) => Self::ValidationError(error),
+        }
+    }
+}
+impl From<GetCityPhotoError> for WeatherException {
+    fn from(error: GetCityPhotoError) -> Self {
+        match error {
+            GetCityPhotoError::NotFoundError(error) => Self::NotFoundError(error),
+            GetCityPhotoError::ThrottlingError(error) => Self::ThrottlingError(error),
+            GetCityPhotoError::ValidationError(error) => Self::ValidationError(error),
+        }
+    }
+}
+impl From<ListCitiesError> for WeatherException {
+    fn from(error: ListCitiesError) -> Self {
+        match error {
+            ListCitiesError::ThrottlingError(error) => Self::ThrottlingError(error),
+            ListCitiesError::ValidationError(error) => Self::ValidationError(error),
+        }
+    }
+}
+impl From<PingError> for WeatherException {
+    fn from(error: PingError) -> Self {
+        match error {
+            PingError::ThrottlingError(error) => Self::ThrottlingError(error),
+            PingError::ValidationError(error) => Self::ValidationError(error),
+        }
+    }
+}
+impl From<PutCityPhotoError> for WeatherException {
+    fn from(error: PutCityPhotoError) -> Self {
+        match error {
+            PutCityPhotoError::NotFoundError(error) => Self::NotFoundError(error),
+            PutCityPhotoError::ThrottlingError(error) => Self::ThrottlingError(error),
+            PutCityPhotoError::ValidationError(error) => Self::ValidationError(error),
+        }
+    }
+}
+impl From<StatusError> for WeatherException {
+    fn from(error: StatusError) -> Self {
+        match error {
+            StatusError::ThrottlingError(error) => Self::ThrottlingError(error),
+            StatusError::ValidationError(error) => Self::ValidationError(error),
+        }
+    }
+}
+
 pub struct CreateCity;
 
 static CREATE_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {

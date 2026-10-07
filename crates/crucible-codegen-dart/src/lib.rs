@@ -242,6 +242,13 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         ]
         .map(str::to_string),
     );
+    let exception = crucible_codegen_common::service_exception_name(service);
+    if !names.insert(exception.clone()) {
+        result.push(
+            &service.id,
+            format!("service exception `{exception}` collides with a Dart runtime export"),
+        );
+    }
     names.insert(format!("{}Client", service.id.name()));
     let mut aliases = BTreeMap::new();
     for (id, shape) in &service.shapes {
@@ -393,6 +400,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let diagnostics = diagnose(service, options);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -448,7 +456,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("lib/src/runtime/{name}.dart"),
-            contents: contents.into(),
+            contents: crucible_codegen_common::service_exception_runtime(service, contents),
         });
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));

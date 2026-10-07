@@ -14,6 +14,7 @@ use weather_client::model::{
 };
 use weather_client::{
     CreateCityError, GetCityError, ListCitiesError, PingError, PutCityPhotoError, WeatherClient,
+    WeatherException,
 };
 use weather_service::MemoryCities;
 
@@ -135,11 +136,14 @@ async fn a_modelled_error_arrives_as_its_variant() {
             at: Field::Absent,
         })
         .await
+        .map_err(|error| error.map_service(WeatherException::from))
     {
         Err(Error::Service(crucible_client::ServiceError {
-            error: GetCityError::NotFoundError(error),
-            ..
+            error: WeatherException::NotFoundError(error),
+            metadata,
         })) => {
+            assert_eq!(metadata.status, 404);
+            assert!(metadata.request_id.is_some());
             assert_eq!(error.resource_id.as_deref(), Some("c-99999999"))
         }
         other => panic!("expected not found, got {other:?}"),

@@ -18,7 +18,8 @@ public protocol ServiceError: Error, Sendable, CustomStringConvertible {
     var metadata: ErrorMetadata { get }
 }
 extension ServiceError { public var description: String { metadata.message } }
-public struct UnknownServiceError: ServiceError {
+public protocol ServiceException: ServiceError {}
+public struct UnknownServiceError: ServiceException {
     public let metadata: ErrorMetadata
     public init(metadata: ErrorMetadata) { self.metadata = metadata }
 }

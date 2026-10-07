@@ -2,6 +2,6 @@
 #nullable enable
 namespace Example.Weather.Models;
 
-public sealed class @ConflictError : global::Example.Weather.ServiceError {
+public sealed class @ConflictError : global::Example.Weather.WeatherException {
     public string @MessageValue { get; set; } = default!;
 }

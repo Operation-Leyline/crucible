@@ -253,6 +253,8 @@ func TestMalformedErrorMetadataAndRetry(t *testing.T) {
 					}
 					return
 				}
+				var base WeatherException
+				if !errors.As(err, &base) { t.Fatalf("expected service base: %v", err) }
 				var service *ServiceError
 				if !errors.As(err, &service) {
 					t.Fatalf("expected service error, got %T: %v", err, err)
@@ -395,6 +397,8 @@ func TestModeledErrorsAndDecodeFailures(t *testing.T) {
 	})
 	_, err := client.Ping(context.Background(), Unit{})
 	var modeled *ValidationError
+	var serviceException WeatherException
+	if !errors.As(err, &serviceException) { t.Fatalf("expected service exception: %v", err) }
 	var generic *ServiceError
 	if !errors.As(err, &modeled) || !errors.As(err, &generic) || modeled.Reason != ValidationReasonFIELDVALIDATIONFAILED || generic.Metadata.RequestID != "request" || attempts != 1 {
 		t.Fatalf("wrong error: %#v", err)

@@ -3,7 +3,7 @@ import { createHash, createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { test } from "node:test";
-import { ChecksumError, EventStream, EventStreamError, EventsClient, NetworkError, ThrottledError, TimeoutError, UnavailableError } from "./generated-events/src/index.js";
+import { ChecksumError, EventStream, EventStreamError, EventsClient, EventsException, NetworkError, ThrottledError, TimeoutError, UnavailableError } from "./generated-events/src/index.js";
 import type { ClientEvents, ServerEvents } from "./generated-events/src/index.js";
 import { EventMessageDecoder, EventSigner, crc32, decodeEventMessage, encodeEventMessage, encodeHeaders, type EventHeaderValue, type EventMessage } from "./generated-events/src/events.js";
 import { EventStream as RpcEventStream, EventsClient as RpcClient } from "./generated-events-rpc/src/index.js";
@@ -248,6 +248,7 @@ test("output events arrive in order and a modeled exception is thrown as its err
     assert.deepEqual(seen[2], { payload: { kind: "alpha", item: { name: "p", values: [7] } } });
     assert.deepEqual(seen[3], { $unknown: { name: "future", json: '{"x":1}' } });
     assert.ok(thrown instanceof ThrottledError, String(thrown));
+    assert.ok(thrown instanceof EventsException);
     assert.equal(thrown.message, "slow down");
     assert.equal(thrown.retryAfterSeconds, 3);
     assert.equal(thrown.$metadata.requestId, "req-1");
@@ -522,4 +523,33 @@ test("Node's fetch exchanges events interactively on one HTTP/1.1 connection", a
     push(undefined);
     assert.equal((await iterator.next()).done, true);
   } finally { await server.close(); }
+});
+
+test("unknown and malformed exception frames share the service base", async () => {
+  for (const [name, body, expected] of [
+    ["FutureException", '{"message":"future"}', "FutureException"],
+    ["__proto__", '{"message":"future"}', "__proto__"],
+    ["constructor", '{"message":"future"}', "constructor"],
+    ["throttled", '{bad', "ThrottledError"],
+    ["throttled", '{"message":42}', "ThrottledError"],
+  ]) {
+    const server = await serve(async (request, response) => {
+      for await (const _ of request) { /* drain */ }
+      start(response);
+      response.end(encodeEventMessage({ headers: [
+        { name: ":message-type", value: str("exception") },
+        { name: ":exception-type", value: str(name) },
+        { name: ":content-type", value: str("application/json") },
+      ], payload: utf8(body) }));
+    });
+    try {
+      const output = await new EventsClient({ endpoint: server.endpoint }).subscribe({ channel: "c" });
+      await assert.rejects(output.events[Symbol.asyncIterator]().next(), (error: unknown) => {
+        if (!(error instanceof EventsException) || error.name !== expected) return false;
+        if (name === "throttled") assert.deepEqual(error.$retryable, { throttling: true });
+        else assert.equal(error.message, "future");
+        return true;
+      });
+    } finally { await server.close(); }
+  }
 });

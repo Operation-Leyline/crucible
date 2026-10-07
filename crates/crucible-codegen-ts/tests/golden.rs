@@ -366,7 +366,7 @@ fn shapes_named_after_globals_do_not_shadow_them() {
     assert!(models.contains("bytes?: globalThis.Uint8Array;"));
     assert!(models.contains("buffer?: Uint8Array;"));
     let errors = file(&files, "src/errors.ts");
-    assert!(errors.contains("export class Object extends ServiceError"));
+    assert!(errors.contains("export class Object extends GlobalsException"));
     assert!(errors.contains("fields: globalThis.Record<string, unknown>"));
     assert!(errors.contains(
         "if (globalThis.Object.hasOwn(fields, \"data\")) globalThis.Object.defineProperty("
@@ -418,4 +418,22 @@ fn checksum_operations_carry_their_lowered_description() {
     let index = file(&files, "src/index.ts");
     assert!(index.contains("export { ChecksumError } from \"./checksums.js\";"));
     assert!(index.contains("export type { ChecksumPolicy } from \"./checksums.js\";"));
+}
+
+#[test]
+fn configured_client_cannot_shadow_the_service_exception() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let mut options = options("weather");
+    options.client_name = Some("WeatherException".into());
+    assert!(
+        emit(&service, &options)
+            .unwrap_err()
+            .to_string()
+            .contains("client name collides")
+    );
 }

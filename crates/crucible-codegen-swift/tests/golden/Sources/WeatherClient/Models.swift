@@ -50,7 +50,7 @@ public struct Unit: Swift.Sendable, WireCodable {
             return .object(object)
         }
     }
-    public struct `ConflictError`: Swift.Sendable, WireCodable, ServiceError {
+    public struct `ConflictError`: Swift.Sendable, WireCodable, WeatherException {
         public var `message`: Swift.String
         public var metadata: ErrorMetadata
         public init(`message`: Swift.String, metadata: ErrorMetadata = ErrorMetadata()) {
@@ -350,7 +350,7 @@ public struct Unit: Swift.Sendable, WireCodable {
             }
         }
     }
-    public struct `NotFoundError`: Swift.Sendable, WireCodable, ServiceError {
+    public struct `NotFoundError`: Swift.Sendable, WireCodable, WeatherException {
         public var `message`: Swift.String
         public var `resourceIdPresence`: OptionalValue<Swift.String>
         public var `resourceId`: Swift.String? {
@@ -493,7 +493,7 @@ public struct Unit: Swift.Sendable, WireCodable {
         }
     }
     public typealias `Tags` = Swift.Array<Swift.String>
-    public struct `ThrottlingError`: Swift.Sendable, WireCodable, ServiceError {
+    public struct `ThrottlingError`: Swift.Sendable, WireCodable, WeatherException {
         public var `message`: Swift.String
         public var `retryAfterPresence`: OptionalValue<Swift.Int32>
         public var `retryAfter`: Swift.Int32? {
@@ -520,7 +520,7 @@ public struct Unit: Swift.Sendable, WireCodable {
             return .object(object)
         }
     }
-    public struct `ValidationError`: Swift.Sendable, WireCodable, ServiceError {
+    public struct `ValidationError`: Swift.Sendable, WireCodable, WeatherException {
         public var `message`: Swift.String
         public var `reason`: `ValidationReason`
         public var `fieldListPresence`: OptionalValue<`ValidationFieldList`>

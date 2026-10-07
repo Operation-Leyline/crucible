@@ -22,7 +22,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             );
         }
     }
-    let mut out = String::new();
+    let mut out = service_exception(service, diagnostics);
     if service
         .operations
         .iter()
@@ -103,6 +103,67 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         "\n/// A client for {}. Cheap to clone: clones share connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible::Transport,\n}}\n\n#[allow(dead_code)]\nimpl {client} {{\n    pub fn new(config: ::crucible::Config) -> Self {{\n        Self {{\n            transport: ::crucible::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
         service.id.name()
     ));
+    out
+}
+
+/// One native enum lets callers unify modeled failures from different operations.
+fn service_exception(service: &Service, diagnostics: &mut Diagnostics) -> String {
+    let name = variant(&crucible_codegen_common::service_exception_name(service));
+    for id in service.shapes.keys().filter(|id| !id.is_prelude()) {
+        if service.name_of(id) == name {
+            diagnostics.push(
+                id,
+                format!("model name collides with generated service exception `{name}`"),
+            );
+        }
+    }
+    for op in &service.operations {
+        if op.name() == name || error_type(op) == name {
+            diagnostics.push(
+                &op.id,
+                format!("operation declaration collides with generated service exception `{name}`"),
+            );
+        }
+    }
+    let errors = crate::errors::error_shapes(service);
+    let mut out = format!(
+        "\n/// All modeled errors from {}. Unknown and transport failures remain in `crucible_client::Error`.\n#[allow(dead_code)]\n#[derive(Debug, Clone, PartialEq)]\n#[non_exhaustive]\npub enum {name} {{\n",
+        service.id.name()
+    );
+    for (id, _) in &errors {
+        let error = service.name_of(id);
+        out.push_str(&format!("    {error}(errors::{error}),\n"));
+    }
+    out.push_str("}\n");
+    for (id, _) in &errors {
+        let error = service.name_of(id);
+        out.push_str(&format!("impl From<errors::{error}> for {name} {{\n    fn from(error: errors::{error}) -> Self {{ Self::{error}(error) }}\n}}\n"));
+    }
+    let display = if errors.is_empty() {
+        "let _ = f; match *self {}".to_owned()
+    } else {
+        let arms: String = errors
+            .iter()
+            .map(|(id, _)| {
+                let error = service.name_of(id);
+                format!("Self::{error}(error) => ::std::fmt::Display::fmt(error, f),")
+            })
+            .collect();
+        format!("match self {{ {arms} }}")
+    };
+    out.push_str(&format!("impl ::std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{ {display} }}\n}}\nimpl ::std::error::Error for {name} {{}}\n"));
+    for op in &service.operations {
+        let operation = error_type(op);
+        let arms: String = op
+            .errors
+            .iter()
+            .map(|id| {
+                let error = service.name_of(id);
+                format!("            {operation}::{error}(error) => Self::{error}(error),\n")
+            })
+            .collect();
+        out.push_str(&format!("impl From<{operation}> for {name} {{\n    fn from(error: {operation}) -> Self {{\n        match error {{\n{arms}        }}\n    }}\n}}\n"));
+    }
     out
 }
 

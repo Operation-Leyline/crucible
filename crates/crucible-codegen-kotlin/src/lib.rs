@@ -158,7 +158,9 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 }
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    let exception = crucible_codegen_common::service_exception_name(service);
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let mut diagnostics = Diagnostics::default();
     if !service
         .protocol_settings
@@ -495,6 +497,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("WireNumbers", include_str!("../runtime/WireNumbers.kt")),
         ("Sha256", include_str!("../runtime/Sha256.kt")),
         ("ServiceError", include_str!("../runtime/ServiceError.kt")),
+        (
+            exception.as_str(),
+            include_str!("../runtime/ServiceException.kt"),
+        ),
         ("RetryMode", include_str!("../runtime/RetryMode.kt")),
         ("RuntimeClock", include_str!("../runtime/RuntimeClock.kt")),
         ("RetryQuota", include_str!("../runtime/RetryQuota.kt")),
@@ -517,7 +523,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("{source}/{name}.kt"),
-            contents: format!("{header}{}", body.replace("\r\n", "\n")),
+            contents: format!(
+                "{header}{}",
+                crucible_codegen_common::service_exception_runtime(service, body)
+                    .replace("\r\n", "\n")
+            ),
         });
     }
     files.push(File {

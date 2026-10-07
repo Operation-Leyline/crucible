@@ -151,9 +151,24 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 }
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    let exception = crucible_codegen_common::service_exception_name(service);
     service.require_capabilities(&capabilities())?;
+    crucible_codegen_common::check_service_exception_name(service)?;
     let client_name = format!("{}Client", pascal(service.id.name()));
     let mut diagnostics = Diagnostics::default();
+    if [
+        "ChecksumException",
+        "EndpointDiscoveryException",
+        "WaiterException",
+        "WaiterTimeoutException",
+    ]
+    .contains(&exception.as_str())
+    {
+        diagnostics.push(
+            &service.id,
+            format!("service exception `{exception}` collides with a C# runtime export"),
+        );
+    }
     if !options.namespace.split('.').all(identifier)
         || options
             .namespace
@@ -357,7 +372,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 model.push_str(&format!(
                     "public sealed class @{name}{} {{\n",
                     if s.error.is_some() {
-                        format!(" : global::{ns}.ServiceError")
+                        format!(" : global::{ns}.{exception}")
                     } else {
                         String::new()
                     }
@@ -443,6 +458,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("ClientConfig", include_str!("../runtime/ClientConfig.cs")),
         ("Optional", include_str!("../runtime/Optional.cs")),
         ("ServiceError", include_str!("../runtime/ServiceError.cs")),
+        (
+            exception.as_str(),
+            include_str!("../runtime/ServiceException.cs"),
+        ),
         ("NetworkError", include_str!("../runtime/NetworkError.cs")),
         ("UnknownUnion", include_str!("../runtime/UnknownUnion.cs")),
         ("Unit", include_str!("../runtime/Unit.cs")),
@@ -570,7 +589,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ] {
         files.push(File {
             path: format!("{name}.cs"),
-            contents: format!("{header}{}", body.replace("\r\n", "\n")),
+            contents: format!(
+                "{header}{}",
+                crucible_codegen_common::service_exception_runtime(service, body)
+                    .replace("\r\n", "\n")
+            ),
         });
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));

@@ -419,7 +419,7 @@ module CrucibleGenerated
             # Keep wire metadata when modeled members cannot be decoded.
           end
         end
-        ServiceError.new(metadata)
+        ServiceException.new(metadata)
       end
       def payload_target(target, payload) = @codec.shape(target).fetch('members').fetch(payload[0]).fetch('target')
       def payload_value(target, bindings, body)

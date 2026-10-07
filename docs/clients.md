@@ -32,6 +32,22 @@ listed in its guide. The CLI can also be installed from this checkout with
 `cargo install --path crates/crucible-cli --locked`; examples using `crucible`
 assume that executable is on `PATH`.
 
+## Catching service errors
+
+Generated modeled exceptions share a service-named base, such as
+`WeatherException`. Class-based SDKs retain `ServiceError` above that base,
+so existing generic catches still work. Unknown errors from a newer server
+and malformed modeled error responses also use the service base and retain
+their HTTP metadata and retry classification. Transport failures remain
+separate from service responses.
+
+Swift provides a `WeatherException` protocol and Go an interface usable with
+`errors.As`. R conditions include `WeatherException` in their class list.
+Rust provides a service enum and `Error::map_service` to unify operation error
+enums while preserving unknown errors and transport failures. C uses the
+existing service-prefixed error structure and kind discriminator. Regenerate
+clients to get these public types; the model and wire format do not change.
+
 ## Checking target support
 
 Extended Smithy support is tracked per generator. Inspect the current build and

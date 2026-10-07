@@ -2,4 +2,4 @@
 declare(strict_types=1);
 namespace CrucibleGenerated\Runtime;
 
-final class UnknownServiceError extends ServiceError {}
+final class UnknownServiceError extends \CrucibleGenerated\ServiceException {}

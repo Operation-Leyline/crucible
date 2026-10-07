@@ -4,7 +4,7 @@
 // signatures, and the EventStream values generated clients expose.
 // Edit it in the crucible repository, never in a generated package.
 
-import { ServiceError, fromWire, parseJson, stringifyJson, toBase64, toWire, wireName, type ErrorSpec, type ResponseMetadata, type Schema } from "./runtime.js";
+import { ServiceError, ServiceException, fromWire, parseJson, stringifyJson, toBase64, toWire, wireName, type ErrorSpec, type ResponseMetadata, type Schema } from "./runtime.js";
 import type { AwsCredentials, SigningScope } from "./credentials.js";
 
 export const EVENT_STREAM_CONTENT_TYPE = "application/vnd.amazon.eventstream";
@@ -349,8 +349,12 @@ export function decodeEvent(spec: EventStreamSpec, message: EventMessage): Recei
     let body: Record<string, unknown> = {};
     try { const parsed = parseJson(text(message.payload)); if (parsed !== null && typeof parsed === "object") body = parsed as Record<string, unknown>; } catch { /* not JSON */ }
     const messageText = typeof body.message === "string" ? body.message : typeof body.Message === "string" ? body.Message : "";
-    if (info?.error) return { kind: "exception", name: info.error, fields: fields(info, message), message: messageText };
-    return { kind: "error", code: name, message: messageText };
+    if (info?.error) {
+      let decoded: Record<string, unknown> | undefined;
+      try { decoded = fields(info, message); } catch { /* retain the service failure when its body is malformed */ }
+      return { kind: "exception", name: info.error, fields: decoded, message: messageText };
+    }
+    return { kind: "exception", name, fields: body, message: messageText };
   }
   if (type === "error") return { kind: "error", code: stringHeader(message, ":error-code") ?? "", message: stringHeader(message, ":error-message") ?? "" };
   throw new TypeError(type === undefined ? "a message has no :message-type" : `unknown :message-type ${type}`);
@@ -426,10 +430,12 @@ export function receivedEvents<T>(spec: EventStreamSpec, reader: EventMessageRea
         if (received.kind === "event") { yield received.value as T; continue; }
         if (received.kind === "initial") continue;
         if (received.kind === "error") throw new EventStreamError(received.code, received.message);
-        const error = errors[received.name];
+        const error = Object.hasOwn(errors, received.name) ? errors[received.name] : undefined;
         let fields: Record<string, unknown> | undefined;
-        try { fields = fromWire(error?.schema, received.fields ?? {}) as Record<string, unknown>; } catch { fields = undefined; }
-        if (error === undefined || fields === undefined) throw new ServiceError(received.name, received.message, metadata, error?.fault ?? "client", error?.retryable);
+        if (received.fields !== undefined) {
+          try { fields = fromWire(error?.schema, received.fields) as Record<string, unknown>; } catch { fields = undefined; }
+        }
+        if (error === undefined || fields === undefined) throw new ServiceException(received.name, received.message, metadata, error?.fault ?? "client", error?.retryable);
         throw error.create(fields, metadata);
       }
     } finally {

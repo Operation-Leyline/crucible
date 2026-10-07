@@ -89,6 +89,11 @@ public:
     [[nodiscard]] const ErrorMetadata& metadata() const noexcept { return metadata_; }
 };
 
+class ServiceException : public ServiceError {
+public:
+    using ServiceError::ServiceError;
+};
+
 [[nodiscard]] std::string base64(const Blob& bytes);
 [[nodiscard]] Blob unbase64(std::string_view text);
 }

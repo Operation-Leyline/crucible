@@ -23,7 +23,11 @@ abstract class ServiceError implements Exception {
   String toString() => '${metadata.name}: ${metadata.message}';
 }
 
-final class UnknownServiceError extends ServiceError {
+class ServiceException extends ServiceError {
+  const ServiceException(super.metadata);
+}
+
+final class UnknownServiceError extends ServiceException {
   const UnknownServiceError(super.metadata);
 }
 

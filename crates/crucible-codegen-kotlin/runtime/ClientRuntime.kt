@@ -548,11 +548,11 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             declared.filter { codec.shape(it).obj("error").text("status")?.toInt() == response.status }.singleOrNull()
         if (name == null && target != null) name = codec.shape(target).text("name")
         val metadata = target?.let { codec.shape(it).obj("error") }
-        val error = if (target == null) ServiceError() else try {
+        val error = if (target == null) ServiceException() else try {
             payloadMember(metadata!!)?.let { body[codec.wireName(target, it)] = payloadValue(metadata, response.body) }
             applyHeaders(target, body, metadata!!, response)
             codec.decode(target, JsonObject(body)) as ServiceError
-        } catch (_: Exception) { ServiceError() }
+        } catch (_: Exception) { ServiceException() }
         error.initialize(name ?: "UnknownError", text("message") ?: text("Message") ?: "HTTP ${response.status}", response.status,
             response.header("x-amzn-requestid") ?: response.header("x-amz-request-id") ?: response.header("x-request-id") ?: text("requestId"), response.headers, metadata?.flag("retryable") == true, metadata?.flag("throttling") == true)
         return error

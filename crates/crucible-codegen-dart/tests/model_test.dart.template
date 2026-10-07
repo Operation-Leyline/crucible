@@ -32,6 +32,6 @@ void main() {
   check(decoded[const Sky('future')]!.encode() == '[9223372036854775807]', 'Open enum map key');
   final errorId = id('ConflictError');
   final error = decodeError(errorId, {'message':'conflict'}, codec.context(errorId), const ErrorMetadata(name:'ConflictError', status:409));
-  check(error is ConflictError && error.message == 'conflict' && error.metadata.status == 409, 'Typed error');
+  check(error is WeatherException && error is ConflictError && error.message == 'conflict' && error.metadata.status == 409, 'Typed error');
   print('Generated model qualification passed');
 }
