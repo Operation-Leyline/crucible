@@ -66,12 +66,13 @@ fn native_package_manifest_and_public_api_match_explicit_source_goldens() {
             .iter()
             .map(|file| file.path.as_str())
             .collect::<Vec<_>>(),
-        ["Cargo.toml", "src/lib.rs"]
+        ["Cargo.toml", "src/lib.rs", ".rustfmt.toml"]
     );
     golden("Cargo.toml", &files[0].contents);
     let source = generate_client(&service).unwrap();
     assert!(files[1].contents.starts_with(&source));
     golden("runtime_api.rs", &files[1].contents[source.len()..]);
+    golden("rustfmt.toml", &files[2].contents);
     assert!(!files[1].contents.contains("include!"));
     assert!(!files.iter().any(|file| file.path == "build.rs"));
     let manifest: toml::Value = toml::from_str(&files[0].contents).unwrap();
@@ -307,6 +308,42 @@ fn main() {
     let target =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.codex-target/rust-native-consumer");
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    successful(
+        Command::new(&cargo)
+            .args(["fmt", "--manifest-path"])
+            .arg(consumer.join("Cargo.toml"))
+            .output()
+            .unwrap(),
+    );
+    let generated_source = fs::read(sdk.join("src/lib.rs")).unwrap();
+    let formatting = fs::read(sdk.join(".rustfmt.toml")).unwrap();
+    fs::remove_file(sdk.join(".rustfmt.toml")).unwrap();
+    let without_config = Command::new(&cargo)
+        .args(["fmt", "--all", "--manifest-path"])
+        .arg(consumer.join("Cargo.toml"))
+        .args(["--", "--check"])
+        .output()
+        .unwrap();
+    assert!(
+        !without_config.status.success(),
+        "cargo fmt must visit the unformatted generated SDK"
+    );
+    fs::write(sdk.join(".rustfmt.toml"), &formatting).unwrap();
+    let formatted = successful(
+        Command::new(&cargo)
+            .args(["fmt", "--all", "--manifest-path"])
+            .arg(consumer.join("Cargo.toml"))
+            .args(["--", "--check"])
+            .output()
+            .unwrap(),
+    );
+    assert!(
+        formatted.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&formatted.stderr)
+    );
+    assert_eq!(generated_source, fs::read(sdk.join("src/lib.rs")).unwrap());
+    assert_eq!(formatting, fs::read(sdk.join(".rustfmt.toml")).unwrap());
     let output = successful(
         Command::new(&cargo)
             .arg("metadata")
