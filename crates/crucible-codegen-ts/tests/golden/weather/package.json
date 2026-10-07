@@ -23,7 +23,7 @@
     "typescript": ">=5.7 <7"
   },
   "crucible": {
-    "version": "0.2.0",
+    "version": "0.3.0",
     "service": "example.weather#Weather",
     "serviceVersion": "2026-10-01"
   }

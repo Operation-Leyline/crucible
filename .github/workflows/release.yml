@@ -43,6 +43,20 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Package the matching starter
+        run: |
+          cargo build -p crucible-cli --locked
+          python3 tools/package_starter.py --cli target/debug/crucible
+        env:
+          CARGO_BUILD_JOBS: '2'
+      - uses: actions/download-artifact@v4
+        with:
+          name: smithy-cargo-plugin
+          path: dist
       - name: Publish the tested commit as a GitHub tag and release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,4 +67,5 @@ jobs:
           gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
             -f "ref=refs/tags/v$RELEASE_VERSION" -f "sha=$GITHUB_SHA"
           gh release create "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --title "Crucible $RELEASE_VERSION" --generate-notes
+            --verify-tag --title "Crucible $RELEASE_VERSION" --generate-notes \
+            "dist/hello-service-v$RELEASE_VERSION.zip" dist/smithy-cargo-0.1.0.zip

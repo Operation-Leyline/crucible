@@ -26,6 +26,8 @@ jobs:
       csharp: ${{ steps.select.outputs.csharp }}
       dart: ${{ steps.select.outputs.dart }}
       e2e: ${{ steps.select.outputs.e2e }}
+      onboarding: ${{ steps.select.outputs.onboarding }}
+      editor: ${{ steps.select.outputs.editor }}
       go: ${{ steps.select.outputs.go }}
       java: ${{ steps.select.outputs.java }}
       kotlin: ${{ steps.select.outputs.kotlin }}
@@ -454,6 +456,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
       - run: cargo test --all-features --locked
+      # Native consumer checks share the separate example workspace.
+      - run: cargo metadata --manifest-path e2e/Cargo.toml --locked --format-version 1 > /dev/null
       - run: python -m unittest discover -s tools -p "test_*.py"
 
   # The generated TypeScript client, compiled and run against a fake fetch.
@@ -488,10 +492,64 @@ jobs:
       - run: cargo clippy --manifest-path e2e/Cargo.toml --all-targets --locked -- -D warnings
       - run: bash tools/test-e2e.sh
 
+  editor:
+    needs: [plan, rust]
+    if: needs.plan.outputs.editor == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - uses: actions/cache@v4
+        id: sdk
+        with:
+          path: .sdk/rustrover
+          key: rustrover-linux-262.10968.75-fac0d503
+      - name: Download the pinned IDE SDK
+        if: steps.sdk.outputs.cache-hit != 'true'
+        run: |
+          curl --fail --location --retry 3 https://download.jetbrains.com/rustrover/RustRover-2026.2.3.tar.gz --output /tmp/rustrover-sdk.tar.gz
+          python3 - <<'PY'
+          import hashlib, pathlib
+          path = pathlib.Path('/tmp/rustrover-sdk.tar.gz')
+          with path.open('rb') as source:
+              digest = hashlib.file_digest(source, 'sha256').hexdigest()
+          assert digest == 'fac0d50307301ecdb69998feeb338f1287a96e9c02d205165ec4e1d8c0ed40a6', digest
+          PY
+          mkdir -p .sdk/rustrover
+          tar -xzf /tmp/rustrover-sdk.tar.gz --strip-components=1 -C .sdk/rustrover
+      - run: python ide/smithy-cargo/build.py --ide-home .sdk/rustrover --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smithy-cargo-plugin
+          path: dist/smithy-cargo-0.1.0.zip
+
+  onboarding:
+    needs: [plan, rust]
+    if: needs.plan.outputs.onboarding == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Provisioning is host-specific, so relevant PRs qualify every host.
+        os: ${{ fromJSON(needs.plan.outputs.full == 'true' && '["ubuntu-latest", "windows-latest", "macos-latest"]' || '["ubuntu-latest", "windows-latest", "macos-latest"]') }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: rustfmt }
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: python tools/test-onboarding.py
+        env:
+          CARGO_BUILD_JOBS: '2'
+
   # A stable aggregate reports failures while allowing intentionally omitted jobs.
   ci:
     if: always()
-    needs: [plan, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, e2e]
+    needs: [plan, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, e2e, onboarding, editor]
     runs-on: ubuntu-latest
     steps:
       - name: Check selected jobs

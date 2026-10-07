@@ -1,4 +1,11 @@
-//! Build-script support for the three kinds of package.
+//! Compile a service's Smithy sources and generate its Rust contract:
+//!
+//! ```ignore
+//! fn main() { crucible_build::from_smithy("smithy").generate(); }
+//! ```
+//!
+//! The default compiler and matching runtime are managed by the build helper.
+//! Larger applications can share their contract through separate packages:
 //!
 //! A **model package** holds Smithy sources and the JSON AST its smithy
 //! build produces. Its manifest sets `links = "<name>"`, and its `build.rs`
@@ -31,6 +38,11 @@ use std::path::{Path, PathBuf};
 
 use crucible_codegen_rust::Options;
 use crucible_smithy::{Model, ShapeId};
+
+mod smithy;
+#[cfg(feature = "smithy")]
+pub use smithy::from_smithy;
+pub use smithy::from_smithy_with;
 
 /// From a model package's `build.rs`: makes `path` (a Smithy JSON AST built
 /// with the `flattenAndRemoveMixins` transform) the model its dependents
@@ -121,6 +133,13 @@ impl Codegen {
     /// The error internal failures are answered with. Server side only.
     pub fn internal_error(mut self, id: &str) -> Self {
         self.options.internal_error = Some(parse(id));
+        self
+    }
+
+    /// An advanced service supplies `Crucible::builder(...).on_rejection(...)`
+    /// itself. Disable the early rejection-error check for that service.
+    pub fn custom_rejections(mut self) -> Self {
+        self.options.require_rejection = false;
         self
     }
 

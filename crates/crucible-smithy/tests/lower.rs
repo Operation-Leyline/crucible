@@ -5,6 +5,35 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("fixtures/weather.json");
 
 #[test]
+fn service_errors_remain_reachable_without_operations() {
+    let source = include_str!("fixtures/empty-service-errors.json");
+    let service = Model::from_json(source).unwrap().lower(None).unwrap();
+    assert!(service.operations.is_empty());
+    for name in ["ValidationError", "InternalError"] {
+        let Shape::Structure(error) = service.shape(&ShapeId::new("example.empty", name)).unwrap()
+        else {
+            panic!("error structure")
+        };
+        assert!(error.error.is_some());
+        assert!(error.member("message").is_some());
+    }
+    assert!(
+        service
+            .shape(&ShapeId::new("smithy.api", "String"))
+            .is_some()
+    );
+
+    let mut model: Value = serde_json::from_str(source).unwrap();
+    model["shapes"]["example.empty#ValidationError"]["traits"] = json!({});
+    let diagnostics = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap_err()
+        .to_string();
+    assert!(diagnostics.contains("listed as an error but has no @error trait"));
+}
+
+#[test]
 fn tiny_timestamp_defaults_lower_even_when_clients_ignore_them() {
     for in_input in [false, true] {
         let mut model: Value =

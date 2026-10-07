@@ -1,0 +1,31 @@
+[package]
+name = "smithy-tooling"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Pinned Smithy compiler and model definitions for Cargo builds"
+license = "MIT AND Apache-2.0"
+repository = "https://github.com/Operation-Leyline/smithy-tooling"
+publish = false
+include = ["src/**", "vendor/**", "upstream.json", "compiler.json", "runtime.json", "README.md", "LICENSE", "Cargo.toml", "Cargo.lock"]
+
+[package.metadata.smithy]
+models = ["src/prelude.smithy"]
+
+[features]
+default = ["managed-runtime"]
+managed-runtime = ["dep:fs2", "dep:serde_json", "dep:sha2", "dep:tempfile", "dep:ureq", "dep:zip"]
+
+[dependencies]
+fs2 = { version = "0.4", optional = true }
+serde_json = { version = "1", optional = true }
+sha2 = { version = "0.10", optional = true }
+tempfile = { version = "3", optional = true }
+ureq = { version = "3", default-features = false, features = ["rustls"], optional = true }
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"

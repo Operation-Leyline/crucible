@@ -20,6 +20,20 @@ leyline-service/    service package
   src/                impl GetGraphOperation for Leyline { ... }   Crucible::builder()...
 ```
 
+## Start with one crate
+
+Use the [single-crate quick start](quickstart.md) for a new service. Its build
+script calls `crucible_build::from_smithy("smithy").generate()`. The helper
+provides the pinned compiler, imports Crucible definitions, watches the model,
+and writes the AST and generated contract under `OUT_DIR`.
+
+The starter declares `crucible.errors#ValidationError` (HTTP 400) and
+`crucible.errors#InternalError` (HTTP 500) as service errors. The high-level
+helper diagnoses an unfillable or missing validation error before startup.
+Advanced services that supply their own `on_rejection` handler can call
+`.custom_rejections()`. Existing JSON-AST build helpers retain that advanced
+behavior.
+
 ## Model packages
 
 A model package holds the Smithy files and the JSON AST its own smithy build

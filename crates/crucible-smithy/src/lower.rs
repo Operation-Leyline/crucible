@@ -128,6 +128,20 @@ impl<'m> Lowerer<'m> {
                 )
             })
             .collect();
+        // Service errors remain reachable before the service has any operations.
+        for error in &service_errors {
+            self.visit(error);
+            if !self
+                .model
+                .get(error)
+                .is_some_and(|e| e.traits.contains_key(&smithy("error")))
+            {
+                self.diagnostics.push(
+                    id,
+                    format!("{error} is listed as an error but has no @error trait"),
+                );
+            }
+        }
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
         let resources = if infrastructure {
             crate::resources::lower(self.model, shape, &mut self.diagnostics)

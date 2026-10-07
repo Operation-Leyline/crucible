@@ -1,0 +1,9 @@
+{
+  "artifact": "software.amazon.smithy:smithy-model:1.74.0",
+  "checksum_url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-model/1.74.0/smithy-model-1.74.0.jar.sha256",
+  "prelude_entry": "software/amazon/smithy/model/loader/prelude.smithy",
+  "prelude_sha256": "11a8de15e0fa0ec16845b237a00e8f76a3deea4c6fd4acb3da267434037e1293",
+  "sha256": "5bd61bdc656e6c51cb0bfbcf4f83868c9bf1a8b828564decd8ade0fc51e1723f",
+  "url": "https://repo.maven.apache.org/maven2/software/amazon/smithy/smithy-model/1.74.0/smithy-model-1.74.0.jar",
+  "version": "1.74.0"
+}

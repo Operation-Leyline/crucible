@@ -42,6 +42,13 @@ class PlanTests(unittest.TestCase):
                 self.assertEqual(affected_groups([path]), CORE_GROUPS)
         self.assertEqual(affected_groups(["crates/crucible-cli/src/main.rs"]), CORE_GROUPS | {"service_cli"})
 
+    def test_onboarding_and_editor_integration_paths_keep_their_gates(self):
+        for path in ("smithy/errors.smithy", "vendor/smithy-tooling/src/runtime.rs"):
+            self.assertEqual(affected_groups([path]), CORE_GROUPS)
+        self.assertEqual(affected_groups(["ide/smithy-cargo/src/main/resources/META-INF/plugin.xml"]), {"rust", "editor"})
+        self.assertEqual(affected_groups(["crates/crucible-build/Cargo.toml"]), CORE_GROUPS | {"editor"})
+        self.assertEqual(affected_groups(["crates/crucible-cli/src/starter/hello.smithy"]), CORE_GROUPS | {"editor", "service_cli"})
+
     def test_shared_model_changes_keep_representative_native_consumers(self):
         for path in (
             "crates/crucible-smithy/src/ir.rs", "crates/crucible-codegen-common/src/lib.rs",
@@ -49,7 +56,7 @@ class PlanTests(unittest.TestCase):
             "tools/sdk_test_support.py",
         ):
             with self.subTest(path=path):
-                self.assertEqual(affected_groups([path]), MODEL_GROUPS)
+                self.assertEqual(affected_groups([path]), MODEL_GROUPS | ({"editor"} if path == "Cargo.toml" else set()))
 
     def test_unknown_paths_keep_all_linux_consumers(self):
         for path in ("new-generator/runtime.js", "crates/crucible-new/src/lib.rs"):
@@ -101,7 +108,7 @@ class PlanTests(unittest.TestCase):
         diff = Mock(return_value=["crates/crucible-codegen-java/src/lib.rs"])
         self.assertEqual(select_groups("pull_request", EVENT, diff), {"rust", "java"})
         diff.assert_called_once_with("a" * 40, "b" * 40)
-        for name, expected in (("push", {"rust", "e2e"}), ("workflow_call", GROUPS),
+        for name, expected in (("push", {"rust", "e2e", "onboarding"}), ("workflow_call", GROUPS),
                                ("workflow_dispatch", GROUPS), ("unknown", GROUPS)):
             self.assertEqual(select_groups(name, {}, diff), expected)
         for event in ({}, None, {"pull_request": {"base": {"sha": "--bad"}, "head": {"sha": "b" * 40}}}):
@@ -182,11 +189,11 @@ class PlanTests(unittest.TestCase):
                 selected.extend((name, variant) for variant in variants)
             return selected
 
-        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 5)
-        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 7)
+        self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 8)
+        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 10)
         self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 5)
         # The pre-existing full matrix has 31 test jobs plus planner/aggregate.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 33)
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 37)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):
