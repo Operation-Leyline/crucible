@@ -51,7 +51,7 @@ impl Config {
             .into_iter()
             .flatten()
             {
-                Regex::new(pattern)
+                naming_pattern(pattern)
                     .map_err(|error| format!("invalid naming pattern {pattern:?}: {error}"))?;
             }
         }
@@ -82,4 +82,10 @@ impl Config {
         }
         Ok(config)
     }
+}
+
+pub(crate) fn naming_pattern(pattern: &str) -> Result<Regex, regex::Error> {
+    // Validate the same whole-name expression used by the checker, including
+    // patterns whose verbose-mode comments could consume the closing anchors.
+    Regex::new(&format!("\\A(?:{pattern})\\z"))
 }

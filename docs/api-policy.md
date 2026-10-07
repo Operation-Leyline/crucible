@@ -73,6 +73,10 @@ is `"error"`. Omitted static groups run no checks.
 | `rules.documentation` | `targets`: any of `service`, `operations`, `shapes`, `members`, `errors`, `enums`; empty means no documentation checks |
 | `compatibility` | `wire`, `sdk_source`: independently select wire and model-level public-symbol checks; both default to true |
 
+Naming patterns are wrapped in `\A(?:...)\z` and validated in that form.
+Verbose-mode (`(?x)`) comments need a terminating newline before the pattern
+ends; otherwise they consume the wrapper and produce a configuration error.
+
 Naming cases are `PascalCase`, `camelCase`, `snake_case`,
 `SCREAMING_SNAKE_CASE`, and `kebab-case`. Casing and regex requirements both
 apply when configured together. Shapes and members are the public types

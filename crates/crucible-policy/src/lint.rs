@@ -18,14 +18,20 @@ pub fn check(service: &Service, config: &Config) -> Report {
         }
     };
     if let Some(rule) = &config.rules.naming {
+        let compile =
+            |pattern: &Option<String>| pattern.as_deref().map(crate::config::naming_pattern);
+        let operations = compile(&rule.operations_pattern);
+        let shapes = compile(&rule.shapes_pattern);
+        let members = compile(&rule.members_pattern);
+        let enums = compile(&rule.enum_values_pattern);
         let mut name = |id: ShapeId,
                         text: &str,
                         case: Option<NameCase>,
-                        pattern: &Option<String>,
+                        pattern: &Option<Result<Regex, regex::Error>>,
                         rule_id: &str| {
             let valid_case = case.is_none_or(|case| case.matches(text));
             let valid_pattern = pattern.as_ref().is_none_or(|pattern| {
-                Regex::new(&format!("\\A(?:{pattern})\\z")).is_ok_and(|regex| {
+                pattern.as_ref().is_ok_and(|regex| {
                     regex
                         .find(text)
                         .is_some_and(|matched| matched.start() == 0 && matched.end() == text.len())
@@ -44,7 +50,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
             service.id.clone(),
             service.id.name(),
             rule.shapes,
-            &rule.shapes_pattern,
+            &shapes,
             "naming.shapes",
         );
         for operation in &service.operations {
@@ -53,7 +59,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                     operation.id.clone(),
                     operation.name(),
                     rule.operations,
-                    &rule.operations_pattern,
+                    &operations,
                     "naming.operations",
                 );
             }
@@ -62,13 +68,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
             if !selected(id) {
                 continue;
             }
-            name(
-                id.clone(),
-                id.name(),
-                rule.shapes,
-                &rule.shapes_pattern,
-                "naming.shapes",
-            );
+            name(id.clone(), id.name(), rule.shapes, &shapes, "naming.shapes");
             match shape {
                 Shape::Structure(shape) | Shape::Union(shape) => {
                     for member in &shape.members {
@@ -76,7 +76,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                             id.with_member(&member.name),
                             &member.name,
                             rule.members,
-                            &rule.members_pattern,
+                            &members,
                             "naming.members",
                         );
                     }
@@ -87,7 +87,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                             id.with_member(&value.name),
                             &value.name,
                             rule.enum_values,
-                            &rule.enum_values_pattern,
+                            &enums,
                             "naming.enums",
                         );
                     }
@@ -98,7 +98,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                             id.with_member(&value.name),
                             &value.name,
                             rule.enum_values,
-                            &rule.enum_values_pattern,
+                            &enums,
                             "naming.enums",
                         );
                     }

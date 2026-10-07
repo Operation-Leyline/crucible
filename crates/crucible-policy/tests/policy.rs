@@ -32,6 +32,7 @@ fn configuration_rejects_unknown_fields_versions_patterns_and_exceptions() {
         "schema_version = 2",
         "schema_version = 1\n[rules.typo]",
         "schema_version = 1\n[rules.naming]\noperations_pattern = '['",
+        "schema_version = 1\n[rules.naming]\noperations_pattern = '(?x)Get.* # verbs'",
         "schema_version = 1\n[rules.paths]\nprefix = '/v1/'",
         "schema_version = 1\n[[exceptions]]\nrule = 'typo'\nshape = 'example.api#Catalog'\nreason = 'intentional'",
         "schema_version = 1\n[[exceptions]]\nrule = 'paths.prefix'\nshape = 'example.api#GetItem'\nreason = ' '",
@@ -227,6 +228,11 @@ fn patterns_match_the_whole_name_including_regex_alternatives() {
         Config::parse("schema_version = 1\n[rules.naming]\noperations_pattern = '(Get|GetItem)'")
             .unwrap();
     assert!(check(&lower(&model()), &config).findings.is_empty());
+    let verbose = Config::parse(
+        "schema_version = 1\n[rules.naming]\noperations_pattern = '''(?x)Get.* # verbs\n'''",
+    )
+    .unwrap();
+    assert!(check(&lower(&model()), &verbose).findings.is_empty());
 }
 
 #[test]

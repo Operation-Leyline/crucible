@@ -82,11 +82,14 @@ request in `hello.http`. Rust and read access to this private repository are
 the prerequisites. The first build provisions the pinned Smithy runtime;
 subsequent builds use its cache.
 
-The starter is one Cargo crate. Its complete build script is:
+New starters are one Cargo crate with a `crucible.toml` policy. Their complete
+build script is:
 
 ```rust
 fn main() {
-    crucible_build::from_smithy("smithy").generate();
+    crucible_build::from_smithy("smithy")
+        .policy("crucible.toml")
+        .generate();
 }
 ```
 
