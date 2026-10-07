@@ -71,7 +71,7 @@ async fn text_and_structure_payloads_round_trip_with_base64_media_headers() {
 
     let meta = vec![r#"{"key":"héllo"}"#.to_owned(), "a,b".into(), String::new()];
     let extras = BTreeMap::from([("note".to_owned(), "héllo".to_owned())]);
-    let input = wire::model::TextInput::builder()
+    let input = wire::TextInput::builder()
         .text("héllo 🌍")
         .meta(meta.clone())
         .extras(extras.clone())
@@ -89,13 +89,9 @@ async fn text_and_structure_payloads_round_trip_with_base64_media_headers() {
     assert_eq!(output.meta(), Some(&meta));
     assert_eq!(output.extras(), Some(&extras));
 
-    let record = wire::model::Record::builder().name("nested").build();
+    let record = wire::Record::builder().name("nested").build();
     let result = client
-        .document(
-            wire::model::DocumentInput::builder()
-                .document(record)
-                .build(),
-        )
+        .document(wire::DocumentInput::builder().document(record).build())
         .await
         .unwrap();
     let request = seen.lock().unwrap().last().cloned().unwrap();
@@ -108,7 +104,7 @@ async fn text_and_structure_payloads_round_trip_with_base64_media_headers() {
 
     // An absent structure payload sends no body and reads back absent.
     let result = client
-        .document(wire::model::DocumentInput::builder().build())
+        .document(wire::DocumentInput::builder().build())
         .await
         .unwrap();
     assert!(seen.lock().unwrap().last().unwrap().body.is_empty());
@@ -132,7 +128,7 @@ async fn text_and_structure_payloads_round_trip_with_base64_media_headers() {
     let Error::Service(error) = error else {
         panic!("modeled text error: {error:?}")
     };
-    let wire::TextError::TextError(error) = error.error;
+    let wire::TextError::TextFault(error) = error.error;
     assert_eq!(error.details(), Some(&"invalid text".to_owned()));
 }
 
@@ -167,13 +163,9 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
     .await;
     let client = kinds::KindsClient::new(Config::new(endpoint.clone()).retry(Retry::none()));
 
-    let choice = kinds::model::Choice::Text("hi".into());
+    let choice = kinds::Choice::Text("hi".into());
     let output = client
-        .put_choice(
-            kinds::model::ChoiceInput::builder()
-                .choice(choice.clone())
-                .build(),
-        )
+        .put_choice(kinds::ChoiceInput::builder().choice(choice.clone()).build())
         .await
         .unwrap();
     assert_eq!(
@@ -183,13 +175,13 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
     assert_eq!(output.choice(), Some(&choice));
     let output = client
         .put_choice(
-            kinds::model::ChoiceInput::builder()
-                .choice(kinds::model::Choice::Count(2))
+            kinds::ChoiceInput::builder()
+                .choice(kinds::Choice::Count(2))
                 .build(),
         )
         .await
         .unwrap();
-    let Some(kinds::model::Choice::UnknownValue(unknown)) = output.choice() else {
+    let Some(kinds::Choice::UnknownValue(unknown)) = output.choice() else {
         panic!("unknown arm: {output:?}")
     };
     assert_eq!(unknown.name, "later");
@@ -199,7 +191,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
             .unwrap();
     let output = client
         .put_free(
-            kinds::model::FreeInput::builder()
+            kinds::FreeInput::builder()
                 .document(document.clone())
                 .build(),
         )
@@ -208,7 +200,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
     assert_eq!(output.document(), Some(&document));
     // An explicit null document sends no body; the response reads as absent.
     let output = client
-        .put_free(kinds::model::FreeInput {
+        .put_free(kinds::FreeInput {
             document: Field::Null,
         })
         .await
@@ -218,8 +210,8 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
 
     let output = client
         .put_mood(
-            kinds::model::MoodInput::builder()
-                .mood(kinds::model::Mood::Grumpy)
+            kinds::MoodInput::builder()
+                .mood(kinds::Mood::Grumpy)
                 .build(),
         )
         .await
@@ -227,7 +219,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
     let request = seen.lock().unwrap().last().cloned().unwrap();
     assert_eq!(request.body, b"grumpy");
     assert_eq!(request.header("content-type"), Some("text/x-mood"));
-    assert_eq!(output.mood(), &kinds::model::Mood::Grumpy);
+    assert_eq!(output.mood(), &kinds::Mood::Grumpy);
 
     let Error::Service(error) = client.fail().await.unwrap_err() else {
         panic!("modeled record error")

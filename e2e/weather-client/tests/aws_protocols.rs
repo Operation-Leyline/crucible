@@ -73,7 +73,7 @@ macro_rules! protocol_test {
     ($name:ident, $module:ident, $rpc:expr) => {
         #[tokio::test]
         async fn $name() {
-            use $module::model::{Choice, ValuesInput};
+            use $module::{Choice, ValuesInput};
             let rpc: Option<&str> = $rpc;
             let mode = Arc::new(Mutex::new("echo"));
             let seen = Arc::new(Mutex::new(Vec::new()));

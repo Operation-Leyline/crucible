@@ -19,22 +19,22 @@ pub async fn dispatch(invocation: Invocation) -> Result<(), Error> {
     let client = client::WeatherClient::new(invocation.config);
     match invocation.operation.as_str() {
         "CreateCity" => {
-            let input: client::model::CreateCityInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::CreateCityInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#create_city(input).await.map_err(Error::request)?;
             write_json(&output)
         }
         "GetCity" => {
-            let input: client::model::GetCityInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::GetCityInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#get_city(input).await.map_err(Error::request)?;
             write_json(&output)
         }
         "GetCityPhoto" => {
-            let input: client::model::GetCityPhotoInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::GetCityPhotoInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#get_city_photo(input).await.map_err(Error::request)?;
             write_json(&output)
         }
         "ListCities" => {
-            let input: client::model::ListCitiesInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::ListCitiesInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             if invocation.paginate {
                 let mut pages = client.list_cities_pages(input);
                 let mut collected = Vec::new();
@@ -59,12 +59,12 @@ pub async fn dispatch(invocation: Invocation) -> Result<(), Error> {
             write_json(&())
         }
         "PutCityPhoto" => {
-            let input: client::model::PutCityPhotoInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::PutCityPhotoInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#put_city_photo(input).await.map_err(Error::request)?;
             write_json(&output)
         }
         "Status" => {
-            let input: client::model::StatusInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::StatusInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#status(input).await.map_err(Error::request)?;
             write_json(&output)
         }

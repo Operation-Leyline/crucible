@@ -268,7 +268,7 @@ async fn event_response_checksums_verify_framed_bytes_at_eof() {
         ));
         let output = client
             .subscribe_checksums(
-                rest::model::SubscribeChecksumsInput::builder()
+                rest::SubscribeChecksumsInput::builder()
                     .channel("news")
                     .build()
                     .unwrap(),
@@ -298,7 +298,7 @@ fn timestamp(millis: i64) -> chrono::DateTime<chrono::Utc> {
 /// The same events in each generated client's own types.
 macro_rules! client_events {
     ($client:ident) => {{
-        use $client::model::*;
+        use $client::*;
         vec![
             ClientEvents::Message(MessageEvent {
                 id: "m1".into(),
@@ -415,7 +415,7 @@ async fn input_events_are_framed_with_their_header_and_payload_bindings() {
     });
     let client = rest::EventsClient::new(Config::new(endpoint));
     let output = client
-        .publish(rest::model::PublishInput {
+        .publish(rest::PublishInput {
             channel: "general".into(),
             events: EventStream::from_events(client_events!(rest)),
         })
@@ -427,7 +427,7 @@ async fn input_events_are_framed_with_their_header_and_payload_bindings() {
 
 #[tokio::test]
 async fn output_events_arrive_in_order_and_a_modeled_exception_ends_the_stream() {
-    use rest::model::ServerEvents;
+    use rest::ServerEvents;
     let (listener, endpoint) = listen().await;
     let server = tokio::spawn(async move {
         let mut exchange = Exchange::accept(&listener).await;
@@ -479,7 +479,7 @@ async fn output_events_arrive_in_order_and_a_modeled_exception_ends_the_stream()
     });
     let client = rest::EventsClient::new(Config::new(endpoint));
     let output = client
-        .subscribe(rest::model::SubscribeInput {
+        .subscribe(rest::SubscribeInput {
             channel: "news".into(),
             limit: Field::Value(5),
         })
@@ -505,7 +505,7 @@ async fn output_events_arrive_in_order_and_a_modeled_exception_ends_the_stream()
     let Some(ServerEvents::Payload(payload)) = events.recv().await.unwrap() else {
         panic!("payload")
     };
-    assert_eq!(payload.kind, Field::Value(rest::model::Kind::Alpha));
+    assert_eq!(payload.kind, Field::Value(rest::Kind::Alpha));
     assert_eq!(payload.item.value().unwrap().values, Field::Value(vec![7]));
     let Some(ServerEvents::UnknownValue(unknown)) = events.recv().await.unwrap() else {
         panic!("unknown")
@@ -548,7 +548,7 @@ async fn unmodeled_errors_and_corrupt_frames_end_the_stream() {
         });
         let client = rest::EventsClient::new(Config::new(endpoint));
         let output = client
-            .subscribe(rest::model::SubscribeInput {
+            .subscribe(rest::SubscribeInput {
                 channel: "c".into(),
                 limit: Field::Absent,
             })
@@ -557,7 +557,7 @@ async fn unmodeled_errors_and_corrupt_frames_end_the_stream() {
         let mut events = output.events.open().unwrap();
         assert!(matches!(
             events.recv().await,
-            Ok(Some(rest::model::ServerEvents::Ping(_)))
+            Ok(Some(rest::ServerEvents::Ping(_)))
         ));
         match events.recv().await {
             Err(EventStreamError::Decode(message)) if corrupt => {
@@ -597,7 +597,7 @@ async fn an_http_error_before_the_stream_is_a_modeled_operation_error() {
         },
     ));
     let error = client
-        .subscribe(rest::model::SubscribeInput {
+        .subscribe(rest::SubscribeInput {
             channel: "c".into(),
             limit: Field::Absent,
         })
@@ -638,7 +638,7 @@ async fn a_slow_reader_holds_the_sender_back() {
     });
     let client = rest::EventsClient::new(Config::new(endpoint));
     let output = client
-        .subscribe(rest::model::SubscribeInput {
+        .subscribe(rest::SubscribeInput {
             channel: "c".into(),
             limit: Field::Absent,
         })
@@ -669,7 +669,7 @@ async fn a_slow_server_holds_the_event_source_back() {
     let counter = pulled.clone();
     let source = futures_util::stream::iter(0..EVENTS).map(move |_| {
         counter.fetch_add(1, Ordering::SeqCst);
-        rest::model::ClientEvents::Message(rest::model::MessageEvent {
+        rest::ClientEvents::Message(rest::MessageEvent {
             id: "x".into(),
             sequence: Field::Absent,
             urgent: Field::Absent,
@@ -693,7 +693,7 @@ async fn a_slow_server_holds_the_event_source_back() {
     let client = rest::EventsClient::new(Config::new(endpoint));
     let call = tokio::spawn(async move {
         client
-            .publish(rest::model::PublishInput {
+            .publish(rest::PublishInput {
                 channel: "c".into(),
                 events: EventStream::new(source),
             })
@@ -738,7 +738,7 @@ async fn cancellation_and_deadlines_outlive_the_returned_output() {
         };
         let output = client
             .subscribe_with_options(
-                rest::model::SubscribeInput {
+                rest::SubscribeInput {
                     channel: "c".into(),
                     limit: Field::Absent,
                 },
@@ -791,7 +791,7 @@ async fn a_failing_event_source_aborts_the_request() {
         count
     });
     let source = futures_util::stream::iter([
-        Ok(rest::model::ClientEvents::Ping(rest::model::Ping {})),
+        Ok(rest::ClientEvents::Ping(rest::Ping {})),
         Err(io::Error::other("source failed")),
     ])
     .then(|event| async move {
@@ -803,7 +803,7 @@ async fn a_failing_event_source_aborts_the_request() {
     });
     let client = rest::EventsClient::new(Config::new(endpoint));
     let result = client
-        .publish(rest::model::PublishInput {
+        .publish(rest::PublishInput {
             channel: "c".into(),
             events: EventStream::try_new(source),
         })
@@ -878,7 +878,7 @@ async fn rpc_protocols_carry_other_members_in_initial_messages() {
     });
     let client = rpc::EventsClient::new(Config::new(endpoint));
     let output = client
-        .publish(rpc::model::PublishInput {
+        .publish(rpc::PublishInput {
             channel: "general".into(),
             events: EventStream::from_events(client_events!(rpc)),
         })
@@ -886,7 +886,7 @@ async fn rpc_protocols_carry_other_members_in_initial_messages() {
         .unwrap();
     assert_eq!(output.accepted, 4);
     let output = client
-        .subscribe(rpc::model::SubscribeInput {
+        .subscribe(rpc::SubscribeInput {
             channel: "news".into(),
             limit: Field::Value(2),
         })
@@ -896,11 +896,11 @@ async fn rpc_protocols_carry_other_members_in_initial_messages() {
     let mut events = output.events.open().unwrap();
     assert!(matches!(
         events.recv().await.unwrap(),
-        Some(rpc::model::ServerEvents::Ping(_))
+        Some(rpc::ServerEvents::Ping(_))
     ));
     assert!(events.recv().await.unwrap().is_none());
     let output = client
-        .subscribe(rpc::model::SubscribeInput {
+        .subscribe(rpc::SubscribeInput {
             channel: "news".into(),
             limit: Field::Absent,
         })
@@ -910,14 +910,14 @@ async fn rpc_protocols_carry_other_members_in_initial_messages() {
     let mut events = output.events.open().unwrap();
     assert!(matches!(
         events.recv().await.unwrap(),
-        Some(rpc::model::ServerEvents::Ping(_))
+        Some(rpc::ServerEvents::Ping(_))
     ));
     server.await.unwrap();
 }
 
 #[tokio::test]
 async fn bidirectional_streams_exchange_events_on_one_http1_connection() {
-    use rest::model::{ClientEvents, Ping, ServerEvents};
+    use rest::{ClientEvents, Ping, ServerEvents};
     let (listener, endpoint) = listen().await;
     let server = tokio::spawn(async move {
         let mut exchange = Exchange::accept(&listener).await;
@@ -951,7 +951,7 @@ async fn bidirectional_streams_exchange_events_on_one_http1_connection() {
     sender.send(ClientEvents::Ping(Ping {})).await.unwrap();
     let client = rest::EventsClient::new(Config::new(endpoint));
     let output = client
-        .chat(rest::model::ChatInput {
+        .chat(rest::ChatInput {
             room: Field::Value("lobby".into()),
             events: Field::Value(EventStream::new(futures_util::stream::unfold(
                 receiver,
@@ -1065,7 +1065,7 @@ async fn sigv4_signs_every_message_in_a_chain_from_the_request_signature() {
             )),
         ));
     let output = client
-        .publish(signed::model::PublishInput {
+        .publish(signed::PublishInput {
             channel: "general".into(),
             events: EventStream::from_events(client_events!(signed)),
         })

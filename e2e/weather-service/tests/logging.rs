@@ -113,7 +113,7 @@ async fn literal_queries_select_the_operation_and_the_generated_client_sends_the
     ));
     let client =
         client::ObservabilityClient::new(crucible_client_runtime_rust::Config::new(endpoint));
-    let payload = || serde_json::from_value::<client::model::Payload>(json!({})).unwrap();
+    let payload = || serde_json::from_value::<client::Payload>(json!({})).unwrap();
     client.echo(payload()).await.unwrap();
     client.other(payload()).await.unwrap();
     server.abort();

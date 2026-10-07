@@ -87,7 +87,7 @@ macro_rules! round_trip {
     ($test:ident, $module:ident) => {
         #[tokio::test]
         async fn $test() {
-            use $module::client::model::{
+            use $module::client::{
                 ChatInput, ClientEvents, Ping, PublishInput, StructuredEvent, SubscribeInput,
             };
             let client = $module::client::EventsClient::new(
@@ -115,7 +115,7 @@ macro_rules! round_trip {
                 .unwrap();
             assert_eq!(output.channel().map(String::as_str), Some("room"));
             let mut events = output.events.open().unwrap();
-            let $module::client::model::ServerEvents::Structured(event) =
+            let $module::client::ServerEvents::Structured(event) =
                 events.recv().await.unwrap().unwrap()
             else {
                 panic!("wrong event")
@@ -128,7 +128,7 @@ macro_rules! round_trip {
             assert!(matches!(
                 events.recv().await,
                 Err(EventStreamError::Exception(
-                    $module::client::model::ServerEvents::Throttled(_)
+                    $module::client::ServerEvents::Throttled(_)
                 ))
             ));
             assert!(events.recv().await.unwrap().is_none());
@@ -144,7 +144,7 @@ macro_rules! round_trip {
             let mut events = output.events().unwrap().open().unwrap();
             assert!(matches!(
                 events.recv().await.unwrap(),
-                Some($module::client::model::ServerEvents::Ping(_))
+                Some($module::client::ServerEvents::Ping(_))
             ));
             assert!(events.recv().await.unwrap().is_none());
         }
@@ -158,7 +158,7 @@ round_trip!(rpc_v2_cbor_events_round_trip, cbor);
 
 #[tokio::test]
 async fn cbor_events_retain_native_document_values() {
-    use cbor::client::model::{ChatInput, ClientEvents, ServerEvents, StructuredEvent};
+    use cbor::client::{ChatInput, ClientEvents, ServerEvents, StructuredEvent};
     let client =
         cbor::client::EventsClient::new(Config::new(cbor::serve().await).retry(Retry::none()));
     let stamp = chrono::DateTime::from_timestamp(-1, 750_000_000).unwrap();
@@ -202,7 +202,7 @@ async fn cbor_events_retain_native_document_values() {
 
 #[tokio::test]
 async fn response_events_arrive_while_the_request_source_is_open() {
-    use json::client::model::{ChatInput, ClientEvents, Ping, ServerEvents};
+    use json::client::{ChatInput, ClientEvents, Ping, ServerEvents};
     let client =
         json::client::EventsClient::new(Config::new(json::serve().await).retry(Retry::none()));
     let (sender, receiver) = tokio::sync::mpsc::channel(1);

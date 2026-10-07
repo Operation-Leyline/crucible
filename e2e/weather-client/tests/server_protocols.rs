@@ -94,7 +94,7 @@ macro_rules! round_trip {
     ($test:ident, $module:ident, $rest:expr, $error:ident, $status:expr) => {
         #[tokio::test]
         async fn $test() {
-            use $module::client::model::{Choice, ValuesInput};
+            use $module::client::{Choice, ValuesInput};
             let endpoint = $module::serve().await;
             let client =
                 $module::client::JsonServiceClient::new(Config::new(endpoint).retry(Retry::none()));
@@ -172,7 +172,7 @@ macro_rules! precision {
             let blob = crucible_client_runtime_rust::Blob::new(vec![0, 255, 128, 42]);
             let output = client
                 .echo(
-                    $module::client::model::ValuesInput::builder()
+                    $module::client::ValuesInput::builder()
                         .blob(blob.clone())
                         .large(integer.clone())
                         .decimal(decimal.clone())
@@ -206,7 +206,7 @@ async fn rpc_client_checks_response_protocol_before_decoding() {
         let client =
             rpc_json::client::JsonServiceClient::new(Config::new(endpoint).retry(Retry::none()));
         let error = client
-            .echo(rpc_json::client::model::ValuesInput::builder().build())
+            .echo(rpc_json::client::ValuesInput::builder().build())
             .await
             .unwrap_err();
         assert!(
@@ -232,7 +232,7 @@ async fn rpc_errors_require_the_full_matching_shape_id() {
     let client =
         rpc_json::client::JsonServiceClient::new(Config::new(endpoint).retry(Retry::none()));
     let error = client
-        .echo(rpc_json::client::model::ValuesInput::builder().build())
+        .echo(rpc_json::client::ValuesInput::builder().build())
         .await
         .unwrap_err();
     assert!(

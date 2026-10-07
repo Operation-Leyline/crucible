@@ -18,13 +18,13 @@ const DECIMAL: &str = "12345678901234567890.12345678901234567890123456789";
 
 #[test]
 fn exact_defaults_and_open_integer_enum() {
-    let value: client::model::Output = serde_json::from_str("{}").unwrap();
+    let value: client::Output = serde_json::from_str("{}").unwrap();
     assert_eq!(value.integer.to_string(), INTEGER);
     assert_eq!(value.decimal.to_string(), DECIMAL);
     let wire = serde_json::to_string(&value).unwrap();
     assert!(wire.contains(&format!("\"integer\":{INTEGER}")));
     assert!(wire.contains(&format!("\"decimal\":{DECIMAL}")));
-    let value: client::model::Output = serde_json::from_str(
+    let value: client::Output = serde_json::from_str(
         r#"{"mode":77,"sparseMap":{"null":null,"future":77},"sparseNames":[null,"x"]}"#,
     )
     .unwrap();
@@ -36,7 +36,7 @@ fn exact_defaults_and_open_integer_enum() {
         77
     );
     assert!(serde_json::from_str::<server::Output>(r#"{"mode":77}"#).is_err());
-    assert!(serde_json::from_str::<client::model::Output>(r#"{"mode":2147483648}"#).is_err());
+    assert!(serde_json::from_str::<client::Output>(r#"{"mode":2147483648}"#).is_err());
     let integer: BigInteger = serde_json::from_str("12345678901234567890e20").unwrap();
     assert_eq!(
         integer.to_string(),
@@ -56,7 +56,7 @@ fn collections_enforce_value_uniqueness_and_preserve_nested_document_null() {
         r#"{"choice":{"numbers":[1,1e0]}}"#,
     ] {
         assert!(
-            serde_json::from_str::<client::model::Output>(text).is_err(),
+            serde_json::from_str::<client::Output>(text).is_err(),
             "{text}"
         );
         assert!(
@@ -64,7 +64,7 @@ fn collections_enforce_value_uniqueness_and_preserve_nested_document_null() {
             "{text}"
         );
     }
-    let value: client::model::Output =
+    let value: client::Output =
         serde_json::from_str(r#"{"documents":[{"nil":null},{}],"names":["a","b"]}"#).unwrap();
     assert_eq!(value.documents.value().unwrap()[0]["nil"], Value::Null);
     let mut duplicate = value;
@@ -76,7 +76,7 @@ fn collections_enforce_value_uniqueness_and_preserve_nested_document_null() {
 fn nested_collection_timestamp_codecs_and_exact_ranges() {
     let text =
         r#"{"dates":{"x":[null,1700000000.123456789]},"choice":{"dates":{"y":[-0.000000001]}}}"#;
-    let value: client::model::Output = serde_json::from_str(text).unwrap();
+    let value: client::Output = serde_json::from_str(text).unwrap();
     assert_eq!(
         value.dates.value().unwrap()["x"][1]
             .unwrap()
@@ -137,7 +137,7 @@ async fn generated_extended_types_round_trip_over_http() {
     assert_eq!(output.decimal, DECIMAL.parse::<BigDecimal>().unwrap());
     let output = client
         .update(
-            client::model::Input::builder()
+            client::Input::builder()
                 .decimal(DECIMAL.parse::<BigDecimal>().unwrap())
                 .build(),
         )

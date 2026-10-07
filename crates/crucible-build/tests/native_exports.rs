@@ -138,7 +138,7 @@ fn main() {{
     let consumer = root.join("consumer");
     fs::create_dir_all(consumer.join("src")).unwrap();
     fs::write(consumer.join("Cargo.toml"), "[package]\nname = 'independent-sdk-consumer'\nversion = '0.1.0'\nedition = '2024'\n[workspace]\n[dependencies]\nindependent-weather-sdk = { path = '../native/rust' }\n").unwrap();
-    fs::write(consumer.join("src/lib.rs"), "use independent_weather_sdk::{Config, WeatherClient, model::{CitySummary as City, GetCityInput}};\npub fn client() -> WeatherClient { WeatherClient::new(Config::new(\"http://127.0.0.1:3000\")) }\npub fn input() -> GetCityInput { GetCityInput::builder().city_id(\"oslo\").build() }\npub fn name(city: City) -> String { city.name }\n").unwrap();
+    fs::write(consumer.join("src/lib.rs"), "use independent_weather_sdk::{Config, WeatherClient, CitySummary as City, GetCityInput};\npub fn client() -> WeatherClient { WeatherClient::new(Config::new(\"http://127.0.0.1:3000\")) }\npub fn input() -> GetCityInput { GetCityInput::builder().city_id(\"oslo\").build() }\npub fn name(city: City) -> String { city.name }\n").unwrap();
     successful(cargo(root, &consumer.join("Cargo.toml"), "check"));
     let mut model: serde_json::Value =
         serde_json::from_slice(&fs::read(producer.join("model.json")).unwrap()).unwrap();

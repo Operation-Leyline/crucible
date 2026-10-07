@@ -345,7 +345,7 @@ weather-sdk = { path = "../target/rust-sdk" }
 ```
 
 ```rust
-use weather_sdk::{Config, WeatherClient, model::GetCityInput};
+use weather_sdk::{Config, GetCityInput, WeatherClient};
 ```
 
 For a custom runtime, `.runtime_git(repository, revision, version_requirement)`

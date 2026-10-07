@@ -94,7 +94,7 @@ pub(crate) fn library(service: &Service) -> String {
         let name = names::function(operation.name());
         code.push_str(&format!("        {:?} => {{\n", operation.name()));
         let argument = if let Some(input) = &operation.input {
-            code.push_str(&format!("            let input: client::model::{} = serde_json::from_value(invocation.input).map_err(|_| Error::input(\"input does not match the operation's modeled types\"))?;\n", service.name_of(input)));
+            code.push_str(&format!("            let input: client::{} = serde_json::from_value(invocation.input).map_err(|_| Error::input(\"input does not match the operation's modeled types\"))?;\n", service.name_of(input)));
             "input"
         } else {
             ""

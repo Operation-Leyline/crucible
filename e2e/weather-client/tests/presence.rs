@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 mod fixture {
     include!(concat!(env!("OUT_DIR"), "/presence_client.rs"));
 }
-use fixture::model::{Choice, Root, State};
+use fixture::{Choice, Root, State};
 
 #[test]
 fn native_builders_preserve_omission_defaults_and_collision_names() {
@@ -38,7 +38,7 @@ fn native_builders_preserve_omission_defaults_and_collision_names() {
         None,
         "clientOptional suppresses the modeled default"
     );
-    let city = weather_client::model::CitySummary::builder()
+    let city = weather_client::CitySummary::builder()
         .id("city")
         .name("Oslo")
         .build()

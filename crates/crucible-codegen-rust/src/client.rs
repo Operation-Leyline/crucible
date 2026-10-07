@@ -54,7 +54,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         .collect();
     for op in &service.operations {
         let output = if op.output.is_some() {
-            output_type(service, op)
+            output_type(service, op).replace("model::", "")
         } else {
             UNIT.to_owned()
         };
@@ -175,7 +175,7 @@ fn waiter_method(service: &Service, op: &Operation, waiter: &str, method: &str) 
     let name = op.name();
     let errors = error_type(op);
     let output = if op.output.is_some() {
-        output_type(service, op)
+        output_type(service, op).replace("model::", "")
     } else {
         UNIT.to_owned()
     };
@@ -185,7 +185,7 @@ fn waiter_method(service: &Service, op: &Operation, waiter: &str, method: &str) 
             format!(
                 "{}input: {}, ",
                 if token.is_empty() { "" } else { "mut " },
-                input_type(service, op)
+                input_type(service, op).replace("model::", "")
             ),
             "input".to_owned(),
             token,
@@ -333,7 +333,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     let mut out = String::from("\n");
     doc(&mut out, "    ", op.docs.as_deref());
     let output = if op.output.is_some() {
-        output_type(service, op)
+        output_type(service, op).replace("model::", "")
     } else {
         "()".to_owned()
     };
@@ -395,7 +395,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     out.push_str(&format!(
         "    pub async fn {}(&self, {binding}: {}{options_parameter}) -> {result} {{\n{}        {send}(&input{options_argument}){finish}\n    }}\n",
         method_name,
-        input_type(service, op),
+        input_type(service, op).replace("model::", ""),
         token.unwrap_or_default(),
     ));
     out
@@ -460,7 +460,7 @@ fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> St
     format!(
         "\n    /// Every page of {name}, one request each.\n    pub fn {}_pages(&self, input: {}) -> ::crucible_server_runtime_rust::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){finish}\n    }}\n",
         function(name).trim_start_matches("r#"),
-        input_type(service, op),
+        input_type(service, op).replace("model::", ""),
         output,
         get(input, "input"),
     )

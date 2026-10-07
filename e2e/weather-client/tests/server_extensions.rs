@@ -146,7 +146,7 @@ async fn text_document_error_payloads_and_media_headers_round_trip() {
     let extras = std::collections::BTreeMap::from([("one".into(), "{\"c\":3}".into())]);
     let output = client
         .text(
-            client::model::TextInput::builder()
+            client::TextInput::builder()
                 .text("hello")
                 .meta(meta.clone())
                 .extras(extras.clone())
@@ -159,8 +159,8 @@ async fn text_document_error_payloads_and_media_headers_round_trip() {
     assert_eq!(output.extras(), Some(&extras));
     let output = client
         .document(
-            client::model::DocumentInput::builder()
-                .document(client::model::Record::builder().name("record").build())
+            client::DocumentInput::builder()
+                .document(client::Record::builder().name("record").build())
                 .build(),
         )
         .await
@@ -170,12 +170,12 @@ async fn text_document_error_payloads_and_media_headers_round_trip() {
         Some("record")
     );
     let error = client
-        .text(client::model::TextInput::builder().text("error").build())
+        .text(client::TextInput::builder().text("error").build())
         .await
         .unwrap_err();
     let Error::Service(error) = error else {
         panic!("payload discriminator was lost")
     };
-    let client::TextError::TextError(error) = error.error;
+    let client::TextError::TextFault(error) = error.error;
     assert_eq!(error.details().map(String::as_str), Some("invalid text"));
 }

@@ -224,10 +224,22 @@ fn wire_extensions(out: &std::path::Path) {
             .unwrap_or_else(|error| panic!("{fixture}: {error}"));
         std::fs::write(out.join(name), code).unwrap();
     };
-    generate(
-        "../../crates/crucible-smithy/tests/fixtures/error-payloads.json",
-        "wire_client.rs",
-    );
+    let fixture = "../../crates/crucible-smithy/tests/fixtures/error-payloads.json";
+    println!("cargo::rerun-if-changed={fixture}");
+    let mut model: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture).unwrap()).unwrap();
+    // Preserve the shared wire contract while disambiguating the flat Rust API.
+    model["shapes"]["example.wire#Wire"]["rename"] =
+        serde_json::json!({"example.wire#TextError": "TextFault"});
+    let path = out.join("wire-client.json");
+    std::fs::write(&path, model.to_string()).unwrap();
+    std::fs::write(
+        out.join("wire_client.rs"),
+        crucible_build::RustCodegen::client_from_model(&path)
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     generate("tests/fixtures/payload-kinds.json", "kinds_client.rs");
     let checksums = "../../crates/crucible-smithy/tests/fixtures/checksums.json";
     generate(checksums, "checksum_client.rs");

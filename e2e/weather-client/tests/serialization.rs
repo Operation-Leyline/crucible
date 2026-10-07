@@ -2,7 +2,7 @@
 use crucible_client_runtime_rust::__private::serde::{Serialize, de::DeserializeOwned};
 use crucible_client_runtime_rust::Field;
 use serde_json::Value;
-use weather_client::model::{CitySummary, GetCityOutput, Location, Photo, Sky};
+use weather_client::{CitySummary, GetCityOutput, Location, Photo, Sky};
 
 const PROFILE: &str = "rust-chrono-ns";
 
