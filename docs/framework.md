@@ -22,10 +22,36 @@ leyline-service/    service package
 
 ## Start with one crate
 
-Use the [single-crate quick start](quickstart.md) for a new service. Its build
-script calls `crucible_build::from_smithy("smithy").generate()`. The helper
-provides the pinned compiler, imports Crucible definitions, watches the model,
-and writes the AST and generated contract under `OUT_DIR`.
+Generate server models and bindings inside the service crate. Add `crucible`
+as a normal dependency and `crucible-build` as a build dependency, pinned to the
+same revision. Hand wiring needs two hooks:
+
+```rust
+// build.rs
+fn main() {
+    crucible_build::from_smithy("smithy").generate();
+}
+```
+
+```rust
+// src/main.rs or src/lib.rs
+pub mod contract {
+    crucible::include_service!();
+}
+```
+
+`contract` is a local Rust module, not another Cargo crate. Handlers import its
+models and operation traits normally. The source path is relative to this
+crate's manifest; it can also point outside the crate, such as
+`../smithy/model`. With a published model dependency, replace the build call
+with `crucible_build::service("weather_model").generate()`; inclusion is the
+same, and Smithy is not compiled again.
+
+The helper provides the pinned compiler, imports Crucible definitions, watches
+the model, and writes the AST and generated bindings under `OUT_DIR`. The
+inclusion macro makes those types visible to Rust without exposing the output
+filename or writing generated code into the source tree. The
+[single-crate quick start](quickstart.md) has a complete runnable service.
 
 The starter declares `crucible.errors#ValidationException` (HTTP 400),
 `crucible.errors#InternalServerException` (HTTP 500), and
@@ -68,7 +94,7 @@ For model-owned Rust and Java SDK outputs, compile once with
 named generation call per SDK variant. Another package can generate from
 `crucible_build::model_dependency("<links>")` without assembling Smithy again.
 See [building named SDK packages](sdk-builds.md) for feature selection, native
-package export, and SDK/contract package integration.
+package export, and direct service/SDK integration.
 
 ## Generated code
 
@@ -89,12 +115,12 @@ pub trait GetGraphOperation: crucible::WithContext {
 }
 ```
 
-In a workspace with a separate contract package, that package owns the build
-script and inclusion macro. The service imports its operation traits and
-registry through ordinary Cargo dependencies. Likewise, a Rust SDK package
-owns client inclusion, so application code imports its service-named client.
+The service normally owns this build script and includes the bindings in a local
+Rust module, as shown below. A separate contract crate is optional when multiple
+Rust crates need to share the generated server API. A reusable Rust SDK package
+can own client inclusion so applications import its service-named client.
 The [named SDK guide](sdk-builds.md#consuming-the-rust-sdk-and-service-contract)
-shows these small package integration files.
+shows how to wire both directly by hand.
 
 The service implements the trait. Grouping is free: one type can implement
 every operation, or one type per resource.
