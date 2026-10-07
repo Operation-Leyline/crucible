@@ -345,6 +345,43 @@ fn file<'a>(files: &'a [crucible_codegen_ts::File], path: &str) -> &'a str {
     &files.iter().find(|f| f.path == path).unwrap().contents
 }
 
+#[test]
+fn float_binding_schemas_follow_protocol_non_finite_settings() {
+    let mut service = Model::from_json(include_str!("fixtures/non-finite-bindings.json"))
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
+        .unwrap();
+    assert!(service.protocol_settings.non_finite_float_strings);
+    for non_finite in [true, false] {
+        service.protocol_settings.non_finite_float_strings = non_finite;
+        let files = emit(&service, &options("floats")).unwrap();
+        let schemas = file(&files, "src/schemas.ts");
+        let number = if non_finite {
+            "{ kind: \"number\", nonFinite: true }"
+        } else {
+            "number"
+        };
+        for member in ["lf", "ld"] {
+            assert!(
+                schemas.contains(&format!("{{ label: \"{member}\", schema: {number} }}")),
+                "{schemas}"
+            );
+        }
+        for (member, name) in [
+            ("hf", "X-HF"),
+            ("hd", "X-HD"),
+            ("hd", "X-OF"),
+            ("qf", "qf"),
+            ("qd", "qd"),
+        ] {
+            assert!(
+                schemas.contains(&format!("[\"{member}\", \"{name}\", {number}]")),
+                "{schemas}"
+            );
+        }
+    }
+}
+
 /// A model may name its shapes after the globals generated code uses
 /// (`Record`, `Partial`, `Uint8Array`, `Object`): the code reaches every
 /// global through `globalThis` instead. `tools/test-ts.sh` compiles the result.

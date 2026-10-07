@@ -21,6 +21,8 @@ crucible generate ts crates/crucible-codegen-ts/tests/fixtures/hardening.json \
 crucible generate ts crates/crucible-codegen-ts/tests/fixtures/dynamic-bindings.json \
   --out "$dir/generated-dynamic" --package-name @example/dynamic \
   --endpoint https://dynamic.example >/dev/null
+crucible generate ts crates/crucible-codegen-ts/tests/fixtures/non-finite-bindings.json \
+  --out "$dir/generated-non-finite" --package-name @example/floats >/dev/null
 crucible generate ts crates/crucible-smithy/tests/fixtures/dynamic-bindings.json \
   --out "$dir/generated-protocol" --package-name @example/protocol >/dev/null
 crucible conformance crates/crucible-smithy/tests/fixtures/dynamic-bindings.json \

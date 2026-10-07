@@ -1,0 +1,37 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.floats#Floats": {
+      "type": "service",
+      "version": "1",
+      "traits": { "aws.protocols#restJson1": {} },
+      "operations": [{ "target": "example.floats#Put" }]
+    },
+    "example.floats#Put": {
+      "type": "operation",
+      "traits": { "smithy.api#http": { "method": "PUT", "uri": "/floats/{lf}/{ld}", "code": 200 } },
+      "input": { "target": "example.floats#Input" },
+      "output": { "target": "example.floats#Output" }
+    },
+    "example.floats#Input": {
+      "type": "structure",
+      "traits": { "smithy.api#input": {} },
+      "members": {
+        "lf": { "target": "smithy.api#Float", "traits": { "smithy.api#httpLabel": {}, "smithy.api#required": {} } },
+        "ld": { "target": "smithy.api#Double", "traits": { "smithy.api#httpLabel": {}, "smithy.api#required": {} } },
+        "hf": { "target": "smithy.api#Float", "traits": { "smithy.api#httpHeader": "X-HF" } },
+        "hd": { "target": "smithy.api#Double", "traits": { "smithy.api#httpHeader": "X-HD" } },
+        "qf": { "target": "smithy.api#Float", "traits": { "smithy.api#httpQuery": "qf" } },
+        "qd": { "target": "smithy.api#Double", "traits": { "smithy.api#httpQuery": "qd" } }
+      }
+    },
+    "example.floats#Output": {
+      "type": "structure",
+      "traits": { "smithy.api#output": {} },
+      "members": {
+        "hf": { "target": "smithy.api#Float", "traits": { "smithy.api#httpHeader": "X-HF" } },
+        "hd": { "target": "smithy.api#Double", "traits": { "smithy.api#httpHeader": "X-OF" } }
+      }
+    }
+  }
+}
