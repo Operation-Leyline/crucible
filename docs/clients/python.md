@@ -16,7 +16,9 @@ crucible generate python smithy \
 python -m pip install ./target/python-sdk
 ```
 
-The output directory is owned by the generator and replaced on regeneration.
+Generation tracks its files in `.crucible`, updates generated files, and removes
+obsolete generated files. Handwritten files and native build directories survive
+regeneration. Keep the ownership manifest.
 The package bundles its runtime and depends on HTTPX and the pinned JMESPath
 interpreter. Set the distribution
 version with `--package-version`. `crucible.json` records the generator and

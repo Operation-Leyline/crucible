@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from ci_plan import CORE_GROUPS, GROUPS, MODEL_GROUPS, affected_groups, changed_paths, select_groups
+from ci_plan import CORE_GROUPS, GROUPS, MODEL_GROUPS, SDK_GROUPS, affected_groups, changed_paths, select_groups
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,6 +62,32 @@ class PlanTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assertEqual(affected_groups([path]), MODEL_GROUPS | ({"editor"} if path == "Cargo.toml" else set()))
+
+    def test_shared_client_engine_keeps_representative_sdk_consumers(self):
+        for path in (
+            "crates/crucible-codegen/src/client.rs",
+            "crates/crucible-codegen/src/output.rs",
+            "crates/crucible-codegen/Cargo.toml",
+            "crates/crucible-codegen/tests/adapters.rs",
+            "crates/crucible-codegen/tests/weather.json",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), SDK_GROUPS)
+        self.assertEqual(affected_groups([
+            "crates/crucible-codegen/src/client.rs",
+            "crates/crucible-codegen-kotlin/src/lib.rs",
+        ]), SDK_GROUPS | {"kotlin"})
+
+    def test_rust_gate_exercises_sdk_features_and_minimal_build_helpers(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        # all-features includes both Java build facade variants and all-clients
+        # emitter parity. Minimal builds catch accidental compiler/native deps.
+        self.assertIn("cargo test --all-features --locked", jobs["rust"])
+        self.assertIn("cargo clippy --all-targets --all-features --locked", jobs["rust"])
+        for package in ("crucible-build", "crucible-codegen"):
+            self.assertIn(f"cargo check -p {package} --no-default-features --locked", jobs["rust"])
 
     def test_unknown_paths_keep_all_linux_consumers(self):
         for path in ("new-generator/runtime.js", "crates/crucible-new/src/lib.rs"):

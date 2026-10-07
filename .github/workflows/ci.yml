@@ -455,7 +455,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --all-features --locked
+      # Java named SDK variants and every client adapter are feature gated.
+      - name: Workspace tests including all native SDK build adapters
+        run: cargo test --all-features --locked
+      - name: Compiler-free minimal build helpers
+        run: |
+          cargo check -p crucible-build --no-default-features --locked
+          cargo check -p crucible-codegen --no-default-features --locked
       - run: python tools/test-api-policy.py
         env:
           CARGO_BUILD_JOBS: '2'

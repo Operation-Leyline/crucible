@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+mod export_sdk;
 mod output;
 mod policy;
 mod scaffold;
@@ -34,6 +35,8 @@ struct Source {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Export a named SDK artifact from a Cargo model package.
+    ExportSdk(export_sdk::Args),
     /// Create a single-crate Hello service or Rust client with Smithy generation.
     New {
         /// Cargo package name, for example hello-service.
@@ -440,8 +443,7 @@ enum Target {
     Ts {
         #[command(flatten)]
         source: Source,
-        /// The directory to write the package to. crucible owns it: it is
-        /// emptied and rewritten on every run.
+        /// SDK output directory. Only previously generated files are replaced.
         #[arg(long)]
         out: PathBuf,
         #[arg(long)]
@@ -505,6 +507,7 @@ fn main() -> ExitCode {
 // can exceed Windows' main-thread stack as the CLI's target portfolio grows.
 fn run(command: Command) -> ExitCode {
     let result = match command {
+        Command::ExportSdk(args) => export_sdk::run(&args),
         Command::New { name, client, out, crucible_rev, runtime_path, smithy_version } => {
             let out = out.unwrap_or_else(|| PathBuf::from(&name));
             starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), smithy_version.as_deref(), client)
@@ -738,22 +741,18 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service = lower_with_capabilities(&source, &crucible_codegen_ruby::capabilities())?;
-            let files = crucible_codegen_ruby::emit(
-                &service,
-                &crucible_codegen_ruby::Options {
-                    package_name,
-                    module_name,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the Ruby client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Ruby(crucible_codegen::RubyOptions {
+                package_name,
+                module_name,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the Ruby client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -767,22 +766,18 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service = lower_with_capabilities(&source, &crucible_codegen_c::capabilities())?;
-            let files = crucible_codegen_c::emit(
-                &service,
-                &crucible_codegen_c::Options {
-                    package_name,
-                    prefix,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the C client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::C(crucible_codegen::COptions {
+                package_name,
+                prefix,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the C client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -795,21 +790,17 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service = lower_with_capabilities(&source, &crucible_codegen_r::capabilities())?;
-            let files = crucible_codegen_r::emit(
-                &service,
-                &crucible_codegen_r::Options {
-                    package_name,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the R client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::R(crucible_codegen::ROptions {
+                package_name,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the R client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -823,22 +814,18 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service = lower_with_capabilities(&source, &crucible_codegen_cpp::capabilities())?;
-            let files = crucible_codegen_cpp::emit(
-                &service,
-                &crucible_codegen_cpp::Options {
-                    package_name,
-                    namespace,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the C++ client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Cpp(crucible_codegen::CppOptions {
+                package_name,
+                namespace,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the C++ client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -852,22 +839,18 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service = lower_with_capabilities(&source, &crucible_codegen_php::capabilities())?;
-            let files = crucible_codegen_php::emit(
-                &service,
-                &crucible_codegen_php::Options {
-                    package_name,
-                    namespace,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the PHP client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Php(crucible_codegen::PhpOptions {
+                package_name,
+                namespace,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the PHP client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -880,21 +863,17 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service = lower_with_capabilities(&source, &crucible_codegen_dart::capabilities())?;
-            let files = crucible_codegen_dart::emit(
-                &service,
-                &crucible_codegen_dart::Options {
-                    package_name,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the Dart client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Dart(crucible_codegen::DartOptions {
+                package_name,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the Dart client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -909,22 +888,18 @@ fn generate(target: Target) -> Result<(), String> {
         } => {
             let service =
                 lower_with_capabilities(&source, &crucible_codegen_swift::capabilities())?;
-            let files = crucible_codegen_swift::emit(
-                &service,
-                &crucible_codegen_swift::Options {
-                    package_name,
-                    module_name,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the Swift client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Swift(crucible_codegen::SwiftOptions {
+                package_name,
+                module_name,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the Swift client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -939,22 +914,18 @@ fn generate(target: Target) -> Result<(), String> {
         } => {
             let service =
                 lower_with_capabilities(&source, &crucible_codegen_csharp::capabilities())?;
-            let files = crucible_codegen_csharp::emit(
-                &service,
-                &crucible_codegen_csharp::Options {
-                    namespace,
-                    package_id,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the C# client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Csharp(crucible_codegen::CsharpOptions {
+                namespace,
+                package_id,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the C# client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -970,23 +941,19 @@ fn generate(target: Target) -> Result<(), String> {
         } => {
             let service =
                 lower_with_capabilities(&source, &crucible_codegen_kotlin::capabilities())?;
-            let files = crucible_codegen_kotlin::emit(
-                &service,
-                &crucible_codegen_kotlin::Options {
-                    group_id,
-                    artifact_id,
-                    package_name,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the Kotlin client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Kotlin(crucible_codegen::KotlinOptions {
+                group_id,
+                artifact_id,
+                package_name,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the Kotlin client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -1001,23 +968,19 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service = lower_with_capabilities(&source, &crucible_codegen_java::capabilities())?;
-            let files = crucible_codegen_java::emit(
-                &service,
-                &crucible_codegen_java::Options {
-                    group_id,
-                    artifact_id,
-                    package_name,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the Java client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Java(crucible_codegen::JavaOptions {
+                group_id,
+                artifact_id,
+                package_name,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the Java client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -1030,21 +993,17 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service = lower_with_capabilities(&source, &crucible_codegen_go::capabilities())?;
-            let files = crucible_codegen_go::emit(
-                &service,
-                &crucible_codegen_go::Options {
-                    module_path,
-                    package_name,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the Go client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Go(crucible_codegen::GoOptions {
+                module_path,
+                package_name,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the Go client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -1059,22 +1018,18 @@ fn generate(target: Target) -> Result<(), String> {
         } => {
             let service =
                 lower_with_capabilities(&source, &crucible_codegen_python::capabilities())?;
-            let files = crucible_codegen_python::emit(
-                &service,
-                &crucible_codegen_python::Options {
-                    package_name,
-                    module_name,
-                    package_version,
-                    endpoint,
-                    content_sha256,
-                },
-            )
-            .map_err(|d| format!("cannot generate the Python client:\n{d}"))?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+            let client = crucible_codegen::Client::Python(crucible_codegen::PythonOptions {
+                package_name,
+                module_name,
+                package_version,
+                endpoint,
+                content_sha256,
+            });
+            let files = client
+                .emit(&service)
+                .map_err(|d| format!("cannot generate the Python client:\n{d}"))?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }
@@ -1101,7 +1056,9 @@ fn generate(target: Target) -> Result<(), String> {
                 ..Default::default()
             };
             let code = if client {
-                crucible_codegen_rust::generate_client(&service)
+                crucible_codegen::Client::Rust
+                    .emit(&service)
+                    .map(|mut files| files.remove(0).contents)
             } else {
                 crucible_codegen_rust::generate(&service, &options)
             };
@@ -1131,7 +1088,7 @@ fn generate(target: Target) -> Result<(), String> {
                         .map_err(|error| format!("{} is not JSON: {error}", path.display()))
                 })
                 .transpose()?;
-            let options = crucible_codegen_ts::Options {
+            let options = crucible_codegen::TsOptions {
                 package_name,
                 package_version,
                 client_name,
@@ -1146,17 +1103,16 @@ fn generate(target: Target) -> Result<(), String> {
                     .collect(),
                 package_json,
             };
-            let files = crucible_codegen_ts::emit(&service, &options).map_err(|diagnostics| {
-                format!(
-                    "cannot generate the TypeScript client:
+            let files = crucible_codegen::Client::Ts(options)
+                .emit(&service)
+                .map_err(|diagnostics| {
+                    format!(
+                        "cannot generate the TypeScript client:
 {diagnostics}"
-                )
-            })?;
-            output::write(
-                &out,
-                files.iter().map(|f| (f.path.as_str(), f.contents.as_str())),
-            )
-            .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+                    )
+                })?;
+            crucible_codegen::write(&out, &files)
+                .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
             println!("wrote {} files to {}", files.len(), out.display());
             Ok(())
         }

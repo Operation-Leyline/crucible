@@ -10,6 +10,13 @@ and an async runtime such as Tokio.
 
 ## Generating a client
 
+For separate Smithy, SDK, contract, and application packages, follow
+[building named SDK packages](../sdk-builds.md). It supports Rust and Java
+outputs from one compilation and hides client/service inclusion inside small
+Cargo integration packages. The named Rust artifact contains `src/lib.rs`;
+the integration package supplies its Cargo manifest and runtime dependency.
+The single-crate and AST-based options below remain supported.
+
 Create a Rust client library with a Smithy model and runnable example:
 
 ```sh

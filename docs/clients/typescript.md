@@ -23,8 +23,10 @@ npm pack
 ```
 
 The output contains models, error classes, the client, schemas, a bundled
-runtime, and npm/TypeScript configuration. Generation owns and replaces that
-directory. Set `--package-version` for distribution, `--client-name` to override
+runtime, and npm/TypeScript configuration. Generation tracks its files in
+`.crucible`, updates generated files, and removes obsolete generated files.
+Handwritten files, `node_modules`, and `dist` survive regeneration. Keep the
+ownership manifest. Set `--package-version` for distribution, `--client-name` to override
 `WeatherClient`, or `--package-json` to merge additional package metadata.
 Install the built package directory or archive in your application; generation
 and `npm pack` do not publish it.

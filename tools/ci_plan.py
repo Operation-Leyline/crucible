@@ -18,6 +18,9 @@ CORE_GROUPS = frozenset({"rust", "e2e", "typescript", "onboarding"})
 # Model/wire-description changes also compile representative native SDKs.
 # The complete language/platform matrix runs on the scheduled/manual tier.
 MODEL_GROUPS = CORE_GROUPS | {"python", "go"}
+# The shared SDK engine owns every client adapter and native package output.
+# Representative consumers include Java, the build facade's Maven output.
+SDK_GROUPS = MODEL_GROUPS | {"java"}
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.
     "openapi": set(),
@@ -71,7 +74,7 @@ def affected_groups(paths):
             # Models live in several generator test directories but are reused
             # by other languages (for example Python auth and Java waiters).
             if "/tests/" in path and path.endswith(".json") and "/tests/golden/" not in path:
-                selected.update(MODEL_GROUPS)
+                selected.update(SDK_GROUPS if parts[1] == "crucible-codegen" else MODEL_GROUPS)
                 # A fixture may be shared, but its owning generator's native
                 # harness must also see the changed model before release.
                 language = parts[1].removeprefix("crucible-codegen-")
@@ -87,6 +90,8 @@ def affected_groups(paths):
                 selected.update(CORE_GROUPS)
                 if crate == "crucible-cli":
                     selected.add("service_cli")
+            elif crate == "crucible-codegen":
+                selected.update(SDK_GROUPS)
             elif crate in {"crucible-smithy", "crucible-codegen-common"}:
                 selected.update(MODEL_GROUPS)
             elif crate.startswith("crucible-codegen-"):

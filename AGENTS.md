@@ -37,7 +37,8 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
 | `crucible-traits` (`smithy/`) | canonical Smithy trait sources, exposed as a Cargo package and model JAR |
 | `crucible-codegen-rust` | IR → the Rust code a service plugs into the framework, or a client (one file each) |
-| `crucible-build` | build scripts: model packages publish their AST, services and clients generate from it |
+| `crucible-codegen` | shared native client selection and options, target capability checks, generated-file ownership and stable output publication |
+| `crucible-build` | Cargo build scripts: compile/publish models, generate named SDK artifacts, bind Rust SDK packages and generate service contracts |
 | `crucible-policy` | configurable build-time API policy and directional compatibility checks; consumes only the lowered IR |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
 | `crucible-codegen-openapi` | IR → OpenAPI 3.1 JSON for supported REST JSON wire contracts |

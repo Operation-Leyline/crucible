@@ -66,7 +66,7 @@ pub fn idempotency_token() -> String {
 #[macro_export]
 macro_rules! include_client {
     () => {
-        include!(concat!(env!("OUT_DIR"), "/crucible_client_runtime_rust.rs"));
+        include!(env!("CRUCIBLE_CLIENT_SOURCE"));
     };
 }
 

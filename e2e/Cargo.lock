@@ -478,10 +478,12 @@ dependencies = [
 name = "crucible-build"
 version = "0.3.0"
 dependencies = [
+ "crucible-codegen",
  "crucible-codegen-rust",
  "crucible-policy",
  "crucible-smithy",
  "crucible-traits",
+ "serde",
  "serde_json",
  "smithy-tooling",
 ]
@@ -508,6 +510,15 @@ dependencies = [
  "sha2",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "crucible-codegen"
+version = "0.3.0"
+dependencies = [
+ "crucible-codegen-rust",
+ "crucible-smithy",
+ "serde_json",
 ]
 
 [[package]]

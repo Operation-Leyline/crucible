@@ -63,6 +63,13 @@ Alternatively, check in a precompiled JSON AST and keep it fresh in CI. Publish
 its path with `crucible_build::publish_model("model.json")`; that layout needs
 no JVM when building the service or client.
 
+For model-owned Rust and Java SDK outputs, compile once with
+`crucible_build::smithy("model").compile()`, publish the model, and add a
+named generation call per SDK variant. Another package can generate from
+`crucible_build::model_dependency("<links>")` without assembling Smithy again.
+See [building named SDK packages](sdk-builds.md) for feature selection, native
+package export, and SDK/contract package integration.
+
 ## Generated code
 
 `crucible_build::service(..).generate()` writes one file into `OUT_DIR`; the service
@@ -81,6 +88,13 @@ pub trait GetGraphOperation: crucible::WithContext {
     fn get_graph(&self, input: GetGraphInput) -> impl Future<Output = crucible::Result<GetGraphOutput>> + Send;
 }
 ```
+
+In a workspace with a separate contract package, that package owns the build
+script and inclusion macro. The service imports its operation traits and
+registry through ordinary Cargo dependencies. Likewise, a Rust SDK package
+owns client inclusion, so application code imports its service-named client.
+The [named SDK guide](sdk-builds.md#consuming-the-rust-sdk-and-service-contract)
+shows these small package integration files.
 
 The service implements the trait. Grouping is free: one type can implement
 every operation, or one type per resource.
