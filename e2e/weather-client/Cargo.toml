@@ -7,7 +7,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-crucible-client = { path = "../../crates/crucible-client" }
+crucible-client-runtime-rust = { path = "../../crates/crucible-client-runtime-rust" }
 weather-model = { path = "../weather-model" }
 
 [build-dependencies]

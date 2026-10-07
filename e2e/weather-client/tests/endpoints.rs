@@ -1,4 +1,4 @@
-use crucible_client::{
+use crucible_client_runtime_rust::{
     CancellationToken, Config, Error, Retry, WaiterFailure, WaiterOptions, WaiterResult,
 };
 use std::time::Duration;

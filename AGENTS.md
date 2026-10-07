@@ -33,7 +33,7 @@ reviewed by CodeRabbit; never push to main.
 |---|---|
 | `crucible` | the framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
-| `crucible-client` | the Rust client runtime: transport, retries, error decoding, pagination |
+| `crucible-client-runtime-rust` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
 | `crucible-traits` (`smithy/`) | canonical Smithy trait sources, exposed as a Cargo package and model JAR |
 | `crucible-codegen-rust` | IR → the Rust code a service plugs into the framework, or a client (one file each) |
@@ -48,7 +48,7 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-codegen-{python,go,java,csharp,kotlin,swift,dart,php,ruby,cpp,c,r}` | native client models, operation wrappers, bundled runtimes, and package metadata; each reads only the IR |
 | `crucible-cli` | `check`, `generate <language>`, and service scaffolding |
 | `crucible-codegen-cli` | IR → standalone service CLI package and typed Rust SDK dispatch |
-| `crucible-cli-runtime` | service CLI parsing, configuration, completion, and output; calls use `crucible-client` |
+| `crucible-cli-runtime` | service CLI parsing, configuration, completion, and output; calls use `crucible-client-runtime-rust` |
 
 `e2e/` is its own Cargo workspace: `weather-model` (a model package),
 `weather-service` (a service package that generates in `build.rs`, laid out

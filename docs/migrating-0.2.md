@@ -21,6 +21,8 @@ crucible-build = { git = "https://github.com/Operation-Leyline/crucible", tag = 
 
 Rust clients using `crucible-client` should use the same tag. Keep the service's
 model-package dependency and regenerate from its published Smithy AST.
+Newer revisions rename that package to `crucible-client-runtime-rust`; see the
+[runtime crate name migration](clients/rust.md#migrating-the-runtime-crate-name).
 
 ## Choosing an extension phase
 

@@ -1,5 +1,5 @@
 use crucible::validate::Validator;
-use crucible_client::{BigDecimal, BigInteger, Config, Field};
+use crucible_client_runtime_rust::{BigDecimal, BigInteger, Config, Field};
 use serde_json::{Value, json};
 use std::sync::Arc;
 

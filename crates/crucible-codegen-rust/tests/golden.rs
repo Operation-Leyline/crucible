@@ -275,7 +275,7 @@ fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one(
         "{code}"
     );
     assert!(code.contains(
-        "pages.fresh_token(|input| input.client_token = ::crucible_client::Field::Value(::crucible_client::idempotency_token()))"
+        "pages.fresh_token(|input| input.client_token = ::crucible_client_runtime_rust::Field::Value(::crucible_client_runtime_rust::idempotency_token()))"
     ));
 }
 
@@ -522,14 +522,18 @@ fn aws_json_protocols_describe_their_wire_in_client_markers() {
         assert!(client.contains("const IGNORE_TYPE: bool = true;"));
         assert!(client.contains("codec::NullAbsent<"));
         assert!(client.contains("codec::NonFinite"));
-        assert!(client.contains("skip_serializing_if = \"::crucible_client::Field::is_unset\""));
+        assert!(
+            client.contains(
+                "skip_serializing_if = \"::crucible_client_runtime_rust::Field::is_unset\""
+            )
+        );
         // Documents keep explicit nulls.
         assert!(client.contains(
-            "#[serde(rename = \"document\", default, skip_serializing_if = \"::crucible_client::Field::is_absent\")]"
+            "#[serde(rename = \"document\", default, skip_serializing_if = \"::crucible_client_runtime_rust::Field::is_absent\")]"
         ));
         let rest = protocol == Protocol::AwsRestJson1;
         assert_eq!(
-            client.contains("Scalar::Timestamp { text: ::crucible_client::operation::TimestampFormat::HttpDate, json: ::crucible_client::operation::TimestampFormat::EpochSeconds }"),
+            client.contains("Scalar::Timestamp { text: ::crucible_client_runtime_rust::operation::TimestampFormat::HttpDate, json: ::crucible_client_runtime_rust::operation::TimestampFormat::EpochSeconds }"),
             rest
         );
     }
@@ -544,7 +548,7 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
     .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
     .unwrap();
     let client = generate_client(&service).unwrap();
-    assert!(client.contains("Some(::crucible_client::operation::Checksum::Md5)"));
+    assert!(client.contains("Some(::crucible_client_runtime_rust::operation::Checksum::Md5)"));
     assert!(client.contains("request_algorithm_member: Some(\"algorithm\"), validation_mode_member: Some(\"validation\")"));
     assert!(client.contains("ChecksumAlgorithm::Crc64Nvme"));
     let service = Model::from_json(include_str!(
@@ -556,11 +560,13 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
     let client = generate_client(&service).unwrap();
     assert!(client.contains("Location::TextPayload(\"text/plain\")"));
     assert!(client.contains("Location::DocumentPayload(\"application/json\")"));
-    assert!(client.contains("Scalar::List(&::crucible_client::operation::Scalar::Base64)"));
-    assert!(client.contains("Location::PrefixHeaders(\"x-extra-\"), scalar: ::crucible_client::operation::Scalar::Base64"));
+    assert!(
+        client.contains("Scalar::List(&::crucible_client_runtime_rust::operation::Scalar::Base64)")
+    );
+    assert!(client.contains("Location::PrefixHeaders(\"x-extra-\"), scalar: ::crucible_client_runtime_rust::operation::Scalar::Base64"));
     // The error's payload is described too, so its body decodes as text.
     assert!(client.contains(
-        "name: \"details\", location: ::crucible_client::operation::Location::TextPayload"
+        "name: \"details\", location: ::crucible_client_runtime_rust::operation::Location::TextPayload"
     ));
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/error-payloads.json"
@@ -606,6 +612,8 @@ fn keyword_operation_derivatives_and_outputless_waiters_use_valid_names_and_type
     assert!(code.contains("pub async fn r#type("));
     assert!(code.contains("pub async fn type_with_options_2("));
     assert!(code.contains("pub async fn wait_until_match_2("));
-    assert!(code.contains("WaiterResult<::crucible_client::operation::Unit, TypeError>"));
+    assert!(
+        code.contains("WaiterResult<::crucible_client_runtime_rust::operation::Unit, TypeError>")
+    );
     assert!(!code.contains("wait_until_r#"));
 }

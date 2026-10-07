@@ -78,7 +78,8 @@ def affected_groups(paths):
                 selected.update(GENERATORS.get(language, set()))
                 continue
             crate = parts[1]
-            if crate == "crucible-client":
+            # A rename diff includes deleted paths under the former crate name.
+            if crate in {"crucible-client", "crucible-client-runtime-rust"}:
                 selected.update({"e2e", "service_cli"})
             elif crate == "crucible-cli-runtime":
                 selected.add("service_cli")

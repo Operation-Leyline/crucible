@@ -683,7 +683,7 @@ fn generate(target: Target) -> Result<(), String> {
                     runtime_path.display()
                 )
             })?;
-            for name in ["crucible-client", "crucible-cli-runtime"] {
+            for name in ["crucible-client-runtime-rust", "crucible-cli-runtime"] {
                 if !runtime_path
                     .join("crates")
                     .join(name)

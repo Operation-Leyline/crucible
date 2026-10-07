@@ -2,7 +2,7 @@
 
 #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
 pub mod model {
-    use ::crucible_client::validate::{Validate, Validator};
+    use ::crucible_client_runtime_rust::validate::{Validate, Validator};
 
     pub type CityId = ::std::string::String;
 
@@ -10,8 +10,8 @@ pub mod model {
 
     pub type CitySummaries = ::std::vec::Vec<CitySummary>;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct CitySummary {
         #[serde(rename = "id")]
         pub id: CityId,
@@ -19,10 +19,10 @@ pub mod model {
         pub name: CityName,
         #[serde(rename = "population", default = "defaults::city_summary__population")]
         pub population: i64,
-        #[serde(rename = "updatedAt", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub updated_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
-        #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client::Field::is_absent", with = "::crucible_client::codec::Adapter::<::crucible_client::codec::Field<::crucible_client::codec::EpochSeconds>>")]
-        pub created_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
+        #[serde(rename = "updatedAt", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub updated_at: ::crucible_client_runtime_rust::Field<::crucible_client_runtime_rust::time::Timestamp>,
+        #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent", with = "::crucible_client_runtime_rust::codec::Adapter::<::crucible_client_runtime_rust::codec::Field<::crucible_client_runtime_rust::codec::EpochSeconds>>")]
+        pub created_at: ::crucible_client_runtime_rust::Field<::crucible_client_runtime_rust::time::Timestamp>,
     }
     impl CitySummary {
         pub fn builder() -> CitySummaryBuilder { CitySummaryBuilder::default() }
@@ -30,28 +30,28 @@ pub mod model {
         pub fn name(&self) -> &CityName { &self.name }
         pub fn population(&self) -> &i64 { &self.population }
         /// The value when present; inspect the public field to distinguish absent and null.
-        pub fn updated_at(&self) -> ::std::option::Option<&::crucible_client::time::Timestamp> { self.updated_at.value() }
+        pub fn updated_at(&self) -> ::std::option::Option<&::crucible_client_runtime_rust::time::Timestamp> { self.updated_at.value() }
         /// The value when present; inspect the public field to distinguish absent and null.
-        pub fn created_at(&self) -> ::std::option::Option<&::crucible_client::time::Timestamp> { self.created_at.value() }
+        pub fn created_at(&self) -> ::std::option::Option<&::crucible_client_runtime_rust::time::Timestamp> { self.created_at.value() }
     }
     #[derive(Debug, Clone, Default)]
     pub struct CitySummaryBuilder {
         id: ::std::option::Option<CityId>,
         name: ::std::option::Option<CityName>,
         population: ::std::option::Option<i64>,
-        updated_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
-        created_at: ::crucible_client::Field<::crucible_client::time::Timestamp>,
+        updated_at: ::crucible_client_runtime_rust::Field<::crucible_client_runtime_rust::time::Timestamp>,
+        created_at: ::crucible_client_runtime_rust::Field<::crucible_client_runtime_rust::time::Timestamp>,
     }
     impl CitySummaryBuilder {
         pub fn id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.id = Some(value.into()); self }
         pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = Some(value.into()); self }
         pub fn population(mut self, value: impl ::std::convert::Into<i64>) -> Self { self.population = Some(value.into()); self }
-        pub fn updated_at(mut self, value: impl ::std::convert::Into<::crucible_client::time::Timestamp>) -> Self { self.updated_at = ::crucible_client::Field::Value(value.into()); self }
-        pub fn created_at(mut self, value: impl ::std::convert::Into<::crucible_client::time::Timestamp>) -> Self { self.created_at = ::crucible_client::Field::Value(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<CitySummary, ::crucible_client::BuildError> {
+        pub fn updated_at(mut self, value: impl ::std::convert::Into<::crucible_client_runtime_rust::time::Timestamp>) -> Self { self.updated_at = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn created_at(mut self, value: impl ::std::convert::Into<::crucible_client_runtime_rust::time::Timestamp>) -> Self { self.created_at = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<CitySummary, ::crucible_client_runtime_rust::BuildError> {
             Ok(CitySummary {
-                id: self.id.ok_or(::crucible_client::BuildError { shape: "CitySummary", member: "id" })?,
-                name: self.name.ok_or(::crucible_client::BuildError { shape: "CitySummary", member: "name" })?,
+                id: self.id.ok_or(::crucible_client_runtime_rust::BuildError { shape: "CitySummary", member: "id" })?,
+                name: self.name.ok_or(::crucible_client_runtime_rust::BuildError { shape: "CitySummary", member: "name" })?,
                 population: self.population.unwrap_or_else(defaults::city_summary__population),
                 updated_at: self.updated_at,
                 created_at: self.created_at,
@@ -59,8 +59,8 @@ pub mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct Coordinates {
         #[serde(rename = "latitude")]
         pub latitude: f64,
@@ -80,25 +80,25 @@ pub mod model {
     impl CoordinatesBuilder {
         pub fn latitude(mut self, value: impl ::std::convert::Into<f64>) -> Self { self.latitude = Some(value.into()); self }
         pub fn longitude(mut self, value: impl ::std::convert::Into<f64>) -> Self { self.longitude = Some(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<Coordinates, ::crucible_client::BuildError> {
+        pub fn build(self) -> ::std::result::Result<Coordinates, ::crucible_client_runtime_rust::BuildError> {
             Ok(Coordinates {
-                latitude: self.latitude.ok_or(::crucible_client::BuildError { shape: "Coordinates", member: "latitude" })?,
-                longitude: self.longitude.ok_or(::crucible_client::BuildError { shape: "Coordinates", member: "longitude" })?,
+                latitude: self.latitude.ok_or(::crucible_client_runtime_rust::BuildError { shape: "Coordinates", member: "latitude" })?,
+                longitude: self.longitude.ok_or(::crucible_client_runtime_rust::BuildError { shape: "Coordinates", member: "longitude" })?,
             })
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct CreateCityInput {
-        #[serde(rename = "name", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub name: ::crucible_client::Field<CityName>,
-        #[serde(rename = "location", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub location: ::crucible_client::Field<Location>,
-        #[serde(rename = "clientToken", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub client_token: ::crucible_client::Field<::std::string::String>,
-        #[serde(rename = "expectedRevision", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub expected_revision: ::crucible_client::Field<i64>,
+        #[serde(rename = "name", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub name: ::crucible_client_runtime_rust::Field<CityName>,
+        #[serde(rename = "location", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub location: ::crucible_client_runtime_rust::Field<Location>,
+        #[serde(rename = "clientToken", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub client_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
+        #[serde(rename = "expectedRevision", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub expected_revision: ::crucible_client_runtime_rust::Field<i64>,
     }
     impl CreateCityInput {
         pub fn builder() -> CreateCityInputBuilder { CreateCityInputBuilder::default() }
@@ -113,16 +113,16 @@ pub mod model {
     }
     #[derive(Debug, Clone, Default)]
     pub struct CreateCityInputBuilder {
-        name: ::crucible_client::Field<CityName>,
-        location: ::crucible_client::Field<Location>,
-        client_token: ::crucible_client::Field<::std::string::String>,
-        expected_revision: ::crucible_client::Field<i64>,
+        name: ::crucible_client_runtime_rust::Field<CityName>,
+        location: ::crucible_client_runtime_rust::Field<Location>,
+        client_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
+        expected_revision: ::crucible_client_runtime_rust::Field<i64>,
     }
     impl CreateCityInputBuilder {
-        pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = ::crucible_client::Field::Value(value.into()); self }
-        pub fn location(mut self, value: impl ::std::convert::Into<Location>) -> Self { self.location = ::crucible_client::Field::Value(value.into()); self }
-        pub fn client_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.client_token = ::crucible_client::Field::Value(value.into()); self }
-        pub fn expected_revision(mut self, value: impl ::std::convert::Into<i64>) -> Self { self.expected_revision = ::crucible_client::Field::Value(value.into()); self }
+        pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn location(mut self, value: impl ::std::convert::Into<Location>) -> Self { self.location = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn client_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.client_token = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn expected_revision(mut self, value: impl ::std::convert::Into<i64>) -> Self { self.expected_revision = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
         pub fn build(self) -> CreateCityInput {
             CreateCityInput {
                 name: self.name,
@@ -133,8 +133,8 @@ pub mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct CreateCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
@@ -149,24 +149,24 @@ pub mod model {
     }
     impl CreateCityOutputBuilder {
         pub fn city(mut self, value: impl ::std::convert::Into<CitySummary>) -> Self { self.city = Some(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<CreateCityOutput, ::crucible_client::BuildError> {
+        pub fn build(self) -> ::std::result::Result<CreateCityOutput, ::crucible_client_runtime_rust::BuildError> {
             Ok(CreateCityOutput {
-                city: self.city.ok_or(::crucible_client::BuildError { shape: "CreateCityOutput", member: "city" })?,
+                city: self.city.ok_or(::crucible_client_runtime_rust::BuildError { shape: "CreateCityOutput", member: "city" })?,
             })
         }
     }
 
-    pub type DateTime = ::crucible_client::time::Timestamp;
+    pub type DateTime = ::crucible_client_runtime_rust::time::Timestamp;
 
-    pub type Forecast = ::std::collections::BTreeMap<Sky, ::crucible_client::__private::serde_json::Value>;
+    pub type Forecast = ::std::collections::BTreeMap<Sky, ::crucible_client_runtime_rust::__private::serde_json::Value>;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct GetCityInput {
-        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub city_id: ::crucible_client::Field<CityId>,
-        #[serde(rename = "at", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub at: ::crucible_client::Field<DateTime>,
+        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub city_id: ::crucible_client_runtime_rust::Field<CityId>,
+        #[serde(rename = "at", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub at: ::crucible_client_runtime_rust::Field<DateTime>,
     }
     impl GetCityInput {
         pub fn builder() -> GetCityInputBuilder { GetCityInputBuilder::default() }
@@ -177,12 +177,12 @@ pub mod model {
     }
     #[derive(Debug, Clone, Default)]
     pub struct GetCityInputBuilder {
-        city_id: ::crucible_client::Field<CityId>,
-        at: ::crucible_client::Field<DateTime>,
+        city_id: ::crucible_client_runtime_rust::Field<CityId>,
+        at: ::crucible_client_runtime_rust::Field<DateTime>,
     }
     impl GetCityInputBuilder {
-        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client::Field::Value(value.into()); self }
-        pub fn at(mut self, value: impl ::std::convert::Into<DateTime>) -> Self { self.at = ::crucible_client::Field::Value(value.into()); self }
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn at(mut self, value: impl ::std::convert::Into<DateTime>) -> Self { self.at = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
         pub fn build(self) -> GetCityInput {
             GetCityInput {
                 city_id: self.city_id,
@@ -191,15 +191,15 @@ pub mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct GetCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
-        #[serde(rename = "forecast", default, skip_serializing_if = "::crucible_client::Field::is_absent", with = "::crucible_client::codec::Adapter::<::crucible_client::codec::Field<::crucible_client::codec::Map<::crucible_client::codec::Document>>>")]
-        pub forecast: ::crucible_client::Field<Forecast>,
-        #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub request_id: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "forecast", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent", with = "::crucible_client_runtime_rust::codec::Adapter::<::crucible_client_runtime_rust::codec::Field<::crucible_client_runtime_rust::codec::Map<::crucible_client_runtime_rust::codec::Document>>>")]
+        pub forecast: ::crucible_client_runtime_rust::Field<Forecast>,
+        #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub request_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
     impl GetCityOutput {
         pub fn builder() -> GetCityOutputBuilder { GetCityOutputBuilder::default() }
@@ -212,27 +212,27 @@ pub mod model {
     #[derive(Debug, Clone, Default)]
     pub struct GetCityOutputBuilder {
         city: ::std::option::Option<CitySummary>,
-        forecast: ::crucible_client::Field<Forecast>,
-        request_id: ::crucible_client::Field<::std::string::String>,
+        forecast: ::crucible_client_runtime_rust::Field<Forecast>,
+        request_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
     impl GetCityOutputBuilder {
         pub fn city(mut self, value: impl ::std::convert::Into<CitySummary>) -> Self { self.city = Some(value.into()); self }
-        pub fn forecast(mut self, value: impl ::std::convert::Into<Forecast>) -> Self { self.forecast = ::crucible_client::Field::Value(value.into()); self }
-        pub fn request_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.request_id = ::crucible_client::Field::Value(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<GetCityOutput, ::crucible_client::BuildError> {
+        pub fn forecast(mut self, value: impl ::std::convert::Into<Forecast>) -> Self { self.forecast = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn request_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.request_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<GetCityOutput, ::crucible_client_runtime_rust::BuildError> {
             Ok(GetCityOutput {
-                city: self.city.ok_or(::crucible_client::BuildError { shape: "GetCityOutput", member: "city" })?,
+                city: self.city.ok_or(::crucible_client_runtime_rust::BuildError { shape: "GetCityOutput", member: "city" })?,
                 forecast: self.forecast,
                 request_id: self.request_id,
             })
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct GetCityPhotoInput {
-        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub city_id: ::crucible_client::Field<CityId>,
+        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub city_id: ::crucible_client_runtime_rust::Field<CityId>,
     }
     impl GetCityPhotoInput {
         pub fn builder() -> GetCityPhotoInputBuilder { GetCityPhotoInputBuilder::default() }
@@ -241,10 +241,10 @@ pub mod model {
     }
     #[derive(Debug, Clone, Default)]
     pub struct GetCityPhotoInputBuilder {
-        city_id: ::crucible_client::Field<CityId>,
+        city_id: ::crucible_client_runtime_rust::Field<CityId>,
     }
     impl GetCityPhotoInputBuilder {
-        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client::Field::Value(value.into()); self }
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
         pub fn build(self) -> GetCityPhotoInput {
             GetCityPhotoInput {
                 city_id: self.city_id,
@@ -252,13 +252,13 @@ pub mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct GetCityPhotoOutput {
-        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub caption: ::crucible_client::Field<::std::string::String>,
-        #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub photo: ::crucible_client::Field<Photo>,
+        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
+        #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub photo: ::crucible_client_runtime_rust::Field<Photo>,
     }
     impl GetCityPhotoOutput {
         pub fn builder() -> GetCityPhotoOutputBuilder { GetCityPhotoOutputBuilder::default() }
@@ -269,12 +269,12 @@ pub mod model {
     }
     #[derive(Debug, Clone, Default)]
     pub struct GetCityPhotoOutputBuilder {
-        caption: ::crucible_client::Field<::std::string::String>,
-        photo: ::crucible_client::Field<Photo>,
+        caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
+        photo: ::crucible_client_runtime_rust::Field<Photo>,
     }
     impl GetCityPhotoOutputBuilder {
-        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client::Field::Value(value.into()); self }
-        pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client::Field::Value(value.into()); self }
+        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
         pub fn build(self) -> GetCityPhotoOutput {
             GetCityPhotoOutput {
                 caption: self.caption,
@@ -283,15 +283,15 @@ pub mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ListCitiesInput {
-        #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub next_token: ::crucible_client::Field<::std::string::String>,
-        #[serde(rename = "maxResults", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub max_results: ::crucible_client::Field<i32>,
-        #[serde(rename = "tags", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub tags: ::crucible_client::Field<Tags>,
+        #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub next_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
+        #[serde(rename = "maxResults", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub max_results: ::crucible_client_runtime_rust::Field<i32>,
+        #[serde(rename = "tags", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub tags: ::crucible_client_runtime_rust::Field<Tags>,
     }
     impl ListCitiesInput {
         pub fn builder() -> ListCitiesInputBuilder { ListCitiesInputBuilder::default() }
@@ -304,14 +304,14 @@ pub mod model {
     }
     #[derive(Debug, Clone, Default)]
     pub struct ListCitiesInputBuilder {
-        next_token: ::crucible_client::Field<::std::string::String>,
-        max_results: ::crucible_client::Field<i32>,
-        tags: ::crucible_client::Field<Tags>,
+        next_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
+        max_results: ::crucible_client_runtime_rust::Field<i32>,
+        tags: ::crucible_client_runtime_rust::Field<Tags>,
     }
     impl ListCitiesInputBuilder {
-        pub fn next_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.next_token = ::crucible_client::Field::Value(value.into()); self }
-        pub fn max_results(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.max_results = ::crucible_client::Field::Value(value.into()); self }
-        pub fn tags(mut self, value: impl ::std::convert::Into<Tags>) -> Self { self.tags = ::crucible_client::Field::Value(value.into()); self }
+        pub fn next_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.next_token = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn max_results(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.max_results = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn tags(mut self, value: impl ::std::convert::Into<Tags>) -> Self { self.tags = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
         pub fn build(self) -> ListCitiesInput {
             ListCitiesInput {
                 next_token: self.next_token,
@@ -321,13 +321,13 @@ pub mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ListCitiesOutput {
         #[serde(rename = "cities")]
         pub cities: CitySummaries,
-        #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub next_token: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub next_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
     impl ListCitiesOutput {
         pub fn builder() -> ListCitiesOutputBuilder { ListCitiesOutputBuilder::default() }
@@ -338,14 +338,14 @@ pub mod model {
     #[derive(Debug, Clone, Default)]
     pub struct ListCitiesOutputBuilder {
         cities: ::std::option::Option<CitySummaries>,
-        next_token: ::crucible_client::Field<::std::string::String>,
+        next_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
     impl ListCitiesOutputBuilder {
         pub fn cities(mut self, value: impl ::std::convert::Into<CitySummaries>) -> Self { self.cities = Some(value.into()); self }
-        pub fn next_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.next_token = ::crucible_client::Field::Value(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<ListCitiesOutput, ::crucible_client::BuildError> {
+        pub fn next_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.next_token = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<ListCitiesOutput, ::crucible_client_runtime_rust::BuildError> {
             Ok(ListCitiesOutput {
-                cities: self.cities.ok_or(::crucible_client::BuildError { shape: "ListCitiesOutput", member: "cities" })?,
+                cities: self.cities.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ListCitiesOutput", member: "cities" })?,
                 next_token: self.next_token,
             })
         }
@@ -354,49 +354,49 @@ pub mod model {
     #[derive(Debug, Clone, PartialEq)]
     pub enum Location {
         Coordinates(Coordinates),
-        Unknown(::crucible_client::operation::Unit),
+        Unknown(::crucible_client_runtime_rust::operation::Unit),
         /// An arm introduced by a newer service.
-        UnknownValue(::crucible_client::UnknownUnion),
+        UnknownValue(::crucible_client_runtime_rust::UnknownUnion),
     }
-    impl ::crucible_client::open::Union for Location {
-        fn deserialize_member<'de, D: ::crucible_client::__private::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {
+    impl ::crucible_client_runtime_rust::open::Union for Location {
+        fn deserialize_member<'de, D: ::crucible_client_runtime_rust::__private::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {
             match name.as_str() {
-                "coordinates" => ::crucible_client::__private::serde::Deserialize::deserialize(value).map(Self::Coordinates),
-                "unknown" => ::crucible_client::__private::serde::Deserialize::deserialize(value).map(Self::Unknown),
-                _ => ::crucible_client::__private::serde::Deserialize::deserialize(value).map(|value| Self::UnknownValue(::crucible_client::UnknownUnion { name, value })),
+                "coordinates" => ::crucible_client_runtime_rust::__private::serde::Deserialize::deserialize(value).map(Self::Coordinates),
+                "unknown" => ::crucible_client_runtime_rust::__private::serde::Deserialize::deserialize(value).map(Self::Unknown),
+                _ => ::crucible_client_runtime_rust::__private::serde::Deserialize::deserialize(value).map(|value| Self::UnknownValue(::crucible_client_runtime_rust::UnknownUnion { name, value })),
             }
         }
-        fn serialize_member<S: ::crucible_client::__private::serde::ser::SerializeMap>(&self, map: &mut S) -> ::std::result::Result<(), S::Error> {
+        fn serialize_member<S: ::crucible_client_runtime_rust::__private::serde::ser::SerializeMap>(&self, map: &mut S) -> ::std::result::Result<(), S::Error> {
             match self {
                 Self::Coordinates(value) => map.serialize_entry("coordinates", value),
                 Self::Unknown(value) => map.serialize_entry("unknown", value),
-                Self::UnknownValue(value) => ::crucible_client::open::serialize_unknown(value, &["coordinates", "unknown"], map),
+                Self::UnknownValue(value) => ::crucible_client_runtime_rust::open::serialize_unknown(value, &["coordinates", "unknown"], map),
             }
         }
     }
-    impl ::crucible_client::__private::serde::Serialize for Location {
-        fn serialize<S: ::crucible_client::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
-            ::crucible_client::open::serialize_union(self, serializer)
+    impl ::crucible_client_runtime_rust::__private::serde::Serialize for Location {
+        fn serialize<S: ::crucible_client_runtime_rust::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
+            ::crucible_client_runtime_rust::open::serialize_union(self, serializer)
         }
     }
-    impl<'de> ::crucible_client::__private::serde::Deserialize<'de> for Location {
-        fn deserialize<D: ::crucible_client::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
-            ::crucible_client::open::deserialize_union(deserializer)
+    impl<'de> ::crucible_client_runtime_rust::__private::serde::Deserialize<'de> for Location {
+        fn deserialize<D: ::crucible_client_runtime_rust::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
+            ::crucible_client_runtime_rust::open::deserialize_union(deserializer)
         }
     }
 
     /// A photo, carried unparsed.
-    pub type Photo = ::crucible_client::Blob;
+    pub type Photo = ::crucible_client_runtime_rust::Blob;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PhotoSummary {
         #[serde(rename = "size")]
         pub size: i32,
         #[serde(rename = "thumbnail")]
         pub thumbnail: Thumbnail,
-        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub caption: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
     impl PhotoSummary {
         pub fn builder() -> PhotoSummaryBuilder { PhotoSummaryBuilder::default() }
@@ -409,30 +409,30 @@ pub mod model {
     pub struct PhotoSummaryBuilder {
         size: ::std::option::Option<i32>,
         thumbnail: ::std::option::Option<Thumbnail>,
-        caption: ::crucible_client::Field<::std::string::String>,
+        caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
     impl PhotoSummaryBuilder {
         pub fn size(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.size = Some(value.into()); self }
         pub fn thumbnail(mut self, value: impl ::std::convert::Into<Thumbnail>) -> Self { self.thumbnail = Some(value.into()); self }
-        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client::Field::Value(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<PhotoSummary, ::crucible_client::BuildError> {
+        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<PhotoSummary, ::crucible_client_runtime_rust::BuildError> {
             Ok(PhotoSummary {
-                size: self.size.ok_or(::crucible_client::BuildError { shape: "PhotoSummary", member: "size" })?,
-                thumbnail: self.thumbnail.ok_or(::crucible_client::BuildError { shape: "PhotoSummary", member: "thumbnail" })?,
+                size: self.size.ok_or(::crucible_client_runtime_rust::BuildError { shape: "PhotoSummary", member: "size" })?,
+                thumbnail: self.thumbnail.ok_or(::crucible_client_runtime_rust::BuildError { shape: "PhotoSummary", member: "thumbnail" })?,
                 caption: self.caption,
             })
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PutCityPhotoInput {
-        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub city_id: ::crucible_client::Field<CityId>,
-        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub caption: ::crucible_client::Field<::std::string::String>,
-        #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub photo: ::crucible_client::Field<Photo>,
+        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub city_id: ::crucible_client_runtime_rust::Field<CityId>,
+        #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
+        #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub photo: ::crucible_client_runtime_rust::Field<Photo>,
     }
     impl PutCityPhotoInput {
         pub fn builder() -> PutCityPhotoInputBuilder { PutCityPhotoInputBuilder::default() }
@@ -445,14 +445,14 @@ pub mod model {
     }
     #[derive(Debug, Clone, Default)]
     pub struct PutCityPhotoInputBuilder {
-        city_id: ::crucible_client::Field<CityId>,
-        caption: ::crucible_client::Field<::std::string::String>,
-        photo: ::crucible_client::Field<Photo>,
+        city_id: ::crucible_client_runtime_rust::Field<CityId>,
+        caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
+        photo: ::crucible_client_runtime_rust::Field<Photo>,
     }
     impl PutCityPhotoInputBuilder {
-        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client::Field::Value(value.into()); self }
-        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client::Field::Value(value.into()); self }
-        pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client::Field::Value(value.into()); self }
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
         pub fn build(self) -> PutCityPhotoInput {
             PutCityPhotoInput {
                 city_id: self.city_id,
@@ -462,8 +462,8 @@ pub mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PutCityPhotoOutput {
         #[serde(rename = "photo")]
         pub photo: PhotoSummary,
@@ -478,9 +478,9 @@ pub mod model {
     }
     impl PutCityPhotoOutputBuilder {
         pub fn photo(mut self, value: impl ::std::convert::Into<PhotoSummary>) -> Self { self.photo = Some(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<PutCityPhotoOutput, ::crucible_client::BuildError> {
+        pub fn build(self) -> ::std::result::Result<PutCityPhotoOutput, ::crucible_client_runtime_rust::BuildError> {
             Ok(PutCityPhotoOutput {
-                photo: self.photo.ok_or(::crucible_client::BuildError { shape: "PutCityPhotoOutput", member: "photo" })?,
+                photo: self.photo.ok_or(::crucible_client_runtime_rust::BuildError { shape: "PutCityPhotoOutput", member: "photo" })?,
             })
         }
     }
@@ -501,7 +501,7 @@ pub mod model {
             }
         }
     }
-    impl ::crucible_client::open::Enum for Sky {
+    impl ::crucible_client_runtime_rust::open::Enum for Sky {
         fn as_str(&self) -> &str { self.as_str() }
         fn from_string(value: ::std::string::String) -> Self {
             match value.as_str() {
@@ -511,19 +511,19 @@ pub mod model {
             }
         }
     }
-    impl ::crucible_client::__private::serde::Serialize for Sky {
-        fn serialize<S: ::crucible_client::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
-            ::crucible_client::open::serialize_enum(self, serializer)
+    impl ::crucible_client_runtime_rust::__private::serde::Serialize for Sky {
+        fn serialize<S: ::crucible_client_runtime_rust::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
+            ::crucible_client_runtime_rust::open::serialize_enum(self, serializer)
         }
     }
-    impl<'de> ::crucible_client::__private::serde::Deserialize<'de> for Sky {
-        fn deserialize<D: ::crucible_client::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
-            ::crucible_client::open::deserialize_enum(deserializer)
+    impl<'de> ::crucible_client_runtime_rust::__private::serde::Deserialize<'de> for Sky {
+        fn deserialize<D: ::crucible_client_runtime_rust::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
+            ::crucible_client_runtime_rust::open::deserialize_enum(deserializer)
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct StatusInput {
     }
     impl StatusInput {
@@ -539,8 +539,8 @@ pub mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct StatusOutput {
     }
     impl StatusOutput {
@@ -559,10 +559,10 @@ pub mod model {
     pub type Tags = ::std::vec::Vec<::std::string::String>;
 
     /// The photo's first bytes: base64 in JSON.
-    pub type Thumbnail = ::crucible_client::Blob;
+    pub type Thumbnail = ::crucible_client_runtime_rust::Blob;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ValidationField {
         #[serde(rename = "path")]
         pub path: ::std::string::String,
@@ -582,10 +582,10 @@ pub mod model {
     impl ValidationFieldBuilder {
         pub fn path(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.path = Some(value.into()); self }
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<ValidationField, ::crucible_client::BuildError> {
+        pub fn build(self) -> ::std::result::Result<ValidationField, ::crucible_client_runtime_rust::BuildError> {
             Ok(ValidationField {
-                path: self.path.ok_or(::crucible_client::BuildError { shape: "ValidationField", member: "path" })?,
-                message: self.message.ok_or(::crucible_client::BuildError { shape: "ValidationField", member: "message" })?,
+                path: self.path.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ValidationField", member: "path" })?,
+                message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ValidationField", member: "message" })?,
             })
         }
     }
@@ -612,7 +612,7 @@ pub mod model {
             }
         }
     }
-    impl ::crucible_client::open::Enum for ValidationReason {
+    impl ::crucible_client_runtime_rust::open::Enum for ValidationReason {
         fn as_str(&self) -> &str { self.as_str() }
         fn from_string(value: ::std::string::String) -> Self {
             match value.as_str() {
@@ -624,14 +624,14 @@ pub mod model {
             }
         }
     }
-    impl ::crucible_client::__private::serde::Serialize for ValidationReason {
-        fn serialize<S: ::crucible_client::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
-            ::crucible_client::open::serialize_enum(self, serializer)
+    impl ::crucible_client_runtime_rust::__private::serde::Serialize for ValidationReason {
+        fn serialize<S: ::crucible_client_runtime_rust::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {
+            ::crucible_client_runtime_rust::open::serialize_enum(self, serializer)
         }
     }
-    impl<'de> ::crucible_client::__private::serde::Deserialize<'de> for ValidationReason {
-        fn deserialize<D: ::crucible_client::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
-            ::crucible_client::open::deserialize_enum(deserializer)
+    impl<'de> ::crucible_client_runtime_rust::__private::serde::Deserialize<'de> for ValidationReason {
+        fn deserialize<D: ::crucible_client_runtime_rust::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {
+            ::crucible_client_runtime_rust::open::deserialize_enum(deserializer)
         }
     }
 
@@ -641,8 +641,8 @@ pub mod model {
         }
     }
 
-    static PATTERN_0: ::std::sync::LazyLock<::crucible_client::__private::regex::Regex> =
-        ::std::sync::LazyLock::new(|| ::crucible_client::__private::regex::Regex::new("^c-[a-z0-9]{8}$").expect("checked by crucible"));
+    static PATTERN_0: ::std::sync::LazyLock<::crucible_client_runtime_rust::__private::regex::Regex> =
+        ::std::sync::LazyLock::new(|| ::crucible_client_runtime_rust::__private::regex::Regex::new("^c-[a-z0-9]{8}$").expect("checked by crucible"));
 
     impl Validate for Coordinates {
         fn validate(&self, validator: &mut Validator) {
@@ -652,12 +652,12 @@ pub mod model {
 
     impl Validate for CreateCityInput {
         fn validate(&self, validator: &mut Validator) {
-            if let ::crucible_client::Field::Value(value) = &self.name {
+            if let ::crucible_client_runtime_rust::Field::Value(value) = &self.name {
                 validator.at("name", |validator| {
                     validator.length(value.chars().count(), None, Some(40));
                 });
             }
-            if let ::crucible_client::Field::Value(value) = &self.location {
+            if let ::crucible_client_runtime_rust::Field::Value(value) = &self.location {
                 validator.at("location", |validator| {
                     value.validate(validator);
                 });
@@ -667,7 +667,7 @@ pub mod model {
 
     impl Validate for GetCityInput {
         fn validate(&self, validator: &mut Validator) {
-            if let ::crucible_client::Field::Value(value) = &self.city_id {
+            if let ::crucible_client_runtime_rust::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
@@ -677,7 +677,7 @@ pub mod model {
 
     impl Validate for GetCityPhotoInput {
         fn validate(&self, validator: &mut Validator) {
-            if let ::crucible_client::Field::Value(value) = &self.city_id {
+            if let ::crucible_client_runtime_rust::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
@@ -687,12 +687,12 @@ pub mod model {
 
     impl Validate for ListCitiesInput {
         fn validate(&self, validator: &mut Validator) {
-            if let ::crucible_client::Field::Value(value) = &self.max_results {
+            if let ::crucible_client_runtime_rust::Field::Value(value) = &self.max_results {
                 validator.at("maxResults", |validator| {
                     validator.range_integer(i128::from(*value), Some(1i128), Some(100i128));
                 });
             }
-            if let ::crucible_client::Field::Value(value) = &self.tags {
+            if let ::crucible_client_runtime_rust::Field::Value(value) = &self.tags {
                 validator.at("tags", |validator| {
                     validator.length(value.len(), None, Some(5));
                 });
@@ -717,12 +717,12 @@ pub mod model {
 
     impl Validate for PutCityPhotoInput {
         fn validate(&self, validator: &mut Validator) {
-            if let ::crucible_client::Field::Value(value) = &self.city_id {
+            if let ::crucible_client_runtime_rust::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
             }
-            if let ::crucible_client::Field::Value(value) = &self.photo {
+            if let ::crucible_client_runtime_rust::Field::Value(value) = &self.photo {
                 validator.at("photo", |validator| {
                     validator.length(value.len(), Some(1), Some(4096));
                 });
@@ -739,11 +739,11 @@ pub mod model {
 
 #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
 pub mod errors {
-    use ::crucible_client::operation::{ErrorInfo, Fault};
+    use ::crucible_client_runtime_rust::operation::{ErrorInfo, Fault};
     use super::__redaction;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ConflictError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
@@ -759,9 +759,9 @@ pub mod errors {
     }
     impl ConflictErrorBuilder {
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<ConflictError, ::crucible_client::BuildError> {
+        pub fn build(self) -> ::std::result::Result<ConflictError, ::crucible_client_runtime_rust::BuildError> {
             Ok(ConflictError {
-                message: self.message.ok_or(::crucible_client::BuildError { shape: "ConflictError", member: "message" })?,
+                message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ConflictError", member: "message" })?,
             })
         }
     }
@@ -772,31 +772,31 @@ pub mod errors {
         retryable: false,
         throttling: false,
         members: &[
-            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "message", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
         ],
     };
 
-    impl ::crucible_client::ModelledError for ConflictError {
+    impl ::crucible_client_runtime_rust::ModelledError for ConflictError {
         fn shape_id(&self) -> &'static str { "example.weather#ConflictError" }
-        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client::cbor::write_typed(self, self.shape_id(), out) }
+        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ErrorInfo {
             &CONFLICT_ERROR_INFO
         }
 
-        fn to_json(&self) -> ::crucible_client::__private::serde_json::Value {
-            ::crucible_client::__private::serde_json::to_value(self).unwrap_or_default()
+        fn to_json(&self) -> ::crucible_client_runtime_rust::__private::serde_json::Value {
+            ::crucible_client_runtime_rust::__private::serde_json::to_value(self).unwrap_or_default()
         }
 
-        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
-            ::crucible_client::error::write_error(self, out)
+        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
+            ::crucible_client_runtime_rust::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
-            ::crucible_client::error::write_error_http(self, out)
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::crucible_client_runtime_rust::operation::ResponseBindings> {
+            ::crucible_client_runtime_rust::error::write_error_http(self, out)
         }
 
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
-            ::crucible_client::error::write_error_http_typed(self, type_name, out)
+        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::crucible_client_runtime_rust::operation::ResponseBindings> {
+            ::crucible_client_runtime_rust::error::write_error_http_typed(self, type_name, out)
         }
     }
 
@@ -808,13 +808,13 @@ pub mod errors {
 
     impl ::std::error::Error for ConflictError {}
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct NotFoundError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
-        #[serde(rename = "resourceId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub resource_id: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "resourceId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub resource_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
 
     impl NotFoundError {
@@ -826,14 +826,14 @@ pub mod errors {
     #[derive(Debug, Clone, Default)]
     pub struct NotFoundErrorBuilder {
         message: ::std::option::Option<::std::string::String>,
-        resource_id: ::crucible_client::Field<::std::string::String>,
+        resource_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
     impl NotFoundErrorBuilder {
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
-        pub fn resource_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.resource_id = ::crucible_client::Field::Value(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<NotFoundError, ::crucible_client::BuildError> {
+        pub fn resource_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.resource_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<NotFoundError, ::crucible_client_runtime_rust::BuildError> {
             Ok(NotFoundError {
-                message: self.message.ok_or(::crucible_client::BuildError { shape: "NotFoundError", member: "message" })?,
+                message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "NotFoundError", member: "message" })?,
                 resource_id: self.resource_id,
             })
         }
@@ -845,32 +845,32 @@ pub mod errors {
         retryable: false,
         throttling: false,
         members: &[
-            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "resourceId", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "message", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "resourceId", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
         ],
     };
 
-    impl ::crucible_client::ModelledError for NotFoundError {
+    impl ::crucible_client_runtime_rust::ModelledError for NotFoundError {
         fn shape_id(&self) -> &'static str { "example.weather#NotFoundError" }
-        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client::cbor::write_typed(self, self.shape_id(), out) }
+        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ErrorInfo {
             &NOT_FOUND_ERROR_INFO
         }
 
-        fn to_json(&self) -> ::crucible_client::__private::serde_json::Value {
-            ::crucible_client::__private::serde_json::to_value(self).unwrap_or_default()
+        fn to_json(&self) -> ::crucible_client_runtime_rust::__private::serde_json::Value {
+            ::crucible_client_runtime_rust::__private::serde_json::to_value(self).unwrap_or_default()
         }
 
-        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
-            ::crucible_client::error::write_error(self, out)
+        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
+            ::crucible_client_runtime_rust::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
-            ::crucible_client::error::write_error_http(self, out)
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::crucible_client_runtime_rust::operation::ResponseBindings> {
+            ::crucible_client_runtime_rust::error::write_error_http(self, out)
         }
 
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
-            ::crucible_client::error::write_error_http_typed(self, type_name, out)
+        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::crucible_client_runtime_rust::operation::ResponseBindings> {
+            ::crucible_client_runtime_rust::error::write_error_http_typed(self, type_name, out)
         }
     }
 
@@ -882,13 +882,13 @@ pub mod errors {
 
     impl ::std::error::Error for NotFoundError {}
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ThrottlingError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
-        #[serde(rename = "retryAfter", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub retry_after: ::crucible_client::Field<i32>,
+        #[serde(rename = "retryAfter", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub retry_after: ::crucible_client_runtime_rust::Field<i32>,
     }
 
     impl ThrottlingError {
@@ -900,14 +900,14 @@ pub mod errors {
     #[derive(Debug, Clone, Default)]
     pub struct ThrottlingErrorBuilder {
         message: ::std::option::Option<::std::string::String>,
-        retry_after: ::crucible_client::Field<i32>,
+        retry_after: ::crucible_client_runtime_rust::Field<i32>,
     }
     impl ThrottlingErrorBuilder {
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
-        pub fn retry_after(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.retry_after = ::crucible_client::Field::Value(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<ThrottlingError, ::crucible_client::BuildError> {
+        pub fn retry_after(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.retry_after = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<ThrottlingError, ::crucible_client_runtime_rust::BuildError> {
             Ok(ThrottlingError {
-                message: self.message.ok_or(::crucible_client::BuildError { shape: "ThrottlingError", member: "message" })?,
+                message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ThrottlingError", member: "message" })?,
                 retry_after: self.retry_after,
             })
         }
@@ -919,32 +919,32 @@ pub mod errors {
         retryable: true,
         throttling: true,
         members: &[
-            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "retryAfter", location: ::crucible_client::operation::Location::Header("retry-after"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_34, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "message", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "retryAfter", location: ::crucible_client_runtime_rust::operation::Location::Header("retry-after"), scalar: ::crucible_client_runtime_rust::operation::Scalar::Integer, redaction: &__redaction::R_34, traits: &[] },
         ],
     };
 
-    impl ::crucible_client::ModelledError for ThrottlingError {
+    impl ::crucible_client_runtime_rust::ModelledError for ThrottlingError {
         fn shape_id(&self) -> &'static str { "example.weather#ThrottlingError" }
-        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client::cbor::write_typed(self, self.shape_id(), out) }
+        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ErrorInfo {
             &THROTTLING_ERROR_INFO
         }
 
-        fn to_json(&self) -> ::crucible_client::__private::serde_json::Value {
-            ::crucible_client::__private::serde_json::to_value(self).unwrap_or_default()
+        fn to_json(&self) -> ::crucible_client_runtime_rust::__private::serde_json::Value {
+            ::crucible_client_runtime_rust::__private::serde_json::to_value(self).unwrap_or_default()
         }
 
-        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
-            ::crucible_client::error::write_error(self, out)
+        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
+            ::crucible_client_runtime_rust::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
-            ::crucible_client::error::write_error_http(self, out)
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::crucible_client_runtime_rust::operation::ResponseBindings> {
+            ::crucible_client_runtime_rust::error::write_error_http(self, out)
         }
 
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
-            ::crucible_client::error::write_error_http_typed(self, type_name, out)
+        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::crucible_client_runtime_rust::operation::ResponseBindings> {
+            ::crucible_client_runtime_rust::error::write_error_http_typed(self, type_name, out)
         }
     }
 
@@ -956,17 +956,17 @@ pub mod errors {
 
     impl ::std::error::Error for ThrottlingError {}
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client::__private::serde::Serialize, ::crucible_client::__private::serde::Deserialize)]
-    #[serde(crate = "::crucible_client::__private::serde")]
+    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ValidationError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
         #[serde(rename = "reason")]
         pub reason: super::model::ValidationReason,
-        #[serde(rename = "fieldList", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub field_list: ::crucible_client::Field<super::model::ValidationFieldList>,
-        #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client::Field::is_absent")]
-        pub request_id: ::crucible_client::Field<::std::string::String>,
+        #[serde(rename = "fieldList", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub field_list: ::crucible_client_runtime_rust::Field<super::model::ValidationFieldList>,
+        #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
+        pub request_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
 
     impl ValidationError {
@@ -982,18 +982,18 @@ pub mod errors {
     pub struct ValidationErrorBuilder {
         message: ::std::option::Option<::std::string::String>,
         reason: ::std::option::Option<super::model::ValidationReason>,
-        field_list: ::crucible_client::Field<super::model::ValidationFieldList>,
-        request_id: ::crucible_client::Field<::std::string::String>,
+        field_list: ::crucible_client_runtime_rust::Field<super::model::ValidationFieldList>,
+        request_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
     impl ValidationErrorBuilder {
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
         pub fn reason(mut self, value: impl ::std::convert::Into<super::model::ValidationReason>) -> Self { self.reason = Some(value.into()); self }
-        pub fn field_list(mut self, value: impl ::std::convert::Into<super::model::ValidationFieldList>) -> Self { self.field_list = ::crucible_client::Field::Value(value.into()); self }
-        pub fn request_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.request_id = ::crucible_client::Field::Value(value.into()); self }
-        pub fn build(self) -> ::std::result::Result<ValidationError, ::crucible_client::BuildError> {
+        pub fn field_list(mut self, value: impl ::std::convert::Into<super::model::ValidationFieldList>) -> Self { self.field_list = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn request_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.request_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        pub fn build(self) -> ::std::result::Result<ValidationError, ::crucible_client_runtime_rust::BuildError> {
             Ok(ValidationError {
-                message: self.message.ok_or(::crucible_client::BuildError { shape: "ValidationError", member: "message" })?,
-                reason: self.reason.ok_or(::crucible_client::BuildError { shape: "ValidationError", member: "reason" })?,
+                message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ValidationError", member: "message" })?,
+                reason: self.reason.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ValidationError", member: "reason" })?,
                 field_list: self.field_list,
                 request_id: self.request_id,
             })
@@ -1006,34 +1006,34 @@ pub mod errors {
         retryable: false,
         throttling: false,
         members: &[
-            ::crucible_client::operation::MemberInfo { name: "message", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "reason", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_31, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "fieldList", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_30, traits: &[] },
-            ::crucible_client::operation::MemberInfo { name: "requestId", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "message", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "reason", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_31, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "fieldList", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_30, traits: &[] },
+            ::crucible_client_runtime_rust::operation::MemberInfo { name: "requestId", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
         ],
     };
 
-    impl ::crucible_client::ModelledError for ValidationError {
+    impl ::crucible_client_runtime_rust::ModelledError for ValidationError {
         fn shape_id(&self) -> &'static str { "example.weather#ValidationError" }
-        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client::cbor::write_typed(self, self.shape_id(), out) }
+        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ErrorInfo {
             &VALIDATION_ERROR_INFO
         }
 
-        fn to_json(&self) -> ::crucible_client::__private::serde_json::Value {
-            ::crucible_client::__private::serde_json::to_value(self).unwrap_or_default()
+        fn to_json(&self) -> ::crucible_client_runtime_rust::__private::serde_json::Value {
+            ::crucible_client_runtime_rust::__private::serde_json::to_value(self).unwrap_or_default()
         }
 
-        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
-            ::crucible_client::error::write_error(self, out)
+        fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {
+            ::crucible_client_runtime_rust::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
-            ::crucible_client::error::write_error_http(self, out)
+        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::crucible_client_runtime_rust::operation::ResponseBindings> {
+            ::crucible_client_runtime_rust::error::write_error_http(self, out)
         }
 
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client::__private::serde_json::Result<::crucible_client::operation::ResponseBindings> {
-            ::crucible_client::error::write_error_http_typed(self, type_name, out)
+        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__private::serde_json::Result<::crucible_client_runtime_rust::operation::ResponseBindings> {
+            ::crucible_client_runtime_rust::error::write_error_http_typed(self, type_name, out)
         }
     }
 
@@ -1047,7 +1047,7 @@ pub mod errors {
 }
 #[allow(dead_code, unused_imports)]
 mod __redaction {
-    use ::crucible_client::operation::Redaction;
+    use ::crucible_client_runtime_rust::operation::Redaction;
     pub(super) static R_0: Redaction = Redaction::Public;
     pub(super) static R_1: Redaction = Redaction::Public;
     pub(super) static R_2: Redaction = Redaction::List(&R_3);
@@ -1090,7 +1090,7 @@ mod __redaction {
 }
 
 
-/// All modeled errors from Weather. Unknown and transport failures remain in `crucible_client::Error`.
+/// All modeled errors from Weather. Unknown and transport failures remain in `crucible_client_runtime_rust::Error`.
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -1179,22 +1179,22 @@ impl From<StatusError> for WeatherException {
 
 pub struct CreateCity;
 
-static CREATE_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+static CREATE_CITY_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucible_client_runtime_rust::OperationInfo {
     id: "example.weather#CreateCity",
     name: "CreateCity",
     resource: Some("City"),
     method: "POST",
-    path: &[::crucible_client::operation::Segment::Literal("cities")],
+    path: &[::crucible_client_runtime_rust::operation::Segment::Literal("cities")],
     literal_query: &[],
     status: 201,
     input: &[
-        ::crucible_client::operation::MemberInfo { name: "name", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_1, traits: &[("example.weather#audited", "{}")] },
-        ::crucible_client::operation::MemberInfo { name: "location", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_16, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "clientToken", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "expectedRevision", location: ::crucible_client::operation::Location::Header("x-expected-revision"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_35, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "name", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_1, traits: &[("example.weather#audited", "{}")] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "location", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_16, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "clientToken", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "expectedRevision", location: ::crucible_client_runtime_rust::operation::Location::Header("x-expected-revision"), scalar: ::crucible_client_runtime_rust::operation::Scalar::Integer, redaction: &__redaction::R_35, traits: &[] },
     ],
     output: &[
-        ::crucible_client::operation::MemberInfo { name: "city", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_3, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "city", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_3, traits: &[] },
     ],
     errors: &["ConflictError", "ThrottlingError", "ValidationError"],
     readonly: false,
@@ -1203,11 +1203,11 @@ static CREATE_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_clie
     traits: &[("example.weather#tier", "\"write\"")],
 };
 
-impl ::crucible_client::Operation for CreateCity {
+impl ::crucible_client_runtime_rust::Operation for CreateCity {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
-    const INFO: &'static ::crucible_client::OperationInfo = &CREATE_CITY_OPERATION;
+    const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &CREATE_CITY_OPERATION;
     type Input = model::CreateCityInput;
     type Output = model::CreateCityOutput;
 }
@@ -1221,30 +1221,30 @@ pub enum CreateCityError {
     ValidationError(errors::ValidationError),
 }
 
-impl ::crucible_client::OperationErrors for CreateCityError {
-    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+impl ::crucible_client_runtime_rust::OperationErrors for CreateCityError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client_runtime_rust::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
         let name = match type_name {
             Some(name) => name,
-            None => ::crucible_client::by_status(status, &[&errors::CONFLICT_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+            None => ::crucible_client_runtime_rust::by_status(status, &[&errors::CONFLICT_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ConflictError" => ::crucible_client::decode_modelled_at(status, &errors::CONFLICT_ERROR_INFO, headers, body).map(Self::ConflictError),
-            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ConflictError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::CONFLICT_ERROR_INFO, headers, body).map(Self::ConflictError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
 
-    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+    fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
         match self {
-            Self::ConflictError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+            Self::ConflictError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
         }
     }
 
-    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
-        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::CONFLICT_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ConflictError" => Some(&errors::CONFLICT_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client_runtime_rust::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client_runtime_rust::by_status(status, &[&errors::CONFLICT_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ConflictError" => Some(&errors::CONFLICT_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1262,22 +1262,22 @@ impl ::std::error::Error for CreateCityError {}
 
 pub struct GetCity;
 
-static GET_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+static GET_CITY_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucible_client_runtime_rust::OperationInfo {
     id: "example.weather#GetCity",
     name: "GetCity",
     resource: Some("City"),
     method: "GET",
-    path: &[::crucible_client::operation::Segment::Literal("cities"), ::crucible_client::operation::Segment::Label("cityId")],
+    path: &[::crucible_client_runtime_rust::operation::Segment::Literal("cities"), ::crucible_client_runtime_rust::operation::Segment::Label("cityId")],
     literal_query: &[],
     status: 200,
     input: &[
-        ::crucible_client::operation::MemberInfo { name: "cityId", location: ::crucible_client::operation::Location::Label, scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "at", location: ::crucible_client::operation::Location::Query("at"), scalar: ::crucible_client::operation::Scalar::DateTime, redaction: &__redaction::R_8, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "cityId", location: ::crucible_client_runtime_rust::operation::Location::Label, scalar: ::crucible_client_runtime_rust::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "at", location: ::crucible_client_runtime_rust::operation::Location::Query("at"), scalar: ::crucible_client_runtime_rust::operation::Scalar::DateTime, redaction: &__redaction::R_8, traits: &[] },
     ],
     output: &[
-        ::crucible_client::operation::MemberInfo { name: "city", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_3, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "forecast", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_9, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "requestId", location: ::crucible_client::operation::Location::Header("x-request-id"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "city", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_3, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "forecast", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_9, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "requestId", location: ::crucible_client_runtime_rust::operation::Location::Header("x-request-id"), scalar: ::crucible_client_runtime_rust::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
     ],
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: true,
@@ -1286,11 +1286,11 @@ static GET_CITY_OPERATION: ::crucible_client::OperationInfo = ::crucible_client:
     traits: &[],
 };
 
-impl ::crucible_client::Operation for GetCity {
+impl ::crucible_client_runtime_rust::Operation for GetCity {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
-    const INFO: &'static ::crucible_client::OperationInfo = &GET_CITY_OPERATION;
+    const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &GET_CITY_OPERATION;
     type Input = model::GetCityInput;
     type Output = model::GetCityOutput;
 }
@@ -1304,30 +1304,30 @@ pub enum GetCityError {
     ValidationError(errors::ValidationError),
 }
 
-impl ::crucible_client::OperationErrors for GetCityError {
-    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+impl ::crucible_client_runtime_rust::OperationErrors for GetCityError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client_runtime_rust::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
         let name = match type_name {
             Some(name) => name,
-            None => ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+            None => ::crucible_client_runtime_rust::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
 
-    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+    fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
         match self {
-            Self::NotFoundError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+            Self::NotFoundError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
         }
     }
 
-    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
-        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client_runtime_rust::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client_runtime_rust::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1345,20 +1345,20 @@ impl ::std::error::Error for GetCityError {}
 
 pub struct GetCityPhoto;
 
-static GET_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+static GET_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucible_client_runtime_rust::OperationInfo {
     id: "example.weather#GetCityPhoto",
     name: "GetCityPhoto",
     resource: Some("City"),
     method: "GET",
-    path: &[::crucible_client::operation::Segment::Literal("cities"), ::crucible_client::operation::Segment::Label("cityId"), ::crucible_client::operation::Segment::Literal("photo")],
+    path: &[::crucible_client_runtime_rust::operation::Segment::Literal("cities"), ::crucible_client_runtime_rust::operation::Segment::Label("cityId"), ::crucible_client_runtime_rust::operation::Segment::Literal("photo")],
     literal_query: &[],
     status: 200,
     input: &[
-        ::crucible_client::operation::MemberInfo { name: "cityId", location: ::crucible_client::operation::Location::Label, scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "cityId", location: ::crucible_client_runtime_rust::operation::Location::Label, scalar: ::crucible_client_runtime_rust::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
     ],
     output: &[
-        ::crucible_client::operation::MemberInfo { name: "caption", location: ::crucible_client::operation::Location::Header("x-photo-caption"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "photo", location: ::crucible_client::operation::Location::Payload("image/jpeg"), scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_18, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "caption", location: ::crucible_client_runtime_rust::operation::Location::Header("x-photo-caption"), scalar: ::crucible_client_runtime_rust::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "photo", location: ::crucible_client_runtime_rust::operation::Location::Payload("image/jpeg"), scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_18, traits: &[] },
     ],
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: true,
@@ -1367,11 +1367,11 @@ static GET_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_c
     traits: &[],
 };
 
-impl ::crucible_client::Operation for GetCityPhoto {
+impl ::crucible_client_runtime_rust::Operation for GetCityPhoto {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
-    const INFO: &'static ::crucible_client::OperationInfo = &GET_CITY_PHOTO_OPERATION;
+    const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &GET_CITY_PHOTO_OPERATION;
     type Input = model::GetCityPhotoInput;
     type Output = model::GetCityPhotoOutput;
 }
@@ -1385,30 +1385,30 @@ pub enum GetCityPhotoError {
     ValidationError(errors::ValidationError),
 }
 
-impl ::crucible_client::OperationErrors for GetCityPhotoError {
-    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+impl ::crucible_client_runtime_rust::OperationErrors for GetCityPhotoError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client_runtime_rust::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
         let name = match type_name {
             Some(name) => name,
-            None => ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+            None => ::crucible_client_runtime_rust::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
 
-    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+    fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
         match self {
-            Self::NotFoundError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+            Self::NotFoundError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
         }
     }
 
-    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
-        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client_runtime_rust::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client_runtime_rust::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1426,22 +1426,22 @@ impl ::std::error::Error for GetCityPhotoError {}
 
 pub struct ListCities;
 
-static LIST_CITIES_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+static LIST_CITIES_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucible_client_runtime_rust::OperationInfo {
     id: "example.weather#ListCities",
     name: "ListCities",
     resource: Some("City"),
     method: "GET",
-    path: &[::crucible_client::operation::Segment::Literal("cities")],
+    path: &[::crucible_client_runtime_rust::operation::Segment::Literal("cities")],
     literal_query: &[],
     status: 200,
     input: &[
-        ::crucible_client::operation::MemberInfo { name: "nextToken", location: ::crucible_client::operation::Location::Query("nextToken"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "maxResults", location: ::crucible_client::operation::Location::Query("maxResults"), scalar: ::crucible_client::operation::Scalar::Integer, redaction: &__redaction::R_34, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "tags", location: ::crucible_client::operation::Location::Query("tag"), scalar: ::crucible_client::operation::Scalar::List(&::crucible_client::operation::Scalar::String), redaction: &__redaction::R_25, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "nextToken", location: ::crucible_client_runtime_rust::operation::Location::Query("nextToken"), scalar: ::crucible_client_runtime_rust::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "maxResults", location: ::crucible_client_runtime_rust::operation::Location::Query("maxResults"), scalar: ::crucible_client_runtime_rust::operation::Scalar::Integer, redaction: &__redaction::R_34, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "tags", location: ::crucible_client_runtime_rust::operation::Location::Query("tag"), scalar: ::crucible_client_runtime_rust::operation::Scalar::List(&::crucible_client_runtime_rust::operation::Scalar::String), redaction: &__redaction::R_25, traits: &[] },
     ],
     output: &[
-        ::crucible_client::operation::MemberInfo { name: "cities", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_2, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "nextToken", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "cities", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_2, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "nextToken", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_36, traits: &[] },
     ],
     errors: &["ThrottlingError", "ValidationError"],
     readonly: true,
@@ -1450,11 +1450,11 @@ static LIST_CITIES_OPERATION: ::crucible_client::OperationInfo = ::crucible_clie
     traits: &[],
 };
 
-impl ::crucible_client::Operation for ListCities {
+impl ::crucible_client_runtime_rust::Operation for ListCities {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
-    const INFO: &'static ::crucible_client::OperationInfo = &LIST_CITIES_OPERATION;
+    const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &LIST_CITIES_OPERATION;
     type Input = model::ListCitiesInput;
     type Output = model::ListCitiesOutput;
 }
@@ -1467,28 +1467,28 @@ pub enum ListCitiesError {
     ValidationError(errors::ValidationError),
 }
 
-impl ::crucible_client::OperationErrors for ListCitiesError {
-    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+impl ::crucible_client_runtime_rust::OperationErrors for ListCitiesError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client_runtime_rust::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
         let name = match type_name {
             Some(name) => name,
-            None => ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+            None => ::crucible_client_runtime_rust::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
 
-    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+    fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
         match self {
-            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
         }
     }
 
-    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
-        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client_runtime_rust::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client_runtime_rust::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1505,12 +1505,12 @@ impl ::std::error::Error for ListCitiesError {}
 
 pub struct Ping;
 
-static PING_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+static PING_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucible_client_runtime_rust::OperationInfo {
     id: "example.weather#Ping",
     name: "Ping",
     resource: None,
     method: "GET",
-    path: &[::crucible_client::operation::Segment::Literal("ping")],
+    path: &[::crucible_client_runtime_rust::operation::Segment::Literal("ping")],
     literal_query: &[],
     status: 200,
     input: &[],
@@ -1522,15 +1522,15 @@ static PING_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::Ope
     traits: &[],
 };
 
-impl ::crucible_client::Operation for Ping {
+impl ::crucible_client_runtime_rust::Operation for Ping {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
     const HAS_INPUT: bool = false;
     const HAS_OUTPUT: bool = false;
-    const INFO: &'static ::crucible_client::OperationInfo = &PING_OPERATION;
-    type Input = ::crucible_client::operation::Unit;
-    type Output = ::crucible_client::operation::Unit;
+    const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &PING_OPERATION;
+    type Input = ::crucible_client_runtime_rust::operation::Unit;
+    type Output = ::crucible_client_runtime_rust::operation::Unit;
 }
 
 
@@ -1541,28 +1541,28 @@ pub enum PingError {
     ValidationError(errors::ValidationError),
 }
 
-impl ::crucible_client::OperationErrors for PingError {
-    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+impl ::crucible_client_runtime_rust::OperationErrors for PingError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client_runtime_rust::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
         let name = match type_name {
             Some(name) => name,
-            None => ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+            None => ::crucible_client_runtime_rust::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
 
-    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+    fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
         match self {
-            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
         }
     }
 
-    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
-        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client_runtime_rust::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client_runtime_rust::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1580,21 +1580,21 @@ impl ::std::error::Error for PingError {}
 /// Stores a city's photo exactly as sent.
 pub struct PutCityPhoto;
 
-static PUT_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+static PUT_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucible_client_runtime_rust::OperationInfo {
     id: "example.weather#PutCityPhoto",
     name: "PutCityPhoto",
     resource: Some("City"),
     method: "PUT",
-    path: &[::crucible_client::operation::Segment::Literal("cities"), ::crucible_client::operation::Segment::Label("cityId"), ::crucible_client::operation::Segment::Literal("photo")],
+    path: &[::crucible_client_runtime_rust::operation::Segment::Literal("cities"), ::crucible_client_runtime_rust::operation::Segment::Label("cityId"), ::crucible_client_runtime_rust::operation::Segment::Literal("photo")],
     literal_query: &[],
     status: 200,
     input: &[
-        ::crucible_client::operation::MemberInfo { name: "cityId", location: ::crucible_client::operation::Location::Label, scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "caption", location: ::crucible_client::operation::Location::Header("x-photo-caption"), scalar: ::crucible_client::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
-        ::crucible_client::operation::MemberInfo { name: "photo", location: ::crucible_client::operation::Location::Payload("image/jpeg"), scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_18, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "cityId", location: ::crucible_client_runtime_rust::operation::Location::Label, scalar: ::crucible_client_runtime_rust::operation::Scalar::String, redaction: &__redaction::R_0, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "caption", location: ::crucible_client_runtime_rust::operation::Location::Header("x-photo-caption"), scalar: ::crucible_client_runtime_rust::operation::Scalar::String, redaction: &__redaction::R_36, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "photo", location: ::crucible_client_runtime_rust::operation::Location::Payload("image/jpeg"), scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_18, traits: &[] },
     ],
     output: &[
-        ::crucible_client::operation::MemberInfo { name: "photo", location: ::crucible_client::operation::Location::Body, scalar: ::crucible_client::operation::Scalar::Json, redaction: &__redaction::R_19, traits: &[] },
+        ::crucible_client_runtime_rust::operation::MemberInfo { name: "photo", location: ::crucible_client_runtime_rust::operation::Location::Body, scalar: ::crucible_client_runtime_rust::operation::Scalar::Json, redaction: &__redaction::R_19, traits: &[] },
     ],
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: false,
@@ -1603,11 +1603,11 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible_client::OperationInfo = ::crucible_c
     traits: &[],
 };
 
-impl ::crucible_client::Operation for PutCityPhoto {
+impl ::crucible_client_runtime_rust::Operation for PutCityPhoto {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
-    const INFO: &'static ::crucible_client::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
+    const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
     type Input = model::PutCityPhotoInput;
     type Output = model::PutCityPhotoOutput;
 }
@@ -1621,30 +1621,30 @@ pub enum PutCityPhotoError {
     ValidationError(errors::ValidationError),
 }
 
-impl ::crucible_client::OperationErrors for PutCityPhotoError {
-    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+impl ::crucible_client_runtime_rust::OperationErrors for PutCityPhotoError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client_runtime_rust::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
         let name = match type_name {
             Some(name) => name,
-            None => ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+            None => ::crucible_client_runtime_rust::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
 
-    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+    fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
         match self {
-            Self::NotFoundError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+            Self::NotFoundError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
         }
     }
 
-    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
-        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client_runtime_rust::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client_runtime_rust::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "NotFoundError" => Some(&errors::NOT_FOUND_ERROR_INFO), "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1662,12 +1662,12 @@ impl ::std::error::Error for PutCityPhotoError {}
 
 pub struct Status;
 
-static STATUS_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::OperationInfo {
+static STATUS_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucible_client_runtime_rust::OperationInfo {
     id: "example.weather#Status",
     name: "Status",
     resource: None,
     method: "GET",
-    path: &[::crucible_client::operation::Segment::Literal("status")],
+    path: &[::crucible_client_runtime_rust::operation::Segment::Literal("status")],
     literal_query: &[],
     status: 200,
     input: &[],
@@ -1679,11 +1679,11 @@ static STATUS_OPERATION: ::crucible_client::OperationInfo = ::crucible_client::O
     traits: &[],
 };
 
-impl ::crucible_client::Operation for Status {
+impl ::crucible_client_runtime_rust::Operation for Status {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client::operation::AuthScheme]> = Some(&[::crucible_client::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
-    const INFO: &'static ::crucible_client::OperationInfo = &STATUS_OPERATION;
+    const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &STATUS_OPERATION;
     type Input = model::StatusInput;
     type Output = model::StatusOutput;
 }
@@ -1696,28 +1696,28 @@ pub enum StatusError {
     ValidationError(errors::ValidationError),
 }
 
-impl ::crucible_client::OperationErrors for StatusError {
-    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
+impl ::crucible_client_runtime_rust::OperationErrors for StatusError {
+    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_client_runtime_rust::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {
         let name = match type_name {
             Some(name) => name,
-            None => ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
+            None => ::crucible_client_runtime_rust::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
 
-    fn info(&self) -> &'static ::crucible_client::operation::ErrorInfo {
+    fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
         match self {
-            Self::ThrottlingError(error) => ::crucible_client::ModelledError::info(error),
-            Self::ValidationError(error) => ::crucible_client::ModelledError::info(error),
+            Self::ThrottlingError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
+            Self::ValidationError(error) => ::crucible_client_runtime_rust::ModelledError::info(error),
         }
     }
 
-    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client::operation::ErrorInfo> {
-        let name = type_name.or_else(|| ::crucible_client::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
+    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_client_runtime_rust::operation::ErrorInfo> {
+        let name = type_name.or_else(|| ::crucible_client_runtime_rust::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO]))?; match name { "ThrottlingError" => Some(&errors::THROTTLING_ERROR_INFO), "ValidationError" => Some(&errors::VALIDATION_ERROR_INFO), _ => None }
     }
 }
 
@@ -1735,89 +1735,89 @@ impl ::std::error::Error for StatusError {}
 /// A client for Weather. Cheap to clone: clones share connections.
 #[derive(Clone)]
 pub struct WeatherClient {
-    transport: ::crucible_client::Transport,
+    transport: ::crucible_client_runtime_rust::Transport,
 }
 
 #[allow(dead_code)]
 impl WeatherClient {
-    pub fn new(config: ::crucible_client::Config) -> Self {
+    pub fn new(config: ::crucible_client_runtime_rust::Config) -> Self {
         Self {
-            transport: ::crucible_client::Transport::new(config),
+            transport: ::crucible_client_runtime_rust::Transport::new(config),
         }
     }
 
-    pub async fn create_city(&self, mut input: model::CreateCityInput) -> ::std::result::Result<model::CreateCityOutput, ::crucible_client::Error<CreateCityError>> {
+    pub async fn create_city(&self, mut input: model::CreateCityInput) -> ::std::result::Result<model::CreateCityOutput, ::crucible_client_runtime_rust::Error<CreateCityError>> {
         if input.client_token.value().is_none() {
-            input.client_token = ::crucible_client::Field::Value(::crucible_client::idempotency_token());
+            input.client_token = ::crucible_client_runtime_rust::Field::Value(::crucible_client_runtime_rust::idempotency_token());
         }
         self.transport.send::<CreateCity, CreateCityError>(&input).await
     }
 
-    pub async fn create_city_with_options(&self, mut input: model::CreateCityInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::CreateCityOutput, ::crucible_client::Error<CreateCityError>> {
+    pub async fn create_city_with_options(&self, mut input: model::CreateCityInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<model::CreateCityOutput, ::crucible_client_runtime_rust::Error<CreateCityError>> {
         if input.client_token.value().is_none() {
-            input.client_token = ::crucible_client::Field::Value(::crucible_client::idempotency_token());
+            input.client_token = ::crucible_client_runtime_rust::Field::Value(::crucible_client_runtime_rust::idempotency_token());
         }
         self.transport.send_with_options::<CreateCity, CreateCityError>(&input, &options).await
     }
 
-    pub async fn get_city(&self, input: model::GetCityInput) -> ::std::result::Result<model::GetCityOutput, ::crucible_client::Error<GetCityError>> {
+    pub async fn get_city(&self, input: model::GetCityInput) -> ::std::result::Result<model::GetCityOutput, ::crucible_client_runtime_rust::Error<GetCityError>> {
         self.transport.send::<GetCity, GetCityError>(&input).await
     }
 
-    pub async fn get_city_with_options(&self, input: model::GetCityInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::GetCityOutput, ::crucible_client::Error<GetCityError>> {
+    pub async fn get_city_with_options(&self, input: model::GetCityInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<model::GetCityOutput, ::crucible_client_runtime_rust::Error<GetCityError>> {
         self.transport.send_with_options::<GetCity, GetCityError>(&input, &options).await
     }
 
-    pub async fn get_city_photo(&self, input: model::GetCityPhotoInput) -> ::std::result::Result<model::GetCityPhotoOutput, ::crucible_client::Error<GetCityPhotoError>> {
+    pub async fn get_city_photo(&self, input: model::GetCityPhotoInput) -> ::std::result::Result<model::GetCityPhotoOutput, ::crucible_client_runtime_rust::Error<GetCityPhotoError>> {
         self.transport.send::<GetCityPhoto, GetCityPhotoError>(&input).await
     }
 
-    pub async fn get_city_photo_with_options(&self, input: model::GetCityPhotoInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::GetCityPhotoOutput, ::crucible_client::Error<GetCityPhotoError>> {
+    pub async fn get_city_photo_with_options(&self, input: model::GetCityPhotoInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<model::GetCityPhotoOutput, ::crucible_client_runtime_rust::Error<GetCityPhotoError>> {
         self.transport.send_with_options::<GetCityPhoto, GetCityPhotoError>(&input, &options).await
     }
 
-    pub async fn list_cities(&self, input: model::ListCitiesInput) -> ::std::result::Result<model::ListCitiesOutput, ::crucible_client::Error<ListCitiesError>> {
+    pub async fn list_cities(&self, input: model::ListCitiesInput) -> ::std::result::Result<model::ListCitiesOutput, ::crucible_client_runtime_rust::Error<ListCitiesError>> {
         self.transport.send::<ListCities, ListCitiesError>(&input).await
     }
 
-    pub async fn list_cities_with_options(&self, input: model::ListCitiesInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::ListCitiesOutput, ::crucible_client::Error<ListCitiesError>> {
+    pub async fn list_cities_with_options(&self, input: model::ListCitiesInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<model::ListCitiesOutput, ::crucible_client_runtime_rust::Error<ListCitiesError>> {
         self.transport.send_with_options::<ListCities, ListCitiesError>(&input, &options).await
     }
 
     /// Every page of ListCities, one request each.
-    pub fn list_cities_pages(&self, input: model::ListCitiesInput) -> ::crucible_client::Paginator<ListCities, ListCitiesError> {
-        ::crucible_client::Paginator::<ListCities, ListCitiesError>::new(
+    pub fn list_cities_pages(&self, input: model::ListCitiesInput) -> ::crucible_client_runtime_rust::Paginator<ListCities, ListCitiesError> {
+        ::crucible_client_runtime_rust::Paginator::<ListCities, ListCitiesError>::new(
             self.transport.clone(),
             input,
             |output| { let value = output; let value = value.next_token.value()?; Some(value.as_str()) },
             |input| input.next_token.as_deref(),
-            |input, token| input.next_token = ::crucible_client::Field::Value(token),
+            |input, token| input.next_token = ::crucible_client_runtime_rust::Field::Value(token),
         )
     }
 
-    pub async fn ping(&self) -> ::std::result::Result<(), ::crucible_client::Error<PingError>> {
-        self.transport.send::<Ping, PingError>(&::crucible_client::operation::Unit {}).await.map(|_| ())
+    pub async fn ping(&self) -> ::std::result::Result<(), ::crucible_client_runtime_rust::Error<PingError>> {
+        self.transport.send::<Ping, PingError>(&::crucible_client_runtime_rust::operation::Unit {}).await.map(|_| ())
     }
 
-    pub async fn ping_with_options(&self, options: ::crucible_client::CallOptions) -> ::std::result::Result<(), ::crucible_client::Error<PingError>> {
-        self.transport.send_with_options::<Ping, PingError>(&::crucible_client::operation::Unit {}, &options).await.map(|_| ())
+    pub async fn ping_with_options(&self, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<(), ::crucible_client_runtime_rust::Error<PingError>> {
+        self.transport.send_with_options::<Ping, PingError>(&::crucible_client_runtime_rust::operation::Unit {}, &options).await.map(|_| ())
     }
 
     /// Stores a city's photo exactly as sent.
-    pub async fn put_city_photo(&self, input: model::PutCityPhotoInput) -> ::std::result::Result<model::PutCityPhotoOutput, ::crucible_client::Error<PutCityPhotoError>> {
+    pub async fn put_city_photo(&self, input: model::PutCityPhotoInput) -> ::std::result::Result<model::PutCityPhotoOutput, ::crucible_client_runtime_rust::Error<PutCityPhotoError>> {
         self.transport.send::<PutCityPhoto, PutCityPhotoError>(&input).await
     }
 
     /// Stores a city's photo exactly as sent.
-    pub async fn put_city_photo_with_options(&self, input: model::PutCityPhotoInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::PutCityPhotoOutput, ::crucible_client::Error<PutCityPhotoError>> {
+    pub async fn put_city_photo_with_options(&self, input: model::PutCityPhotoInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<model::PutCityPhotoOutput, ::crucible_client_runtime_rust::Error<PutCityPhotoError>> {
         self.transport.send_with_options::<PutCityPhoto, PutCityPhotoError>(&input, &options).await
     }
 
-    pub async fn status(&self, input: model::StatusInput) -> ::std::result::Result<model::StatusOutput, ::crucible_client::Error<StatusError>> {
+    pub async fn status(&self, input: model::StatusInput) -> ::std::result::Result<model::StatusOutput, ::crucible_client_runtime_rust::Error<StatusError>> {
         self.transport.send::<Status, StatusError>(&input).await
     }
 
-    pub async fn status_with_options(&self, input: model::StatusInput, options: ::crucible_client::CallOptions) -> ::std::result::Result<model::StatusOutput, ::crucible_client::Error<StatusError>> {
+    pub async fn status_with_options(&self, input: model::StatusInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<model::StatusOutput, ::crucible_client_runtime_rust::Error<StatusError>> {
         self.transport.send_with_options::<Status, StatusError>(&input, &options).await
     }
 }

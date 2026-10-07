@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crucible_client::{Config, Error, Field, Interceptor, Retry, Token};
+use crucible_client_runtime_rust::{Config, Error, Field, Interceptor, Retry, Token};
 
 #[allow(dead_code)]
 mod fixture {

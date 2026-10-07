@@ -71,9 +71,9 @@ fn argument(kind: Kind, raw: &str) -> Result<Value, Error> {
         Kind::String | Kind::Timestamp => Ok(Value::String(raw.to_owned())),
         Kind::Blob => {
             let blob = if let Some(path) = raw.strip_prefix("fileb://") {
-                crucible_client::Blob::new(std::fs::read(path).map_err(Error::input)?)
+                crucible_client_runtime_rust::Blob::new(std::fs::read(path).map_err(Error::input)?)
             } else {
-                crucible_client::Blob::from_base64(raw)
+                crucible_client_runtime_rust::Blob::from_base64(raw)
                     .ok_or_else(|| Error::input("expected base64 or fileb://path"))?
             };
             Ok(Value::String(blob.to_base64()))

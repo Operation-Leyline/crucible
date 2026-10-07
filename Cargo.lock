@@ -520,14 +520,14 @@ version = "0.3.0"
 dependencies = [
  "clap",
  "clap_complete",
- "crucible-client",
+ "crucible-client-runtime-rust",
  "serde",
  "serde_json",
  "url",
 ]
 
 [[package]]
-name = "crucible-client"
+name = "crucible-client-runtime-rust"
 version = "0.3.0"
 dependencies = [
  "base64 0.22.1",

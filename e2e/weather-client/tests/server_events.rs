@@ -1,5 +1,5 @@
 //! Generated event clients against the native server, including both RPC v2 formats.
-use crucible_client::{Config, EventStream, EventStreamError, Retry};
+use crucible_client_runtime_rust::{Config, EventStream, EventStreamError, Retry};
 
 macro_rules! service {
     ($module:ident, $client:literal, $server:literal) => {
@@ -161,8 +161,8 @@ async fn cbor_events_retain_native_document_values() {
     let client =
         cbor::client::EventsClient::new(Config::new(cbor::serve().await).retry(Retry::none()));
     let stamp = chrono::DateTime::from_timestamp(-1, 750_000_000).unwrap();
-    let blob = crucible_client::Blob::new(vec![0, 255, 128]);
-    let big: crucible_client::BigInteger =
+    let blob = crucible_client_runtime_rust::Blob::new(vec![0, 255, 128]);
+    let big: crucible_client_runtime_rust::BigInteger =
         "1234567890123456789012345678901234567890".parse().unwrap();
     let event = StructuredEvent::builder()
         .text("native")
@@ -243,7 +243,7 @@ async fn response_events_arrive_while_the_request_source_is_open() {
 
 #[tokio::test]
 async fn cbor_initial_request_accepts_empty_payload_and_map() {
-    use crucible_client::event_stream::{HeaderValue, Message, MessageDecoder};
+    use crucible_client_runtime_rust::event_stream::{HeaderValue, Message, MessageDecoder};
     let endpoint = cbor::serve().await;
     // Raw HTTP tests also need the runtime's TLS provider when run alone.
     drop(Config::new(&endpoint));
@@ -274,7 +274,7 @@ async fn cbor_initial_request_accepts_empty_payload_and_map() {
         let response = http
             .post(format!("{endpoint}/service/Events/operation/Chat"))
             .header("smithy-protocol", "rpc-v2-cbor")
-            .header("content-type", crucible_client::event_stream::CONTENT_TYPE)
+            .header("content-type", crucible_client_runtime_rust::event_stream::CONTENT_TYPE)
             .body(reqwest::Body::wrap_stream(source))
             .send()
             .await
@@ -311,14 +311,14 @@ async fn rpc_rejects_missing_or_wrong_initial_request() {
     let http = reqwest::Client::new();
     for body in [
         bytes::Bytes::new(),
-        crucible_client::event_stream::Message::default()
+        crucible_client_runtime_rust::event_stream::Message::default()
             .with_header(
                 ":message-type",
-                crucible_client::event_stream::HeaderValue::String("event".into()),
+                crucible_client_runtime_rust::event_stream::HeaderValue::String("event".into()),
             )
             .with_header(
                 ":event-type",
-                crucible_client::event_stream::HeaderValue::String("ping".into()),
+                crucible_client_runtime_rust::event_stream::HeaderValue::String("ping".into()),
             )
             .encode()
             .unwrap(),
@@ -327,7 +327,7 @@ async fn rpc_rejects_missing_or_wrong_initial_request() {
         let response = http
             .post(format!("{endpoint}/service/Events/operation/Publish"))
             .header("smithy-protocol", "rpc-v2-json")
-            .header("content-type", crucible_client::event_stream::CONTENT_TYPE)
+            .header("content-type", crucible_client_runtime_rust::event_stream::CONTENT_TYPE)
             .body(reqwest::Body::wrap_stream(stream))
             .send()
             .await

@@ -38,7 +38,7 @@
 //! fn main() { crucible_build::client("weather_model").generate(); }
 //! ```
 //!
-//! and includes it with `crucible_client::include_client!()`. Cargo pins the
+//! and includes it with `crucible_client_runtime_rust::include_client!()`. Cargo pins the
 //! model version like any other dependency.
 
 use std::path::{Path, PathBuf};
@@ -199,7 +199,7 @@ impl Codegen {
             PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR: run from a build script"));
         let file = match self.side {
             Side::Server => "crucible_service.rs",
-            Side::Client => "crucible_client.rs",
+            Side::Client => "crucible_client_runtime_rust.rs",
         };
         std::fs::write(out.join(file), code).expect("crucible: cannot write the generated code");
         let model_output = self.model_output.clone().or_else(|| {

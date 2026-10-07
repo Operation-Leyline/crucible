@@ -14,7 +14,7 @@ repository = "https://github.com/Operation-Leyline/crucible"
 [workspace.dependencies]
 crucible = { path = "crates/crucible" }
 crucible-wire = { path = "crates/crucible-wire" }
-crucible-client = { path = "crates/crucible-client" }
+crucible-client-runtime-rust = { path = "crates/crucible-client-runtime-rust" }
 crucible-cli-runtime = { path = "crates/crucible-cli-runtime" }
 crucible-codegen-cli = { path = "crates/crucible-codegen-cli" }
 crucible-build = { path = "crates/crucible-build" }
@@ -44,7 +44,7 @@ crucible-codegen-dart = { path = "crates/crucible-codegen-dart" }
 clap = { version = "4", features = ["derive"] }
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
-# The runtime crates (crucible, crucible-wire, crucible-client) must not turn
+# The runtime crates (crucible, crucible-wire, crucible-client-runtime-rust) must not turn
 # on `preserve_order`: features unify across a consumer's build, and a
 # service that hashes or compares JSON maps relies on their sorted order.
 # The generators, which only run at build time, opt in for stable output.

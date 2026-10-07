@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use crucible_client::event_stream::{Header, HeaderValue, Message, MessageDecoder, encode_headers};
-use crucible_client::{
+use crucible_client_runtime_rust::event_stream::{Header, HeaderValue, Message, MessageDecoder, encode_headers};
+use crucible_client_runtime_rust::{
     Blob, CallOptions, CancellationToken, Config, EventStream, EventStreamError, Field, Identity,
 };
 use sha2::{Digest, Sha256};
@@ -241,7 +241,7 @@ async fn event_response_checksums_verify_framed_bytes_at_eof() {
         let checksum = if mismatch {
             "AAAAAA==".to_owned()
         } else {
-            STANDARD.encode(crucible_client::event_stream::crc32(&bytes).to_be_bytes())
+            STANDARD.encode(crucible_client_runtime_rust::event_stream::crc32(&bytes).to_be_bytes())
         };
         let (listener, endpoint) = listen().await;
         let server = tokio::spawn(async move {
@@ -257,7 +257,7 @@ async fn event_response_checksums_verify_framed_bytes_at_eof() {
         let client = rest::EventsClient::new(Config::new(endpoint).on_checksum_validated(
             move |operation, algorithm| {
                 assert_eq!(operation, "SubscribeChecksums");
-                assert_eq!(algorithm, crucible_client::ChecksumAlgorithm::Crc32);
+                assert_eq!(algorithm, crucible_client_runtime_rust::ChecksumAlgorithm::Crc32);
                 observed.fetch_add(1, Ordering::SeqCst);
             },
         ));
@@ -585,7 +585,7 @@ async fn an_http_error_before_the_stream_is_a_modeled_operation_error() {
             )
             .await;
     });
-    let client = rest::EventsClient::new(Config::new(endpoint).retry(crucible_client::Retry {
+    let client = rest::EventsClient::new(Config::new(endpoint).retry(crucible_client_runtime_rust::Retry {
         max_attempts: 1,
         ..Default::default()
     }));
@@ -598,7 +598,7 @@ async fn an_http_error_before_the_stream_is_a_modeled_operation_error() {
         .unwrap_err();
     assert!(matches!(
         error,
-        crucible_client::Error::Service(crucible_client::ServiceError {
+        crucible_client_runtime_rust::Error::Service(crucible_client_runtime_rust::ServiceError {
             error: rest::SubscribeError::UnavailableError(_),
             ..
         })
@@ -802,7 +802,7 @@ async fn a_failing_event_source_aborts_the_request() {
         })
         .await;
     assert!(
-        matches!(result, Err(crucible_client::Error::Transport(_))),
+        matches!(result, Err(crucible_client_runtime_rust::Error::Transport(_))),
         "{result:?}"
     );
     assert_eq!(server.await.unwrap(), 1);
@@ -1050,7 +1050,7 @@ async fn sigv4_signs_every_message_in_a_chain_from_the_request_signature() {
     });
     let client =
         signed::EventsClient::new(Config::new(endpoint).region("us-west-2").aws_credentials(
-            Identity::fixed(crucible_client::AwsCredentials::new("AKID", "secret")),
+            Identity::fixed(crucible_client_runtime_rust::AwsCredentials::new("AKID", "secret")),
         ));
     let output = client
         .publish(signed::model::PublishInput {

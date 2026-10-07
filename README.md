@@ -18,7 +18,7 @@ ordinary calls do not require presence wrappers.
 
 | Language | Generated package | Guide |
 |---|---|---|
-| Rust | Cargo client with `crucible-client` runtime | [Rust](docs/clients/rust.md) |
+| Rust | Cargo client with `crucible-client-runtime-rust` runtime | [Rust](docs/clients/rust.md) |
 | TypeScript / JavaScript | Fetch-based ESM package | [TypeScript](docs/clients/typescript.md) |
 | Python | HTTPX package with sync and async clients | [Python](docs/clients/python.md) |
 | Go | Go module using `net/http` | [Go](docs/clients/go.md) |

@@ -12,7 +12,7 @@
 //!
 //! `generate_client` writes the client side from the same model: `model` and
 //! `errors` as above, the marker types, an error enum per operation and
-//! a service-named client such as `WeatherClient`, all against `crucible-client`.
+//! a service-named client such as `WeatherClient`, all against `crucible-client-runtime-rust`.
 
 mod builders;
 mod client;
@@ -203,7 +203,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     ))
 }
 
-/// The generated client file's contents, for `crucible_client::include_client!()`.
+/// The generated client file's contents, for `crucible_client_runtime_rust::include_client!()`.
 pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
     service.require_capabilities(&client_capabilities())?;
     let mut diagnostics = Diagnostics::default();
@@ -229,7 +229,7 @@ pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
     );
     // Shared wire paths keep generated client declarations independent of the
     // server framework; client-only presence and open types live in the runtime.
-    Ok(code.replace("::crucible::", "::crucible_client::"))
+    Ok(code.replace("::crucible::", "::crucible_client_runtime_rust::"))
 }
 
 fn indent(code: &str) -> String {

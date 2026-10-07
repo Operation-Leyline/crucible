@@ -1,5 +1,5 @@
-use crucible_client::operation::Unit;
-use crucible_client::{CallOptions, Config, WaiterError, WaiterOptions, WaiterResult};
+use crucible_client_runtime_rust::operation::Unit;
+use crucible_client_runtime_rust::{CallOptions, Config, WaiterError, WaiterOptions, WaiterResult};
 use std::time::Duration;
 
 mod sdk {

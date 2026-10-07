@@ -2,7 +2,7 @@
 use std::sync::{Arc, Mutex};
 
 use crucible::{Hook, OperationAwareMiddleware, OperationJob, Prepare, Result};
-use crucible_client::{Config, Error, Retry};
+use crucible_client_runtime_rust::{Config, Error, Retry};
 
 #[allow(dead_code)]
 mod auth {
