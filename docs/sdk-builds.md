@@ -16,22 +16,23 @@ smithy/                 Cargo package weather-model, links = "weather_model"
 sdks/
   rust/                 Cargo package weather-sdk, exposing the generated API
   java/                 optional separate Java generation package
-contract/               Cargo package weather-contract, exposing server bindings
-service/                handwritten operation implementations
+service/                Cargo package with generated bindings and handwritten handlers
+  build.rs              generate server models, traits, and operation registry
+  src/contract.rs       include those bindings inside the service crate
 client/                 application depending on weather-sdk
 ```
 
 The model package needs a minimal Cargo target such as `src/lib.rs`; Smithy
 sources can live entirely under `model/`. Cargo resolves package manifests before
-running build scripts, so Rust SDK and contract packages have committed
+running build scripts, so Rust packages have committed
 manifests and small integration files. Generated sources and native build outputs
 stay under ignored build directories. Do not commit them in an application
 workspace.
 
 Use the same pinned Crucible revision for the CLI, build helpers, framework,
 and Rust runtime. The [service template](https://github.com/Operation-Leyline/crucible-service-template)
-demonstrates a model producer, Rust SDK package, Java SDK export, and service
-contract package.
+demonstrates a model producer, Rust SDK package, Java SDK export, and server
+bindings generated directly inside the service crate.
 
 ## Generating outputs from the model package
 
@@ -180,27 +181,38 @@ script. Both patterns expose the SDK through ordinary imports:
 use weather_sdk::{WeatherClient, model::GetCityInput};
 ```
 
-Likewise, keep server inclusion inside a contract package. Its manifest depends
+Generate server bindings directly inside the server crate. Its manifest depends
 normally on `weather-model` and `crucible`, with `crucible-build` as a build
 dependency:
 
 ```rust
-// contract/build.rs
+// service/build.rs
 fn main() {
     crucible_build::service("weather_model").generate();
 }
 ```
 
 ```rust
-// contract/src/lib.rs
+// service/src/contract.rs
 crucible::include_service!();
 ```
 
-The service application then uses `weather_contract::GetCityOperation` and
-`weather_contract::operations(...)`. Inclusion macros remain package plumbing;
-application code implements traits and calls SDK methods using normal imports.
-The single-crate helpers documented in the [framework guide](framework.md) and
-[Rust guide](clients/rust.md) remain supported.
+Declare `mod contract;` in the service's `main.rs` or `lib.rs`. Handlers then use
+`crate::contract::GetCityOperation` and `crate::contract::operations(...)`.
+The helper generates request/response models, modeled errors, operation traits,
+and the registry together. It consumes the model dependency's published AST;
+it does not invoke the Smithy compiler again.
+
+A server can also compile sources directly, using
+`crucible_build::from_smithy("../smithy/model").generate()` in its build script
+with the same inclusion hook. That setup needs no model Cargo package.
+The inclusion macro connects Cargo's generated build output to Rust's module
+system without exposing an output filename or writing generated code into the
+source tree.
+
+A separate contract crate is optional when several Rust crates need to share
+the generated server API. A regular server only needs the build helper and its
+local Rust module. See the [framework guide](framework.md) for service setup.
 
 ## Exporting and building a native package
 
