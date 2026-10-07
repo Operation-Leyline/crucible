@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::http::{HeaderValue, Request};
-use crucible::raw_before_fn;
-use crucible::{Crucible, RequestMeta};
+use crucible_server_runtime_rust::raw_before_fn;
+use crucible_server_runtime_rust::{Crucible, RequestMeta};
 use serde_json::json;
 use weather_service::MemoryCities;
 
@@ -16,7 +16,9 @@ type Seen = Arc<Mutex<Vec<(String, Option<Instant>)>>>;
 
 /// The weather service with a middleware recording each request's id and
 /// deadline as the context holds them.
-fn recording(source: Option<crucible::service::RequestIdSource>) -> (Crucible, Seen) {
+fn recording(
+    source: Option<crucible_server_runtime_rust::service::RequestIdSource>,
+) -> (Crucible, Seen) {
     let seen: Seen = Arc::default();
     let record = seen.clone();
     let mut builder = weather_service::builder(Arc::new(MemoryCities::default()));
@@ -72,7 +74,7 @@ fn meta(id: &str, deadline: Instant) -> RequestMeta {
 async fn an_http_event_keeps_its_own_request_id_and_takes_the_invocation_deadline() {
     let (service, seen) = recording(None);
     let deadline = Instant::now() + Duration::from_secs(5);
-    let answer = crucible::host::lambda_event_json_with(
+    let answer = crucible_server_runtime_rust::host::lambda_event_json_with(
         &service,
         &http_event("event-id-1"),
         meta("invocation-1", deadline),
@@ -92,9 +94,13 @@ async fn a_direct_invoke_takes_the_invocation_id_and_deadline() {
     let (service, seen) = recording(None);
     let deadline = Instant::now() + Duration::from_secs(5);
     let event = json!({ "operation": "Ping", "input": {} }).to_string();
-    crucible::host::lambda_event_json_with(&service, &event, meta("invocation-2", deadline))
-        .await
-        .unwrap();
+    crucible_server_runtime_rust::host::lambda_event_json_with(
+        &service,
+        &event,
+        meta("invocation-2", deadline),
+    )
+    .await
+    .unwrap();
     assert_eq!(
         *seen.lock().unwrap(),
         [("invocation-2".to_owned(), Some(deadline))]

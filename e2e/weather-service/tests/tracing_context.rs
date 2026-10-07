@@ -5,18 +5,22 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::Request;
-use crucible::before_fn;
-use crucible::middlewares::{LogPolicy, ServiceLog};
-use crucible::{Context, Crucible, InvokeProtocol, JsonProtocol};
+use crucible_server_runtime_rust::before_fn;
+use crucible_server_runtime_rust::middlewares::{LogPolicy, ServiceLog};
+use crucible_server_runtime_rust::{Context, Crucible, InvokeProtocol, JsonProtocol};
 use serde_json::{Value, json};
 
-mod api {
+mod generated_api {
     include!(concat!(env!("OUT_DIR"), "/observability.rs"));
 }
+use generated_api::observability as api;
 
 struct Echo;
 impl api::EchoOperation for Echo {
-    async fn echo(&self, input: api::model::Payload) -> crucible::Result<api::model::Payload> {
+    async fn echo(
+        &self,
+        input: api::Payload,
+    ) -> crucible_server_runtime_rust::Result<api::Payload> {
         tracing::info!("application event");
         let context = Context::current();
         tokio::spawn(context.scope(async {
@@ -25,7 +29,7 @@ impl api::EchoOperation for Echo {
         .await
         .unwrap();
         if input.profile.as_ref().and_then(|p| p.name.as_deref()) == Some("fail") {
-            return Err(api::errors::SecretError {
+            return Err(api::SecretError {
                 profile: input.profile,
                 message: Some("conflict".into()),
             }
@@ -35,7 +39,10 @@ impl api::EchoOperation for Echo {
     }
 }
 impl api::OtherOperation for Echo {
-    async fn other(&self, input: api::model::Payload) -> crucible::Result<api::model::Payload> {
+    async fn other(
+        &self,
+        input: api::Payload,
+    ) -> crucible_server_runtime_rust::Result<api::Payload> {
         Ok(input)
     }
 }
@@ -71,7 +78,7 @@ async fn tracing_has_structured_fields_levels_and_request_context_without_duplic
         ))
         .operation_middleware(before_fn(|job| {
             if job.request().headers.contains_key("x-fail") {
-                return Err(crucible::Error::internal("test fault"));
+                return Err(crucible_server_runtime_rust::Error::internal("test fault"));
             }
             Ok(())
         }))
@@ -101,7 +108,7 @@ async fn tracing_has_structured_fields_levels_and_request_context_without_duplic
         .collect();
     let completed: Vec<_> = events
         .iter()
-        .filter(|e| e["target"] == "crucible::service_log")
+        .filter(|e| e["target"] == "crucible_server_runtime_rust::service_log")
         .collect();
     assert_eq!(completed.len(), 3, "{events:?}");
     assert_eq!(completed[0]["fields"]["status"], 200);

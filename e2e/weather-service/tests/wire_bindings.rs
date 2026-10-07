@@ -9,14 +9,14 @@ use axum::{
     body::{Body, to_bytes},
     http::{HeaderValue, Request},
 };
-use crucible::before_fn;
-use crucible::operation::{
+use crucible_server_runtime_rust::before_fn;
+use crucible_server_runtime_rust::operation::{
     ErrorInfo, Fault, Location, MemberInfo, OperationInfo, Redaction, Scalar, Segment, ServiceInfo,
     Unit,
 };
-use crucible::protocol::Invocation;
-use crucible::validate::{Validate, Validator};
-use crucible::{
+use crucible_server_runtime_rust::protocol::Invocation;
+use crucible_server_runtime_rust::validate::{Validate, Validator};
+use crucible_server_runtime_rust::{
     Crucible, InvokeProtocol, JsonProtocol, Operation, Operations, Protocol, ProtocolExt,
 };
 use serde::{Deserialize, Serialize};
@@ -140,7 +140,7 @@ impl std::fmt::Display for Invalid {
     }
 }
 impl std::error::Error for Invalid {}
-impl crucible::ModelledError for Invalid {
+impl crucible_server_runtime_rust::ModelledError for Invalid {
     fn info(&self) -> &'static ErrorInfo {
         &ERROR
     }
@@ -417,13 +417,13 @@ fn routing_compares_path_segments_before_query_and_greedy_labels() {
 
 struct CountInvocations(Arc<AtomicUsize>);
 
-impl crucible::Interceptor for CountInvocations {
+impl crucible_server_runtime_rust::Interceptor for CountInvocations {
     fn before<'a>(
         &'a self,
-        _: &'a mut crucible::DecodedJob<'_>,
-    ) -> crucible::Hook<'a, crucible::Result<()>> {
+        _: &'a mut crucible_server_runtime_rust::DecodedJob<'_>,
+    ) -> crucible_server_runtime_rust::Hook<'a, crucible_server_runtime_rust::Result<()>> {
         self.0.fetch_add(1, Ordering::SeqCst);
-        crucible::Hook::Ready(Ok(()))
+        crucible_server_runtime_rust::Hook::Ready(Ok(()))
     }
 }
 

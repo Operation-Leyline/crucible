@@ -55,12 +55,10 @@ fn operation_static(operation: &Operation) -> String {
 }
 
 pub(crate) fn input_type(service: &Service, operation: &Operation) -> String {
-    operation
-        .input
-        .as_ref()
-        .map_or("::crucible::operation::Unit".to_owned(), |id| {
-            format!("model::{}", service.name_of(id))
-        })
+    operation.input.as_ref().map_or(
+        "::crucible_server_runtime_rust::operation::Unit".to_owned(),
+        |id| format!("model::{}", service.name_of(id)),
+    )
 }
 
 pub(crate) fn output_type(service: &Service, operation: &Operation) -> String {
@@ -84,14 +82,17 @@ fn operation_items(service: &Service, op: &Operation) -> String {
     let mut out = marker(service, op, &output_type(service, op), false);
     doc(&mut out, "", op.docs.as_deref());
     let parameter = if op.input.is_some() {
-        format!(", input: {}", input_type(service, op))
+        format!(
+            ", input: {}",
+            input_type(service, op).trim_start_matches("model::")
+        )
     } else {
         String::new()
     };
     out.push_str(&format!(
-        "pub trait {name}Operation: ::crucible::WithContext + Send + Sync + 'static {{\n    fn {}(&self{parameter}) -> impl ::std::future::Future<Output = ::crucible::Result<{}>> + Send;\n}}\n",
+        "pub trait {name}Operation: ::crucible_server_runtime_rust::WithContext + Send + Sync + 'static {{\n    fn {}(&self{parameter}) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::Result<{}>> + Send;\n}}\n",
         function(name),
-        output_type(service, op),
+        output_type(service, op).trim_start_matches("model::"),
     ));
     out
 }
@@ -110,7 +111,10 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         .iter()
         .map(|segment| match segment {
             Segment::Literal(text) => {
-                format!("::crucible::operation::Segment::Literal({})", literal(text))
+                format!(
+                    "::crucible_server_runtime_rust::operation::Segment::Literal({})",
+                    literal(text)
+                )
             }
             Segment::Label(label) => {
                 let kind = if op.uri.greedy_labels.contains(label) {
@@ -121,7 +125,10 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
                 let wire = structure(service, op.input.as_ref())
                     .and_then(|s| s.members.iter().find(|m| &m.name == label))
                     .map_or(label.as_str(), |m| m.wire_name.as_str());
-                format!("::crucible::operation::Segment::{kind}({})", literal(wire))
+                format!(
+                    "::crucible_server_runtime_rust::operation::Segment::{kind}({})",
+                    literal(wire)
+                )
             }
         })
         .collect();
@@ -167,7 +174,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
             format!("Some({})", literal(token))
         });
     out.push_str(&format!(
-        "static {}: ::crucible::OperationInfo = ::crucible::OperationInfo {{\n    id: {},\n    name: {},\n    resource: {resource},\n    method: {},\n    path: &[{}],\n    literal_query: &[{query}],\n    status: {},\n    input: {input},\n    output: {output},\n    errors: &[{}],\n    readonly: {},\n    idempotent: {},\n    idempotency_token: {token},\n    traits: {},\n}};\n\n",
+        "static {}: ::crucible_server_runtime_rust::OperationInfo = ::crucible_server_runtime_rust::OperationInfo {{\n    id: {},\n    name: {},\n    resource: {resource},\n    method: {},\n    path: &[{}],\n    literal_query: &[{query}],\n    status: {},\n    input: {input},\n    output: {output},\n    errors: &[{}],\n    readonly: {},\n    idempotent: {},\n    idempotency_token: {token},\n    traits: {},\n}};\n\n",
         operation_static(op),
         literal(&op.id.to_string()),
         literal(name),
@@ -189,14 +196,16 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         let rust = crate::names::field(&member.name);
         let get = if client && member.optional_on_client() {
             format!(
-                "value.{rust}.value().map(|value| ::crucible::operation::response_status(i64::from(*value)))"
+                "value.{rust}.value().map(|value| ::crucible_server_runtime_rust::operation::response_status(i64::from(*value)))"
             )
         } else if !client && member.optional_on_server() {
             format!(
-                "value.{rust}.as_ref().map(|value| ::crucible::operation::response_status(i64::from(*value)))"
+                "value.{rust}.as_ref().map(|value| ::crucible_server_runtime_rust::operation::response_status(i64::from(*value)))"
             )
         } else {
-            format!("Some(::crucible::operation::response_status(i64::from(value.{rust})))")
+            format!(
+                "Some(::crucible_server_runtime_rust::operation::response_status(i64::from(value.{rust})))"
+            )
         };
         streaming.push_str(&format!(
             "    fn output_status(value: &Self::Output) -> Option<u16> {{ {get} }}\n"
@@ -223,14 +232,14 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
             let (get, set) = if client && member.optional_on_client() {
                 (
                     format!("value.{rust}.value().cloned()"),
-                    "::crucible::Field::Value(stream)",
+                    "::crucible_server_runtime_rust::Field::Value(stream)",
                 )
             } else if !client && member.optional_on_server() {
                 (format!("value.{rust}.clone()"), "Some(stream)")
             } else {
                 (format!("Some(value.{rust}.clone())"), "stream")
             };
-            streaming.push_str(&format!("    fn {direction}_stream(value: &Self::{ty}) -> Option<::crucible::ByteStream> {{ {get} }}\n    fn set_{direction}_stream(value: &mut Self::{ty}, stream: ::crucible::ByteStream) {{ value.{rust} = {set}; }}\n"));
+            streaming.push_str(&format!("    fn {direction}_stream(value: &Self::{ty}) -> Option<::crucible_server_runtime_rust::ByteStream> {{ {get} }}\n    fn set_{direction}_stream(value: &mut Self::{ty}, stream: ::crucible_server_runtime_rust::ByteStream) {{ value.{rust} = {set}; }}\n"));
         }
     }
     let auth = op
@@ -265,12 +274,12 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
                     unreachable!("undeclared Rust auth capability")
                 }
             };
-            format!("::crucible::operation::AuthScheme::{value}")
+            format!("::crucible_server_runtime_rust::operation::AuthScheme::{value}")
         })
         .collect::<Vec<_>>()
         .join(", ");
     let mut auth = format!(
-        "    const AUTH_SCHEMES: Option<&'static [::crucible::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
+        "    const AUTH_SCHEMES: Option<&'static [::crucible_server_runtime_rust::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
         op.optional_auth
     );
     auth.push_str(&wire(service, op));
@@ -285,7 +294,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         auth.push_str("    const UNSIGNED_PAYLOAD: bool = true;\n");
     }
     out.push_str(&format!(
-        "impl ::crucible::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
+        "impl ::crucible_server_runtime_rust::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible_server_runtime_rust::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
         op.auth.iter().any(|id| id.to_string() == "smithy.api#httpBearerAuth"),
         operation_static(op),
         input_type(service, op),
@@ -316,7 +325,7 @@ fn wire(service: &Service, op: &Operation) -> String {
     };
     if let Some(protocol) = protocol {
         out.push_str(&format!(
-            "    const PROTOCOL: ::crucible::operation::Protocol = ::crucible::operation::Protocol::{protocol};\n"
+            "    const PROTOCOL: ::crucible_server_runtime_rust::operation::Protocol = ::crucible_server_runtime_rust::operation::Protocol::{protocol};\n"
         ));
     }
     let wire = |name: &Option<String>| {
@@ -352,7 +361,7 @@ fn wire(service: &Service, op: &Operation) -> String {
                         ChecksumAlgorithm::Xxhash3 => "Xxhash3",
                         ChecksumAlgorithm::Xxhash128 => "Xxhash128",
                     };
-                    format!("::crucible::operation::ChecksumAlgorithm::{name}")
+                    format!("::crucible_server_runtime_rust::operation::ChecksumAlgorithm::{name}")
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -364,7 +373,7 @@ fn wire(service: &Service, op: &Operation) -> String {
         }
     };
     out.push_str(&format!(
-        "    const CHECKSUM: Option<::crucible::operation::Checksum> = Some(::crucible::operation::Checksum::{checksum});\n"
+        "    const CHECKSUM: Option<::crucible_server_runtime_rust::operation::Checksum> = Some(::crucible_server_runtime_rust::operation::Checksum::{checksum});\n"
     ));
     out
 }
@@ -387,7 +396,7 @@ fn service_info(service: &Service, functions: &Functions) -> String {
         }
     };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible::ServiceInfo = ::crucible::ServiceInfo {{\n    id: {},\n    version: {},\n    operations: &[\n        {}{}\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {{\n    id: {},\n    version: {},\n    operations: &[\n        {}{}\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),
@@ -401,7 +410,7 @@ fn service_info(service: &Service, functions: &Functions) -> String {
 
 fn registration(service: &Service) -> String {
     let mut out = String::from(
-        "\n/// Registers implementations one operation at a time, for a service split\n/// across several types. `build` names any operation left out.\npub struct OperationsBuilder(::crucible::operations::OperationsBuilder);\n\nimpl OperationsBuilder {\n",
+        "\n/// Registers implementations one operation at a time, for a service split\n/// across several types. `build` names any operation left out.\npub struct OperationsBuilder(::crucible_server_runtime_rust::operations::OperationsBuilder);\n\nimpl OperationsBuilder {\n",
     );
     for op in &service.operations {
         let method = function(op.name());
@@ -420,9 +429,9 @@ fn registration(service: &Service) -> String {
         ));
     }
     out.push_str(
-        "    pub fn build(self) -> ::std::result::Result<::crucible::Operations, ::crucible::MissingOperations> {\n        self.0.build()\n    }\n}\n\n",
+        "    pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::Operations, ::crucible_server_runtime_rust::MissingOperations> {\n        self.0.build()\n    }\n}\n\n",
     );
-    out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible::Operations::builder(&SERVICE))\n}\n\n");
+    out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible_server_runtime_rust::Operations::builder(&SERVICE))\n}\n\n");
     let bounds: Vec<String> = service
         .operations
         .iter()
@@ -439,7 +448,7 @@ fn registration(service: &Service) -> String {
         "implementation"
     };
     out.push_str(&format!(
-        "/// Every operation, served by one type: checked at compile time.\npub fn operations<T>({implementation}: ::std::sync::Arc<T>) -> ::crucible::Operations\nwhere\n    T: {},\n{{\n    builder(){calls}\n        .build()\n        .expect(\"every operation is registered\")\n}}\n",
+        "/// Every operation, served by one type: checked at compile time.\npub fn operations<T>({implementation}: ::std::sync::Arc<T>) -> ::crucible_server_runtime_rust::Operations\nwhere\n    T: {},\n{{\n    builder(){calls}\n        .build()\n        .expect(\"every operation is registered\")\n}}\n",
         bounds.join(" + ")
     ));
     out

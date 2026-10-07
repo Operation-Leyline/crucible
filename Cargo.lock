@@ -449,28 +449,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
-name = "crucible"
-version = "0.3.0"
-dependencies = [
- "async-trait",
- "axum",
- "chrono",
- "crucible-wire",
- "futures-util",
- "http-body-util",
- "lambda_http",
- "lambda_runtime",
- "regex",
- "serde",
- "serde_json",
- "tokio",
- "tower",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "crucible-build"
 version = "0.3.0"
 dependencies = [
@@ -791,6 +769,28 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+]
+
+[[package]]
+name = "crucible-server-runtime-rust"
+version = "0.3.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "chrono",
+ "crucible-wire",
+ "futures-util",
+ "http-body-util",
+ "lambda_http",
+ "lambda_runtime",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

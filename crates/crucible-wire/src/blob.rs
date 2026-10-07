@@ -121,7 +121,7 @@ impl Serialize for Blob {
 /// The newtype name a blob asks its deserializer for. The bound-member
 /// reader (`bound.rs`) answers it by handing over a whole body's `Bytes`,
 /// which serde's visitor methods cannot carry, through [`HANDOFF`].
-pub(crate) const TOKEN: &str = "$crucible::private::Blob";
+pub(crate) const TOKEN: &str = "$crucible_server_runtime_rust::private::Blob";
 
 thread_local! {
     /// Bytes on their way from the bound-member reader to the `Blob` it is

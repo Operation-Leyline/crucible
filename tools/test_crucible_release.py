@@ -7,14 +7,14 @@ from crucible_release import check, prepare, version_tuple
 
 class ReleaseTests(unittest.TestCase):
     def fixture(self, root):
-        (root / "crates/crucible").mkdir(parents=True)
-        (root / "crates/crucible/Cargo.toml").write_text('[package]\nname = "crucible"\nversion.workspace = true\n')
+        (root / "crates/crucible-server-runtime-rust").mkdir(parents=True)
+        (root / "crates/crucible-server-runtime-rust/Cargo.toml").write_text('[package]\nname = "crucible-server-runtime-rust"\nversion.workspace = true\n')
         (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "smithy"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
         (root / "e2e").mkdir()
         lock = '''version = 4
 
 [[package]]
-name = "crucible"
+name = "crucible-server-runtime-rust"
 version = "0.1.0"
 
 [[package]]
@@ -39,7 +39,7 @@ version = "0.1.0"
             check(root, "0.2.0")
             for path in (root / "Cargo.lock", root / "e2e/Cargo.lock"):
                 text = path.read_text()
-                self.assertIn('name = "crucible"\nversion = "0.2.0"', text)
+                self.assertIn('name = "crucible-server-runtime-rust"\nversion = "0.2.0"', text)
                 self.assertIn('name = "weather-service"\nversion = "0.1.0"', text)
                 self.assertIn('name = "serde"\nversion = "1.0.0"', text)
                 self.assertIn('checksum = "keep-this"', text)
@@ -49,7 +49,7 @@ version = "0.1.0"
             root = Path(directory)
             self.fixture(root)
             stale = root / "e2e/Cargo.lock"
-            stale.write_text(stale.read_text().replace('name = "crucible"\nversion = "0.1.0"', 'name = "crucible"\nversion = "0.0.9"'))
+            stale.write_text(stale.read_text().replace('name = "crucible-server-runtime-rust"\nversion = "0.1.0"', 'name = "crucible-server-runtime-rust"\nversion = "0.0.9"'))
             before = {path: path.read_bytes() for path in (root / "Cargo.toml", root / "Cargo.lock", stale)}
             with self.assertRaisesRegex(ValueError, "expected 0.1.0"):
                 prepare(root, "0.2.0")

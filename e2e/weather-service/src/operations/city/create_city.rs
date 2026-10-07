@@ -1,14 +1,14 @@
 //! CreateCity.
 
-use crate::contract::{CreateCityOperation, model};
 use crate::operations::Weather;
 use crate::store::NewCity;
+use crate::weather::{CreateCityInput, CreateCityOperation, CreateCityOutput};
 
 impl CreateCityOperation for Weather {
     async fn create_city(
         &self,
-        input: model::CreateCityInput,
-    ) -> crucible::Result<model::CreateCityOutput> {
+        input: CreateCityInput,
+    ) -> crucible_server_runtime_rust::Result<CreateCityOutput> {
         let city = NewCity {
             name: input.name,
             // The expected revision stands in for a population, so a test can
@@ -21,6 +21,6 @@ impl CreateCityOperation for Weather {
             .cities
             .create(city, input.client_token.as_deref())
             .await?;
-        Ok(model::CreateCityOutput { city })
+        Ok(CreateCityOutput { city })
     }
 }

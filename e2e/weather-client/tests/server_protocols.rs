@@ -7,17 +7,18 @@ macro_rules! service {
         #[allow(dead_code)]
         mod $module {
             pub mod client { include!(concat!(env!("OUT_DIR"), $client)); }
-            pub mod server { include!(concat!(env!("OUT_DIR"), $server)); }
+            mod generated_server { include!(concat!(env!("OUT_DIR"), $server)); }
+            pub use generated_server::json_service as server;
 
             struct Service;
             impl server::EchoOperation for Service {
-                async fn echo(&self, input: server::model::ValuesInput) -> crucible::Result<server::model::ValuesOutput> {
+                async fn echo(&self, input: server::ValuesInput) -> crucible_server_runtime_rust::Result<server::ValuesOutput> {
                     match input.renamed.as_deref() {
-                        Some("error") => return Err(server::errors::$error { message: Some("modeled refusal".to_owned()) }.into()),
+                        Some("error") => return Err(server::$error { message: Some("modeled refusal".to_owned()) }.into()),
                         Some("internal") => return Err(std::io::Error::other("private server detail").into()),
                         _ => {}
                     }
-                    Ok(server::model::ValuesOutput {
+                    Ok(server::ValuesOutput {
                         renamed: input.renamed, when: input.when, iso: input.iso,
                         date: input.date, dates: input.dates, choice: input.choice,
                         float_value: input.float_value, double_value: input.double_value,
@@ -26,12 +27,12 @@ macro_rules! service {
                 }
             }
             impl server::EmptyOperation for Service {
-                async fn empty(&self) -> crucible::Result<()> { Ok(()) }
+                async fn empty(&self) -> crucible_server_runtime_rust::Result<()> { Ok(()) }
             }
             pub async fn serve() -> String {
-                let service = crucible::Crucible::builder(server::operations(std::sync::Arc::new(Service)))
+                let service = crucible_server_runtime_rust::Crucible::builder(server::operations(std::sync::Arc::new(Service)))
                     .defaults()
-                    .on_rejection(|rejection| Box::new(server::errors::$error { message: Some(rejection.summary()) }))
+                    .on_rejection(|rejection| Box::new(server::$error { message: Some(rejection.summary()) }))
                     .build().unwrap();
                 super::serve(service).await
             }
@@ -80,10 +81,12 @@ service!(
     decimal
 );
 
-async fn serve(service: crucible::Crucible) -> String {
+async fn serve(service: crucible_server_runtime_rust::Crucible) -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    tokio::spawn(crucible::host::http_on(service, listener));
+    tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service, listener,
+    ));
     endpoint
 }
 
@@ -338,7 +341,7 @@ async fn cbor_trailing_or_truncated_documents_are_rejected() {
         assert_eq!(response.headers()["content-type"], "application/cbor");
         let body = response.bytes().await.unwrap();
         assert_eq!(
-            crucible::cbor::error_envelope(&body).unwrap()["__type"],
+            crucible_server_runtime_rust::cbor::error_envelope(&body).unwrap()["__type"],
             "example.json#Problem"
         );
     }

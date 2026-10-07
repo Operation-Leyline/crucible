@@ -1,7 +1,7 @@
 //! Streaming payloads cross the generated client/server boundary without collection.
-use crucible::ByteStream as ServerStream;
-use crucible::host;
 use crucible_client_runtime_rust::{ByteStream, CallOptions, CancellationToken, Config, Retry};
+use crucible_server_runtime_rust::ByteStream as ServerStream;
+use crucible_server_runtime_rust::host;
 use futures_util::{Stream, StreamExt};
 use std::io;
 use std::pin::Pin;
@@ -17,9 +17,10 @@ mod client {
     include!(concat!(env!("OUT_DIR"), "/streaming_client.rs"));
 }
 #[allow(dead_code)]
-mod server {
+mod generated_server {
     include!(concat!(env!("OUT_DIR"), "/streaming_server.rs"));
 }
+use generated_server::streaming as server;
 
 struct Chunks {
     remaining: usize,
@@ -52,37 +53,41 @@ struct Streams {
     dropped: Arc<AtomicUsize>,
 }
 impl server::UploadOperation for Streams {
-    async fn upload(&self, input: server::model::UploadInput) -> crucible::Result<()> {
+    async fn upload(&self, input: server::UploadInput) -> crucible_server_runtime_rust::Result<()> {
         self.uploaded.fetch_add(1, Ordering::SeqCst);
         let mut body = input
             .body
             .open()
-            .map_err(|error| crucible::Error::internal(error.to_string()))?;
+            .map_err(|error| crucible_server_runtime_rust::Error::internal(error.to_string()))?;
         while let Some(chunk) = body.next().await {
             self.bytes.fetch_add(
                 chunk
-                    .map_err(|error| crucible::Error::internal(error.to_string()))?
+                    .map_err(|error| {
+                        crucible_server_runtime_rust::Error::internal(error.to_string())
+                    })?
                     .len(),
                 Ordering::SeqCst,
             );
         }
         if self.fail_upload {
-            Err(crucible::Error::internal("retry probe"))
+            Err(crucible_server_runtime_rust::Error::internal("retry probe"))
         } else {
             Ok(())
         }
     }
 }
 impl server::SizedOperation for Streams {
-    async fn sized(&self, input: server::model::SizedInput) -> crucible::Result<()> {
+    async fn sized(&self, input: server::SizedInput) -> crucible_server_runtime_rust::Result<()> {
         let mut body = input
             .body
             .open()
-            .map_err(|error| crucible::Error::internal(error.to_string()))?;
+            .map_err(|error| crucible_server_runtime_rust::Error::internal(error.to_string()))?;
         while let Some(chunk) = body.next().await {
             self.bytes.fetch_add(
                 chunk
-                    .map_err(|error| crucible::Error::internal(error.to_string()))?
+                    .map_err(|error| {
+                        crucible_server_runtime_rust::Error::internal(error.to_string())
+                    })?
                     .len(),
                 Ordering::SeqCst,
             );
@@ -91,8 +96,8 @@ impl server::SizedOperation for Streams {
     }
 }
 impl server::DownloadOperation for Streams {
-    async fn download(&self) -> crucible::Result<server::model::DownloadOutput> {
-        Ok(server::model::DownloadOutput {
+    async fn download(&self) -> crucible_server_runtime_rust::Result<server::DownloadOutput> {
+        Ok(server::DownloadOutput {
             count: None,
             body: ServerStream::new(Chunks {
                 remaining: 1024,
@@ -110,16 +115,17 @@ async fn serve(stalled: bool, fail_upload: bool) -> (String, Arc<Streams>) {
         stalled,
         dropped: Arc::new(AtomicUsize::new(0)),
     });
-    let service = crucible::Crucible::builder(server::operations(streams.clone()))
-        .protocol(crucible::JsonProtocol)
-        .body_limit(128 * 1024 * 1024)
-        .on_rejection(|_| {
-            Box::new(weather_service::contract::errors::ConflictError {
-                message: "invalid".into(),
+    let service =
+        crucible_server_runtime_rust::Crucible::builder(server::operations(streams.clone()))
+            .protocol(crucible_server_runtime_rust::JsonProtocol)
+            .body_limit(128 * 1024 * 1024)
+            .on_rejection(|_| {
+                Box::new(weather_service::weather::ConflictError {
+                    message: "invalid".into(),
+                })
             })
-        })
-        .build()
-        .unwrap();
+            .build()
+            .unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     tokio::spawn(host::http_on(service, listener));

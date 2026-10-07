@@ -86,7 +86,7 @@ impl ModelPackage {
         self.output(name, Generator::Client(client))
     }
 
-    /// Select a native client, document, infrastructure package or CLI output.
+    /// Select a native client, server bindings, document, infrastructure package or CLI output.
     pub fn output(&self, name: &str, generator: Generator) -> Output<'_> {
         Output {
             model: self,

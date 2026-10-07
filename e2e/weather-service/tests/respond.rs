@@ -5,14 +5,14 @@ use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::{Request, Response};
-use crucible::before_fn;
-use crucible::middlewares::{LogPolicy, LogSink, ServiceLog};
-use crucible::{
+use crucible_server_runtime_rust::before_fn;
+use crucible_server_runtime_rust::middlewares::{LogPolicy, LogSink, ServiceLog};
+use crucible_server_runtime_rust::{
     Crucible, Hook, InvokeProtocol, JsonProtocol, OperationAwareMiddleware, OperationJob,
     Resolution,
 };
 use serde_json::{Value, json};
-use weather_service::contract;
+use weather_service::weather;
 use weather_service::{MemoryCities, Weather};
 
 /// Answers requests carrying `x-relay` with a canned response, as a middleware
@@ -20,7 +20,10 @@ use weather_service::{MemoryCities, Weather};
 struct Relay(Arc<Mutex<Vec<String>>>);
 
 impl OperationAwareMiddleware for Relay {
-    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut OperationJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         if let Some(id) = job.request().headers.get("x-relay").cloned() {
             let mut response = Response::builder()
                 .status(202)
@@ -46,7 +49,7 @@ impl OperationAwareMiddleware for Relay {
 struct Records(Arc<Mutex<Vec<Value>>>);
 
 impl LogSink for Records {
-    fn write(&self, record: &crucible::middlewares::LogRecord<'_>) {
+    fn write(&self, record: &crucible_server_runtime_rust::middlewares::LogRecord<'_>) {
         self.0
             .lock()
             .unwrap()
@@ -58,12 +61,12 @@ fn relaying() -> (Crucible, Arc<Mutex<Vec<String>>>, Records) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let records = Records::default();
     let inner = seen.clone();
-    let service = Crucible::builder(contract::operations(Arc::new(Weather::new(Arc::new(
+    let service = Crucible::builder(weather::operations(Arc::new(Weather::new(Arc::new(
         MemoryCities::default(),
     )))))
     .middleware(
         ServiceLog::errors_only()
-            .operation::<contract::CreateCity>(LogPolicy::everything())
+            .operation::<weather::CreateCity>(LogPolicy::everything())
             .sink(records.clone()),
     )
     .operation_middleware(Relay(seen.clone()))

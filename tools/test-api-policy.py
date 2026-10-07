@@ -32,7 +32,7 @@ def main():
     let path = std::env::var("POLICY_TEST_COUNT").unwrap();
     let count: usize = std::fs::read_to_string(&path).unwrap_or_else(|_| "0".into()).parse().unwrap();
     std::fs::write(path, (count + 1).to_string()).unwrap();
-    crucible_build::Codegen::from_model("model.json")
+    crucible_build::RustCodegen::from_model("model.json")
         .custom_rejections().policy("crucible.toml").generate();
 }
 ''', encoding="utf-8")

@@ -1,6 +1,6 @@
 [package]
-name = "crucible"
-description = "A service framework for Smithy-modelled APIs: phased pipeline, context, protocols, validation, errors, service log, hosting"
+name = "crucible-server-runtime-rust"
+description = "The Rust server runtime for Smithy-modelled APIs: phased pipeline, context, protocols, validation, errors, service log, hosting"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

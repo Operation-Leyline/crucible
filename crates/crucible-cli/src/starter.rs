@@ -43,6 +43,7 @@ pub(crate) fn create(
             out.display()
         ));
     }
+    let revision = revision.or(crucible_codegen_rust::source_revision());
     let dependency = |package: &str| -> Result<String, String> {
         if let Some(root) = runtime {
             let root = root
@@ -67,7 +68,7 @@ pub(crate) fn create(
     let runtime_package = if client {
         "crucible-client-runtime-rust"
     } else {
-        "crucible"
+        "crucible-server-runtime-rust"
     };
     let runtime_features = if client {
         ""
@@ -92,7 +93,7 @@ pub(crate) fn create(
     let helper = if client {
         "client_from_smithy"
     } else {
-        "from_smithy"
+        "rust_service_from_smithy"
     };
     let build = if let Some(version) = smithy_version {
         manifest.push_str(&format!(
@@ -129,7 +130,6 @@ pub(crate) fn create(
         files.extend([
             ("README.md", include_str!("starter/README.md")),
             ("src/main.rs", include_str!("starter/main.rs")),
-            ("src/contract.rs", "crucible::include_service!();\n"),
             (
                 "src/operations/mod.rs",
                 "mod service;\n\npub struct Service;\n",
@@ -154,4 +154,43 @@ pub(crate) fn create(
 
 fn quoted(value: &str) -> String {
     serde_json::to_string(value).expect("a string is serializable")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::create;
+
+    #[test]
+    fn default_starters_pin_the_emitters_source_revision() {
+        let revision = crucible_codegen_rust::source_revision();
+        for client in [false, true] {
+            let root = tempfile::tempdir().unwrap();
+            create("hello", root.path(), None, None, None, client).unwrap();
+            let manifest = std::fs::read_to_string(root.path().join("Cargo.toml")).unwrap();
+            let expected = match revision {
+                Some(revision) => format!("rev = {revision:?}"),
+                None => format!("tag = \"v{}\"", env!("CARGO_PKG_VERSION")),
+            };
+            assert_eq!(manifest.matches(&expected).count(), 2, "{manifest}");
+            if revision.is_some() {
+                assert!(!manifest.contains("tag ="));
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_starter_revision_overrides_embedded_provenance() {
+        let root = tempfile::tempdir().unwrap();
+        create(
+            "hello",
+            root.path(),
+            Some("chosen-revision"),
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+        let manifest = std::fs::read_to_string(root.path().join("Cargo.toml")).unwrap();
+        assert_eq!(manifest.matches("rev = \"chosen-revision\"").count(), 2);
+    }
 }

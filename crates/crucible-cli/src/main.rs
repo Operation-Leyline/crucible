@@ -47,7 +47,7 @@ enum Command {
         /// Destination directory; defaults to the package name. Must be empty.
         #[arg(long)]
         out: Option<PathBuf>,
-        /// Pin a Crucible commit instead of this CLI's matching release tag.
+        /// Override this CLI's matching Crucible source revision.
         #[arg(long, conflicts_with = "runtime_path")]
         crucible_rev: Option<String>,
         /// Use a local Crucible checkout for development and qualification.
@@ -115,9 +115,9 @@ enum Command {
         /// The operations folder.
         #[arg(long, default_value = "src/operations")]
         out: PathBuf,
-        /// The module the generated contract is included in.
-        #[arg(long, default_value = "crate::contract")]
-        contract: String,
+        /// Override the derived service namespace (default: crate::<service_name>).
+        #[arg(long)]
+        contract: Option<String>,
         /// The type that implements every operation.
         #[arg(long, default_value = "crate::operations::Service")]
         service_type: String,
@@ -1218,4 +1218,19 @@ fn custom_traits(service: &Service) -> BTreeMap<&ShapeId, usize> {
         *uses.entry(id).or_default() += 1;
     }
     uses
+}
+
+#[cfg(test)]
+mod summary_tests {
+    #[test]
+    fn custom_trait_counts_use_the_multiplication_sign() {
+        let service = crucible_smithy::Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/weather.json"
+        ))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+        let report = super::summary(&service);
+        assert!(report.contains(" \u{00d7}"), "{report}");
+    }
 }

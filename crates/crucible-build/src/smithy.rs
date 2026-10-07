@@ -2,7 +2,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "rust")]
-use crate::Codegen;
+use crate::RustCodegen;
 use crate::absolute;
 
 /// Assemble and validate Smithy sources, then generate a server in `OUT_DIR`.
@@ -12,10 +12,10 @@ use crate::absolute;
 /// on first use, then cached outside Cargo's build directory. No separate CLI or
 /// Java installation is required. Sources and imports are never written into the
 /// project. The service must declare a fillable validation error, or use
-/// [`Codegen::custom_rejections`] and supply its own rejection handler.
+/// [`RustCodegen::custom_rejections`] and supply its own rejection handler.
 #[cfg(all(feature = "smithy", feature = "rust"))]
-pub fn from_smithy(sources: impl AsRef<Path>) -> Codegen {
-    from_smithy_with(sources, |config, output| {
+pub fn rust_service_from_smithy(sources: impl AsRef<Path>) -> RustCodegen {
+    rust_service_from_smithy_with(sources, |config, output| {
         smithy_tooling::build(config, output)
     })
 }
@@ -27,11 +27,11 @@ pub fn from_smithy(sources: impl AsRef<Path>) -> Codegen {
 /// The compiler must support the `flattenAndRemoveMixins` transform. Assembly and
 /// validation remain the official compiler's responsibility.
 #[cfg(feature = "rust")]
-pub fn from_smithy_with(
+pub fn rust_service_from_smithy_with(
     sources: impl AsRef<Path>,
     compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
-) -> Codegen {
-    let mut codegen = Codegen::from_model(compile(sources.as_ref(), compiler));
+) -> RustCodegen {
+    let mut codegen = RustCodegen::from_model(compile(sources.as_ref(), compiler));
     codegen.options.require_rejection = true;
     codegen
 }
@@ -39,9 +39,9 @@ pub fn from_smithy_with(
 /// Assemble Smithy sources and generate a Rust client in `OUT_DIR`.
 ///
 /// Uses the same pinned compiler, bundled imports and managed Java runtime as
-/// [`from_smithy`]. Client generation does not require server rejection errors.
+/// [`rust_service_from_smithy`]. Client generation does not require server rejection errors.
 #[cfg(all(feature = "smithy", feature = "rust"))]
-pub fn client_from_smithy(sources: impl AsRef<Path>) -> Codegen {
+pub fn client_from_smithy(sources: impl AsRef<Path>) -> RustCodegen {
     client_from_smithy_with(sources, |config, output| {
         smithy_tooling::build(config, output)
     })
@@ -49,18 +49,18 @@ pub fn client_from_smithy(sources: impl AsRef<Path>) -> Codegen {
 
 /// Generate a Rust client with an explicitly selected official compiler.
 ///
-/// See [`from_smithy_with`] for compiler dependency setup.
+/// See [`rust_service_from_smithy_with`] for compiler dependency setup.
 #[cfg(feature = "rust")]
 pub fn client_from_smithy_with(
     sources: impl AsRef<Path>,
     compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
-) -> Codegen {
-    Codegen::client_from_model(compile(sources.as_ref(), compiler))
+) -> RustCodegen {
+    RustCodegen::client_from_model(compile(sources.as_ref(), compiler))
 }
 
 /// Compile and publish Smithy sources from a shared model package's `build.rs`.
 ///
-/// The package must declare `links`. Dependents use [`crate::service`] or
+/// The package must declare `links`. Dependents use [`crate::rust_service`] or
 /// [`crate::client`] with that name. The published AST lives under `OUT_DIR`
 /// and is rewritten only when its contents change.
 #[cfg(feature = "smithy")]
@@ -72,7 +72,7 @@ pub fn publish_model_from_smithy(sources: impl AsRef<Path>) {
 
 /// Compile and publish a shared model using an explicitly selected compiler.
 ///
-/// See [`from_smithy_with`] for compiler dependency setup.
+/// See [`rust_service_from_smithy_with`] for compiler dependency setup.
 pub fn publish_model_from_smithy_with(
     sources: impl AsRef<Path>,
     compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
@@ -105,7 +105,7 @@ pub fn compile_smithy(sources: impl AsRef<Path>, output: impl AsRef<Path>) -> io
 
 /// Assemble sources with an explicitly selected official Smithy compiler.
 ///
-/// See [`from_smithy_with`] for compiler dependency setup. Compiler diagnostics
+/// See [`rust_service_from_smithy_with`] for compiler dependency setup. Compiler diagnostics
 /// and filesystem errors are returned to the caller.
 pub fn compile_smithy_with(
     sources: impl AsRef<Path>,

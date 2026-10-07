@@ -59,7 +59,7 @@ pub(crate) fn emit(
                 out.push_str(&format!(
                     "pub type {name} = {};\n",
                     if simple.streaming {
-                        "::crucible::ByteStream"
+                        "::crucible_server_runtime_rust::ByteStream"
                     } else {
                         builtin(simple.kind)
                     }
@@ -142,9 +142,12 @@ pub(crate) fn emit(
                     }
                     let adapter = if let Some(mut codec) = crate::types::codec(service, member) {
                         if boxed.contains(&id.with_member(&member.name)) {
-                            codec = format!("::crucible::codec::Boxed<{codec}>");
+                            codec =
+                                format!("::crucible_server_runtime_rust::codec::Boxed<{codec}>");
                         }
-                        format!("#[serde(with = \"::crucible::codec::Adapter::<{codec}>\")] ")
+                        format!(
+                            "#[serde(with = \"::crucible_server_runtime_rust::codec::Adapter::<{codec}>\")] "
+                        )
                     } else {
                         String::new()
                     };
@@ -171,7 +174,8 @@ pub(crate) fn emit(
         }
     }
 
-    let mut code = String::from("use ::crucible::validate::{Validate, Validator};\n");
+    let mut code =
+        String::from("use ::crucible_server_runtime_rust::validate::{Validate, Validator};\n");
     code.push_str(&out);
     if !defaults.is_empty() {
         code.push_str("\nmod defaults {\n");
@@ -284,9 +288,9 @@ pub(crate) fn member_field(
         }
         serde.push(
             if omit_null {
-                "skip_serializing_if = \"::crucible::Field::is_unset\""
+                "skip_serializing_if = \"::crucible_server_runtime_rust::Field::is_unset\""
             } else if client {
-                "skip_serializing_if = \"::crucible::Field::is_absent\""
+                "skip_serializing_if = \"::crucible_server_runtime_rust::Field::is_absent\""
             } else {
                 "skip_serializing_if = \"::std::option::Option::is_none\""
             }
@@ -304,7 +308,7 @@ pub(crate) fn member_field(
         match default_expr(service, member, value, &inner) {
             Some(expr) => {
                 let expr = if client && optional {
-                    format!("::crucible::Field::Value({expr})")
+                    format!("::crucible_server_runtime_rust::Field::Value({expr})")
                 } else {
                     expr
                 };
@@ -329,7 +333,9 @@ pub(crate) fn member_field(
         && !optional
         && crate::types::simple_kind(service, &member.target) == Some(SimpleKind::Document)
     {
-        serde.push("deserialize_with = \"::crucible::field::required\"".to_owned());
+        serde.push(
+            "deserialize_with = \"::crucible_server_runtime_rust::field::required\"".to_owned(),
+        );
     }
     if !client
         && optional
@@ -337,16 +343,16 @@ pub(crate) fn member_field(
         && crate::types::simple_kind(service, &member.target) == Some(SimpleKind::Document)
     {
         serde.push(
-            "with = \"::crucible::codec::Adapter::<::crucible::codec::OptionalDocument>\""
+            "with = \"::crucible_server_runtime_rust::codec::Adapter::<::crucible_server_runtime_rust::codec::OptionalDocument>\""
                 .to_owned(),
         );
     } else if let Some(mut codec) = crate::types::codec(service, member) {
         if boxed {
-            codec = format!("::crucible::codec::Boxed<{codec}>");
+            codec = format!("::crucible_server_runtime_rust::codec::Boxed<{codec}>");
         }
         if optional {
             codec = format!(
-                "::crucible::codec::{}<{codec}>",
+                "::crucible_server_runtime_rust::codec::{}<{codec}>",
                 if omit_null {
                     "NullAbsent"
                 } else if client {
@@ -356,10 +362,12 @@ pub(crate) fn member_field(
                 }
             );
         }
-        serde.push(format!("with = \"::crucible::codec::Adapter::<{codec}>\""));
+        serde.push(format!(
+            "with = \"::crucible_server_runtime_rust::codec::Adapter::<{codec}>\""
+        ));
     } else if omit_null {
         serde.push(
-            "with = \"::crucible::codec::Adapter::<::crucible::codec::NullAbsent<::crucible::codec::Identity>>\""
+            "with = \"::crucible_server_runtime_rust::codec::Adapter::<::crucible_server_runtime_rust::codec::NullAbsent<::crucible_server_runtime_rust::codec::Identity>>\""
                 .to_owned(),
         );
     }
@@ -398,7 +406,7 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
             (SimpleKind::Boolean, Value::Bool(b)) => Some(b.to_string()),
             (SimpleKind::String, Value::String(s)) => Some(format!("{}.to_owned()", literal(s))),
             (SimpleKind::Blob, Value::String(s)) => Some(format!(
-                "::crucible::Blob::from_base64({}).expect(\"validated blob default\")",
+                "::crucible_server_runtime_rust::Blob::from_base64({}).expect(\"validated blob default\")",
                 literal(s)
             )),
             (SimpleKind::Float | SimpleKind::Double, Value::Number(n)) => {
@@ -420,16 +428,16 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
                 ))
             }
             (SimpleKind::Timestamp, Value::Number(number)) => Some(format!(
-                "::crucible::time::epoch_seconds::parse({}).expect(\"validated timestamp default\")",
+                "::crucible_server_runtime_rust::time::epoch_seconds::parse({}).expect(\"validated timestamp default\")",
                 literal(&number.to_string())
             )),
             (SimpleKind::Timestamp, Value::String(text)) => Some(format!(
-                "::crucible::time::parse_date_time({}).expect(\"validated timestamp default\")",
+                "::crucible_server_runtime_rust::time::parse_date_time({}).expect(\"validated timestamp default\")",
                 literal(text)
             )),
-            (SimpleKind::Document, value) => {
-                Some(format!("::crucible::__private::serde_json::json!({value})"))
-            }
+            (SimpleKind::Document, value) => Some(format!(
+                "::crucible_server_runtime_rust::__private::serde_json::json!({value})"
+            )),
             _ => None,
         },
         (Shape::List(_) | Shape::Map(_), Value::Array(a)) if a.is_empty() => {
@@ -485,7 +493,7 @@ impl Patterns {
         entries.sort_by_key(|(_, name)| (name.len(), *name));
         for (pattern, name) in entries {
             out.push_str(&format!(
-                "\nstatic {name}: ::std::sync::LazyLock<::crucible::__private::regex::Regex> =\n    ::std::sync::LazyLock::new(|| ::crucible::__private::regex::Regex::new({}).expect(\"checked by crucible\"));\n",
+                "\nstatic {name}: ::std::sync::LazyLock<::crucible_server_runtime_rust::__private::regex::Regex> =\n    ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__private::regex::Regex::new({}).expect(\"checked by crucible\"));\n",
                 literal(pattern)
             ));
         }
@@ -536,7 +544,7 @@ fn validate_impl(
                 }
                 let access = if client && member.optional_on_client() {
                     format!(
-                        "if let ::crucible::Field::Value(value) = &self.{} {{\n",
+                        "if let ::crucible_server_runtime_rust::Field::Value(value) = &self.{} {{\n",
                         field(&member.name)
                     )
                 } else if !client && member.optional_on_server() {
@@ -688,7 +696,7 @@ fn range_check(
                 },
             )
         };
-        let statics = [("MIN", &range.min), ("MAX", &range.max)].into_iter().filter(|(_, value)| value.is_some()).map(|(name, _)| format!("{pad}    static {name}: ::std::sync::OnceLock<::crucible::number::DecimalValue> = ::std::sync::OnceLock::new();\n")).collect::<String>();
+        let statics = [("MIN", &range.min), ("MAX", &range.max)].into_iter().filter(|(_, value)| value.is_some()).map(|(name, _)| format!("{pad}    static {name}: ::std::sync::OnceLock<::crucible_server_runtime_rust::number::DecimalValue> = ::std::sync::OnceLock::new();\n")).collect::<String>();
         return format!(
             "{pad}{{\n{statics}{pad}    validator.range_decimal(&{value}.as_decimal(), {}, {});\n{pad}}}\n",
             bound("MIN", &range.min),

@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use crucible_build::Codegen;
+use crucible_build::RustCodegen;
 
 fn fixture() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -14,7 +14,7 @@ fn explicit_policy_is_required_and_applied_before_generation() {
     let root = std::env::temp_dir().join(format!("crucible-build-policy-{}", std::process::id()));
     std::fs::create_dir_all(&root).unwrap();
     let path = root.join("crucible.toml");
-    let codegen = Codegen::from_model(fixture())
+    let codegen = RustCodegen::from_model(fixture())
         .custom_rejections()
         .policy(&path);
     assert!(codegen.render().unwrap_err().contains("cannot read"));

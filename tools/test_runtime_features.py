@@ -9,7 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 # consumer's own code: `preserve_order` would make every `serde_json::Map`
 # in the service keep insertion order, and a service that hashes or
 # compares JSON maps relies on their sorted order.
-RUNTIME = ["crucible", "crucible-wire", "crucible-client-runtime-rust"]
+RUNTIME = ["crucible-server-runtime-rust", "crucible-wire", "crucible-client-runtime-rust"]
 
 
 def serde_json_features(manifest):

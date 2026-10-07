@@ -14,6 +14,7 @@
 //! This only plans the files; writing them, and never overwriting one that
 //! exists, is the caller's job (`crucible scaffold`).
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use crucible_smithy::ir::{Operation, Service};
@@ -25,8 +26,8 @@ use crate::operations::{input_type, output_type};
 /// the stubs `use`.
 #[derive(Debug, Clone)]
 pub struct ScaffoldOptions {
-    /// The module `crucible::include_service!()` is included in.
-    pub contract: String,
+    /// Override the service namespace path. Defaults to `crate::<service_name>`.
+    pub contract: Option<String>,
     /// The type that implements every operation.
     pub service_type: String,
 }
@@ -34,7 +35,7 @@ pub struct ScaffoldOptions {
 impl Default for ScaffoldOptions {
     fn default() -> Self {
         Self {
-            contract: "crate::contract".to_owned(),
+            contract: None,
             service_type: "crate::operations::Service".to_owned(),
         }
     }
@@ -99,39 +100,75 @@ pub fn file_stem(name: &str) -> String {
 fn stub(service: &Service, operation: &Operation, options: &ScaffoldOptions) -> String {
     let name = operation.name();
     let method = function(name);
-    let output = output_type(service, operation);
+    let output = output_type(service, operation)
+        .trim_start_matches("model::")
+        .to_owned();
     let summary = operation
         .docs
         .as_deref()
         .and_then(|docs| docs.lines().map(str::trim).find(|line| !line.is_empty()))
         .map(|line| format!(": {}", line.trim_end_matches('.')))
         .unwrap_or_default();
-    let input = operation
-        .input
-        .is_some()
-        .then(|| input_type(service, operation));
+    let input = operation.input.is_some().then(|| {
+        input_type(service, operation)
+            .trim_start_matches("model::")
+            .to_owned()
+    });
     let (parameter, unused) = match &input {
         Some(input) => (format!(", input: {input}"), "        let _ = input;\n"),
         None => (String::new(), ""),
     };
-    // `model` only when a signature names a model type.
-    let uses_model = input
-        .iter()
-        .chain([&output])
-        .any(|ty| ty.starts_with("model::"));
-    let imports = if uses_model {
-        format!("{{model, {name}Operation}}")
+    let mut imports = BTreeSet::from([format!("{name}Operation")]);
+    for ty in input.iter().chain([&output]) {
+        if ty != "()" && !ty.starts_with("::") {
+            imports.insert(ty.clone());
+        }
+    }
+    let implementation = options
+        .service_type
+        .rsplit("::")
+        .next()
+        .unwrap_or(&options.service_type);
+    let service_name = if imports.contains(implementation) {
+        available_name("ServiceImplementation", &imports)
     } else {
-        format!("{name}Operation")
+        implementation.to_owned()
     };
+    let service_import = if service_name == implementation {
+        options.service_type.clone()
+    } else {
+        format!("{} as {service_name}", options.service_type)
+    };
+    imports.insert(service_name.clone());
+    // Runtime and implementation imports must also tolerate named model types.
+    let result = if imports.contains("Result") {
+        available_name("ServerResult", &imports)
+    } else {
+        "Result".to_owned()
+    };
+    let runtime_import = if result == "Result" {
+        "Result".to_owned()
+    } else {
+        format!("Result as {result}")
+    };
+    imports.remove(&service_name);
+    let imports = format!("{{{}}}", imports.into_iter().collect::<Vec<_>>().join(", "));
+    let contract = options
+        .contract
+        .clone()
+        .unwrap_or_else(|| format!("crate::{}", module_name(service.id.name())));
     format!(
-        "//! {name}{summary}.\n\nuse {contract}::{imports};\nuse {service_type};\n\nimpl {name}Operation for {service_name} {{\n    async fn {method}(&self{parameter}) -> crucible::Result<{output}> {{\n{unused}        todo!(\"{name}\")\n    }}\n}}\n",
-        contract = options.contract,
-        service_type = options.service_type,
-        service_name = options
-            .service_type
-            .rsplit("::")
-            .next()
-            .unwrap_or(&options.service_type),
+        "//! {name}{summary}.\n\nuse {contract}::{imports};\nuse {service_import};\nuse crucible_server_runtime_rust::{runtime_import};\n\nimpl {name}Operation for {service_name} {{\n    async fn {method}(&self{parameter}) -> {result}<{output}> {{\n{unused}        todo!(\"{name}\")\n    }}\n}}\n",
+        contract = contract,
     )
+}
+
+fn available_name(preferred: &str, imports: &BTreeSet<String>) -> String {
+    let mut name = preferred.to_owned();
+    let mut suffix = 2;
+    while imports.contains(&name) {
+        name = format!("{preferred}_{suffix}");
+        suffix += 1;
+    }
+    name
 }

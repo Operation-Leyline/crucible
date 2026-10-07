@@ -1,5 +1,5 @@
-use crucible::validate::Validator;
 use crucible_client_runtime_rust::{BigDecimal, BigInteger, Config, Field};
+use crucible_server_runtime_rust::validate::Validator;
 use serde_json::{Value, json};
 use std::sync::Arc;
 
@@ -8,9 +8,10 @@ mod client {
     include!(concat!(env!("OUT_DIR"), "/types_client.rs"));
 }
 #[allow(dead_code)]
-mod server {
+mod generated_server {
     include!(concat!(env!("OUT_DIR"), "/types_server.rs"));
 }
+use generated_server::types as server;
 
 const INTEGER: &str = "12345678901234567890123456789012345678901234567890";
 const DECIMAL: &str = "12345678901234567890.12345678901234567890123456789";
@@ -34,7 +35,7 @@ fn exact_defaults_and_open_integer_enum() {
             .as_i32(),
         77
     );
-    assert!(serde_json::from_str::<server::model::Output>(r#"{"mode":77}"#).is_err());
+    assert!(serde_json::from_str::<server::Output>(r#"{"mode":77}"#).is_err());
     assert!(serde_json::from_str::<client::model::Output>(r#"{"mode":2147483648}"#).is_err());
     let integer: BigInteger = serde_json::from_str("12345678901234567890e20").unwrap();
     assert_eq!(
@@ -59,7 +60,7 @@ fn collections_enforce_value_uniqueness_and_preserve_nested_document_null() {
             "{text}"
         );
         assert!(
-            serde_json::from_str::<server::model::Output>(text).is_err(),
+            serde_json::from_str::<server::Output>(text).is_err(),
             "{text}"
         );
     }
@@ -85,7 +86,7 @@ fn nested_collection_timestamp_codecs_and_exact_ranges() {
     let encoded = serde_json::to_string(&value).unwrap();
     assert!(encoded.contains("1700000000.123456789"));
     assert!(encoded.contains("-0.000000001"));
-    let server: server::model::Output = serde_json::from_str(text).unwrap();
+    let server: server::Output = serde_json::from_str(text).unwrap();
     assert_eq!(
         serde_json::to_value(&server).unwrap()["choice"],
         serde_json::from_str::<Value>(text).unwrap()["choice"]
@@ -95,7 +96,7 @@ fn nested_collection_timestamp_codecs_and_exact_ranges() {
         ("12345678901234567889.999999999", false),
         ("12345678901234567891.000000001", false),
     ] {
-        let input: server::model::Input =
+        let input: server::Input =
             serde_json::from_str(&format!("{{\"decimal\":{decimal}}}")).unwrap();
         assert_eq!(Validator::check(&input).is_ok(), valid, "{decimal}");
     }
@@ -103,12 +104,15 @@ fn nested_collection_timestamp_codecs_and_exact_ranges() {
 
 struct Types;
 impl server::ReadOperation for Types {
-    async fn read(&self) -> crucible::Result<server::model::Output> {
+    async fn read(&self) -> crucible_server_runtime_rust::Result<server::Output> {
         Ok(serde_json::from_str("{}").unwrap())
     }
 }
 impl server::UpdateOperation for Types {
-    async fn update(&self, input: server::model::Input) -> crucible::Result<server::model::Output> {
+    async fn update(
+        &self,
+        input: server::Input,
+    ) -> crucible_server_runtime_rust::Result<server::Output> {
         assert_eq!(input.decimal.to_string(), DECIMAL);
         Ok(serde_json::from_value(json!({"sparseNames":[null,"native"],"mode":-1})).unwrap())
     }
@@ -116,14 +120,17 @@ impl server::UpdateOperation for Types {
 
 #[tokio::test]
 async fn generated_extended_types_round_trip_over_http() {
-    let service = crucible::Crucible::builder(server::operations(Arc::new(Types)))
-        .protocol(crucible::JsonProtocol)
-        .on_rejection(|_| Box::new(serde_json::from_str::<server::errors::Bad>("{}").unwrap()))
-        .build()
-        .unwrap();
+    let service =
+        crucible_server_runtime_rust::Crucible::builder(server::operations(Arc::new(Types)))
+            .protocol(crucible_server_runtime_rust::JsonProtocol)
+            .on_rejection(|_| Box::new(serde_json::from_str::<server::Bad>("{}").unwrap()))
+            .build()
+            .unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    tokio::spawn(crucible::host::http_on(service, listener));
+    tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service, listener,
+    ));
     let client = client::TypesClient::new(Config::new(endpoint));
     let output = client.read().await.unwrap();
     assert_eq!(output.integer.to_string(), INTEGER);

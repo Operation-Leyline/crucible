@@ -31,15 +31,16 @@
 //! AST publication and model compilation remain usable without any Rust emitter
 //! dependency. The `cli` target generates a Rust executable and uses the Rust emitter.
 //!
-//! ## Legacy source-only Rust integration
+//! ## Rust server integration and source-only clients
 //!
 //! The `rust` feature also retains direct generation into an existing crate.
-//! These helpers emit source rather than a separate native Cargo package.
+//! Server helpers generate bindings inside the service crate. Source-only client
+//! helpers are also available alongside native SDK package generation.
 //!
 //! Compile a service's Smithy sources and generate its Rust contract:
 //!
 //! ```ignore
-//! fn main() { crucible_build::from_smithy("smithy").generate(); }
+//! fn main() { crucible_build::rust_service_from_smithy("smithy").generate(); }
 //! ```
 //!
 //! A standalone Rust client uses the same compiler setup:
@@ -64,10 +65,10 @@
 //! that plugs it into crucible:
 //!
 //! ```ignore
-//! fn main() { crucible_build::service("weather_model").generate(); }
+//! fn main() { crucible_build::rust_service("weather_model").generate(); }
 //! ```
 //!
-//! and includes it with `crucible::include_service!()`.
+//! and includes it with `crucible_server_runtime_rust::include_service!()`.
 //!
 //! A **client package** depends on the model package too, and generates a
 //! client for it:
@@ -202,13 +203,13 @@ pub use smithy::client_from_smithy_with;
 #[cfg(feature = "smithy")]
 pub use smithy::compile_smithy;
 pub use smithy::compile_smithy_with;
-#[cfg(all(feature = "smithy", feature = "rust"))]
-pub use smithy::from_smithy;
-#[cfg(feature = "rust")]
-pub use smithy::from_smithy_with;
 #[cfg(feature = "smithy")]
 pub use smithy::publish_model_from_smithy;
 pub use smithy::publish_model_from_smithy_with;
+#[cfg(all(feature = "smithy", feature = "rust"))]
+pub use smithy::rust_service_from_smithy;
+#[cfg(feature = "rust")]
+pub use smithy::rust_service_from_smithy_with;
 
 /// Compile a source-only Smithy package and select named generated outputs.
 pub fn smithy(sources: impl AsRef<Path>) -> ModelBuilder {
@@ -262,15 +263,15 @@ pub fn publish_model(path: impl AsRef<Path>) {
 /// From a service package's `build.rs`: generates the server side from the
 /// model published by the dependency whose manifest says `links = "<links>"`.
 #[cfg(feature = "rust")]
-pub fn service(links: &str) -> Codegen {
-    Codegen::from_model(published(links))
+pub fn rust_service(links: &str) -> RustCodegen {
+    RustCodegen::from_model(published(links))
 }
 
 /// From a client package's `build.rs`: generates a client from the model
 /// published by the dependency whose manifest says `links = "<links>"`.
 #[cfg(feature = "rust")]
-pub fn client(links: &str) -> Codegen {
-    Codegen::client_from_model(published(links))
+pub fn client(links: &str) -> RustCodegen {
+    RustCodegen::client_from_model(published(links))
 }
 
 fn published(links: &str) -> PathBuf {
@@ -287,7 +288,7 @@ fn published(links: &str) -> PathBuf {
 /// What to generate, and from which model.
 #[derive(Debug, Clone)]
 #[cfg(feature = "rust")]
-pub struct Codegen {
+pub struct RustCodegen {
     model: PathBuf,
     service: Option<ShapeId>,
     options: Options,
@@ -304,7 +305,7 @@ enum Side {
 }
 
 #[cfg(feature = "rust")]
-impl Codegen {
+impl RustCodegen {
     /// The server side, from a model file directly: for a model inside the
     /// service package.
     pub fn from_model(model: impl AsRef<Path>) -> Self {

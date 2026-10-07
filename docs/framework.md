@@ -2,7 +2,7 @@
 
 Crucible is two products:
 
-1. **The framework** (`crucible` crate): everything a service does that is not
+1. **The framework** (`crucible-server-runtime-rust` crate): everything a service does that is not
    specific to its API. That covers the request pipeline (an orchestrator
    running a phased pipeline), the request context, protocols, validation, the
    error model, the service log, metrics plumbing and transports. A service
@@ -15,36 +15,41 @@ Crucible is two products:
 ```
 leyline-model/      model package: Smithy sources + the JSON AST its smithy build produces
 leyline-service/    service package
-  Cargo.toml          [dependencies] crucible, leyline-model   [build-dependencies] crucible-build
-  build.rs            crucible_build::service("leyline_model").generate()
+  Cargo.toml          [dependencies] crucible-server-runtime-rust, leyline-model   [build-dependencies] crucible-build
+  build.rs            crucible_build::rust_service("leyline_model").generate()
   src/                impl GetGraphOperation for Leyline { ... }   Crucible::builder()...
 ```
 
 ## Start with one crate
 
-Generate server models and bindings inside the service crate. Add `crucible`
+Generate server models and bindings inside the service crate. Add `crucible-server-runtime-rust`
 as a normal dependency and `crucible-build` as a build dependency, pinned to the
 same revision. Hand wiring needs two hooks:
 
 ```rust
 // build.rs
 fn main() {
-    crucible_build::from_smithy("smithy").generate();
+    crucible_build::rust_service_from_smithy("smithy").generate();
 }
 ```
 
 ```rust
 // src/main.rs or src/lib.rs
-pub mod contract {
-    crucible::include_service!();
-}
+crucible_server_runtime_rust::include_service!();
 ```
 
-`contract` is a local Rust module, not another Cargo crate. Handlers import its
-models and operation traits normally. The source path is relative to this
+For Smithy `service Weather`, the inclusion hook declares `pub mod weather`.
+Models, enums, exceptions, operation markers and traits are available directly:
+
+```rust
+use crate::weather::{GetCityInput, GetCityOutput, GetCityOperation, NotFoundError};
+use crucible_server_runtime_rust::Result;
+```
+
+There is no wrapper module to create. The source path is relative to this
 crate's manifest; it can also point outside the crate, such as
 `../smithy/model`. With a published model dependency, replace the build call
-with `crucible_build::service("weather_model").generate()`; inclusion is the
+with `crucible_build::rust_service("weather_model").generate()`; inclusion is the
 same, and Smithy is not compiled again.
 
 The helper provides the pinned compiler, imports Crucible definitions, watches
@@ -81,7 +86,7 @@ fn main() {
 The helper manages the pinned compiler, imports Crucible definitions, flattens
 mixins, and keeps a stable AST under `OUT_DIR`. The service and client depend
 on this package and read the AST from `DEP_<NAME>_MODEL`, using
-`crucible_build::service("<name>")` or `crucible_build::client("<name>")`.
+`crucible_build::rust_service("<name>")` or `crucible_build::client("<name>")`.
 "This service depends on leyline-model 1.4" is an ordinary, version-pinned
 Cargo dependency.
 
@@ -98,25 +103,25 @@ package export, and direct service/SDK integration.
 
 ## Generated code
 
-`crucible_build::service(..).generate()` writes one file into `OUT_DIR`; the service
-includes it with `crucible::include_service!()`. Per operation `GetGraph` it
+`crucible_build::rust_service(..).generate()` writes one file into `OUT_DIR`; the service
+includes it with `crucible_server_runtime_rust::include_service!()`. Per operation `GetGraph` it
 generates:
 
 ```rust
-pub struct GetGraph;                         // identity: impl crucible::Operation
+pub struct GetGraph;                         // identity: impl crucible_server_runtime_rust::Operation
 impl Operation for GetGraph {
     const INFO: &'static OperationInfo = &...; // name, resource, http binding, errors, traits
     type Input = GetGraphInput;
     type Output = GetGraphOutput;
 }
 
-pub trait GetGraphOperation: crucible::WithContext {
-    fn get_graph(&self, input: GetGraphInput) -> impl Future<Output = crucible::Result<GetGraphOutput>> + Send;
+pub trait GetGraphOperation: crucible_server_runtime_rust::WithContext {
+    fn get_graph(&self, input: GetGraphInput) -> impl Future<Output = crucible_server_runtime_rust::Result<GetGraphOutput>> + Send;
 }
 ```
 
-The service normally owns this build script and includes the bindings in a local
-Rust module, as shown below. A separate contract crate is optional when multiple
+The service normally owns this build script and includes the service namespace at its crate
+root. A separate contract crate is optional when multiple
 Rust crates need to share the generated server API. A reusable Rust SDK package
 can own client inclusion so applications import its service-named client.
 The [named SDK guide](build-outputs.md#consuming-the-rust-sdk-and-service-contract)
@@ -126,11 +131,17 @@ The service implements the trait. Grouping is free: one type can implement
 every operation, or one type per resource.
 
 ```rust
+use crate::leyline::{GetGraphInput, GetGraphOperation, GetGraphOutput, ResourceNotFoundException};
+use crucible_server_runtime_rust::Result;
+
 impl GetGraphOperation for Leyline {
-    async fn get_graph(&self, input: GetGraphInput) -> crucible::Result<GetGraphOutput> {
+    async fn get_graph(&self, input: GetGraphInput) -> Result<GetGraphOutput> {
         let caller = self.context().attribute::<Principal>();
         let graph = self.graphs.find(&input.graph_id).await?;          // any error: `?`
-        graph.ok_or_else(|| ResourceNotFoundException::new("no such graph").into())
+        graph.ok_or_else(|| ResourceNotFoundException {
+            message: "no such graph".into(),
+            resource_id: Some(input.graph_id),
+        }.into())
     }
 }
 ```
@@ -141,11 +152,11 @@ trait. For split implementations, `Operations::builder()` takes one operation
 at a time and `build()` names the missing ones.
 
 Types are generated with serde and `Validate`. Errors implement
-`crucible::ModelledError` (wire name, status, fault). None of it is
+`crucible_server_runtime_rust::ModelledError` (wire name, status, fault). None of it is
 protocol-specific: bindings (label, query, header, body, payload) are data
 in `OperationInfo`, read by whichever protocol serves the request.
 
-A Smithy `blob` is `crucible::Blob`, which holds `bytes::Bytes`: base64 in
+A Smithy `blob` is `crucible_server_runtime_rust::Blob`, which holds `bytes::Bytes`: base64 in
 a JSON body, its byte count checked by `@length`. An `@httpPayload` blob is
 the request body itself, and its `Blob` shares the body's buffer rather than
 copying it.
@@ -156,7 +167,7 @@ One type per file, named for what it holds, Java-package style:
 
 ```text
 src/
-  contract              the generated contract: pub mod contract { include_service!() }
+  lib.rs or main.rs     include_service!() declares the service-named API module
   operations/
     mod.rs              the service type, and what operations share
     service/            operations the service itself binds
@@ -171,7 +182,7 @@ src/
 ```
 
 Each operation file holds one `impl XOperation for Service`; there is no
-dispatch module, and `contract::operations(..)` still refuses to build while
+dispatch module, and `weather::operations(..)` still refuses to build while
 any operation lacks one. `crucible scaffold <model.json>` writes a stub for
 every operation that has no file yet, in its resource's folder, and adds missing
 `mod` declarations without replacing existing operation code. (`--out` is the
@@ -180,13 +191,14 @@ implementing type, `crate::operations::Service` by default.) With that default,
 a newly created root `mod.rs` also declares `pub struct Service;`; existing
 service types are preserved. Custom service types must be declared by the
 application. Rust keyword identifiers are escaped in module declarations and
-generated stubs. Crucible's own
+generated stubs. `--contract` optionally overrides the derived namespace path
+when bindings live in another Rust crate. Crucible's own
 built-ins follow the same rule: `middlewares::ServiceLog` is
 `middlewares/service_log.rs`, `JsonProtocol` is `protocol/json_protocol.rs`.
 
 ## The request context
 
-`self.context()` inside an implementation, or `crucible::Context::current()`
+`self.context()` inside an implementation, or `crucible_server_runtime_rust::Context::current()`
 anywhere on the request's task, returns the request context. It holds the
 request id, the operation's `OperationInfo`, the deadline, request headers,
 and typed attributes that extensions set (an authenticated principal, say).
@@ -252,7 +264,7 @@ The request context, attributes, request id and deadline survive selection;
 its tracing span is updated when the operation becomes known.
 
 ```rust
-Crucible::builder(contract::operations(Arc::new(service)))
+Crucible::builder(weather::operations(Arc::new(service)))
     .middleware(ServiceLog::errors_only())
     .middleware(MyHeaderAuthentication)
     .operation_middleware(MyThrottle.when_trait("acme#operationClass"))
@@ -410,8 +422,8 @@ observe the response becoming ready, not the last event leaving the connection.
 
 ## Errors
 
-An implementation returns `crucible::Result<T>`, whose error is
-`crucible::Error`, a boxed error. `?` works on anything. Failures anywhere
+An implementation returns `crucible_server_runtime_rust::Result<T>`, whose error is
+`crucible_server_runtime_rust::Error`, a boxed error. `?` works on anything. Failures anywhere
 in the pipeline are classified:
 
 - **A modelled error the selected operation declares**: answered as itself.
@@ -525,7 +537,7 @@ unchanged. Arbitrary application messages and internal error text are the
 application's responsibility: model annotations cannot redact those strings.
 
 The default `TracingSink` emits core fields individually under the target
-`crucible::service_log`: `request_id`, `operation`, `status`, `outcome`,
+`crucible_server_runtime_rust::service_log`: `request_id`, `operation`, `status`, `outcome`,
 `latency_ms`, `error_type`, and `cause`. Optional redacted payloads are JSON
 strings. Server faults use ERROR; successes and expected client errors use
 INFO. `LogPolicy::client_error_level(tracing::Level::WARN)` changes the client
@@ -543,7 +555,7 @@ side effect of building or hosting a service. For a standard stdout setup,
 enable the optional `logging` feature and call this once from the executable:
 
 ```rust
-crucible::logging::init(crucible::logging::Format::Json)?;
+crucible_server_runtime_rust::logging::init(crucible_server_runtime_rust::logging::Format::Json)?;
 ```
 
 Use `Format::Pretty` for local output. The helper reads `RUST_LOG`, defaults
@@ -580,7 +592,7 @@ plumbing.
 
 ## Hosting
 
-`crucible::host::run(service)` reads the environment at startup:
+`crucible_server_runtime_rust::host::run(service)` reads the environment at startup:
 
 - **Inside Lambda** (`AWS_LAMBDA_RUNTIME_API` set): it takes events from the
   Lambda runtime. HTTP events (Function URLs, API Gateway REST and HTTP

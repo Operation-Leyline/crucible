@@ -112,7 +112,7 @@ crucible_client_runtime_rust::include_client!();
 ```
 
 For an already compiled JSON AST without a separate model package, call
-`crucible_build::Codegen::client_from_model("model.json").generate()` in
+`crucible_build::RustCodegen::client_from_model("model.json").generate()` in
 `build.rs`. To generate a complete Cargo SDK directly:
 
 ```sh

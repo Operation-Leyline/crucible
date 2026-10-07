@@ -8,16 +8,20 @@ mod client {
     include!(concat!(env!("OUT_DIR"), "/dynamic_client.rs"));
 }
 #[allow(dead_code)]
-mod server {
+mod generated_server {
     include!(concat!(env!("OUT_DIR"), "/dynamic_server.rs"));
 }
+use generated_server::dynamic as server;
 
 struct Dynamic;
 impl server::GetOperation for Dynamic {
-    async fn get(&self, input: server::model::Input) -> crucible::Result<server::model::Output> {
+    async fn get(
+        &self,
+        input: server::Input,
+    ) -> crucible_server_runtime_rust::Result<server::Output> {
         let value = serde_json::to_value(input).unwrap();
         if value["key"] == "error" {
-            return Err(serde_json::from_value::<server::errors::Problem>(
+            return Err(serde_json::from_value::<server::Problem>(
                 json!({"status":418,"details":{"reason":"no"}}),
             )
             .unwrap()
@@ -36,8 +40,8 @@ impl server::GetOperation for Dynamic {
 impl server::HeadersOperation for Dynamic {
     async fn headers(
         &self,
-        input: server::model::HeaderInput,
-    ) -> crucible::Result<server::model::HeaderOutput> {
+        input: server::HeaderInput,
+    ) -> crucible_server_runtime_rust::Result<server::HeaderOutput> {
         let value = serde_json::to_value(input).unwrap();
         assert_eq!(value["values"]["x-other"], "other");
         assert_eq!(value["explicit"], "preferred");
@@ -47,8 +51,8 @@ impl server::HeadersOperation for Dynamic {
 impl server::PagesOperation for Dynamic {
     async fn pages(
         &self,
-        input: server::model::PageInput,
-    ) -> crucible::Result<server::model::PageOutput> {
+        input: server::PageInput,
+    ) -> crucible_server_runtime_rust::Result<server::PageOutput> {
         let input = serde_json::to_value(input).unwrap();
         Ok(
             serde_json::from_value(if input.get("token").is_some_and(|v| !v.is_null()) {
@@ -61,18 +65,19 @@ impl server::PagesOperation for Dynamic {
     }
 }
 async fn serve() -> client::DynamicClient {
-    let service = crucible::Crucible::builder(server::operations(Arc::new(Dynamic)))
-        .protocol(crucible::JsonProtocol)
-        .on_rejection(|_| {
-            Box::new(
-                serde_json::from_value::<server::errors::Problem>(json!({"status":422})).unwrap(),
-            )
-        })
-        .build()
-        .unwrap();
+    let service =
+        crucible_server_runtime_rust::Crucible::builder(server::operations(Arc::new(Dynamic)))
+            .protocol(crucible_server_runtime_rust::JsonProtocol)
+            .on_rejection(|_| {
+                Box::new(serde_json::from_value::<server::Problem>(json!({"status":422})).unwrap())
+            })
+            .build()
+            .unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    tokio::spawn(crucible::host::http_on(service, listener));
+    tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service, listener,
+    ));
     client::DynamicClient::new(Config::new(endpoint))
 }
 #[tokio::test]
@@ -135,12 +140,12 @@ async fn renamed_nested_tokens_paginate_and_greedy_dot_segments_are_rejected() {
 
 #[test]
 fn hooks_observe_the_same_dynamic_status_as_the_http_writer() {
-    use crucible::ModelledError;
-    use crucible::Operation;
-    let output = serde_json::from_value::<server::model::Output>(json!({"status":207})).unwrap();
+    use crucible_server_runtime_rust::ModelledError;
+    use crucible_server_runtime_rust::Operation;
+    let output = serde_json::from_value::<server::Output>(json!({"status":207})).unwrap();
     assert_eq!(server::Get::output_status(&output), Some(207));
-    let error = serde_json::from_value::<server::errors::Problem>(json!({"status":418})).unwrap();
+    let error = serde_json::from_value::<server::Problem>(json!({"status":418})).unwrap();
     assert_eq!(error.response_status(), 418);
-    let invalid = serde_json::from_value::<server::model::Output>(json!({"status":0})).unwrap();
+    let invalid = serde_json::from_value::<server::Output>(json!({"status":0})).unwrap();
     assert_eq!(server::Get::output_status(&invalid), Some(500));
 }

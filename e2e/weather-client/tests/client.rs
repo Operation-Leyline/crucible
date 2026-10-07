@@ -22,7 +22,9 @@ async fn serve() -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let service = weather_service::service(Arc::new(MemoryCities::default()));
-    tokio::spawn(crucible::host::http_on(service, listener));
+    tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service, listener,
+    ));
     format!("http://{address}")
 }
 

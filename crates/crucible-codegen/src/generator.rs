@@ -1,7 +1,7 @@
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::Service;
 
-use crate::{Client, File};
+use crate::{Client, File, Server};
 
 /// A model output and its native configuration, independent of the build system.
 #[allow(
@@ -10,6 +10,7 @@ use crate::{Client, File};
 )]
 pub enum Generator {
     Client(Client),
+    Server(Server),
     #[cfg(feature = "openapi")]
     OpenApi(crate::OpenApiOptions),
     #[cfg(feature = "cdk")]
@@ -31,6 +32,7 @@ impl Generator {
     pub fn target(&self) -> &'static str {
         match self {
             Self::Client(client) => client.language(),
+            Self::Server(server) => server.target(),
             #[cfg(feature = "openapi")]
             Self::OpenApi(_) => "openapi",
             #[cfg(feature = "cdk")]
@@ -46,6 +48,7 @@ impl Generator {
     pub fn emit(&self, service: &Service) -> Result<Vec<File>, Diagnostics> {
         match self {
             Self::Client(client) => client.emit(service),
+            Self::Server(server) => server.emit(service),
             #[cfg(feature = "openapi")]
             Self::OpenApi(options) => {
                 crucible_codegen_openapi::generate(service, options).map(|contents| {
@@ -98,5 +101,11 @@ impl Generator {
 impl From<Client> for Generator {
     fn from(client: Client) -> Self {
         Self::Client(client)
+    }
+}
+
+impl From<Server> for Generator {
+    fn from(server: Server) -> Self {
+        Self::Server(server)
     }
 }

@@ -1,4 +1,4 @@
-//! Crucible: a service framework for Smithy-modelled APIs.
+//! The Rust server runtime for Crucible Smithy-modelled APIs.
 //!
 //! A service depends on a model package; `crucible-build` generates an
 //! interface per operation from it, and the service implements them. This
@@ -7,16 +7,18 @@
 //! plumbing. See `docs/framework.md`.
 //!
 //! ```ignore
-//! pub mod contract { crucible::include_service!(); }
+//! crucible_server_runtime_rust::include_service!();
+//! use weather::{GetCityInput, GetCityOperation, GetCityOutput};
+//! use crucible_server_runtime_rust::Result;
 //!
-//! impl contract::GetCityOperation for Weather {
-//!     async fn get_city(&self, input: contract::model::GetCityInput) -> crucible::Result<contract::model::GetCityOutput> {
+//! impl GetCityOperation for Weather {
+//!     async fn get_city(&self, input: GetCityInput) -> Result<GetCityOutput> {
 //!         let id = self.context().request_id().to_owned();
 //!         ...
 //!     }
 //! }
 //!
-//! let service = Crucible::builder(contract::operations(Arc::new(Weather::new(store))))
+//! let service = Crucible::builder(weather::operations(Arc::new(Weather::new(store))))
 //!     .middleware(ServiceLog::errors_only())
 //!     .exception_translator(ExceptionTranslator::new())
 //!     .protocol(JsonProtocol)
@@ -86,11 +88,11 @@ pub use resolution::Resolution;
 pub use scoped::{InterceptorExt, OperationMiddlewareExt, ProtocolExt, Scoped};
 pub use service::{BuildError, Builder, Crucible, Endpoint, RequestIdSource};
 
-/// `#[crucible::async_trait]` for implementing [`AsyncMiddleware`] and
+/// `#[crucible_server_runtime_rust::async_trait]` for implementing [`AsyncMiddleware`] and
 /// `TypedInterceptor` with `async fn`.
 pub use async_trait::async_trait;
 
-/// What generated code names through `crucible::__private`, so a service
+/// What generated code names through `crucible_server_runtime_rust::__private`, so a service
 /// needs no direct dependency on serde, chrono or regex.
 #[doc(hidden)]
 pub mod __private {
@@ -100,7 +102,9 @@ pub mod __private {
     pub use serde_json;
 }
 
-/// Includes the code `crucible-build` generated for this crate's model.
+/// Includes the Rust server bindings generated for this crate's model.
+/// Call at crate root; a Smithy `Weather` service declares `pub mod weather`
+/// exposing its models, exceptions and operation traits directly.
 #[macro_export]
 macro_rules! include_service {
     () => {

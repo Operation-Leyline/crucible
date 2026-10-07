@@ -86,7 +86,7 @@ def affected_groups(paths):
                 selected.update({"e2e", "service_cli"})
             elif crate == "crucible-cli-runtime":
                 selected.add("service_cli")
-            elif crate in {"crucible", "crucible-wire", "crucible-policy", "crucible-cli", "crucible-codegen-rust"}:
+            elif crate in {"crucible", "crucible-server-runtime-rust", "crucible-wire", "crucible-policy", "crucible-cli", "crucible-codegen-rust"}:
                 selected.update(CORE_GROUPS)
                 if crate == "crucible-cli":
                     selected.add("service_cli")

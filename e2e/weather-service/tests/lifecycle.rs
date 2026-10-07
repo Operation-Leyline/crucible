@@ -9,16 +9,16 @@ use std::time::Duration;
 use axum::body::{Body, Bytes};
 use axum::http::{HeaderValue, Request, header};
 use axum::response::Response;
-use crucible::middlewares::{LogSink, ServiceLog};
-use crucible::operation::{OperationInfo, Segment, ServiceInfo, Unit};
-use crucible::protocol::{Answers, Protocol, Route};
-use crucible::{
+use crucible_server_runtime_rust::middlewares::{LogSink, ServiceLog};
+use crucible_server_runtime_rust::operation::{OperationInfo, Segment, ServiceInfo, Unit};
+use crucible_server_runtime_rust::protocol::{Answers, Protocol, Route};
+use crucible_server_runtime_rust::{
     Crucible, DecodedJob, Hook, Interceptor, Job, JsonProtocol, Operation,
     OperationAwareMiddleware, OperationJob, ProtocolExt, before_fn,
 };
 use futures_util::stream;
 use serde_json::Value;
-use weather_service::contract;
+use weather_service::weather;
 
 #[test]
 fn job_remains_send() {
@@ -48,9 +48,9 @@ static SERVICE: ServiceInfo = ServiceInfo {
     operations: &[&INFO],
     errors: &[],
     classify: |_| None,
-    reject: contract::SERVICE.reject,
-    internal: contract::SERVICE.internal,
-    unknown: contract::SERVICE.unknown,
+    reject: weather::SERVICE.reject,
+    internal: weather::SERVICE.internal,
+    unknown: weather::SERVICE.unknown,
 };
 struct Probe;
 impl Operation for Probe {
@@ -58,8 +58,8 @@ impl Operation for Probe {
     type Input = Unit;
     type Output = Unit;
 }
-fn operations() -> crucible::Operations {
-    crucible::Operations::builder(&SERVICE)
+fn operations() -> crucible_server_runtime_rust::Operations {
+    crucible_server_runtime_rust::Operations::builder(&SERVICE)
         .add::<Probe, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .build()
         .unwrap()
@@ -88,10 +88,13 @@ impl Observe {
     }
 }
 impl OperationAwareMiddleware for Observe {
-    fn before<'a>(&'a self, _: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        _: &'a mut OperationJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         self.event("before");
         Hook::Ready(if self.fail {
-            Err(crucible::Error::internal("refused"))
+            Err(crucible_server_runtime_rust::Error::internal("refused"))
         } else {
             Ok(())
         })
@@ -114,7 +117,7 @@ fn observe(name: &'static str, events: &Events, fail: bool) -> Observe {
 #[derive(Clone, Default)]
 struct Logs(Arc<Mutex<Vec<u16>>>);
 impl LogSink for Logs {
-    fn write(&self, record: &crucible::middlewares::LogRecord<'_>) {
+    fn write(&self, record: &crucible_server_runtime_rust::middlewares::LogRecord<'_>) {
         self.0.lock().unwrap().push(record.status);
     }
 }
@@ -220,7 +223,7 @@ impl Protocol for Reader {
     fn route(
         &self,
         request: &axum::http::request::Parts,
-        _: &crucible::Operations,
+        _: &crucible_server_runtime_rust::Operations,
     ) -> Option<Route> {
         (request.uri.path() == self.path).then_some(Route {
             rejection: None,
@@ -228,7 +231,10 @@ impl Protocol for Reader {
             labels: Vec::new(),
         })
     }
-    fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, crucible::Result<()>> {
+    fn decode<'a>(
+        &'a self,
+        job: &'a mut Job,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         self.events
             .lock()
             .unwrap()
@@ -347,7 +353,10 @@ async fn job_response_headers_preserve_repeated_values_and_replace_existing_grou
 
 struct InspectBody;
 impl OperationAwareMiddleware for InspectBody {
-    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut OperationJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         Hook::wait(async move {
             assert!(job.body().is_empty());
             job.read_body().await?;
@@ -396,7 +405,10 @@ async fn body_transport_failure_is_not_reported_as_a_length_limit_or_leaked() {
 
 struct CancelRead;
 impl OperationAwareMiddleware for CancelRead {
-    fn before<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut OperationJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         Hook::wait(async move {
             assert!(
                 tokio::time::timeout(Duration::from_millis(10), job.read_body())
@@ -452,7 +464,10 @@ async fn cancelled_explicit_body_reads_remain_rejected_on_retry() {
 
 struct NeverDecoded;
 impl Interceptor for NeverDecoded {
-    fn before<'a>(&'a self, _: &'a mut DecodedJob<'_>) -> Hook<'a, crucible::Result<()>> {
+    fn before<'a>(
+        &'a self,
+        _: &'a mut DecodedJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
         panic!("invalid input must never enter the interceptor chain");
     }
 }

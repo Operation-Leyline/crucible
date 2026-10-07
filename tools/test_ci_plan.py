@@ -18,6 +18,10 @@ EVENT = {"pull_request": {"base": {"sha": "a" * 40}, "head": {"sha": "b" * 40}}}
 
 
 class PlanTests(unittest.TestCase):
+    def test_server_runtime_rename_keeps_old_and_new_paths_qualified(self):
+        for name in ["crucible", "crucible-server-runtime-rust"]:
+            self.assertEqual(affected_groups([f"crates/{name}/src/lib.rs"]), set(CORE_GROUPS))
+
     def test_language_changes_keep_native_consumers_and_dependencies(self):
         for language, expected in {
             "python": {"rust", "python"},
@@ -34,7 +38,7 @@ class PlanTests(unittest.TestCase):
     def test_server_changes_keep_core_http_gates(self):
         for path in (
             "crates/crucible-policy/src/lib.rs",
-            "crates/crucible/src/lib.rs",
+            "crates/crucible-server-runtime-rust/src/lib.rs",
             "crates/crucible-wire/src/lib.rs",
             "crates/crucible-codegen-rust/src/lib.rs", "e2e/weather-service/src/main.rs",
             ".github/workflows/ci.yml", ".github/workflows/release.yml",

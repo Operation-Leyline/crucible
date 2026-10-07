@@ -62,7 +62,7 @@ where
     println!("{name:<22} {allocations:>4} allocations  {bytes:>6} bytes");
 }
 
-async fn send(service: &crucible::Crucible, request: Request<Body>) -> usize {
+async fn send(service: &crucible_server_runtime_rust::Crucible, request: Request<Body>) -> usize {
     let response = service.handle(request).await;
     axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
@@ -127,7 +127,7 @@ fn main() {
         .await;
         let event = r#"{"operation":"GetCity","input":{"cityId":"c-00000050"}}"#;
         measure("lambda_invoke_get_city", || async {
-            crucible::host::lambda_event_json(&service, event)
+            crucible_server_runtime_rust::host::lambda_event_json(&service, event)
                 .await
                 .unwrap()
                 .get()

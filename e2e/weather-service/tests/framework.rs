@@ -4,13 +4,14 @@
 
 use std::sync::{Arc, Mutex};
 
-use crucible::middlewares::{Fields, LogPolicy, LogSink, ServiceLog};
-use crucible::{
+use crucible_server_runtime_rust::middlewares::{Fields, LogPolicy, LogSink, ServiceLog};
+use crucible_server_runtime_rust::{
     Context, Crucible, ExceptionTranslator, InvokeProtocol, JsonProtocol, OperationMiddlewareExt,
     TypedInterceptor, before_fn, for_operation,
 };
 use serde_json::{Value, json};
-use weather_service::contract::{self, model};
+use weather_service::weather;
+use weather_service::weather as model;
 use weather_service::{MemoryCities, Weather};
 
 fn memory() -> Arc<MemoryCities> {
@@ -106,7 +107,7 @@ impl std::fmt::Display for Database {
 impl std::error::Error for Database {}
 
 fn failing(translator: ExceptionTranslator) -> Crucible {
-    Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
+    Crucible::builder(weather::operations(Arc::new(Weather::new(memory()))))
         .exception_translator(translator)
         .operation_middleware(
             before_fn(|_| Err(Database("password=hunter2").into())).only(&["Ping"]),
@@ -128,7 +129,7 @@ async fn an_internal_failure_never_reaches_the_caller() {
 #[tokio::test]
 async fn the_exception_translator_maps_failures_to_modelled_errors() {
     let translator = ExceptionTranslator::new().translate(|error: &Database| {
-        contract::errors::ThrottlingError {
+        weather::ThrottlingError {
             message: format!("busy ({} chars hidden)", error.0.len()),
             retry_after: Some(1),
         }
@@ -150,7 +151,7 @@ async fn scoped_middleware_run_only_where_they_apply() {
 struct Records(Arc<Mutex<Vec<Value>>>);
 
 impl LogSink for Records {
-    fn write(&self, record: &crucible::middlewares::LogRecord<'_>) {
+    fn write(&self, record: &crucible_server_runtime_rust::middlewares::LogRecord<'_>) {
         self.0
             .lock()
             .unwrap()
@@ -162,11 +163,11 @@ impl LogSink for Records {
 async fn the_service_log_writes_failures_by_default_and_more_where_asked() {
     let records = Records::default();
     let log = ServiceLog::errors_only()
-        .operation::<contract::CreateCity>(
+        .operation::<weather::CreateCity>(
             LogPolicy::everything().output(Fields::Only(vec!["city"])),
         )
         .sink(records.clone());
-    let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
+    let service = Crucible::builder(weather::operations(Arc::new(Weather::new(memory()))))
         .middleware(log)
         .protocol(JsonProtocol)
         .protocol(InvokeProtocol)
@@ -197,8 +198,8 @@ async fn the_service_log_writes_failures_by_default_and_more_where_asked() {
 
 struct SnapshotProbe(Arc<Mutex<Vec<bool>>>);
 
-impl crucible::Middleware for SnapshotProbe {
-    fn complete(&self, job: &crucible::Job, _: &axum::response::Response) {
+impl crucible_server_runtime_rust::Middleware for SnapshotProbe {
+    fn complete(&self, job: &crucible_server_runtime_rust::Job, _: &axum::response::Response) {
         self.0.lock().unwrap().push(job.input_snapshot().is_some());
     }
 }
@@ -214,7 +215,7 @@ async fn replacing_an_input_logging_policy_releases_its_snapshot_request() {
             .operation_named("Ping", LogPolicy::everything())
             .operation_named("Ping", replacement)
             .sink(Records::default());
-        let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
+        let service = Crucible::builder(weather::operations(Arc::new(Weather::new(memory()))))
             .middleware(log)
             .middleware(SnapshotProbe(observed.clone()))
             .protocol(InvokeProtocol)
@@ -227,9 +228,13 @@ async fn replacing_an_input_logging_policy_releases_its_snapshot_request() {
 
 struct Audit(Arc<Mutex<Vec<String>>>);
 
-#[crucible::async_trait]
-impl TypedInterceptor<contract::GetCity> for Audit {
-    async fn before(&self, input: &model::GetCityInput, context: &Context) -> crucible::Result<()> {
+#[crucible_server_runtime_rust::async_trait]
+impl TypedInterceptor<weather::GetCity> for Audit {
+    async fn before(
+        &self,
+        input: &model::GetCityInput,
+        context: &Context,
+    ) -> crucible_server_runtime_rust::Result<()> {
         assert!(!context.request_id().is_empty());
         self.0.lock().unwrap().push(input.city_id.clone());
         Ok(())
@@ -239,7 +244,7 @@ impl TypedInterceptor<contract::GetCity> for Audit {
 #[tokio::test]
 async fn typed_interceptors_see_their_input() {
     let seen = Arc::new(Mutex::new(Vec::new()));
-    let service = Crucible::builder(contract::operations(Arc::new(Weather::new(memory()))))
+    let service = Crucible::builder(weather::operations(Arc::new(Weather::new(memory()))))
         .protocol(JsonProtocol)
         .protocol(InvokeProtocol)
         .interceptor(for_operation(Audit(seen.clone())))
@@ -254,15 +259,22 @@ async fn typed_interceptors_see_their_input() {
 
 struct TypedOutcomeProbe(Arc<Mutex<Vec<String>>>);
 
-#[crucible::async_trait]
-impl TypedInterceptor<contract::GetCity> for TypedOutcomeProbe {
-    fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
+#[crucible_server_runtime_rust::async_trait]
+impl TypedInterceptor<weather::GetCity> for TypedOutcomeProbe {
+    fn prepare(
+        &mut self,
+        prepare: &crucible_server_runtime_rust::Prepare<'_>,
+    ) -> Result<(), String> {
         let names: Vec<_> = prepare.operations().map(|op| op.name).collect();
         assert_eq!(names, ["GetCity"]);
         Ok(())
     }
 
-    async fn before(&self, input: &model::GetCityInput, _: &Context) -> crucible::Result<()> {
+    async fn before(
+        &self,
+        input: &model::GetCityInput,
+        _: &Context,
+    ) -> crucible_server_runtime_rust::Result<()> {
         self.0
             .lock()
             .unwrap()
@@ -270,12 +282,8 @@ impl TypedInterceptor<contract::GetCity> for TypedOutcomeProbe {
         Ok(())
     }
 
-    async fn failed(&self, error: &crucible::Error, _: &Context) {
-        assert!(
-            error
-                .downcast_ref::<contract::errors::NotFoundError>()
-                .is_some()
-        );
+    async fn failed(&self, error: &crucible_server_runtime_rust::Error, _: &Context) {
+        assert!(error.downcast_ref::<weather::NotFoundError>().is_some());
         self.0.lock().unwrap().push("failed".into());
     }
 
@@ -318,7 +326,7 @@ async fn typed_interceptors_prepare_their_scope_and_observe_success_and_failure(
 #[tokio::test]
 async fn a_service_split_across_types_names_what_it_left_out() {
     let weather = Arc::new(Weather::new(memory()));
-    let missing = contract::builder()
+    let missing = weather::builder()
         .ping(weather.clone())
         .get_city(weather)
         .build()
@@ -329,7 +337,7 @@ async fn a_service_split_across_types_names_what_it_left_out() {
 #[tokio::test]
 async fn lambda_answers_direct_invokes_and_http_events_alike() {
     let service = service();
-    let invoked = crucible::host::lambda_event(
+    let invoked = crucible_server_runtime_rust::host::lambda_event(
         &service,
         json!({ "operation": "CreateCity", "input": { "name": "Lima" } }),
     )
@@ -360,7 +368,9 @@ async fn lambda_answers_direct_invokes_and_http_events_alike() {
         // Unrelated to crucible: only a string `operation` is a direct invoke.
         "operation": 42
     });
-    let answered = crucible::host::lambda_event(&service, event).await.unwrap();
+    let answered = crucible_server_runtime_rust::host::lambda_event(&service, event)
+        .await
+        .unwrap();
     assert_eq!(answered["statusCode"], 200, "{answered}");
     let body: Value = serde_json::from_str(answered["body"].as_str().unwrap()).unwrap();
     assert_eq!(body["city"]["name"], "Lima");
@@ -414,7 +424,7 @@ async fn an_operation_can_take_a_smaller_body_than_the_service() {
             .unwrap()
     };
     let limited = weather_service::builder(memory())
-        .operation_body_limit::<contract::CreateCity>(64)
+        .operation_body_limit::<weather::CreateCity>(64)
         .build()
         .unwrap();
     let response = limited.handle(create()).await;
@@ -447,8 +457,11 @@ struct Audited {
     seen: Arc<Mutex<Vec<String>>>,
 }
 
-impl crucible::OperationAwareMiddleware for Audited {
-    fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
+impl crucible_server_runtime_rust::OperationAwareMiddleware for Audited {
+    fn prepare(
+        &mut self,
+        prepare: &crucible_server_runtime_rust::Prepare<'_>,
+    ) -> Result<(), String> {
         for op in prepare.operations() {
             let tier = op
                 .trait_as::<String>("example.weather#tier")
@@ -466,7 +479,10 @@ impl crucible::OperationAwareMiddleware for Audited {
         Ok(())
     }
 
-    fn after<'a>(&'a self, job: &'a mut crucible::OperationJob<'_>) -> crucible::Hook<'a, ()> {
+    fn after<'a>(
+        &'a self,
+        job: &'a mut crucible_server_runtime_rust::OperationJob<'_>,
+    ) -> crucible_server_runtime_rust::Hook<'a, ()> {
         let op = job.operation();
         if let Some(input) = job.input_snapshot()
             && let Some((tier, audited)) = self.table.get(op.name)
@@ -478,15 +494,15 @@ impl crucible::OperationAwareMiddleware for Audited {
                     .push(format!("{} {tier} {member}={}", op.name, input[*member]));
             }
         }
-        crucible::Hook::Ready(())
+        crucible_server_runtime_rust::Hook::Ready(())
     }
 
     fn before<'a>(
         &'a self,
-        job: &'a mut crucible::OperationJob<'_>,
-    ) -> crucible::Hook<'a, crucible::Result<()>> {
+        job: &'a mut crucible_server_runtime_rust::OperationJob<'_>,
+    ) -> crucible_server_runtime_rust::Hook<'a, crucible_server_runtime_rust::Result<()>> {
         job.snapshot_input();
-        crucible::Hook::Ready(Ok(()))
+        crucible_server_runtime_rust::Hook::Ready(Ok(()))
     }
 }
 
@@ -509,8 +525,11 @@ async fn middleware_read_operation_and_member_traits_once_at_build() {
 
 struct WantsNumericTier;
 
-impl crucible::OperationAwareMiddleware for WantsNumericTier {
-    fn prepare(&mut self, prepare: &crucible::Prepare<'_>) -> Result<(), String> {
+impl crucible_server_runtime_rust::OperationAwareMiddleware for WantsNumericTier {
+    fn prepare(
+        &mut self,
+        prepare: &crucible_server_runtime_rust::Prepare<'_>,
+    ) -> Result<(), String> {
         for op in prepare.operations() {
             op.trait_as::<u32>("example.weather#tier")
                 .map_err(|_| format!("{}: example.weather#tier must be a number", op.name))?;
@@ -528,7 +547,7 @@ async fn a_middleware_refusing_the_model_fails_the_build() {
         .expect("the build fails");
     assert_eq!(
         refused,
-        crucible::BuildError::Prepare(
+        crucible_server_runtime_rust::BuildError::Prepare(
             "CreateCity: example.weather#tier must be a number".to_owned()
         )
     );

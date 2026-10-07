@@ -208,6 +208,10 @@ def main():
         assert 'client_from_smithy_with' in (selected / "build.rs").read_text()
         project = directory / "hello service"
         run([str(cli), "new", "hello-service", "--out", str(project), "--runtime-path", str(ROOT)])
+        assert not (project / "src/contract.rs").exists()
+        assert 'crucible_server_runtime_rust::include_service!();' in (project / "src/main.rs").read_text()
+        assert 'crate::hello_service::' in (project / "src/operations/service/say_hello.rs").read_text()
+        assert 'rust_service_from_smithy' in (project / "build.rs").read_text()
         files = {path.relative_to(project): hashlib.sha256(path.read_bytes()).digest() for path in project.rglob("*") if path.is_file()}
         failed = run([str(cli), "new", "hello-service", "--out", str(project)], success=False)
         assert "empty directory" in failed.stderr
@@ -228,7 +232,7 @@ def main():
         source = model.read_text(encoding="utf-8")
         handler = project / "src/operations/service/say_hello.rs"
         handler_source = handler.read_text(encoding="utf-8")
-        signature = "async fn say_hello(&self, input: SayHelloInput) -> crucible::Result<SayHelloOutput> {"
+        signature = "async fn say_hello(&self, input: SayHelloInput) -> Result<SayHelloOutput> {"
         assert signature in handler_source
         handler.write_text(handler_source.replace(signature, signature + '\n        if input.name == "Fail" { return Err(std::io::Error::other("internal-secret").into()); }'), encoding="utf-8")
         run(["cargo", "build", "--offline"], project, env)

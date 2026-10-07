@@ -40,14 +40,14 @@ Select the file in `build.rs`:
 
 ```rust,ignore
 fn main() {
-    crucible_build::from_smithy("smithy")
+    crucible_build::rust_service_from_smithy("smithy")
         .policy("crucible.toml")
         .generate();
 }
 ```
 
-The same `.policy(...)` method works with `service(...)`, `client(...)`,
-`Codegen::from_model(...)`, and `from_smithy_with(...)`. Paths are relative to
+The same `.policy(...)` method works with `rust_service(...)`, `client(...)`,
+`RustCodegen::from_model(...)`, and `rust_service_from_smithy_with(...)`. Paths are relative to
 the package's `Cargo.toml`; a workspace can select `../../crucible.toml`.
 The selected config is required. Invalid config, missing config, or error
 findings fail the build. Cargo tracks config edits and removal. Warnings and

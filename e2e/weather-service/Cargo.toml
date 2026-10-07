@@ -7,7 +7,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-crucible = { path = "../../crates/crucible" }
+crucible-server-runtime-rust = { path = "../../crates/crucible-server-runtime-rust" }
 weather-model = { path = "../weather-model" }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 serde_json = "1"
