@@ -1,5 +1,5 @@
 use crucible_smithy::ir::{Binding, Fault, Paginated, Payload, Shape, SimpleKind, TimestampFormat};
-use crucible_smithy::{Error, Model, ShapeId};
+use crucible_smithy::{Capabilities, Error, Feature, Model, ShapeId};
 use serde_json::{Value, json};
 
 const WEATHER: &str = include_str!("fixtures/weather.json");
@@ -607,6 +607,28 @@ fn refuses_labels_without_members_and_members_without_labels() {
     assert_eq!(messages.len(), 2, "{messages:?}");
     assert!(messages[0].contains("{city}"));
     assert!(messages[1].contains("does not appear"));
+}
+
+#[test]
+fn refuses_multiple_greedy_labels_even_with_capability() {
+    let model = Model::from_json(include_str!("fixtures/multiple-greedy-labels.json")).unwrap();
+    for capabilities in [
+        Capabilities::new([Feature::GreedyLabels]),
+        Capabilities::default(),
+    ] {
+        let Err(Error::Unsupported(diagnostics)) =
+            model.lower_with_capabilities(None, &capabilities)
+        else {
+            panic!("expected diagnostics for multiple greedy labels");
+        };
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.shape == id("example.greedy#Get")
+                    && diagnostic.message == "a URI pattern may contain at most one greedy label"
+            }),
+            "{diagnostics}"
+        );
+    }
 }
 
 #[test]

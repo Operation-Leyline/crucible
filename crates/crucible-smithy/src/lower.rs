@@ -598,6 +598,12 @@ impl<'m> Lowerer<'m> {
                 None => segments.push(Segment::Literal(part.to_owned())),
             }
         }
+        if greedy_labels.len() > 1 {
+            self.diagnostics.push(
+                operation,
+                "a URI pattern may contain at most one greedy label",
+            );
+        }
         let query = query
             .split('&')
             .filter(|pair| !pair.is_empty())
