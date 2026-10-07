@@ -564,8 +564,8 @@ For package setup, calls, and runtime limits, see the [Rust client guide](client
 The [client index](clients.md) links every other language.
 
 `crucible_build::client("<links>")` generates a client from the same model
-package, into `crucible_client::include_client!()`. The client uses
-`crucible-client`, which re-exports the shared `crucible-wire` runtime. The IR
+package, into `crucible_client_runtime_rust::include_client!()`. The client uses
+`crucible-client-runtime-rust`, which re-exports the shared `crucible-wire` runtime. The IR
 settles member bindings and constraints for both sides. Client models use
 `Field<T>` for client-optional members and retain unknown enum and union values;
 server models keep server nullability and closed enums and unions. See the

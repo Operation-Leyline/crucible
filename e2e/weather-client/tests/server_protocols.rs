@@ -1,5 +1,5 @@
 //! Generated Rust clients against the native phased server, over real HTTP.
-use crucible_client::{Config, Error, Retry};
+use crucible_client_runtime_rust::{Config, Error, Retry};
 mod common;
 
 macro_rules! service {
@@ -160,13 +160,13 @@ macro_rules! precision {
             let client = $module::client::JsonServiceClient::new(
                 Config::new($module::serve().await).retry(Retry::none()),
             );
-            let integer: crucible_client::BigInteger =
+            let integer: crucible_client_runtime_rust::BigInteger =
                 "-12345678901234567890123456789012345678901234567890"
                     .parse()
                     .unwrap();
-            let decimal: crucible_client::BigDecimal =
+            let decimal: crucible_client_runtime_rust::BigDecimal =
                 "12345678901234567890.1234567890123456789".parse().unwrap();
-            let blob = crucible_client::Blob::new(vec![0, 255, 128, 42]);
+            let blob = crucible_client_runtime_rust::Blob::new(vec![0, 255, 128, 42]);
             let output = client
                 .echo(
                     $module::client::model::ValuesInput::builder()

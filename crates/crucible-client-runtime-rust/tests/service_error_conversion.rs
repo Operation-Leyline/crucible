@@ -1,4 +1,4 @@
-use crucible_client::{Error, ResponseMetadata, ServiceError, UnknownError};
+use crucible_client_runtime_rust::{Error, ResponseMetadata, ServiceError, UnknownError};
 
 #[test]
 fn unifying_service_errors_preserves_metadata_and_unknown_failures() {

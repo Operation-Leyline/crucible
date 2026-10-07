@@ -1,4 +1,4 @@
-use crucible_client::{Error, WaiterError, WaiterFailure};
+use crucible_client_runtime_rust::{Error, WaiterError, WaiterFailure};
 
 #[test]
 fn large_models_keep_waiter_errors_small_without_losing_response_or_source() {

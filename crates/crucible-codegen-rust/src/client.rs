@@ -127,7 +127,7 @@ fn service_exception(service: &Service, diagnostics: &mut Diagnostics) -> String
     }
     let errors = crate::errors::error_shapes(service);
     let mut out = format!(
-        "\n/// All modeled errors from {}. Unknown and transport failures remain in `crucible_client::Error`.\n#[allow(dead_code)]\n#[derive(Debug, Clone, PartialEq)]\n#[non_exhaustive]\npub enum {name} {{\n",
+        "\n/// All modeled errors from {}. Unknown and transport failures remain in `crucible_client_runtime_rust::Error`.\n#[allow(dead_code)]\n#[derive(Debug, Clone, PartialEq)]\n#[non_exhaustive]\npub enum {name} {{\n",
         service.id.name()
     );
     for (id, _) in &errors {

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use clap::ArgMatches;
-use crucible_client::{Config, Token};
+use crucible_client_runtime_rust::{Config, Token};
 use serde::Deserialize;
 
 use crate::Error;

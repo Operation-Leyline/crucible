@@ -1,4 +1,4 @@
-use crucible_client::Config;
+use crucible_client_runtime_rust::Config;
 use hello_client::{HelloServiceClient, model::SayHelloInput};
 
 #[tokio::main]

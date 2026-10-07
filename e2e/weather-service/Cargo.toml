@@ -17,7 +17,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 crucible-build = { path = "../../crates/crucible-build" }
 
 [dev-dependencies]
-crucible-client = { path = "../../crates/crucible-client" }
+crucible-client-runtime-rust = { path = "../../crates/crucible-client-runtime-rust" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 serde = "1"

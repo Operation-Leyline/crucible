@@ -1,5 +1,5 @@
 [package]
-name = "crucible-client"
+name = "crucible-client-runtime-rust"
 description = "The runtime generated Rust clients use: transport, retries, idempotency tokens, error decoding, pagination"
 version.workspace = true
 edition.workspace = true

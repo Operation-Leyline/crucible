@@ -487,7 +487,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "crucible-client"
+name = "crucible-client-runtime-rust"
 version = "0.3.0"
 dependencies = [
  "base64 0.22.1",
@@ -2481,7 +2481,7 @@ dependencies = [
  "chrono",
  "crucible",
  "crucible-build",
- "crucible-client",
+ "crucible-client-runtime-rust",
  "futures-util",
  "reqwest",
  "serde_json",
@@ -2508,7 +2508,7 @@ dependencies = [
  "criterion",
  "crucible",
  "crucible-build",
- "crucible-client",
+ "crucible-client-runtime-rust",
  "flate2",
  "futures-util",
  "serde",

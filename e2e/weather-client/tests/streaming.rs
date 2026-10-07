@@ -1,7 +1,7 @@
 //! Streaming payloads cross the generated client/server boundary without collection.
 use crucible::ByteStream as ServerStream;
 use crucible::host;
-use crucible_client::{ByteStream, CallOptions, CancellationToken, Config, Retry};
+use crucible_client_runtime_rust::{ByteStream, CallOptions, CancellationToken, Config, Retry};
 use futures_util::{Stream, StreamExt};
 use std::io;
 use std::pin::Pin;

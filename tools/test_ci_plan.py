@@ -90,8 +90,12 @@ class PlanTests(unittest.TestCase):
                          {"rust", "e2e"})
 
     def test_rust_client_still_qualifies_generated_cli(self):
-        self.assertEqual(affected_groups(["crates/crucible-client/src/transport.rs"]),
+        self.assertEqual(affected_groups(["crates/crucible-client-runtime-rust/src/transport.rs"]),
                          {"rust", "e2e", "service_cli"})
+        self.assertEqual(affected_groups([
+            "crates/crucible-client/src/transport.rs",
+            "crates/crucible-client-runtime-rust/src/transport.rs",
+        ]), {"rust", "e2e", "service_cli"})
         self.assertEqual(affected_groups(["crates/crucible-cli-runtime/src/output.rs"]),
                          {"rust", "service_cli"})
 

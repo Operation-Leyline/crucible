@@ -1,5 +1,5 @@
 //! Generated clients and servers agree on dynamic HTTP bindings over TCP.
-use crucible_client::{Config, Error};
+use crucible_client_runtime_rust::{Config, Error};
 use serde_json::{Value, json};
 use std::sync::Arc;
 

@@ -1,4 +1,4 @@
-use crucible_client::{Field, UnknownUnion};
+use crucible_client_runtime_rust::{Field, UnknownUnion};
 use serde_json::{Value, json};
 
 #[allow(dead_code)]

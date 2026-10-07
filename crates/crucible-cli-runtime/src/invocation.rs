@@ -3,7 +3,7 @@
 pub struct Invocation {
     pub operation: String,
     pub input: serde_json::Value,
-    pub config: crucible_client::Config,
+    pub config: crucible_client_runtime_rust::Config,
     /// Whether to retrieve every page of a paginated operation.
     pub paginate: bool,
     pub output: crate::Output,

@@ -16,7 +16,7 @@ cargo build --manifest-path e2e/generated/weather-cli/Cargo.toml
 ```
 
 `--runtime-path` identifies the Crucible checkout supplying the unpublished
-`crucible-client` and `crucible-cli-runtime` dependencies. Generation resolves
+`crucible-client-runtime-rust` and `crucible-cli-runtime` dependencies. Generation resolves
 it to an absolute path. Keep that checkout available while building; the built
 executable does not need it. `--package-version` defaults to `0.0.0`.
 `--endpoint` sets an optional default endpoint in the generated descriptor.

@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use base64::Engine;
-use crucible_client::{Config, Error, Field, Retry};
+use crucible_client_runtime_rust::{Config, Error, Field, Retry};
 
 #[allow(dead_code)]
 mod wire {

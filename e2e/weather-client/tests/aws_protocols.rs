@@ -7,7 +7,7 @@ mod common;
 
 use std::sync::{Arc, Mutex};
 
-use crucible_client::{Config, Error, Field, Retry};
+use crucible_client_runtime_rust::{Config, Error, Field, Retry};
 use serde_json::{Value, json};
 
 #[allow(dead_code)]

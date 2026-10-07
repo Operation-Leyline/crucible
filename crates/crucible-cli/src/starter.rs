@@ -65,7 +65,7 @@ pub(crate) fn create(
         })
     };
     let runtime_package = if client {
-        "crucible-client"
+        "crucible-client-runtime-rust"
     } else {
         "crucible"
     };
@@ -119,7 +119,10 @@ pub(crate) fn create(
     if client {
         files.extend([
             ("README.md", include_str!("starter/client_README.md")),
-            ("src/lib.rs", "crucible_client::include_client!();\n"),
+            (
+                "src/lib.rs",
+                "crucible_client_runtime_rust::include_client!();\n",
+            ),
             ("examples/hello.rs", example.as_str()),
         ]);
     } else {

@@ -5,7 +5,7 @@
 //! fn main() { crucible_build::client("weather_model").generate(); }
 //! ```
 //!
-//! and its code includes the result with `crucible_client::include_client!()`:
+//! and its code includes the result with `crucible_client_runtime_rust::include_client!()`:
 //! the model's types, its errors, an error enum per operation, and its service-named client.
 //!
 //! ```ignore
@@ -66,7 +66,7 @@ pub fn idempotency_token() -> String {
 #[macro_export]
 macro_rules! include_client {
     () => {
-        include!(concat!(env!("OUT_DIR"), "/crucible_client.rs"));
+        include!(concat!(env!("OUT_DIR"), "/crucible_client_runtime_rust.rs"));
     };
 }
 

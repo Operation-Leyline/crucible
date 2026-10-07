@@ -1,4 +1,4 @@
-use crucible_client::{BasicCredentials, Config, Error, Identity, Retry, Token};
+use crucible_client_runtime_rust::{BasicCredentials, Config, Error, Identity, Retry, Token};
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -22,7 +22,7 @@ mod sigv4 {
 #[tokio::test]
 async fn generated_sigv4_refreshes_after_interceptors_and_obeys_endpoint_scope() {
     struct AddHeader;
-    impl crucible_client::Interceptor for AddHeader {
+    impl crucible_client_runtime_rust::Interceptor for AddHeader {
         fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String> {
             request
                 .headers_mut()
@@ -39,7 +39,7 @@ async fn generated_sigv4_refreshes_after_interceptors_and_obeys_endpoint_scope()
             let attempt = count.fetch_add(1, Ordering::SeqCst) + 1;
             async move {
                 let mut value =
-                    crucible_client::AwsCredentials::new(format!("key{attempt}"), "secret");
+                    crucible_client_runtime_rust::AwsCredentials::new(format!("key{attempt}"), "secret");
                 value.session_token = Some(format!("session{attempt}"));
                 Some(value)
             }

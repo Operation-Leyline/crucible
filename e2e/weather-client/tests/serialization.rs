@@ -1,6 +1,6 @@
 //! Shared client serialization: every corpus case runs against native models.
-use crucible_client::__private::serde::{Serialize, de::DeserializeOwned};
-use crucible_client::Field;
+use crucible_client_runtime_rust::__private::serde::{Serialize, de::DeserializeOwned};
+use crucible_client_runtime_rust::Field;
 use serde_json::Value;
 use weather_client::model::{CitySummary, GetCityOutput, Location, Photo, Sky};
 

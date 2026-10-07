@@ -4,7 +4,7 @@
 
 Crucible generates native Rust models, one error enum per operation, an async
 service-named client (`WeatherClient`, `LeylineClient`), and lazy paginators.
-The generated package uses `crucible-client` and
+The generated package uses `crucible-client-runtime-rust` and
 the shared `crucible-wire` runtime. Use the current stable Rust toolchain
 and an async runtime such as Tokio.
 
@@ -18,7 +18,7 @@ cd hello-client
 cargo build
 ```
 
-The starter pins `crucible-client` and `crucible-build` to the CLI's matching
+The starter pins `crucible-client-runtime-rust` and `crucible-build` to the CLI's matching
 release. Its complete build script is:
 
 ```rust
@@ -30,7 +30,7 @@ fn main() {
 ```
 
 `src/lib.rs` exports the generated API with
-`crucible_client::include_client!()`. Replace `smithy/hello.smithy` with your
+`crucible_client_runtime_rust::include_client!()`. Replace `smithy/hello.smithy` with your
 service's sources; Cargo compiles the model and regenerates the client on model
 edits. Generated files stay under `OUT_DIR`. The helper manages the official
 Smithy compiler, Crucible imports, mixin flattening and matching Java runtime.
@@ -78,7 +78,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-crucible-client = { git = "https://github.com/Operation-Leyline/crucible" }
+crucible-client-runtime-rust = { git = "https://github.com/Operation-Leyline/crucible" }
 weather-model = { path = "../weather-model" }
 
 [build-dependencies]
@@ -98,7 +98,7 @@ fn main() {
 
 ```rust
 // src/lib.rs
-crucible_client::include_client!();
+crucible_client_runtime_rust::include_client!();
 ```
 
 For an already compiled JSON AST without a separate model package, call
@@ -115,13 +115,25 @@ cargo run -p crucible-cli -- generate rust \
 package. Include the model/build inputs when distributing a generated client;
 generation does not publish it.
 
+### Migrating the runtime crate name
+
+The Rust runtime crate is now `crucible-client-runtime-rust`, previously
+`crucible-client`. Rename the dependency in `Cargo.toml` and change Rust imports
+and macro calls from `crucible_client::` to `crucible_client_runtime_rust::`.
+For path dependencies, use `crates/crucible-client-runtime-rust`.
+
+Update the runtime and generator to the same revision, regenerate checked-in
+Rust clients and service CLI packages, and refresh Cargo lockfiles. Cargo build
+scripts regenerate clients under `OUT_DIR` automatically. Runtime APIs and
+behavior are unchanged.
+
 ## Calling operations
 
 The example below uses the generated weather client and needs Tokio's `macros`
 and `rt-multi-thread` features in the application:
 
 ```rust
-use crucible_client::{Config, Token};
+use crucible_client_runtime_rust::{Config, Token};
 use weather_client::{WeatherClient, model::{GetCityInput, ListCitiesInput}};
 
 #[tokio::main]
@@ -151,7 +163,7 @@ on every attempt, so refreshed credentials are picked up.
 
 Structures use public snake_case fields. Smithy `long` is `i64`, `integer` is
 `i32`, document values use `serde_json::Value`, and blobs use
-`crucible_client::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
+`crucible_client_runtime_rust::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
 Use `Model::builder()` for ordinary construction. Fluent member methods accept
 native values and collections; string methods also accept `&str`. Unspecified
 optional members stay absent. `build()` returns the model directly when all
@@ -166,7 +178,7 @@ set those states explicitly. Builder setters use the modeled snake_case name;
 reserved method names receive a `member_` prefix and a numeric suffix if needed.
 Builder type names also receive a suffix when a model uses the same name.
 
-Members that Smithy permits clients to omit use `crucible_client::Field<T>`.
+Members that Smithy permits clients to omit use `crucible_client_runtime_rust::Field<T>`.
 This includes every member of an `@input` structure and members marked
 `@clientOptional`, even when the server requires them. `Field::Absent` omits the
 member, `Field::Null` writes JSON null, and `Field::Value(value)` writes a value.
@@ -182,7 +194,7 @@ Named string enums
 retain unmodeled strings in `UnknownValue(String)`, including enum map keys.
 They implement `Clone`, but no longer `Copy`; `as_str()` borrows from the enum.
 Unions retain an unmodeled arm in
-`UnknownValue(crucible_client::UnknownUnion { name, value })`, where `value` is
+`UnknownValue(crucible_client_runtime_rust::UnknownUnion { name, value })`, where `value` is
 `serde_json::Value`. The generated variant receives a numeric suffix if its
 name would collide with a modeled variant. A modeled arm named `unknown` remains
 a normal modeled arm. Malformed known arms still fail decoding, and an unknown
@@ -204,7 +216,7 @@ Each operation error enum converts into it with `From`, as does each individual
 modeled exception. Use it when several operations need one error type:
 
 ```rust
-use crucible_client::Error;
+use crucible_client_runtime_rust::Error;
 use weather_client::{GetCityError, WeatherException};
 
 fn service_error(error: Error<GetCityError>) -> Error<WeatherException> {
@@ -255,7 +267,7 @@ call override unset to run without a total-call deadline.
 
 ```rust
 use std::time::Duration;
-use crucible_client::{CallOptions, CancellationToken};
+use crucible_client_runtime_rust::{CallOptions, CancellationToken};
 
 let cancellation = CancellationToken::new();
 let options = CallOptions {
@@ -275,7 +287,7 @@ its change. Other bodyless requests receive no generated digest.
 
 ## Qualification
 
-Run `cargo test -p crucible-codegen-rust -p crucible-client -p crucible-wire`,
+Run `cargo test -p crucible-codegen-rust -p crucible-client-runtime-rust -p crucible-wire`,
 then `bash tools/test-e2e.sh` for the generated client over the weather service.
 The E2E client tests also drive generated clients for the shared
 `error-payloads`, `checksums` (with its vectors), and `protocol-json` fixtures
@@ -309,7 +321,7 @@ together restores the previous API.
 
 #### Raw presence migration
 
-Regenerate the entire client package and update `crucible-client`,
+Regenerate the entire client package and update `crucible-client-runtime-rust`,
 `crucible-build`, and the generator to the same pinned revision. This changes
 the generated Rust API without changing the wire encoding of existing values.
 Consumers must update struct literals and matches:
@@ -329,7 +341,7 @@ Use it when adapting an existing optional value; it cannot infer explicit null.
 For example, with the generated weather models:
 
 ```rust
-use crucible_client::Field;
+use crucible_client_runtime_rust::Field;
 use weather_client::model::{ListCitiesInput, Sky};
 
 let previous_limit: Option<i32> = Some(50);
@@ -459,7 +471,7 @@ vector. Responses are not signed.
 
 Bidirectional operations work over HTTP/1.1. The response is returned when the
 service sends its headers, and both directions then proceed independently; the
-tests exchange events interactively on one connection. `crucible-client` builds
+tests exchange events interactively on one connection. `crucible-client-runtime-rust` builds
 reqwest without its `http2` feature, so services that accept event streams only
 over HTTP/2 (for example, Amazon Transcribe streaming) are not reachable with
 the default client. An application can enable that feature and pass its own

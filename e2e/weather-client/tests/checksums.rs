@@ -7,8 +7,8 @@ mod common;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use crucible_client::open::Enum;
-use crucible_client::{
+use crucible_client_runtime_rust::open::Enum;
+use crucible_client_runtime_rust::{
     Blob, ByteStream, ChecksumAlgorithm, ChecksumPolicy, Config, Error, Interceptor, Retry,
 };
 use futures_util::StreamExt;

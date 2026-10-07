@@ -1,7 +1,7 @@
 //! What a crucible server and a crucible client agree on about the wire,
 //! with no HTTP stack: operation descriptions, the error model, validation,
 //! timestamps, blobs, and the JSON readers and writers both sides use. The
-//! `crucible` and `crucible-client` crates re-export it at the same paths,
+//! `crucible` and `crucible-client-runtime-rust` crates re-export it at the same paths,
 //! so generated model code compiles against either.
 
 pub mod blob;

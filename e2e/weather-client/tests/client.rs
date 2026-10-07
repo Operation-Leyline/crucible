@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use chrono::{TimeZone, Utc};
-use crucible_client::{Config, Error, Field, Retry, Token};
+use crucible_client_runtime_rust::{Config, Error, Field, Retry, Token};
 use weather_client::model::{
     Coordinates, CreateCityInput, GetCityInput, GetCityPhotoInput, ListCitiesInput, Location,
     PutCityPhotoInput, Sky, StatusInput,
@@ -122,7 +122,7 @@ async fn a_modelled_error_arrives_as_its_variant() {
     client.create_city(create("tromso")).await.unwrap();
     // A fresh token each call, so the second is a new request, and a conflict.
     match client.create_city(create("tromso")).await {
-        Err(Error::Service(crucible_client::ServiceError {
+        Err(Error::Service(crucible_client_runtime_rust::ServiceError {
             error: CreateCityError::ConflictError(error),
             ..
         })) => {
@@ -138,7 +138,7 @@ async fn a_modelled_error_arrives_as_its_variant() {
         .await
         .map_err(|error| error.map_service(WeatherException::from))
     {
-        Err(Error::Service(crucible_client::ServiceError {
+        Err(Error::Service(crucible_client_runtime_rust::ServiceError {
             error: WeatherException::NotFoundError(error),
             metadata,
         })) => {
@@ -154,7 +154,7 @@ async fn a_modelled_error_arrives_as_its_variant() {
 async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
     let client = client().await;
     match client.create_city(create(&"x".repeat(41))).await {
-        Err(Error::Service(crucible_client::ServiceError {
+        Err(Error::Service(crucible_client_runtime_rust::ServiceError {
             error: CreateCityError::ValidationError(error),
             ..
         })) => {
@@ -172,7 +172,7 @@ async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
         })
         .await
     {
-        Err(Error::Service(crucible_client::ServiceError {
+        Err(Error::Service(crucible_client_runtime_rust::ServiceError {
             error: ListCitiesError::ValidationError(error),
             ..
         })) => {
@@ -192,7 +192,7 @@ async fn labels_are_percent_encoded() {
         })
         .await
     {
-        Err(Error::Service(crucible_client::ServiceError {
+        Err(Error::Service(crucible_client_runtime_rust::ServiceError {
             error: GetCityError::ValidationError(error),
             ..
         })) => {
@@ -250,7 +250,7 @@ async fn throttling_is_retried_then_surfaces_with_its_header_member() {
     let endpoint = serve().await;
     failing(&endpoint, "brief", 2).ping().await.unwrap();
     match failing(&endpoint, "stubborn", 9).ping().await {
-        Err(Error::Service(crucible_client::ServiceError {
+        Err(Error::Service(crucible_client_runtime_rust::ServiceError {
             error: PingError::ThrottlingError(error),
             ..
         })) => {
@@ -300,7 +300,7 @@ type Carried = (Option<String>, Vec<u8>);
 #[derive(Clone, Default)]
 struct Sent(Arc<std::sync::Mutex<Vec<Carried>>>);
 
-impl crucible_client::Interceptor for Sent {
+impl crucible_client_runtime_rust::Interceptor for Sent {
     fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String> {
         let content_type = request
             .headers()
@@ -355,7 +355,7 @@ async fn a_payload_travels_raw_both_ways() {
     assert!(
         matches!(
             refused,
-            Err(Error::Service(crucible_client::ServiceError {
+            Err(Error::Service(crucible_client_runtime_rust::ServiceError {
                 error: PutCityPhotoError::ValidationError(_),
                 ..
             }))
@@ -372,7 +372,7 @@ async fn an_unreachable_service_is_a_transport_error() {
 
 #[tokio::test]
 async fn generated_call_options_expose_deadlines_and_shared_cancellation() {
-    use crucible_client::{CallOptions, CancellationToken};
+    use crucible_client_runtime_rust::{CallOptions, CancellationToken};
     let client = client().await;
     assert!(matches!(
         client
