@@ -17,10 +17,7 @@ fn server_artifacts_have_a_distinct_target_and_use_the_native_emitter() {
     assert_eq!(generator.target(), "rust-server");
     let files = generator.emit(&service).unwrap();
     assert_eq!(files.len(), 1);
-    assert_eq!(
-        files[0].path,
-        std::path::PathBuf::from("crucible_service.rs")
-    );
+    assert_eq!(files[0].path, "crucible_service.rs");
     assert_eq!(
         files[0].contents,
         crucible_codegen_rust::generate(&service, &RustServerOptions::default()).unwrap()

@@ -57,8 +57,10 @@ the assembled AST is under `OUT_DIR/smithy/compiled/crucible/model/model.json`.
 ## Versioning and offline builds
 
 The starter pins both `crucible-server-runtime-rust` and `crucible-build` to the CLI's matching
-release tag and ships its tested Smithy 1.74.0 compiler snapshot. Commit
-`Cargo.lock`. Change the Crucible tag deliberately to upgrade this set.
+verified source revision and ships its tested Smithy 1.74.0 compiler snapshot.
+A CLI without embedded source provenance falls back to its matching release
+tag. Commit `Cargo.lock` and change the Crucible revision deliberately to
+upgrade this set. `--crucible-rev` overrides the default.
 
 For an explicit Smithy version, use:
 

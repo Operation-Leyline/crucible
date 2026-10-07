@@ -42,6 +42,12 @@ pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffo
 use crucible_smithy::ir::{Service, Shape};
 use crucible_smithy::{Diagnostics, ShapeId};
 
+/// Verified Crucible Git revision embedded when this emitter was built.
+/// Packaged or vendored emitters without source provenance return `None`.
+pub fn source_revision() -> Option<&'static str> {
+    option_env!("CRUCIBLE_GENERATOR_REVISION")
+}
+
 pub(crate) const DERIVE: &str = "#[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__private::serde\")]\n";
 pub(crate) const DERIVE_ENUM: &str = "#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__private::serde\")]\n";
 

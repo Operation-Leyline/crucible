@@ -110,7 +110,7 @@ pub fn emit_client_package(
 fn runtime(dependency: &RuntimeDependency) -> Result<String, String> {
     match dependency {
         RuntimeDependency::Auto => {
-            let revision = option_env!("CRUCIBLE_GENERATOR_REVISION").ok_or("this generator has no verified Crucible Git provenance; select an explicit runtime Git repository/revision or a local development runtime path")?;
+            let revision = crate::source_revision().ok_or("this generator has no verified Crucible Git provenance; select an explicit runtime Git repository/revision or a local development runtime path")?;
             Ok(format!(
                 "{{ version = {}, git = {}, rev = {} }}",
                 literal(env!("CARGO_PKG_VERSION")),

@@ -46,7 +46,7 @@ fn main() {
 }
 ```
 
-The same `.policy(...)` method works with `service(...)`, `client(...)`,
+The same `.policy(...)` method works with `rust_service(...)`, `client(...)`,
 `RustCodegen::from_model(...)`, and `rust_service_from_smithy_with(...)`. Paths are relative to
 the package's `Cargo.toml`; a workspace can select `../../crucible.toml`.
 The selected config is required. Invalid config, missing config, or error
