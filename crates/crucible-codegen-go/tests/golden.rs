@@ -62,6 +62,34 @@ fn service_client_and_constructor_names_cannot_collide_with_models() {
 }
 
 #[test]
+fn weather_output_is_deterministic() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let options = Options {
+        module_path: "example.com/weather".into(),
+        package_name: "weather".into(),
+        endpoint: Some("https://weather.example".into()),
+        content_sha256: true,
+    };
+    let first = emit(&service, &options).unwrap();
+    let second = emit(&service, &options).unwrap();
+    assert_eq!(
+        first
+            .iter()
+            .map(|f| (&f.path, &f.contents))
+            .collect::<Vec<_>>(),
+        second
+            .iter()
+            .map(|f| (&f.path, &f.contents))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn invalid_package_configuration_is_collected() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"
