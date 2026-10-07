@@ -35,6 +35,7 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
+| `crucible-traits` (`smithy/`) | canonical Smithy trait sources, exposed as a Cargo package and model JAR |
 | `crucible-codegen-rust` | IR → the Rust code a service plugs into the framework, or a client (one file each) |
 | `crucible-build` | build scripts: model packages publish their AST, services and clients generate from it |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |

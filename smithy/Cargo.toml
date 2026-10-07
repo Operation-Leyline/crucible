@@ -1,0 +1,13 @@
+[package]
+name = "crucible-traits"
+description = "Crucible's Smithy protocol and validation trait definitions"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+readme = "README.md"
+include = ["Cargo.toml", "README.md", "src/**", "crucible.smithy"]
+
+[lints]
+workspace = true
