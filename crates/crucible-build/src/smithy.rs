@@ -1,7 +1,9 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::{Codegen, absolute};
+#[cfg(feature = "rust")]
+use crate::Codegen;
+use crate::absolute;
 
 /// Assemble and validate Smithy sources, then generate a server in `OUT_DIR`.
 ///
@@ -11,7 +13,7 @@ use crate::{Codegen, absolute};
 /// Java installation is required. Sources and imports are never written into the
 /// project. The service must declare a fillable validation error, or use
 /// [`Codegen::custom_rejections`] and supply its own rejection handler.
-#[cfg(feature = "smithy")]
+#[cfg(all(feature = "smithy", feature = "rust"))]
 pub fn from_smithy(sources: impl AsRef<Path>) -> Codegen {
     from_smithy_with(sources, |config, output| {
         smithy_tooling::build(config, output)
@@ -24,6 +26,7 @@ pub fn from_smithy(sources: impl AsRef<Path>) -> Codegen {
 /// `smithy-tooling` version, and pass `|config, out| smithy_tooling::build(config, out)`.
 /// The compiler must support the `flattenAndRemoveMixins` transform. Assembly and
 /// validation remain the official compiler's responsibility.
+#[cfg(feature = "rust")]
 pub fn from_smithy_with(
     sources: impl AsRef<Path>,
     compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
@@ -37,7 +40,7 @@ pub fn from_smithy_with(
 ///
 /// Uses the same pinned compiler, bundled imports and managed Java runtime as
 /// [`from_smithy`]. Client generation does not require server rejection errors.
-#[cfg(feature = "smithy")]
+#[cfg(all(feature = "smithy", feature = "rust"))]
 pub fn client_from_smithy(sources: impl AsRef<Path>) -> Codegen {
     client_from_smithy_with(sources, |config, output| {
         smithy_tooling::build(config, output)
@@ -47,6 +50,7 @@ pub fn client_from_smithy(sources: impl AsRef<Path>) -> Codegen {
 /// Generate a Rust client with an explicitly selected official compiler.
 ///
 /// See [`from_smithy_with`] for compiler dependency setup.
+#[cfg(feature = "rust")]
 pub fn client_from_smithy_with(
     sources: impl AsRef<Path>,
     compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,

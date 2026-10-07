@@ -8,8 +8,8 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
-crucible-codegen-rust.workspace = true
-crucible-codegen.workspace = true
+crucible-codegen-rust = { workspace = true, optional = true }
+crucible-codegen = { workspace = true, default-features = false }
 crucible-smithy.workspace = true
 crucible-policy.workspace = true
 crucible-traits.workspace = true
@@ -18,9 +18,10 @@ serde = { workspace = true, features = ["derive"] }
 smithy-tooling = { workspace = true, optional = true }
 
 [features]
-default = ["smithy"]
+default = ["smithy", "rust"]
+rust = ["dep:crucible-codegen-rust", "crucible-codegen/rust"]
 smithy = ["dep:smithy-tooling"]
-all-clients = ["crucible-codegen/all-clients", "java", "ts", "python", "go", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+all-clients = ["crucible-codegen/all-clients", "rust", "java", "ts", "python", "go", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 java = ["crucible-codegen/java"]
 ts = ["crucible-codegen/ts"]
 python = ["crucible-codegen/python"]

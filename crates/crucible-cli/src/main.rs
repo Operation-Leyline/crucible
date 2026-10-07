@@ -104,7 +104,7 @@ enum Command {
     /// Generate code for one target.
     Generate {
         #[command(subcommand)]
-        target: Target,
+        target: Box<Target>,
     },
     /// Write a stub for every operation that has no file yet: one file per
     /// operation, in a folder per resource (`service/` for the operations the
@@ -463,18 +463,25 @@ enum Target {
         #[arg(long)]
         package_json: Option<PathBuf>,
     },
-    /// The Rust code a service plugs into the crucible framework, or a
-    /// client, as one file: what `crucible-build` writes from a build
-    /// script, for reading.
+    /// Rust server bindings as one file, or a complete Cargo SDK with --client.
     Rust {
         #[command(flatten)]
         source: Source,
-        /// The file to write.
+        /// Server output file, or client Cargo package directory.
         #[arg(long)]
         out: PathBuf,
         /// The client instead of the server side.
         #[arg(long)]
         client: bool,
+        /// Cargo SDK package name; defaults to the service name followed by -sdk.
+        #[arg(long, requires = "client")]
+        package_name: Option<String>,
+        /// Cargo SDK package version; defaults to the generator version.
+        #[arg(long, requires = "client")]
+        package_version: Option<String>,
+        /// Local Rust client runtime crate for development.
+        #[arg(long, requires = "client")]
+        runtime_path: Option<PathBuf>,
         /// The error a rejected request becomes; defaults to the service's
         /// one error named *Validation*.
         #[arg(long)]
@@ -544,7 +551,7 @@ fn run(command: Command) -> ExitCode {
             println!("wrote {} protocol tests to {}", service.protocol_tests.len(), out.display());
             Ok(())
         }),
-        Command::Generate { target } => generate(target),
+        Command::Generate { target } => generate(*target),
         Command::Scaffold {
             source,
             out,
@@ -1037,6 +1044,9 @@ fn generate(target: Target) -> Result<(), String> {
             source,
             out,
             client,
+            package_name,
+            package_version,
+            runtime_path,
             validation_error,
             internal_error,
             unknown_operation_error,
@@ -1048,6 +1058,28 @@ fn generate(target: Target) -> Result<(), String> {
                 crucible_codegen_rust::capabilities()
             };
             let service = lower_with_capabilities(&source, &capabilities)?;
+            if client {
+                let mut options = crucible_codegen::RustOptions {
+                    package_name,
+                    ..Default::default()
+                };
+                if let Some(version) = package_version {
+                    options.package_version = version;
+                }
+                if let Some(path) = runtime_path {
+                    options.runtime = crucible_codegen::RuntimeDependency::Path(
+                        path.canonicalize()
+                            .map_err(|e| format!("cannot locate {}: {e}", path.display()))?,
+                    );
+                }
+                let files = crucible_codegen::Client::Rust(options)
+                    .emit(&service)
+                    .map_err(|d| format!("cannot generate the Rust SDK:\n{d}"))?;
+                crucible_codegen::write(&out, &files)
+                    .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
+                println!("wrote {} files to {}", files.len(), out.display());
+                return Ok(());
+            }
             let options = crucible_codegen_rust::Options {
                 validation_error,
                 internal_error,
@@ -1055,14 +1087,7 @@ fn generate(target: Target) -> Result<(), String> {
                 strict_inputs,
                 ..Default::default()
             };
-            let code = if client {
-                crucible_codegen::Client::Rust
-                    .emit(&service)
-                    .map(|mut files| files.remove(0).contents)
-            } else {
-                crucible_codegen_rust::generate(&service, &options)
-            };
-            let code = code
+            let code = crucible_codegen_rust::generate(&service, &options)
                 .map_err(|diagnostics| format!("cannot generate the Rust code:\n{diagnostics}"))?;
             std::fs::write(&out, code)
                 .map_err(|error| format!("cannot write {}: {error}", out.display()))?;

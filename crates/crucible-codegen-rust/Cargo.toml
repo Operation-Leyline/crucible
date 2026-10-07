@@ -1,6 +1,6 @@
 [package]
 name = "crucible-codegen-rust"
-description = "Rust server (axum) emitter for crucible"
+description = "Rust service bindings and native Cargo client SDK packages for crucible"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,7 +13,13 @@ crucible-codegen-common.workspace = true
 # Patterns are compiled at generation time, so one the generated server's
 # regex crate cannot run is a diagnostic rather than a startup panic.
 regex = "1"
+semver = "1"
+url = "2"
+toml = "0.8"
 serde_json = { workspace = true, features = ["preserve_order"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3"

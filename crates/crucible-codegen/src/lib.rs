@@ -26,6 +26,8 @@ pub use crucible_codegen_python::Options as PythonOptions;
 pub use crucible_codegen_r::Options as ROptions;
 #[cfg(feature = "ruby")]
 pub use crucible_codegen_ruby::Options as RubyOptions;
+#[cfg(feature = "rust")]
+pub use crucible_codegen_rust::{ClientOptions as RustOptions, RuntimeDependency};
 #[cfg(feature = "swift")]
 pub use crucible_codegen_swift::Options as SwiftOptions;
 #[cfg(feature = "ts")]

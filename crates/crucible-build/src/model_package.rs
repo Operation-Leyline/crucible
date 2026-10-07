@@ -43,9 +43,10 @@ impl ModelPackage {
         }
     }
 
-    /// Generate Rust source consumed by a scaffolded Cargo SDK package.
-    pub fn rust_client(&self, name: &str) -> Sdk<'_> {
-        self.sdk(name, Client::Rust)
+    /// Generate a native Cargo SDK package. Enable the `rust` feature.
+    #[cfg(feature = "rust")]
+    pub fn rust_client(&self, name: &str) -> crate::RustSdk<'_> {
+        crate::RustSdk::new(self, name)
     }
 
     /// Generate a Maven SDK package. Enable the build helper's `java` feature.

@@ -16,17 +16,25 @@
 
 mod builders;
 mod client;
+mod client_options;
+mod client_package;
 mod errors;
 mod events;
+mod file;
 mod info;
 mod models;
 mod names;
 mod open;
 mod operations;
+mod runtime_dependency;
 mod scaffold;
 mod types;
 
+pub use client_options::ClientOptions;
+pub use client_package::emit_client_package;
+pub use file::File;
 pub use names::escape_identifier;
+pub use runtime_dependency::RuntimeDependency;
 pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffold};
 
 use crucible_smithy::ir::{Service, Shape};

@@ -1,4 +1,4 @@
-//! Java 17 models and synchronous/asynchronous HTTP clients packaged for Maven.
+//! Java 17 models and synchronous/asynchronous HTTP clients packaged for Gradle and Maven.
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
@@ -18,6 +18,10 @@ pub struct File {
 }
 fn literal(text: &str) -> String {
     serde_json::to_string(text).expect("string serializes")
+}
+// Package metadata must not become Kotlin string interpolation.
+fn kotlin_literal(text: &str) -> String {
+    literal(text).replace('$', "\\$")
 }
 fn keyword(text: &str) -> bool {
     [
@@ -647,9 +651,20 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         xml(&options.artifact_id),
         xml(&options.package_version)
     );
+    let gradle = format!(
+        "plugins {{\n    `java-library`\n    `maven-publish`\n}}\n\ngroup = {}\nversion = {}\n\nrepositories {{\n    mavenCentral()\n}}\n\ndependencies {{\n    api(\"com.google.code.gson:gson:2.13.2\")\n}}\n\njava {{\n    sourceCompatibility = JavaVersion.VERSION_17\n    targetCompatibility = JavaVersion.VERSION_17\n    withSourcesJar()\n}}\n\ntasks.withType<JavaCompile>().configureEach {{\n    options.release.set(17)\n    options.encoding = \"UTF-8\"\n}}\n\npublishing {{\n    publications {{\n        create<MavenPublication>(\"sdk\") {{\n            from(components[\"java\"])\n        }}\n    }}\n}}\n",
+        kotlin_literal(&options.group_id),
+        kotlin_literal(&options.package_version),
+    );
+    let settings = format!(
+        "rootProject.name = {}\n",
+        kotlin_literal(&options.artifact_id),
+    );
     let provenance=serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
     let mut files = vec![
         file("pom.xml".into(), pom),
+        file("build.gradle.kts".into(), gradle),
+        file("settings.gradle.kts".into(), settings),
         file(format!("{source}/ModelRegistry.java"), registry),
         file(format!("{source}/{client_name}.java"), client),
         file(format!("{resource}/schema.json"), schema),

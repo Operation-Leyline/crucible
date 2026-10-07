@@ -18,11 +18,11 @@ ordinary calls do not require presence wrappers.
 
 | Language | Generated package | Guide |
 |---|---|---|
-| Rust | Cargo client with `crucible-client-runtime-rust` runtime | [Rust](docs/clients/rust.md) |
+| Rust | Complete Cargo SDK with automatic runtime dependency | [Rust](docs/clients/rust.md) |
 | TypeScript / JavaScript | Fetch-based ESM package | [TypeScript](docs/clients/typescript.md) |
 | Python | HTTPX package with sync and async clients | [Python](docs/clients/python.md) |
 | Go | Go module using `net/http` | [Go](docs/clients/go.md) |
-| Java | Java 17 Maven package | [Java](docs/clients/java.md) |
+| Java | Java 17 Gradle / Maven package | [Java](docs/clients/java.md) |
 | C# | .NET 8 NuGet project | [C#](docs/clients/csharp.md) |
 | Kotlin | JVM / Android Maven package with coroutines | [Kotlin](docs/clients/kotlin.md) |
 | Swift | Swift package for Linux and Apple platforms | [Swift](docs/clients/swift.md) |

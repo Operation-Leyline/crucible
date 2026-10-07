@@ -8,8 +8,9 @@ publish.workspace = true
 repository.workspace = true
 
 [features]
-default = []
-all-clients = ["ts", "python", "go", "java", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+default = ["rust"]
+rust = ["dep:crucible-codegen-rust"]
+all-clients = ["rust", "ts", "python", "go", "java", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
 ts = ["dep:crucible-codegen-ts"]
 python = ["dep:crucible-codegen-python"]
 go = ["dep:crucible-codegen-go"]
@@ -26,7 +27,7 @@ r = ["dep:crucible-codegen-r"]
 
 [dependencies]
 crucible-smithy.workspace = true
-crucible-codegen-rust.workspace = true
+crucible-codegen-rust = { workspace = true, optional = true }
 crucible-codegen-ts = { workspace = true, optional = true }
 crucible-codegen-python = { workspace = true, optional = true }
 crucible-codegen-go = { workspace = true, optional = true }

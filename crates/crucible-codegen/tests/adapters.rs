@@ -11,13 +11,23 @@ fn adapters_preserve_every_native_emitters_output() {
     .unwrap()
     .lower(None)
     .unwrap();
-    assert_eq!(
-        Client::Rust.emit(&service).unwrap(),
-        vec![File {
-            path: "src/lib.rs".into(),
-            contents: crucible_codegen_rust::generate_client(&service).unwrap()
-        }]
-    );
+    let rust_options = crucible_codegen::RustOptions {
+        package_name: Some("weather-sdk".into()),
+        package_version: "1.0.0".into(),
+        runtime: crucible_codegen::RuntimeDependency::Git {
+            repository: "https://github.com/Operation-Leyline/crucible".into(),
+            revision: "a".repeat(40),
+        },
+    };
+    let expected: Vec<File> = crucible_codegen_rust::emit_client_package(&service, &rust_options)
+        .unwrap()
+        .into_iter()
+        .map(|file| File {
+            path: file.path,
+            contents: file.contents,
+        })
+        .collect();
+    assert_eq!(Client::Rust(rust_options).emit(&service).unwrap(), expected);
     macro_rules! compare {
         ($variant:ident, $emitter:ident, $options:expr) => {
             let options = $options;

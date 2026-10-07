@@ -1,4 +1,5 @@
 use crucible_codegen::{Client, JavaOptions};
+use std::path::Path;
 
 use crate::{Artifact, ModelPackage};
 
@@ -67,5 +68,18 @@ impl<'a> JavaSdk<'a> {
         self.model
             .sdk(&self.name, Client::Java(self.options))
             .try_generate()
+    }
+
+    /// Generate under OUT_DIR and export to a stable native package path.
+    pub fn generate_into(self, output: impl AsRef<Path>) -> Artifact {
+        self.try_generate_into(output)
+            .unwrap_or_else(|message| panic!("crucible: {message}"))
+    }
+
+    /// Fallible equivalent of native package generation and export.
+    pub fn try_generate_into(self, output: impl AsRef<Path>) -> Result<Artifact, String> {
+        self.model
+            .sdk(&self.name, Client::Java(self.options))
+            .try_generate_into(output)
     }
 }

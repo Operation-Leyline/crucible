@@ -1,3 +1,5 @@
+#![cfg(all(feature = "rust", feature = "smithy"))]
+
 use std::cell::Cell;
 use std::fs;
 use std::path::PathBuf;

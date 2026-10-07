@@ -739,7 +739,11 @@ dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
  "regex",
+ "semver",
  "serde_json",
+ "tempfile",
+ "toml",
+ "url",
 ]
 
 [[package]]

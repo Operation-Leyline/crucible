@@ -5,15 +5,33 @@
 //! fn main() {
 //!     let model = crucible_build::smithy("model").compile();
 //!     model.publish();
-//!     model.rust_client("rust").generate();
-//!     model.java_client("java").package("example.sdk").generate();
+//!     model.rust_client("rust")
+//!         .package("weather-sdk")
+//!         .generate_into("../target/rust-sdk");
+//!     model.java_client("java")
+//!         .package("example.sdk")
+//!         .generate_into("../target/java-sdk");
 //! }
 //! ```
 //!
+//! Rust generation emits a complete Cargo package with a pinned runtime
+//! dependency. Applications declare an ordinary path dependency on the exported
+//! SDK and import its client and runtime API, without an inclusion macro.
+//! Java generation emits Gradle and Maven metadata. Build native exports with
+//! Cargo, Gradle or Maven; generation does not publish them to remote registries.
 //! A separate SDK producer can use [`model_dependency`] without recompiling
-//! Smithy. [`artifact`] binds a model-owned Rust output to an SDK package, whose
-//! small inclusion hook is hidden from applications. Native packages can be
-//! exported with `crucible export-sdk` and built with their native toolchains.
+//! Smithy. `.generate()` keeps artifacts under OUT_DIR for explicit export with
+//! `crucible export-sdk`. `.generate_into()` also publishes a stable native
+//! package path and watches its generated files so deleted exports regenerate.
+//!
+//! Defaults enable `smithy` and `rust`. Select `java` or other native client
+//! features explicitly. With defaults disabled, AST publication and model
+//! compilation remain usable without any Rust emitter dependency.
+//!
+//! ## Legacy source-only Rust integration
+//!
+//! The `rust` feature also retains direct generation into an existing crate.
+//! These helpers emit source rather than a separate native Cargo package.
 //!
 //! Compile a service's Smithy sources and generate its Rust contract:
 //!
@@ -60,8 +78,11 @@
 
 use std::path::{Path, PathBuf};
 
+#[cfg(feature = "rust")]
 use crucible_codegen_rust::Options;
-use crucible_smithy::{Model, ShapeId};
+#[cfg(feature = "rust")]
+use crucible_smithy::Model;
+use crucible_smithy::ShapeId;
 
 mod artifact;
 mod artifact_index;
@@ -69,6 +90,8 @@ mod artifact_index;
 mod java_sdk;
 mod model_builder;
 mod model_package;
+#[cfg(feature = "rust")]
+mod rust_sdk;
 mod sdk;
 pub use artifact::Artifact;
 pub use artifact_index::export_artifact;
@@ -77,17 +100,21 @@ pub use crucible_codegen as clients;
 pub use java_sdk::JavaSdk;
 pub use model_builder::ModelBuilder;
 pub use model_package::ModelPackage;
+#[cfg(feature = "rust")]
+pub use rust_sdk::RustSdk;
 pub use sdk::Sdk;
 
 mod smithy;
-#[cfg(feature = "smithy")]
+#[cfg(all(feature = "smithy", feature = "rust"))]
 pub use smithy::client_from_smithy;
+#[cfg(feature = "rust")]
 pub use smithy::client_from_smithy_with;
 #[cfg(feature = "smithy")]
 pub use smithy::compile_smithy;
 pub use smithy::compile_smithy_with;
-#[cfg(feature = "smithy")]
+#[cfg(all(feature = "smithy", feature = "rust"))]
 pub use smithy::from_smithy;
+#[cfg(feature = "rust")]
 pub use smithy::from_smithy_with;
 #[cfg(feature = "smithy")]
 pub use smithy::publish_model_from_smithy;
@@ -144,12 +171,14 @@ pub fn publish_model(path: impl AsRef<Path>) {
 
 /// From a service package's `build.rs`: generates the server side from the
 /// model published by the dependency whose manifest says `links = "<links>"`.
+#[cfg(feature = "rust")]
 pub fn service(links: &str) -> Codegen {
     Codegen::from_model(published(links))
 }
 
 /// From a client package's `build.rs`: generates a client from the model
 /// published by the dependency whose manifest says `links = "<links>"`.
+#[cfg(feature = "rust")]
 pub fn client(links: &str) -> Codegen {
     Codegen::client_from_model(published(links))
 }
@@ -167,6 +196,7 @@ fn published(links: &str) -> PathBuf {
 
 /// What to generate, and from which model.
 #[derive(Debug, Clone)]
+#[cfg(feature = "rust")]
 pub struct Codegen {
     model: PathBuf,
     service: Option<ShapeId>,
@@ -177,11 +207,13 @@ pub struct Codegen {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(feature = "rust")]
 enum Side {
     Server,
     Client,
 }
 
+#[cfg(feature = "rust")]
 impl Codegen {
     /// The server side, from a model file directly: for a model inside the
     /// service package.
