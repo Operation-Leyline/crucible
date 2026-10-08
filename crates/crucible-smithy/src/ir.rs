@@ -485,9 +485,32 @@ pub struct Operation {
     /// The input member a client fills with a fresh token when it is absent.
     pub idempotency_token: Option<String>,
     pub paginated: Option<Paginated>,
+    /// `@examples`, validated against the operation's shapes, in model order.
+    pub examples: Vec<Example>,
     pub request: Bindings,
     pub response: Bindings,
     pub traits: Traits,
+}
+
+/// One `@examples` entry. `input`, `output` and `error.content` are model
+/// values: members are named as in the model and timestamps are as written.
+/// [`Service::wire_example`] renders a member's value as a document carries it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Example {
+    pub title: String,
+    pub docs: Option<String>,
+    pub input: Option<Value>,
+    pub output: Option<Value>,
+    pub error: Option<ExampleError>,
+    /// Constraint violations (length, range, pattern, uniqueness, required
+    /// members) were permitted in this example.
+    pub allow_constraint_errors: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExampleError {
+    pub shape: ShapeId,
+    pub content: Value,
 }
 
 impl Operation {

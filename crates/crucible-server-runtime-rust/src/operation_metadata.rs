@@ -6,6 +6,8 @@ use crate::operation::{AuthScheme, Operation, Protocol};
 pub struct OperationMetadata {
     pub protocol: Protocol,
     pub auth_schemes: Option<&'static [AuthScheme]>,
+    /// Prepared once at registration for protocol-independent bearer challenges.
+    pub bearer_auth: bool,
     pub optional_auth: bool,
     pub unsigned_payload: bool,
     pub has_input: bool,
@@ -19,6 +21,11 @@ impl OperationMetadata {
         Self {
             protocol: O::PROTOCOL,
             auth_schemes: O::AUTH_SCHEMES,
+            bearer_auth: O::AUTH_SCHEMES.is_some_and(|schemes| {
+                schemes
+                    .iter()
+                    .any(|scheme| matches!(scheme, AuthScheme::Bearer))
+            }),
             optional_auth: O::OPTIONAL_AUTH,
             unsigned_payload: O::UNSIGNED_PAYLOAD,
             has_input: O::HAS_INPUT,

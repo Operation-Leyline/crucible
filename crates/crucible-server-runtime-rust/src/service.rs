@@ -353,6 +353,29 @@ impl Crucible {
 
     fn response_headers(job: &mut Job, response: &mut Response) {
         response.headers_mut().extend(job.response_headers.drain());
+        // Authentication is a typed refusal across protocols, including modeled factory substitutions.
+        let refusal = match job.resolution() {
+            Some(crate::Resolution::Framework(error)) => Some(error),
+            _ => job.context().attribute::<FrameworkError>(),
+        };
+        if let Some(error @ (FrameworkError::Unauthenticated | FrameworkError::Forbidden)) = refusal
+            && response.status().as_u16() == error.status()
+            && job
+                .context()
+                .operation_metadata()
+                .is_some_and(|metadata| metadata.bearer_auth)
+        {
+            response
+                .headers_mut()
+                .entry(axum::http::header::WWW_AUTHENTICATE)
+                .or_insert(HeaderValue::from_static(
+                    if error == FrameworkError::Forbidden {
+                        "Bearer error=\"insufficient_scope\""
+                    } else {
+                        "Bearer"
+                    },
+                ));
+        }
         if !response.headers().contains_key("x-request-id") {
             response
                 .headers_mut()

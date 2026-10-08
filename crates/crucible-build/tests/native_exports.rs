@@ -152,6 +152,13 @@ fn main() {{
     let members = city["members"].as_object_mut().unwrap();
     let member = members.remove("name").unwrap();
     members.insert("displayName".into(), member);
+    // Examples are checked against the shapes, so the renamed member would
+    // otherwise make the (now stale) weather examples a build error.
+    for shape in model["shapes"].as_object_mut().unwrap().values_mut() {
+        if let Some(traits) = shape.get_mut("traits").and_then(|t| t.as_object_mut()) {
+            traits.remove("smithy.api#examples");
+        }
+    }
     fs::write(
         producer.join("model.json"),
         serde_json::to_vec(&model).unwrap(),

@@ -15,6 +15,7 @@ serde_json = { workspace = true, features = ["preserve_order", "arbitrary_precis
 thiserror.workspace = true
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 jmespath = "0.5"
+regex = "1"
 
 [lints]
 workspace = true

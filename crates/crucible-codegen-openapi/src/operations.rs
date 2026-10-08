@@ -4,15 +4,21 @@ use crucible_smithy::Protocol;
 use crucible_smithy::ir::{Bindings, Member, Operation, PayloadKind, Service, Shape, Structure};
 use serde_json::{Map, Value, json};
 
-use crate::{description, key, schemas, traits};
+use crate::{description, examples, key, schemas, traits};
 
 pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
+    let keys = examples::keys(op);
+    let mut raw_traits = traits(&op.traits);
+    // The examples are projected natively below; repeating them raw is noise.
+    if let Some(raw) = raw_traits.as_object_mut() {
+        raw.remove("smithy.api#examples");
+    }
     let mut value = json!({
         "operationId": service.name_of(&op.id),
-        "responses": responses(service, op),
+        "responses": responses(service, op, &keys),
         "security": security(op),
         "x-smithy-shape": op.id.to_string(),
-        "x-smithy-traits": traits(&op.traits),
+        "x-smithy-traits": raw_traits,
     });
     description(&mut value, op.docs.as_deref());
     if let Some(resource) = &op.resource {
@@ -31,10 +37,18 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
         value["x-smithy-pagination"] = json!({"inputToken": pagination.input_token, "outputToken": pagination.output_token, "items": pagination.items, "pageSize": pagination.page_size});
     }
     let mut parameters = Vec::new();
+    let inputs = examples::inputs(op, &keys);
     if let Some(input) = structure(service, op.input.as_ref()) {
         for name in &op.request.labels {
             let member = input.member(name).expect("lowering resolves label members");
-            parameters.push(parameter(service, member, name, "path", &op.request));
+            parameters.push(parameter(
+                service,
+                member,
+                name,
+                "path",
+                &op.request,
+                examples::member(service, input, &op.request, name, &inputs),
+            ));
         }
         for binding in &op.request.query {
             let member = input
@@ -46,6 +60,7 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
                 &binding.name,
                 "query",
                 &op.request,
+                examples::member(service, input, &op.request, &binding.member, &inputs),
             ));
         }
         for binding in &op.request.headers {
@@ -58,10 +73,17 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
                 &binding.name,
                 "header",
                 &op.request,
+                examples::member(service, input, &op.request, &binding.member, &inputs),
             ));
         }
         if !op.request.body.is_empty() || op.request.payload.is_some() {
-            let content = content(service, input, &op.request);
+            let mut content = content(service, input, &op.request);
+            attach_examples(
+                &mut content,
+                examples::map(&inputs, |sample| {
+                    examples::body(service, input, &op.request, sample)
+                }),
+            );
             let required = if let Some(payload) = &op.request.payload {
                 input
                     .member(&payload.member)
@@ -121,6 +143,7 @@ fn parameter(
     name: &str,
     location: &str,
     bindings: &Bindings,
+    examples: Option<Value>,
 ) -> Value {
     let mut value = json!({
         "name": name,
@@ -131,7 +154,22 @@ fn parameter(
         "explode": location == "query",
     });
     description(&mut value, member.docs.as_deref());
+    if let Some(examples) = examples {
+        value["examples"] = examples;
+    }
     value
+}
+
+/// A body has one value per example whatever its media type.
+fn attach_examples(content: &mut Value, examples: Option<Value>) {
+    let Some(examples) = examples else { return };
+    for media in content
+        .as_object_mut()
+        .expect("content is an object")
+        .values_mut()
+    {
+        media["examples"] = examples.clone();
+    }
 }
 
 fn content(service: &Service, structure: &Structure, bindings: &Bindings) -> Value {
@@ -177,21 +215,36 @@ fn content(service: &Service, structure: &Structure, bindings: &Bindings) -> Val
     Value::Object(content)
 }
 
-fn headers(service: &Service, structure: &Structure, bindings: &Bindings) -> Map<String, Value> {
+fn headers(
+    service: &Service,
+    structure: &Structure,
+    bindings: &Bindings,
+    samples: &[examples::Sample],
+) -> Map<String, Value> {
     bindings.headers.iter().map(|binding| {
         let member = structure.member(&binding.member).expect("lowering resolves response headers");
         let mut header = json!({"schema": schemas::member(service, member, false, bindings.timestamp_formats.get(&member.name).copied(), bindings.header_encodings.get(&member.name).copied()), "style": "simple", "explode": false});
         description(&mut header, member.docs.as_deref());
+        if let Some(examples) = examples::member(service, structure, bindings, &member.name, samples) {
+            header["examples"] = examples;
+        }
         (binding.name.clone(), header)
     }).collect()
 }
 
-fn responses(service: &Service, op: &Operation) -> Value {
+fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
     let mut grouped: BTreeMap<u16, Vec<Value>> = BTreeMap::new();
     let mut success = json!({"description": "Successful response"});
     if let Some(output) = structure(service, op.output.as_ref()) {
+        let outputs = examples::outputs(op, keys);
         success["content"] = content(service, output, &op.response);
-        let headers = headers(service, output, &op.response);
+        attach_examples(
+            &mut success["content"],
+            examples::map(&outputs, |sample| {
+                examples::body(service, output, &op.response, sample)
+            }),
+        );
+        let headers = headers(service, output, &op.response, &outputs);
         if !headers.is_empty() {
             success["headers"] = json!(headers);
         }
@@ -214,7 +267,19 @@ fn responses(service: &Service, op: &Operation) -> Value {
             header_encodings: error.header_encodings.clone(),
             ..Default::default()
         };
+        let samples = examples::errors(op, keys, id);
         let mut content = content(service, structure, &bindings);
+        attach_examples(
+            &mut content,
+            examples::map(&samples, |sample| {
+                let mut body = examples::body(service, structure, &bindings, sample)?;
+                // The schema requires the discriminator, so a conforming example carries it.
+                if error.payload.is_none() && service.protocol == Protocol::CrucibleJson {
+                    body["__type"] = json!(error.wire_code);
+                }
+                Some(body)
+            }),
+        );
         if error.payload.is_none() && service.protocol == Protocol::CrucibleJson {
             let schema = &mut content["application/json"]["schema"];
             schema["properties"]["__type"] = json!({"type": "string", "const": error.wire_code});
@@ -228,7 +293,7 @@ fn responses(service: &Service, op: &Operation) -> Value {
                 .expect("required array")
                 .push(json!("__type"));
         }
-        let mut response_headers = headers(service, structure, &bindings);
+        let mut response_headers = headers(service, structure, &bindings, &samples);
         response_headers.insert(
             if service.protocol == Protocol::CrucibleJson {
                 "X-Crucible-Error"
@@ -262,16 +327,18 @@ fn merge(mut variants: Vec<Value>) -> Value {
         .iter()
         .filter_map(|v| v["description"].as_str())
         .collect();
-    let mut content: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    // Example keys are unique across an operation, so variants never collide.
+    let mut content: BTreeMap<String, (Vec<Value>, Map<String, Value>)> = BTreeMap::new();
     let mut headers: BTreeMap<String, (String, Vec<Value>)> = BTreeMap::new();
     let mut errors = Vec::new();
     for variant in &variants {
         if let Some(types) = variant["content"].as_object() {
             for (media_type, media) in types {
-                content
-                    .entry(media_type.clone())
-                    .or_default()
-                    .push(media["schema"].clone());
+                let group = content.entry(media_type.clone()).or_default();
+                group.0.push(media["schema"].clone());
+                if let Some(examples) = media["examples"].as_object() {
+                    group.1.extend(examples.clone());
+                }
             }
         }
         if let Some(values) = variant["headers"].as_object() {
@@ -292,7 +359,13 @@ fn merge(mut variants: Vec<Value>) -> Value {
         response["content"] = Value::Object(
             content
                 .into_iter()
-                .map(|(media, schemas)| (media, json!({"schema": alternatives(schemas)})))
+                .map(|(media, (schemas, examples))| {
+                    let mut entry = json!({"schema": alternatives(schemas)});
+                    if !examples.is_empty() {
+                        entry["examples"] = Value::Object(examples);
+                    }
+                    (media, entry)
+                })
                 .collect(),
         );
     }

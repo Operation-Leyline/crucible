@@ -27,6 +27,7 @@ fn service_wide_headers_are_normalized_sorted_and_deduplicated() {
         cors.exposed_headers,
         [
             "content-type",
+            "www-authenticate",
             "x-crucible-error",
             "x-error",
             "x-extra-response",
