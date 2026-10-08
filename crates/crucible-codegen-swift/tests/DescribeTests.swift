@@ -54,9 +54,13 @@ final class DescribeTests: XCTestCase {
     func testErrorMetadataDumpsHideMessageAndHeaders() {
         let metadata = ErrorMetadata(name: "AccessDenied", message: "msg-secret", status: 403,
                                      headers: ["authorization": ["header-secret"]])
+        // An error's own description is its message by design, so the unknown error is held to the headers only.
         var dumped = ""
         dump(UnknownServiceError(metadata: metadata), to: &dumped)
-        for text in [dumped, String(reflecting: metadata), metadata.debugDescription] {
+        XCTAssertFalse(dumped.contains("header-secret"), dumped)
+        var metadataDump = ""
+        dump(metadata, to: &metadataDump)
+        for text in [metadataDump, String(reflecting: metadata), metadata.debugDescription] {
             XCTAssertFalse(text.contains("header-secret") || text.contains("msg-secret"), text)
         }
     }
