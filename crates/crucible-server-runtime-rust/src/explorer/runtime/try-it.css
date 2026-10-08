@@ -1,0 +1,10 @@
+.cx-try-form { display: grid; gap: 1rem; }
+.cx-try-form fieldset { border: 1px solid var(--cx-border, #ccc); border-radius: .4rem; padding: 1rem; display: grid; gap: .8rem; }
+.cx-try-field { display: grid; gap: .3rem; font-weight: 600; }
+.cx-try-form input, .cx-try-form select, .cx-try-form textarea { width: 100%; min-height: 2.5rem; padding: .5rem; border: 1px solid var(--cx-border, #ccc); border-radius: .3rem; color: inherit; background: transparent; font: inherit; }
+.cx-try-form textarea { font-family: ui-monospace, monospace; resize: vertical; }
+.cx-try-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.cx-try-actions button { padding: .6rem 1rem; font: inherit; cursor: pointer; }
+.cx-try-actions button:disabled { opacity: .5; cursor: default; }
+.cx-try-response { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 32rem; overflow-y: auto; }
+.cx-try-status { min-height: 1.5rem; margin: 0; }

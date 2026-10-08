@@ -1,4 +1,5 @@
-use super::{AuthorizationServerMetadata, EndpointGuard, McpAuthorization};
+use super::{AuthorizationServerMetadata, McpAuthorization};
+use crate::endpoint::EndpointGuard;
 
 /// Endpoint settings for the MCP tools carried by generated service metadata.
 pub struct McpConfig {

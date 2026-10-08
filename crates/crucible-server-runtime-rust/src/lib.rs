@@ -37,8 +37,11 @@ mod auth_refusal;
 pub mod conformance;
 pub mod context;
 mod decoded_job;
+pub mod endpoint;
 pub mod error;
 mod exception_translator;
+#[cfg(feature = "explorer")]
+pub mod explorer;
 mod fn_middleware;
 mod generated_operations_builder;
 mod hook;
@@ -109,6 +112,8 @@ pub use async_trait::async_trait;
 pub mod __generated {
     #[cfg(any(test, feature = "test-support"))]
     pub use crate::conformance;
+    #[cfg(feature = "explorer")]
+    pub use crate::explorer::description::description as explorer_description;
     pub use crate::generated_operations_builder::OperationsBuilder;
     pub use crate::{
         Context, Crucible, MissingOperations, ModelledError, Operation, OperationInfo, Operations,
