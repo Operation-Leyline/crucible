@@ -162,6 +162,7 @@ pub use cli_output::CliOutput;
 pub use cpp_sdk::CppSdk;
 pub use crucible_codegen as clients;
 pub use crucible_codegen as outputs;
+pub use crucible_codegen::Audience;
 #[cfg(feature = "csharp")]
 pub use csharp_sdk::CsharpSdk;
 #[cfg(feature = "dart")]
@@ -293,6 +294,7 @@ pub struct RustCodegen {
     service: Option<ShapeId>,
     options: Options,
     side: Side,
+    audience: Audience,
     policy: Option<PathBuf>,
     model_output: Option<PathBuf>,
     conformance: Option<ConformanceOptions>,
@@ -315,10 +317,17 @@ impl RustCodegen {
             service: None,
             options: Options::default(),
             side: Side::Server,
+            audience: Audience::External,
             policy: None,
             model_output: None,
             conformance: None,
         }
+    }
+
+    /// Select client visibility. Server generation always retains everything.
+    pub fn audience(mut self, audience: Audience) -> Self {
+        self.audience = audience;
+        self
     }
 
     /// A client, from a model file directly.
@@ -510,9 +519,24 @@ impl RustCodegen {
             Side::Server => crucible_codegen_rust::capabilities(),
             Side::Client => crucible_codegen_rust::client_capabilities(),
         };
-        model
-            .lower_with_capabilities(self.service.as_ref(), &capabilities)
-            .map_err(|error| error.to_string())
+        let service = model
+            .lower_with_capabilities(
+                self.service.as_ref(),
+                &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
+            )
+            .map_err(|error| error.to_string())?;
+        if let Some(policy) = &self.policy {
+            check_policy(&service, policy)?;
+        }
+        let service = if self.side == Side::Client {
+            crucible_smithy::project(&service, self.audience).map_err(|e| e.to_string())?
+        } else {
+            service
+        };
+        service
+            .require_capabilities(&capabilities)
+            .map_err(|e| e.to_string())?;
+        Ok(service)
     }
 
     /// The conformance tests, or why there are none.
@@ -538,9 +562,6 @@ impl RustCodegen {
     /// The generated code, or why there is none.
     pub fn render(&self) -> Result<String, String> {
         let service = self.lower()?;
-        if let Some(policy) = &self.policy {
-            check_policy(&service, policy)?;
-        }
         let generated = match self.side {
             Side::Server => crucible_codegen_rust::generate(&service, &self.options),
             Side::Client => crucible_codegen_rust::generate_client(&service),

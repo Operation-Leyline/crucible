@@ -56,3 +56,5 @@ pub use file::File;
 pub use generator::Generator;
 pub use output::write;
 pub use server::Server;
+
+pub use crucible_smithy::Audience;

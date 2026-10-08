@@ -65,6 +65,7 @@ fn main() {
         .version("0.1.0")
         .generate_into("../target/java-sdk");
     model.java_client("java-internal")
+        .audience(crucible_build::Audience::Internal)
         .group_id("example.weather")
         .artifact_id("weather-client-internal")
         .package("example.weather.internal")
@@ -82,8 +83,8 @@ directories do not trigger model compilation.
 
 Output names start with a lowercase letter and contain lowercase letters,
 digits, or hyphens. Names must be unique within a producer. `java` and
-`java-internal` are two configurations of the same service contract; they do
-not filter its operations. Java settings also support `.endpoint(...)` and
+`java-internal` are distinct configurations. The internal variant above includes
+all API; the default external variant omits `@internal` API. Java settings also support `.endpoint(...)` and
 `.content_sha256(true)`.
 
 To apply project conventions before publication and generation, use
@@ -93,6 +94,52 @@ your policy file. `.named("example.weather#Weather")` selects a service;
 [API policy and compatibility](api-policy.md) for policy and CI comparisons.
 For an already compiled AST, use `model_from_json("model.json")` instead of
 `smithy("model")`.
+
+### Selecting an API audience
+
+Every client-like named output defaults to `Audience::External`: native SDKs,
+TypeScript, Rust clients, OpenAPI, service CLIs, CDK and Terraform. The external
+projection removes `@internal` operations, optional members, error variants, enum
+values and shapes reachable only through removed items. Shared public types remain.
+Choose the full contract explicitly for an internal package:
+
+```rust
+model.rust_client("internal")
+    .audience(crucible_build::Audience::Internal)
+    .package("weather-internal-sdk")
+    .generate_into("../target/internal-sdk");
+```
+
+The same `.audience(...)` setter is available on every fluent helper and on
+`model.sdk(...)` and `model.output(...)`. `options(...)` replaces native package
+settings and preserves the selected audience. `Audience` is re-exported from
+`crucible-build` and `crucible-codegen`.
+
+The CLI accepts `--audience external|internal` on every `generate` target:
+
+```sh
+crucible generate ts model.json --audience internal \
+  --out target/internal-ts --package-name @example/internal-api
+```
+
+External projection refuses contracts that need removed API. It collects every
+required internal member, external reference to an internal shape, paginator,
+waiter or endpoint reference to a removed member, and removed lifecycle operation
+on a public infrastructure resource. Internal collection elements cannot be
+removed; checksum and endpoint-discovery references are checked too. Diagnostics
+identify the referencing shape or member. Generation fails before writing files,
+so an existing output survives a refusal.
+
+Server bindings always use the full model, including named server outputs and
+`crucible generate rust` without `--client`. They expose `OperationInfo::internal`
+for application middleware; selecting an audience is not caller authorization.
+
+For Leyline and Pigeon, regenerate public outputs with the default and explicitly
+select `Audience::Internal` (or `--audience internal`) for any package that must
+retain the previous full API. Fix projection diagnostics in the model before
+publishing, then bump the generated package versions and consumers together.
+Internal errors received by external Rust and TypeScript clients use their
+existing unknown/unmodelled error paths.
 
 ### Selecting other languages
 

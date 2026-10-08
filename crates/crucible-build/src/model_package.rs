@@ -92,6 +92,7 @@ impl ModelPackage {
             model: self,
             name: name.into(),
             generator,
+            audience: crucible_codegen::Audience::External,
         }
     }
 

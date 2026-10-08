@@ -7,10 +7,17 @@ use crate::{Artifact, ModelPackage};
 pub struct Output<'a> {
     pub(crate) model: &'a ModelPackage,
     pub(crate) name: String,
+    pub(crate) audience: crucible_codegen::Audience,
     pub(crate) generator: Generator,
 }
 
 impl Output<'_> {
+    /// Select client visibility. Server outputs always implement the full model.
+    pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
+        self.audience = audience;
+        self
+    }
+
     /// Generate under OUT_DIR, publish its artifact path and return the output.
     pub fn generate(self) -> Artifact {
         self.try_generate()
@@ -91,7 +98,7 @@ impl Output<'_> {
         };
         let files = self
             .generator
-            .emit(service)
+            .emit_for_audience(service, self.audience)
             .map_err(|e| format!("output {}: {e}", self.name))?;
         let output = self.model.output.join("outputs").join(&self.name);
         crucible_codegen::write(&output, &files)
