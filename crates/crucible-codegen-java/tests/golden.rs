@@ -251,6 +251,8 @@ fn sensitive_members_are_redacted_in_to_string() {
         );
     }
     assert!(input.contains("\"names\", names"));
+    // `@sensitive` on the shape covers its untagged members.
+    assert!(source("/model/Classified.java").contains("ModelFormat.redact(detail)"));
     assert!(source("/model/Profile.java").contains("ModelFormat.redact(pin)"));
     assert!(source("/model/Choice.java").contains("ModelFormat.redact(code)"));
     assert!(source("/model/Unavailable.java").contains("ModelFormat.redact(retryToken)"));

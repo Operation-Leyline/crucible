@@ -220,6 +220,8 @@ fn sensitive_members_are_redacted_in_to_string() {
         );
     }
     assert!(input.contains("(\"Names\", @NamesPresence)"));
+    // `@sensitive` on the shape covers its untagged members.
+    assert!(source("Models/Classified.cs").contains("ModelFormat.Redact(@Detail"));
     assert!(source("Models/Profile.cs").contains("ModelFormat.Redact(@PinPresence)"));
     assert!(source("Models/Choice.cs").contains("ModelFormat.Redact(@CodePresence)"));
     assert!(source("Models/Unavailable.cs").contains("ModelFormat.Redact(@RetryTokenPresence)"));

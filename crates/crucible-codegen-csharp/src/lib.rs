@@ -560,7 +560,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         );
                         pairs.push_str(&format!(
                             ", (\"{f}\", {})",
-                            if crucible_codegen_common::redacted(service, m) {
+                            if shape.sensitive() || crucible_codegen_common::redacted(service, m) {
                                 format!("global::{ns}.ModelFormat.Redact(@{f}Presence)")
                             } else {
                                 format!("@{f}Presence")
@@ -594,7 +594,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         ));
                         pairs.push_str(&format!(
                             ", (\"{f}\", {})",
-                            if crucible_codegen_common::redacted(service, m) {
+                            if shape.sensitive() || crucible_codegen_common::redacted(service, m) {
                                 format!("global::{ns}.ModelFormat.Redact(@{f})")
                             } else {
                                 format!("@{f}")

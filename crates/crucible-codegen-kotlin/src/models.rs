@@ -273,7 +273,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         copy.push_str(&format!("        builder.`{f}` = this.`{f}`\n"));
                         (format!("`{f}`"), t)
                     };
-                    let shown = if crucible_codegen_common::redacted(service, m) {
+                    let shown = if s.sensitive() || crucible_codegen_common::redacted(service, m) {
                         format!("{package}.ModelFormat.redact({storage})")
                     } else {
                         storage.clone()
@@ -333,7 +333,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         &[],
                         &["@property value the variant's value".to_string()],
                     ));
-                    let shown = if crucible_codegen_common::redacted(service, m) {
+                    let shown = if s.sensitive() || crucible_codegen_common::redacted(service, m) {
                         format!("{package}.ModelFormat.redact(value)")
                     } else {
                         "value".to_string()

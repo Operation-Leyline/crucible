@@ -291,6 +291,11 @@ fn sensitive_members_are_redacted_in_to_string() {
         );
     }
     assert!(input.contains("\"names\" to __crucibleField"));
+    // `@sensitive` on the shape covers its untagged members.
+    assert!(
+        source("/model/Classified.kt")
+            .contains("\"detail\" to example.weather.ModelFormat.redact(")
+    );
     assert!(source("/model/Profile.kt").contains("\"pin\" to example.weather.ModelFormat.redact("));
     assert!(source("/model/Choice.kt").contains("ModelFormat.redact(value)"));
     assert!(

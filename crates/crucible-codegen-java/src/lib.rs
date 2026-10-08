@@ -651,7 +651,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
             Shape::Enum(e) => {
                 models.push_str(&javadoc("    ", e.docs.as_deref(), &["An open enum: values this client does not know are preserved, so compare with the constants or {@link #value()}.".to_string()], &["@param value the wire value".to_string()]));
-                models.push_str(&format!("    public record {name}(java.lang.String value) {{\n        /** Requires a non-null value. */\n        public {name} {{ java.util.Objects.requireNonNull(value); }}\n        /** @return the wire value. */\n        @Override public java.lang.String toString() {{ return value; }}\n"));
+                models.push_str(&format!("    public record {name}(java.lang.String value) {{\n        /**\n         * Requires a non-null value.\n         *\n         * @param value the wire value\n         */\n        public {name} {{ java.util.Objects.requireNonNull(value); }}\n        /** @return the wire value. */\n        @Override public java.lang.String toString() {{ return value; }}\n"));
                 for v in &e.values {
                     models.push_str(&javadoc(
                         "        ",
@@ -918,11 +918,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
                 for m in &s.members {
                     let f = member_field(&m.name, package);
-                    let value = if crucible_codegen_common::redacted(service, m) {
-                        format!("{package}.ModelFormat.redact({f})")
-                    } else {
-                        f
-                    };
+                    let value =
+                        if shape.sensitive() || crucible_codegen_common::redacted(service, m) {
+                            format!("{package}.ModelFormat.redact({f})")
+                        } else {
+                            f
+                        };
                     pairs.push_str(&format!(", {}, {value}", literal(&m.name)));
                 }
                 if is_union {

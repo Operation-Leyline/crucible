@@ -155,6 +155,9 @@
         },
         "profile": {
           "target": "example.docs#Profile"
+        },
+        "classified": {
+          "target": "example.docs#Classified"
         }
       }
     },
@@ -182,6 +185,17 @@
       },
       "members": {
         "reason": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.docs#Classified": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#sensitive": {}
+      },
+      "members": {
+        "detail": {
           "target": "smithy.api#String"
         }
       }

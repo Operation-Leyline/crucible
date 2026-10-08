@@ -7,7 +7,11 @@ package example.weather.model;
      * @param value the wire value
      */
     public record Sky(java.lang.String value) {
-        /** Requires a non-null value. */
+        /**
+         * Requires a non-null value.
+         *
+         * @param value the wire value
+         */
         public Sky { java.util.Objects.requireNonNull(value); }
         /** @return the wire value. */
         @Override public java.lang.String toString() { return value; }

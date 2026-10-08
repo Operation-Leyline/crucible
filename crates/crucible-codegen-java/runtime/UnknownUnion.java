@@ -7,7 +7,12 @@
  * @param value the variant's raw JSON value
  */
 public record UnknownUnion(String name, com.google.gson.JsonElement value) {
-  /** Requires both components. */
+  /**
+   * Requires both components.
+   *
+   * @param name the variant name
+   * @param value the raw payload
+   */
   public UnknownUnion {
     java.util.Objects.requireNonNull(name);
     java.util.Objects.requireNonNull(value);

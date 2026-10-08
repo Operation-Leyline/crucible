@@ -14,7 +14,14 @@ public record AwsCredentials(String accessKeyId, String secretAccessKey, String 
    * @param secretAccessKey the secret key
    */
   public AwsCredentials(String accessKeyId, String secretAccessKey) { this(accessKeyId, secretAccessKey, null, null); }
-  /** Requires a nonempty key and secret. */
+  /**
+   * Requires a nonempty key and secret.
+   *
+   * @param accessKeyId the access key id
+   * @param secretAccessKey the secret key
+   * @param sessionToken the session token, or {@code null}
+   * @param expiresAt when the credentials expire, or {@code null} if they do not
+   */
   public AwsCredentials {
     if (accessKeyId == null || accessKeyId.isEmpty() || secretAccessKey == null || secretAccessKey.isEmpty())
       throw new IllegalArgumentException("AWS access key and secret must be nonempty");

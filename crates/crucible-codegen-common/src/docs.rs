@@ -173,7 +173,11 @@ fn inline(item: &Inline, d: Dialect) -> String {
         // XML documentation has no emphasis element worth the tooling risk.
         (Inline::Strong(i) | Inline::Emph(i), Dialect::Xml) => inlines(i, d),
         (Inline::Link(text, url), Dialect::Html) => {
-            format!("<a href=\"{}\">{}</a>", html_escape(url), inlines(text, d))
+            format!(
+                "<a href=\"{}\">{}</a>",
+                html_escape(url).replace('"', "&quot;"),
+                inlines(text, d)
+            )
         }
         (Inline::Link(text, url), Dialect::Kdoc) => format!(
             "[{}]({})",
@@ -185,7 +189,7 @@ fn inline(item: &Inline, d: Dialect) -> String {
         (Inline::Link(text, url), Dialect::Xml) => {
             format!(
                 "<see href=\"{}\">{}</see>",
-                xml_escape(url),
+                xml_escape(url).replace('"', "&quot;"),
                 inlines(text, d)
             )
         }
@@ -463,6 +467,21 @@ mod tests {
         assert!(out.contains("<ul>\n<li>first <code>a *&#47; b</code></li>"));
         assert!(out.contains("&lt;b&gt;raw&lt;/b&gt; &#64;param"));
         assert!(!out.contains("*/"));
+    }
+
+    #[test]
+    fn link_urls_cannot_close_the_href_attribute() {
+        let source = "[x](https://e.example/a\"b)";
+        assert!(
+            javadoc(source)
+                .join("")
+                .contains("href=\"https://e.example/a&quot;b\"")
+        );
+        assert!(
+            xmldoc(source)
+                .join("")
+                .contains("href=\"https://e.example/a&quot;b\"")
+        );
     }
 
     #[test]
