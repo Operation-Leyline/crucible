@@ -30,8 +30,9 @@ check(str_contains($text, 'createdAt=1970-01-01T00:00:00Z'), 'timestamps: ' . $t
 check(str_contains($text, 'payload=<3 bytes>'), 'blobs show their length: ' . $text);
 check(!str_contains($text, 'revision'), 'absent members are omitted: ' . $text);
 
-// Every inspection path hides sensitive values, not just __toString().
-ob_start(); var_dump($secret); print_r($secret); var_export($secret->__debugInfo());
+// Every inspection path (var_dump, print_r, string forms) hides sensitive values, not just __toString().
+// var_export() ignores __debugInfo() and prints public properties, so it is not an inspection path a model can guard.
+ob_start(); var_dump($secret); print_r($secret);
 $dumped = ob_get_clean();
 foreach ([$text, $secret->describe(), $dumped] as $output) {
     foreach ($secrets as $leaked) check(!str_contains($output, $leaked), "$leaked leaked in: $output");

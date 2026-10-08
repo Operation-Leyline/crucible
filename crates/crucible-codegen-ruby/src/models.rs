@@ -37,7 +37,7 @@ fn yard_type(service: &Service, id: &ShapeId) -> String {
             "Hash{{String => {}}}",
             yard_type(service, &map.value.target)
         ),
-        Some(Shape::Unit) | None => "Runtime::Unit".into(),
+        Some(Shape::Unit { .. }) | None => "Runtime::Unit".into(),
         Some(_) => service.name_of(id).to_string(),
     }
 }

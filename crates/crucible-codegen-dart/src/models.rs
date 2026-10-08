@@ -53,7 +53,16 @@ pub fn emit(service: &Service) -> String {
     }) {
         out.push_str("import 'runtime/json.dart' as json;\n");
     }
-    out.push_str("import 'runtime/codec.dart' as wire;\nimport 'runtime/describe.dart' as describe;\nimport 'runtime/errors.dart' as errors;\n\n/// The empty input or output of an operation that takes or returns nothing.\nfinal class Unit implements wire.WireModel {\n  const Unit();\n  @core.override\n  core.Object toWire(wire.WireContext context) => <core.String, core.Object?>{};\n  @core.override\n  core.String toString() => 'Unit()';\n}\n");
+    out.push_str("import 'runtime/codec.dart' as wire;\n");
+    // Only structures, errors and unions print through `describe`; a service without one would trip `unused_import`.
+    if service
+        .shapes
+        .values()
+        .any(|shape| matches!(shape, Shape::Structure(_) | Shape::Union(_)))
+    {
+        out.push_str("import 'runtime/describe.dart' as describe;\n");
+    }
+    out.push_str("import 'runtime/errors.dart' as errors;\n\n/// The empty input or output of an operation that takes or returns nothing.\nfinal class Unit implements wire.WireModel {\n  const Unit();\n  @core.override\n  core.Object toWire(wire.WireContext context) => <core.String, core.Object?>{};\n  @core.override\n  core.String toString() => 'Unit()';\n}\n");
     let mut decode = String::from(
         "core.Object decodeModel(core.String target, core.Object? value, wire.WireContext context) {\n  switch (target) {\n",
     );

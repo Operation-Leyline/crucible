@@ -26,6 +26,13 @@ final class DescribeTests: XCTestCase {
         XCTAssertFalse(text.contains("revision"), "absent members are omitted")
     }
 
+    func testTimestampsOutsideRfc3339YearsPrintAsEpochSeconds() throws {
+        XCTAssertEqual(try Timestamp(seconds: 253_402_300_800).description, "253402300800")
+        XCTAssertEqual(try Timestamp(seconds: -62_135_596_801, nanoseconds: 500_000_000).description, "-62135596801.5")
+        XCTAssertEqual(try Timestamp(seconds: 253_402_300_799).description, "9999-12-31T23:59:59Z")
+        XCTAssertEqual(try Timestamp(seconds: 0, nanoseconds: 1_000).description, "1970-01-01T00:00:00.000001Z")
+    }
+
     func testSensitiveMembersNeverPrintTheirValue() throws {
         let value = try secret()
         for text in [value.description, value.debugDescription, String(reflecting: value), "\(value)"] {

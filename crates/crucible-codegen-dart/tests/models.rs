@@ -239,6 +239,14 @@ fn void_and_empty_clients_do_not_require_a_unit_schema() {
         .unwrap()
         .contents;
     assert!(!client.contains("import 'dart:async'"));
+    // Nothing prints through `describe`, so importing it would fail `dart analyze` with unused_import.
+    let models = &files
+        .iter()
+        .find(|f| f.path == "lib/src/models.dart")
+        .unwrap()
+        .contents;
+    assert!(!models.contains("runtime/describe.dart"));
+    assert!(emit_models(&vault()).contains("import 'runtime/describe.dart' as describe;"));
     let void = json!({"smithy":"2.0", "shapes": {
         "example.void#Api": {"type":"service", "version":"1", "traits":{"crucible.protocols#json":{}}, "operations":[{"target":"example.void#Ping"}]},
         "example.void#Ping": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET", "uri":"/"}}}

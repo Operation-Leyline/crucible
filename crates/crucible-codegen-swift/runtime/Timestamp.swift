@@ -8,13 +8,21 @@ public struct Timestamp: Sendable, Equatable, CustomStringConvertible {
     public let nanoseconds: UInt32
     /// RFC 3339 in UTC, with the fraction only when it is not zero.
     public var description: String {
-        var text = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: Double(seconds)))
+        // ISO8601DateFormatter is only RFC 3339 for years 1-9999; other instants show as raw epoch text.
+        guard (-62_135_596_800...253_402_300_799).contains(seconds) else {
+            return nanoseconds == 0 ? "\(seconds)" : "\(seconds).\(Self.fractionDigits(nanoseconds))"
+        }
+        var text = Self.formatter.string(from: Date(timeIntervalSince1970: Double(seconds)))
         guard nanoseconds != 0 else { return text }
         text.removeLast()
+        return text + "." + Self.fractionDigits(nanoseconds) + "Z"
+    }
+    private static let formatter = ISO8601DateFormatter()
+    private static func fractionDigits(_ nanoseconds: UInt32) -> String {
         var fraction = String(nanoseconds)
         fraction = String(repeating: "0", count: 9 - fraction.count) + fraction
         while fraction.hasSuffix("0") { fraction.removeLast() }
-        return text + "." + fraction + "Z"
+        return fraction
     }
     /// Throws ``WireError`` when `nanoseconds` is a second or more.
     public init(seconds: Int64, nanoseconds: UInt32 = 0) throws {
