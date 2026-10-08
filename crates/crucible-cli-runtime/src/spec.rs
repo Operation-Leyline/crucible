@@ -65,6 +65,37 @@ pub(crate) struct Member {
     #[serde(default)]
     pub sensitive: bool,
     pub kind: Option<Kind>,
+    /// The JSON key the SDK deserializes: `@jsonName` when the protocol uses it.
+    pub wire_name: Option<String>,
+    /// How a timestamp is written in the document, which is what the SDK parses.
+    pub timestamp_format: Option<TimestampFormat>,
+    /// The HTTP binding's format, accepted on the command line when it differs.
+    pub bound_format: Option<TimestampFormat>,
+}
+
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum TimestampFormat {
+    DateTime,
+    HttpDate,
+    EpochSeconds,
+}
+
+impl TimestampFormat {
+    pub fn wire(self) -> crucible_wire::operation::TimestampFormat {
+        use crucible_wire::operation::TimestampFormat as Wire;
+        match self {
+            Self::DateTime => Wire::DateTime,
+            Self::HttpDate => Wire::HttpDate,
+            Self::EpochSeconds => Wire::EpochSeconds,
+        }
+    }
+}
+
+impl Member {
+    pub fn key(&self) -> &str {
+        self.wire_name.as_deref().unwrap_or(&self.name)
+    }
 }
 
 impl Spec {

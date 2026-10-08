@@ -253,3 +253,41 @@ fn root_version_does_not_reserve_operation_version_members() {
     .unwrap();
     assert_eq!(invocation.input, json!({"id":"id", "version":"2026-10"}));
 }
+
+#[test]
+fn json_names_key_flags_and_validation() {
+    let mut spec = descriptor();
+    spec["shapes"]["Input"]["members"][0]["wire_name"] = json!("identifier");
+    let spec = spec.to_string();
+    let args = ["weather", "update", "--id", "a"];
+    let invocation = parse(&spec, args.iter().map(OsString::from))
+        .unwrap()
+        .unwrap();
+    assert_eq!(invocation.input, json!({"identifier":"a"}));
+    let json = ["weather", "update", "--input-json", r#"{"id":"a"}"#];
+    assert!(parse(&spec, json.iter().map(OsString::from)).is_err());
+}
+
+#[test]
+fn query_timestamps_accept_the_bound_and_document_formats() {
+    let mut spec = descriptor();
+    spec["shapes"]["Input"]["members"]
+        .as_array_mut()
+        .unwrap()
+        .push(
+            json!({"name":"since", "flag":"since", "target":"Time", "kind":"number",
+            "timestamp_format":"epoch-seconds", "bound_format":"date-time"}),
+        );
+    spec["shapes"]["Time"] = json!({"kind":"timestamp"});
+    let spec = spec.to_string();
+    for (raw, expected) in [
+        ("2023-11-14T22:13:20Z", 1_700_000_000),
+        ("1700000000", 1_700_000_000),
+    ] {
+        let args = ["weather", "update", "--id", "a", "--since", raw];
+        let invocation = parse(&spec, args.iter().map(OsString::from))
+            .unwrap()
+            .unwrap();
+        assert_eq!(invocation.input["since"], json!(expected), "{raw}");
+    }
+}

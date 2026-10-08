@@ -5,7 +5,7 @@ use clap::ArgMatches;
 use serde_json::{Map, Value};
 
 use crate::Error;
-use crate::spec::{Kind, Operation, Spec};
+use crate::spec::{Kind, Member, Operation, Spec};
 
 pub(crate) fn request(
     spec: &Spec,
@@ -22,18 +22,20 @@ pub(crate) fn request(
     for member in spec.members(operation)? {
         if let Some(raw) = matches.get_one::<String>(&member.flag) {
             let kind = member.kind.unwrap_or(spec.shape(&member.target)?.kind);
-            let parsed = argument(kind, raw).map_err(|_| {
-                Error::input(format!(
-                    "invalid value for --{}{}",
-                    member.flag,
-                    if member.sensitive {
-                        " (sensitive value omitted)"
-                    } else {
-                        ""
-                    }
-                ))
-            })?;
-            object.insert(member.name.clone(), parsed);
+            let parsed = bound_timestamp(member, raw)
+                .map_or_else(|| argument(kind, raw), Ok)
+                .map_err(|_| {
+                    Error::input(format!(
+                        "invalid value for --{}{}",
+                        member.flag,
+                        if member.sensitive {
+                            " (sensitive value omitted)"
+                        } else {
+                            ""
+                        }
+                    ))
+                })?;
+            object.insert(member.key().to_owned(), parsed);
         }
     }
     match &operation.input {
@@ -64,6 +66,14 @@ fn read_json(source: &str) -> Result<Value, Error> {
             error.column()
         ))
     })
+}
+
+// The SDK parses timestamps in the document format, but a user supplies the
+// HTTP-bound format; convert so both the bound and the document spelling work.
+fn bound_timestamp(member: &Member, raw: &str) -> Option<Value> {
+    let (bound, document) = (member.bound_format?, member.timestamp_format?);
+    let time = crucible_wire::time::parse(raw, bound.wire())?;
+    Some(crucible_wire::time::to_json(&time, document.wire()))
 }
 
 fn argument(kind: Kind, raw: &str) -> Result<Value, Error> {
@@ -126,7 +136,7 @@ fn validate(
                 let member = shape
                     .members
                     .iter()
-                    .find(|member| member.name == *name)
+                    .find(|member| member.key() == name)
                     .ok_or_else(|| {
                         if sensitive {
                             Error::input(format!(
@@ -145,10 +155,10 @@ fn validate(
                 )?;
             }
             for member in &shape.members {
-                if member.required && !object.contains_key(&member.name) {
+                if member.required && !object.contains_key(member.key()) {
                     return Err(Error::input(format!(
                         "missing required member {path}.{}",
-                        member.name
+                        member.key()
                     )));
                 }
             }
@@ -195,7 +205,7 @@ fn sample(spec: &Spec, target: &str, seen: &mut BTreeSet<String>) -> Result<Valu
                     Some(Kind::String) => Value::String(String::new()),
                     _ => sample(spec, &member.target, seen)?,
                 };
-                object.insert(member.name.clone(), value);
+                object.insert(member.key().to_owned(), value);
                 if shape.kind == Kind::Union {
                     break;
                 }

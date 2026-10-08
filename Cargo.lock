@@ -503,6 +503,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "crucible-client-runtime-rust",
+ "crucible-wire",
  "serde",
  "serde_json",
  "url",
