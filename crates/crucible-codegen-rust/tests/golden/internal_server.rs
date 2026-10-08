@@ -315,12 +315,12 @@ pub mod api {
     impl OperationsBuilder {
         /// Serves Public with `implementation`.
         pub fn public<S: PublicOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Public, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.public(input).await })))
+            Self(self.0.add::<Public, S, _>(implementation, |implementation, input| async move { implementation.public(input).await }))
         }
 
         /// Serves Secret with `implementation`.
         pub fn secret<S: SecretOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Secret, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.secret(input).await })))
+            Self(self.0.add::<Secret, S, _>(implementation, |implementation, input| async move { implementation.secret(input).await }))
         }
 
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::Operations, ::crucible_server_runtime_rust::MissingOperations> {
