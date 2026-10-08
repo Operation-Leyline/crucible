@@ -172,6 +172,7 @@ mod lambda_event {
 
     use axum::body::{Body, Bytes};
     use axum::http::{HeaderMap, HeaderValue, Request, header::SET_COOKIE};
+    use lambda_http::RequestExt;
     use lambda_http::aws_lambda_events::alb::AlbTargetGroupResponse;
     use lambda_http::aws_lambda_events::apigw::{
         ApiGatewayProxyResponse, ApiGatewayV2httpResponse,
@@ -239,6 +240,22 @@ mod lambda_event {
         let origin = request.request_origin();
         let (mut parts, body) =
             axum::http::Request::<lambda_http::Body>::from(request).into_parts();
+        if matches!(
+            origin,
+            RequestOrigin::ApiGatewayV1 | RequestOrigin::ApiGatewayV2
+        ) {
+            // lambda_http adds the deployment stage to the URI; model routes
+            // describe the original path, independent of that deployment.
+            let path = parts.raw_http_path();
+            let path = if path.is_empty() { "/" } else { path };
+            let path_and_query = match parts.uri.query() {
+                Some(query) => format!("{path}?{query}"),
+                None => path.to_owned(),
+            };
+            let mut uri = parts.uri.clone().into_parts();
+            uri.path_and_query = Some(path_and_query.parse()?);
+            parts.uri = axum::http::Uri::from_parts(uri)?;
+        }
         let event_id = event_request_id(&parts.extensions);
         parts.extensions.insert(crate::RequestMeta {
             request_id: event_id.or(meta.request_id),
