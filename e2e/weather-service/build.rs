@@ -16,5 +16,14 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    let cors = "../../crates/crucible-smithy/tests/fixtures/cors.json";
+    println!("cargo::rerun-if-changed={cors}");
+    std::fs::write(
+        out.join("cors.rs"),
+        crucible_build::RustCodegen::from_model(cors)
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     crucible_build::rust_service("weather_model").generate();
 }

@@ -16,7 +16,7 @@ use tower::{Layer, Service, ServiceExt};
 
 use crate::context::{Context, RequestMeta};
 use crate::error::{Error, FrameworkError, ModelledError};
-use crate::middlewares::ServiceLog;
+use crate::middlewares::{Cors, ServiceLog};
 use crate::operation::{Operation, OperationInfo};
 use crate::operations::Operations;
 use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch};
@@ -84,6 +84,7 @@ pub struct Crucible {
 }
 
 struct Inner {
+    cors: Option<Cors>,
     operations: Operations,
     middleware: Vec<Box<dyn Middleware>>,
     operation_middleware: Vec<Box<dyn OperationAwareMiddleware>>,
@@ -166,13 +167,21 @@ impl Crucible {
 
     /// Answers one request: through the layers, then the phased pipeline.
     pub async fn handle(&self, request: Request<Body>) -> Response {
-        match &self.endpoint {
+        let cors = self.inner.cors.as_ref();
+        let http = request.extensions().get::<Invocation>().is_none();
+        let permitted = http && cors.is_some_and(|cors| cors.permits(request.headers()));
+        let mut response = match &self.endpoint {
             Some(endpoint) => match endpoint.clone().oneshot(request).await {
                 Ok(response) => response,
                 Err(never) => match never {},
             },
             None => self.dispatch(request).await,
+        };
+        // Completion recovery and outer Tower rejections can replace an encoded response.
+        if http && let Some(cors) = cors {
+            cors.decorate(&mut response, permitted);
         }
+        response
     }
 
     async fn dispatch(&self, request: Request<Body>) -> Response {
@@ -674,6 +683,16 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Result<Crucible, BuildError> {
+        let cors = self
+            .operations
+            .service
+            .cors
+            .map(Cors::new)
+            .transpose()
+            .map_err(BuildError::Prepare)?;
+        if let Some(cors) = &cors {
+            self.middleware.insert(0, Box::new(cors.clone()));
+        }
         let prepare = Prepare::new(&self.operations);
         for middleware in &mut self.middleware {
             middleware.prepare(&prepare).map_err(BuildError::Prepare)?;
@@ -711,6 +730,7 @@ impl Builder {
             .collect();
         let core = Crucible {
             inner: Arc::new(Inner {
+                cors,
                 operations: self.operations,
                 middleware: self.middleware,
                 operation_middleware: self.operation_middleware,

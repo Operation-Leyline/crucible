@@ -11,6 +11,18 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
+fn cors_server_description_matches_golden() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/cors.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+    .unwrap();
+    let code = generate(&service, &Options::default()).unwrap();
+    matches_golden(&code, "cors.rs");
+}
+
+#[test]
 fn generated_patterns_use_ecma_classes_and_line_terminators() {
     for (pattern, accepted, rejected) in [
         (r"^\d+$", "12", vec!["١٢", "１"]),

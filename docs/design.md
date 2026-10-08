@@ -75,6 +75,10 @@ reach, keyed by shape id. Lowering settles, once:
   Client defaults on those members are ignored; server defaults remain intact.
 - **Authentication**: effective schemes inherit from the service, with operation
   `@auth` overrides resolved here. An empty override disables bearer credentials.
+- **CORS**: service `@cors` becomes a typed policy with defaults, authentication
+  and protocol headers, and all input/output/error header bindings resolved once.
+  Prefix-bound input headers remain prefixes for matching concrete browser
+  preflight names. Generators consume this policy without reading raw traits.
 - **Constraints**: the target's `@length`/`@range`/`@pattern`/`@uniqueItems`
   with the member's own laid over them.
 - **Sensitivity**: member and target annotations resolve through the IR; generated

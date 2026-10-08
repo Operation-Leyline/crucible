@@ -903,6 +903,7 @@ pub mod weather {
     pub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {
         id: "example.weather#Weather",
         version: "2026-10-01",
+        cors: None,
         operations: &[
             &CREATE_CITY_OPERATION,
             &GET_CITY_OPERATION,
