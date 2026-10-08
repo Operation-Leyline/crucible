@@ -193,6 +193,7 @@ fn client_symbols_head_bodies_and_package_options_are_diagnosed() {
     assert!(emit(&lower(&weather()), &config).is_err());
     let mut model = tiny(json!({"test#Root":{"type":"structure","members":{}}}));
     model["shapes"]["test#GetResult"] = model["shapes"]["test#Get"].clone();
+    model["shapes"]["test#GetResult"]["traits"]["smithy.api#http"]["uri"] = json!("/result");
     model["shapes"]["test#Service"]["operations"]
         .as_array_mut()
         .unwrap()
