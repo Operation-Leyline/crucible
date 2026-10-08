@@ -227,6 +227,23 @@ impl Validator {
         }
     }
 
+    pub fn range_float32(&mut self, value: f32, min: Option<f64>, max: Option<f64>) {
+        // A finite modeled bound can round to infinity in f32; that must not
+        // make an explicitly infinite value satisfy the constraint.
+        if !value.is_finite() {
+            self.range_float(f64::from(value), min, max);
+            return;
+        }
+        // Bounds and values must have the same precision so a decimal bound
+        // accepts its own f32 representation. Keep the modeled text in errors.
+        if min.is_some_and(|min| value < min as f32) || max.is_some_and(|max| value > max as f32) {
+            self.fail(range_message(
+                min.map(|m| m.to_string()),
+                max.map(|m| m.to_string()),
+            ));
+        }
+    }
+
     pub fn pattern(&mut self, text: &str, regex: &regex::Regex, pattern: &str) {
         if !regex.is_match(text) {
             self.fail(format!("must match the pattern {pattern}"));
@@ -250,5 +267,31 @@ fn range_message(min: Option<String>, max: Option<String>) -> String {
         (Some(min), None) => format!("must be at least {min}"),
         (None, Some(max)) => format!("must be at most {max}"),
         (None, None) => "is out of range".to_owned(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Validator;
+
+    #[test]
+    fn f32_range_accepts_rounded_bounds_and_rejects_adjacent_values() {
+        let mut validator = Validator::default();
+        validator.range_float32(0.1, None, Some(0.1));
+        validator.range_float32(0.7, Some(0.7), None);
+        assert!(validator.violations.is_empty());
+        validator.range_float32(f32::from_bits(0.1f32.to_bits() + 1), None, Some(0.1));
+        validator.range_float32(f32::from_bits(0.7f32.to_bits() - 1), Some(0.7), None);
+        assert_eq!(validator.violations.len(), 2);
+        assert_eq!(validator.violations[0].message, "must be at most 0.1");
+        assert_eq!(validator.violations[1].message, "must be at least 0.7");
+        let mut double = Validator::default();
+        double.range_float(f64::from_bits(0.1f64.to_bits() + 1), None, Some(0.1));
+        double.range_float(f64::from_bits(0.7f64.to_bits() - 1), Some(0.7), None);
+        assert_eq!(double.violations.len(), 2);
+        let mut non_finite = Validator::default();
+        non_finite.range_float32(f32::INFINITY, None, Some(1e100));
+        non_finite.range_float32(f32::NEG_INFINITY, Some(-1e100), None);
+        assert_eq!(non_finite.violations.len(), 2);
     }
 }
