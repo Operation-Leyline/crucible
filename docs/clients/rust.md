@@ -152,6 +152,9 @@ Regenerate the SDK and update consumer imports together. Generated CLI packages
 must also be regenerated. Model names that collide with operation markers,
 operation error enums, or the service client produce a generation diagnostic;
 use a service `rename` entry to resolve the conflict.
+Shapes from different namespaces, or names differing only by case, must also be
+renamed apart, and members whose Rust names collide after case conversion
+(`fooBar` and `foo_bar`) are diagnosed against the member.
 
 In complete SDK packages, modeled names take precedence over runtime shortcuts.
 For example, when the model defines `Config`, use `weather_sdk::runtime::Config`
@@ -289,7 +292,8 @@ Generated operations also expose `*_with_options(input, CallOptions)` (omit
 `CallOptions.cancellation` accepts a clonable `CancellationToken`. Calling
 `cancel()` ends all calls sharing that token with `Error::Cancelled`. Deadline
 expiry returns `Error::Timeout`; neither condition retries. A generated helper
-receives a deterministic numeric suffix if its name collides with an operation.
+(`*_with_options`, `*_pages`, waiters) receives a deterministic numeric suffix if
+its name collides with an operation.
 An already-expired budget, including `Duration::ZERO`, returns `Error::Timeout`
 before polling credential providers or dispatching a request. A zero timeout
 does not disable the total-call deadline. Leave both the client budget and the

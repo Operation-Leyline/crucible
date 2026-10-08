@@ -99,8 +99,8 @@ pub(crate) fn library(service: &Service) -> String {
         } else {
             ""
         };
-        if operation.paginated.is_some() {
-            code.push_str(&format!("            if invocation.paginate {{\n                let mut pages = client.{}_pages(input);\n                let mut collected = Vec::new();\n                while let Some(page) = pages.next_page().await {{\n                    let page = page.map_err(Error::request)?;\n                    if invocation.output == Output::Jsonl {{\n                        write_json(&page)?;\n                    }} else {{\n                        collected.push(page);\n                    }}\n                }}\n                if invocation.output == Output::Json {{\n                    write_json(&collected)?;\n                }}\n                return Ok(());\n            }}\n", name.trim_start_matches("r#")));
+        if let Some(pages) = crucible_codegen_rust::pages_method(service, operation) {
+            code.push_str(&format!("            if invocation.paginate {{\n                let mut pages = client.{pages}(input);\n                let mut collected = Vec::new();\n                while let Some(page) = pages.next_page().await {{\n                    let page = page.map_err(Error::request)?;\n                    if invocation.output == Output::Jsonl {{\n                        write_json(&page)?;\n                    }} else {{\n                        collected.push(page);\n                    }}\n                }}\n                if invocation.output == Output::Json {{\n                    write_json(&collected)?;\n                }}\n                return Ok(());\n            }}\n"));
         }
         if operation.output.is_some() {
             code.push_str(&format!("            let output = client.{name}({argument}).await.map_err(Error::request)?;\n            write_json(&output)\n        }}\n"));

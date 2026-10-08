@@ -7,7 +7,7 @@ use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::info::{constant, error_bindings, members};
 use crate::models::member_field;
-use crate::names::{doc, field, literal, variant};
+use crate::names::{check_distinct, doc, field, literal, variant};
 use crate::types::{boxed_members, simple_kind};
 
 pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
@@ -34,6 +34,13 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
     for (id, structure) in error_shapes(service) {
         let name = service.name_of(id);
         let error = structure.error.as_ref().expect("filtered to errors");
+        check_distinct(
+            id,
+            structure.members.iter().map(|m| m.name.as_str()),
+            field,
+            "field",
+            diagnostics,
+        );
         out.push('\n');
         doc(&mut out, "", structure.docs.as_deref());
         out.push_str(crate::DERIVE);

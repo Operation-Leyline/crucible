@@ -7,7 +7,7 @@ use crucible_smithy::ir::{Constraints, Member, Service, Shape, SimpleKind, Struc
 use crucible_smithy::{Diagnostics, ShapeId};
 use serde_json::Value;
 
-use crate::names::{doc, field, function, literal, variant};
+use crate::names::{check_distinct, doc, field, function, literal, variant};
 use crate::types::{boxed_members, builtin, field_type, rust_type};
 
 /// The body of `pub mod model { ... }`.
@@ -50,6 +50,30 @@ pub(crate) fn emit(
 
     for (id, shape) in model_shapes(service) {
         let name = service.name_of(id);
+        match shape {
+            Shape::Structure(structure) => check_distinct(
+                id,
+                structure.members.iter().map(|m| m.name.as_str()),
+                field,
+                "field",
+                diagnostics,
+            ),
+            Shape::Union(union) => check_distinct(
+                id,
+                union.members.iter().map(|m| m.name.as_str()),
+                variant,
+                "variant",
+                diagnostics,
+            ),
+            Shape::IntEnum(values) => check_distinct(
+                id,
+                values.values.iter().map(|v| v.name.as_str()),
+                variant,
+                "variant",
+                diagnostics,
+            ),
+            _ => {}
+        }
         out.push('\n');
         match shape {
             Shape::IntEnum(values) => crate::open::int_enumeration(&mut out, name, values, client),
