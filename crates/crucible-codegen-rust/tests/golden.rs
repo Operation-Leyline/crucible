@@ -139,6 +139,25 @@ fn edited(edit: impl FnOnce(&mut Value)) -> crucible_smithy::ir::Service {
 }
 
 #[test]
+fn float_ranges_use_the_members_precision() {
+    let service = edited(|model| {
+        let members = &mut model["shapes"]["example.weather#Coordinates"]["members"];
+        members["latitude"]["target"] = json!("smithy.api#Float");
+        members["latitude"]["traits"]["smithy.api#range"] = json!({"min": 0.7});
+        members["longitude"]["traits"]["smithy.api#range"] = json!({"max": 0.1});
+    });
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(code.contains("validator.range_float32(*value, Some(0.7f64), None);"));
+    assert!(code.contains("validator.range_float(*value as f64, None, Some(0.1f64));"));
+    let checks = code
+        .lines()
+        .filter(|line| line.contains("validator.range_float"))
+        .map(|line| format!("{}\n", line.trim()))
+        .collect::<String>();
+    matches_golden(&checks, "float_ranges.rs");
+}
+
+#[test]
 fn weather_matches_the_golden_file() {
     let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
     let code = generate(&service, &Options::default()).unwrap();
@@ -647,4 +666,23 @@ fn paginated_endpoint_metadata_matches_the_golden_file() {
         .next()
         .unwrap();
     matches_golden(&format!("{pages}\n    }}\n"), "paginated_endpoints.rs");
+}
+
+#[test]
+fn finite_only_float_members_use_checked_codec() {
+    let service = edited(|model| {
+        model["shapes"]["example.weather#Coordinates"]["members"]["latitude"]["target"] =
+            json!("smithy.api#Float");
+    });
+    let server = generate(&service, &Options::default()).unwrap();
+    let client = generate_client(&service).unwrap();
+    assert!(server.contains("Adapter::<::crucible_server_runtime_rust::codec::FiniteFloat>"));
+    assert!(client.contains("Adapter::<::crucible_client_runtime_rust::codec::FiniteFloat>"));
+    let adapters = [&server, &client]
+        .into_iter()
+        .flat_map(|code| code.lines())
+        .filter(|line| line.contains("codec::FiniteFloat"))
+        .map(|line| format!("{}\n", line.trim()))
+        .collect::<String>();
+    matches_golden(&adapters, "finite_float.rs");
 }

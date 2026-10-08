@@ -730,8 +730,13 @@ fn range_check(
             Some(n) => format!("Some({}f64)", n.as_f64().unwrap_or_default()),
             None => "None".to_owned(),
         };
+        let (method, value) = if kind == SimpleKind::Float {
+            ("range_float32", format!("*{value}"))
+        } else {
+            ("range_float", format!("*{value} as f64"))
+        };
         format!(
-            "{pad}validator.range_float(*{value} as f64, {}, {});\n",
+            "{pad}validator.{method}({value}, {}, {});\n",
             bound(&range.min),
             bound(&range.max)
         )

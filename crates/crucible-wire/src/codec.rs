@@ -169,8 +169,37 @@ impl<T, C: Codec<T>> Codec<crate::field::Field<T>> for NullAbsent<C> {
 /// Floating-point values whose protocol spells non-finite numbers as the
 /// strings `NaN`, `Infinity` and `-Infinity`.
 pub struct NonFinite;
+
+/// A single-precision float in protocols that accept only finite numbers.
+pub struct FiniteFloat;
+impl Codec<f32> for FiniteFloat {
+    fn serialize<S: Serializer>(value: &f32, serializer: S) -> Result<S::Ok, S::Error> {
+        if !value.is_finite() {
+            return Err(serde::ser::Error::custom("number out of range"));
+        }
+        value.serialize(serializer)
+    }
+
+    fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
+        // Serde's f32 visitor narrows unchecked, including finite f64 values
+        // that become infinity. Check the destination before handing it out.
+        let value = if deserializer.is_human_readable() {
+            f64::deserialize(deserializer)? as f32
+        } else {
+            // Preserve the binary format's native f32 decoding entry point,
+            // then enforce this codec's finite-only contract.
+            <NonFinite as Codec<f32>>::deserialize(deserializer)?
+        };
+        if value.is_finite() {
+            Ok(value)
+        } else {
+            Err(serde::de::Error::custom("number out of range"))
+        }
+    }
+}
+
 macro_rules! non_finite {
-    ($float:ty, $serialize:ident) => {
+    ($float:ty, $serialize:ident, $deserialize:ident) => {
         impl Codec<$float> for NonFinite {
             fn serialize<S: Serializer>(value: &$float, serializer: S) -> Result<S::Ok, S::Error> {
                 if !serializer.is_human_readable() {
@@ -190,12 +219,44 @@ macro_rules! non_finite {
             }
             fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<$float, D::Error> {
                 if !deserializer.is_human_readable() {
-                    return <$float>::deserialize(deserializer);
+                    struct FloatVisitor;
+                    impl<'de> serde::de::Visitor<'de> for FloatVisitor {
+                        type Value = $float;
+
+                        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                            f.write_str("a floating-point number")
+                        }
+
+                        fn visit_f32<E: serde::de::Error>(self, value: f32) -> Result<$float, E> {
+                            Ok(<$float>::from(value))
+                        }
+
+                        fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<$float, E> {
+                            let narrowed = value as $float;
+                            if value.is_finite() && !narrowed.is_finite() {
+                                Err(serde::de::Error::custom("number out of range"))
+                            } else {
+                                Ok(narrowed)
+                            }
+                        }
+
+                        fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<$float, E> {
+                            Ok(value as $float)
+                        }
+
+                        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<$float, E> {
+                            Ok(value as $float)
+                        }
+                    }
+                    // Keep fixed-width binary encodings symmetric with serialization;
+                    // formats like CBOR can still hand the visitor a wider float.
+                    return deserializer.$deserialize(FloatVisitor);
                 }
                 match serde_json::Value::deserialize(deserializer)? {
                     serde_json::Value::Number(number) => number
                         .as_f64()
                         .map(|value| value as $float)
+                        .filter(|value| value.is_finite())
                         .ok_or_else(|| serde::de::Error::custom("number out of range")),
                     serde_json::Value::String(text) => match text.as_str() {
                         "NaN" => Ok(<$float>::NAN),
@@ -211,8 +272,8 @@ macro_rules! non_finite {
         }
     };
 }
-non_finite!(f32, serialize_f32);
-non_finite!(f64, serialize_f64);
+non_finite!(f32, serialize_f32, deserialize_f32);
+non_finite!(f64, serialize_f64, deserialize_f64);
 
 pub struct Boxed<C>(PhantomData<C>);
 impl<T, C: Codec<T>> Codec<Box<T>> for Boxed<C> {
@@ -333,6 +394,158 @@ mod tests {
     use super::{Adapter, Document, Identity, List, Map};
     use serde_json::Value;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn binary_f32_uses_its_native_deserializer() {
+        struct BinaryFloat;
+        impl<'de> serde::Deserializer<'de> for BinaryFloat {
+            type Error = serde_json::Error;
+
+            fn is_human_readable(&self) -> bool {
+                false
+            }
+
+            fn deserialize_f32<V: serde::de::Visitor<'de>>(
+                self,
+                visitor: V,
+            ) -> Result<V::Value, Self::Error> {
+                visitor.visit_f32(1.5)
+            }
+
+            fn deserialize_any<V: serde::de::Visitor<'de>>(
+                self,
+                _: V,
+            ) -> Result<V::Value, Self::Error> {
+                Err(serde::de::Error::custom("expected a 32-bit float"))
+            }
+
+            serde::forward_to_deserialize_any! {
+                bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f64 char str string bytes byte_buf
+                option unit unit_struct newtype_struct seq tuple tuple_struct map struct enum
+                identifier ignored_any
+            }
+        }
+        assert_eq!(
+            Adapter::<super::NonFinite>::deserialize::<f32, _>(BinaryFloat).unwrap(),
+            1.5
+        );
+        assert_eq!(
+            Adapter::<super::FiniteFloat>::deserialize::<f32, _>(BinaryFloat).unwrap(),
+            1.5
+        );
+    }
+
+    #[test]
+    fn finite_only_serialization_rejects_non_finite_in_json_and_cbor() {
+        #[derive(serde::Serialize)]
+        struct Single(#[serde(with = "Adapter::<super::FiniteFloat>")] f32);
+
+        for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let mut json = Vec::new();
+            let error = serde_json::to_writer(&mut json, &Single(value)).unwrap_err();
+            assert!(error.to_string().contains("number out of range"));
+            assert!(json.is_empty(), "{value}");
+
+            let mut cbor = Vec::new();
+            let error = crate::cbor::write(&Single(value), &mut cbor).unwrap_err();
+            assert!(error.contains("number out of range"));
+            assert!(cbor.is_empty(), "{value}");
+        }
+    }
+
+    #[test]
+    fn finite_only_serialization_round_trips_json_and_cbor() {
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct Single(#[serde(with = "Adapter::<super::FiniteFloat>")] f32);
+
+        for value in [f32::MAX, f32::MIN, f32::MIN_POSITIVE, 0.0, -0.0, 0.1, -1.5] {
+            let json = serde_json::to_string(&Single(value)).unwrap();
+            let decoded = serde_json::from_str::<Single>(&json).unwrap().0;
+            assert_eq!(decoded.to_bits(), value.to_bits());
+
+            let mut cbor = Vec::new();
+            crate::cbor::write(&Single(value), &mut cbor).unwrap();
+            let decoded = crate::cbor::read::<Single>(&cbor).unwrap().0;
+            assert_eq!(decoded.to_bits(), value.to_bits());
+        }
+    }
+
+    #[test]
+    fn finite_only_binary_body_rejects_non_finite_and_overflow() {
+        #[derive(serde::Deserialize)]
+        struct Single(#[serde(with = "Adapter::<super::FiniteFloat>")] f32);
+
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 1e39, -1e39] {
+            let mut bytes = Vec::new();
+            crate::cbor::write(&value, &mut bytes).unwrap();
+            assert!(crate::cbor::read::<Single>(&bytes).is_err(), "{value}");
+        }
+        for value in [f32::MAX, f32::MIN, 0.1] {
+            let mut bytes = Vec::new();
+            crate::cbor::write(&value, &mut bytes).unwrap();
+            assert_eq!(crate::cbor::read::<Single>(&bytes).unwrap().0, value);
+        }
+    }
+
+    #[test]
+    fn finite_only_json_body_rejects_f32_overflow() {
+        #[derive(serde::Deserialize)]
+        struct Input {
+            #[serde(with = "Adapter::<super::FiniteFloat>")]
+            value: f32,
+        }
+        for body in [
+            r#"{"value":1e39}"#,
+            r#"{"value":-1e39}"#,
+            r#"{"value":"Infinity"}"#,
+        ] {
+            assert!(serde_json::from_str::<Input>(body).is_err(), "{body}");
+        }
+        assert_eq!(
+            serde_json::from_str::<Input>(r#"{"value":0.1}"#)
+                .unwrap()
+                .value,
+            0.1
+        );
+    }
+
+    #[test]
+    fn finite_numbers_cannot_overflow_f32_in_json_or_cbor() {
+        use super::NonFinite;
+        for text in ["1e39", "-1e39", "1e400", "-1e400"] {
+            let mut input = serde_json::Deserializer::from_str(text);
+            assert!(
+                Adapter::<NonFinite>::deserialize::<f32, _>(&mut input).is_err(),
+                "{text}"
+            );
+        }
+        for value in [1e39, -1e39] {
+            let mut bytes = Vec::new();
+            crate::cbor::write(&value, &mut bytes).unwrap();
+            #[derive(serde::Deserialize)]
+            struct Single(#[serde(with = "Adapter::<NonFinite>")] f32);
+            assert!(crate::cbor::read::<Single>(&bytes).is_err());
+            let mut bytes = Vec::new();
+            crate::cbor::write(&f64::INFINITY, &mut bytes).unwrap();
+            assert_eq!(
+                crate::cbor::read::<Single>(&bytes).unwrap().0,
+                f32::INFINITY
+            );
+        }
+        for value in [f32::MAX, f32::MIN, 0.1] {
+            let text = value.to_string();
+            let mut input = serde_json::Deserializer::from_str(&text);
+            assert_eq!(
+                Adapter::<NonFinite>::deserialize::<f32, _>(&mut input).unwrap(),
+                value
+            );
+        }
+        let mut input = serde_json::Deserializer::from_str("1e39");
+        assert_eq!(
+            Adapter::<NonFinite>::deserialize::<f64, _>(&mut input).unwrap(),
+            1e39
+        );
+    }
 
     #[test]
     fn non_finite_floats_are_strings_and_finite_floats_numbers() {
