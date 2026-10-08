@@ -2,18 +2,34 @@
 //! nothing here; the two formats `@timestampFormat` can choose instead have
 //! serde modules generated members name in `#[serde(with = ...)]`.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 
 pub type Timestamp = DateTime<Utc>;
 
-pub fn format_date_time(time: &Timestamp) -> String {
-    time.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
+fn text_year_in_range(time: &Timestamp) -> bool {
+    (0..=9999).contains(&time.year())
+}
+
+fn check_text_year(time: &Timestamp) -> Result<(), String> {
+    // Both text formats require four year digits, unlike epoch seconds.
+    if text_year_in_range(time) {
+        Ok(())
+    } else {
+        Err("timestamp text requires a year from 0000 through 9999".to_owned())
+    }
+}
+
+/// RFC 3339 text, rejecting instants outside the four-digit UTC year range.
+pub fn format_date_time(time: &Timestamp) -> Result<String, String> {
+    check_text_year(time)?;
+    Ok(time.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true))
 }
 
 pub fn parse_date_time(text: &str) -> Option<Timestamp> {
     DateTime::parse_from_rfc3339(text)
         .ok()
         .map(|time| time.with_timezone(&Utc))
+        .filter(text_year_in_range)
 }
 
 /// Timestamp text in `format`: what a label, query parameter or header holds.
@@ -26,12 +42,15 @@ pub fn parse(text: &str, format: crate::operation::TimestampFormat) -> Option<Ti
     }
 }
 
-/// A timestamp as text in `format`.
-pub fn format(time: &Timestamp, format: crate::operation::TimestampFormat) -> String {
+/// A timestamp as text in `format`; text dates require a UTC year from 0000 to 9999.
+pub fn format(
+    time: &Timestamp,
+    format: crate::operation::TimestampFormat,
+) -> Result<String, String> {
     use crate::operation::TimestampFormat;
     match format {
         TimestampFormat::DateTime => format_date_time(time),
-        TimestampFormat::EpochSeconds => epoch_seconds::format(time),
+        TimestampFormat::EpochSeconds => Ok(epoch_seconds::format(time)),
         TimestampFormat::HttpDate => http_date::format(time),
     }
 }
@@ -46,17 +65,20 @@ pub fn from_json(value: &serde_json::Value) -> Option<Timestamp> {
     }
 }
 
-/// A timestamp as the JSON value of a member in `format`.
-pub fn to_json(time: &Timestamp, format: crate::operation::TimestampFormat) -> serde_json::Value {
+/// A timestamp as the JSON value of a member in `format`, subject to its text year range.
+pub fn to_json(
+    time: &Timestamp,
+    format: crate::operation::TimestampFormat,
+) -> Result<serde_json::Value, String> {
     use crate::operation::TimestampFormat;
-    match format {
+    Ok(match format {
         TimestampFormat::EpochSeconds => serde_json::Value::Number(
             epoch_seconds::format(time)
                 .parse()
                 .expect("epoch seconds are JSON numeric syntax"),
         ),
-        _ => serde_json::Value::String(self::format(time, format)),
-    }
+        _ => serde_json::Value::String(self::format(time, format)?),
+    })
 }
 
 pub mod epoch_seconds {
@@ -190,8 +212,10 @@ pub mod http_date {
     use chrono::{DateTime, Utc};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn format(time: &DateTime<Utc>) -> String {
-        time.format("%a, %d %b %Y %H:%M:%S GMT").to_string()
+    /// IMF-fixdate text, rejecting instants outside the four-digit UTC year range.
+    pub fn format(time: &DateTime<Utc>) -> Result<String, String> {
+        super::check_text_year(time)?;
+        Ok(time.format("%a, %d %b %Y %H:%M:%S GMT").to_string())
     }
 
     pub fn parse(text: &str) -> Option<DateTime<Utc>> {
@@ -202,14 +226,14 @@ pub mod http_date {
             .ok()?
             .and_utc();
         // Chrono accepts alternate casing and padding; IMF-fixdate has one spelling.
-        (format(&time) == text).then_some(time)
+        (format(&time).ok()?.as_str() == text).then_some(time)
     }
 
     pub fn serialize<S: Serializer>(
         time: &DateTime<Utc>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&format(time))
+        serializer.serialize_str(&format(time).map_err(serde::ser::Error::custom)?)
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(

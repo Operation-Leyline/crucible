@@ -722,7 +722,7 @@ fn json_value(kind: EventHeaderKind, value: &HeaderValue) -> Option<Value> {
         (EventHeaderKind::Blob, HeaderValue::Bytes(bytes)) => Value::String(STANDARD.encode(bytes)),
         (EventHeaderKind::String, HeaderValue::String(text)) => Value::String(text.clone()),
         (EventHeaderKind::Timestamp(format), HeaderValue::Timestamp(millis)) => {
-            crate::time::to_json(&chrono::DateTime::from_timestamp_millis(*millis)?, format)
+            crate::time::to_json(&chrono::DateTime::from_timestamp_millis(*millis)?, format).ok()?
         }
         _ => return None,
     })

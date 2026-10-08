@@ -49,15 +49,17 @@ pub fn write_typed<T: Serialize + ?Sized>(
         out,
         taken: &mut taken,
     })?;
-    Ok(taken
+    taken
         .into_iter()
         .filter_map(|(member, value)| match member.location {
-            Location::Header(header) => {
-                Some((header, crate::text::header_text(&value, member.scalar)))
-            }
+            Location::Header(header) => Some(
+                crate::text::header_text(&value, member.scalar)
+                    .map(|text| (header, text))
+                    .map_err(<serde_json::Error as ser::Error>::custom),
+            ),
             _ => None,
         })
-        .collect())
+        .collect()
 }
 
 /// Serializes a response once, collecting dynamic headers and its status.
@@ -81,7 +83,8 @@ pub fn write_http<T: Serialize + ?Sized>(
         match member.location {
             Location::Header(name) => result.headers.push((
                 name.to_owned(),
-                crate::text::header_text(&value, member.scalar),
+                crate::text::header_text(&value, member.scalar)
+                    .map_err(<serde_json::Error as ser::Error>::custom)?,
             )),
             Location::PrefixHeaders(prefix) => {
                 let values = value.as_object().ok_or_else(|| {
@@ -97,7 +100,8 @@ pub fn write_http<T: Serialize + ?Sized>(
                     })?;
                     result.headers.push((
                         name,
-                        crate::text::header_text(&Value::String(value.to_owned()), member.scalar),
+                        crate::text::header_text(&Value::String(value.to_owned()), member.scalar)
+                            .map_err(<serde_json::Error as ser::Error>::custom)?,
                     ));
                 }
             }

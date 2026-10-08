@@ -94,7 +94,7 @@ impl<'a> BoundValue<'a> {
                     }
                     TimestampFormat::HttpDate => "must be an HTTP date".to_owned(),
                 })?;
-                Ok(match time::to_json(&time, json) {
+                Ok(match time::to_json(&time, json)? {
                     serde_json::Value::Number(number) => Self::Number(number),
                     serde_json::Value::String(text) => Self::Text(Cow::Owned(text)),
                     _ => unreachable!("timestamps are numbers or text"),
