@@ -563,6 +563,7 @@ final class ClientRuntime {
       case "short":
       case "integer":
       case "long":
+      case "intEnum": case "bigInteger": case "bigDecimal":
       case "float": case "double":
         if(policy("nonFiniteFloatStrings") && Set.of("NaN","Infinity","-Infinity").contains(value)) return new JsonPrimitive(value);
         return JSON.fromJson(value,JsonElement.class);

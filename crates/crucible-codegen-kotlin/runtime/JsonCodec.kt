@@ -246,7 +246,7 @@ internal class JsonCodec(val schema: JsonObject) {
                 } else JsonArray(parts.map { header(child, if (it.startsWith('"')) string(parse(it)) else it,format) })
             }
             "float", "double" -> if(policy("nonFiniteFloatStrings") && value in setOf("NaN","Infinity","-Infinity")) JsonPrimitive(value) else parse(value)
-            "byte", "short", "integer", "long", "boolean" -> parse(value)
+            "byte", "short", "integer", "long", "intEnum", "bigInteger", "bigDecimal", "boolean" -> parse(value)
             "timestamp" -> if ((format ?: member.text("format")) == "epoch-seconds") parse(value) else JsonPrimitive(value)
             else -> JsonPrimitive(value)
         }

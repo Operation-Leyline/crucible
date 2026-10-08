@@ -3,6 +3,7 @@ package example.types;
 import com.sun.net.httpserver.HttpServer;
 import example.types.model.Mode;
 import example.types.model.Output;
+import com.google.gson.JsonParser;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -39,6 +40,11 @@ public final class TypesTest {
       var precise=client.read();
       check(precise.integers().size()==2 && precise.decimals().size()==2,"collection uniqueness lost numeric precision");
       var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes());
+      // Header text is not JSON; these kinds must be parsed into numbers, not left as strings.
+      for (String[] header : new String[][]{{"example.types#Mode","2"},{"smithy.api#BigInteger",integer},{"smithy.api#BigDecimal","1.5"}}) {
+        var member = JsonParser.parseString("{\"target\":\""+header[0]+"\"}").getAsJsonObject();
+        check(runtime.header(member, header[1]).getAsBigDecimal().compareTo(new java.math.BigDecimal(header[1])) == 0, "header "+header[0]);
+      }
       var encoded = runtime.encode("example.types#Output", result, null).getAsJsonObject();
       check(encoded.get("integer").getAsString().equals(integer) && encoded.get("decimal").getAsString().equals(decimal), "encode precision");
       for (String invalid : new String[]{"{\"integer\":1.5}", "{\"mode\":2147483648}", "{\"names\":[\"a\",\"a\"]}", "{\"decimals\":[1,1.0]}", "{\"integers\":[18446744073709551616,18446744073709551616]}"}) {

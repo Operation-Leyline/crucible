@@ -144,7 +144,9 @@ def _timestamp(value: Any, fmt: str, decode: bool) -> Any:
             return datetime.fromtimestamp(float(value), timezone.utc)
         if fmt == "http-date":
             return parsedate_to_datetime(value).astimezone(timezone.utc)
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        # An offset-less date-time is UTC, and must stay aware to be sent back.
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
     if not isinstance(value, datetime) or value.tzinfo is None:
         raise TypeError("timestamps must be timezone-aware datetime values")
     value = value.astimezone(timezone.utc)
@@ -322,8 +324,11 @@ class _Codec:
             text = base64.b64decode(text, validate=True).decode("utf-8")
         if kind == "timestamp":
             return _timestamp(text, fmt or m["format"], True)
-        if kind in ("byte", "short", "integer", "long"):
+        # Header text is a str, but these kinds are validated as int/Decimal.
+        if kind in ("byte", "short", "integer", "long", "intEnum", "bigInteger"):
             return self.convert(m["target"], int(text), decode=True)
+        if kind == "bigDecimal":
+            return self.convert(m["target"], Decimal(text), decode=True)
         if kind in ("float", "double"):
             return float(text)
         if kind == "boolean":
