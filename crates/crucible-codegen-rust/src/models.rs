@@ -75,9 +75,14 @@ pub(crate) fn emit(
             _ => {}
         }
         out.push('\n');
-        let start = out.len();
         match shape {
-            Shape::IntEnum(values) => crate::open::int_enumeration(&mut out, name, values, client),
+            Shape::IntEnum(values) => crate::open::int_enumeration(
+                &mut out,
+                name,
+                values,
+                client,
+                !(client && shape.sensitive()),
+            ),
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
                 doc(&mut out, "", simple.docs.as_deref());
@@ -113,7 +118,15 @@ pub(crate) fn emit(
                     "pub type {name} = ::std::collections::BTreeMap<{key}, {value}>;\n"
                 ));
             }
-            Shape::Enum(values) => enumeration(&mut out, id, name, values, client, diagnostics),
+            Shape::Enum(values) => enumeration(
+                &mut out,
+                id,
+                name,
+                values,
+                client,
+                !shape.sensitive(),
+                diagnostics,
+            ),
             Shape::Structure(structure) => {
                 doc(&mut out, "", structure.docs.as_deref());
                 out.push_str(&if client {
@@ -191,9 +204,6 @@ pub(crate) fn emit(
             }
         }
         if client && shape.sensitive() && matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
-            let emitted = out[start..].replace("Debug, ", "");
-            out.truncate(start);
-            out.push_str(&emitted);
             out.push_str(&format!("impl ::std::fmt::Debug for {name} {{ fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{ f.write_str(\"{name}(*** Sensitive Data Redacted ***)\") }} }}\n"));
         }
         if validated.contains(id) {
@@ -240,6 +250,7 @@ fn enumeration(
     name: &str,
     values: &crucible_smithy::ir::Enum,
     client: bool,
+    debug: bool,
     diagnostics: &mut Diagnostics,
 ) {
     let mut seen = BTreeSet::new();
@@ -255,7 +266,7 @@ fn enumeration(
         }
     }
     if client {
-        crate::open::enumeration(out, name, values);
+        crate::open::enumeration(out, name, values, debug);
         return;
     }
     doc(out, "", values.docs.as_deref());

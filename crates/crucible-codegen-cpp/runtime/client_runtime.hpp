@@ -100,7 +100,7 @@ private:
     struct Prepared {
         HttpRequest request;
         ChecksumSettings checksum;
-    /** HTTP endpoint override; absent uses the generated endpoint or modeled endpoint rules. */
+        /** Endpoint resolved from modeled endpoint rules, if any. */
         std::optional<ResolvedEndpoint> endpoint;
     };
     [[nodiscard]] Prepared prepare(const std::string& name, const Json& operation, const Json& input, bool streaming) const;
@@ -153,7 +153,6 @@ public:
     Pages(std::shared_ptr<ClientRuntime> runtime, std::string operation, Json input, std::stop_token stop)
         : runtime_(std::move(runtime)), operation_(std::move(operation)), input_(std::move(input)), stop_(stop) {
         const auto& pagination = runtime_->operation(operation_).at("pagination");
-    /** Bearer token provider invoked for each authenticated attempt. */
         const auto* token = input_.find(pagination.at("input").string());
         if (token && !token->is_null() && !token->string().empty()) seen_.insert(token->string());
     }
@@ -173,12 +172,9 @@ public:
         scope.check();
         const auto result = runtime_->call(operation_, input_, scope);
         auto output = Codec<T>::decode(result, runtime_->schema().context(operation.at("output").string()));
-    /** Bearer token provider invoked for each authenticated attempt. */
         const Json* token = &result;
         for (const auto& path : pagination.at("output").array()) {
-    /** Bearer token provider invoked for each authenticated attempt. */
             if (!token || !std::holds_alternative<Json::Object>(token->value())) { token = nullptr; break; }
-    /** Bearer token provider invoked for each authenticated attempt. */
             token = token->find(path.string());
         }
         if (!token || token->is_null() || token->string().empty()) finished_ = true;

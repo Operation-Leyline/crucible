@@ -291,3 +291,11 @@ fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
     assert!(text.contains("debug.field(\"secret\", model.secret, true)"));
     assert!(text.contains("friend std::string debug_string"));
 }
+
+#[test]
+fn pagination_and_resolved_endpoint_docs_describe_their_own_entities() {
+    let header = include_str!("../runtime/client_runtime.hpp").replace("\r\n", "\n");
+    assert_eq!(header.matches("Bearer token provider invoked").count(), 1);
+    assert_eq!(header.matches("HTTP endpoint override").count(), 1);
+    assert!(header.contains("Endpoint resolved from modeled endpoint rules, if any. */\n        std::optional<ResolvedEndpoint> endpoint;"));
+}

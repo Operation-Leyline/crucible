@@ -823,7 +823,7 @@ base_delay: Initial full-jitter exponential backoff bound in seconds.
 max_delay: Maximum backoff bound in seconds; Retry-After can override it.
 headers: Default request headers applied to every attempt.
 middleware: Request transformations applied on every attempt after authentication.
-basic_credentials: HTTP basic authentication provider; used only for a modeled basic-auth scheme.
+basic_auth: HTTP basic authentication provider; used only for a modeled basic-auth scheme.
 api_key: API key provider for the modeled header or query location.
 credentials: AWS credentials provider for modeled SigV4 authentication.
 region: SigV4 region and AWS::Region endpoint built-in.

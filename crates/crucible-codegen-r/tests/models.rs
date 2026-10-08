@@ -272,3 +272,40 @@ fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
     assert!(text.contains("S3method(format, crucible_model)"));
     assert!(text.contains("Sensitive Data Redacted"));
 }
+
+#[test]
+fn runtime_documentation_uses_the_public_basic_auth_setting() {
+    let service = Model::from_json(&weather().to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let docs = &files
+        .iter()
+        .find(|file| file.path == "man/runtime.Rd")
+        .unwrap()
+        .contents;
+    assert!(docs.contains("basic_auth: HTTP basic authentication provider"));
+    assert!(!docs.contains("basic_credentials: HTTP basic authentication provider"));
+    assert!(docs.contains("basic_credentials: Constructs HTTP basic credentials"));
+}
+
+#[test]
+fn model_names_cannot_collide_with_package_documentation() {
+    for name in ["operations", "runtime", "Operations", "Runtime"] {
+        let mut model = weather();
+        let id = format!("example.weather#{name}");
+        model["shapes"][&id] = serde_json::json!({"type": "structure", "members": {}});
+        model["shapes"]["example.weather#CreateCityInput"]["members"]["value"] =
+            serde_json::json!({"target": id});
+        let service = Model::from_json(&model.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        let diagnostics = emit(&service, &options()).err().unwrap().to_string();
+        assert!(
+            diagnostics.contains("R model export name collision"),
+            "{name}: {diagnostics}"
+        );
+    }
+}

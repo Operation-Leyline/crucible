@@ -20,16 +20,17 @@ typedef crucible_generated_status (*crucible_generated_middleware_fn)(void *user
 typedef struct { crucible_generated_middleware_fn apply; void *user; } crucible_generated_middleware;
 typedef enum { crucible_generated_checksum_when_supported = 0, crucible_generated_checksum_when_required } crucible_generated_checksum_policy;
 typedef void (*crucible_generated_checksum_validated_fn)(void *user, crucible_generated_string operation, crucible_generated_string algorithm);
+/** Client configuration. Strings and endpoint parameters are copied. Modeled authentication
+ * providers run per attempt for the first supported scheme unless a matching caller-supplied
+ * header or query value already supplies authentication. */
 typedef struct {
-    /** A NULL endpoint uses the generated default. All strings are copied. */
     /** HTTP endpoint override; absent uses the generated endpoint or modeled endpoint rules. */
     crucible_generated_string endpoint;
-    /** Maximum backoff bound in seconds; Retry-After can override it. */
     /** Total call deadline in seconds. */
     double timeout;
     /** Initial exponential backoff bound in seconds. */
     double base_delay;
-    /** Maximum exponential backoff bound in seconds. */
+    /** Maximum exponential backoff bound in seconds; Retry-After can override it. */
     double max_delay;
     /** Maximum attempts including the first request (default 3). */
     unsigned max_attempts;
@@ -47,8 +48,6 @@ typedef struct {
     crucible_generated_send_fn send;
     /** Borrowed context passed to the custom transport callback. */
     void *transport_user;
-    /** Modeled authentication. A provider runs on every attempt for the first modeled
-     * scheme it serves; a matching caller-supplied header or query skips providers. */
     /** HTTP basic authentication provider; used only for a modeled basic-auth scheme. */
     crucible_generated_basic_fn basic_credentials;
     /** Borrowed context for basic authentication. */
@@ -61,10 +60,8 @@ typedef struct {
     crucible_generated_credentials_fn credentials;
     /** Borrowed context for the AWS credentials provider. */
     void *credentials_user;
-    /** SigV4 region, also the AWS::Region endpoint built-in. Copied. */
     /** SigV4 region and AWS::Region endpoint built-in. */
     crucible_generated_string region;
-    /** Endpoint rule client parameters and built-ins. Copied. */
     /** Named inputs to modeled endpoint rules. */
     const crucible_generated_endpoint_value *endpoint_parameters;
     /** Number of endpoint client parameters. */
@@ -75,13 +72,11 @@ typedef struct {
     size_t endpoint_builtin_count;
     /** Disables modeled operation host-prefix injection. */
     bool disable_host_prefix;
-    /** Validates modeled response checksums when supported or only when required. */
     /** Request checksum calculation policy. */
     crucible_generated_checksum_policy request_checksum_calculation;
-    /** Response checksum validation policy. */
+    /** Validates modeled response checksums when supported or only when required. */
     crucible_generated_checksum_policy response_checksum_validation;
-    /** Called after a response checksum validates; must be thread-safe if the client is shared. */
-    /** Notification after a response checksum validates. */
+    /** Notification after a response checksum validates; must be thread-safe if the client is shared. */
     crucible_generated_checksum_validated_fn checksum_validated;
     /** Borrowed context for the checksum-validation callback. */
     void *checksum_user;

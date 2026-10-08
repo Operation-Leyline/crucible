@@ -586,7 +586,7 @@ mod tests {
 /// Documentation text already resolved by Smithy lowering.
 pub fn shape_docs(shape: &Shape) -> Option<&str> {
     match shape {
-        Shape::Unit => None,
+        Shape::Unit { .. } => None,
         Shape::Simple(s) => s.docs.as_deref(),
         Shape::Enum(s) => s.docs.as_deref(),
         Shape::IntEnum(s) => s.docs.as_deref(),

@@ -328,3 +328,16 @@ fn debug_helper_collisions_use_the_existing_collected_symbol_diagnostic() {
     let diagnostics = emit(&lower(&model), &options()).err().unwrap().to_string();
     assert!(diagnostics.contains("C generated symbol collision"));
 }
+
+#[test]
+fn client_config_docs_attach_once_to_the_correct_fields() {
+    let header = include_str!("../runtime/client_runtime.h").replace("\r\n", "\n");
+    let config = header
+        .split("} crucible_generated_client_config;")
+        .next()
+        .unwrap();
+    assert!(!config.contains("*/\n    /**"));
+    assert!(config.contains("Retry-After can override it. */\n    double max_delay;"));
+    assert!(config.contains("/** Total call deadline in seconds. */\n    double timeout;"));
+    assert!(config.contains("only when required. */\n    crucible_generated_checksum_policy response_checksum_validation;"));
+}

@@ -24,11 +24,12 @@ fn serde_impls(out: &mut String, name: &str, kind: &str) {
     ));
 }
 
-pub(crate) fn enumeration(out: &mut String, name: &str, values: &Enum) {
+pub(crate) fn enumeration(out: &mut String, name: &str, values: &Enum, debug: bool) {
     let unknown = unknown_variant(values.values.iter().map(|value| value.name.as_str()));
     doc(out, "", values.docs.as_deref());
+    let debug = if debug { "Debug, " } else { "" };
     out.push_str(&format!(
-        "#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum {name} {{\n"
+        "#[derive({debug}Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum {name} {{\n"
     ));
     for value in &values.values {
         doc(out, "    ", value.docs.as_deref());
@@ -162,11 +163,13 @@ pub(crate) fn int_enumeration(
     name: &str,
     values: &crucible_smithy::ir::IntEnum,
     client: bool,
+    debug: bool,
 ) {
     let unknown = unknown_variant(values.values.iter().map(|v| v.name.as_str()));
     doc(out, "", values.docs.as_deref());
+    let debug = if debug { "Debug, " } else { "" };
     out.push_str(&format!(
-        "#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum {name} {{\n"
+        "#[derive({debug}Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum {name} {{\n"
     ));
     for value in &values.values {
         doc(out, "    ", value.docs.as_deref());
