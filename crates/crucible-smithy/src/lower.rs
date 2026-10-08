@@ -1312,6 +1312,40 @@ impl<'m> Lowerer<'m> {
             self.diagnostics
                 .push(id, "@cors can only apply to a service");
         }
+        for (name, reason) in [
+            ("longPoll", "long-poll timing and timeout behavior"),
+            ("createsResources", "resource lifecycle effects"),
+            ("putsResources", "resource lifecycle effects"),
+            ("readsResources", "resource lifecycle effects"),
+            ("updatesResources", "resource lifecycle effects"),
+            ("deletesResources", "resource lifecycle effects"),
+        ] {
+            if traits.contains_key(&smithy(name)) {
+                self.diagnostics.push(
+                    id,
+                    format!("@smithy.api#{name} is not supported: {reason} are not implemented"),
+                );
+            }
+        }
+        if let Some(value) = traits.get(&smithy("idempotent")) {
+            for member in ["exists", "notFound"] {
+                if value.get(member).is_some() {
+                    self.diagnostics.push(id, format!("@smithy.api#idempotent {member} is not supported: resource-existence response semantics are not implemented"));
+                }
+            }
+        }
+        for (namespace, name, reason) in [
+            ("smithy.rules", "endpointTests", "endpoint test execution"),
+            ("smithy.test", "smokeTests", "smoke test execution"),
+        ] {
+            let trait_id = ShapeId::new(namespace, name);
+            if traits.contains_key(&trait_id) {
+                self.diagnostics.push(
+                    id,
+                    format!("@{trait_id} is not supported: {reason} is not implemented"),
+                );
+            }
+        }
         for (name, feature) in [
             ("hostLabel", Feature::EndpointHostPrefix),
             ("optionalAuth", Feature::OptionalAuth),
@@ -1452,6 +1486,42 @@ impl<'m> Lowerer<'m> {
         }
     }
 
+    fn legacy_enum(&mut self, id: &ShapeId, value: &Value) -> Vec<EnumValue> {
+        let Some(definitions) = value.as_array().filter(|values| !values.is_empty()) else {
+            self.diagnostics.push(
+                id,
+                "@smithy.api#enum must be a non-empty array of definitions",
+            );
+            return Vec::new();
+        };
+        let mut values = Vec::new();
+        for (index, definition) in definitions.iter().enumerate() {
+            let name = definition.get("name").and_then(Value::as_str);
+            let value = definition.get("value").and_then(Value::as_str);
+            if name.is_none() {
+                self.diagnostics.push(id, format!("@smithy.api#enum definition {index} lacks name; use Smithy's changeStringEnumsToEnumShapes transform"));
+            }
+            if value.is_none() {
+                self.diagnostics.push(
+                    id,
+                    format!("@smithy.api#enum definition {index} must have a string value"),
+                );
+            }
+            if let (Some(name), Some(value)) = (name, value) {
+                // The enum IR carries docs; deprecated and tags remain in the shape's raw trait.
+                values.push(EnumValue {
+                    name: name.to_owned(),
+                    value: value.to_owned(),
+                    docs: definition
+                        .get("documentation")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                });
+            }
+        }
+        values
+    }
+
     fn shape(&mut self, id: &ShapeId, shape: &'m ast::Shape) -> Option<Shape> {
         let docs = string_trait(&shape.traits, "documentation");
         let traits = shape.traits.clone();
@@ -1469,6 +1539,11 @@ impl<'m> Lowerer<'m> {
         };
         Some(match shape.kind {
             Kind::Boolean => simple(SimpleKind::Boolean),
+            Kind::String if shape.traits.contains_key(&smithy("enum")) => Shape::Enum(Enum {
+                values: self.legacy_enum(id, &shape.traits[&smithy("enum")]),
+                docs,
+                traits,
+            }),
             Kind::String => simple(SimpleKind::String),
             Kind::Byte => simple(SimpleKind::Byte),
             Kind::Short => simple(SimpleKind::Short),
