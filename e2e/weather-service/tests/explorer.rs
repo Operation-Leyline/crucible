@@ -333,6 +333,10 @@ impl Authenticator for Token {
 
 #[tokio::test]
 async fn endpoint_auth_adapter_and_normal_route_auth_are_independent() {
+    assert!(matches!(
+        EndpointAuthenticator::new(Token, AuthScheme::Basic),
+        Err(error) if error.contains("does not support")
+    ));
     let identity = || auth::Identity {
         subject: Some("developer".into()),
         kind: None,
