@@ -2,7 +2,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "rust")]
-use crate::RustCodegen;
+use crate::ServerOutput;
 use crate::absolute;
 
 /// Assemble and validate Smithy sources, then generate a server in `OUT_DIR`.
@@ -12,12 +12,15 @@ use crate::absolute;
 /// on first use, then cached outside Cargo's build directory. No separate CLI or
 /// Java installation is required. Sources and imports are never written into the
 /// project. The service must declare a fillable validation error, or use
-/// [`RustCodegen::custom_rejections`] and supply its own rejection handler.
+/// [`ServerOutput::custom_rejections`] and supply its own rejection handler.
 #[cfg(all(feature = "smithy", feature = "rust"))]
-pub fn rust_service_from_smithy(sources: impl AsRef<Path>) -> RustCodegen {
-    rust_service_from_smithy_with(sources, |config, output| {
-        smithy_tooling::build(config, output)
-    })
+#[deprecated(
+    since = "0.5.0",
+    note = "use crucible_build::model(..).server(), .client(), or .publish()"
+)]
+#[allow(deprecated)]
+pub fn rust_service_from_smithy(sources: impl AsRef<Path>) -> ServerOutput {
+    crate::Model::from_sources(sources).server()
 }
 
 /// Use an explicitly selected compiler dependency instead of the default pin.
@@ -27,11 +30,16 @@ pub fn rust_service_from_smithy(sources: impl AsRef<Path>) -> RustCodegen {
 /// The compiler must support the `flattenAndRemoveMixins` transform. Assembly and
 /// validation remain the official compiler's responsibility.
 #[cfg(feature = "rust")]
+#[deprecated(
+    since = "0.5.0",
+    note = "use crucible_build::model(..).server(), .client(), or .publish()"
+)]
+#[allow(deprecated)]
 pub fn rust_service_from_smithy_with(
     sources: impl AsRef<Path>,
     compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
-) -> RustCodegen {
-    let mut codegen = RustCodegen::from_model(compile(sources.as_ref(), compiler));
+) -> ServerOutput {
+    let mut codegen = crate::model(compile(sources.as_ref(), compiler)).server();
     codegen.options.require_rejection = true;
     codegen
 }
@@ -41,21 +49,31 @@ pub fn rust_service_from_smithy_with(
 /// Uses the same pinned compiler, bundled imports and managed Java runtime as
 /// [`rust_service_from_smithy`]. Client generation does not require server rejection errors.
 #[cfg(all(feature = "smithy", feature = "rust"))]
-pub fn client_from_smithy(sources: impl AsRef<Path>) -> RustCodegen {
-    client_from_smithy_with(sources, |config, output| {
-        smithy_tooling::build(config, output)
-    })
+#[deprecated(
+    since = "0.5.0",
+    note = "use crucible_build::model(..).server(), .client(), or .publish()"
+)]
+#[allow(deprecated)]
+pub fn client_from_smithy(sources: impl AsRef<Path>) -> ServerOutput {
+    crate::Model::from_sources(sources).client().into_legacy()
 }
 
 /// Generate a Rust client with an explicitly selected official compiler.
 ///
 /// See [`rust_service_from_smithy_with`] for compiler dependency setup.
 #[cfg(feature = "rust")]
+#[deprecated(
+    since = "0.5.0",
+    note = "use crucible_build::model(..).server(), .client(), or .publish()"
+)]
+#[allow(deprecated)]
 pub fn client_from_smithy_with(
     sources: impl AsRef<Path>,
     compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
-) -> RustCodegen {
-    RustCodegen::client_from_model(compile(sources.as_ref(), compiler))
+) -> ServerOutput {
+    crate::model(compile(sources.as_ref(), compiler))
+        .client()
+        .into_legacy()
 }
 
 /// Compile and publish Smithy sources from a shared model package's `build.rs`.
@@ -64,20 +82,28 @@ pub fn client_from_smithy_with(
 /// [`crate::client`] with that name. The published AST lives under `OUT_DIR`
 /// and is rewritten only when its contents change.
 #[cfg(feature = "smithy")]
+#[deprecated(
+    since = "0.5.0",
+    note = "use crucible_build::model(..).server(), .client(), or .publish()"
+)]
+#[allow(deprecated)]
 pub fn publish_model_from_smithy(sources: impl AsRef<Path>) {
-    publish_model_from_smithy_with(sources, |config, output| {
-        smithy_tooling::build(config, output)
-    });
+    crate::Model::from_sources(sources).publish();
 }
 
 /// Compile and publish a shared model using an explicitly selected compiler.
 ///
 /// See [`rust_service_from_smithy_with`] for compiler dependency setup.
+#[deprecated(
+    since = "0.5.0",
+    note = "use crucible_build::model(..).server(), .client(), or .publish()"
+)]
+#[allow(deprecated)]
 pub fn publish_model_from_smithy_with(
     sources: impl AsRef<Path>,
     compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
 ) {
-    crate::publish_model(compile(sources.as_ref(), compiler));
+    crate::model(compile(sources.as_ref(), compiler)).publish();
 }
 
 fn compile(sources: &Path, compiler: impl FnOnce(&Path, &Path) -> io::Result<()>) -> PathBuf {

@@ -239,7 +239,16 @@
                     "type": "null"
                   }
                 ],
+                "deprecated": true,
+                "x-smithy-deprecation": {
+                  "message": "Use updatedAt.",
+                  "since": "2026-08"
+                },
                 "x-smithy-traits": {
+                  "smithy.api#deprecated": {
+                    "message": "Use updatedAt.",
+                    "since": "2026-08"
+                  },
                   "smithy.api#timestampFormat": "epoch-seconds"
                 }
               },
@@ -451,7 +460,16 @@
                     "type": "null"
                   }
                 ],
+                "deprecated": true,
+                "x-smithy-deprecation": {
+                  "message": "Use updatedAt.",
+                  "since": "2026-08"
+                },
                 "x-smithy-traits": {
+                  "smithy.api#deprecated": {
+                    "message": "Use updatedAt.",
+                    "since": "2026-08"
+                  },
                   "smithy.api#timestampFormat": "epoch-seconds"
                 }
               },
@@ -983,7 +1001,16 @@
                     "type": "null"
                   }
                 ],
+                "deprecated": true,
+                "x-smithy-deprecation": {
+                  "message": "Use updatedAt.",
+                  "since": "2026-08"
+                },
                 "x-smithy-traits": {
+                  "smithy.api#deprecated": {
+                    "message": "Use updatedAt.",
+                    "since": "2026-08"
+                  },
                   "smithy.api#timestampFormat": "epoch-seconds"
                 }
               },
@@ -1102,7 +1129,7 @@
         "idempotentHint": false,
         "readOnlyHint": true
       },
-      "description": "",
+      "description": "Deprecated since 2026-09: Use Status instead.",
       "inputSchema": {
         "$defs": {},
         "maxProperties": 0,
@@ -1250,6 +1277,10 @@
       "outputSchema": {
         "$defs": {
           "example.weather.PhotoSummary": {
+            "externalDocs": {
+              "description": "Photo guide",
+              "url": "https://weather.example/docs/photos"
+            },
             "properties": {
               "caption": {
                 "anyOf": [
@@ -1285,7 +1316,20 @@
               "size",
               "thumbnail"
             ],
-            "type": "object"
+            "type": "object",
+            "x-smithy-external-docs": {
+              "Reference": "https://weather.example/docs/photos/reference"
+            },
+            "x-smithy-since": "2026-10",
+            "x-smithy-traits": {
+              "smithy.api#externalDocumentation": {
+                "Photo guide": "https://weather.example/docs/photos",
+                "Reference": "https://weather.example/docs/photos/reference"
+              },
+              "smithy.api#since": "2026-10",
+              "smithy.api#unstable": {}
+            },
+            "x-smithy-unstable": true
           },
           "example.weather.PutCityPhotoOutput": {
             "properties": {

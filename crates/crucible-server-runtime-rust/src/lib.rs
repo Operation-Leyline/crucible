@@ -118,7 +118,7 @@ macro_rules! include_service {
 }
 
 /// Includes the `smithy.test` conformance tests generated for this crate's model
-/// by `crucible_build::rust_service(..).conformance()`. Declare it inside a
+/// by `crucible_build::model(..).server().conformance()`. Declare it inside a
 /// `#[cfg(test)]` module of the crate that called `include_service!()`, with
 /// `crucible-server-runtime-rust/test-support` enabled for tests. The optional
 /// argument configures the service the tests build, as the production builder

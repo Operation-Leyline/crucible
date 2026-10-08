@@ -138,7 +138,7 @@ def qualify_client(cli, directory, env, source):
     manifest = project / "Cargo.toml"
     manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, features = ["rust"], path =') +
                         f'smithy-tooling = {{ path = {json.dumps(str(ROOT / "vendor/smithy-tooling"))} }}\n', encoding="utf-8")
-    (project / "build.rs").write_text('fn main() { crucible_build::client_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out)).policy("crucible.toml").generate(); }\n', encoding="utf-8")
+    (project / "build.rs").write_text('fn main() { crucible_build::model("smithy").compile_with(|config, out| smithy_tooling::build(config, out)).client().policy("crucible.toml").generate(); }\n', encoding="utf-8")
     run(["cargo", "clippy", "--offline", "--all-targets", "--", "-D", "warnings"], project, env)
     # A separate downstream crate must see the generated public library API.
     consumer = directory / "client consumer"
@@ -158,7 +158,7 @@ def qualify_model_package(directory, env, source):
     (project / "src/lib.rs").write_text("", encoding="utf-8")
     (project / "Cargo.toml").write_text('[package]\nname = "shared-model"\nversion = "0.1.0"\nedition = "2024"\nlinks = "shared_model"\n[build-dependencies]\n' +
                                        f'crucible-build = {{ path = {json.dumps(str(ROOT / "crates/crucible-build"))} }}\n', encoding="utf-8")
-    (project / "build.rs").write_text('fn main() { crucible_build::publish_model_from_smithy("smithy"); }\n', encoding="utf-8")
+    (project / "build.rs").write_text('fn main() { crucible_build::model("smithy").publish(); }\n', encoding="utf-8")
     model = project / "smithy/hello.smithy"
     model.write_text(source, encoding="utf-8")
     consumer = directory / "shared client"
@@ -167,7 +167,7 @@ def qualify_model_package(directory, env, source):
                                         f'shared-model = {{ path = {json.dumps(str(project))} }}\n' +
                                         f'crucible-client-runtime-rust = {{ path = {json.dumps(str(ROOT / "crates/crucible-client-runtime-rust"))} }}\n[build-dependencies]\n' +
                                         f'crucible-build = {{ path = {json.dumps(str(ROOT / "crates/crucible-build"))}, default-features = false, features = ["rust"] }}\n', encoding="utf-8")
-    (consumer / "build.rs").write_text('fn main() { crucible_build::client("shared_model").generate(); }\n', encoding="utf-8")
+    (consumer / "build.rs").write_text('fn main() { crucible_build::model("shared_model").client().generate(); }\n', encoding="utf-8")
     client_source = 'crucible_client_runtime_rust::include_client!();\npub fn message(output: SayHelloOutput) -> String { output.message }\n'
     (consumer / "src/lib.rs").write_text(client_source, encoding="utf-8")
     run(["cargo", "build", "--offline"], consumer, env)
@@ -188,7 +188,7 @@ def qualify_model_package(directory, env, source):
     manifest = project / "Cargo.toml"
     manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, path =') +
                         f'smithy-tooling = {{ path = {json.dumps(str(ROOT / "vendor/smithy-tooling"))} }}\n', encoding="utf-8")
-    (project / "build.rs").write_text('fn main() { crucible_build::publish_model_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out)); }\n', encoding="utf-8")
+    (project / "build.rs").write_text('fn main() { crucible_build::model("smithy").compile_with(|config, out| smithy_tooling::build(config, out)).publish(); }\n', encoding="utf-8")
     run(["cargo", "build", "--offline"], consumer, env)
     print("One-line shared model publication, stable AST and downstream regeneration passed")
 
@@ -207,20 +207,20 @@ def main():
             assert "hello-client/src/lib.rs" in contents.namelist()
             assert "hello-client/examples/hello.rs" in contents.namelist()
             assert 'rev = "test-revision"' in contents.read("hello-client/Cargo.toml").decode()
-            assert "client_from_smithy" in contents.read("hello-client/build.rs").decode()
+            assert '.client()' in contents.read("hello-client/build.rs").decode()
             assert "hello-client/crucible.toml" in contents.namelist()
             assert '.policy("crucible.toml")' in contents.read("hello-client/build.rs").decode()
         selected = directory / "selected compiler client"
         run([str(cli), "new", "selected-client", "--client", "--out", str(selected), "--crucible-rev", "test-revision", "--smithy-version", "1.74.0"])
         selected_manifest = (selected / "Cargo.toml").read_text()
         assert 'smithy-1.74.0-wrapper-0.3.0' in selected_manifest and 'default-features = false' in selected_manifest
-        assert 'client_from_smithy_with' in (selected / "build.rs").read_text()
+        assert 'compile_with' in (selected / "build.rs").read_text()
         project = directory / "hello service"
         run([str(cli), "new", "hello-service", "--out", str(project), "--runtime-path", str(ROOT)])
         assert not (project / "src/contract.rs").exists()
         assert 'crucible_server_runtime_rust::include_service!();' in (project / "src/main.rs").read_text()
         assert 'crate::hello_service::' in (project / "src/operations/service/say_hello.rs").read_text()
-        assert 'rust_service_from_smithy' in (project / "build.rs").read_text()
+        assert '.server()' in (project / "build.rs").read_text()
         files = {path.relative_to(project): hashlib.sha256(path.read_bytes()).digest() for path in project.rglob("*") if path.is_file()}
         failed = run([str(cli), "new", "hello-service", "--out", str(project)], success=False)
         assert "empty directory" in failed.stderr

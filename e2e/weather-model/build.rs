@@ -37,5 +37,5 @@ fn main() {
     let out = PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR")).join("weather.json");
     std::fs::write(&out, serde_json::to_string_pretty(&merged).unwrap())
         .expect("cannot write the merged model");
-    crucible_build::publish_model(out);
+    crucible_build::model(out).publish();
 }

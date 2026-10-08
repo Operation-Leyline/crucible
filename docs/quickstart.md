@@ -24,7 +24,7 @@ are possible responses. Error responses include `x-request-id`.
 
 ```text
 Cargo.toml
-build.rs                              rust_service_from_smithy("smithy").generate()
+build.rs                              model("smithy").server().generate()
 smithy/hello.smithy                    the API
 src/main.rs                           includes hello_service and hosts HTTP
 src/operations/mod.rs                 your service type
@@ -70,7 +70,7 @@ crucible new my-service --smithy-version 1.73.0
 
 That starter disables the default compiler in `crucible-build`, adds an
 immutable `smithy-1.73.0-wrapper-0.3.0` tooling dependency, and selects it through
-`rust_service_from_smithy_with`. Its prelude and compiler come from the same release.
+`model("smithy").compile_with(..).server()`. Its prelude and compiler come from the same release.
 Only published tooling tags can be selected; the build does not invent or
 silently upgrade versions. Selecting a version means also having read access
 to the private `smithy-tooling` repository.

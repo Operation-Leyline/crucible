@@ -4,8 +4,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crucible_build::outputs::{CdkOptions, Generator, ProvisioningBindings, TerraformOptions};
 use crucible_build::{Artifact, ModelPackage};
+use crucible_build::{CdkOptions, Generator, ProvisioningBindings, TerraformOptions};
 use serde_json::Value;
 
 const CDK_MODEL: &str = include_str!("../../crucible-codegen-cdk/tests/fixtures/model.json");
@@ -17,7 +17,7 @@ const TERRAFORM_BINDINGS: &str =
     include_str!("../../crucible-codegen-terraform/tests/fixtures/bindings.json");
 
 fn compile(path: &str) -> ModelPackage {
-    crucible_build::model_from_json(path).compile_with(|_, _| unreachable!())
+    crucible_build::model(path).compile_with(|_, _| unreachable!())
 }
 
 fn bindings(path: &str) -> ProvisioningBindings {
@@ -112,7 +112,7 @@ fn generate() {
         serde_json::to_vec(&alternatives).unwrap(),
     )
     .unwrap();
-    let selected = crucible_build::model_from_json("protocol-alternatives.json")
+    let selected = crucible_build::model("protocol-alternatives.json")
         .protocol("crucible.protocols#json")
         .compile();
     let explicit = selected

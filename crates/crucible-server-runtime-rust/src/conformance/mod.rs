@@ -1,6 +1,6 @@
 //! Smithy protocol-test vectors, run against the real pipeline (`test-support`).
 //!
-//! `crucible_build::rust_service(..).conformance()` generates one `#[test]` per
+//! `crucible_build::model(..).server().conformance()` generates one `#[test]` per
 //! `smithy.test` vector the service's protocol shares with its clients, as a
 //! table of the vector's data and a call into this module. Everything that
 //! decides pass or fail lives here, so it is written and tested once:

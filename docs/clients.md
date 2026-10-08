@@ -135,7 +135,7 @@ package. See [building named SDK packages](build-outputs.md) for both model-owne
 and separate SDK producers. Pin the CLI version in your toolchain or CI setup.
 
 Rust clients also support automatic generation during Cargo builds through
-[`crucible_build::client_from_smithy`](clients/rust.md#generating-a-client).
+[`crucible_build::model("smithy").client()`](clients/rust.md#generating-a-client).
 
 ### Using an existing Smithy build
 

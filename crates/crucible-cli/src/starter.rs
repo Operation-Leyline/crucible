@@ -90,22 +90,18 @@ pub(crate) fn create(
             ""
         }
     );
-    let helper = if client {
-        "client_from_smithy"
-    } else {
-        "rust_service_from_smithy"
-    };
+    let helper = if client { "client" } else { "server" };
     let build = if let Some(version) = smithy_version {
         manifest.push_str(&format!(
             "smithy-tooling = {{ git = \"https://github.com/Operation-Leyline/smithy-tooling\", tag = {} }}\n",
             quoted(&format!("smithy-{version}-wrapper-0.3.0"))
         ));
         format!(
-            "fn main() {{\n    crucible_build::{helper}_with(\"smithy\", |config, out| {{\n        smithy_tooling::build(config, out)\n    }})\n    .policy(\"crucible.toml\")\n    .generate();\n}}\n"
+            "fn main() {{\n    crucible_build::model(\"smithy\")\n        .compile_with(|config, out| smithy_tooling::build(config, out))\n        .{helper}()\n        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
         )
     } else {
         format!(
-            "fn main() {{\n    crucible_build::{helper}(\"smithy\")\n        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
+            "fn main() {{\n    crucible_build::model(\"smithy\")\n        .{helper}()\n        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
         )
     };
     let mut files = vec![

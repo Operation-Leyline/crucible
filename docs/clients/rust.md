@@ -12,7 +12,7 @@ and an async runtime such as Tokio.
 
 Clients omit `@internal` API by default. Select `--audience internal` for a full
 client, or `.audience(crucible_build::Audience::Internal)` on the Cargo build
-helper. The legacy Rust `client(...)` and `RustCodegen::client_from_model(...)`
+helper. Rust `model(...).client()`
 helpers accept the same setter. Servers always retain the complete contract.
 See [API audience selection](../build-outputs.md#selecting-an-api-audience).
 
@@ -41,7 +41,7 @@ release. Its complete build script is:
 
 ```rust
 fn main() {
-    crucible_build::client_from_smithy("smithy")
+    crucible_build::model("smithy").client()
         .policy("crucible.toml")
         .generate();
 }
@@ -77,14 +77,14 @@ depend on `crucible-build` in `[build-dependencies]`, and use:
 ```rust
 // weather-model/build.rs
 fn main() {
-    crucible_build::publish_model_from_smithy("smithy");
+    crucible_build::model("smithy").publish();
 }
 ```
 
 This replaces hand-written compiler configuration, bundled import copying,
-AST stabilization and `publish_model` wiring. Use
-`publish_model_from_smithy_with` for an explicitly selected compiler, or keep
-`publish_model("model.json")` when the AST is already compiled. See
+AST stabilization and publication wiring. Use
+`model("smithy").compile_with(..).publish()` for an explicitly selected compiler,
+or `model("model.json").publish()` when the AST is already compiled. See
 [model packages](../framework.md#model-packages) for the Cargo metadata contract.
 A sibling client consumes the published model as follows:
 
@@ -110,7 +110,7 @@ example using path dependencies.
 ```rust
 // build.rs
 fn main() {
-    crucible_build::client("weather_model").generate();
+    crucible_build::model("weather_model").client().generate();
 }
 ```
 
@@ -120,7 +120,7 @@ crucible_client_runtime_rust::include_client!();
 ```
 
 For an already compiled JSON AST without a separate model package, call
-`crucible_build::RustCodegen::client_from_model("model.json").generate()` in
+`crucible_build::model("model.json").client().generate()` in
 `build.rs`. To generate a complete Cargo SDK directly:
 
 ```sh
