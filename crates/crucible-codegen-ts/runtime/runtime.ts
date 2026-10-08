@@ -426,7 +426,7 @@ export function fromBase64(text: string): Uint8Array {
 }
 
 export function parseTimestamp(value: string | number): Date {
-  const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
+  const date = typeof value === "number" ? new Date(Math.round(value * 1000)) : new Date(value);
   if (Number.isNaN(date.getTime())) throw new TypeError(`not a timestamp: ${String(value)}`);
   return date;
 }
