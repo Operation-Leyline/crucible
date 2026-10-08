@@ -189,6 +189,9 @@ struct Generator<'a> {
     options: &'a ConformanceOptions,
     /// `ParamShape` statics by the shape they describe, in discovery order.
     shapes: BTreeMap<ShapeId, usize>,
+    /// Why a cached shape cannot be described by params, so a later vector
+    /// reaching it is diagnosed too, not only the first.
+    shape_unsupported: BTreeMap<ShapeId, String>,
     bodies: Vec<String>,
     unsupported: Option<String>,
 }
@@ -199,6 +202,7 @@ impl<'a> Generator<'a> {
             service,
             options,
             shapes: BTreeMap::new(),
+            shape_unsupported: BTreeMap::new(),
             bodies: Vec::new(),
             unsupported: None,
         }
@@ -448,6 +452,9 @@ impl<'a> Generator<'a> {
                 shape @ (Shape::List(_) | Shape::Map(_) | Shape::Structure(_) | Shape::Union(_)),
             ) => {
                 if let Some(index) = self.shapes.get(target) {
+                    if let Some(reason) = self.shape_unsupported.get(target) {
+                        self.unsupported.get_or_insert_with(|| reason.clone());
+                    }
                     return format!("&SHAPE_{index}");
                 }
                 // Registered before its members are visited, so recursive
@@ -455,6 +462,7 @@ impl<'a> Generator<'a> {
                 let index = self.bodies.len();
                 self.shapes.insert(target.clone(), index);
                 self.bodies.push(String::new());
+                let outer = self.unsupported.take();
                 let body = match shape {
                     Shape::List(list) => format!("ParamShape::List({})", self.member(&list.member)),
                     Shape::Map(map) => format!("ParamShape::Map({})", self.member(&map.value)),
@@ -480,6 +488,12 @@ impl<'a> Generator<'a> {
                     }
                     _ => unreachable!("matched above"),
                 };
+                if let Some(reason) = self.unsupported.clone() {
+                    self.shape_unsupported.insert(target.clone(), reason);
+                }
+                if outer.is_some() {
+                    self.unsupported = outer;
+                }
                 self.bodies[index] = body;
                 format!("&SHAPE_{index}")
             }

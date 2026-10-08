@@ -355,3 +355,29 @@ fn an_event_stream_cannot_be_compared_with_params() {
         "{error}"
     );
 }
+
+#[test]
+fn every_vector_reaching_a_cached_stream_shape_is_diagnosed() {
+    let service = weather(|model| {
+        traits(model, "Photo")["smithy.api#streaming"] = json!({});
+        traits(model, "Photo")
+            .as_object_mut()
+            .unwrap()
+            .remove("smithy.api#length");
+        model["shapes"]["example.weather#GetCityPhotoOutput"]["members"]["photo"]["traits"]["smithy.api#required"] =
+            json!({});
+        let requests = traits(model, "PutCityPhoto")["smithy.test#httpRequestTests"]
+            .as_array_mut()
+            .unwrap();
+        let mut again = requests[0].clone();
+        again["id"] = json!("PutCityPhotoAgain");
+        requests.push(again);
+    });
+    let error = diagnostics(&service, &ConformanceOptions::default());
+    for expected in ["PutCityPhotoPayload", "PutCityPhotoAgain"] {
+        assert!(
+            error.contains(&format!("protocol test {expected}: reaches streaming blob")),
+            "no diagnostic for {expected} in\n{error}"
+        );
+    }
+}
