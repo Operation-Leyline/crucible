@@ -1,0 +1,166 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.malformed#Service": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.malformed#GetThing"
+        }
+      ],
+      "errors": [
+        {
+          "target": "example.malformed#ValidationError"
+        }
+      ]
+    },
+    "example.malformed#ValidationError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.malformed#GetThingInput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "id": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#httpLabel": {}
+          }
+        },
+        "limit": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpQuery": "limit"
+          }
+        }
+      }
+    },
+    "example.malformed#GetThingOutput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#output": {}
+      },
+      "members": {
+        "name": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.malformed#GetThing": {
+      "type": "operation",
+      "input": {
+        "target": "example.malformed#GetThingInput"
+      },
+      "output": {
+        "target": "example.malformed#GetThingOutput"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/things/{id}"
+        },
+        "smithy.test#httpMalformedRequestTests": [
+          {
+            "id": "BadLabelEscape",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            },
+            "documentation": "An invalid percent escape in a label."
+          },
+          {
+            "id": "BadLimit",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/a",
+              "queryParams": [
+                "limit=$limit"
+              ],
+              "headers": {
+                "x-case": "$kind"
+              }
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "contents": "{\"__type\":\"ValidationError\",\"message\":\"$kind\"}"
+                }
+              }
+            },
+            "testParameters": {
+              "limit": [
+                "abc",
+                "9999999999"
+              ],
+              "kind": [
+                "text",
+                "range"
+              ]
+            },
+            "tags": [
+              "query"
+            ]
+          },
+          {
+            "id": "RegexKeepsDollar",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/a",
+              "body": "x",
+              "bodyMediaType": "text/plain",
+              "host": "$unknown.example"
+            },
+            "response": {
+              "code": 400,
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "^label.*$"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

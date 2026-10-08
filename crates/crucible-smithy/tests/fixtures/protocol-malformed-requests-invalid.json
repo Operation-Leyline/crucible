@@ -1,0 +1,364 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.malformedinvalid#Service": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.malformedinvalid#GetThing"
+        }
+      ],
+      "errors": [
+        {
+          "target": "example.malformedinvalid#ValidationError"
+        }
+      ]
+    },
+    "example.malformedinvalid#ValidationError": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.malformedinvalid#GetThingInput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "id": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#httpLabel": {}
+          }
+        },
+        "limit": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpQuery": "limit"
+          }
+        }
+      }
+    },
+    "example.malformedinvalid#GetThingOutput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#output": {}
+      },
+      "members": {
+        "name": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.malformedinvalid#GetThing": {
+      "type": "operation",
+      "input": {
+        "target": "example.malformedinvalid#GetThingInput"
+      },
+      "output": {
+        "target": "example.malformedinvalid#GetThingOutput"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/things/{id}"
+        },
+        "smithy.test#httpMalformedRequestTests": [
+          {
+            "id": "UnknownField",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            },
+            "surprise": true
+          },
+          {
+            "id": "MissingResponse",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            }
+          },
+          {
+            "id": "CodeOutOfRange",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 600
+            }
+          },
+          {
+            "id": "EmptyUri",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": ""
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            }
+          },
+          {
+            "id": "BothAssertions",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "contents": "{}",
+                  "messageRegex": "x"
+                }
+              }
+            }
+          },
+          {
+            "id": "NoMediaType",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "body": {
+                "mediaType": "",
+                "assertion": {
+                  "contents": "{}"
+                }
+              }
+            }
+          },
+          {
+            "id": "EmptyRegex",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": ""
+                }
+              }
+            }
+          },
+          {
+            "id": "EmptyParameter",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            },
+            "testParameters": {
+              "value": []
+            }
+          },
+          {
+            "id": "BadParameterName",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/$a-b"
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            },
+            "testParameters": {
+              "a-b": [
+                "1"
+              ]
+            }
+          },
+          {
+            "id": "UnusedParameter",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            },
+            "testParameters": {
+              "unused": [
+                "1",
+                "2"
+              ]
+            }
+          },
+          {
+            "id": "TooManyCases",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/$a$b$c"
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            },
+            "testParameters": {
+              "a": [
+                "0",
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7"
+              ],
+              "b": [
+                "0",
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7"
+              ],
+              "c": [
+                "0",
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7"
+              ]
+            }
+          },
+          {
+            "id": "Duplicate",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            }
+          },
+          {
+            "id": "Duplicate",
+            "protocol": "crucible.protocols#json",
+            "request": {
+              "method": "GET",
+              "uri": "/things/%zz"
+            },
+            "response": {
+              "code": 400,
+              "headers": {
+                "x-crucible-error": "ValidationError"
+              },
+              "body": {
+                "mediaType": "application/json",
+                "assertion": {
+                  "messageRegex": "label"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

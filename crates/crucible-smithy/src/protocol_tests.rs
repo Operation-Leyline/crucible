@@ -23,6 +23,10 @@ pub struct HttpProtocolTest {
     pub vendor_params: Option<Value>,
     pub vendor_params_shape: Option<ShapeId>,
     pub tags: Vec<String>,
+    /// The `testParameters` combination a malformed-request vector was
+    /// expanded with, so the case stays traceable to its template.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub test_parameters: BTreeMap<String, String>,
     pub case: HttpTestCase,
 }
 
@@ -54,6 +58,52 @@ pub enum HttpTestCase {
         code: u16,
         message: HttpMessageExpectation,
     },
+    /// A request a server must refuse, and how. Server-only by definition.
+    MalformedRequest {
+        request: MalformedRequestDefinition,
+        response: MalformedResponseDefinition,
+    },
+}
+
+/// The request a malformed-request vector sends. Unlike a request vector it
+/// is the whole message, not a set of expectations about one.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MalformedRequestDefinition {
+    pub method: String,
+    pub uri: String,
+    pub host: Option<String>,
+    /// `name=value` pairs, appended to the query string as written.
+    pub query_params: Vec<String>,
+    pub headers: BTreeMap<String, String>,
+    pub body: Option<String>,
+    pub body_media_type: Option<String>,
+}
+
+/// What the refusal must look like. Headers are required to be present with
+/// these values; a server may send more.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MalformedResponseDefinition {
+    pub code: u16,
+    pub headers: BTreeMap<String, String>,
+    pub body: Option<MalformedResponseBody>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MalformedResponseBody {
+    pub media_type: String,
+    pub assertion: MalformedBodyAssertion,
+}
+
+/// `contents` is compared as the media type's document; `messageRegex` must
+/// match the error message the body carries.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MalformedBodyAssertion {
+    Contents(String),
+    MessageRegex(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -100,6 +150,48 @@ struct RawCase {
     body: Option<String>,
     body_media_type: Option<String>,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RawMalformedCase {
+    id: String,
+    protocol: ShapeId,
+    documentation: Option<String>,
+    request: RawMalformedRequest,
+    response: RawMalformedResponse,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    test_parameters: BTreeMap<String, Vec<String>>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RawMalformedRequest {
+    method: String,
+    uri: String,
+    host: Option<String>,
+    #[serde(default)]
+    query_params: Vec<String>,
+    #[serde(default)]
+    headers: BTreeMap<String, String>,
+    body: Option<String>,
+    body_media_type: Option<String>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RawMalformedResponse {
+    code: u16,
+    #[serde(default)]
+    headers: BTreeMap<String, String>,
+    body: Option<MalformedResponseBody>,
+}
+
+/// A vector template may expand into at most this many cases, so a typo in
+/// `testParameters` cannot turn into thousands of generated tests.
+const MAX_EXPANSION: usize = 256;
+
 fn empty_object() -> Value {
     Value::Object(Default::default())
 }
@@ -112,18 +204,15 @@ pub(crate) fn lower(
     let mut result = Vec::new();
     let mut ids = BTreeSet::new();
     for operation in operations {
-        for (shape, request, error) in std::iter::once((&operation.id, true, false))
-            .chain(std::iter::once((&operation.id, false, false)))
-            .chain(operation.errors.iter().map(|id| (id, false, true)))
+        for (shape, kind, error) in [
+            (&operation.id, Kind::Request, false),
+            (&operation.id, Kind::Response, false),
+            (&operation.id, Kind::Malformed, false),
+        ]
+        .into_iter()
+        .chain(operation.errors.iter().map(|id| (id, Kind::Response, true)))
         {
-            let trait_id = ShapeId::new(
-                "smithy.test",
-                if request {
-                    "httpRequestTests"
-                } else {
-                    "httpResponseTests"
-                },
-            );
+            let trait_id = ShapeId::new("smithy.test", kind.trait_name());
             let Some(cases) = model.get(shape).and_then(|s| s.traits.get(&trait_id)) else {
                 continue;
             };
@@ -132,14 +221,21 @@ pub(crate) fn lower(
                 continue;
             };
             for case in cases {
-                match parse(case, operation, request, error, shape) {
-                    Ok(case) => {
-                        // Error cases can legitimately be shared by several operations.
-                        if !ids.insert((operation.id.clone(), request, case.id.clone())) {
-                            diagnostics
-                                .push(shape, format!("duplicate protocol test id {}", case.id));
+                let parsed = match kind {
+                    Kind::Malformed => parse_malformed(case, operation),
+                    _ => parse(case, operation, kind == Kind::Request, error, shape)
+                        .map(|case| vec![case]),
+                };
+                match parsed {
+                    Ok(cases) => {
+                        for case in cases {
+                            // Error cases can legitimately be shared by several operations.
+                            if !ids.insert((operation.id.clone(), kind, case.id.clone())) {
+                                diagnostics
+                                    .push(shape, format!("duplicate protocol test id {}", case.id));
+                            }
+                            result.push(case);
                         }
-                        result.push(case);
                     }
                     Err(message) => diagnostics.push(
                         shape,
@@ -155,6 +251,205 @@ pub(crate) fn lower(
         }
     }
     result.sort_by(|a, b| (&a.operation, &a.id).cmp(&(&b.operation, &b.id)));
+    result
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Kind {
+    Request,
+    Response,
+    Malformed,
+}
+
+impl Kind {
+    fn trait_name(self) -> &'static str {
+        match self {
+            Self::Request => "httpRequestTests",
+            Self::Response => "httpResponseTests",
+            Self::Malformed => "httpMalformedRequestTests",
+        }
+    }
+}
+
+/// One malformed-request template becomes one vector per combination of its
+/// `testParameters`. Expanding here settles the vectors once, for every
+/// consumer, rather than leaving each runtime to implement `$name` rules.
+fn parse_malformed(value: &Value, operation: &Operation) -> Result<Vec<HttpProtocolTest>, String> {
+    let raw: RawMalformedCase = serde_json::from_value(value.clone())
+        .map_err(|e| format!("unsupported or malformed protocol expectation: {e}"))?;
+    if raw.request.method.is_empty() || raw.request.uri.is_empty() {
+        return Err("request requires a method and a uri".into());
+    }
+    if !(100..=599).contains(&raw.response.code) {
+        return Err("response code must be 100..599".into());
+    }
+    if let Some(body) = &raw.response.body {
+        if body.media_type.is_empty() {
+            return Err("response body requires a mediaType".into());
+        }
+        if matches!(&body.assertion,
+            MalformedBodyAssertion::MessageRegex(pattern) if pattern.is_empty())
+        {
+            return Err("messageRegex must not be empty".into());
+        }
+    }
+    for (name, values) in &raw.test_parameters {
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return Err(format!(
+                "test parameter {name:?} must be a non-empty identifier of letters, digits and underscores"
+            ));
+        }
+        if values.is_empty() {
+            return Err(format!("test parameter {name} has no values"));
+        }
+    }
+    let combinations = raw
+        .test_parameters
+        .values()
+        .try_fold(1usize, |total, values| total.checked_mul(values.len()))
+        .filter(|total| *total <= MAX_EXPANSION)
+        .ok_or_else(|| format!("testParameters expand to more than {MAX_EXPANSION} cases"))?;
+
+    // A parameter nothing refers to would silently multiply identical cases.
+    let mut referenced = BTreeSet::new();
+    substitute(&raw.request, &raw.response, &mut |text| {
+        referenced.extend(references(text).map(str::to_owned));
+        text.to_owned()
+    });
+    if let Some(unused) = raw
+        .test_parameters
+        .keys()
+        .find(|name| !referenced.contains(name.as_str()))
+    {
+        return Err(format!(
+            "test parameter {unused} is not referenced as ${unused} in the request or response"
+        ));
+    }
+
+    let names: Vec<&String> = raw.test_parameters.keys().collect();
+    let mut cases = Vec::with_capacity(combinations);
+    for index in 0..combinations {
+        // Mixed-radix counter: the first parameter varies slowest.
+        let mut remainder = index;
+        let mut chosen = BTreeMap::new();
+        for name in names.iter().rev() {
+            let values = &raw.test_parameters[*name];
+            chosen.insert((*name).clone(), values[remainder % values.len()].clone());
+            remainder /= values.len();
+        }
+        let (request, response) = substitute(&raw.request, &raw.response, &mut |text| {
+            replace_references(text, &chosen)
+        });
+        let id = if chosen.is_empty() {
+            raw.id.clone()
+        } else {
+            let parts: Vec<String> = chosen.iter().map(|(k, v)| format!("{k}={v}")).collect();
+            format!("{}[{}]", raw.id, parts.join(","))
+        };
+        cases.push(HttpProtocolTest {
+            id,
+            protocol: raw.protocol.clone(),
+            operation: operation.id.clone(),
+            shape: operation.input.clone(),
+            error: false,
+            documentation: raw.documentation.clone(),
+            // Only a server can be asked to refuse a request.
+            applies_to: Some(TestAppliesTo::Server),
+            auth_scheme: None,
+            params: empty_object(),
+            vendor_params: None,
+            vendor_params_shape: None,
+            tags: raw.tags.clone(),
+            test_parameters: chosen,
+            case: HttpTestCase::MalformedRequest {
+                request: MalformedRequestDefinition {
+                    method: request.method,
+                    uri: request.uri,
+                    host: request.host,
+                    query_params: request.query_params,
+                    headers: request.headers,
+                    body: request.body,
+                    body_media_type: request.body_media_type,
+                },
+                response: MalformedResponseDefinition {
+                    code: response.code,
+                    headers: response.headers,
+                    body: response.body,
+                },
+            },
+        });
+    }
+    Ok(cases)
+}
+
+/// Applies `f` to every string a vector can parameterize: the request target,
+/// query, headers and body, and the expected headers and body assertion.
+fn substitute(
+    request: &RawMalformedRequest,
+    response: &RawMalformedResponse,
+    f: &mut impl FnMut(&str) -> String,
+) -> (RawMalformedRequest, RawMalformedResponse) {
+    let mut request = request.clone();
+    let mut response = response.clone();
+    request.uri = f(&request.uri);
+    request.host = request.host.as_deref().map(&mut *f);
+    request.query_params = request.query_params.iter().map(|q| f(q)).collect();
+    request.headers = request
+        .headers
+        .iter()
+        .map(|(name, value)| (f(name), f(value)))
+        .collect();
+    request.body = request.body.as_deref().map(&mut *f);
+    response.headers = response
+        .headers
+        .iter()
+        .map(|(name, value)| (f(name), f(value)))
+        .collect();
+    if let Some(body) = &mut response.body {
+        body.assertion = match &body.assertion {
+            MalformedBodyAssertion::Contents(text) => MalformedBodyAssertion::Contents(f(text)),
+            MalformedBodyAssertion::MessageRegex(text) => {
+                MalformedBodyAssertion::MessageRegex(f(text))
+            }
+        };
+    }
+    (request, response)
+}
+
+/// The identifiers following each `$` in `text`.
+fn references(text: &str) -> impl Iterator<Item = &str> {
+    text.match_indices('$').filter_map(|(at, _)| {
+        let rest = &text[at + 1..];
+        let end = rest
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(rest.len());
+        (end > 0).then(|| &rest[..end])
+    })
+}
+
+/// Replaces `$name` with its value. A `$` that names no parameter stays
+/// literal: regular expressions and bodies legitimately contain it.
+fn replace_references(text: &str, values: &BTreeMap<String, String>) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find('$') {
+        result.push_str(&rest[..at]);
+        let after = &rest[at + 1..];
+        let end = after
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(after.len());
+        match values.get(&after[..end]) {
+            Some(value) if end > 0 => {
+                result.push_str(value);
+                rest = &after[end..];
+            }
+            _ => {
+                result.push('$');
+                rest = after;
+            }
+        }
+    }
+    result.push_str(rest);
     result
 }
 
@@ -224,6 +519,7 @@ fn parse(
         vendor_params: raw.vendor_params,
         vendor_params_shape: raw.vendor_params_shape,
         tags: raw.tags,
+        test_parameters: BTreeMap::new(),
         case,
     })
 }
