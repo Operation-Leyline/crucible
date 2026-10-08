@@ -121,7 +121,7 @@ fn ambiguous_ruby_identifiers_are_collected() {
 #[test]
 fn case_conversion_cannot_overwrite_model_files() {
     let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({"example.weather#CitySummary":"HTTPValue","example.weather#Location":"HttpValue"});
+    model["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({"example.weather#CitySummary":"Http_Value","example.weather#Location":"HttpValue"});
     assert!(emit(&lower(&model), &options()).is_err());
 }
 
