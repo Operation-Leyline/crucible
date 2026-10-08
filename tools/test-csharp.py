@@ -90,7 +90,7 @@ def rpc(output):
 
 def qualify(output):
     # Doc comments and ToString of the generated models; pack runs with -warnaserror, so a malformed comment fails.
-    consume(output, ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json", "display", "Example.Docs", "Display.cs")
+    consume(output, ROOT / "crates/crucible-smithy/tests/fixtures/client-docs-jvm.json", "display", "Example.Docs", "Display.cs")
     rpc(output)
     policy(output)
     streaming(output)
