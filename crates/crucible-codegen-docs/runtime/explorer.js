@@ -660,6 +660,20 @@
 
     let rendered = null;
     const navigate = () => {
+      // A plain fragment (a documentation link such as `#limits`) is an in-page
+      // target, not a route: keep the current view instead of "Not found".
+      const hash = String(win.location.hash || "");
+      if (rendered && hash && !hash.startsWith("#/")) {
+        let id = hash.slice(1);
+        try {
+          id = decodeURIComponent(id);
+        } catch {
+          /* keep the raw fragment */
+        }
+        const anchor = doc.getElementById(id);
+        if (anchor) anchor.scrollIntoView();
+        return;
+      }
       const previous = rendered;
       rendered = render();
       // Move focus with the page so keyboard and screen-reader users land on

@@ -324,6 +324,17 @@ test("start renders the overview, follows the hash and moves focus with the page
   assert.match(app.textContent, /Not found/);
 });
 
+test("a plain documentation fragment keeps the current page", () => {
+  const { win, doc, app } = createWindow({ description: WEATHER, hash: "#/op/example.weather%23GetCity" });
+  x.start(app, WEATHER, { window: win });
+  const title = doc.title;
+  win.setHash("#limits");
+  assert.equal(doc.title, title);
+  assert.doesNotMatch(app.textContent, /Not found|Unknown address/);
+  win.setHash("#/nowhere");
+  assert.match(app.textContent, /Not found/);
+});
+
 test("search filters the sidebar, Escape clears it, Enter opens the first match", () => {
   const { win, doc, app } = createWindow({ description: WEATHER });
   x.start(app, WEATHER, { window: win });
