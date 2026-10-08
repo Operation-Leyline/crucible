@@ -141,8 +141,14 @@ pub fn write_error<E: ModelledError + serde::Serialize>(
 /// internal error.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FrameworkError {
+    /// Credentials were absent or refused by an authentication extension.
+    Unauthenticated,
+    /// An authenticated principal cannot perform the requested action.
+    Forbidden,
     UnknownOperation,
-    MethodNotAllowed { allowed: Vec<&'static str> },
+    MethodNotAllowed {
+        allowed: Vec<&'static str>,
+    },
     UnsupportedMediaType,
     InternalFailure,
 }
@@ -150,6 +156,8 @@ pub enum FrameworkError {
 impl FrameworkError {
     pub fn name(&self) -> &'static str {
         match self {
+            Self::Unauthenticated => "UnauthenticatedException",
+            Self::Forbidden => "ForbiddenException",
             Self::UnknownOperation => "UnknownOperation",
             Self::MethodNotAllowed { .. } => "MethodNotAllowed",
             Self::UnsupportedMediaType => "UnsupportedMediaTypeException",
@@ -159,6 +167,8 @@ impl FrameworkError {
 
     pub fn status(&self) -> u16 {
         match self {
+            Self::Unauthenticated => 401,
+            Self::Forbidden => 403,
             Self::UnknownOperation => 404,
             Self::MethodNotAllowed { .. } => 405,
             Self::UnsupportedMediaType => 415,
@@ -168,6 +178,8 @@ impl FrameworkError {
 
     pub fn message(&self) -> &'static str {
         match self {
+            Self::Unauthenticated => "authentication is required",
+            Self::Forbidden => "access is forbidden",
             Self::UnknownOperation => "no operation serves this request",
             Self::MethodNotAllowed { .. } => "the request method is not allowed for this target",
             Self::UnsupportedMediaType => "the request content-type is not supported",

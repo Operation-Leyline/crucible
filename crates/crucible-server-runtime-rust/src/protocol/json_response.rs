@@ -296,6 +296,8 @@ fn error_response(error: &dyn ModelledError, format: Format) -> Response {
 fn framework_response(error: &FrameworkError, format: Format) -> Response {
     let type_name = if format.rpc_v2() {
         match error {
+            FrameworkError::Unauthenticated => "smithy.framework#UnauthenticatedException",
+            FrameworkError::Forbidden => "smithy.framework#ForbiddenException",
             FrameworkError::UnknownOperation => "smithy.framework#UnknownOperationException",
             FrameworkError::MethodNotAllowed { .. } => "smithy.framework#MethodNotAllowedException",
             FrameworkError::UnsupportedMediaType => {
