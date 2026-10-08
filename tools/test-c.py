@@ -175,9 +175,9 @@ def features():
                 return self.problem(", ".join(failures) + ": " + self.body.decode())
             body["choice"] = {"text": "ok", "__type": "ignored"}
             body["nullable"] = None
-            # Response headers carry HTTP dates, which the client must read as timestamps.
+            # Response headers carry HTTP dates, which the client must read as timestamps; the list is unquoted, so each item holds a comma.
             self.respond(200, json.dumps(body).encode(), None if target else {
-                "x-float": "NaN", "x-date": "Wed, 31 Dec 1969 23:59:59 GMT", "x-dates": '"Wed, 31 Dec 1969 23:59:59 GMT", "Thu, 01 Jan 1970 00:00:01 GMT"'})
+                "x-float": "NaN", "x-date": "Wed, 31 Dec 1969 23:59:59 GMT", "x-dates": "Wed, 31 Dec 1969 23:59:59 GMT, Thu, 01 Jan 1970 00:00:01 GMT"})
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     server.daemon_threads = True

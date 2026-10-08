@@ -477,8 +477,13 @@ static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val 
         if (!trim(value).length) { *out = array; return OK; }
         bool quoted = false, escaped = false;
         size_t start = 0;
+        /* An unquoted HTTP date holds one comma after its weekday, so only every second comma separates items. */
+        bool bare_dates = crucible_generated_string_equal(format, VIEW("http-date")) && named(get(shape(schema, get(get(type, "member"), "target")), "kind"), "timestamp");
+        for (size_t i = 0; bare_dates && i < value.length; ++i) if (value.data[i] == '"') bare_dates = false;
+        bool inside_date = false;
         for (size_t i = 0; i <= value.length; ++i) {
             const char c = i == value.length ? ',' : value.data[i];
+            if (c == ',' && !quoted && bare_dates && i < value.length && (inside_date = !inside_date)) continue;
             if (c == ',' && !quoted) {
                 string part = trim((string){value.data + start, i - start});
                 if (part.length && *part.data == '"') {
