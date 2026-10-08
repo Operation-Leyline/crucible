@@ -65,7 +65,10 @@ fn operations() -> crucible_server_runtime_rust::Operations {
         .unwrap()
 }
 fn request(path: &str, body: Body) -> Request<Body> {
-    Request::post(path).body(body).unwrap()
+    Request::post(path)
+        .header("content-type", "application/json")
+        .body(body)
+        .unwrap()
 }
 fn pending_body(polls: Arc<AtomicUsize>) -> Body {
     Body::from_stream(stream::poll_fn(move |_| {

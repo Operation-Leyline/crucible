@@ -142,6 +142,8 @@ pub fn write_error<E: ModelledError + serde::Serialize>(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FrameworkError {
     UnknownOperation,
+    MethodNotAllowed { allowed: Vec<&'static str> },
+    UnsupportedMediaType,
     InternalFailure,
 }
 
@@ -149,6 +151,8 @@ impl FrameworkError {
     pub fn name(&self) -> &'static str {
         match self {
             Self::UnknownOperation => "UnknownOperation",
+            Self::MethodNotAllowed { .. } => "MethodNotAllowed",
+            Self::UnsupportedMediaType => "UnsupportedMediaTypeException",
             Self::InternalFailure => "InternalFailure",
         }
     }
@@ -156,6 +160,8 @@ impl FrameworkError {
     pub fn status(&self) -> u16 {
         match self {
             Self::UnknownOperation => 404,
+            Self::MethodNotAllowed { .. } => 405,
+            Self::UnsupportedMediaType => 415,
             Self::InternalFailure => 500,
         }
     }
@@ -163,6 +169,8 @@ impl FrameworkError {
     pub fn message(&self) -> &'static str {
         match self {
             Self::UnknownOperation => "no operation serves this request",
+            Self::MethodNotAllowed { .. } => "the request method is not allowed for this target",
+            Self::UnsupportedMediaType => "the request content-type is not supported",
             Self::InternalFailure => "the request failed; quote the request id when reporting it",
         }
     }

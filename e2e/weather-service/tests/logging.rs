@@ -102,7 +102,12 @@ async fn literal_queries_select_the_operation_and_the_generated_client_sends_the
         ("/echo?mode=other", 200),
     ] {
         let response = service
-            .handle(Request::post(uri).body(Body::from("{}")).unwrap())
+            .handle(
+                Request::post(uri)
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
             .await;
         assert_eq!(response.status().as_u16(), expected, "{uri}");
     }
@@ -190,6 +195,7 @@ async fn malformed_query_data_preserves_valid_literals_and_rejection_operation_c
     let response = service
         .handle(
             Request::post("/echo?mode=other&ignored=%FF")
+                .header("content-type", "application/json")
                 .body(Body::from("{}"))
                 .unwrap(),
         )
@@ -235,6 +241,7 @@ async fn serialization_faults_are_logged_after_writing_and_scopes_still_apply() 
     let response = service
         .handle(
             Request::post("/echo?mode=echo&flag")
+                .header("content-type", "application/json")
                 .body(Body::from("{}"))
                 .unwrap(),
         )

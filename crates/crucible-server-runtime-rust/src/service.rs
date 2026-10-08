@@ -289,6 +289,22 @@ impl Crucible {
                         Self::response_headers(&mut job, &mut response);
                     }
                 }
+                // HEAD runs the normal pipeline, but never sends a response body,
+                // including one supplied or transformed by transport middleware.
+                if job.request().method == "HEAD"
+                    && job.request().extensions.get::<Invocation>().is_none()
+                {
+                    // Preserve the representation's length before discarding its bytes.
+                    if !response.headers().contains_key("content-length")
+                        && !matches!(response.status().as_u16(), 100..=199 | 204 | 304)
+                        && let Some(length) = response.body().size_hint().exact()
+                    {
+                        response
+                            .headers_mut()
+                            .insert("content-length", HeaderValue::from(length));
+                    }
+                    *response.body_mut() = Body::empty();
+                }
                 if entered.operation > 0 || entered.interceptors > 0 {
                     for interceptor in inner.interceptors[..entered.interceptors].iter().rev() {
                         if let Err(error) = recover(|| {
@@ -315,6 +331,12 @@ impl Crucible {
                         response = self.write(&mut job, selected, &answers);
                         Self::response_headers(&mut job, &mut response);
                     }
+                }
+                // A failing completion hook can replace the response with an error.
+                if job.request().method == "HEAD"
+                    && job.request().extensions.get::<Invocation>().is_none()
+                {
+                    *response.body_mut() = Body::empty();
                 }
                 response
             })

@@ -190,6 +190,7 @@ async fn absent_http_bindings_cannot_be_supplied_in_the_json_body() {
     let (status, _) = answer(
         &service,
         Request::post("/bindings")
+            .header("content-type", "application/json")
             .body(Body::from(
                 r#"{"headerDisplay":"injected","queryDisplay":"injected","bodyDisplay":"body"}"#,
             ))
@@ -200,7 +201,7 @@ async fn absent_http_bindings_cannot_be_supplied_in_the_json_body() {
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 
     let (status, body) = answer(&service, Request::post("/bindings").header("x-required", "header")
-        .body(Body::from(r#"{"headerDisplay":"ignored","queryDisplay":"injected","strings":["injected"],"bodyDisplay":"body"}"#)).unwrap()).await;
+        .header("content-type", "application/json").body(Body::from(r#"{"headerDisplay":"ignored","queryDisplay":"injected","strings":["injected"],"bodyDisplay":"body"}"#)).unwrap()).await;
     assert_eq!(status, 200, "{body}");
     assert_eq!(body["observed"]["headerDisplay"], "header");
     assert!(body["observed"]["queryDisplay"].is_null());
@@ -210,6 +211,7 @@ async fn absent_http_bindings_cannot_be_supplied_in_the_json_body() {
         &service,
         Request::post("/bindings?q=query")
             .header("x-required", "header")
+            .header("content-type", "application/json")
             .body(Body::from(
                 r#"{"queryDisplay":"ignored","bodyDisplay":"body"}"#,
             ))
@@ -235,6 +237,7 @@ async fn repeated_header_fields_preserve_lists_quotes_dates_and_media_type_strin
         .header("x-encoded", "Yyxk")
         .header("x-numbers", "1,2")
         .header("x-numbers", "3")
+        .header("content-type", "application/json")
         .body(Body::from(r#"{"bodyDisplay":"body"}"#))
         .unwrap();
     let (status, body) = answer(&service, request).await;
@@ -274,6 +277,7 @@ async fn malformed_later_header_fields_and_body_constraints_are_rejected_before_
                 },
             )
             .header(header, value)
+            .header("content-type", "application/json")
             .body(Body::from(r#"{"bodyDisplay":"body"}"#))
             .unwrap();
         let (status, body) = answer(&service, request).await;
@@ -283,6 +287,7 @@ async fn malformed_later_header_fields_and_body_constraints_are_rejected_before_
     let mut request = Request::post("/bindings")
         .header("x-required", "header")
         .header("x-strings", "first")
+        .header("content-type", "application/json")
         .body(Body::from(r#"{"bodyDisplay":"body"}"#))
         .unwrap();
     request
@@ -294,6 +299,7 @@ async fn malformed_later_header_fields_and_body_constraints_are_rejected_before_
             &service,
             Request::post("/bindings")
                 .header("x-required", "header")
+                .header("content-type", "application/json")
                 .body(Body::from(r#"{"bodyDisplay":""}"#))
                 .unwrap()
         )
@@ -415,6 +421,245 @@ fn routing_compares_path_segments_before_query_and_greedy_labels() {
     }
 }
 
+#[test]
+fn routing_normalizes_trailing_slashes_and_encoded_literals() {
+    let operations = route_operations();
+    for uri in ["/abc/bcd/value/", "/%61bc/bcd/value", "/abc/bcd/value///"] {
+        let (parts, _) = Request::post(uri).body(()).unwrap().into_parts();
+        let route = JsonProtocol.route(&parts, &operations).expect(uri);
+        assert_eq!(route.operation, "ZEarly");
+        assert_eq!(route.labels, vec![("x", "value".to_owned())]);
+    }
+    let (parts, _) = Request::post("/greedy/a/b/tail/")
+        .body(())
+        .unwrap()
+        .into_parts();
+    assert_eq!(
+        JsonProtocol.route(&parts, &operations).unwrap().labels,
+        vec![("x", "a/b".to_owned())]
+    );
+    for uri in ["/abc//value", "/%2Fabc/bcd/value", "/%zzbc/bcd/value"] {
+        let (parts, _) = Request::post(uri).body(()).unwrap().into_parts();
+        assert!(JsonProtocol.route(&parts, &operations).is_none(), "{uri}");
+    }
+}
+
+#[test]
+fn explicit_head_routes_take_precedence_over_get_fallback() {
+    static GET: OperationInfo = OperationInfo {
+        method: "GET",
+        ..operation("Get", &[Segment::Literal("head")], &[])
+    };
+    static HEAD: OperationInfo = OperationInfo {
+        method: "HEAD",
+        ..operation("Head", &[Segment::Literal("head")], &[])
+    };
+    static SERVICE: ServiceInfo = ServiceInfo {
+        operations: &[&GET, &HEAD],
+        ..ROUTES
+    };
+    route_operation!(Get, GET);
+    route_operation!(Head, HEAD);
+    let operations = Operations::builder(&SERVICE)
+        .add::<Get, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Head, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .build()
+        .unwrap();
+    let (parts, _) = Request::head("/head").body(()).unwrap().into_parts();
+    assert_eq!(
+        JsonProtocol.route(&parts, &operations).unwrap().operation,
+        "Head"
+    );
+    assert_eq!(
+        JsonProtocol
+            .route_scoped(&parts, &operations, &|op| op.name == "Get")
+            .unwrap()
+            .operation,
+        "Get"
+    );
+}
+
+#[tokio::test]
+async fn known_targets_return_405_with_allow_and_head_uses_get_without_a_body() {
+    for rest in [false, true] {
+        let operations = weather_service::weather::operations(Arc::new(
+            weather_service::Weather::new(Arc::new(weather_service::MemoryCities::default())),
+        ));
+        let builder = Crucible::builder(operations);
+        let service = if rest {
+            builder.protocol(crucible_server_runtime_rust::RestJsonProtocol)
+        } else {
+            builder.protocol(JsonProtocol)
+        }
+        .build()
+        .unwrap();
+        let response = service
+            .handle(Request::delete("/cities/").body(Body::empty()).unwrap())
+            .await;
+        assert_eq!(response.status(), 405);
+        assert_eq!(response.headers()["allow"], "GET, HEAD, POST");
+        for uri in ["/cities", "/%63ities/"] {
+            let get = service
+                .handle(Request::get(uri).body(Body::empty()).unwrap())
+                .await;
+            let head = service
+                .handle(Request::head(uri).body(Body::empty()).unwrap())
+                .await;
+            assert_eq!(get.status(), 200);
+            assert_eq!(head.status(), get.status());
+            assert_eq!(
+                head.headers()["content-type"],
+                get.headers()["content-type"]
+            );
+            let bytes = to_bytes(get.into_body(), usize::MAX).await.unwrap();
+            assert!(!bytes.is_empty());
+            assert_eq!(head.headers()["content-length"], bytes.len().to_string());
+            assert!(
+                to_bytes(head.into_body(), usize::MAX)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        let response = service
+            .handle(
+                Request::delete("/no-such-path")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), 400);
+        assert!(!response.headers().contains_key("allow"));
+        let response = service
+            .handle(Request::head("/no-such-path").body(Body::empty()).unwrap())
+            .await;
+        assert!(
+            to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[tokio::test]
+async fn json_bodies_require_a_compatible_content_type_before_invocation() {
+    for rest in [false, true] {
+        let operations = weather_service::weather::operations(Arc::new(
+            weather_service::Weather::new(Arc::new(weather_service::MemoryCities::default())),
+        ));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let builder = Crucible::builder(operations).interceptor(CountInvocations(calls.clone()));
+        let service = if rest {
+            builder.protocol(crucible_server_runtime_rust::RestJsonProtocol)
+        } else {
+            builder.protocol(JsonProtocol)
+        }
+        .build()
+        .unwrap();
+        for content_type in [None, Some("text/plain"), Some("application/hal+json")] {
+            let mut request = Request::post("/cities");
+            if let Some(value) = content_type {
+                request = request.header("content-type", value);
+            }
+            let response = service
+                .handle(request.body(Body::from(r#"{"name":"Oslo"}"#)).unwrap())
+                .await;
+            assert_eq!(response.status(), 415, "{content_type:?}, rest={rest}");
+            if rest {
+                assert_eq!(
+                    response.headers()["x-amzn-errortype"],
+                    "UnsupportedMediaTypeException"
+                );
+            }
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        let response = service
+            .handle(
+                Request::post("/cities")
+                    .header("content-type", "Application/JSON; charset=utf-8")
+                    .body(Body::from(r#"{"name":"Oslo"}"#))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), 201);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let response = service
+            .handle(
+                Request::get("/cities")
+                    .header("content-type", "text/plain")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), 200);
+    }
+}
+
+#[tokio::test]
+async fn rest_json_checks_payload_media_types_and_rejects_unmodeled_bodies() {
+    let service = Crucible::builder(route_operations())
+        .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
+        .protocol(crucible_server_runtime_rust::RestJsonProtocol)
+        .build()
+        .unwrap();
+    let response = service
+        .handle(
+            Request::post("/abc/bcd/value")
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), 415);
+
+    let operations = weather_service::weather::operations(Arc::new(weather_service::Weather::new(
+        Arc::new(weather_service::MemoryCities::default()),
+    )));
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = Crucible::builder(operations)
+        .interceptor(CountInvocations(calls.clone()))
+        .protocol(crucible_server_runtime_rust::RestJsonProtocol)
+        .build()
+        .unwrap();
+    for content_type in [None, Some("application/json"), Some("text/plain")] {
+        let mut request = Request::put("/cities/c-00000001/photo");
+        if let Some(value) = content_type {
+            request = request.header("content-type", value);
+        }
+        let response = service
+            .handle(request.body(Body::from("photo")).unwrap())
+            .await;
+        assert_eq!(response.status(), 415, "{content_type:?}");
+        assert_eq!(
+            response.headers()["x-amzn-errortype"],
+            "UnsupportedMediaTypeException"
+        );
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let response = service
+        .handle(
+            Request::put("/cities/c-00000001/photo")
+                .header("content-type", "image/jpeg; custom=parameter")
+                .body(Body::from("photo"))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), 404);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let response = service
+        .handle(
+            Request::post("/cities")
+                .header("content-type", "application/json")
+                .header("content-type", "text/plain")
+                .body(Body::from(r#"{"name":"Oslo"}"#))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), 415);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
 struct CountInvocations(Arc<AtomicUsize>);
 
 impl crucible_server_runtime_rust::Interceptor for CountInvocations {
@@ -456,7 +701,12 @@ async fn malformed_uri_components_claim_their_route_and_reject_before_calling_it
         ("/flag?mode=on&ignored=%FE", "ZExact", "ignored"),
     ] {
         let response = service
-            .handle(Request::post(uri).body(Body::from("{}")).unwrap())
+            .handle(
+                Request::post(uri)
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
             .await;
         assert_eq!(response.status(), 400, "{uri}");
         assert_eq!(
@@ -504,6 +754,7 @@ async fn malformed_modeled_queries_are_rejected_and_valid_unicode_is_preserved()
             &service,
             Request::post(uri)
                 .header("x-required", "header")
+                .header("content-type", "application/json")
                 .body(Body::from(r#"{"bodyDisplay":"body"}"#))
                 .unwrap(),
         )
@@ -515,6 +766,7 @@ async fn malformed_modeled_queries_are_rejected_and_valid_unicode_is_preserved()
         &service,
         Request::post("/bindings?q=caf%C3%A9+%EF%BF%BD%2B")
             .header("x-required", "header")
+            .header("content-type", "application/json")
             .body(Body::from(r#"{"bodyDisplay":"body"}"#))
             .unwrap(),
     )
@@ -557,7 +809,12 @@ async fn malformed_queries_preserve_valid_flags_path_specificity_and_protocol_sc
         ("/abc/bcd/other?ignored=%FF", "ZEarly"),
     ] {
         let response = service
-            .handle(Request::post(uri).body(Body::from("{}")).unwrap())
+            .handle(
+                Request::post(uri)
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
             .await;
         assert_eq!(response.status(), 400, "{uri}");
         assert_eq!(
@@ -570,7 +827,12 @@ async fn malformed_queries_preserve_valid_flags_path_specificity_and_protocol_sc
 
 async fn assert_selected_route(service: &Crucible, uri: &str, expected: &str) {
     let response = service
-        .handle(Request::post(uri).body(Body::from("{}")).unwrap())
+        .handle(
+            Request::post(uri)
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
         .await;
     assert_eq!(response.status(), 200, "{uri}");
     assert_eq!(
@@ -685,6 +947,7 @@ async fn nested_json_scopes_intersect_before_choosing_overlapping_candidates() {
 async fn invocation_extensions_always_use_the_invoke_protocol_even_on_an_http_route() {
     let service = service(Arc::new(AtomicUsize::new(0)));
     let mut request = Request::post("/bindings")
+        .header("content-type", "application/json")
         .body(Body::from(
             r#"{"headerDisplay":"direct","queryDisplay":"direct","bodyDisplay":"direct"}"#,
         ))
@@ -696,7 +959,10 @@ async fn invocation_extensions_always_use_the_invoke_protocol_even_on_an_http_ro
     assert_eq!(status, 200, "{body}");
     assert_eq!(body["output"]["observed"]["headerDisplay"], "direct");
     assert_eq!(body["output"]["observed"]["queryDisplay"], "direct");
-    let mut request = Request::post("/bindings").body(Body::from("{}")).unwrap();
+    let mut request = Request::post("/bindings")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))
+        .unwrap();
     request.extensions_mut().insert(Invocation {
         operation: "Missing".to_owned(),
     });

@@ -109,6 +109,7 @@ fn main() {
         .await;
         measure("create_city_replay", || {
             let request = Request::post("/cities")
+                .header("content-type", "application/json")
                 .body(Body::from(replay.clone()))
                 .unwrap();
             send(&service, request)

@@ -297,17 +297,24 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
     let type_name = if format.rpc_v2() {
         match error {
             FrameworkError::UnknownOperation => "smithy.framework#UnknownOperationException",
+            FrameworkError::MethodNotAllowed { .. } => "smithy.framework#MethodNotAllowedException",
+            FrameworkError::UnsupportedMediaType => {
+                "smithy.framework#UnsupportedMediaTypeException"
+            }
             FrameworkError::InternalFailure => "smithy.framework#InternalFailureException",
         }
     } else {
         error.name()
     };
     let body = serde_json::json!({ "__type": type_name, "message": error.message() });
-    let headers = if format.aws() {
+    let mut headers = if format.aws() {
         vec![("x-amzn-errortype".to_owned(), error.name().to_owned())]
     } else {
         Vec::new()
     };
+    if let FrameworkError::MethodNotAllowed { allowed } = error {
+        headers.push(("allow".to_owned(), allowed.join(", ")));
+    }
     let mut bytes = Vec::new();
     if matches!(format, Format::RpcV2Cbor) {
         crate::cbor::write(&body, &mut bytes).expect("framework error is CBOR serializable");
