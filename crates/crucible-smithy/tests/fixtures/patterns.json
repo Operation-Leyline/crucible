@@ -11,7 +11,10 @@
       "boundary": {"target": "smithy.api#String", "traits": {"smithy.api#pattern": "\\ba\\b"}},
       "class": {"target": "smithy.api#String", "traits": {"smithy.api#pattern": "^[\\D\\W\\S\\b.]+$"}},
       "literal": {"target": "smithy.api#String", "traits": {"smithy.api#pattern": "^\\\\d\\.\\u00e9\\x41\\cA$"}},
-      "operators": {"target": "smithy.api#String", "traits": {"smithy.api#pattern": "^[a&&b~~c]$"}}
+      "operators": {"target": "smithy.api#String", "traits": {"smithy.api#pattern": "^[a&&b~~c]$"}},
+      "empty": {"target": "smithy.api#String", "traits": {"smithy.api#pattern": "^[]$"}},
+      "any": {"target": "smithy.api#String", "traits": {"smithy.api#pattern": "^[^]$"}},
+      "anySuffix": {"target": "smithy.api#String", "traits": {"smithy.api#pattern": "^[^]x]$"}}
     }},
     "example.patterns#Digits": {"type": "string", "traits": {"smithy.api#pattern": "^\\d+$"}}
   }

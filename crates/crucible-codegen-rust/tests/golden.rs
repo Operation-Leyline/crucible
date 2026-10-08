@@ -58,6 +58,48 @@ fn generated_patterns_use_ecma_classes_and_line_terminators() {
 }
 
 #[test]
+fn generated_empty_ecma_classes_preserve_matching_and_following_tokens() {
+    for (pattern, accepted, rejected) in [
+        ("^[]$", vec![], vec!["", "a", "]", "\n", "🦀"]),
+        ("^[]x]$", vec![], vec!["x]", "ax]", "]x]"]),
+        ("^[]*$", vec![""], vec!["a", "]"]),
+        ("^(?:[]|x)$", vec!["x"], vec!["", "]", "a"]),
+        (
+            "^[^]$",
+            vec!["a", "]", "\n", "\r", "\u{2028}", "\u{2029}", "é"],
+            vec!["", "ab"],
+        ),
+        ("^[^]x]$", vec!["ax]", "\nx]", "éx]"], vec!["a", "x]", "ax"]),
+        (r"^[\]]$", vec!["]"], vec!["", "a"]),
+    ] {
+        let service = edited(|model| {
+            model["shapes"]["example.weather#CityId"]["traits"]["smithy.api#pattern"] =
+                json!(pattern);
+        });
+        for code in [
+            generate(&service, &Options::default()).unwrap(),
+            generate_client(&service).unwrap(),
+        ] {
+            let literal = code
+                .split("::regex::Regex::new(")
+                .nth(1)
+                .unwrap()
+                .split(").expect(")
+                .next()
+                .unwrap();
+            let translated: String = serde_json::from_str(literal).unwrap();
+            let regex = regex::Regex::new(&translated).unwrap();
+            for text in &accepted {
+                assert!(regex.is_match(text), "{pattern:?} rejected {text:?}");
+            }
+            for text in &rejected {
+                assert!(!regex.is_match(text), "{pattern:?} accepted {text:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn ecma_pattern_statics_match_the_golden_file() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/patterns.json"

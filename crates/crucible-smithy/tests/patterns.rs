@@ -40,6 +40,22 @@ fn ecma_patterns_translate_from_effective_ir_constraints() {
             .unwrap(),
         r"^\\d\.\x{00e9}\x{41}\x{01}$"
     );
+    for (member, translated) in [
+        ("empty", r"^[^\x{0}-\x{10FFFF}]$"),
+        ("any", r"^[\x{0}-\x{10FFFF}]$"),
+        ("anySuffix", r"^[\x{0}-\x{10FFFF}]x\]$"),
+    ] {
+        assert_eq!(
+            input
+                .member(member)
+                .unwrap()
+                .constraints
+                .rust_pattern()
+                .unwrap()
+                .unwrap(),
+            translated
+        );
+    }
 }
 
 #[test]

@@ -84,6 +84,20 @@ pub(crate) fn rust(pattern: &str) -> Result<String, String> {
             }
             '[' if class => out.push_str(r"\["),
             '[' => {
+                // ECMA closes an empty class immediately; Rust treats that
+                // closing bracket as a literal, changing the following tokens.
+                if chars.peek() == Some(&']') {
+                    chars.next();
+                    out.push_str(r"[^\x{0}-\x{10FFFF}]");
+                    continue;
+                }
+                let mut lookahead = chars.clone();
+                if lookahead.next() == Some('^') && lookahead.next() == Some(']') {
+                    chars.next();
+                    chars.next();
+                    out.push_str(r"[\x{0}-\x{10FFFF}]");
+                    continue;
+                }
                 class = true;
                 out.push(ch);
             }

@@ -14,3 +14,9 @@ static PATTERN_6: ::std::sync::LazyLock<::crucible_server_runtime_rust::__privat
             ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__private::regex::Regex::new("^\\\\d\\.\\x{00e9}\\x{41}\\x{01}$").expect("checked by crucible"));
 static PATTERN_7: ::std::sync::LazyLock<::crucible_server_runtime_rust::__private::regex::Regex> =
             ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__private::regex::Regex::new("^[a\\&\\&b\\~\\~c]$").expect("checked by crucible"));
+static PATTERN_8: ::std::sync::LazyLock<::crucible_server_runtime_rust::__private::regex::Regex> =
+            ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__private::regex::Regex::new("^[^\\x{0}-\\x{10FFFF}]$").expect("checked by crucible"));
+static PATTERN_9: ::std::sync::LazyLock<::crucible_server_runtime_rust::__private::regex::Regex> =
+            ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__private::regex::Regex::new("^[\\x{0}-\\x{10FFFF}]$").expect("checked by crucible"));
+static PATTERN_10: ::std::sync::LazyLock<::crucible_server_runtime_rust::__private::regex::Regex> =
+            ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__private::regex::Regex::new("^[\\x{0}-\\x{10FFFF}]x\\]$").expect("checked by crucible"));
