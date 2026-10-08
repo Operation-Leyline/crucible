@@ -11,19 +11,6 @@ const BACKSLASH: char = '\u{5c}';
 /// What a string representation prints in place of a `@sensitive` value.
 pub const REDACTED: &str = "*** Sensitive Data Redacted ***";
 
-/// The `@documentation` text of any shape.
-pub fn shape_docs(shape: &Shape) -> Option<&str> {
-    match shape {
-        Shape::Unit { .. } => None,
-        Shape::Simple(s) => s.docs.as_deref(),
-        Shape::Enum(s) => s.docs.as_deref(),
-        Shape::IntEnum(s) => s.docs.as_deref(),
-        Shape::List(s) => s.docs.as_deref(),
-        Shape::Map(s) => s.docs.as_deref(),
-        Shape::Structure(s) | Shape::Union(s) => s.docs.as_deref(),
-    }
-}
-
 /// Whether a string representation must hide this member's value. Beyond
 /// [`Service::sensitive`], a collection whose elements are sensitive is hidden
 /// whole: its elements are native strings or numbers that cannot redact
