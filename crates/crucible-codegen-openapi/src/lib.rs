@@ -1,6 +1,7 @@
 //! OpenAPI 3.1 export of the lowered REST JSON wire contract.
 //! Smithy remains authoritative; this document is a downstream projection.
 
+mod examples;
 mod operations;
 mod schemas;
 
