@@ -60,7 +60,7 @@ def qualify(output):
         "example.weather#CitySummary": "String", "example.weather#Location": "Array", "example.weather#Sky": "Time",
         "example.weather#Coordinates": "ArgumentError", "example.weather#PhotoSummary": "IOError",
     }
-    for member in ["self", "context", "object", "metadata", "class", "message", "toWire"]:
+    for member in ["self", "context", "object", "metadata", "class", "message", "toWire", "describe"]:
         renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}
     renamed_model = output / "renamed.json"
     renamed_model.write_text(json.dumps(renamed), encoding="utf-8")
