@@ -209,6 +209,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "paste0",
                 "sprintf",
                 "substr",
+                "substring",
                 "sub",
                 "gsub",
                 "grepl",
