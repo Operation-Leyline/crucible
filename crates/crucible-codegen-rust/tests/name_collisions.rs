@@ -69,10 +69,8 @@ fn int_enum_variants_colliding_after_case_conversion_are_diagnosed() {
             } }),
         );
     });
-    both_diagnose(
-        &service,
-        "example.weather#Level$FOO_BAR: members `FOO_BAR` and `fooBar` are both variant `FooBar` in Rust",
-    );
+    // Which member is reported depends on whether serde_json keeps source order.
+    both_diagnose(&service, "are both variant `FooBar` in Rust");
 }
 
 #[test]
