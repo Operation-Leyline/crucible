@@ -82,9 +82,9 @@ fn main() {
 ```
 
 This replaces hand-written compiler configuration, bundled import copying,
-AST stabilization and `publish_model` wiring. Use
-`publish_model_from_smithy_with` for an explicitly selected compiler, or keep
-`publish_model("model.json")` when the AST is already compiled. See
+AST stabilization and publication wiring. Use
+`model("smithy").compile_with(..).publish()` for an explicitly selected compiler,
+or `model("model.json").publish()` when the AST is already compiled. See
 [model packages](../framework.md#model-packages) for the Cargo metadata contract.
 A sibling client consumes the published model as follows:
 
