@@ -271,6 +271,7 @@ pub mod outputs {
     pub use super::{Client, Generator, Server};
     #[cfg(feature = "rust")]
     pub use super::{RuntimeDependency, RustOptions};
+    pub use crucible_codegen::{File, write};
 }
 
 #[cfg(feature = "csharp")]
