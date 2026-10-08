@@ -8,12 +8,25 @@ public final class CachedCredentials implements Supplier<AwsCredentials> {
   private final Clock clock;
   private final Duration refreshBefore;
   private AwsCredentials value;
+  /**
+   * Caches the provider result, refreshing one minute before it expires.
+   *
+   * @param provider the underlying source
+   */
   public CachedCredentials(Supplier<AwsCredentials> provider) { this(provider, Duration.ofMinutes(1), Clock.systemUTC()); }
+  /**
+   * Caches with an explicit refresh window and clock.
+   *
+   * @param provider the underlying source
+   * @param refreshBefore how long before expiry to fetch again; not negative
+   * @param clock the time source
+   */
   public CachedCredentials(Supplier<AwsCredentials> provider, Duration refreshBefore, Clock clock) {
     this.provider=java.util.Objects.requireNonNull(provider); this.clock=java.util.Objects.requireNonNull(clock);
     if (refreshBefore.isNegative()) throw new IllegalArgumentException("Negative refresh window");
     this.refreshBefore=refreshBefore;
   }
+  /** Returns cached credentials, refreshing them first when close to expiry. */
   @Override public synchronized AwsCredentials get() {
     var now=clock.instant();
     if (value!=null && (value.expiresAt()==null || value.expiresAt().isAfter(now.plus(refreshBefore)))) return value;

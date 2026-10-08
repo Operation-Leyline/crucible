@@ -43,18 +43,34 @@ public final class ByteStream implements AutoCloseable {
     return new ByteStream(source, () -> {}, true, length, null, new AtomicBoolean());
   }
 
-  /** Replayable bytes; the array is copied. */
+  /**
+   * Replayable bytes; the array is copied.
+   *
+   * @param bytes the content
+   * @return a replayable stream of the bytes
+   */
   public static ByteStream fromBytes(byte[] bytes) {
     byte[] copy = bytes.clone();
     return replay(() -> HttpRequest.BodyPublishers.ofByteArray(copy), (long) copy.length);
   }
 
-  /** Replayable UTF-8 text. */
+  /**
+   * Replayable UTF-8 text.
+   *
+   * @param text the content
+   * @return a replayable stream of the encoded text
+   */
   public static ByteStream fromString(String text) {
     return fromBytes(text.getBytes(StandardCharsets.UTF_8));
   }
 
-  /** A replayable file, reopened for every attempt. Its size is read now. */
+  /**
+   * A replayable file, reopened for every attempt. Its size is read now.
+   *
+   * @param path the file to send
+   * @return a replayable stream of the file
+   * @throws java.io.UncheckedIOException if the size cannot be read
+   */
   public static ByteStream fromFile(Path path) {
     Objects.requireNonNull(path, "path");
     long size;
@@ -65,12 +81,23 @@ public final class ByteStream implements AutoCloseable {
     }, size);
   }
 
-  /** A one-shot stream of unknown length. The client closes it. */
+  /**
+   * A one-shot stream of unknown length. The client closes it.
+   *
+   * @param input the source
+   * @return a one-shot stream
+   */
   public static ByteStream fromInputStream(InputStream input) {
     return oneShot(input, null);
   }
 
-  /** A one-shot stream of a known length. The client closes it. */
+  /**
+   * A one-shot stream of a known length. The client closes it.
+   *
+   * @param input the source
+   * @param length the exact number of bytes it yields
+   * @return a one-shot stream
+   */
   public static ByteStream fromInputStream(InputStream input, long length) {
     return oneShot(input, length);
   }
@@ -87,25 +114,47 @@ public final class ByteStream implements AutoCloseable {
         false, length, null, new AtomicBoolean());
   }
 
-  /** Replayable: the factory runs once per attempt and must return the same bytes each time. */
+  /**
+   * Replayable: the factory runs once per attempt and must return the same bytes each time.
+   *
+   * @param factory opens a fresh stream for every attempt
+   * @return a replayable stream of unknown length
+   */
   public static ByteStream fromInputStreamSupplier(Supplier<? extends InputStream> factory) {
     Objects.requireNonNull(factory, "factory");
     return replay(() -> new InputStreamPublisher(factory), null);
   }
 
-  /** Replayable, with a known length. */
+  /**
+   * Replayable, with a known length.
+   *
+   * @param factory opens a fresh stream for every attempt
+   * @param length the exact number of bytes each stream yields
+   * @return a replayable stream
+   */
   public static ByteStream fromInputStreamSupplier(Supplier<? extends InputStream> factory, long length) {
     Objects.requireNonNull(factory, "factory");
     return replay(() -> new InputStreamPublisher(factory), length);
   }
 
-  /** A one-shot reactive source of unknown length; it is subscribed once. */
+  /**
+   * A one-shot reactive source of unknown length; it is subscribed once.
+   *
+   * @param publisher the source
+   * @return a one-shot stream
+   */
   public static ByteStream fromPublisher(Flow.Publisher<ByteBuffer> publisher) {
     Objects.requireNonNull(publisher, "publisher");
     return new ByteStream(() -> publisher, () -> {}, false, null, null, new AtomicBoolean());
   }
 
-  /** A one-shot reactive source of a known length. */
+  /**
+   * A one-shot reactive source of a known length.
+   *
+   * @param publisher the source
+   * @param length the exact number of bytes it emits
+   * @return a one-shot stream
+   */
   public static ByteStream fromPublisher(Flow.Publisher<ByteBuffer> publisher, long length) {
     Objects.requireNonNull(publisher, "publisher");
     return new ByteStream(() -> publisher, () -> {}, false, length, null, new AtomicBoolean());
@@ -120,14 +169,32 @@ public final class ByteStream implements AutoCloseable {
   /**
    * The same stream, declaring the hex SHA-256 of its bytes. SigV4 and the content digest
    * need it, since a stream is never buffered to compute one.
+   *
+   * @param hex the SHA-256 digest as 64 hexadecimal digits
+   * @return the same stream with the digest attached
    */
   public ByteStream withSha256(String hex) {
     if (hex == null || !hex.matches("[0-9a-fA-F]{64}")) throw new IllegalArgumentException("sha256 must contain 64 hexadecimal digits");
     return new ByteStream(source, discard, replayable, length, hex.toLowerCase(java.util.Locale.ROOT), opened);
   }
 
+  /**
+   * Whether every attempt can reopen the stream; a one-shot stream is never retried.
+   *
+   * @return true when replayable
+   */
   public boolean replayable() { return replayable; }
+  /**
+   * The byte count when known.
+   *
+   * @return the length, or empty when unknown
+   */
   public OptionalLong length() { return length == null ? OptionalLong.empty() : OptionalLong.of(length); }
+  /**
+   * The declared SHA-256 in lowercase hex, if any.
+   *
+   * @return the digest, or empty
+   */
   public Optional<String> sha256() { return Optional.ofNullable(sha256); }
 
   /** Opens the source: once for a one-shot stream, once per call for a replayable one. */
@@ -136,17 +203,30 @@ public final class ByteStream implements AutoCloseable {
     return source.get();
   }
 
-  /** Reads the bytes as they arrive, with demand-driven backpressure. */
+  /**
+   * Reads the bytes as they arrive, with demand-driven backpressure.
+   *
+   * @return the source; a one-shot stream can be opened only once
+   */
   public Flow.Publisher<ByteBuffer> publisher() { return open(); }
 
-  /** Reads the bytes as a blocking stream; close it to release the body early. */
+  /**
+   * Reads the bytes as a blocking stream; close it to release the body early.
+   *
+   * @return a blocking input stream
+   */
   public InputStream inputStream() {
     var input = new StreamInput();
     open().subscribe(input);
     return input;
   }
 
-  /** Reads the remaining bytes into memory. */
+  /**
+   * Reads the remaining bytes into memory.
+   *
+   * @return all the bytes
+   * @throws IOException if reading fails
+   */
   public byte[] readAllBytes() throws IOException {
     try (var input = inputStream(); var output = new ByteArrayOutputStream()) {
       input.transferTo(output);
@@ -154,7 +234,13 @@ public final class ByteStream implements AutoCloseable {
     }
   }
 
-  /** Copies the bytes to {@code output} without buffering them all; returns the count. */
+  /**
+   * Copies the bytes to {@code output} without buffering them all.
+   *
+   * @param output the destination
+   * @return the number of bytes copied
+   * @throws IOException if reading or writing fails
+   */
   public long transferTo(OutputStream output) throws IOException {
     try (var input = inputStream()) { return input.transferTo(output); }
   }
@@ -165,6 +251,7 @@ public final class ByteStream implements AutoCloseable {
     discard.run();
   }
 
+  /** Describes the stream without reading it. */
   @Override public String toString() {
     return "ByteStream[replayable=" + replayable + ", length=" + (length == null ? "unknown" : length) + "]";
   }

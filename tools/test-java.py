@@ -137,6 +137,19 @@ def qualify(output):
         run("javac", "--release", "17", "-d", str(classes), "-cp", protocol_classpath,
             str(ROOT / "crates/crucible-codegen-java/tests/ProtocolTest.java"))
         run("java", "-cp", os.pathsep.join([str(classes), protocol_classpath]), "example.json.ProtocolTest", protocol)
+    docs = output / "docs"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json"), "--out", str(docs),
+        "--group-id", "example", "--artifact-id", "docs", "--package-name", "example.docs")
+    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=docs)
+    docs_classpath = os.pathsep.join([str(docs / "target/classes"), str(docs / "target/dependency/*")])
+    # Generated and bundled Javadoc must be warning-free under full doclint.
+    for sources, label in [(docs, "docs"), (package, "weather")]:
+        run("javadoc", "-Xdoclint:all", "-Werror", "-quiet", "-d", str(output / (label + "-javadoc")), "-cp", docs_classpath if label == "docs" else classpath,
+            *map(str, sorted((sources / "src/main/java").rglob("*.java"))))
+    run("javac", "--release", "17", "-d", str(classes), "-cp", docs_classpath,
+        str(ROOT / "crates/crucible-codegen-java/tests/DisplayTest.java"))
+    run("java", "-cp", os.pathsep.join([str(classes), docs_classpath]), "example.docs.DisplayTest")
     xml_protocols(output, classes)
     defaults = output / "defaults"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",

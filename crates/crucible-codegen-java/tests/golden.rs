@@ -198,3 +198,60 @@ fn reserved_names_are_diagnostics() {
         );
     }
 }
+
+fn docs_files() -> Vec<crucible_codegen_java::File> {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-docs.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    emit(&service, &options()).unwrap()
+}
+
+#[test]
+fn smithy_documentation_cannot_break_out_of_javadoc() {
+    for file in docs_files().iter().filter(|f| f.path.ends_with(".java")) {
+        assert_eq!(
+            file.contents.matches("/**").count(),
+            file.contents.matches("*/").count(),
+            "{} has a stray comment delimiter",
+            file.path
+        );
+    }
+    let client = docs_files()
+        .into_iter()
+        .find(|f| f.path.ends_with("/DocsClient.java"))
+        .unwrap()
+        .contents;
+    assert!(client.contains("<b>someone</b>"));
+    assert!(client.contains("<code>a *&#47; b</code>"));
+    assert!(client.contains("&lt;b&gt;html&lt;/b&gt; &#64;param"));
+    assert!(client.contains("@throws example.weather.model.Unavailable"));
+}
+
+#[test]
+fn sensitive_members_are_redacted_in_to_string() {
+    let files = docs_files();
+    let source = |name: &str| {
+        &files
+            .iter()
+            .find(|f| f.path.ends_with(name))
+            .unwrap()
+            .contents
+    };
+    let input = source("/model/GreetInput.java");
+    // Direct, via a sensitive target shape, and via a collection of one.
+    for member in ["password", "token", "secrets"] {
+        assert!(
+            input.contains(&format!(
+                "\"{member}\", example.weather.ModelFormat.redact({member})"
+            )),
+            "{member} must be redacted"
+        );
+    }
+    assert!(input.contains("\"names\", names"));
+    assert!(source("/model/Profile.java").contains("ModelFormat.redact(pin)"));
+    assert!(source("/model/Choice.java").contains("ModelFormat.redact(code)"));
+    assert!(source("/model/Unavailable.java").contains("ModelFormat.redact(retryToken)"));
+}
