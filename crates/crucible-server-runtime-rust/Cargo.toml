@@ -40,6 +40,7 @@ tower = { version = "0.5", default-features = false, features = ["util"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "fast-rng"] }
+url = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

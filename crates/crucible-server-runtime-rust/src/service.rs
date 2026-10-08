@@ -339,6 +339,16 @@ impl Crucible {
                 {
                     *response.body_mut() = Body::empty();
                 }
+                if let Err(error) =
+                    recover(|| inner.protocols[selected].decorate_response(&mut response))
+                {
+                    job.fail(error);
+                    response = self.write(&mut job, selected, &answers);
+                    Self::response_headers(&mut job, &mut response);
+                    if job.request().method == "HEAD" {
+                        *response.body_mut() = Body::empty();
+                    }
+                }
                 response
             })
             .await

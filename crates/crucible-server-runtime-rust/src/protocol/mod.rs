@@ -155,4 +155,10 @@ pub trait Protocol: Send + Sync + 'static {
     /// Encodes the outcome after interceptors and operation-aware middleware
     /// unwind, before transport middleware transforms the response.
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response;
+
+    /// Final protocol headers, including directly answered admission refusals.
+    #[doc(hidden)]
+    fn decorate_response(&self, response: &mut Response) {
+        let _ = response;
+    }
 }

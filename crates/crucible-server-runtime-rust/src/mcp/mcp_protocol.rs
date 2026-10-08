@@ -23,6 +23,7 @@ pub(crate) struct McpProtocol {
     registry: Option<ToolRegistry>,
     cors: Option<crate::middlewares::Cors>,
     config: super::McpConfig,
+    discovery: Option<super::oauth_discovery::OAuthDiscovery>,
 }
 
 impl McpProtocol {
@@ -35,6 +36,7 @@ impl McpProtocol {
             registry: None,
             cors: None,
             config,
+            discovery: None,
         }
     }
     fn registry(&self) -> &ToolRegistry {
@@ -148,7 +150,11 @@ impl Protocol for McpProtocol {
         false
     }
     fn owns(&self, request: &Parts) -> bool {
-        request.uri.path() == self.config.path
+        (request.uri.path() == self.config.path
+            || self
+                .discovery
+                .as_ref()
+                .is_some_and(|d| request.uri.path() == d.path))
             && request
                 .extensions
                 .get::<crate::protocol::Invocation>()
@@ -176,6 +182,22 @@ impl Protocol for McpProtocol {
             "MCP descriptors were not generated; enable .mcp() in the service build script",
         )?;
         let registry = ToolRegistry::new(descriptors)?;
+        if self.config.guard.is_some() && self.config.authorization.is_some() {
+            return Err("MCP endpoint_guard and authorization cannot be combined".into());
+        }
+        self.discovery = self
+            .config
+            .authorization
+            .as_ref()
+            .map(|authorization| {
+                super::oauth_discovery::OAuthDiscovery::new(
+                    authorization.as_ref(),
+                    &self.config.path,
+                    descriptors,
+                    prepare,
+                )
+            })
+            .transpose()?;
         for descriptor in descriptors {
             if !prepare
                 .operations()
@@ -192,6 +214,20 @@ impl Protocol for McpProtocol {
     }
     fn admit<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         Hook::wait(async move {
+            if let Some(discovery) = &self.discovery
+                && job.request().uri.path() == discovery.path
+            {
+                job.respond(if matches!(job.request().method.as_str(), "GET" | "HEAD") {
+                    discovery.response()
+                } else {
+                    (
+                        StatusCode::METHOD_NOT_ALLOWED,
+                        [(header::ALLOW, "GET, HEAD")],
+                    )
+                        .into_response()
+                });
+                return Ok(());
+            }
             // No Host-derived resource URLs or CORS-derived wildcard permission.
             let origins = job.request().headers.get_all(header::ORIGIN);
             if !self.config.any_origin
@@ -218,6 +254,13 @@ impl Protocol for McpProtocol {
             if let Some(guard) = &self.config.guard
                 && let EndpointAdmission::Respond(response) =
                     guard.admit(job.request()).resolve().await
+            {
+                job.respond(response);
+                return Ok(());
+            }
+            if let Some(authorization) = &self.config.authorization
+                && let EndpointAdmission::Respond(response) =
+                    authorization.admit(job.request()).resolve().await
             {
                 job.respond(response);
                 return Ok(());
@@ -363,6 +406,11 @@ impl Protocol for McpProtocol {
                 rpc_error(call.id, -32602, &rejection.summary())
             }
             _ => rpc_error(call.id, -32603, "Internal error"),
+        }
+    }
+    fn decorate_response(&self, response: &mut Response) {
+        if let Some(discovery) = &self.discovery {
+            discovery.decorate(response);
         }
     }
 }
