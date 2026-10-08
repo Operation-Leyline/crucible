@@ -47,7 +47,7 @@ fn operation_docs(
             "\n\nThis operation is paginated: use the `_pages` variant to read every page.",
         );
     }
-    text.push_str("\n");
+    text.push('\n');
     if let Some(input) = input {
         text.push_str(&format!("\n@param input [{input}] the request to send"));
     }
