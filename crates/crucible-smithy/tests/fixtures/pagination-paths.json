@@ -1,0 +1,74 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "test.bindings#Service": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "test.bindings#Read"
+        }
+      ]
+    },
+    "test.bindings#Read": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/read"
+        },
+        "smithy.api#paginated": {
+          "inputToken": "token",
+          "outputToken": "result.token",
+          "items": "result.items",
+          "pageSize": "size"
+        }
+      },
+      "input": {
+        "target": "test.bindings#Input"
+      },
+      "output": {
+        "target": "test.bindings#Output"
+      }
+    },
+    "test.bindings#Input": {
+      "type": "structure",
+      "members": {
+        "token": {
+          "target": "smithy.api#String"
+        },
+        "size": {
+          "target": "smithy.api#Integer"
+        }
+      }
+    },
+    "test.bindings#Output": {
+      "type": "structure",
+      "members": {
+        "result": {
+          "target": "test.bindings#Result"
+        }
+      }
+    },
+    "test.bindings#Result": {
+      "type": "structure",
+      "members": {
+        "token": {
+          "target": "smithy.api#String"
+        },
+        "items": {
+          "target": "test.bindings#Items"
+        }
+      }
+    },
+    "test.bindings#Items": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      }
+    }
+  }
+}

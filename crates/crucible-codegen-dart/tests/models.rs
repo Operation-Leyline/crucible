@@ -264,6 +264,8 @@ fn body_on_get_is_explicitly_diagnosed_for_browser_transport() {
     let mut model = weather();
     model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["method"] =
         json!("GET");
+    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["uri"] =
+        json!("/create-city");
     let diagnostics = emit(&lower(&model), &options()).err().unwrap();
     assert!(
         diagnostics
@@ -328,6 +330,8 @@ fn waiter_methods_cannot_collide_with_operations() {
     let mut model = behaviors();
     model["shapes"]["example.behavior#WaitUntilReady"] =
         model["shapes"]["example.behavior#Public"].clone();
+    model["shapes"]["example.behavior#WaitUntilReady"]["traits"]["smithy.api#http"]["uri"] =
+        json!("/wait-until-ready");
     model["shapes"]["example.behavior#Service"]["operations"]
         .as_array_mut()
         .unwrap()

@@ -106,6 +106,8 @@ fn configuration_and_get_body_are_diagnosed() {
     .unwrap();
     model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["method"] =
         "GET".into();
+    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["uri"] =
+        "/create-city".into();
     let service = Model::from_json(&model.to_string())
         .unwrap()
         .lower(None)

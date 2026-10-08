@@ -44,6 +44,8 @@ pub(crate) fn lower(
         visiting: BTreeSet::new(),
         capabilities,
         requirements: BTreeSet::new(),
+        http_inputs: BTreeSet::new(),
+        http_outputs: BTreeSet::new(),
     };
     let service = lowerer.service(service_id, infrastructure);
     if lowerer.diagnostics.is_empty() {
@@ -66,6 +68,8 @@ pub(crate) struct Lowerer<'m> {
     visiting: BTreeSet<ShapeId>,
     capabilities: &'m Capabilities,
     requirements: BTreeSet<FeatureUse>,
+    http_inputs: BTreeSet<ShapeId>,
+    http_outputs: BTreeSet<ShapeId>,
 }
 
 impl<'m> Lowerer<'m> {
@@ -114,6 +118,20 @@ impl<'m> Lowerer<'m> {
         let default_auth = self.effective_auth(id, &shape.traits, &auth);
         let service_errors: Vec<ShapeId> = shape.errors.iter().map(|r| r.target.clone()).collect();
         let default_pagination = shape.traits.get(&smithy("paginated"));
+        for (operation, _) in self.operation_ids(shape) {
+            if let Some(operation) = self.model.get(&operation) {
+                self.http_inputs
+                    .extend(operation.input.iter().map(|r| r.target.clone()));
+                self.http_outputs.extend(
+                    operation
+                        .output
+                        .iter()
+                        .chain(&operation.errors)
+                        .map(|r| r.target.clone()),
+                );
+            }
+        }
+        self.http_outputs.extend(service_errors.iter().cloned());
         let mut operations: Vec<Operation> = self
             .operation_ids(shape)
             .into_iter()
@@ -143,6 +161,46 @@ impl<'m> Lowerer<'m> {
             }
         }
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
+        if self.protocol.uses_http_bindings() {
+            let mut routes = BTreeMap::new();
+            for operation in &operations {
+                // Label names do not distinguish routes; greediness and literal query values do.
+                let path: Vec<_> = operation
+                    .uri
+                    .segments
+                    .iter()
+                    .map(|segment| match segment {
+                        Segment::Literal(value) => format!("literal:{value}"),
+                        Segment::Label(name) if operation.uri.greedy_labels.contains(name) => {
+                            "greedy".to_owned()
+                        }
+                        Segment::Label(_) => "label".to_owned(),
+                    })
+                    .collect();
+                let mut query = operation.uri.query.clone();
+                query.sort();
+                let host = operation.endpoint.as_ref().map(|endpoint| {
+                    endpoint
+                        .parts
+                        .iter()
+                        .map(|part| match part {
+                            crate::ir::HostPrefixPart::Literal { value } => {
+                                format!("literal:{value}")
+                            }
+                            crate::ir::HostPrefixPart::Label { .. } => "label".to_owned(),
+                        })
+                        .collect::<Vec<_>>()
+                });
+                if let Some(previous) =
+                    routes.insert((&operation.method, host, path, query), &operation.id)
+                {
+                    self.diagnostics.push(
+                        &operation.id,
+                        format!("HTTP route conflicts with {previous}"),
+                    );
+                }
+            }
+        }
         let resources = if infrastructure {
             crate::resources::lower(self.model, shape, &mut self.diagnostics)
         } else {
@@ -445,6 +503,23 @@ impl<'m> Lowerer<'m> {
                 self.diagnostics.push(id, "operation has no @http trait");
                 return None;
             };
+            if http
+                .get("method")
+                .and_then(Value::as_str)
+                .is_none_or(str::is_empty)
+            {
+                self.diagnostics.push(id, "@http requires an HTTP method");
+            }
+            if let Some(code) = http.get("code")
+                && code
+                    .as_u64()
+                    .is_none_or(|code| !(100..=999).contains(&code))
+            {
+                self.diagnostics.push(
+                    id,
+                    "HTTP status code must be an integer between 100 and 999",
+                );
+            }
             (
                 http["method"].as_str().unwrap_or_default().to_owned(),
                 self.uri(id, http["uri"].as_str().unwrap_or_default()),
@@ -579,6 +654,17 @@ impl<'m> Lowerer<'m> {
 
     fn uri(&mut self, operation: &ShapeId, pattern: &str) -> Uri {
         let (path, query) = pattern.split_once('?').unwrap_or((pattern, ""));
+        if !path.starts_with('/') {
+            self.diagnostics.push(operation, "URI must start with /");
+        }
+        if path.contains("//") {
+            self.diagnostics
+                .push(operation, "URI must not contain empty path segments");
+        }
+        if query.contains(['{', '}']) {
+            self.diagnostics
+                .push(operation, "URI query string cannot contain labels");
+        }
         let mut segments = Vec::new();
         let mut greedy_labels = Vec::new();
         for part in path.split('/').filter(|part| !part.is_empty()) {
@@ -596,6 +682,15 @@ impl<'m> Lowerer<'m> {
                     );
                 }
                 None => segments.push(Segment::Literal(part.to_owned())),
+            }
+        }
+        let mut labels = BTreeSet::new();
+        for segment in &segments {
+            if let Segment::Label(name) = segment
+                && !labels.insert(name)
+            {
+                self.diagnostics
+                    .push(operation, format!("duplicate URI label {{{name}}}"));
             }
         }
         if greedy_labels.len() > 1 {
@@ -627,6 +722,7 @@ impl<'m> Lowerer<'m> {
             };
         }
         let mut bindings = Bindings::default();
+        let mut seen_payload = false;
         for (name, member) in &self.model[input].members {
             let member_id = input.with_member(name);
             if member.traits.contains_key(&smithy("httpResponseCode")) {
@@ -634,7 +730,13 @@ impl<'m> Lowerer<'m> {
                     .push(&member_id, "@httpResponseCode cannot bind an input member");
             }
             if member.traits.contains_key(&smithy("httpPayload")) {
-                bindings.payload = self.payload(&member_id, member);
+                if seen_payload {
+                    self.diagnostics
+                        .push(&member_id, "only one member may bind @httpPayload");
+                } else {
+                    bindings.payload = self.payload(&member_id, member);
+                }
+                seen_payload = true;
             } else if member.traits.contains_key(&smithy("httpLabel")) {
                 if !member.traits.contains_key(&smithy("required")) {
                     self.diagnostics
@@ -703,6 +805,18 @@ impl<'m> Lowerer<'m> {
                 "@httpLabel member does not appear in the operation's URI",
             );
         }
+        self.check_binding_names(input, &bindings);
+        for binding in &bindings.query {
+            if uri.query.iter().any(|(name, _)| name == &binding.name) {
+                self.diagnostics.push(
+                    &input.with_member(&binding.member),
+                    format!(
+                        "@httpQuery {:?} conflicts with a literal query parameter",
+                        binding.name
+                    ),
+                );
+            }
+        }
         self.check_alone(input, &bindings);
         self.check_prefix_headers(input, &bindings);
         self.header_encodings(input, &mut bindings);
@@ -718,6 +832,7 @@ impl<'m> Lowerer<'m> {
             };
         }
         let mut bindings = Bindings::default();
+        let mut seen_payload = false;
         for (name, member) in &self.model[output].members {
             if let Some(prefix) = string_trait(&member.traits, "httpPrefixHeaders") {
                 self.require(
@@ -759,7 +874,15 @@ impl<'m> Lowerer<'m> {
                 continue;
             }
             if member.traits.contains_key(&smithy("httpPayload")) {
-                bindings.payload = self.payload(&output.with_member(name), member);
+                if seen_payload {
+                    self.diagnostics.push(
+                        &output.with_member(name),
+                        "only one member may bind @httpPayload",
+                    );
+                } else {
+                    bindings.payload = self.payload(&output.with_member(name), member);
+                }
+                seen_payload = true;
                 continue;
             }
             match string_trait(&member.traits, "httpHeader") {
@@ -778,11 +901,33 @@ impl<'m> Lowerer<'m> {
                 None => bindings.body.push(name.clone()),
             }
         }
+        self.check_binding_names(output, &bindings);
         self.check_alone(output, &bindings);
         self.check_prefix_headers(output, &bindings);
         self.header_encodings(output, &mut bindings);
         self.binding_timestamp_formats(output, &mut bindings);
         bindings
+    }
+
+    fn check_binding_names(&mut self, structure: &ShapeId, bindings: &Bindings) {
+        let mut headers = BTreeSet::new();
+        for binding in &bindings.headers {
+            if !headers.insert(binding.name.to_ascii_lowercase()) {
+                self.diagnostics.push(
+                    &structure.with_member(&binding.member),
+                    format!("duplicate HTTP header {:?}", binding.name),
+                );
+            }
+        }
+        let mut query = BTreeSet::new();
+        for binding in &bindings.query {
+            if !query.insert(&binding.name) {
+                self.diagnostics.push(
+                    &structure.with_member(&binding.member),
+                    format!("duplicate HTTP query parameter {:?}", binding.name),
+                );
+            }
+        }
     }
 
     /// Resolve the representation and content type of the complete HTTP body.
@@ -1022,20 +1167,105 @@ impl<'m> Lowerer<'m> {
                 .and_then(Value::as_str)
                 .map(str::to_owned)
         };
-        let (Some(input_token), Some(output_token)) = (field("inputToken"), field("outputToken"))
-        else {
-            self.diagnostics.push(
-                id,
-                "@paginated needs inputToken and outputToken (here or on the service)",
-            );
-            return None;
-        };
+        let input_token = field("inputToken");
+        let output_token = field("outputToken");
+        let items = field("items");
+        let page_size = field("pageSize");
+        for (name, path, root, nested) in [
+            (
+                "inputToken",
+                input_token.as_deref(),
+                shape.input.as_ref(),
+                false,
+            ),
+            (
+                "outputToken",
+                output_token.as_deref(),
+                shape.output.as_ref(),
+                true,
+            ),
+            ("items", items.as_deref(), shape.output.as_ref(), true),
+            (
+                "pageSize",
+                page_size.as_deref(),
+                shape.input.as_ref(),
+                false,
+            ),
+        ] {
+            let Some(path) = path else {
+                if own
+                    .get(name)
+                    .or_else(|| default.and_then(|d| d.get(name)))
+                    .is_some()
+                    || matches!(name, "inputToken" | "outputToken")
+                {
+                    self.diagnostics.push(
+                        id,
+                        format!("@paginated {name} must be a member name or path"),
+                    );
+                }
+                continue;
+            };
+            let member = root.and_then(|root| self.pagination_member(&root.target, path, nested));
+            let Some(member) = member else {
+                self.diagnostics.push(
+                    id,
+                    format!(
+                        "@paginated {name} path {path:?} does not resolve to a structure member"
+                    ),
+                );
+                continue;
+            };
+            let kind = self.model.get(&member.target).map(|target| target.kind);
+            let required = member.traits.contains_key(&smithy("required"));
+            let valid = match name {
+                "items" => matches!(kind, Some(Kind::List | Kind::Map)),
+                "pageSize" => matches!(
+                    kind,
+                    Some(Kind::Byte | Kind::Short | Kind::Integer | Kind::Long)
+                ),
+                _ => matches!(kind, Some(Kind::String | Kind::Map)),
+            };
+            if !valid {
+                self.diagnostics.push(
+                    id,
+                    format!("@paginated {name} path {path:?} has an invalid target type"),
+                );
+            }
+            if name == "inputToken" && required {
+                self.diagnostics
+                    .push(id, "@paginated inputToken must not be @required");
+            }
+        }
         Some(Paginated {
-            input_token,
-            output_token,
-            items: field("items"),
-            page_size: field("pageSize"),
+            input_token: input_token?,
+            output_token: output_token?,
+            items,
+            page_size,
         })
+    }
+
+    fn pagination_member(&self, root: &ShapeId, path: &str, nested: bool) -> Option<&ast::Member> {
+        if !nested && path.contains('.') {
+            return None;
+        }
+        let mut target = root;
+        let mut result = None;
+        for name in path.split('.') {
+            if !name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+                || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            {
+                return None;
+            }
+            let structure = self.model.get(target)?;
+            if structure.kind != Kind::Structure {
+                return None;
+            }
+            let member = structure.members.get(name)?;
+            target = &member.target;
+            result = Some(member);
+        }
+        result
     }
 
     /// XML has no null element, so a sparse entry could not round-trip.
@@ -1437,7 +1667,13 @@ impl<'m> Lowerer<'m> {
         let format = self
             .explicit_timestamp_format(&member.traits)
             .or_else(|| target_traits.and_then(|t| self.explicit_timestamp_format(t)))
-            .unwrap_or_else(|| self.protocol.member_timestamp_format(&member.traits));
+            .unwrap_or_else(|| {
+                self.protocol.member_timestamp_format(
+                    &member.traits,
+                    self.http_inputs.contains(&member_id.root()),
+                    self.http_outputs.contains(&member_id.root()),
+                )
+            });
         let wire_default = if self
             .model
             .get(&member.target)
@@ -1471,6 +1707,7 @@ impl<'m> Lowerer<'m> {
             client_optional: in_input || member.traits.contains_key(&smithy("clientOptional")),
             constraints: effective,
             timestamp_format: self.explicit_timestamp_format(&member.traits),
+            wire_timestamp_format: format,
             docs: string_trait(&member.traits, "documentation"),
             traits: member.traits.clone(),
         }

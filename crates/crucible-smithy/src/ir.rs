@@ -162,17 +162,9 @@ impl Service {
         }
     }
 
-    /// How a timestamp member is written: the member's own format, else its
-    /// target's, else the selected protocol's default for its HTTP binding.
+    /// Timestamp format resolved during lowering, including only effective HTTP bindings.
     pub fn timestamp_format(&self, member: &Member) -> TimestampFormat {
-        let target = match self.shapes.get(&member.target) {
-            Some(Shape::Simple(simple)) => simple.timestamp_format,
-            _ => None,
-        };
-        member
-            .timestamp_format
-            .or(target)
-            .unwrap_or_else(|| self.protocol.member_timestamp_format(&member.traits))
+        member.wire_timestamp_format
     }
 }
 
@@ -327,6 +319,9 @@ pub struct Member {
     pub constraints: Constraints,
     /// The member's own `@timestampFormat`; see [`Service::timestamp_format`].
     pub timestamp_format: Option<TimestampFormat>,
+    /// Effective timestamp format for this member's top-level wire location.
+    /// Nested document encoding uses the document format instead.
+    pub wire_timestamp_format: TimestampFormat,
     pub docs: Option<String>,
     pub traits: Traits,
 }
