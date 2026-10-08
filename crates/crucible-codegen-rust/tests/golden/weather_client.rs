@@ -2,7 +2,6 @@
 
 #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
 mod model {
-    use ::crucible_client_runtime_rust::validate::{Validate, Validator};
 
     pub type CityId = ::std::string::String;
 
@@ -644,14 +643,14 @@ mod model {
     static PATTERN_0: ::std::sync::LazyLock<::crucible_client_runtime_rust::__private::regex::Regex> =
         ::std::sync::LazyLock::new(|| ::crucible_client_runtime_rust::__private::regex::Regex::new("^c-[a-z0-9]{8}$").expect("checked by crucible"));
 
-    impl Validate for Coordinates {
-        fn validate(&self, validator: &mut Validator) {
+    impl ::crucible_client_runtime_rust::validate::Validate for Coordinates {
+        fn validate(&self, validator: &mut ::crucible_client_runtime_rust::validate::Validator) {
             let _ = validator;
         }
     }
 
-    impl Validate for CreateCityInput {
-        fn validate(&self, validator: &mut Validator) {
+    impl ::crucible_client_runtime_rust::validate::Validate for CreateCityInput {
+        fn validate(&self, validator: &mut ::crucible_client_runtime_rust::validate::Validator) {
             if let ::crucible_client_runtime_rust::Field::Value(value) = &self.name {
                 validator.at("name", |validator| {
                     validator.length(value.chars().count(), None, Some(40));
@@ -665,8 +664,8 @@ mod model {
         }
     }
 
-    impl Validate for GetCityInput {
-        fn validate(&self, validator: &mut Validator) {
+    impl ::crucible_client_runtime_rust::validate::Validate for GetCityInput {
+        fn validate(&self, validator: &mut ::crucible_client_runtime_rust::validate::Validator) {
             if let ::crucible_client_runtime_rust::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
@@ -675,8 +674,8 @@ mod model {
         }
     }
 
-    impl Validate for GetCityPhotoInput {
-        fn validate(&self, validator: &mut Validator) {
+    impl ::crucible_client_runtime_rust::validate::Validate for GetCityPhotoInput {
+        fn validate(&self, validator: &mut ::crucible_client_runtime_rust::validate::Validator) {
             if let ::crucible_client_runtime_rust::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
@@ -685,8 +684,8 @@ mod model {
         }
     }
 
-    impl Validate for ListCitiesInput {
-        fn validate(&self, validator: &mut Validator) {
+    impl ::crucible_client_runtime_rust::validate::Validate for ListCitiesInput {
+        fn validate(&self, validator: &mut ::crucible_client_runtime_rust::validate::Validator) {
             if let ::crucible_client_runtime_rust::Field::Value(value) = &self.max_results {
                 validator.at("maxResults", |validator| {
                     validator.range_integer(i128::from(*value), Some(1i128), Some(100i128));
@@ -700,8 +699,8 @@ mod model {
         }
     }
 
-    impl Validate for Location {
-        fn validate(&self, validator: &mut Validator) {
+    impl ::crucible_client_runtime_rust::validate::Validate for Location {
+        fn validate(&self, validator: &mut ::crucible_client_runtime_rust::validate::Validator) {
             match self {
                 Self::Coordinates(value) => {
                     validator.at("coordinates", |validator| {
@@ -715,8 +714,8 @@ mod model {
         }
     }
 
-    impl Validate for PutCityPhotoInput {
-        fn validate(&self, validator: &mut Validator) {
+    impl ::crucible_client_runtime_rust::validate::Validate for PutCityPhotoInput {
+        fn validate(&self, validator: &mut ::crucible_client_runtime_rust::validate::Validator) {
             if let ::crucible_client_runtime_rust::Field::Value(value) = &self.city_id {
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
@@ -730,8 +729,8 @@ mod model {
         }
     }
 
-    impl Validate for StatusInput {
-        fn validate(&self, validator: &mut Validator) {
+    impl ::crucible_client_runtime_rust::validate::Validate for StatusInput {
+        fn validate(&self, validator: &mut ::crucible_client_runtime_rust::validate::Validator) {
             let _ = validator;
         }
     }
@@ -739,7 +738,6 @@ mod model {
 
 #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
 mod errors {
-    use ::crucible_client_runtime_rust::operation::{ErrorInfo, Fault};
     use super::__redaction;
 
     #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
@@ -765,10 +763,10 @@ mod errors {
             })
         }
     }
-    pub(super) static CONFLICT_ERROR_INFO: ErrorInfo = ErrorInfo {
+    pub(super) static CONFLICT_ERROR_INFO: ::crucible_client_runtime_rust::operation::ErrorInfo = ::crucible_client_runtime_rust::operation::ErrorInfo {
         name: "ConflictError",
         status: 409,
-        fault: Fault::Client,
+        fault: ::crucible_client_runtime_rust::operation::Fault::Client,
         retryable: false,
         throttling: false,
         members: &[
@@ -779,7 +777,7 @@ mod errors {
     impl ::crucible_client_runtime_rust::ModelledError for ConflictError {
         fn shape_id(&self) -> &'static str { "example.weather#ConflictError" }
         fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
-        fn info(&self) -> &'static ErrorInfo {
+        fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
             &CONFLICT_ERROR_INFO
         }
 
@@ -838,10 +836,10 @@ mod errors {
             })
         }
     }
-    pub(super) static NOT_FOUND_ERROR_INFO: ErrorInfo = ErrorInfo {
+    pub(super) static NOT_FOUND_ERROR_INFO: ::crucible_client_runtime_rust::operation::ErrorInfo = ::crucible_client_runtime_rust::operation::ErrorInfo {
         name: "NotFoundError",
         status: 404,
-        fault: Fault::Client,
+        fault: ::crucible_client_runtime_rust::operation::Fault::Client,
         retryable: false,
         throttling: false,
         members: &[
@@ -853,7 +851,7 @@ mod errors {
     impl ::crucible_client_runtime_rust::ModelledError for NotFoundError {
         fn shape_id(&self) -> &'static str { "example.weather#NotFoundError" }
         fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
-        fn info(&self) -> &'static ErrorInfo {
+        fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
             &NOT_FOUND_ERROR_INFO
         }
 
@@ -912,10 +910,10 @@ mod errors {
             })
         }
     }
-    pub(super) static THROTTLING_ERROR_INFO: ErrorInfo = ErrorInfo {
+    pub(super) static THROTTLING_ERROR_INFO: ::crucible_client_runtime_rust::operation::ErrorInfo = ::crucible_client_runtime_rust::operation::ErrorInfo {
         name: "ThrottlingError",
         status: 429,
-        fault: Fault::Client,
+        fault: ::crucible_client_runtime_rust::operation::Fault::Client,
         retryable: true,
         throttling: true,
         members: &[
@@ -927,7 +925,7 @@ mod errors {
     impl ::crucible_client_runtime_rust::ModelledError for ThrottlingError {
         fn shape_id(&self) -> &'static str { "example.weather#ThrottlingError" }
         fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
-        fn info(&self) -> &'static ErrorInfo {
+        fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
             &THROTTLING_ERROR_INFO
         }
 
@@ -999,10 +997,10 @@ mod errors {
             })
         }
     }
-    pub(super) static VALIDATION_ERROR_INFO: ErrorInfo = ErrorInfo {
+    pub(super) static VALIDATION_ERROR_INFO: ::crucible_client_runtime_rust::operation::ErrorInfo = ::crucible_client_runtime_rust::operation::ErrorInfo {
         name: "ValidationError",
         status: 400,
-        fault: Fault::Client,
+        fault: ::crucible_client_runtime_rust::operation::Fault::Client,
         retryable: false,
         throttling: false,
         members: &[
@@ -1016,7 +1014,7 @@ mod errors {
     impl ::crucible_client_runtime_rust::ModelledError for ValidationError {
         fn shape_id(&self) -> &'static str { "example.weather#ValidationError" }
         fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
-        fn info(&self) -> &'static ErrorInfo {
+        fn info(&self) -> &'static ::crucible_client_runtime_rust::operation::ErrorInfo {
             &VALIDATION_ERROR_INFO
         }
 
@@ -1213,7 +1211,7 @@ static CREATE_CITY_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::
 
 impl ::crucible_client_runtime_rust::Operation for CreateCity {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &CREATE_CITY_OPERATION;
     type Input = model::CreateCityInput;
@@ -1296,7 +1294,7 @@ static GET_CITY_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::cru
 
 impl ::crucible_client_runtime_rust::Operation for GetCity {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &GET_CITY_OPERATION;
     type Input = model::GetCityInput;
@@ -1377,7 +1375,7 @@ static GET_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::OperationInfo =
 
 impl ::crucible_client_runtime_rust::Operation for GetCityPhoto {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &GET_CITY_PHOTO_OPERATION;
     type Input = model::GetCityPhotoInput;
@@ -1460,7 +1458,7 @@ static LIST_CITIES_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::
 
 impl ::crucible_client_runtime_rust::Operation for ListCities {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &LIST_CITIES_OPERATION;
     type Input = model::ListCitiesInput;
@@ -1532,7 +1530,7 @@ static PING_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucibl
 
 impl ::crucible_client_runtime_rust::Operation for Ping {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
     const HAS_INPUT: bool = false;
     const HAS_OUTPUT: bool = false;
@@ -1613,7 +1611,7 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::OperationInfo =
 
 impl ::crucible_client_runtime_rust::Operation for PutCityPhoto {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
     type Input = model::PutCityPhotoInput;
@@ -1689,7 +1687,7 @@ static STATUS_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::cruci
 
 impl ::crucible_client_runtime_rust::Operation for Status {
     const AUTH_BEARER: bool = true;
-    const AUTH_SCHEMES: Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
+    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);
     const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::OperationInfo = &STATUS_OPERATION;
     type Input = model::StatusInput;
