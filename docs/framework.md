@@ -573,6 +573,9 @@ expected response; ids become `Id[name=value]`). Request and response vectors
 without `appliesTo: client`, and every malformed-request vector, are server
 vectors.
 
+Server conformance always uses the full model, including internal operations and
+members, regardless of the selected client audience.
+
 ```rust
 // build.rs
 crucible_build::rust_service("weather_model")

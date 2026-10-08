@@ -10,6 +10,55 @@ use serde_json::Value;
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 const VECTORS: &str = include_str!("../../crucible-smithy/tests/fixtures/weather-vectors.json");
 
+#[test]
+fn server_conformance_uses_the_full_model_for_either_audience() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut model: Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/internal.json"
+    ))
+    .unwrap();
+    for (operation, id, uri, params, headers, body) in [
+        (
+            "Public",
+            "PrivateHeader",
+            "/public",
+            serde_json::json!({"privateHeader":"private"}),
+            serde_json::json!({"x-private":"private"}),
+            "{}",
+        ),
+        (
+            "Secret",
+            "InternalOperation",
+            "/secret",
+            serde_json::json!({"secret":"private"}),
+            serde_json::json!({}),
+            r#"{"secret":"private"}"#,
+        ),
+    ] {
+        model["shapes"][format!("example.audience#{operation}")]["traits"]["smithy.test#httpRequestTests"] = serde_json::json!([{
+            "id":id, "protocol":"crucible.protocols#json", "appliesTo":"server",
+            "method":"POST", "uri":uri, "params":params, "headers":headers,
+            "body":body, "bodyMediaType":"application/json"
+        }]);
+    }
+    let path = directory.path().join("model.json");
+    std::fs::write(&path, model.to_string()).unwrap();
+    let render = |audience| {
+        RustCodegen::from_model(&path)
+            .audience(audience)
+            .conformance()
+            .render_conformance()
+            .unwrap()
+    };
+    let external = render(crucible_build::Audience::External);
+    assert_eq!(external, render(crucible_build::Audience::Internal));
+    assert!(
+        external.contains("conformance::request::<crate::api::Secret>"),
+        "{external}"
+    );
+    assert!(external.contains("privateHeader"), "{external}");
+}
+
 /// The weather fixture with its `smithy.test` vectors, as a model file.
 fn model(directory: &Path, with_vectors: bool) -> std::path::PathBuf {
     let mut model: Value = serde_json::from_str(WEATHER).unwrap();

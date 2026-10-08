@@ -618,16 +618,19 @@ fn run(command: Command) -> ExitCode {
             target,
             out,
             audience,
-        } => lower_for_audience(&source, audience.into(), &target.capabilities()).and_then(|service| {
-            let tests = client_tests(&service);
-            let value = serde_json::json!({"schemaVersion":1, "service":service.id, "tests":tests});
-            let json =
-                serde_json::to_string_pretty(&value).expect("protocol tests are JSON values");
-            output::write(&out, [("protocol-tests.json", json.as_str())])
-                .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
-            println!("wrote {} protocol tests to {}", tests.len(), out.display());
-            Ok(())
-        }),
+        } => lower_for_audience(&source, audience.into(), &target.capabilities()).and_then(
+            |service| {
+                let tests = client_tests(&service);
+                let value =
+                    serde_json::json!({"schemaVersion":1, "service":service.id, "tests":tests});
+                let json =
+                    serde_json::to_string_pretty(&value).expect("protocol tests are JSON values");
+                output::write(&out, [("protocol-tests.json", json.as_str())])
+                    .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+                println!("wrote {} protocol tests to {}", tests.len(), out.display());
+                Ok(())
+            },
+        ),
         Command::Generate { target, audience } => generate(*target, audience.into()),
         Command::Scaffold {
             source,

@@ -6,11 +6,18 @@ const MODEL: &str = include_str!("../../crucible-smithy/tests/fixtures/internal.
 fn conformance_export_selects_the_same_audience_as_the_client() {
     let root = tempfile::tempdir().unwrap();
     let model = root.path().join("model.json");
-    fs::write(
-        &model,
-        include_str!("../../crucible-smithy/tests/fixtures/internal-protocol-tests.json"),
-    )
+    let mut value: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/internal-protocol-tests.json"
+    ))
     .unwrap();
+    value["shapes"]["example.audience#Public"]["traits"]["smithy.test#httpRequestTests"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "id":"ServerOnly", "protocol":"crucible.protocols#json", "appliesTo":"server",
+            "method":"POST", "uri":"/public", "params":{}, "body":"{}"
+        }));
+    fs::write(&model, value.to_string()).unwrap();
     for internal in [false, true] {
         let out = root.path().join(format!("conformance-{internal}"));
         let mut args = vec![
@@ -35,6 +42,7 @@ fn conformance_export_selects_the_same_audience_as_the_client() {
                 .unwrap();
         let tests = document["tests"].as_array().unwrap();
         assert_eq!(tests.len(), if internal { 12 } else { 2 });
+        assert!(tests.iter().all(|test| test["id"] != "ServerOnly"));
         assert_eq!(
             tests.iter().any(|test| test["id"] == "InternalOperation"),
             internal
