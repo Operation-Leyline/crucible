@@ -2,7 +2,7 @@
 
 ::crucible_client_runtime_rust::__generated::check_abi!("0.4.0");
 
-#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
 mod model {
 
     #[derive(Clone, PartialEq)]
@@ -145,7 +145,7 @@ mod model {
     }
 }
 
-#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
 mod errors {
     use super::__redaction;
 
@@ -236,10 +236,10 @@ mod errors {
 }
 
 #[doc(inline)]
-#[allow(unused_imports)]
+#[allow(unused_imports, deprecated)]
 pub use errors::{PublicFault};
 #[doc(inline)]
-#[allow(unused_imports)]
+#[allow(unused_imports, deprecated)]
 pub use model::{Choice, PublicInput, PublicOutput};
 
 #[allow(dead_code, unused_imports)]
@@ -358,7 +358,7 @@ pub struct ApiClient {
     transport: ::crucible_client_runtime_rust::__generated::Transport,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, deprecated)]
 impl ApiClient {
     /// Constructs the shared HTTP transport from configuration.
     pub fn new(config: ::crucible_client_runtime_rust::__generated::Config) -> Self {

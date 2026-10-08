@@ -4,7 +4,7 @@
 
 /// Server API for `example.weather#Weather`.
 pub mod weather {
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
         pub type CityId = ::std::string::String;
@@ -24,6 +24,7 @@ pub mod weather {
             pub population: i64,
             #[serde(rename = "updatedAt", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub updated_at: ::std::option::Option<::crucible_server_runtime_rust::__generated::time::Timestamp>,
+            #[deprecated(since = "2026-08", note = "Use updatedAt.")]
             #[serde(rename = "createdAt", default, skip_serializing_if = "::std::option::Option::is_none", with = "::crucible_server_runtime_rust::__generated::codec::Adapter::<::crucible_server_runtime_rust::__generated::codec::Optional<::crucible_server_runtime_rust::__generated::codec::EpochSeconds>>")]
             pub created_at: ::std::option::Option<::crucible_server_runtime_rust::__generated::time::Timestamp>,
         }
@@ -130,6 +131,9 @@ pub mod weather {
         /// A photo, carried unparsed.
         pub type Photo = ::crucible_server_runtime_rust::__generated::Blob;
 
+        /// Unstable.
+        ///
+        /// Since 2026-10.
         #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct PhotoSummary {
@@ -164,6 +168,7 @@ pub mod weather {
         pub enum Sky {
             #[serde(rename = "clear")]
             Clear,
+            #[deprecated(note = "Reported as CLEAR with a cloud cover reading.")]
             #[serde(rename = "cloudy")]
             Cloudy,
         }
@@ -335,7 +340,7 @@ pub mod weather {
         }
     }
 
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod errors {
         use super::__redaction;
 
@@ -556,10 +561,10 @@ pub mod weather {
     }
 
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use model::{CityId, CityName, CitySummaries, CitySummary, Coordinates, CreateCityInput, CreateCityOutput, DateTime, Forecast, GetCityInput, GetCityOutput, GetCityPhotoInput, GetCityPhotoOutput, ListCitiesInput, ListCitiesOutput, Location, Photo, PhotoSummary, PutCityPhotoInput, PutCityPhotoOutput, Sky, StatusInput, StatusOutput, Tags, Thumbnail, ValidationField, ValidationFieldList, ValidationReason};
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use errors::{ConflictError, NotFoundError, ThrottlingError, ValidationError};
 
     #[allow(dead_code, unused_imports)]
@@ -765,6 +770,7 @@ pub mod weather {
         fn list_cities(&self, input: ListCitiesInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<ListCitiesOutput>> + Send;
     }
 
+    #[deprecated(since = "2026-09", note = "Use Status instead.")]
     pub struct Ping;
 
     static PING_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
@@ -785,6 +791,7 @@ pub mod weather {
         &[],
     );
 
+    #[allow(deprecated)]
     impl ::crucible_server_runtime_rust::__generated::Operation for Ping {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
@@ -956,6 +963,7 @@ pub mod weather {
         }
 
         /// Serves Ping with `implementation`.
+        #[allow(deprecated)]
         pub fn ping<S: PingOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
             Self(self.0.add::<Ping, S, _>(implementation, |implementation, _| async move { implementation.ping().await }))
         }

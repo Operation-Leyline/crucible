@@ -5,7 +5,7 @@
 
 #[allow(unused_imports)]
 use ::crucible_server_runtime_rust::__generated::conformance::{ParamMember, ParamShape};
-#[allow(clippy::all)]
+#[allow(clippy::all, deprecated)]
 fn __conformance_build(stub: ::std::sync::Arc<::crucible_server_runtime_rust::__generated::conformance::Stub>) -> ::crucible_server_runtime_rust::__generated::Crucible {
     let operations = ::crucible_server_runtime_rust::__generated::Operations::builder(&crate::weather::SERVICE)
         .add::<crate::weather::CreateCity, _, _>(stub.clone(), ::crucible_server_runtime_rust::__generated::conformance::Stub::call::<crate::weather::CreateCity>)
@@ -59,259 +59,259 @@ static SHAPE_19: ParamShape = ParamShape::Structure(&[ParamMember { name: "cityI
 static SHAPE_20: ParamShape = ParamShape::Structure(&[]);
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_error_conflict_error_response() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::CreateCity, crate::weather::ConflictError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ConflictErrorResponse", params: "{\"message\":\"name taken\"}", shape: &SHAPE_0, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json"), ("x-expected-revision", "3")], body: Some("{\"name\":\"Oslo\",\"location\":{\"coordinates\":{\"latitude\":59.9,\"longitude\":10.7}},\"clientToken\":\"token-1\"}"), body_media_type: Some("application/json") }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 409, headers: &[("x-crucible-error", "ConflictError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"ConflictError\",\"message\":\"name taken\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_request_create_city_body_and_header() {
     ::crucible_server_runtime_rust::__generated::conformance::request::<crate::weather::CreateCity>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::RequestVector { id: "CreateCityBodyAndHeader", params: "{\"name\":\"Oslo\",\"location\":{\"coordinates\":{\"latitude\":59.9,\"longitude\":10.7}},\"clientToken\":\"token-1\",\"expectedRevision\":3}", shape: &SHAPE_1, request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json"), ("x-expected-revision", "3")], body: Some("{\"name\":\"Oslo\",\"location\":{\"coordinates\":{\"latitude\":59.9,\"longitude\":10.7}},\"clientToken\":\"token-1\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_response_create_city_output() {
     ::crucible_server_runtime_rust::__generated::conformance::response::<crate::weather::CreateCity>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "CreateCityOutput", params: "{\"city\":{\"id\":\"c-abc12345\",\"name\":\"Oslo\",\"population\":700000,\"updatedAt\":1398796238,\"createdAt\":1398796238}}", shape: &SHAPE_4, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json"), ("x-expected-revision", "3")], body: Some("{\"name\":\"Oslo\",\"location\":{\"coordinates\":{\"latitude\":59.9,\"longitude\":10.7}},\"clientToken\":\"token-1\"}"), body_media_type: Some("application/json") }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 201, headers: &[], forbid_headers: &[], require_headers: &[], body: Some("{\"city\":{\"id\":\"c-abc12345\",\"name\":\"Oslo\",\"population\":700000,\"updatedAt\":\"2014-04-29T18:30:38Z\",\"createdAt\":1398796238}}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_malformed_create_city_rejects_missing_name() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "CreateCityRejectsMissingName", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json")], body: Some("{}"), body_media_type: Some("application/json") }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)name"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_malformed_create_city_rejects_name_outside_length_name_nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "CreateCityRejectsNameOutsideLength[name=nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json")], body: Some("{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\"}"), body_media_type: Some("application/json") }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)name"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_malformed_create_city_rejects_name_outside_length_name_nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "CreateCityRejectsNameOutsideLength[name=nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json")], body: Some("{\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\"}"), body_media_type: Some("application/json") }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)name"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_malformed_create_city_rejects_unknown_member() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "CreateCityRejectsUnknownMember", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json")], body: Some("{\"name\":\"Oslo\",\"bogus\":1}"), body_media_type: Some("application/json") }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("bogus"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_malformed_create_city_rejects_unreadable_body_body() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "CreateCityRejectsUnreadableBody[body=[]]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json")], body: Some("[]"), body_media_type: Some("application/json") }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex(".+"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_malformed_create_city_rejects_unreadable_body_body_not_json() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "CreateCityRejectsUnreadableBody[body=not json]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json")], body: Some("not json"), body_media_type: Some("application/json") }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex(".+"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_malformed_create_city_rejects_unreadable_body_body_name_7() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "CreateCityRejectsUnreadableBody[body={\"name\":7}]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json")], body: Some("{\"name\":7}"), body_media_type: Some("application/json") }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex(".+"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_malformed_create_city_rejects_unreadable_body_body_name() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "CreateCityRejectsUnreadableBody[body={\"name\":]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json")], body: Some("{\"name\":"), body_media_type: Some("application/json") }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex(".+"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn create_city_error_throttling_error_retry_after() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::CreateCity, crate::weather::ThrottlingError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ThrottlingErrorRetryAfter", params: "{\"message\":\"slow down\",\"retryAfter\":5}", shape: &SHAPE_6, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "POST", uri: "/cities", host: None, query: &[], headers: &[("content-type", "application/json"), ("x-expected-revision", "3")], body: Some("{\"name\":\"Oslo\",\"location\":{\"coordinates\":{\"latitude\":59.9,\"longitude\":10.7}},\"clientToken\":\"token-1\"}"), body_media_type: Some("application/json") }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 429, headers: &[("retry-after", "5"), ("x-crucible-error", "ThrottlingError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"ThrottlingError\",\"message\":\"slow down\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_request_get_city_label_and_query() {
     ::crucible_server_runtime_rust::__generated::conformance::request::<crate::weather::GetCity>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::RequestVector { id: "GetCityLabelAndQuery", params: "{\"cityId\":\"c-abc12345\",\"at\":1398796238}", shape: &SHAPE_7, request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345", host: None, query: &["at=2014-04-29T18%3A30%3A38Z"], headers: &[], body: None, body_media_type: None } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_request_get_city_label_only() {
     ::crucible_server_runtime_rust::__generated::conformance::request::<crate::weather::GetCity>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::RequestVector { id: "GetCityLabelOnly", params: "{\"cityId\":\"c-abc12345\"}", shape: &SHAPE_7, request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345", host: None, query: &[], headers: &[], body: None, body_media_type: None } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_response_get_city_output() {
     ::crucible_server_runtime_rust::__generated::conformance::response::<crate::weather::GetCity>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "GetCityOutput", params: "{\"city\":{\"id\":\"c-abc12345\",\"name\":\"Oslo\",\"population\":700000,\"updatedAt\":1398796238,\"createdAt\":1398796238},\"forecast\":{\"clear\":{\"high\":20}},\"requestId\":\"req-1\"}", shape: &SHAPE_8, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345", host: None, query: &["at=2014-04-29T18%3A30%3A38Z"], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 200, headers: &[("x-request-id", "req-1")], forbid_headers: &[], require_headers: &[], body: Some("{\"city\":{\"id\":\"c-abc12345\",\"name\":\"Oslo\",\"population\":700000,\"updatedAt\":\"2014-04-29T18:30:38Z\",\"createdAt\":1398796238},\"forecast\":{\"clear\":{\"high\":20}}}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_malformed_get_city_rejects_bad_percent_escape() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "GetCityRejectsBadPercentEscape", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-%zzzzzz", host: None, query: &[], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex(".+"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_malformed_get_city_rejects_label_off_pattern_id_c_abcdefgh() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "GetCityRejectsLabelOffPattern[id=c-ABCDEFGH]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-ABCDEFGH", host: None, query: &[], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)cityId"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_malformed_get_city_rejects_label_off_pattern_id_c_short() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "GetCityRejectsLabelOffPattern[id=c-short]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-short", host: None, query: &[], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)cityId"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_malformed_get_city_rejects_label_off_pattern_id_not_a_city() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "GetCityRejectsLabelOffPattern[id=not-a-city]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/not-a-city", host: None, query: &[], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)cityId"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_malformed_get_city_rejects_unreadable_query_timestamp_value_1398796238() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "GetCityRejectsUnreadableQueryTimestamp[value=1398796238]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345", host: None, query: &["at=1398796238"], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)\\bat\\b"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_malformed_get_city_rejects_unreadable_query_timestamp_value_2014_13_45_t00_3_a00_3_a00_z() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "GetCityRejectsUnreadableQueryTimestamp[value=2014-13-45T00%3A00%3A00Z]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345", host: None, query: &["at=2014-13-45T00%3A00%3A00Z"], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)\\bat\\b"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_malformed_get_city_rejects_unreadable_query_timestamp_value_yesterday() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "GetCityRejectsUnreadableQueryTimestamp[value=yesterday]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345", host: None, query: &["at=yesterday"], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)\\bat\\b"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_error_not_found_error_response() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::GetCity, crate::weather::NotFoundError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "NotFoundErrorResponse", params: "{\"message\":\"no such city\",\"resourceId\":\"c-abc12345\"}", shape: &SHAPE_10, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345", host: None, query: &["at=2014-04-29T18%3A30%3A38Z"], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 404, headers: &[("x-crucible-error", "NotFoundError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"NotFoundError\",\"message\":\"no such city\",\"resourceId\":\"c-abc12345\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_error_throttling_error_retry_after() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::GetCity, crate::weather::ThrottlingError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ThrottlingErrorRetryAfter", params: "{\"message\":\"slow down\",\"retryAfter\":5}", shape: &SHAPE_6, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345", host: None, query: &["at=2014-04-29T18%3A30%3A38Z"], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 429, headers: &[("retry-after", "5"), ("x-crucible-error", "ThrottlingError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"ThrottlingError\",\"message\":\"slow down\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_photo_response_get_city_photo_payload() {
     ::crucible_server_runtime_rust::__generated::conformance::response::<crate::weather::GetCityPhoto>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "GetCityPhotoPayload", params: "{\"caption\":\"Dawn\",\"photo\":\"jpeg\"}", shape: &SHAPE_11, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 200, headers: &[("content-type", "image/jpeg"), ("x-photo-caption", "Dawn")], forbid_headers: &[], require_headers: &[], body: Some("jpeg"), body_media_type: Some("image/jpeg") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_photo_request_get_city_photo_request() {
     ::crucible_server_runtime_rust::__generated::conformance::request::<crate::weather::GetCityPhoto>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::RequestVector { id: "GetCityPhotoRequest", params: "{\"cityId\":\"c-abc12345\"}", shape: &SHAPE_12, request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[], body: None, body_media_type: None } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_photo_error_not_found_error_response() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::GetCityPhoto, crate::weather::NotFoundError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "NotFoundErrorResponse", params: "{\"message\":\"no such city\",\"resourceId\":\"c-abc12345\"}", shape: &SHAPE_10, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 404, headers: &[("x-crucible-error", "NotFoundError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"NotFoundError\",\"message\":\"no such city\",\"resourceId\":\"c-abc12345\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn get_city_photo_error_throttling_error_retry_after() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::GetCityPhoto, crate::weather::ThrottlingError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ThrottlingErrorRetryAfter", params: "{\"message\":\"slow down\",\"retryAfter\":5}", shape: &SHAPE_6, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 429, headers: &[("retry-after", "5"), ("x-crucible-error", "ThrottlingError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"ThrottlingError\",\"message\":\"slow down\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn list_cities_response_list_cities_output() {
     ::crucible_server_runtime_rust::__generated::conformance::response::<crate::weather::ListCities>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ListCitiesOutput", params: "{\"cities\":[{\"id\":\"c-abc12345\",\"name\":\"Oslo\",\"population\":700000,\"updatedAt\":1398796238,\"createdAt\":1398796238}],\"nextToken\":\"t2\"}", shape: &SHAPE_13, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities", host: None, query: &[], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 200, headers: &[], forbid_headers: &[], require_headers: &[], body: Some("{\"cities\":[{\"id\":\"c-abc12345\",\"name\":\"Oslo\",\"population\":700000,\"updatedAt\":\"2014-04-29T18:30:38Z\",\"createdAt\":1398796238}],\"nextToken\":\"t2\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn list_cities_malformed_list_cities_rejects_max_results_outside_range_value_0() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "ListCitiesRejectsMaxResultsOutsideRange[value=0]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities", host: None, query: &["maxResults=0"], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)maxResults"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn list_cities_malformed_list_cities_rejects_max_results_outside_range_value_101() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "ListCitiesRejectsMaxResultsOutsideRange[value=101]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities", host: None, query: &["maxResults=101"], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)maxResults"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn list_cities_malformed_list_cities_rejects_max_results_outside_range_value_ten() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "ListCitiesRejectsMaxResultsOutsideRange[value=ten]", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities", host: None, query: &["maxResults=ten"], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)maxResults"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn list_cities_malformed_list_cities_rejects_too_many_tags() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "ListCitiesRejectsTooManyTags", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities", host: None, query: &["tag=1", "tag=2", "tag=3", "tag=4", "tag=5", "tag=6"], headers: &[], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)tags"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn list_cities_request_list_cities_repeated_query() {
     ::crucible_server_runtime_rust::__generated::conformance::request::<crate::weather::ListCities>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::RequestVector { id: "ListCitiesRepeatedQuery", params: "{\"maxResults\":10,\"tags\":[\"a\",\"b c\"],\"nextToken\":\"t1\"}", shape: &SHAPE_15, request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities", host: None, query: &["maxResults=10", "tag=a", "tag=b%20c", "nextToken=t1"], headers: &[], body: None, body_media_type: None } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn list_cities_error_throttling_error_retry_after() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::ListCities, crate::weather::ThrottlingError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ThrottlingErrorRetryAfter", params: "{\"message\":\"slow down\",\"retryAfter\":5}", shape: &SHAPE_6, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/cities", host: None, query: &[], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 429, headers: &[("retry-after", "5"), ("x-crucible-error", "ThrottlingError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"ThrottlingError\",\"message\":\"slow down\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn ping_error_throttling_error_retry_after() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::Ping, crate::weather::ThrottlingError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ThrottlingErrorRetryAfter", params: "{\"message\":\"slow down\",\"retryAfter\":5}", shape: &SHAPE_6, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/ping", host: None, query: &[], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 429, headers: &[("retry-after", "5"), ("x-crucible-error", "ThrottlingError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"ThrottlingError\",\"message\":\"slow down\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn put_city_photo_error_not_found_error_response() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::PutCityPhoto, crate::weather::NotFoundError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "NotFoundErrorResponse", params: "{\"message\":\"no such city\",\"resourceId\":\"c-abc12345\"}", shape: &SHAPE_10, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "PUT", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[("content-type", "image/jpeg"), ("x-photo-caption", "Dawn")], body: Some("jpeg"), body_media_type: Some("image/jpeg") }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 404, headers: &[("x-crucible-error", "NotFoundError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"NotFoundError\",\"message\":\"no such city\",\"resourceId\":\"c-abc12345\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn put_city_photo_response_put_city_photo_output() {
     ::crucible_server_runtime_rust::__generated::conformance::response::<crate::weather::PutCityPhoto>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "PutCityPhotoOutput", params: "{\"photo\":{\"size\":4,\"thumbnail\":\"jpeg\",\"caption\":\"Dawn\"}}", shape: &SHAPE_17, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "PUT", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[("content-type", "image/jpeg"), ("x-photo-caption", "Dawn")], body: Some("jpeg"), body_media_type: Some("image/jpeg") }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 200, headers: &[], forbid_headers: &[], require_headers: &[], body: Some("{\"photo\":{\"size\":4,\"thumbnail\":\"anBlZw==\",\"caption\":\"Dawn\"}}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn put_city_photo_request_put_city_photo_payload() {
     ::crucible_server_runtime_rust::__generated::conformance::request::<crate::weather::PutCityPhoto>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::RequestVector { id: "PutCityPhotoPayload", params: "{\"cityId\":\"c-abc12345\",\"caption\":\"Dawn\",\"photo\":\"jpeg\"}", shape: &SHAPE_19, request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "PUT", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[("content-type", "image/jpeg"), ("x-photo-caption", "Dawn")], body: Some("jpeg"), body_media_type: Some("image/jpeg") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn put_city_photo_malformed_put_city_photo_rejects_empty_payload() {
     ::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector { id: "PutCityPhotoRejectsEmptyPayload", request: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "PUT", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[("content-type", "image/jpeg")], body: None, body_media_type: None }, refusal: ::crucible_server_runtime_rust::__generated::conformance::Refusal { code: 400, headers: &[("x-crucible-error", "ValidationError")], body: Some(("application/json", ::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex("(?i)photo"))) } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn put_city_photo_error_throttling_error_retry_after() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::PutCityPhoto, crate::weather::ThrottlingError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ThrottlingErrorRetryAfter", params: "{\"message\":\"slow down\",\"retryAfter\":5}", shape: &SHAPE_6, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "PUT", uri: "/cities/c-abc12345/photo", host: None, query: &[], headers: &[("content-type", "image/jpeg"), ("x-photo-caption", "Dawn")], body: Some("jpeg"), body_media_type: Some("image/jpeg") }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 429, headers: &[("retry-after", "5"), ("x-crucible-error", "ThrottlingError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"ThrottlingError\",\"message\":\"slow down\"}"), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn status_response_status_empty_output() {
     ::crucible_server_runtime_rust::__generated::conformance::response::<crate::weather::Status>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "StatusEmptyOutput", params: "{}", shape: &SHAPE_20, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/status", host: None, query: &[], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 200, headers: &[], forbid_headers: &[], require_headers: &[], body: Some(""), body_media_type: Some("application/json") } });
 }
 
 #[test]
-#[allow(clippy::all, non_snake_case)]
+#[allow(clippy::all, non_snake_case, deprecated)]
 fn status_error_throttling_error_retry_after() {
     ::crucible_server_runtime_rust::__generated::conformance::error::<crate::weather::Status, crate::weather::ThrottlingError>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::ResponseVector { id: "ThrottlingErrorRetryAfter", params: "{\"message\":\"slow down\",\"retryAfter\":5}", shape: &SHAPE_6, seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: "GET", uri: "/status", host: None, query: &[], headers: &[], body: None, body_media_type: None }, expect: ::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse { code: 429, headers: &[("retry-after", "5"), ("x-crucible-error", "ThrottlingError")], forbid_headers: &[], require_headers: &[], body: Some("{\"__type\":\"ThrottlingError\",\"message\":\"slow down\"}"), body_media_type: Some("application/json") } });
 }

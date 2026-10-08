@@ -3,44 +3,34 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn compile(source: &str) -> std::process::Output {
-    let dependencies = std::env::current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_owned();
-    let runtime = fs::read_dir(&dependencies)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| {
-            path.file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with("libcrucible_server_runtime_rust-")
-                && path
-                    .extension()
-                    .is_some_and(|extension| extension == "rlib")
-        })
-        .max_by_key(|path| path.metadata().unwrap().modified().unwrap())
-        .expect("Cargo built the runtime library");
     let directory =
         std::env::temp_dir().join(format!("crucible-server-abi-{}", std::process::id()));
-    fs::create_dir_all(&directory).unwrap();
-    let input = directory.join("consumer.rs");
-    fs::write(&input, source).unwrap();
-    let output = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
-        .arg("--edition=2024")
-        .arg("--crate-type=lib")
-        .arg("--emit=metadata")
-        .arg("--extern")
-        .arg(format!(
-            "crucible_server_runtime_rust={}",
-            runtime.display()
-        ))
-        .arg("-L")
-        .arg(format!("dependency={}", dependencies.display()))
-        .arg("-o")
-        .arg(PathBuf::from(&directory).join("consumer.rmeta"))
-        .arg(input)
+    fs::create_dir_all(directory.join("src")).unwrap();
+    // Cargo resolves the path dependency for this consumer, so unrelated or
+    // newer runtime artifacts in a shared target directory cannot be selected.
+    let runtime = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    fs::write(
+        directory.join("Cargo.toml"),
+        format!(
+            "[workspace]\n[package]\nname = \"abi-consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[dependencies]\ncrucible-server-runtime-rust = {{ path = {:?} }}\n",
+            runtime.to_str().unwrap(),
+        ),
+    ).unwrap();
+    fs::write(directory.join("src/lib.rs"), source).unwrap();
+    let output = Command::new(env!("CARGO"))
+        .args(["check", "--offline", "--quiet", "--manifest-path"])
+        .arg(directory.join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(
+            std::env::current_exe()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap()
+                .parent()
+                .unwrap(),
+        )
         .output()
         .unwrap();
     fs::remove_dir_all(directory).unwrap();
@@ -49,10 +39,21 @@ fn compile(source: &str) -> std::process::Output {
 
 #[test]
 fn abi_versions_and_consumer_boundary() {
+    // A newer matching filename must not control which runtime Cargo checks.
+    let decoy = std::env::current_exe()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join(format!(
+            "libcrucible_server_runtime_rust-decoy-{}.rlib",
+            std::process::id()
+        ));
+    fs::write(&decoy, "not a Rust library").unwrap();
     let matching = compile(&format!(
         "crucible_server_runtime_rust::__generated::check_abi!({:?});",
         env!("CARGO_PKG_VERSION")
     ));
+    fs::remove_file(decoy).unwrap();
     assert!(
         matching.status.success(),
         "{}",

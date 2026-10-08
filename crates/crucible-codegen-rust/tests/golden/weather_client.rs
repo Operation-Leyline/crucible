@@ -2,7 +2,7 @@
 
 ::crucible_client_runtime_rust::__generated::check_abi!("0.4.0");
 
-#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
 mod model {
 
     pub type CityId = ::std::string::String;
@@ -22,6 +22,7 @@ mod model {
         pub population: i64,
         #[serde(rename = "updatedAt", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub updated_at: ::crucible_client_runtime_rust::__generated::Field<::crucible_client_runtime_rust::__generated::time::Timestamp>,
+        #[deprecated(since = "2026-08", note = "Use updatedAt.")]
         #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent", with = "::crucible_client_runtime_rust::__generated::codec::Adapter::<::crucible_client_runtime_rust::__generated::codec::Field<::crucible_client_runtime_rust::__generated::codec::EpochSeconds>>")]
         pub created_at: ::crucible_client_runtime_rust::__generated::Field<::crucible_client_runtime_rust::__generated::time::Timestamp>,
     }
@@ -44,6 +45,7 @@ mod model {
         pub fn population(&self) -> &i64 { &self.population }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn updated_at(&self) -> ::std::option::Option<&::crucible_client_runtime_rust::__generated::time::Timestamp> { self.updated_at.value() }
+        #[deprecated(since = "2026-08", note = "Use updatedAt.")]
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn created_at(&self) -> ::std::option::Option<&::crucible_client_runtime_rust::__generated::time::Timestamp> { self.created_at.value() }
     }
@@ -77,6 +79,7 @@ mod model {
         /// Sets this member to a value.
         pub fn updated_at(mut self, value: impl ::std::convert::Into<::crucible_client_runtime_rust::__generated::time::Timestamp>) -> Self { self.updated_at = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
         /// Sets this member to a value.
+        #[deprecated(since = "2026-08", note = "Use updatedAt.")]
         pub fn created_at(mut self, value: impl ::std::convert::Into<::crucible_client_runtime_rust::__generated::time::Timestamp>) -> Self { self.created_at = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
         /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<CitySummary, ::crucible_client_runtime_rust::__generated::BuildError> {
@@ -623,6 +626,9 @@ mod model {
     /// A photo, carried unparsed.
     pub type Photo = ::crucible_client_runtime_rust::__generated::Blob;
 
+    /// Unstable.
+    ///
+    /// Since 2026-10.
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
     pub struct PhotoSummary {
@@ -789,6 +795,7 @@ mod model {
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum Sky {
         Clear,
+        #[deprecated(note = "Reported as CLEAR with a cloud cover reading.")]
         Cloudy,
         /// A value introduced by a newer service.
         UnknownValue(::std::string::String),
@@ -1089,7 +1096,7 @@ mod model {
     }
 }
 
-#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
 mod errors {
     use super::__redaction;
 
@@ -1485,10 +1492,10 @@ mod errors {
 }
 
 #[doc(inline)]
-#[allow(unused_imports)]
+#[allow(unused_imports, deprecated)]
 pub use errors::{ConflictError, NotFoundError, ThrottlingError, ValidationError};
 #[doc(inline)]
-#[allow(unused_imports)]
+#[allow(unused_imports, deprecated)]
 pub use model::{CityId, CityName, CitySummaries, CitySummary, Coordinates, CreateCityInput, CreateCityOutput, DateTime, Forecast, GetCityInput, GetCityOutput, GetCityPhotoInput, GetCityPhotoOutput, ListCitiesInput, ListCitiesOutput, Location, Photo, PhotoSummary, PutCityPhotoInput, PutCityPhotoOutput, Sky, StatusInput, StatusOutput, Tags, Thumbnail, ValidationField, ValidationFieldList, ValidationReason};
 
 #[allow(dead_code, unused_imports)]
@@ -1968,6 +1975,7 @@ impl ::std::fmt::Display for ListCitiesError {
 
 impl ::std::error::Error for ListCitiesError {}
 
+#[deprecated(since = "2026-09", note = "Use Status instead.")]
 pub struct Ping;
 
 static PING_OPERATION: ::crucible_client_runtime_rust::__generated::OperationInfo = ::crucible_client_runtime_rust::__generated::operation_info(
@@ -1988,6 +1996,7 @@ static PING_OPERATION: ::crucible_client_runtime_rust::__generated::OperationInf
     &[],
 );
 
+#[allow(deprecated)]
 impl ::crucible_client_runtime_rust::__generated::Operation for Ping {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
@@ -2214,7 +2223,7 @@ pub struct WeatherClient {
     transport: ::crucible_client_runtime_rust::__generated::Transport,
 }
 
-#[allow(dead_code)]
+#[allow(dead_code, deprecated)]
 impl WeatherClient {
     /// Constructs the shared HTTP transport from configuration.
     pub fn new(config: ::crucible_client_runtime_rust::__generated::Config) -> Self {
@@ -2357,6 +2366,7 @@ impl WeatherClient {
     /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
     ///
     /// This operation is safe to retry under the configured retry policy.
+    #[deprecated(since = "2026-09", note = "Use Status instead.")]
     pub async fn ping(&self) -> ::std::result::Result<(), ::crucible_client_runtime_rust::__generated::Error<PingError>> {
         self.transport.send::<Ping, PingError>(&::crucible_client_runtime_rust::__generated::operation::Unit {}).await.map(|_| ())
     }
@@ -2370,6 +2380,7 @@ impl WeatherClient {
     /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
     ///
     /// This operation is safe to retry under the configured retry policy.
+    #[deprecated(since = "2026-09", note = "Use Status instead.")]
     pub async fn ping_with_options(&self, options: ::crucible_client_runtime_rust::__generated::CallOptions) -> ::std::result::Result<(), ::crucible_client_runtime_rust::__generated::Error<PingError>> {
         self.transport.send_with_options::<Ping, PingError>(&::crucible_client_runtime_rust::__generated::operation::Unit {}, &options).await.map(|_| ())
     }
