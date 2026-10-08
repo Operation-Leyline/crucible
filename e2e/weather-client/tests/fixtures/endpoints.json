@@ -47,7 +47,14 @@
                 "properties": {
                   "scope": {
                     "label": "{Region}"
-                  }
+                  },
+                  "authSchemes": [
+                    {
+                      "name": "sigv4",
+                      "signingName": "rule-service",
+                      "signingRegion": "rule-region"
+                    }
+                  ]
                 }
               }
             },
@@ -57,7 +64,13 @@
               "error": "Unknown region {Region}"
             }
           ]
-        }
+        },
+        "aws.auth#sigv4": {
+          "name": "original"
+        },
+        "smithy.api#auth": [
+          "aws.auth#sigv4"
+        ]
       },
       "operations": [
         {
@@ -142,7 +155,12 @@
               }
             ]
           }
-        }
+        },
+        "smithy.api#paginated": {
+          "inputToken": "nextToken",
+          "outputToken": "nextToken"
+        },
+        "smithy.api#optionalAuth": {}
       },
       "input": {
         "target": "example.behavior#Input"
@@ -181,6 +199,9 @@
         },
         "time": {
           "target": "smithy.api#Timestamp"
+        },
+        "nextToken": {
+          "target": "smithy.api#String"
         }
       }
     },
@@ -201,6 +222,9 @@
         },
         "amount": {
           "target": "smithy.api#BigDecimal"
+        },
+        "nextToken": {
+          "target": "smithy.api#String"
         }
       }
     },
@@ -211,7 +235,8 @@
           "method": "GET",
           "uri": "/normal",
           "code": 204
-        }
+        },
+        "smithy.api#auth": []
       }
     },
     "example.behavior#Missing": {

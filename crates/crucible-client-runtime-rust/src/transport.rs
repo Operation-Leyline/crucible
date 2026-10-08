@@ -381,6 +381,7 @@ impl Transport {
             };
             let status = response.status().as_u16();
             let response_headers = std::mem::take(response.headers_mut());
+            let transient_status = retryable_status(status);
             if O::PROTOCOL.rpc_v2() {
                 let expected = if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
                     "rpc-v2-cbor"
@@ -393,6 +394,16 @@ impl Transport {
                         .and_then(|h| h.to_str().ok())
                         != Some(expected)
                 {
+                    // Proxies can return transient HTTP failures without RPC headers.
+                    // Apply the status retry contract before rejecting their protocol.
+                    if replayable && retry_safe && transient_status && attempt < retry.max_attempts
+                    {
+                        let delay = retry_after(&response_headers)
+                            .unwrap_or_else(|| backoff(attempt, &retry));
+                        tokio::time::sleep(delay).await;
+                        attempt += 1;
+                        continue;
+                    }
                     return Err(Error::Decode(format!(
                         "malformed RPC v2 response (HTTP {status}): smithy-protocol does not match request"
                     )));
@@ -519,13 +530,10 @@ impl Transport {
             let (throttling, transient) = match &error {
                 Error::Service(error) => {
                     let info = error.error.info();
-                    (info.throttling, info.retryable || retryable_status(status))
+                    (info.throttling, info.retryable || transient_status)
                 }
-                Error::Unknown(error) => (
-                    error.throttling,
-                    error.retryable || retryable_status(status),
-                ),
-                _ => (false, retryable_status(status)),
+                Error::Unknown(error) => (error.throttling, error.retryable || transient_status),
+                _ => (false, transient_status),
             };
             if replayable
                 && (throttling || (retry_safe && transient))

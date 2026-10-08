@@ -457,8 +457,13 @@ fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> St
         }
         _ => (String::new(), String::new()),
     };
+    let metadata = if metadata_needed(service, op) {
+        format!(".metadata(&__crucible_metadata_{name})")
+    } else {
+        String::new()
+    };
     format!(
-        "\n    /// Every page of {name}, one request each.\n    pub fn {}_pages(&self, input: {}) -> ::crucible_server_runtime_rust::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){finish}\n    }}\n",
+        "\n    /// Every page of {name}, one request each.\n    pub fn {}_pages(&self, input: {}) -> ::crucible_server_runtime_rust::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){metadata}{finish}\n    }}\n",
         function(name).trim_start_matches("r#"),
         input_type(service, op).replace("model::", ""),
         output,

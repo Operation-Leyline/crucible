@@ -197,3 +197,36 @@ async fn waiter_deadline_cancellation_and_invalid_endpoint_stop_before_extra_pol
         matches!(sdk::ServiceClient::new(Config::new("https://example.test").region("unknown")).read(input()).await,Err(Error::Invalid(message)) if message.contains("Unknown region"))
     );
 }
+
+#[tokio::test]
+async fn generated_pages_preserve_endpoint_host_headers_and_signing_overrides() {
+    let (config, requests) = serve(vec![
+        (200, r#"{"nextToken":"second"}"#),
+        (200, r#"{"wire-status":"DONE"}"#),
+    ])
+    .await;
+    let config = config.aws_credentials(crucible_client_runtime_rust::Identity::fixed(
+        crucible_client_runtime_rust::AwsCredentials::new("key", "secret"),
+    ));
+    let pages = sdk::ServiceClient::new(config)
+        .read_pages(input())
+        .collect()
+        .await
+        .unwrap();
+    assert_eq!(pages.len(), 2);
+    let requests = requests.await.unwrap();
+    for request in &requests {
+        assert!(
+            request.starts_with("POST /base/resource HTTP/1.1"),
+            "{request}"
+        );
+        assert!(request.contains("host: customer.localhost:"), "{request}");
+        assert!(request.contains("x-region: local"), "{request}");
+        assert!(
+            request.contains("/rule-region/rule-service/aws4_request"),
+            "{request}"
+        );
+        assert!(request.contains(";x-region"), "{request}");
+    }
+    assert!(requests[1].contains(r#""nextToken":"second""#));
+}

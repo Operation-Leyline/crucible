@@ -629,3 +629,22 @@ fn keyword_operation_derivatives_and_outputless_waiters_use_valid_names_and_type
     );
     assert!(!code.contains("wait_until_r#"));
 }
+
+#[test]
+fn paginated_endpoint_metadata_matches_the_golden_file() {
+    let source = include_str!("../../../e2e/weather-client/tests/fixtures/endpoints.json");
+    let service = Model::from_json(source)
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
+        .unwrap();
+    let code = generate_client(&service).unwrap();
+    assert!(code.contains(".metadata(&__crucible_metadata_Read)"));
+    let pages = code
+        .split("    /// Every page of Read, one request each.\n")
+        .nth(1)
+        .unwrap()
+        .split("\n    }\n")
+        .next()
+        .unwrap();
+    matches_golden(&format!("{pages}\n    }}\n"), "paginated_endpoints.rs");
+}
