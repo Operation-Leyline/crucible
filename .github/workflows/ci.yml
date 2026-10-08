@@ -6,6 +6,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  # Qualify a repair branch on every platform without starting a release.
+  workflow_dispatch:
   # The manual version-release workflow calls this with the full matrix.
   workflow_call:
 

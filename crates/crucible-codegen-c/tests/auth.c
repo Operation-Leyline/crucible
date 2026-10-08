@@ -84,10 +84,10 @@ static void modeled_authentication(void) {
     auth_client_config config = base();
     config.basic_credentials = basic_provider; config.basic_user = &calls;
     auth_client *client = client_new(config);
-    auth_operations_public_result result = {0};
-    good(auth_operations_public(client, NULL, NULL, &result, &error), &error, "public");
+    auth_operations_public_value_result result = {0};
+    good(auth_operations_public_value(client, NULL, NULL, &result, &error), &error, "public");
     check(calls == 0 && !echo_header(result.base.arena, &result.base.response, "authorization").data, "anonymous operation sends no identity");
-    auth_operations_public_result_free(&result);
+    auth_operations_public_value_result_free(&result);
     auth_operations_read_result read = {0};
     good(auth_operations_read(client, NULL, NULL, &read, &error), &error, "basic read");
     check(equal(echo_header(read.base.arena, &read.base.response, "authorization"), "Basic dXNlcjpwYXNzd29yZA=="), "basic header");

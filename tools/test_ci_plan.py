@@ -281,6 +281,7 @@ class PlanTests(unittest.TestCase):
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertNotIn("schedule:", workflow)
         self.assertIn("workflow_call:", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("workflow_dispatch:", release)
         self.assertIn("uses: ./.github/workflows/ci.yml", release)
         self.assertIn("needs: [preflight, qualify]", release)

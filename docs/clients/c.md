@@ -78,6 +78,12 @@ from multiple threads.
 
 ## Models and serialization
 
+Generated identifiers escape C and C++ keywords with the suffix `_value`, so
+public headers also compile as C++. For example, an operation named `Public`
+uses `weather_operations_public_value`, `weather_operations_public_value_result`
+and `weather_operations_public_value_result_free`; a member named `class`
+uses `class_value`. The Smithy names on the wire remain unchanged.
+
 Structures, unions, lists, and maps are native structs. Open string enums keep
 unknown values, and unknown union alternatives retain their name and JSON.
 Map entries retain string keys. Recursive structures and collections use
