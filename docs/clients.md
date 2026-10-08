@@ -288,6 +288,27 @@ null or nil: a nullable initializer default cannot always distinguish an omitted
 argument from an explicit null. Native API examples are verified by independent
 package consumers as well as the shared serialization fixtures.
 
+### API documentation and string representations (Java, Kotlin, C#)
+
+Generated Java, Kotlin and C# clients document every public type in the language's
+doc format (Javadoc, KDoc, C# XML documentation). Smithy `@documentation` is
+converted from CommonMark once, in `crucible-codegen-common`: paragraphs, lists,
+code, emphasis, links and headings carry over, and everything else, raw HTML
+included, is escaped so it cannot close the comment or break the markup.
+Crucible's own types (client, configuration, errors, waiters, credentials, the
+bundled runtime) carry hand-written docs. The Java and C# packages build their
+docs without warnings (`javadoc -Xdoclint:all`, `dotnet pack -warnaserror` with
+`GenerateDocumentationFile`).
+
+Generated structures, unions and errors have a readable `toString`/`ToString`:
+`TypeName(member=value, ...)`, nested models and collections recursing, unset
+optional members omitted and an explicit null printed as `null`. A member that is
+`@sensitive`, targets a `@sensitive` shape, or is a collection of one, prints
+`*** Sensitive Data Redacted ***` instead of its value; an unrecognized union
+variant never prints its payload. Value equality exists only for enums and union
+variants that are records or data classes; generated Java and C# structures,
+unions and errors, and Kotlin structures, use reference equality.
+
 ## Qualification
 
 The commands above exercise generated code and its native runtime. Shared fixtures
