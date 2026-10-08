@@ -151,6 +151,11 @@ cargo run -p crucible-cli -- generate openapi model.json --out openapi.json --en
 
 See [OpenAPI generation](docs/openapi.md) for supported bindings and diagnostics.
 
+Generate a human-readable service reference directly from the IR with
+`crucible generate docs model.json --out generated/reference`. See
+[service API reference documentation](docs/docs.md) for mdBook output,
+audiences, protocol support, and the stable `describe.json` contract.
+
 ## Release Crucible
 
 PRs run Rust checks, core HTTP integration, and affected Linux consumers.

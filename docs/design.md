@@ -51,6 +51,9 @@ the switch gives up is Smithy's OpenAPI converter, which only knows AWS
 protocols. Crucible [emits OpenAPI from its IR](openapi.md) for supported REST
 JSON services. OpenAPI is a downstream export; SDKs still consume the IR directly.
 
+[Service API references](docs.md) consume an audience-projected IR description
+directly, preserving pagination, resources, idempotency, and documentation notes.
+
 ## Pipeline
 
 ```
@@ -135,6 +138,11 @@ lifecycle slots, collection operations, and resolved resource member/reference
 paths. Infrastructure emitters consume a selected projection validated by
 `crucible-codegen-infra`; deployment policy remains separate from HTTP semantics.
 See [infrastructure generation](infrastructure.md) for target boundaries.
+
+`Model::lower_documentation` preserves resources and their lifecycle without
+provisioning member bindings. The description builder consumes that projected IR,
+including explicit service errors and declared protocols; the Markdown renderer
+consumes the versioned description. See [API reference generation](docs.md).
 
 ## Targets and phases
 

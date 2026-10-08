@@ -266,7 +266,7 @@ model preparation and artifact discovery.
 ## Generating documents, infrastructure packages and a CLI
 
 The same model supports named non-client outputs. Enable the matching
-`openapi`, `cdk`, `terraform`, or `cli` feature. `all-outputs` enables these
+`openapi`, `docs`, `cdk`, `terraform`, or `cli` feature. `all-outputs` enables these
 and all native clients; `all-clients` continues to select clients only.
 
 ```rust
@@ -299,6 +299,12 @@ paths default to the build helper's matching Crucible source checkout; use
 `.runtime_path(...)` to select another local checkout. Generation verifies that
 both Rust client and CLI runtime manifests exist. The CLI target uses the Rust
 emitter even when the build helper's `rust` feature is disabled.
+
+`model.docs("reference").generate_into("generated/reference")` exports Markdown
+in mdBook layout and `describe.json`. Its default audience is external; select
+`.audience(Audience::Internal)` to include internal items with badges. See
+[service API references](docs.md) for the stable description schema and wire
+rendering diagnostics.
 
 CDK and Terraform lazily lower the resource projection from the same assembled
 model; ordinary SDKs keep the operation-only projection. They require explicit provisioning bindings in the same format as
