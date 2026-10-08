@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
+CONSUMERS = {"consumers"}
 from ci_plan import (ALL_HOSTS, CORE_GROUPS, GROUPS, MODEL_GROUPS, SDK_GROUPS, affected_groups,
                      changed_paths, onboarding_hosts, select_groups)
 
@@ -20,8 +21,8 @@ EVENT = {"pull_request": {"base": {"sha": "a" * 40}, "head": {"sha": "b" * 40}}}
 
 class PlanTests(unittest.TestCase):
     def test_server_runtime_rename_keeps_old_and_new_paths_qualified(self):
-        for name in ["crucible", "crucible-server-runtime-rust"]:
-            self.assertEqual(affected_groups([f"crates/{name}/src/lib.rs"]), set(CORE_GROUPS))
+        self.assertEqual(affected_groups(["crates/crucible/src/lib.rs"]), set(CORE_GROUPS))
+        self.assertEqual(affected_groups(["crates/crucible-server-runtime-rust/src/lib.rs"]), CORE_GROUPS | CONSUMERS)
 
     def test_language_changes_keep_native_consumers_and_dependencies(self):
         for language, expected in {
@@ -38,14 +39,19 @@ class PlanTests(unittest.TestCase):
 
     def test_server_changes_keep_core_http_gates(self):
         for path in (
-            "crates/crucible-policy/src/lib.rs",
-            "crates/crucible-server-runtime-rust/src/lib.rs",
-            "crates/crucible-wire/src/lib.rs",
-            "crates/crucible-codegen-rust/src/lib.rs", "e2e/weather-service/src/main.rs",
-            ".github/workflows/ci.yml", ".github/workflows/release.yml",
+            "crates/crucible-policy/src/lib.rs", "e2e/weather-service/src/main.rs",
         ):
             with self.subTest(path=path):
                 self.assertEqual(affected_groups([path]), CORE_GROUPS)
+        for path in (
+            "crates/crucible-server-runtime-rust/src/lib.rs",
+            "crates/crucible-wire/src/lib.rs",
+            "crates/crucible-codegen-rust/src/lib.rs",
+            "crates/crucible-auth/src/lib.rs",
+            ".github/workflows/ci.yml", ".github/workflows/release.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(affected_groups([path]), CORE_GROUPS | CONSUMERS)
         self.assertEqual(affected_groups(["crates/crucible-cli/src/main.rs"]), CORE_GROUPS | {"service_cli"})
 
     def test_openapi_export_keeps_its_rust_qualification(self):
@@ -53,10 +59,10 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/tests/golden/weather.openapi.json"]), {"rust"})
 
     def test_onboarding_and_editor_integration_paths_keep_their_gates(self):
-        for path in ("smithy/errors.smithy", "vendor/smithy-tooling/src/runtime.rs"):
-            self.assertEqual(affected_groups([path]), CORE_GROUPS)
+        self.assertEqual(affected_groups(["smithy/errors.smithy"]), CORE_GROUPS | CONSUMERS)
+        self.assertEqual(affected_groups(["vendor/smithy-tooling/src/runtime.rs"]), CORE_GROUPS)
         self.assertEqual(affected_groups(["ide/smithy-cargo/src/main/resources/META-INF/plugin.xml"]), {"rust", "editor"})
-        self.assertEqual(affected_groups(["crates/crucible-build/Cargo.toml"]), SDK_GROUPS | {"editor"})
+        self.assertEqual(affected_groups(["crates/crucible-build/Cargo.toml"]), SDK_GROUPS | CONSUMERS | {"editor"})
         self.assertEqual(affected_groups(["crates/crucible-cli/src/starter/hello.smithy"]), CORE_GROUPS | {"editor", "service_cli"})
 
     def test_shared_model_changes_keep_representative_native_consumers(self):
@@ -97,7 +103,8 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-build/tests/bindings.json",
         ):
             with self.subTest(path=path):
-                self.assertEqual(affected_groups([path]), SDK_GROUPS)
+                # A test model is not part of the surface consumers build against.
+                self.assertEqual(affected_groups([path]), SDK_GROUPS if path.endswith(".json") else SDK_GROUPS | CONSUMERS)
                 self.assertTrue({"cdk", "terraform", "service_cli"}.issubset(affected_groups([path])))
 
     def test_rust_gate_exercises_sdk_features_and_minimal_build_helpers(self):
@@ -110,6 +117,44 @@ class PlanTests(unittest.TestCase):
         self.assertIn("cargo clippy --all-targets --all-features --locked", jobs["rust"])
         for package in ("crucible-build", "crucible-codegen"):
             self.assertIn(f"cargo check -p {package} --no-default-features --locked", jobs["rust"])
+
+    def test_consumers_follow_the_stable_surface_and_always_run_at_release(self):
+        for path in (
+            "crates/crucible-build/src/lib.rs", "crates/crucible-server-runtime-rust/src/host.rs",
+            "crates/crucible-wire/src/error.rs", "crates/crucible-codegen-rust/src/lib.rs",
+            "crates/crucible-auth/src/principal.rs", "smithy/crucible.smithy",
+            # The Leyline SDK consumer pins this runtime through `runtime_path`.
+            "crates/crucible-client-runtime-rust/src/lib.rs",
+            "tests/consumers/leyline/leyline-service/src/lib.rs", "tools/test-consumers.py",
+        ):
+            with self.subTest(path=path):
+                self.assertIn("consumers", affected_groups([path]))
+        # Unrelated generators, docs and the TypeScript runtime stay out.
+        for path in (
+            "crates/crucible-codegen-python/src/lib.rs", "crates/crucible-codegen-ts/src/lib.rs",
+            "crates/crucible-smithy/src/ir.rs",
+            "docs/releases.md", "CHANGELOG.md", "e2e/weather-service/src/main.rs",
+        ):
+            with self.subTest(path=path):
+                self.assertNotIn("consumers", affected_groups([path]) if path != "CHANGELOG.md" else set())
+        for event in ("workflow_call", "workflow_dispatch", "schedule"):
+            self.assertIn("consumers", select_groups(event, {}, Mock()))
+        self.assertNotIn("consumers", select_groups("push", {}, Mock()))
+        # A fixture-only edit needs the fixture, not every HTTP gate.
+        self.assertEqual(affected_groups(["tests/consumers/leyline/Cargo.toml"]), {"rust", "consumers"})
+
+    def test_release_qualification_runs_and_requires_the_consumers_job(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        self.assertIn("python3 tools/test-consumers.py", jobs["consumers"])
+        self.assertIn("runs-on: ubuntu-latest", jobs["consumers"])
+        self.assertNotIn("matrix", jobs["consumers"])
+        # The aggregate cannot pass a release (full) run when consumers was skipped or failed.
+        self.assertIn('results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success"', jobs["ci"])
+        release = (ROOT / ".github/workflows/release.yml").read_text()
+        self.assertIn("needs: [preflight, qualify]", release)
+        self.assertIn("uses: ./.github/workflows/ci.yml", release)
 
     def test_unknown_paths_keep_all_linux_consumers(self):
         for path in ("new-generator/runtime.js", "crates/crucible-new/src/lib.rs"):
@@ -139,11 +184,11 @@ class PlanTests(unittest.TestCase):
 
     def test_rust_client_still_qualifies_generated_cli(self):
         self.assertEqual(affected_groups(["crates/crucible-client-runtime-rust/src/transport.rs"]),
-                         {"rust", "e2e", "service_cli"})
+                         {"rust", "e2e", "service_cli", "consumers"})
         self.assertEqual(affected_groups([
             "crates/crucible-client/src/transport.rs",
             "crates/crucible-client-runtime-rust/src/transport.rs",
-        ]), {"rust", "e2e", "service_cli"})
+        ]), {"rust", "e2e", "service_cli", "consumers"})
         self.assertEqual(affected_groups(["crates/crucible-cli-runtime/src/output.rs"]),
                          {"rust", "service_cli"})
 
@@ -272,8 +317,8 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 6)
         self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 8)
         self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 5)
-        # Preserve the 35 test variants plus planner/aggregate and one tools build.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 38)
+        # Preserve the 36 test variants (including consumers) plus planner/aggregate and one tools build.
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 39)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):

@@ -2,7 +2,7 @@
 resolver = "3"
 members = ["crates/*", "smithy"]
 # The end-to-end harness builds generated crates: its own workspace.
-exclude = ["e2e", "vendor/smithy-tooling"]
+exclude = ["e2e", "tests/consumers/leyline", "vendor/smithy-tooling"]
 
 [workspace.package]
 version = "0.4.0"

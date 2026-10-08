@@ -1,0 +1,8 @@
+# A Leyline-shaped consumer: the layout and the stable surface a real Crucible
+# service uses, built by the `consumers` CI job (tools/test-consumers.py). Its
+# own workspace, like e2e/, so the main workspace builds without generated code.
+# `leyline-sdk-consumer` is a third, independent workspace: it depends on the
+# SDK package that `leyline-model` generates, which does not exist until then.
+[workspace]
+resolver = "3"
+members = ["leyline-model", "leyline-service"]

@@ -2,11 +2,11 @@
 
 /// Server API for `example.scopes#ScopedWeather`.
 pub mod scoped_weather {
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
     }
 
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod errors {
         use super::__redaction;
     }

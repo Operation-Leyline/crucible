@@ -1,13 +1,77 @@
-# Migrating to Crucible 0.2
+# Migrating between releases
 
-[Framework guide](framework.md) · [Version releases](releases.md)
+[CHANGELOG](../CHANGELOG.md) · [Framework guide](framework.md) · [Version releases](releases.md)
+
+Crucible is `0.x`: a minor release may break the documented stable surface, but
+only with a Migration entry in the [CHANGELOG](../CHANGELOG.md) and, from 0.5,
+a `#[deprecated]` shim kept for one minor (see the
+[stability policy](releases.md#stability-policy-for-0x)). Patch releases never
+require migration. Upgrade one minor at a time, newest section last in your
+path, and pin the runtime, `crucible-build` and any client runtime to the same
+tag.
+
+| From | To | CHANGELOG | Section |
+|---|---|---|---|
+| 0.3.x | 0.4.0 | [0.4.0](../CHANGELOG.md#040---2026-10-08) | [0.3.0 to 0.4.0](#030-to-040) |
+| 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
+| 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
+
+## 0.4.0 to the next release (unreleased)
+
+The [CHANGELOG](../CHANGELOG.md#unreleased) *Unreleased* section is the
+authority until the version is tagged.
+
+Operation registration: `OperationsBuilder::add` takes the implementation's
+async fn directly and boxes its future once. Generated code is updated; only
+hand-written registrations change.
+
+```rust
+// 0.4
+.add::<GetCity, _>(imp, |s, input| Box::pin(async move { s.get_city(input).await }))
+// next
+.add::<GetCity, _, _>(imp, |s, input| async move { s.get_city(input).await })
+```
+
+The `Call` alias is removed.
+
+## 0.3.0 to 0.4.0
+
+Imports: generated Rust SDKs expose models and modeled exceptions beside the
+client. Replace `weather_sdk::model::GetCityInput` with
+`weather_sdk::GetCityInput` and `weather_sdk::errors::NotFoundError` with
+`weather_sdk::NotFoundError`, then regenerate checked-in SDKs and service CLI
+packages. The [Rust client guide](clients/rust.md#migrating-flat-sdk-imports)
+lists the collision diagnostics and `rename` entries that can result.
+
+Behavior: wire handling is stricter (timestamp grammar and year bounds,
+ECMA-262 `@pattern`, float and integer bindings, HTTP routing and JSON content
+types). Input that 0.3 accepted by accident can now be refused; run the
+service's client and conformance tests after upgrading.
+
+## 0.2.0 to 0.3.0
+
+| 0.2 | 0.3 |
+|---|---|
+| crate `crucible`, `use crucible::..` | `crucible-server-runtime-rust`, `use crucible_server_runtime_rust::..` |
+| crate `crucible-client`, `crucible_client::` | `crucible-client-runtime-rust`, `crucible_client_runtime_rust::` |
+| `crucible_build::service(..)`, `Codegen` | `crucible_build::rust_service(..)`, `RustCodegen` |
+| `crucible::include_service!()` declares `mod contract` | `crucible_server_runtime_rust::include_service!()` declares a module named for the service (`weather`, `hello_service`); use `crate::weather::..` |
+
+Rename the Cargo dependencies and imports, update `build.rs`, and regenerate.
+The examples in the 0.2 section below still show the old names, so apply the
+table first; the [runtime crate name migration](clients/rust.md#migrating-the-runtime-crate-name)
+covers clients and [building named outputs](build-outputs.md) covers the build
+vocabulary. These renames shipped without deprecated shims; later minors follow
+the one-minor shim policy.
+
+## 0.1.0 to 0.2.0
 
 Crucible 0.2 replaces the handler chain with a phased request pipeline. Update
 the service's runtime, generator dependencies, custom extensions, and generated
 contract together. The release is a GitHub tag and source archive; it does not
 publish packages to registries or upgrade Leyline and Pigeon automatically.
 
-## Pinning the release
+### Pinning the release
 
 For Git dependencies, use the same tag for the framework and build integration:
 
@@ -24,7 +88,7 @@ model-package dependency and regenerate from its published Smithy AST.
 Newer revisions rename that package to `crucible-client-runtime-rust`; see the
 [runtime crate name migration](clients/rust.md#migrating-the-runtime-crate-name).
 
-## Choosing an extension phase
+### Choosing an extension phase
 
 Move each extension according to the data it needs, rather than its previous
 position relative to a protocol:
@@ -55,7 +119,7 @@ Operation scoping uses `OperationMiddlewareExt`, `InterceptorExt`, or
 `.middlewares`, `.operation_middlewares`, `.interceptors`, and `.protocols`
 registries instead of one `.handlers` bundle.
 
-## Registering a service
+### Registering a service
 
 This example uses the repository's Weather service and requires `crucible`,
 `weather-service`, and `tracing` dependencies. It observes only validated
@@ -100,7 +164,7 @@ Registration order across extension families cannot change the phase order.
 Malformed input never enters an interceptor; use operation-aware middleware
 when admission or auditing must also cover invalid requests.
 
-## Adapting hooks and protocols
+### Adapting hooks and protocols
 
 Only entries whose `before` hook succeeds receive return and completion hooks.
 A successful hook calling `respond` also unwinds, skips later phases, and
@@ -128,7 +192,7 @@ audit. The orchestrator refuses it after operation-aware middleware, before
 body reading and decoding. Apply protocol scopes before ranking candidates.
 See [the protocol contract](framework.md#protocols) for claiming and declining.
 
-## Checking wire and metadata changes
+### Checking wire and metadata changes
 
 `crucible_wire::text::percent_decode` returns `Result<Cow<str>, String>`;
 `query_values` yields fallible values. Handle malformed percent escapes and
@@ -146,7 +210,7 @@ Services upgrading older generated descriptions must also use recursive
 log sinks receive `&LogRecord<'_>`; directly constructed `LogPolicy` values
 need `client_error_level`. Constructors default that level to INFO.
 
-## Validating and rolling back
+### Validating and rolling back
 
 Pin the runtime, `crucible-build`, and any client runtime to the same release
 or commit. Regenerate contracts, then compile the service and its independent

@@ -27,6 +27,7 @@ jobs:
     outputs:
       full: ${{ steps.select.outputs.full }}
       c: ${{ steps.select.outputs.c }}
+      consumers: ${{ steps.select.outputs.consumers }}
       cdk: ${{ steps.select.outputs.cdk }}
       cpp: ${{ steps.select.outputs.cpp }}
       csharp: ${{ steps.select.outputs.csharp }}
@@ -667,6 +668,27 @@ jobs:
       - run: cargo clippy --manifest-path e2e/Cargo.toml --all-targets --locked -- -D warnings
       - run: bash tools/test-e2e.sh
 
+  # The stable surface, built the way downstream services build it: the
+  # `crucible new` starter, e2e/weather-*, and a Leyline-shaped fixture
+  # (tests/consumers/leyline). One OS; the e2e job's cache namespace is shared
+  # because they compile the same dependencies. Always runs at release
+  # qualification, so a tag is never created for a commit that breaks them.
+  consumers:
+    needs: [plan, rust]
+    if: needs.plan.outputs.consumers == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { shared-key: e2e, workspaces: ". -> target\ne2e -> target", save-if: "${{ github.ref == 'refs/heads/main' }}" }
+      - run: python3 tools/test-consumers.py
+        env:
+          CARGO_BUILD_JOBS: '2'
+          CARGO_INCREMENTAL: '0'
+
   editor:
     needs: [plan, rust]
     if: needs.plan.outputs.editor == 'true'
@@ -730,7 +752,7 @@ jobs:
   # A stable aggregate reports failures while allowing intentionally omitted jobs.
   ci:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, e2e, onboarding, editor]
+    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, e2e, consumers, onboarding, editor]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -744,6 +766,9 @@ jobs:
           failed = [name for name, job in results.items() if job["result"] not in {"success", "skipped"}]
           if results["plan"]["result"] != "success" or results["rust"]["result"] != "success" or (results["plan"]["outputs"]["full"] == "true" and results["qualification-tools"]["result"] != "success"):
               failed.append("required planner/Rust/tools gate")
+          # Release qualification (full) never tags a commit the consumers cannot build.
+          if results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success":
+              failed.append("required consumers gate")
           if failed:
               raise SystemExit("CI failed: " + ", ".join(failed))
           PY

@@ -61,11 +61,38 @@ def lock_content(path, packages, expected_version, replacement=None, require_all
     return "".join(blocks)
 
 
+def changelog_entry(root, version):
+    """The CHANGELOG section for a version, or ValueError if there is none.
+
+    A release without notes is how a breaking change reaches consumers
+    unannounced, so an absent or empty section blocks both prepare and check.
+    """
+    path = root / "CHANGELOG.md"
+    if not path.is_file():
+        raise ValueError(f"{path} does not exist; add a '## [{version}]' entry")
+    text = path.read_text(encoding="utf-8")
+    sections = re.split(r"^## ", text, flags=re.MULTILINE)[1:]
+    for section in sections:
+        heading, _, body = section.partition("\n")
+        if re.match(rf"\[{re.escape(version)}\](?: - \d{{4}}-\d{{2}}-\d{{2}})?\s*\Z", heading):
+            body = re.sub(r"(?m)^### .*$", "", re.sub(r"(?s)<!--.*?-->", "", body)).strip()
+            if not body:
+                raise ValueError(f"CHANGELOG.md entry for {version} is empty")
+            # The stability policy: a patch release never needs consumers to act.
+            if version_tuple(version)[2] > 0 and re.search(r"(?m)^### Migration", section):
+                raise ValueError(
+                    f"CHANGELOG.md entry for patch release {version} has a Migration section; "
+                    "a patch release must not break the stable surface (docs/releases.md)")
+            return section
+    raise ValueError(f"CHANGELOG.md has no '## [{version}]' entry (docs/releases.md)")
+
+
 def check(root, version):
     version_tuple(version)
     _, _, current, packages = workspace(root)
     if version != current:
         raise ValueError(f"Requested {version}, but the merged workspace version is {current}")
+    changelog_entry(root, version)
     for lock in (root / "Cargo.lock", root / "e2e/Cargo.lock"):
         lock_content(lock, packages, current, require_all=lock == root / "Cargo.lock")
 
@@ -74,6 +101,7 @@ def prepare(root, version):
     manifest, content, current, packages = workspace(root)
     if version_tuple(version) <= version_tuple(current):
         raise ValueError(f"New version must be greater than {current}")
+    changelog_entry(root, version)
     # Validate every file before writing, so a stale lockfile leaves the
     # checkout intact. Dependency versions and example-service versions stay put.
     edits = {}

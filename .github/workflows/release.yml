@@ -35,6 +35,9 @@ jobs:
             echo "v$RELEASE_VERSION already exists." >&2
             exit 1
           fi
+  # The full matrix, including the `consumers` job (starter, example service and
+  # the Leyline-shaped fixture) on this exact commit. publish needs it, so no tag
+  # exists for a commit whose stable surface its consumers cannot build.
   qualify:
     needs: preflight
     uses: ./.github/workflows/ci.yml
