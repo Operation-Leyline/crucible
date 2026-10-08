@@ -86,6 +86,31 @@ pub fn keyword(value: &str) -> bool {
         "reinterpret_cast",
         "const_cast",
         "dynamic_cast",
+        "protected",
+        "and",
+        "and_eq",
+        "asm",
+        "bitand",
+        "bitor",
+        "compl",
+        "not",
+        "not_eq",
+        "or",
+        "or_eq",
+        "xor",
+        "xor_eq",
+        "typeid",
+        "wchar_t",
+        "char8_t",
+        "char16_t",
+        "char32_t",
+        "co_await",
+        "co_return",
+        "co_yield",
+        "concept",
+        "requires",
+        "consteval",
+        "constinit",
         "alignas",
         "alignof",
         "bool",
@@ -132,7 +157,7 @@ pub fn field(value: &str) -> String {
 mod tests {
     #[test]
     fn escapes_cpp_keywords_in_public_headers() {
-        for name in ["class", "new", "this"] {
+        for name in ["class", "new", "this", "protected", "and", "or", "typeid"] {
             assert_eq!(super::field(name), format!("{name}_value"));
         }
     }
