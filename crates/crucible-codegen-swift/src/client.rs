@@ -17,7 +17,14 @@ fn client_docs(service: &Service, client_name: &str) -> String {
     text.push_str(&format!(
         "Create one ``{client_name}`` and share it: it is `Sendable`, holds no per-call state, and any number of calls may run at once. Call ``{client_name}/close()`` when finished. Every operation is `async` and reports failure as a ``ServiceException`` for a service response, a ``NetworkError`` when no response arrives, or a ``TimeoutError`` when the call outlasts ``ClientConfig/timeout``; cancelling the calling task cancels the call."
     ));
-    docs::line_comment("", "///", &text)
+    docs::line_comment(
+        "",
+        "///",
+        &text.replace(
+            "ServiceException",
+            &crucible_codegen_common::service_exception_name(service),
+        ),
+    )
 }
 
 fn operation_docs(
@@ -53,7 +60,14 @@ fn operation_docs(
         let names: Vec<String> = errors.iter().map(|name| format!("``{name}``")).collect();
         text.push_str(&format!("\n- Throws: {}, or another ``ServiceException`` when the service responds with an error.", names.join(", ")));
     }
-    docs::line_comment("    ", "///", &text)
+    docs::line_comment(
+        "    ",
+        "///",
+        &text.replace(
+            "ServiceException",
+            &crucible_codegen_common::service_exception_name(service),
+        ),
+    )
 }
 
 pub fn emit(service: &Service, options: &Options) -> String {

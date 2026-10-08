@@ -7,7 +7,7 @@ import Foundation
 ///
 /// See [the guide](https://example.com/guide) and \[Secret] for `*/` details. @since 1
 ///
-/// Create one ``VaultClient`` and share it: it is `Sendable`, holds no per-call state, and any number of calls may run at once. Call ``VaultClient/close()`` when finished. Every operation is `async` and reports failure as a ``ServiceException`` for a service response, a ``NetworkError`` when no response arrives, or a ``TimeoutError`` when the call outlasts ``ClientConfig/timeout``; cancelling the calling task cancels the call.
+/// Create one ``VaultClient`` and share it: it is `Sendable`, holds no per-call state, and any number of calls may run at once. Call ``VaultClient/close()`` when finished. Every operation is `async` and reports failure as a ``VaultException`` for a service response, a ``NetworkError`` when no response arrives, or a ``TimeoutError`` when the call outlasts ``ClientConfig/timeout``; cancelling the calling task cancels the call.
 public final class VaultClient: Sendable {
     private let runtime: ClientRuntime
     /// Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see ``ClientConfig`` for credentials, retries, timeouts and the transport.
@@ -25,7 +25,7 @@ public final class VaultClient: Sendable {
     ///
     /// - Parameter input: The ``GetSecretInput`` to send.
     /// - Returns: The ``GetSecretOutput`` the service returned.
-    /// - Throws: ``AccessDenied``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``AccessDenied``, or another ``VaultException`` when the service responds with an error.
     public func `getSecret`(_ input: `GetSecretInput`) async throws -> `GetSecretOutput` {
         try await runtime.call("GetSecret", input: input, as: `GetSecretOutput`.self)
     }
@@ -37,7 +37,7 @@ public final class VaultClient: Sendable {
     ///
     /// - Parameter input: The ``ListSecretsInput`` to send.
     /// - Returns: The ``ListSecretsOutput`` the service returned.
-    /// - Throws: ``AccessDenied``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``AccessDenied``, or another ``VaultException`` when the service responds with an error.
     public func `listSecrets`(_ input: `ListSecretsInput`) async throws -> `ListSecretsOutput` {
         try await runtime.call("ListSecrets", input: input, as: `ListSecretsOutput`.self)
     }
@@ -55,7 +55,7 @@ public final class VaultClient: Sendable {
     ///
     /// - Parameter input: The ``PutSecretInput`` to send.
     /// - Returns: The ``PutSecretOutput`` the service returned.
-    /// - Throws: ``AccessDenied``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``AccessDenied``, or another ``VaultException`` when the service responds with an error.
     public func `putSecret`(_ input: `PutSecretInput`) async throws -> `PutSecretOutput` {
         try await runtime.call("PutSecret", input: input, as: `PutSecretOutput`.self)
     }

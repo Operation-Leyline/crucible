@@ -80,7 +80,7 @@ require_relative 'weather_client/client'
 module Weather
   # Client for the Weather service.
   #
-  # Create one `WeatherClient` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {#close} when finished. Every operation blocks until it completes and reports failure as a `ServiceException` for a service response, a {Runtime::NetworkError} when no response arrives, a {Runtime::DeadlineError} when the call outlasts {Runtime::ClientConfig#timeout}, or a {Runtime::CancelledError}.
+  # Create one `WeatherClient` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {#close} when finished. Every operation blocks until it completes and reports failure as a `WeatherException` for a service response, a {Runtime::NetworkError} when no response arrives, a {Runtime::DeadlineError} when the call outlasts {Runtime::ClientConfig#timeout}, or a {Runtime::CancelledError}.
   class WeatherClient
     # Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see {Runtime::ClientConfig} for credentials, retries, timeouts and the transport.
     #
@@ -101,7 +101,7 @@ module Weather
     # @raise [ConflictError]
     # @raise [ThrottlingError]
     # @raise [ValidationError]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::WeatherException] for any other error response
     def create_city(input, cancellation: nil)
       @runtime.call('CreateCity', input, cancellation: cancellation)
     end
@@ -113,7 +113,7 @@ module Weather
     # @raise [NotFoundError]
     # @raise [ThrottlingError]
     # @raise [ValidationError]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::WeatherException] for any other error response
     def get_city(input, cancellation: nil)
       @runtime.call('GetCity', input, cancellation: cancellation)
     end
@@ -125,7 +125,7 @@ module Weather
     # @raise [NotFoundError]
     # @raise [ThrottlingError]
     # @raise [ValidationError]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::WeatherException] for any other error response
     def get_city_photo(input, cancellation: nil)
       @runtime.call('GetCityPhoto', input, cancellation: cancellation)
     end
@@ -138,7 +138,7 @@ module Weather
     # @return [ListCitiesOutput] the service's response
     # @raise [ThrottlingError]
     # @raise [ValidationError]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::WeatherException] for any other error response
     def list_cities(input, cancellation: nil)
       @runtime.call('ListCities', input, cancellation: cancellation)
     end
@@ -156,7 +156,7 @@ module Weather
     # @return [Runtime::Unit] the service's response
     # @raise [ThrottlingError]
     # @raise [ValidationError]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::WeatherException] for any other error response
     def ping(cancellation: nil)
       @runtime.call('Ping', Runtime::Unit.new, cancellation: cancellation)
     end
@@ -170,7 +170,7 @@ module Weather
     # @raise [NotFoundError]
     # @raise [ThrottlingError]
     # @raise [ValidationError]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::WeatherException] for any other error response
     def put_city_photo(input, cancellation: nil)
       @runtime.call('PutCityPhoto', input, cancellation: cancellation)
     end
@@ -181,7 +181,7 @@ module Weather
     # @return [StatusOutput] the service's response
     # @raise [ThrottlingError]
     # @raise [ValidationError]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::WeatherException] for any other error response
     def status(input, cancellation: nil)
       @runtime.call('Status', input, cancellation: cancellation)
     end

@@ -107,7 +107,11 @@ fn client_docs(service: &Service, client_name: &str) -> String {
     text.push_str(&format!(
         "Create one `{client_name}`, share it, and call [close] when finished. It holds no per-call state, so many calls may be in flight at once within an isolate; do not send it to another isolate. Each operation returns a `Future` and reports failure as a [ServiceException] for service responses, a [NetworkException] when no response arrives, or a [CancelledException]. A call that outlasts `ClientConfig.timeout` fails with a `TimeoutException`."
     ));
-    text
+    // The runtime's `ServiceException` is renamed per service.
+    text.replace(
+        "ServiceException",
+        &crucible_codegen_common::service_exception_name(service),
+    )
 }
 
 fn waiter_docs(op: &Operation, waiter: &str) -> String {

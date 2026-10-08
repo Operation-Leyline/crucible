@@ -10,7 +10,7 @@ import 'runtime/client_runtime.dart';
 
 /// Client for the Weather service.
 ///
-/// Create one `WeatherClient`, share it, and call [close] when finished. It holds no per-call state, so many calls may be in flight at once within an isolate; do not send it to another isolate. Each operation returns a `Future` and reports failure as a [ServiceException] for service responses, a [NetworkException] when no response arrives, or a [CancelledException]. A call that outlasts `ClientConfig.timeout` fails with a `TimeoutException`.
+/// Create one `WeatherClient`, share it, and call [close] when finished. It holds no per-call state, so many calls may be in flight at once within an isolate; do not send it to another isolate. Each operation returns a `Future` and reports failure as a [WeatherException] for service responses, a [NetworkException] when no response arrives, or a [CancelledException]. A call that outlasts `ClientConfig.timeout` fails with a `TimeoutException`.
 final class WeatherClient {
   final ClientRuntime _runtime;
   /// Creates a client. Without a [config], the generated endpoint is used and no credentials are sent; see [ClientConfig] for credentials, retries, timeouts and the transport. Throws an `ArgumentError` for an invalid endpoint.

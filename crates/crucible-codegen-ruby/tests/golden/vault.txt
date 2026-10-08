@@ -59,7 +59,7 @@ module Vault
   #
   # See [the guide](https://example.com/guide) and \[Secret] for `*/` details. @since 1
   #
-  # Create one `VaultClient` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {#close} when finished. Every operation blocks until it completes and reports failure as a `ServiceException` for a service response, a {Runtime::NetworkError} when no response arrives, a {Runtime::DeadlineError} when the call outlasts {Runtime::ClientConfig#timeout}, or a {Runtime::CancelledError}.
+  # Create one `VaultClient` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {#close} when finished. Every operation blocks until it completes and reports failure as a `VaultException` for a service response, a {Runtime::NetworkError} when no response arrives, a {Runtime::DeadlineError} when the call outlasts {Runtime::ClientConfig#timeout}, or a {Runtime::CancelledError}.
   class VaultClient
     # Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see {Runtime::ClientConfig} for credentials, retries, timeouts and the transport.
     #
@@ -78,7 +78,7 @@ module Vault
     # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
     # @return [GetSecretOutput] the service's response
     # @raise [AccessDenied]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::VaultException] for any other error response
     def get_secret(input, cancellation: nil)
       @runtime.call('GetSecret', input, cancellation: cancellation)
     end
@@ -92,7 +92,7 @@ module Vault
     # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
     # @return [ListSecretsOutput] the service's response
     # @raise [AccessDenied]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::VaultException] for any other error response
     def list_secrets(input, cancellation: nil)
       @runtime.call('ListSecrets', input, cancellation: cancellation)
     end
@@ -114,7 +114,7 @@ module Vault
     # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
     # @return [PutSecretOutput] the service's response
     # @raise [AccessDenied]
-    # @raise [Runtime::ServiceException] for any other error response
+    # @raise [Runtime::VaultException] for any other error response
     def put_secret(input, cancellation: nil)
       @runtime.call('PutSecret', input, cancellation: cancellation)
     end

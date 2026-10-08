@@ -3,7 +3,7 @@ import Foundation
 
 /// Client for the Weather service.
 ///
-/// Create one ``WeatherClient`` and share it: it is `Sendable`, holds no per-call state, and any number of calls may run at once. Call ``WeatherClient/close()`` when finished. Every operation is `async` and reports failure as a ``ServiceException`` for a service response, a ``NetworkError`` when no response arrives, or a ``TimeoutError`` when the call outlasts ``ClientConfig/timeout``; cancelling the calling task cancels the call.
+/// Create one ``WeatherClient`` and share it: it is `Sendable`, holds no per-call state, and any number of calls may run at once. Call ``WeatherClient/close()`` when finished. Every operation is `async` and reports failure as a ``WeatherException`` for a service response, a ``NetworkError`` when no response arrives, or a ``TimeoutError`` when the call outlasts ``ClientConfig/timeout``; cancelling the calling task cancels the call.
 public final class WeatherClient: Sendable {
     private let runtime: ClientRuntime
     /// Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see ``ClientConfig`` for credentials, retries, timeouts and the transport.
@@ -21,7 +21,7 @@ public final class WeatherClient: Sendable {
     ///
     /// - Parameter input: The ``CreateCityInput`` to send.
     /// - Returns: The ``CreateCityOutput`` the service returned.
-    /// - Throws: ``ConflictError``, ``ThrottlingError``, ``ValidationError``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``ConflictError``, ``ThrottlingError``, ``ValidationError``, or another ``WeatherException`` when the service responds with an error.
     public func `createCity`(_ input: `CreateCityInput`) async throws -> `CreateCityOutput` {
         try await runtime.call("CreateCity", input: input, as: `CreateCityOutput`.self)
     }
@@ -29,7 +29,7 @@ public final class WeatherClient: Sendable {
     ///
     /// - Parameter input: The ``GetCityInput`` to send.
     /// - Returns: The ``GetCityOutput`` the service returned.
-    /// - Throws: ``NotFoundError``, ``ThrottlingError``, ``ValidationError``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``NotFoundError``, ``ThrottlingError``, ``ValidationError``, or another ``WeatherException`` when the service responds with an error.
     public func `getCity`(_ input: `GetCityInput`) async throws -> `GetCityOutput` {
         try await runtime.call("GetCity", input: input, as: `GetCityOutput`.self)
     }
@@ -37,7 +37,7 @@ public final class WeatherClient: Sendable {
     ///
     /// - Parameter input: The ``GetCityPhotoInput`` to send.
     /// - Returns: The ``GetCityPhotoOutput`` the service returned.
-    /// - Throws: ``NotFoundError``, ``ThrottlingError``, ``ValidationError``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``NotFoundError``, ``ThrottlingError``, ``ValidationError``, or another ``WeatherException`` when the service responds with an error.
     public func `getCityPhoto`(_ input: `GetCityPhotoInput`) async throws -> `GetCityPhotoOutput` {
         try await runtime.call("GetCityPhoto", input: input, as: `GetCityPhotoOutput`.self)
     }
@@ -47,7 +47,7 @@ public final class WeatherClient: Sendable {
     ///
     /// - Parameter input: The ``ListCitiesInput`` to send.
     /// - Returns: The ``ListCitiesOutput`` the service returned.
-    /// - Throws: ``ThrottlingError``, ``ValidationError``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``ThrottlingError``, ``ValidationError``, or another ``WeatherException`` when the service responds with an error.
     public func `listCities`(_ input: `ListCitiesInput`) async throws -> `ListCitiesOutput` {
         try await runtime.call("ListCities", input: input, as: `ListCitiesOutput`.self)
     }
@@ -61,7 +61,7 @@ public final class WeatherClient: Sendable {
     ///
     /// - Parameter input: The ``Unit`` to send.
     /// - Returns: The ``Unit`` the service returned.
-    /// - Throws: ``ThrottlingError``, ``ValidationError``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``ThrottlingError``, ``ValidationError``, or another ``WeatherException`` when the service responds with an error.
     public func `ping`(_ input: Unit = .init()) async throws -> Unit {
         try await runtime.call("Ping", input: input, as: Unit.self)
     }
@@ -71,7 +71,7 @@ public final class WeatherClient: Sendable {
     ///
     /// - Parameter input: The ``PutCityPhotoInput`` to send.
     /// - Returns: The ``PutCityPhotoOutput`` the service returned.
-    /// - Throws: ``NotFoundError``, ``ThrottlingError``, ``ValidationError``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``NotFoundError``, ``ThrottlingError``, ``ValidationError``, or another ``WeatherException`` when the service responds with an error.
     public func `putCityPhoto`(_ input: `PutCityPhotoInput`) async throws -> `PutCityPhotoOutput` {
         try await runtime.call("PutCityPhoto", input: input, as: `PutCityPhotoOutput`.self)
     }
@@ -79,7 +79,7 @@ public final class WeatherClient: Sendable {
     ///
     /// - Parameter input: The ``StatusInput`` to send.
     /// - Returns: The ``StatusOutput`` the service returned.
-    /// - Throws: ``ThrottlingError``, ``ValidationError``, or another ``ServiceException`` when the service responds with an error.
+    /// - Throws: ``ThrottlingError``, ``ValidationError``, or another ``WeatherException`` when the service responds with an error.
     public func `status`(_ input: `StatusInput`) async throws -> `StatusOutput` {
         try await runtime.call("Status", input: input, as: `StatusOutput`.self)
     }

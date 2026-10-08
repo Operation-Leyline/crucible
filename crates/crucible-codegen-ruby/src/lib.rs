@@ -24,7 +24,14 @@ fn client_docs(service: &Service, client_name: &str) -> String {
     text.push_str(&format!(
         "Create one `{client_name}` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {{#close}} when finished. Every operation blocks until it completes and reports failure as a `ServiceException` for a service response, a {{Runtime::NetworkError}} when no response arrives, a {{Runtime::DeadlineError}} when the call outlasts {{Runtime::ClientConfig#timeout}}, or a {{Runtime::CancelledError}}."
     ));
-    docs::line_comment("  ", "#", &text)
+    docs::line_comment(
+        "  ",
+        "#",
+        &text.replace(
+            "ServiceException",
+            &crucible_codegen_common::service_exception_name(service),
+        ),
+    )
 }
 
 fn operation_docs(
@@ -63,7 +70,14 @@ fn operation_docs(
         text.push_str(&format!("\n@raise [{name}]"));
     }
     text.push_str("\n@raise [Runtime::ServiceException] for any other error response");
-    docs::line_comment("    ", "#", &text)
+    docs::line_comment(
+        "    ",
+        "#",
+        &text.replace(
+            "ServiceException",
+            &crucible_codegen_common::service_exception_name(service),
+        ),
+    )
 }
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
