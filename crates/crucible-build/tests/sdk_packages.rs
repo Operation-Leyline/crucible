@@ -15,7 +15,7 @@ fn package_probe() {
     let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     if mode == "audience" {
-        let package = crucible_build::model_from_json("model.json").compile();
+        let package = crucible_build::model("model.json").compile();
         let external = package.rust_client("public").generate();
         let internal = package
             .rust_client("internal")
@@ -27,10 +27,7 @@ fn package_probe() {
         assert!(!contents(external).contains("SecretInput"));
         assert!(contents(internal).contains("SecretInput"));
         let generic = package
-            .sdk(
-                "generic",
-                crucible_build::clients::Client::Rust(Default::default()),
-            )
+            .sdk("generic", crucible_build::Client::Rust(Default::default()))
             .generate();
         assert!(!contents(generic).contains("SecretInput"));
         #[cfg(feature = "ts")]
@@ -64,7 +61,7 @@ fn package_probe() {
         return;
     }
     if mode == "dependent" {
-        let package = crucible_build::model_dependency("source_model");
+        let package = crucible_build::model("source_model");
         let artifact = package.rust_client("separate-rust").generate();
         assert!(
             fs::read_to_string(artifact.path.join("src/lib.rs"))
@@ -76,7 +73,7 @@ fn package_probe() {
     }
     if mode == "policy" {
         let old = fs::read(out.join("crucible-artifacts.json")).unwrap();
-        let result = crucible_build::model_from_json("model.json")
+        let result = crucible_build::model("model.json")
             .policy("missing.toml")
             .try_compile_with(|_, _| panic!("AST must not invoke compiler"));
         assert!(result.is_err());
@@ -84,7 +81,7 @@ fn package_probe() {
         return;
     }
     if mode == "empty" {
-        let package = crucible_build::model_from_json("model.json").compile();
+        let package = crucible_build::model("model.json").compile();
         package.publish();
         let index: serde_json::Value =
             serde_json::from_slice(&fs::read(out.join("crucible-artifacts.json")).unwrap())
@@ -93,7 +90,7 @@ fn package_probe() {
         return;
     }
     let calls = Cell::new(0);
-    let package = crucible_build::smithy("model").compile_with(|_, output| {
+    let package = crucible_build::model("model").compile_with(|_, output| {
         calls.set(calls.get() + 1);
         fs::create_dir_all(output.join("crucible/model"))?;
         fs::write(output.join("crucible/model/model.json"), WEATHER)
@@ -157,8 +154,7 @@ fn package_probe() {
         let before = fs::read(java.path.join("pom.xml")).unwrap();
         // Another model generation session cannot replace a working native SDK
         // when its requested target configuration has diagnostics.
-        let next =
-            crucible_build::model_from_json("model.json").compile_with(|_, _| unreachable!());
+        let next = crucible_build::model("model.json").compile_with(|_, _| unreachable!());
         assert!(
             next.java_client("java")
                 .package("not a Java package")

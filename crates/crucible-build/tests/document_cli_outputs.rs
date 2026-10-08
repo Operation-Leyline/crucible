@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crucible_build::outputs::{CliOptions, Generator, OpenApiOptions};
+use crucible_build::{CliOptions, Generator, OpenApiOptions};
 use crucible_smithy::{Capabilities, Feature, Model};
 use serde_json::Value;
 
@@ -25,7 +25,7 @@ fn document_cli_probe() {
     let Ok(mode) = std::env::var("CRUCIBLE_DOCUMENT_CLI_PROBE") else {
         return;
     };
-    let model = crucible_build::model_from_json("model.json").compile();
+    let model = crucible_build::model("model.json").compile();
     if mode == "cli-consumer" {
         model.cli("weather").generate_into("exports/cli");
         return;
@@ -133,7 +133,7 @@ fn document_cli_probe() {
         );
     }
 
-    let next = crucible_build::model_from_json("model.json").compile();
+    let next = crucible_build::model("model.json").compile();
     let error = next
         .cli("weather")
         .version("invalid version")
@@ -147,7 +147,7 @@ fn document_cli_probe() {
         manifest,
         fs::read_to_string("exports/cli/Cargo.toml").unwrap()
     );
-    let unsupported = crucible_build::model_from_json("unsupported.json").compile();
+    let unsupported = crucible_build::model("unsupported.json").compile();
     let error = unsupported
         .openapi("openapi")
         .try_generate_into("exports/openapi")

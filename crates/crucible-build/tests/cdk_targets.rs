@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use crucible_build::outputs::{CdkOptions, CdkTargets, Generator, ProvisioningBindings};
+use crucible_build::{CdkOptions, CdkTargets, Generator, ProvisioningBindings};
 use serde_json::Value;
 
 const MODEL: &str = include_str!("../../crucible-codegen-cdk/tests/fixtures/model.json");
@@ -20,7 +20,7 @@ fn target_probe() {
     if std::env::var_os("CRUCIBLE_CDK_TARGET_PROBE").is_none() {
         return;
     }
-    let model = crucible_build::model_from_json("model.json").compile();
+    let model = crucible_build::model("model.json").compile();
     let options: CdkOptions = serde_json::from_str(OPTIONS).unwrap();
     let bindings: ProvisioningBindings = serde_json::from_str(BINDINGS).unwrap();
     let native = model

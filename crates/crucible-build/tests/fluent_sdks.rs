@@ -16,14 +16,14 @@
 use std::fs;
 use std::process::Command;
 
-use crucible_build::clients::Client;
+use crucible_build::Client;
 
 #[test]
 fn fluent_probe() {
     if std::env::var_os("CRUCIBLE_FLUENT_PROBE").is_none() {
         return;
     }
-    let package = crucible_build::model_from_json("model.json").compile();
+    let package = crucible_build::model("model.json").compile();
     macro_rules! equivalent {
         ($name:literal, $fluent:expr, $native:expr) => {{
             let fluent = $fluent
@@ -54,14 +54,14 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .client_name("CustomWeatherClient")
                 .endpoint("https://sdk.example")
-                .middleware(vec![crucible_build::clients::TsMiddleware::ContentSha256])
+                .middleware(vec![crucible_build::TsMiddleware::ContentSha256])
                 .package_json(serde_json::json!({"private": true})),
-            Client::Ts(crucible_build::clients::TsOptions {
+            Client::Ts(crucible_build::TsOptions {
                 package_name: "weather-sdk".into(),
                 package_version: "1.2.3".into(),
                 client_name: Some("CustomWeatherClient".into()),
                 endpoint: Some("https://sdk.example".into()),
-                middleware: vec![crucible_build::clients::TsMiddleware::ContentSha256],
+                middleware: vec![crucible_build::TsMiddleware::ContentSha256],
                 package_json: Some(serde_json::json!({"private": true}))
             })
         );
@@ -81,7 +81,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .content_sha256(true)
                 .module_name("weather_client"),
-            Client::Python(crucible_build::clients::PythonOptions {
+            Client::Python(crucible_build::PythonOptions {
                 package_name: "weather-sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -101,7 +101,7 @@ fn fluent_probe() {
                 .package("weather_sdk")
                 .endpoint("https://sdk.example")
                 .content_sha256(true),
-            Client::Go(crucible_build::clients::GoOptions {
+            Client::Go(crucible_build::GoOptions {
                 module_path: "example.com/weather-sdk".into(),
                 package_name: "weather_sdk".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -124,7 +124,7 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .endpoint("https://sdk.example")
                 .content_sha256(true),
-            Client::Csharp(crucible_build::clients::CsharpOptions {
+            Client::Csharp(crucible_build::CsharpOptions {
                 namespace: "Example.Weather".into(),
                 package_id: "Weather.SDK".into(),
                 package_version: "1.2.3".into(),
@@ -149,7 +149,7 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .endpoint("https://sdk.example")
                 .content_sha256(true),
-            Client::Kotlin(crucible_build::clients::KotlinOptions {
+            Client::Kotlin(crucible_build::KotlinOptions {
                 group_id: "example.weather".into(),
                 artifact_id: "weather-sdk".into(),
                 package_name: "example.weather".into(),
@@ -188,7 +188,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .content_sha256(true)
                 .module_name("WeatherClientSDK"),
-            Client::Swift(crucible_build::clients::SwiftOptions {
+            Client::Swift(crucible_build::SwiftOptions {
                 package_name: "WeatherSDK".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -208,7 +208,7 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .endpoint("https://sdk.example")
                 .content_sha256(true),
-            Client::Dart(crucible_build::clients::DartOptions {
+            Client::Dart(crucible_build::DartOptions {
                 package_name: "weather_sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -228,7 +228,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .content_sha256(true)
                 .namespace("ExampleWeather"),
-            Client::Php(crucible_build::clients::PhpOptions {
+            Client::Php(crucible_build::PhpOptions {
                 package_name: "example/weather-sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -249,7 +249,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .content_sha256(true)
                 .module_name("WeatherClientSDK"),
-            Client::Ruby(crucible_build::clients::RubyOptions {
+            Client::Ruby(crucible_build::RubyOptions {
                 package_name: "weather_sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -270,7 +270,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .content_sha256(true)
                 .namespace("ExampleWeather"),
-            Client::Cpp(crucible_build::clients::CppOptions {
+            Client::Cpp(crucible_build::CppOptions {
                 package_name: "weather_sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -291,7 +291,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .content_sha256(true)
                 .prefix("weather"),
-            Client::C(crucible_build::clients::COptions {
+            Client::C(crucible_build::COptions {
                 package_name: "weather_sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -311,7 +311,7 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .endpoint("https://sdk.example")
                 .content_sha256(true),
-            Client::R(crucible_build::clients::ROptions {
+            Client::R(crucible_build::ROptions {
                 package_name: "weather.sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),

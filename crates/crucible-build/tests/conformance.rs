@@ -1,10 +1,9 @@
 #![cfg(feature = "rust")]
-//! `RustCodegen::conformance()`: the generated test module is written beside
+//! `Model::server().conformance()`: the generated test module is written beside
 //! the service bindings, and a model that cannot supply one fails the build.
 
 use std::path::Path;
 
-use crucible_build::RustCodegen;
 use serde_json::Value;
 
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
@@ -44,7 +43,8 @@ fn server_conformance_uses_the_full_model_for_either_audience() {
     let path = directory.path().join("model.json");
     std::fs::write(&path, model.to_string()).unwrap();
     let render = |audience| {
-        RustCodegen::from_model(&path)
+        crucible_build::model(&path)
+            .server()
             .audience(audience)
             .conformance()
             .render_conformance()
@@ -78,7 +78,8 @@ fn model(directory: &Path, with_vectors: bool) -> std::path::PathBuf {
 fn conformance_tests_render_beside_the_service() {
     let directory = tempfile::tempdir().unwrap();
     let path = model(directory.path(), true);
-    let tests = RustCodegen::from_model(&path)
+    let tests = crucible_build::model(&path)
+        .server()
         .conformance()
         .render_conformance()
         .unwrap();
@@ -93,7 +94,8 @@ fn conformance_tests_render_beside_the_service() {
 fn named_skips_become_ignored_tests_and_stale_ones_fail() {
     let directory = tempfile::tempdir().unwrap();
     let path = model(directory.path(), true);
-    let tests = RustCodegen::from_model(&path)
+    let tests = crucible_build::model(&path)
+        .server()
         .skip_vector("GetCityOutput", "the server fails it")
         .render_conformance()
         .unwrap();
@@ -101,7 +103,8 @@ fn named_skips_become_ignored_tests_and_stale_ones_fail() {
         tests.contains("#[ignore = \"the server fails it\"]"),
         "{tests}"
     );
-    let error = RustCodegen::from_model(&path)
+    let error = crucible_build::model(&path)
+        .server()
         .skip_vector("RemovedLongAgo", "stale")
         .render_conformance()
         .unwrap_err();
@@ -115,7 +118,8 @@ fn named_skips_become_ignored_tests_and_stale_ones_fail() {
 fn a_model_without_vectors_fails_instead_of_testing_nothing() {
     let directory = tempfile::tempdir().unwrap();
     let path = model(directory.path(), false);
-    let error = RustCodegen::from_model(&path)
+    let error = crucible_build::model(&path)
+        .server()
         .conformance()
         .render_conformance()
         .unwrap_err();
@@ -126,15 +130,11 @@ fn a_model_without_vectors_fails_instead_of_testing_nothing() {
 fn conformance_is_off_unless_requested_and_is_server_only() {
     let directory = tempfile::tempdir().unwrap();
     let path = model(directory.path(), true);
-    let error = RustCodegen::from_model(&path)
+    let error = crucible_build::model(&path)
+        .server()
         .render_conformance()
         .unwrap_err();
     assert!(error.contains("call `.conformance()`"), "{error}");
-    let error = RustCodegen::client_from_model(&path)
-        .conformance()
-        .render_conformance()
-        .unwrap_err();
-    assert!(error.contains("test a server"), "{error}");
 }
 
 #[test]
@@ -142,7 +142,8 @@ fn generating_writes_the_tests_into_out_dir() {
     // `generate` is a build-script call: it reads OUT_DIR and prints cargo
     // directives, so it runs in a child process like the other build probes.
     if std::env::var_os("CRUCIBLE_CONFORMANCE_PROBE").is_some() {
-        RustCodegen::from_model(std::env::var("CRUCIBLE_PROBE_MODEL").unwrap())
+        crucible_build::model(std::env::var("CRUCIBLE_PROBE_MODEL").unwrap())
+            .server()
             .conformance()
             .generate();
         return;

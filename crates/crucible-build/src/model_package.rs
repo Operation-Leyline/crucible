@@ -10,6 +10,7 @@ use crate::{Artifact, Output};
 /// A compiled model and its named generated outputs for one Cargo package build.
 pub struct ModelPackage {
     pub(crate) model: PathBuf,
+    pub(crate) server_requires_rejection: bool,
     pub(crate) service: Service,
     pub(crate) output: PathBuf,
     pub(crate) artifacts: RefCell<BTreeMap<String, Artifact>>,
@@ -17,25 +18,28 @@ pub struct ModelPackage {
     model_ast: crucible_smithy::Model,
     #[cfg(any(feature = "cdk", feature = "terraform"))]
     infrastructure: std::cell::OnceCell<Result<Service, String>>,
-    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
     selected_protocol: Option<crucible_smithy::Protocol>,
-    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
     policy: Option<PathBuf>,
 }
 
 impl ModelPackage {
     pub(crate) fn new(
         model: PathBuf,
+        server_requires_rejection: bool,
         service: Service,
         output: PathBuf,
         #[cfg(any(feature = "cdk", feature = "terraform"))] model_ast: crucible_smithy::Model,
-        #[cfg(any(feature = "cdk", feature = "terraform"))] selected_protocol: Option<
-            crucible_smithy::Protocol,
+        #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
+        selected_protocol: Option<crucible_smithy::Protocol>,
+        #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))] policy: Option<
+            PathBuf,
         >,
-        #[cfg(any(feature = "cdk", feature = "terraform"))] policy: Option<PathBuf>,
     ) -> Result<Self, String> {
         let package = Self {
             model,
+            server_requires_rejection,
             service,
             output,
             artifacts: RefCell::new(BTreeMap::new()),
@@ -43,9 +47,9 @@ impl ModelPackage {
             model_ast,
             #[cfg(any(feature = "cdk", feature = "terraform"))]
             infrastructure: std::cell::OnceCell::new(),
-            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
             selected_protocol,
-            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
             policy,
         };
         // OUT_DIR survives rebuilds: reset membership so removed generation
@@ -78,7 +82,25 @@ impl ModelPackage {
 
     /// Publish the compiled AST through this package's Cargo `links` metadata.
     pub fn publish(&self) {
-        crate::publish_model(&self.model);
+        crate::model(&self.model).publish();
+    }
+
+    /// Generate server bindings from an explicitly compiled model.
+    #[cfg(feature = "rust")]
+    pub fn server(&self) -> crate::ServerOutput {
+        let mut output = crate::ServerOutput::new(&self.model).named(&self.service.id.to_string());
+        output.options.require_rejection = self.server_requires_rejection;
+        output.protocol = self.selected_protocol;
+        output.policy = self.policy.clone();
+        output
+    }
+
+    /// Generate client bindings from an explicitly compiled model.
+    #[cfg(feature = "rust")]
+    pub fn client(&self) -> crate::ClientOutput {
+        let mut output = self.server();
+        output.side = crate::Side::Client;
+        crate::ClientOutput::new(output)
     }
 
     /// Select a language and native options for a named SDK output.

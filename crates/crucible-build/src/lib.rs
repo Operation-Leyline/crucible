@@ -3,7 +3,7 @@
 //!
 //! ```ignore
 //! fn main() {
-//!     let model = crucible_build::smithy("model").compile();
+//!     let model = crucible_build::model("model");
 //!     model.publish();
 //!     model.rust_client("rust")
 //!         .package("weather-sdk")
@@ -40,13 +40,13 @@
 //! Compile a service's Smithy sources and generate its Rust contract:
 //!
 //! ```ignore
-//! fn main() { crucible_build::rust_service_from_smithy("smithy").generate(); }
+//! fn main() { crucible_build::model("smithy").server().generate(); }
 //! ```
 //!
 //! A standalone Rust client uses the same compiler setup:
 //!
 //! ```ignore
-//! fn main() { crucible_build::client_from_smithy("smithy").generate(); }
+//! fn main() { crucible_build::model("smithy").client().generate(); }
 //! ```
 //!
 //! The default compiler and matching runtime are managed by the build helper.
@@ -56,7 +56,7 @@
 //! `links = "<name>"`, and its `build.rs` compiles and publishes the AST:
 //!
 //! ```ignore
-//! fn main() { crucible_build::publish_model_from_smithy("smithy"); }
+//! fn main() { crucible_build::model("smithy").publish(); }
 //! ```
 //!
 //! For a precompiled AST, use `publish_model("model/model.json")` instead.
@@ -65,7 +65,7 @@
 //! that plugs it into crucible:
 //!
 //! ```ignore
-//! fn main() { crucible_build::rust_service("weather_model").generate(); }
+//! fn main() { crucible_build::model("weather_model").server().generate(); }
 //! ```
 //!
 //! and includes it with `crucible_server_runtime_rust::include_service!()`.
@@ -74,7 +74,7 @@
 //! client for it:
 //!
 //! ```ignore
-//! fn main() { crucible_build::client("weather_model").generate(); }
+//! fn main() { crucible_build::model("weather_model").client().generate(); }
 //! ```
 //!
 //! and includes it with `crucible_client_runtime_rust::include_client!()`. Cargo pins the
@@ -85,8 +85,13 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "rust")]
 use crucible_codegen_rust::{ConformanceOptions, Options, Seed, Skip};
 #[cfg(feature = "rust")]
-use crucible_smithy::Model;
+use crucible_smithy::Model as SmithyModel;
 use crucible_smithy::ShapeId;
+
+#[cfg(feature = "rust")]
+mod client_output;
+#[cfg(feature = "rust")]
+pub use client_output::ClientOutput;
 
 mod artifact;
 mod artifact_index;
@@ -108,6 +113,7 @@ mod go_sdk;
 mod java_sdk;
 #[cfg(feature = "kotlin")]
 mod kotlin_sdk;
+mod model;
 mod model_builder;
 mod model_package;
 #[cfg(feature = "openapi")]
@@ -160,9 +166,113 @@ pub use cdk_output::CdkOutput;
 pub use cli_output::CliOutput;
 #[cfg(feature = "cpp")]
 pub use cpp_sdk::CppSdk;
-pub use crucible_codegen as clients;
-pub use crucible_codegen as outputs;
-pub use crucible_codegen::Audience;
+#[cfg(feature = "c")]
+pub use crucible_codegen::COptions;
+#[cfg(feature = "cli")]
+pub use crucible_codegen::CliOptions;
+#[cfg(feature = "cpp")]
+pub use crucible_codegen::CppOptions;
+#[cfg(feature = "csharp")]
+pub use crucible_codegen::CsharpOptions;
+#[cfg(feature = "dart")]
+pub use crucible_codegen::DartOptions;
+#[cfg(feature = "go")]
+pub use crucible_codegen::GoOptions;
+#[cfg(feature = "java")]
+pub use crucible_codegen::JavaOptions;
+#[cfg(feature = "kotlin")]
+pub use crucible_codegen::KotlinOptions;
+#[cfg(feature = "openapi")]
+pub use crucible_codegen::OpenApiOptions;
+#[cfg(feature = "php")]
+pub use crucible_codegen::PhpOptions;
+#[cfg(any(feature = "cdk", feature = "terraform"))]
+pub use crucible_codegen::ProvisioningBindings;
+#[cfg(feature = "python")]
+pub use crucible_codegen::PythonOptions;
+#[cfg(feature = "r")]
+pub use crucible_codegen::ROptions;
+#[cfg(feature = "ruby")]
+pub use crucible_codegen::RubyOptions;
+#[cfg(feature = "rust")]
+pub use crucible_codegen::RustServerOptions;
+#[cfg(feature = "swift")]
+pub use crucible_codegen::SwiftOptions;
+#[cfg(feature = "terraform")]
+pub use crucible_codegen::TerraformOptions;
+#[cfg(feature = "ts")]
+pub use crucible_codegen::TsMiddleware;
+#[cfg(feature = "ts")]
+pub use crucible_codegen::TsOptions;
+#[cfg(feature = "cdk")]
+pub use crucible_codegen::cdk;
+#[cfg(any(feature = "cdk", feature = "terraform"))]
+pub use crucible_codegen::infra;
+pub use crucible_codegen::{Audience, Client, Generator, Server};
+#[cfg(feature = "cdk")]
+pub use crucible_codegen::{CdkOptions, CdkTargets};
+#[cfg(feature = "rust")]
+pub use crucible_codegen::{RuntimeDependency, RustOptions};
+
+#[deprecated(
+    since = "0.5.0",
+    note = "use crucible_build::Generator and native options directly"
+)]
+/// Deprecated generator/options namespace. Audience has one public import path.
+///
+/// ```compile_fail
+/// use crucible_build::outputs::Audience;
+/// ```
+pub mod outputs {
+    #[cfg(feature = "c")]
+    pub use super::COptions;
+    #[cfg(feature = "cli")]
+    pub use super::CliOptions;
+    #[cfg(feature = "cpp")]
+    pub use super::CppOptions;
+    #[cfg(feature = "csharp")]
+    pub use super::CsharpOptions;
+    #[cfg(feature = "dart")]
+    pub use super::DartOptions;
+    #[cfg(feature = "go")]
+    pub use super::GoOptions;
+    #[cfg(feature = "java")]
+    pub use super::JavaOptions;
+    #[cfg(feature = "kotlin")]
+    pub use super::KotlinOptions;
+    #[cfg(feature = "openapi")]
+    pub use super::OpenApiOptions;
+    #[cfg(feature = "php")]
+    pub use super::PhpOptions;
+    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    pub use super::ProvisioningBindings;
+    #[cfg(feature = "python")]
+    pub use super::PythonOptions;
+    #[cfg(feature = "r")]
+    pub use super::ROptions;
+    #[cfg(feature = "ruby")]
+    pub use super::RubyOptions;
+    #[cfg(feature = "rust")]
+    pub use super::RustServerOptions;
+    #[cfg(feature = "swift")]
+    pub use super::SwiftOptions;
+    #[cfg(feature = "terraform")]
+    pub use super::TerraformOptions;
+    #[cfg(feature = "ts")]
+    pub use super::TsMiddleware;
+    #[cfg(feature = "ts")]
+    pub use super::TsOptions;
+    #[cfg(feature = "cdk")]
+    pub use super::cdk;
+    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    pub use super::infra;
+    #[cfg(feature = "cdk")]
+    pub use super::{CdkOptions, CdkTargets};
+    pub use super::{Client, Generator, Server};
+    #[cfg(feature = "rust")]
+    pub use super::{RuntimeDependency, RustOptions};
+}
+
 #[cfg(feature = "csharp")]
 pub use csharp_sdk::CsharpSdk;
 #[cfg(feature = "dart")]
@@ -173,7 +283,9 @@ pub use go_sdk::GoSdk;
 pub use java_sdk::JavaSdk;
 #[cfg(feature = "kotlin")]
 pub use kotlin_sdk::KotlinSdk;
-pub use model_builder::ModelBuilder;
+pub use model::Model;
+#[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
+pub type ModelBuilder = Model;
 pub use model_package::ModelPackage;
 #[cfg(feature = "openapi")]
 pub use openapi_output::OpenApiOutput;
@@ -198,33 +310,44 @@ pub use ts_sdk::TsSdk;
 
 mod smithy;
 #[cfg(all(feature = "smithy", feature = "rust"))]
+#[allow(deprecated)]
 pub use smithy::client_from_smithy;
 #[cfg(feature = "rust")]
+#[allow(deprecated)]
 pub use smithy::client_from_smithy_with;
 #[cfg(feature = "smithy")]
+#[allow(deprecated)]
 pub use smithy::compile_smithy;
+#[allow(deprecated)]
 pub use smithy::compile_smithy_with;
 #[cfg(feature = "smithy")]
+#[allow(deprecated)]
 pub use smithy::publish_model_from_smithy;
+#[allow(deprecated)]
 pub use smithy::publish_model_from_smithy_with;
 #[cfg(all(feature = "smithy", feature = "rust"))]
+#[allow(deprecated)]
 pub use smithy::rust_service_from_smithy;
 #[cfg(feature = "rust")]
+#[allow(deprecated)]
 pub use smithy::rust_service_from_smithy_with;
 
 /// Compile a source-only Smithy package and select named generated outputs.
-pub fn smithy(sources: impl AsRef<Path>) -> ModelBuilder {
-    ModelBuilder::new(sources.as_ref(), false)
+#[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
+pub fn smithy(sources: impl AsRef<Path>) -> Model {
+    model(sources)
 }
 
 /// Use a compiled AST without invoking a Smithy compiler.
-pub fn model_from_json(model: impl AsRef<Path>) -> ModelBuilder {
-    ModelBuilder::new(model.as_ref(), true)
+#[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
+pub fn model_from_json(source: impl AsRef<Path>) -> Model {
+    model(source)
 }
 
 /// Generate outputs in a separate package using its model dependency's AST.
+#[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
 pub fn model_dependency(links: &str) -> ModelPackage {
-    model_from_json(published(links)).compile()
+    model(links).compile()
 }
 
 /// Resolve a named artifact published by a direct model dependency.
@@ -255,47 +378,91 @@ pub fn artifact(links: &str, name: &str) -> Artifact {
 /// From a model package's `build.rs`: makes `path` (a Smithy JSON AST built
 /// with the `flattenAndRemoveMixins` transform) the model its dependents
 /// generate from. The package's manifest needs `links`.
+#[deprecated(since = "0.5.0", note = "use crucible_build::model(..).publish()")]
 pub fn publish_model(path: impl AsRef<Path>) {
-    let path = absolute(path.as_ref());
-    println!("cargo::rerun-if-changed={}", path.display());
-    println!("cargo::metadata=model={}", path.display());
+    model(path).publish();
 }
 
 /// From a service package's `build.rs`: generates the server side from the
 /// model published by the dependency whose manifest says `links = "<links>"`.
 #[cfg(feature = "rust")]
-pub fn rust_service(links: &str) -> RustCodegen {
-    RustCodegen::from_model(published(links))
+#[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
+pub fn rust_service(links: &str) -> ServerOutput {
+    model(links).server()
 }
 
 /// From a client package's `build.rs`: generates a client from the model
 /// published by the dependency whose manifest says `links = "<links>"`.
 #[cfg(feature = "rust")]
-pub fn client(links: &str) -> RustCodegen {
-    RustCodegen::client_from_model(published(links))
+#[deprecated(since = "0.5.0", note = "use crucible_build::model(..).client()")]
+pub fn client(links: &str) -> ServerOutput {
+    model(links).client().into_legacy()
 }
 
-fn published(links: &str) -> PathBuf {
-    let variable = format!("DEP_{}_MODEL", links.to_ascii_uppercase().replace('-', "_"));
-    std::env::var_os(&variable).map(PathBuf::from).unwrap_or_else(|| {
-        panic!(
-            "crucible: {variable} is not set. Depend on the model package (a normal dependency, \
-             whose manifest says `links = \"{links}\"`) and have its build.rs call \
-             crucible_build::publish_model"
+/// A model dependency is missing Cargo's published AST metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MissingModelDependency {
+    pub links: String,
+    pub variable: String,
+}
+
+impl std::fmt::Display for MissingModelDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "crucible: model dependency {:?} is missing {}. Add the model package to [dependencies] in Cargo.toml; its manifest must declare links = {:?} and its build.rs must call crucible_build::model(..).publish()",
+            self.links, self.variable, self.links
         )
-    })
+    }
+}
+impl std::error::Error for MissingModelDependency {}
+
+fn try_published(links: &str) -> Result<PathBuf, MissingModelDependency> {
+    let variable = format!("DEP_{}_MODEL", links.to_ascii_uppercase().replace('-', "_"));
+    std::env::var_os(&variable)
+        .map(PathBuf::from)
+        .ok_or_else(|| MissingModelDependency {
+            links: links.to_owned(),
+            variable,
+        })
+}
+
+/// Select Smithy sources, a JSON AST, or a direct model dependency's `links` name.
+pub fn model(source: impl AsRef<Path>) -> Model {
+    Model::new(source.as_ref())
+}
+
+/// Fallible source discovery with an actionable missing-dependency error.
+pub fn try_model(source: impl AsRef<Path>) -> Result<Model, MissingModelDependency> {
+    Model::try_new(source.as_ref())
+}
+
+/// Deprecated name for the Rust binding builder.
+#[cfg(feature = "rust")]
+#[deprecated(
+    since = "0.5.0",
+    note = "use crucible_build::model(..).server() or .client()"
+)]
+pub type RustCodegen = ServerOutput;
+
+/// Deprecated dependency-based server entry point.
+#[cfg(feature = "rust")]
+#[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
+pub fn service(links: &str) -> ServerOutput {
+    model(links).server()
 }
 
 /// What to generate, and from which model.
 #[derive(Debug, Clone)]
 #[cfg(feature = "rust")]
-pub struct RustCodegen {
+pub struct ServerOutput {
     model: PathBuf,
-    service: Option<ShapeId>,
+    pub(crate) service: Option<ShapeId>,
     options: Options,
     side: Side,
+    pub(crate) protocol: Option<crucible_smithy::Protocol>,
     audience: Audience,
-    policy: Option<PathBuf>,
+    pub(crate) policy: Option<PathBuf>,
     model_output: Option<PathBuf>,
     conformance: Option<ConformanceOptions>,
 }
@@ -308,20 +475,27 @@ enum Side {
 }
 
 #[cfg(feature = "rust")]
-impl RustCodegen {
+impl ServerOutput {
     /// The server side, from a model file directly: for a model inside the
     /// service package.
-    pub fn from_model(model: impl AsRef<Path>) -> Self {
+    fn new(model: impl AsRef<Path>) -> Self {
         Self {
             model: absolute(model.as_ref()),
             service: None,
             options: Options::default(),
             side: Side::Server,
+            protocol: None,
             audience: Audience::External,
             policy: None,
             model_output: None,
             conformance: None,
         }
+    }
+
+    /// Deprecated direct server constructor.
+    #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
+    pub fn from_model(source: impl AsRef<Path>) -> Self {
+        model(source).server()
     }
 
     /// Select client visibility. Server generation always retains everything.
@@ -331,11 +505,9 @@ impl RustCodegen {
     }
 
     /// A client, from a model file directly.
-    pub fn client_from_model(model: impl AsRef<Path>) -> Self {
-        Self {
-            side: Side::Client,
-            ..Self::from_model(model)
-        }
+    #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).client()")]
+    pub fn client_from_model(source: impl AsRef<Path>) -> Self {
+        model(source).client().into_legacy()
     }
 
     /// The service to generate, when the model defines several.
@@ -471,7 +643,7 @@ impl RustCodegen {
             PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR: run from a build script"));
         let file = match self.side {
             Side::Server => "crucible_service.rs",
-            Side::Client => "crucible_client_runtime_rust.rs",
+            Side::Client => "crucible_client.rs",
         };
         std::fs::write(out.join(file), code).expect("crucible: cannot write the generated code");
         if self.conformance.is_some() {
@@ -520,17 +692,20 @@ impl RustCodegen {
     fn lower(&self) -> Result<crucible_smithy::ir::Service, String> {
         let json = std::fs::read_to_string(&self.model)
             .map_err(|error| format!("cannot read {}: {error}", self.model.display()))?;
-        let model = Model::from_json(&json).map_err(|error| error.to_string())?;
+        let model = SmithyModel::from_json(&json).map_err(|error| error.to_string())?;
         let capabilities = match self.side {
             Side::Server => crucible_codegen_rust::capabilities(),
             Side::Client => crucible_codegen_rust::client_capabilities(),
         };
-        let service = model
-            .lower_with_capabilities(
-                self.service.as_ref(),
-                &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
-            )
-            .map_err(|error| error.to_string())?;
+        let capabilities_all =
+            crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
+        let service = match self.protocol {
+            Some(protocol) => {
+                model.lower_with_protocol(self.service.as_ref(), &capabilities_all, protocol)
+            }
+            None => model.lower_with_capabilities(self.service.as_ref(), &capabilities_all),
+        }
+        .map_err(|error| error.to_string())?;
         if let Some(policy) = &self.policy {
             check_policy(&service, policy)?;
         }

@@ -3,14 +3,14 @@
 use std::fs;
 use std::process::Command;
 
-use crucible_build::outputs::{RustServerOptions, Server};
+use crucible_build::{RustServerOptions, Server};
 
 #[test]
 fn server_output_probe() {
     if std::env::var_os("CRUCIBLE_SERVER_OUTPUT_PROBE").is_none() {
         return;
     }
-    let model = crucible_build::model_from_json("model.json").compile();
+    let model = crucible_build::model("model.json").compile();
     let artifact = model
         .output(
             "bindings",

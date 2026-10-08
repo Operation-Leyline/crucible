@@ -6,15 +6,16 @@ use crucible_smithy::{Capabilities, Feature, Model, Protocol, ShapeId};
 use crate::{ModelPackage, absolute, parse};
 
 /// Compile a language-neutral model once before selecting named SDK outputs.
-pub struct ModelBuilder {
-    source: PathBuf,
-    json: bool,
-    service: Option<ShapeId>,
-    protocol: Option<Protocol>,
-    policy: Option<PathBuf>,
+#[derive(Clone)]
+pub struct ModelConfig {
+    pub(crate) source: PathBuf,
+    pub(crate) json: bool,
+    pub(crate) service: Option<ShapeId>,
+    pub(crate) protocol: Option<Protocol>,
+    pub(crate) policy: Option<PathBuf>,
 }
 
-impl ModelBuilder {
+impl ModelConfig {
     pub(crate) fn new(source: &Path, json: bool) -> Self {
         Self {
             source: absolute(source),
@@ -108,13 +109,14 @@ impl ModelBuilder {
         }
         ModelPackage::new(
             path,
+            !self.json,
             service,
             output,
             #[cfg(any(feature = "cdk", feature = "terraform"))]
             model,
-            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
             self.protocol,
-            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
             self.policy,
         )
     }
