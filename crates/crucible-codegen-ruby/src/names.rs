@@ -164,6 +164,7 @@ pub fn field(value: &str) -> String {
         "respond_to",
         "inspect",
         "to_s",
+        "describe",
         "message",
         "backtrace",
         "cause",

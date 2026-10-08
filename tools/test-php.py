@@ -91,6 +91,13 @@ $client->close();
         str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
         "--package-name", "example/wire", "--namespace", "WireSdk")
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/wire.php"), env=dict(os.environ, PHP_WIRE_PACKAGE=str(output / "wire")))
+    # String representations must hide sensitive members from every inspection path.
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json"), "--out", str(output / "describe"),
+        "--package-name", "example/vault", "--namespace", "VaultSdk")
+    for path in sorted((output / "describe").rglob("*.php")):
+        run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/describe.php"), env=dict(os.environ, PHP_VAULT_PACKAGE=str(output / "describe")))
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
         str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
         "--package-name", "example/auth", "--namespace", "AuthSdk")

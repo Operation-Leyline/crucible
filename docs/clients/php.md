@@ -92,6 +92,25 @@ encoded as padded base64 in JSON. Raw blob payloads use bytes directly. An
 empty response payload remains present; an empty request payload sends no body
 or content type. Optional SHA-256 covers the final bytes after middleware.
 
+## API documentation and string representations
+
+Every generated type, constructor argument, enum constant, operation and the
+client carry PHPDoc built from the model's `@documentation` plus Crucible's own
+text for the client, `ClientConfig`, transports, credentials and errors. `*/`
+in model text cannot end a docblock, and `@tag` lines are escaped.
+
+Models implement `__toString()` and print as
+`Secret(name=db, password=*** Sensitive Data Redacted ***)`; modeled errors keep
+PHP's exception text and expose the same format through `describe()`. Unset
+members are omitted, nested models and collections recurse, a blob shows its
+length, and `@sensitive` members (or members of a `@sensitive` shape or
+collection of them) print the redaction marker. `__debugInfo()` returns the
+same redacted members, so `var_dump()` and `print_r()` never reveal a
+sensitive value either.
+
+Structures and unions have no value equality besides PHP's `==` over public
+properties; generated enums are plain classes compared by `value`.
+
 ## Transport and errors
 
 Each call snapshots its input before hooks. Retries reuse that snapshot and

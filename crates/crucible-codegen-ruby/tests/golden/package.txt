@@ -1,3 +1,8 @@
+=== .yardopts ===
+--markup markdown
+--no-private
+lib/**/*.rb
+
 === crucible.json ===
 {
   "generatorVersion": "0.4.0",
@@ -9,6 +14,7 @@
 === lib/weather_client.rb ===
 # frozen_string_literal: true
 require_relative 'weather_client/runtime/unit'
+require_relative 'weather_client/runtime/describe'
 require_relative 'weather_client/runtime/json_number'
 require_relative 'weather_client/runtime/exact_json'
 require_relative 'weather_client/runtime/json_value'
@@ -72,32 +78,110 @@ require_relative 'weather_client/client'
 === lib/weather_client/client.rb ===
 # frozen_string_literal: true
 module Weather
+  # Client for the Weather service.
+  #
+  # Create one `WeatherClient` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {#close} when finished. Every operation blocks until it completes and reports failure as a `WeatherException` for a service response, a {Runtime::NetworkError} when no response arrives, a {Runtime::DeadlineError} when the call outlasts {Runtime::ClientConfig#timeout}, or a {Runtime::CancelledError}.
   class WeatherClient
+    # Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see {Runtime::ClientConfig} for credentials, retries, timeouts and the transport.
+    #
+    # @param config [Runtime::ClientConfig]
+    # @raise [ArgumentError] when the endpoint or another setting is invalid
     def initialize(config = Runtime::ClientConfig.new)
       @runtime = Runtime::ClientRuntime.new(config, ::Weather.codec, endpoint: '', digest: true)
     end
+    # Releases the HTTP connection this client created. A transport passed in the configuration is left open.
     def close = @runtime.close
+    # Idempotent: retried automatically after transient failures.
+    #
+    # `client_token` is filled with a fresh token when omitted, so retries do not repeat the effect.
+    #
+    # @param input [CreateCityInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [CreateCityOutput] the service's response
+    # @raise [ConflictError]
+    # @raise [ThrottlingError]
+    # @raise [ValidationError]
+    # @raise [Runtime::WeatherException] for any other error response
     def create_city(input, cancellation: nil)
       @runtime.call('CreateCity', input, cancellation: cancellation)
     end
+    # Read-only: retried automatically after transient failures.
+    #
+    # @param input [GetCityInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [GetCityOutput] the service's response
+    # @raise [NotFoundError]
+    # @raise [ThrottlingError]
+    # @raise [ValidationError]
+    # @raise [Runtime::WeatherException] for any other error response
     def get_city(input, cancellation: nil)
       @runtime.call('GetCity', input, cancellation: cancellation)
     end
+    # Read-only: retried automatically after transient failures.
+    #
+    # @param input [GetCityPhotoInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [GetCityPhotoOutput] the service's response
+    # @raise [NotFoundError]
+    # @raise [ThrottlingError]
+    # @raise [ValidationError]
+    # @raise [Runtime::WeatherException] for any other error response
     def get_city_photo(input, cancellation: nil)
       @runtime.call('GetCityPhoto', input, cancellation: cancellation)
     end
+    # Read-only: retried automatically after transient failures.
+    #
+    # This operation is paginated: use the `_pages` variant to read every page.
+    #
+    # @param input [ListCitiesInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [ListCitiesOutput] the service's response
+    # @raise [ThrottlingError]
+    # @raise [ValidationError]
+    # @raise [Runtime::WeatherException] for any other error response
     def list_cities(input, cancellation: nil)
       @runtime.call('ListCities', input, cancellation: cancellation)
     end
+    # Every page of {#list_cities}, following the pagination token until the service stops returning one. Returns an `Enumerator`; the call for each page is made as it is consumed, so each can fail.
+    #
+    # @param input [ListCitiesInput] the request for the first page
+    # @param cancellation [Runtime::CancellationToken, nil]
+    # @return [Enumerator<ListCitiesOutput>]
     def list_cities_pages(input, cancellation: nil)
       @runtime.pages('ListCities', input, cancellation: cancellation)
     end
+    # Read-only: retried automatically after transient failures.
+    #
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [Runtime::Unit] the service's response
+    # @raise [ThrottlingError]
+    # @raise [ValidationError]
+    # @raise [Runtime::WeatherException] for any other error response
     def ping(cancellation: nil)
       @runtime.call('Ping', Runtime::Unit.new, cancellation: cancellation)
     end
+    # Stores a city's photo exactly as sent.
+    #
+    # Idempotent: retried automatically after transient failures.
+    #
+    # @param input [PutCityPhotoInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [PutCityPhotoOutput] the service's response
+    # @raise [NotFoundError]
+    # @raise [ThrottlingError]
+    # @raise [ValidationError]
+    # @raise [Runtime::WeatherException] for any other error response
     def put_city_photo(input, cancellation: nil)
       @runtime.call('PutCityPhoto', input, cancellation: cancellation)
     end
+    # Read-only: retried automatically after transient failures.
+    #
+    # @param input [StatusInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [StatusOutput] the service's response
+    # @raise [ThrottlingError]
+    # @raise [ValidationError]
+    # @raise [Runtime::WeatherException] for any other error response
     def status(input, cancellation: nil)
       @runtime.call('Status', input, cancellation: cancellation)
     end
@@ -108,11 +192,17 @@ end
 # frozen_string_literal: true
 module Weather
     class CitySummary
+      # @return [String]
       attr_reader :id
+      # @return [String]
       attr_reader :name
+      # @return [Integer]
       attr_reader :population
+      # @return [Runtime::Timestamp, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :updated_at
+      # @return [Runtime::Timestamp, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :created_at
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(id:, name:, population:, updated_at: ::Weather::Runtime::UNSET, created_at: ::Weather::Runtime::UNSET)
         @id = id
         @name = name
@@ -140,6 +230,9 @@ module Weather
         context.put(object, 'createdAt', @created_at, optional: true)
         object
       end
+      # @return [String] `CitySummary(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('CitySummary', {id: @id, name: @name, population: @population, updated_at: @updated_at, created_at: @created_at})
+      alias to_s inspect
     end
 end
 
@@ -147,7 +240,9 @@ end
 # frozen_string_literal: true
 module Weather
     class ConflictError < ::Weather::Runtime::WeatherException
+      # @return [String]
       attr_reader :message_value
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(message_value:, metadata: ::Weather::Runtime::ErrorMetadata.new)
         super(metadata)
         @message_value = message_value
@@ -164,6 +259,8 @@ module Weather
         context.put(object, 'message', @message_value, optional: false)
         object
       end
+      # @return [String] `ConflictError(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('ConflictError', {message_value: @message_value, metadata: @metadata})
     end
 end
 
@@ -171,8 +268,11 @@ end
 # frozen_string_literal: true
 module Weather
     class Coordinates
+      # @return [Float]
       attr_reader :latitude
+      # @return [Float]
       attr_reader :longitude
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(latitude:, longitude:)
         @latitude = latitude
         @longitude = longitude
@@ -191,6 +291,9 @@ module Weather
         context.put(object, 'longitude', @longitude, optional: false)
         object
       end
+      # @return [String] `Coordinates(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('Coordinates', {latitude: @latitude, longitude: @longitude})
+      alias to_s inspect
     end
 end
 
@@ -198,10 +301,15 @@ end
 # frozen_string_literal: true
 module Weather
     class CreateCityInput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :name
+      # @return [Location, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :location
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :client_token
+      # @return [Integer, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :expected_revision
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(name: ::Weather::Runtime::UNSET, location: ::Weather::Runtime::UNSET, client_token: ::Weather::Runtime::UNSET, expected_revision: ::Weather::Runtime::UNSET)
         @name = name
         @location = location
@@ -226,6 +334,9 @@ module Weather
         context.put(object, 'expectedRevision', @expected_revision, optional: true)
         object
       end
+      # @return [String] `CreateCityInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('CreateCityInput', {name: @name, location: @location, client_token: @client_token, expected_revision: @expected_revision})
+      alias to_s inspect
     end
 end
 
@@ -233,7 +344,9 @@ end
 # frozen_string_literal: true
 module Weather
     class CreateCityOutput
+      # @return [CitySummary]
       attr_reader :city
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(city:)
         @city = city
         freeze
@@ -249,6 +362,9 @@ module Weather
         context.put(object, 'city', @city, optional: false)
         object
       end
+      # @return [String] `CreateCityOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('CreateCityOutput', {city: @city})
+      alias to_s inspect
     end
 end
 
@@ -256,8 +372,11 @@ end
 # frozen_string_literal: true
 module Weather
     class GetCityInput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :city_id
+      # @return [Runtime::Timestamp, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :at
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(city_id: ::Weather::Runtime::UNSET, at: ::Weather::Runtime::UNSET)
         @city_id = city_id
         @at = at
@@ -276,6 +395,9 @@ module Weather
         context.put(object, 'at', @at, optional: true)
         object
       end
+      # @return [String] `GetCityInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('GetCityInput', {city_id: @city_id, at: @at})
+      alias to_s inspect
     end
 end
 
@@ -283,9 +405,13 @@ end
 # frozen_string_literal: true
 module Weather
     class GetCityOutput
+      # @return [CitySummary]
       attr_reader :city
+      # @return [Hash{String => Runtime::JsonValue}, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :forecast
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :request_id
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(city:, forecast: ::Weather::Runtime::UNSET, request_id: ::Weather::Runtime::UNSET)
         @city = city
         @forecast = forecast
@@ -307,6 +433,9 @@ module Weather
         context.put(object, 'requestId', @request_id, optional: true)
         object
       end
+      # @return [String] `GetCityOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('GetCityOutput', {city: @city, forecast: @forecast, request_id: @request_id})
+      alias to_s inspect
     end
 end
 
@@ -314,7 +443,9 @@ end
 # frozen_string_literal: true
 module Weather
     class GetCityPhotoInput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :city_id
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(city_id: ::Weather::Runtime::UNSET)
         @city_id = city_id
         freeze
@@ -330,6 +461,9 @@ module Weather
         context.put(object, 'cityId', @city_id, optional: true)
         object
       end
+      # @return [String] `GetCityPhotoInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('GetCityPhotoInput', {city_id: @city_id})
+      alias to_s inspect
     end
 end
 
@@ -337,8 +471,11 @@ end
 # frozen_string_literal: true
 module Weather
     class GetCityPhotoOutput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :caption
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :photo
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(caption: ::Weather::Runtime::UNSET, photo: ::Weather::Runtime::UNSET)
         @caption = caption
         @photo = photo
@@ -357,6 +494,9 @@ module Weather
         context.put(object, 'photo', @photo, optional: true)
         object
       end
+      # @return [String] `GetCityPhotoOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('GetCityPhotoOutput', {caption: @caption, photo: Runtime::Describe.bytes(@photo)})
+      alias to_s inspect
     end
 end
 
@@ -364,9 +504,13 @@ end
 # frozen_string_literal: true
 module Weather
     class ListCitiesInput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :next_token
+      # @return [Integer, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :max_results
+      # @return [Array<String>, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :tags
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(next_token: ::Weather::Runtime::UNSET, max_results: ::Weather::Runtime::UNSET, tags: ::Weather::Runtime::UNSET)
         @next_token = next_token
         @max_results = max_results
@@ -388,6 +532,9 @@ module Weather
         context.put(object, 'tags', @tags, optional: true)
         object
       end
+      # @return [String] `ListCitiesInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('ListCitiesInput', {next_token: @next_token, max_results: @max_results, tags: @tags})
+      alias to_s inspect
     end
 end
 
@@ -395,8 +542,11 @@ end
 # frozen_string_literal: true
 module Weather
     class ListCitiesOutput
+      # @return [Array<CitySummary>]
       attr_reader :cities
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :next_token
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(cities:, next_token: ::Weather::Runtime::UNSET)
         @cities = cities
         @next_token = next_token
@@ -415,6 +565,9 @@ module Weather
         context.put(object, 'nextToken', @next_token, optional: true)
         object
       end
+      # @return [String] `ListCitiesOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('ListCitiesOutput', {cities: @cities, next_token: @next_token})
+      alias to_s inspect
     end
 end
 
@@ -433,6 +586,7 @@ module Weather
         end
       end
       class CoordinatesVariant < Location
+        # @return [Coordinates, nil] the member's value; nil when the union carries an explicit null
         attr_reader :value
         def initialize(value)
           @value = value
@@ -441,8 +595,11 @@ module Weather
         def to_wire(context)
           {'coordinates' => @value.nil? ? nil : context.codec.encode(@value, context.member('coordinates'))}
         end
+        def inspect = Runtime::Describe.format('Location', {coordinates: @value})
+        alias to_s inspect
       end
       class UnknownVariant < Location
+        # @return [Runtime::Unit, nil] the member's value; nil when the union carries an explicit null
         attr_reader :value
         def initialize(value)
           @value = value
@@ -451,9 +608,18 @@ module Weather
         def to_wire(context)
           {'unknown' => @value.nil? ? nil : context.codec.encode(@value, context.member('unknown'))}
         end
+        def inspect = Runtime::Describe.format('Location', {unknown: @value})
+        alias to_s inspect
       end
+      # A member this client does not know, kept so it can be sent back unchanged.
       class Unknown < Location
-        attr_reader :name, :value
+        # @return [String] the member name received
+        attr_reader :name
+        # @return [Runtime::JsonValue] the raw value received
+        attr_reader :value
+        # Omits the value: nothing says whether it is sensitive.
+        def inspect = Runtime::Describe.format('Location', {unknown_variant: @name})
+        alias to_s inspect
         def initialize(name, value)
           @name = ::Weather::Runtime::WireCodec.string(name).freeze
           raise ::ArgumentError, 'Expected JsonValue' unless value.is_a?(::Weather::Runtime::JsonValue)
@@ -472,8 +638,11 @@ end
 # frozen_string_literal: true
 module Weather
     class NotFoundError < ::Weather::Runtime::WeatherException
+      # @return [String]
       attr_reader :message_value
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :resource_id
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(message_value:, resource_id: ::Weather::Runtime::UNSET, metadata: ::Weather::Runtime::ErrorMetadata.new)
         super(metadata)
         @message_value = message_value
@@ -493,6 +662,8 @@ module Weather
         context.put(object, 'resourceId', @resource_id, optional: true)
         object
       end
+      # @return [String] `NotFoundError(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('NotFoundError', {message_value: @message_value, resource_id: @resource_id, metadata: @metadata})
     end
 end
 
@@ -500,9 +671,13 @@ end
 # frozen_string_literal: true
 module Weather
     class PhotoSummary
+      # @return [Integer]
       attr_reader :size
+      # @return [String]
       attr_reader :thumbnail
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :caption
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(size:, thumbnail:, caption: ::Weather::Runtime::UNSET)
         @size = size
         @thumbnail = thumbnail
@@ -524,6 +699,9 @@ module Weather
         context.put(object, 'caption', @caption, optional: true)
         object
       end
+      # @return [String] `PhotoSummary(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('PhotoSummary', {size: @size, thumbnail: Runtime::Describe.bytes(@thumbnail), caption: @caption})
+      alias to_s inspect
     end
 end
 
@@ -531,9 +709,13 @@ end
 # frozen_string_literal: true
 module Weather
     class PutCityPhotoInput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :city_id
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :caption
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :photo
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(city_id: ::Weather::Runtime::UNSET, caption: ::Weather::Runtime::UNSET, photo: ::Weather::Runtime::UNSET)
         @city_id = city_id
         @caption = caption
@@ -555,6 +737,9 @@ module Weather
         context.put(object, 'photo', @photo, optional: true)
         object
       end
+      # @return [String] `PutCityPhotoInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('PutCityPhotoInput', {city_id: @city_id, caption: @caption, photo: Runtime::Describe.bytes(@photo)})
+      alias to_s inspect
     end
 end
 
@@ -562,7 +747,9 @@ end
 # frozen_string_literal: true
 module Weather
     class PutCityPhotoOutput
+      # @return [PhotoSummary]
       attr_reader :photo
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(photo:)
         @photo = photo
         freeze
@@ -578,6 +765,9 @@ module Weather
         context.put(object, 'photo', @photo, optional: false)
         object
       end
+      # @return [String] `PutCityPhotoOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('PutCityPhotoOutput', {photo: @photo})
+      alias to_s inspect
     end
 end
 
@@ -617,6 +807,7 @@ end
 # frozen_string_literal: true
 module Weather
     class Sky
+      # @return [String] the string sent on the wire; a value this client does not list is kept as is
       attr_reader :value
       def initialize(value)
         @value = ::Weather::Runtime::WireCodec.string(value).freeze
@@ -629,6 +820,8 @@ module Weather
       def hash = @value.hash
       CLEAR = new('clear')
       CLOUDY = new('cloudy')
+      def inspect = 'Sky(' + @value + ')'
+      alias to_s inspect
     end
 end
 
@@ -636,6 +829,7 @@ end
 # frozen_string_literal: true
 module Weather
     class StatusInput
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize()
         freeze
       end
@@ -648,6 +842,9 @@ module Weather
         object = {}
         object
       end
+      # @return [String] `StatusInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('StatusInput', {})
+      alias to_s inspect
     end
 end
 
@@ -655,6 +852,7 @@ end
 # frozen_string_literal: true
 module Weather
     class StatusOutput
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize()
         freeze
       end
@@ -667,6 +865,9 @@ module Weather
         object = {}
         object
       end
+      # @return [String] `StatusOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('StatusOutput', {})
+      alias to_s inspect
     end
 end
 
@@ -674,8 +875,11 @@ end
 # frozen_string_literal: true
 module Weather
     class ThrottlingError < ::Weather::Runtime::WeatherException
+      # @return [String]
       attr_reader :message_value
+      # @return [Integer, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :retry_after
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(message_value:, retry_after: ::Weather::Runtime::UNSET, metadata: ::Weather::Runtime::ErrorMetadata.new)
         super(metadata)
         @message_value = message_value
@@ -695,6 +899,8 @@ module Weather
         context.put(object, 'retryAfter', @retry_after, optional: true)
         object
       end
+      # @return [String] `ThrottlingError(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('ThrottlingError', {message_value: @message_value, retry_after: @retry_after, metadata: @metadata})
     end
 end
 
@@ -702,10 +908,15 @@ end
 # frozen_string_literal: true
 module Weather
     class ValidationError < ::Weather::Runtime::WeatherException
+      # @return [String]
       attr_reader :message_value
+      # @return [ValidationReason]
       attr_reader :reason
+      # @return [Array<ValidationField>, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :field_list
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :request_id
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(message_value:, reason:, field_list: ::Weather::Runtime::UNSET, request_id: ::Weather::Runtime::UNSET, metadata: ::Weather::Runtime::ErrorMetadata.new)
         super(metadata)
         @message_value = message_value
@@ -731,6 +942,8 @@ module Weather
         context.put(object, 'requestId', @request_id, optional: true)
         object
       end
+      # @return [String] `ValidationError(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('ValidationError', {message_value: @message_value, reason: @reason, field_list: @field_list, request_id: @request_id, metadata: @metadata})
     end
 end
 
@@ -738,8 +951,11 @@ end
 # frozen_string_literal: true
 module Weather
     class ValidationField
+      # @return [String]
       attr_reader :path
+      # @return [String]
       attr_reader :message_value
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
       def initialize(path:, message_value:)
         @path = path
         @message_value = message_value
@@ -758,6 +974,9 @@ module Weather
         context.put(object, 'message', @message_value, optional: false)
         object
       end
+      # @return [String] `ValidationField(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('ValidationField', {path: @path, message_value: @message_value})
+      alias to_s inspect
     end
 end
 
@@ -765,6 +984,7 @@ end
 # frozen_string_literal: true
 module Weather
     class ValidationReason
+      # @return [String] the string sent on the wire; a value this client does not list is kept as is
       attr_reader :value
       def initialize(value)
         @value = ::Weather::Runtime::WireCodec.string(value).freeze
@@ -779,6 +999,8 @@ module Weather
       CANNOT_PARSE = new('cannotParse')
       FIELD_VALIDATION_FAILED = new('fieldValidationFailed')
       OTHER = new('other')
+      def inspect = 'ValidationReason(' + @value + ')'
+      alias to_s inspect
     end
 end
 
@@ -792,7 +1014,7 @@ Gem::Specification.new do |spec|
   spec.summary = 'Generated Weather client'
   spec.authors = ['Package maintainers']
   spec.required_ruby_version = '>= 3.3', '< 5'
-  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']
+  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json', '.yardopts']
   spec.require_paths = ['lib']
   spec.add_dependency 'json', '>= 2.7', '< 3'
   spec.add_dependency 'net-http', '>= 0.4', '< 1'

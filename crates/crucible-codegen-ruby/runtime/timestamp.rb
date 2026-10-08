@@ -3,8 +3,19 @@ require 'time'
 require 'date'
 module CrucibleGenerated
   module Runtime
+    # Whole epoch seconds and nanoseconds, including before the Unix epoch.
     class Timestamp
-      attr_reader :seconds, :nanoseconds
+      # @return [Integer] whole seconds since the Unix epoch
+      attr_reader :seconds
+      # @return [Integer] the fraction of a second, below one billion
+      attr_reader :nanoseconds
+      # @return [String] RFC 3339 in UTC, with the fraction only when it is not zero; epoch seconds when the year is outside 1 to 9999
+      def to_s
+        date_time
+      rescue ::ArgumentError
+        "#{@seconds}s+#{@nanoseconds}ns"
+      end
+      alias inspect to_s
       def initialize(seconds, nanoseconds = 0)
         unless seconds.is_a?(::Integer) && seconds.between?(-(2**63), 2**63 - 1) && nanoseconds.is_a?(::Integer) && nanoseconds.between?(0, 999_999_999)
           raise ::ArgumentError, 'Timestamp out of range'

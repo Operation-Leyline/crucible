@@ -76,6 +76,23 @@ Raw blob payloads use bytes directly. An empty response payload remains present;
 an empty request payload sends no body or content type. Optional SHA-256 covers
 the final bytes after middleware.
 
+## API documentation and string representations
+
+Every generated type, member, enum value, operation and the client carry
+dartdoc comments built from the model's `@documentation` plus Crucible's own
+text for the client, `ClientConfig`, transports, credentials, errors and
+paginators; `dart doc` renders them without warnings. Bare `[name]` references
+in model text are escaped so dartdoc does not try to resolve them.
+
+Models override `toString` and print as
+`Secret(name=db, password=*** Sensitive Data Redacted ***)`. Unset members are
+omitted, nested models and collections recurse, a blob shows its length, and
+`@sensitive` members (or members of a `@sensitive` shape or collection of
+them) print the redaction marker. Unknown union variants show only their name.
+A modeled error also shows its transport metadata, without headers or message.
+
+Generated enums implement `==` and `hashCode`; structures and unions do not.
+
 ## Transport and errors
 
 Calls return `Future<Output>` and accept a `CancellationToken`. One deadline

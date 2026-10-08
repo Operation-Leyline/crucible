@@ -84,6 +84,23 @@ strings, encoded as padded base64 in JSON or sent directly for raw payloads.
 An empty response payload remains present; an empty request payload sends
 no body or content type. Optional SHA-256 covers bytes after middleware.
 
+## API documentation and string representations
+
+Every generated type, member, enum value, operation and the client carry YARD
+comments built from the model's `@documentation` plus Crucible's own text for
+the client, `ClientConfig`, transports, credentials and errors. The gem ships a
+`.yardopts` that selects Markdown, which is what Smithy documentation is
+written in; `yard doc` renders them.
+
+Models define `inspect` (and `to_s`, except on exceptions, whose `to_s` stays
+the message) and print as `Secret(name=db, password=*** Sensitive Data Redacted ***)`.
+Unset members are omitted, nested models and collections recurse, a blob shows
+its length, and `@sensitive` members (or members of a `@sensitive` shape or
+collection of them) print the redaction marker. A modeled error also shows its
+transport metadata, without headers or message.
+
+Generated enums define `==`, `eql?` and `hash`; structures and unions do not.
+
 ## Transport and errors
 
 Token providers and middleware run on every attempt. Generated idempotency

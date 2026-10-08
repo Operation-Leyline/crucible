@@ -1,0 +1,649 @@
+=== src/AccessDenied.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/**
+ * The caller may not read this secret.
+ */
+final class AccessDenied extends \VaultSdk\VaultException implements \VaultSdk\Runtime\WireModel
+{
+    /**
+     * @param string|null|\VaultSdk\Runtime\Absent $messageValue
+     * @param string|null|\VaultSdk\Runtime\Absent $reason Redacted.
+     */
+    public function __construct(
+        public readonly string|null|\VaultSdk\Runtime\Absent $messageValue = \VaultSdk\Runtime\Absent::Value,
+        public readonly string|null|\VaultSdk\Runtime\Absent $reason = \VaultSdk\Runtime\Absent::Value,
+        \VaultSdk\Runtime\ErrorMetadata $metadata = new \VaultSdk\Runtime\ErrorMetadata(),
+    ) { parent::__construct($metadata); }
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context, \VaultSdk\Runtime\ErrorMetadata $metadata = new \VaultSdk\Runtime\ErrorMetadata()): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        return new self(
+            messageValue: $context->optional('message', $object),
+            reason: $context->optional('reason', $object),
+            metadata: $metadata,
+        );
+    }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'message', $this->messageValue, true);
+        $context->put($object, 'reason', $this->reason, true);
+        return new \VaultSdk\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \VaultSdk\Runtime\Describe::debug(['message' => $this->messageValue, 'reason' => \VaultSdk\Runtime\Describe::redact($this->reason), 'metadata' => $this->metadata]);
+    }
+    public function describe(): string
+    {
+        return \VaultSdk\Runtime\Describe::format('AccessDenied', $this->__debugInfo());
+    }
+}
+
+=== src/Credential.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/**
+ * A way to prove identity.
+ */
+abstract class Credential implements \VaultSdk\Runtime\WireModel
+{
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        if (count($object->members) !== 1) throw new \UnexpectedValueException('Union requires one member');
+        $key = (string)array_key_first($object->members);
+        $value = $object->get($key);
+        return match ($key) {
+            'password' => new CredentialPassword($value === null ? null : $context->codec->decode($value, $context->member($key))),
+            'username' => new CredentialUsername($value === null ? null : $context->codec->decode($value, $context->member($key))),
+            'pin' => new CredentialPin($value === null ? null : $context->codec->decode($value, $context->member($key))),
+            default => new CredentialUnknownVariant($key, new \VaultSdk\Runtime\JsonValue($value)),
+        };
+    }
+}
+
+=== src/CredentialPassword.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/**
+ * A password.
+ */
+final class CredentialPassword extends Credential
+{
+    /** @param string|null $value the member's value; null when the union carries an explicit null */
+    public function __construct(public readonly ?string $value) {}
+    public function __debugInfo(): array { return \VaultSdk\Runtime\Describe::debug(['password' => \VaultSdk\Runtime\Describe::redact($this->value)]); }
+    public function __toString(): string { return \VaultSdk\Runtime\Describe::format('Credential', $this->__debugInfo()); }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        return new \VaultSdk\Runtime\JsonObject(['password' => $this->value === null ? null : $context->codec->encode($this->value, $context->member('password'))]);
+    }
+}
+
+=== src/CredentialPin.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class CredentialPin extends Credential
+{
+    /** @param string|null $value the member's value; null when the union carries an explicit null */
+    public function __construct(public readonly ?string $value) {}
+    public function __debugInfo(): array { return \VaultSdk\Runtime\Describe::debug(['pin' => \VaultSdk\Runtime\Describe::redact($this->value)]); }
+    public function __toString(): string { return \VaultSdk\Runtime\Describe::format('Credential', $this->__debugInfo()); }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        return new \VaultSdk\Runtime\JsonObject(['pin' => $this->value === null ? null : $context->codec->encode($this->value, $context->member('pin'))]);
+    }
+}
+
+=== src/CredentialUnknownVariant.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/** A member this client does not know, kept so it can be sent back unchanged. */
+final class CredentialUnknownVariant extends Credential
+{
+    /** @param string $name the member name received @param \VaultSdk\Runtime\JsonValue $value the raw value received */
+    public function __construct(public readonly string $name, public readonly \VaultSdk\Runtime\JsonValue $value) {}
+    /** Omits the value: nothing says whether it is sensitive. */
+    public function __debugInfo(): array { return ['unknownVariant' => $this->name]; }
+    public function __toString(): string { return \VaultSdk\Runtime\Describe::format('Credential', $this->__debugInfo()); }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        if (\VaultSdk\Runtime\WireCodec::object($context->shape()->get('members'))->has($this->name)) throw new \UnexpectedValueException('Unknown variant name is declared');
+        return new \VaultSdk\Runtime\JsonObject([$this->name => $this->value->value()]);
+    }
+}
+
+=== src/CredentialUsername.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class CredentialUsername extends Credential
+{
+    /** @param string|null $value the member's value; null when the union carries an explicit null */
+    public function __construct(public readonly ?string $value) {}
+    public function __debugInfo(): array { return \VaultSdk\Runtime\Describe::debug(['username' => $this->value]); }
+    public function __toString(): string { return \VaultSdk\Runtime\Describe::format('Credential', $this->__debugInfo()); }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        return new \VaultSdk\Runtime\JsonObject(['username' => $this->value === null ? null : $context->codec->encode($this->value, $context->member('username'))]);
+    }
+}
+
+=== src/Decoder.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class Decoder
+{
+    public static function model(string $target, mixed $value, \VaultSdk\Runtime\WireContext $context): mixed
+    {
+        return match ($target) {
+            'example.vault#AccessDenied' => AccessDenied::fromWire($value, $context),
+            'example.vault#Credential' => Credential::fromWire($value, $context),
+            'example.vault#GetSecretInput' => GetSecretInput::fromWire($value, $context),
+            'example.vault#GetSecretOutput' => GetSecretOutput::fromWire($value, $context),
+            'example.vault#Kind' => new Kind(\VaultSdk\Runtime\WireCodec::string($value)),
+            'example.vault#Level' => new Level($value instanceof \VaultSdk\Runtime\JsonNumber ? $value->integer(-2147483648, 2147483647) : throw new \UnexpectedValueException('Expected integer enum')),
+            'example.vault#ListSecretsInput' => ListSecretsInput::fromWire($value, $context),
+            'example.vault#ListSecretsOutput' => ListSecretsOutput::fromWire($value, $context),
+            'example.vault#PutSecretInput' => PutSecretInput::fromWire($value, $context),
+            'example.vault#PutSecretOutput' => PutSecretOutput::fromWire($value, $context),
+            'example.vault#Secret' => Secret::fromWire($value, $context),
+            default => throw new \UnexpectedValueException('Unknown model: ' . $target),
+        };
+    }
+    public static function error(string $target, mixed $value, \VaultSdk\Runtime\WireContext $context, \VaultSdk\Runtime\ErrorMetadata $metadata): \VaultSdk\Runtime\ServiceError
+    {
+        return match ($target) {
+            'example.vault#AccessDenied' => AccessDenied::fromWire($value, $context, $metadata),
+            default => new \VaultSdk\Runtime\UnknownServiceError($metadata),
+        };
+    }
+}
+
+=== src/GetSecretInput.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class GetSecretInput implements \VaultSdk\Runtime\WireModel
+{
+    /**
+     * @param string|null|\VaultSdk\Runtime\Absent $name
+     */
+    public function __construct(
+        public readonly string|null|\VaultSdk\Runtime\Absent $name = \VaultSdk\Runtime\Absent::Value,
+    ) {}
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        return new self(
+            name: $context->optional('name', $object),
+        );
+    }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'name', $this->name, true);
+        return new \VaultSdk\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \VaultSdk\Runtime\Describe::debug(['name' => $this->name]);
+    }
+    public function describe(): string
+    {
+        return \VaultSdk\Runtime\Describe::format('GetSecretInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
+}
+
+=== src/GetSecretOutput.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class GetSecretOutput implements \VaultSdk\Runtime\WireModel
+{
+    /**
+     * @param \VaultSdk\Secret $secret
+     */
+    public function __construct(
+        public readonly \VaultSdk\Secret $secret,
+    ) {}
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        return new self(
+            secret: $context->read('secret', $object),
+        );
+    }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'secret', $this->secret, false);
+        return new \VaultSdk\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \VaultSdk\Runtime\Describe::debug(['secret' => $this->secret]);
+    }
+    public function describe(): string
+    {
+        return \VaultSdk\Runtime\Describe::format('GetSecretOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
+}
+
+=== src/Kind.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/**
+ * What a secret unlocks.
+ */
+final readonly class Kind implements \VaultSdk\Runtime\WireModel
+{
+    public function __construct(public string $value) {}
+    /**
+     * A website login.
+     */
+    public const LOGIN = 'login';
+    public const API_KEY = 'api-key';
+    public function toWire(\VaultSdk\Runtime\WireContext $context): string { return $this->value; }
+    public function __toString(): string { return 'Kind(' . $this->value . ')'; }
+}
+
+=== src/Level.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/**
+ * How sensitive a secret is.
+ */
+final readonly class Level implements \VaultSdk\Runtime\WireModel
+{
+    public function __construct(public int $value) { if ($value < -2147483648 || $value > 2147483647) throw new \UnexpectedValueException('Integer enum overflow'); }
+    /**
+     * Rarely rotated.
+     */
+    public const LOW = 1;
+    public const HIGH = 2;
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonNumber { return new \VaultSdk\Runtime\JsonNumber((string)$this->value); }
+    public function __toString(): string { return 'Level(' . $this->value . ')'; }
+}
+
+=== src/ListSecretsInput.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class ListSecretsInput implements \VaultSdk\Runtime\WireModel
+{
+    /**
+     * @param string|null|\VaultSdk\Runtime\Absent $nextToken
+     * @param int|null|\VaultSdk\Runtime\Absent $maxResults
+     */
+    public function __construct(
+        public readonly string|null|\VaultSdk\Runtime\Absent $nextToken = \VaultSdk\Runtime\Absent::Value,
+        public readonly int|null|\VaultSdk\Runtime\Absent $maxResults = \VaultSdk\Runtime\Absent::Value,
+    ) {}
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        return new self(
+            nextToken: $context->optional('nextToken', $object),
+            maxResults: $context->optional('maxResults', $object),
+        );
+    }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'nextToken', $this->nextToken, true);
+        $context->put($object, 'maxResults', $this->maxResults, true);
+        return new \VaultSdk\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \VaultSdk\Runtime\Describe::debug(['nextToken' => $this->nextToken, 'maxResults' => $this->maxResults]);
+    }
+    public function describe(): string
+    {
+        return \VaultSdk\Runtime\Describe::format('ListSecretsInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
+}
+
+=== src/ListSecretsOutput.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class ListSecretsOutput implements \VaultSdk\Runtime\WireModel
+{
+    /**
+     * @param string|null|\VaultSdk\Runtime\Absent $nextToken
+     * @param list<\VaultSdk\Secret>|null|\VaultSdk\Runtime\Absent $secrets
+     */
+    public function __construct(
+        public readonly string|null|\VaultSdk\Runtime\Absent $nextToken = \VaultSdk\Runtime\Absent::Value,
+        public readonly array|null|\VaultSdk\Runtime\Absent $secrets = \VaultSdk\Runtime\Absent::Value,
+    ) {}
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        return new self(
+            nextToken: $context->optional('nextToken', $object),
+            secrets: $context->optional('secrets', $object),
+        );
+    }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'nextToken', $this->nextToken, true);
+        $context->put($object, 'secrets', $this->secrets, true);
+        return new \VaultSdk\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \VaultSdk\Runtime\Describe::debug(['nextToken' => $this->nextToken, 'secrets' => $this->secrets]);
+    }
+    public function describe(): string
+    {
+        return \VaultSdk\Runtime\Describe::format('ListSecretsOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
+}
+
+=== src/PutSecretInput.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class PutSecretInput implements \VaultSdk\Runtime\WireModel
+{
+    /**
+     * @param \VaultSdk\Secret|null|\VaultSdk\Runtime\Absent $secret
+     * @param string|null|\VaultSdk\Runtime\Absent $clientToken
+     */
+    public function __construct(
+        public readonly \VaultSdk\Secret|null|\VaultSdk\Runtime\Absent $secret = \VaultSdk\Runtime\Absent::Value,
+        public readonly string|null|\VaultSdk\Runtime\Absent $clientToken = \VaultSdk\Runtime\Absent::Value,
+    ) {}
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        return new self(
+            secret: $context->optional('secret', $object),
+            clientToken: $context->optional('clientToken', $object),
+        );
+    }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'secret', $this->secret, true);
+        $context->put($object, 'clientToken', $this->clientToken, true);
+        return new \VaultSdk\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \VaultSdk\Runtime\Describe::debug(['secret' => $this->secret, 'clientToken' => $this->clientToken]);
+    }
+    public function describe(): string
+    {
+        return \VaultSdk\Runtime\Describe::format('PutSecretInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
+}
+
+=== src/PutSecretOutput.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class PutSecretOutput implements \VaultSdk\Runtime\WireModel
+{
+    /**
+     * @param int|null|\VaultSdk\Runtime\Absent $revision
+     */
+    public function __construct(
+        public readonly int|null|\VaultSdk\Runtime\Absent $revision = \VaultSdk\Runtime\Absent::Value,
+    ) {}
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        return new self(
+            revision: $context->optional('revision', $object),
+        );
+    }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'revision', $this->revision, true);
+        return new \VaultSdk\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \VaultSdk\Runtime\Describe::debug(['revision' => $this->revision]);
+    }
+    public function describe(): string
+    {
+        return \VaultSdk\Runtime\Describe::format('PutSecretOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
+}
+
+=== src/Schema.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+final class Schema
+{
+    public static function codec(): Runtime\WireCodec
+    {
+        static $codec = null;
+        return $codec ??= new Runtime\WireCodec(Runtime\WireCodec::object(Runtime\ExactJson::decode(file_get_contents(__DIR__ . '/schema.json'))), Decoder::model(...));
+    }
+}
+
+=== src/Secret.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/**
+ * A stored secret.
+ */
+final class Secret implements \VaultSdk\Runtime\WireModel
+{
+    /**
+     * @param string $name The <b>name</b> of the secret.
+     * @param string|null|\VaultSdk\Runtime\Absent $password Never printed.
+     * @param string|null|\VaultSdk\Runtime\Absent $pin
+     * @param list<string>|null|\VaultSdk\Runtime\Absent $history
+     * @param array<string|int, string>|null|\VaultSdk\Runtime\Absent $byName
+     * @param list<string>|null|\VaultSdk\Runtime\Absent $aliases
+     * @param array<string|int, string>|null|\VaultSdk\Runtime\Absent $labels
+     * @param \VaultSdk\Kind|null|\VaultSdk\Runtime\Absent $kind
+     * @param \VaultSdk\Level|null|\VaultSdk\Runtime\Absent $level
+     * @param \VaultSdk\Credential|null|\VaultSdk\Runtime\Absent $credential
+     * @param \VaultSdk\Runtime\Timestamp|null|\VaultSdk\Runtime\Absent $createdAt
+     * @param string|null|\VaultSdk\Runtime\Absent $payload
+     * @param int|null|\VaultSdk\Runtime\Absent $revision
+     */
+    public function __construct(
+        public readonly string $name,
+        public readonly string|null|\VaultSdk\Runtime\Absent $password = \VaultSdk\Runtime\Absent::Value,
+        public readonly string|null|\VaultSdk\Runtime\Absent $pin = \VaultSdk\Runtime\Absent::Value,
+        public readonly array|null|\VaultSdk\Runtime\Absent $history = \VaultSdk\Runtime\Absent::Value,
+        public readonly array|null|\VaultSdk\Runtime\Absent $byName = \VaultSdk\Runtime\Absent::Value,
+        public readonly array|null|\VaultSdk\Runtime\Absent $aliases = \VaultSdk\Runtime\Absent::Value,
+        public readonly array|null|\VaultSdk\Runtime\Absent $labels = \VaultSdk\Runtime\Absent::Value,
+        public readonly \VaultSdk\Kind|null|\VaultSdk\Runtime\Absent $kind = \VaultSdk\Runtime\Absent::Value,
+        public readonly \VaultSdk\Level|null|\VaultSdk\Runtime\Absent $level = \VaultSdk\Runtime\Absent::Value,
+        public readonly \VaultSdk\Credential|null|\VaultSdk\Runtime\Absent $credential = \VaultSdk\Runtime\Absent::Value,
+        public readonly \VaultSdk\Runtime\Timestamp|null|\VaultSdk\Runtime\Absent $createdAt = \VaultSdk\Runtime\Absent::Value,
+        public readonly string|null|\VaultSdk\Runtime\Absent $payload = \VaultSdk\Runtime\Absent::Value,
+        public readonly int|null|\VaultSdk\Runtime\Absent $revision = \VaultSdk\Runtime\Absent::Value,
+    ) {}
+    public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
+    {
+        $object = \VaultSdk\Runtime\WireCodec::object($value);
+        return new self(
+            name: $context->read('name', $object),
+            password: $context->optional('password', $object),
+            pin: $context->optional('pin', $object),
+            history: $context->optional('history', $object),
+            byName: $context->optional('byName', $object),
+            aliases: $context->optional('aliases', $object),
+            labels: $context->optional('labels', $object),
+            kind: $context->optional('kind', $object),
+            level: $context->optional('level', $object),
+            credential: $context->optional('credential', $object),
+            createdAt: $context->optional('createdAt', $object),
+            payload: $context->optional('payload', $object),
+            revision: $context->optional('revision', $object),
+        );
+    }
+    public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
+    {
+        $object = [];
+        $context->put($object, 'name', $this->name, false);
+        $context->put($object, 'password', $this->password, true);
+        $context->put($object, 'pin', $this->pin, true);
+        $context->put($object, 'history', $this->history, true);
+        $context->put($object, 'byName', $this->byName, true);
+        $context->put($object, 'aliases', $this->aliases, true);
+        $context->put($object, 'labels', $this->labels, true);
+        $context->put($object, 'kind', $this->kind, true);
+        $context->put($object, 'level', $this->level, true);
+        $context->put($object, 'credential', $this->credential, true);
+        $context->put($object, 'createdAt', $this->createdAt, true);
+        $context->put($object, 'payload', $this->payload, true);
+        $context->put($object, 'revision', $this->revision, true);
+        return new \VaultSdk\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \VaultSdk\Runtime\Describe::debug(['name' => $this->name, 'password' => \VaultSdk\Runtime\Describe::redact($this->password), 'pin' => \VaultSdk\Runtime\Describe::redact($this->pin), 'history' => \VaultSdk\Runtime\Describe::redact($this->history), 'byName' => \VaultSdk\Runtime\Describe::redact($this->byName), 'aliases' => $this->aliases, 'labels' => $this->labels, 'kind' => $this->kind, 'level' => $this->level, 'credential' => $this->credential, 'createdAt' => $this->createdAt, 'payload' => \VaultSdk\Runtime\Describe::bytes($this->payload), 'revision' => $this->revision]);
+    }
+    public function describe(): string
+    {
+        return \VaultSdk\Runtime\Describe::format('Secret', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
+}
+
+=== src/VaultClient.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/**
+ * Client for the Vault service.
+ *
+ * Stores secrets.
+ *
+ * See [the guide](https://example.com/guide) and \[Secret] for `*\/` details. @since 1
+ *
+ * Create one `VaultClient` per configuration and reuse it: it keeps its HTTP connections open between calls. A client is not safe to share across threads or fibers that run calls at the same time; give each its own. Call `close()` when finished. Every operation blocks until it completes and reports failure as a ServiceException for a service response, a NetworkException when no response arrives, a TimeoutException when the call outlasts `ClientConfig::$timeout`, or a CancelledException.
+ */
+final class VaultClient
+{
+    private readonly Runtime\ClientRuntime $runtime;
+    /**
+     * Creates a client. Without a `$config`, the generated endpoint is used and no credentials are sent; see ClientConfig for credentials, retries, timeouts and the transport.
+     *
+     * @throws \InvalidArgumentException when the endpoint or another setting is invalid
+     */
+    public function __construct(Runtime\ClientConfig $config = new Runtime\ClientConfig())
+    {
+        $this->runtime = new Runtime\ClientRuntime($config, Schema::codec(), Decoder::error(...), '', false);
+    }
+    /** Releases the HTTP transport this client created. A transport passed in the configuration is left open. */
+    public function close(): void { $this->runtime->close(); }
+    /**
+     * Reads one secret.
+     *
+     * Read-only: retried automatically after transient failures.
+     *
+     * @param \VaultSdk\GetSecretInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \VaultSdk\GetSecretOutput the service's response
+     * @throws \VaultSdk\AccessDenied
+     * @throws \VaultSdk\VaultException for any other error response
+     */
+    public function getSecret(\VaultSdk\GetSecretInput $input, ?Runtime\CancellationToken $cancellation = null): \VaultSdk\GetSecretOutput
+    {
+        return $this->runtime->call('GetSecret', $input, $cancellation);
+    }
+    /**
+     * Lists secrets.
+     *
+     * Read-only: retried automatically after transient failures.
+     *
+     * This operation is paginated: use the `Pages` variant to read every page.
+     *
+     * @param \VaultSdk\ListSecretsInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \VaultSdk\ListSecretsOutput the service's response
+     * @throws \VaultSdk\AccessDenied
+     * @throws \VaultSdk\VaultException for any other error response
+     */
+    public function listSecrets(\VaultSdk\ListSecretsInput $input, ?Runtime\CancellationToken $cancellation = null): \VaultSdk\ListSecretsOutput
+    {
+        return $this->runtime->call('ListSecrets', $input, $cancellation);
+    }
+    /**
+     * Every page of `listSecrets()`, following the pagination token until the service stops returning one. The generator makes one call per page, so each can fail.
+     *
+     * @return \Generator<int, \VaultSdk\ListSecretsOutput> the output of each page
+     */
+    public function listSecretsPages(\VaultSdk\ListSecretsInput $input, ?Runtime\CancellationToken $cancellation = null): \Generator
+    {
+        return $this->runtime->pages('ListSecrets', $input, $cancellation);
+    }
+    /**
+     * Stores a secret.
+     *
+     * Idempotent: retried automatically after transient failures.
+     *
+     * `clientToken` is filled with a fresh token when omitted, so retries do not repeat the effect.
+     *
+     * @param \VaultSdk\PutSecretInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \VaultSdk\PutSecretOutput the service's response
+     * @throws \VaultSdk\AccessDenied
+     * @throws \VaultSdk\VaultException for any other error response
+     */
+    public function putSecret(\VaultSdk\PutSecretInput $input, ?Runtime\CancellationToken $cancellation = null): \VaultSdk\PutSecretOutput
+    {
+        return $this->runtime->call('PutSecret', $input, $cancellation);
+    }
+}
+
+=== src/VaultException.php ===
+<?php
+declare(strict_types=1);
+namespace VaultSdk;
+
+/** The base of every error this service returns, modeled or not. */
+class VaultException extends Runtime\ServiceError {}
+

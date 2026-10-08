@@ -8,18 +8,77 @@ import 'runtime/json.dart';
 import 'runtime/cancellation.dart';
 import 'runtime/client_runtime.dart';
 
+/// Client for the Weather service.
+///
+/// Create one `WeatherClient`, share it, and call [close] when finished. It holds no per-call state, so many calls may be in flight at once within an isolate; do not send it to another isolate. Each operation returns a `Future` and reports failure as a [WeatherException] for service responses, a [NetworkException] when no response arrives, or a [CancelledException]. A call that outlasts `ClientConfig.timeout` fails with a `TimeoutException`.
 final class WeatherClient {
   final ClientRuntime _runtime;
+  /// Creates a client. Without a [config], the generated endpoint is used and no credentials are sent; see [ClientConfig] for credentials, retries, timeouts and the transport. Throws an `ArgumentError` for an invalid endpoint.
   WeatherClient([ClientConfig? config]) : _runtime = ClientRuntime(config ?? ClientConfig(),
     WireCodec(wireObject(exactJsonDecode(schemaSource)), models.decodeModel), models.decodeError, () => const models.Unit(),
     endpoint: "https://weather.example", digest: true);
+  /// Releases the HTTP client this client created. A transport passed in the
+  /// configuration is left open. Calls made after closing throw a `StateError`.
   void close() => _runtime.close();
+  /// Idempotent: retried automatically after transient failures.
+  ///
+  /// `clientToken` is filled with a fresh token when omitted, so retries do not repeat the effect.
+  ///
+  /// Throws:
+  ///
+  /// - [models.ConflictError]
+  /// - [models.ThrottlingError]
+  /// - [models.ValidationError]
   Future<models.CreateCityOutput> createCity(models.CreateCityInput input, {CancellationToken? cancellation}) => _runtime.call("CreateCity", input, cancellation: cancellation);
+  /// Read-only: retried automatically after transient failures.
+  ///
+  /// Throws:
+  ///
+  /// - [models.NotFoundError]
+  /// - [models.ThrottlingError]
+  /// - [models.ValidationError]
   Future<models.GetCityOutput> getCity(models.GetCityInput input, {CancellationToken? cancellation}) => _runtime.call("GetCity", input, cancellation: cancellation);
+  /// Read-only: retried automatically after transient failures.
+  ///
+  /// Throws:
+  ///
+  /// - [models.NotFoundError]
+  /// - [models.ThrottlingError]
+  /// - [models.ValidationError]
   Future<models.GetCityPhotoOutput> getCityPhoto(models.GetCityPhotoInput input, {CancellationToken? cancellation}) => _runtime.call("GetCityPhoto", input, cancellation: cancellation);
+  /// Read-only: retried automatically after transient failures.
+  ///
+  /// This operation is paginated: see the `Pages` variant to read every page.
+  ///
+  /// Throws:
+  ///
+  /// - [models.ThrottlingError]
+  /// - [models.ValidationError]
   Future<models.ListCitiesOutput> listCities(models.ListCitiesInput input, {CancellationToken? cancellation}) => _runtime.call("ListCities", input, cancellation: cancellation);
+  /// Streams every page of [listCities], following the pagination token until the service stops returning one. Each page is a separate call, so each can fail; cancel through [cancellation].
   Stream<models.ListCitiesOutput> listCitiesPages(models.ListCitiesInput input, {CancellationToken? cancellation}) => _runtime.pages("ListCities", input, cancellation: cancellation);
+  /// Read-only: retried automatically after transient failures.
+  ///
+  /// Throws:
+  ///
+  /// - [models.ThrottlingError]
+  /// - [models.ValidationError]
   Future<models.Unit> ping({CancellationToken? cancellation}) => _runtime.call("Ping", const models.Unit(), cancellation: cancellation);
+  /// Stores a city's photo exactly as sent.
+  ///
+  /// Idempotent: retried automatically after transient failures.
+  ///
+  /// Throws:
+  ///
+  /// - [models.NotFoundError]
+  /// - [models.ThrottlingError]
+  /// - [models.ValidationError]
   Future<models.PutCityPhotoOutput> putCityPhoto(models.PutCityPhotoInput input, {CancellationToken? cancellation}) => _runtime.call("PutCityPhoto", input, cancellation: cancellation);
+  /// Read-only: retried automatically after transient failures.
+  ///
+  /// Throws:
+  ///
+  /// - [models.ThrottlingError]
+  /// - [models.ValidationError]
   Future<models.StatusOutput> status(models.StatusInput input, {CancellationToken? cancellation}) => _runtime.call("Status", input, cancellation: cancellation);
 }

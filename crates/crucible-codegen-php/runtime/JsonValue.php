@@ -9,5 +9,7 @@ final readonly class JsonValue
     public function __construct(mixed $value) { $this->source = ExactJson::encode($value); }
     public static function parse(string $source): self { return new self(ExactJson::decode($source)); }
     public function value(): mixed { return ExactJson::decode($this->source); }
+    /** The document as JSON text. */
     public function toJson(): string { return $this->source; }
+    public function __toString(): string { return $this->source; }
 }

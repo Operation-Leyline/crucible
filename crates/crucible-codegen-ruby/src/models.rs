@@ -2,7 +2,82 @@ use crate::{
     File, Options,
     names::{field, literal},
 };
-use crucible_smithy::ir::{Service, Shape};
+use crucible_codegen_common::docs;
+use crucible_smithy::{
+    ShapeId,
+    ir::{Member, Service, Shape, SimpleKind},
+};
+
+/// A YARD comment for model text; empty when the model has none.
+fn yard(text: Option<&str>, indent: &str) -> String {
+    text.map(|text| docs::line_comment(indent, "#", &docs::escape(text)))
+        .unwrap_or_default()
+}
+
+/// The YARD spelling of a member's Ruby type.
+fn yard_type(service: &Service, id: &ShapeId) -> String {
+    match service.shape(id) {
+        Some(Shape::Simple(s)) => match s.kind {
+            SimpleKind::Boolean => "Boolean".into(),
+            SimpleKind::String => "String".into(),
+            SimpleKind::Blob if s.streaming => "Runtime::ByteStream".into(),
+            SimpleKind::Blob => "String".into(),
+            SimpleKind::Byte
+            | SimpleKind::Short
+            | SimpleKind::Integer
+            | SimpleKind::Long
+            | SimpleKind::BigInteger => "Integer".into(),
+            SimpleKind::Float | SimpleKind::Double => "Float".into(),
+            SimpleKind::BigDecimal => "BigDecimal".into(),
+            SimpleKind::Timestamp => "Runtime::Timestamp".into(),
+            SimpleKind::Document => "Runtime::JsonValue".into(),
+        },
+        Some(Shape::List(list)) => format!("Array<{}>", yard_type(service, &list.member.target)),
+        Some(Shape::Map(map)) => format!(
+            "Hash{{String => {}}}",
+            yard_type(service, &map.value.target)
+        ),
+        Some(Shape::Unit { .. }) | None => "Runtime::Unit".into(),
+        Some(_) => service.name_of(id).to_string(),
+    }
+}
+
+/// `inspect` and, outside errors, `to_s`: thin, with formatting and the
+/// redaction marker living in `runtime/describe.rb`. Exceptions keep their
+/// message as `to_s`.
+fn inspect(
+    service: &Service,
+    name: &str,
+    members: &[Member],
+    sensitive: bool,
+    error: bool,
+) -> String {
+    let mut entries: Vec<String> = members
+        .iter()
+        .map(|member| {
+            let field = field(&member.name);
+            if docs::is_redacted(service, sensitive, member) {
+                format!("{field}: Runtime::Describe.redact(@{field})")
+            } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == SimpleKind::Blob && !s.streaming) {
+                format!("{field}: Runtime::Describe.bytes(@{field})")
+            } else {
+                format!("{field}: @{field}")
+            }
+        })
+        .collect();
+    if error {
+        entries.push("metadata: @metadata".into());
+    }
+    let mut out = format!(
+        "      # @return [String] `{name}(member=value, ...)` with sensitive members redacted and unset ones omitted\n      def inspect = Runtime::Describe.format({}, {{{}}})\n",
+        literal(name),
+        entries.join(", ")
+    );
+    if !error {
+        out.push_str("      alias to_s inspect\n");
+    }
+    out
+}
 
 pub fn variant(name: &str) -> String {
     let mut chars = name.chars();
@@ -41,8 +116,20 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 } else {
                     String::new()
                 };
+                out.push_str(&yard(structure.docs.as_deref(), "    "));
                 out.push_str(&format!("    class {name}{parent}\n"));
                 for member in &structure.members {
+                    let mut text = member.docs.as_deref().map(docs::escape).unwrap_or_default();
+                    if !text.is_empty() {
+                        text.push_str("\n\n");
+                    }
+                    let kind = yard_type(service, &member.target);
+                    if member.optional_on_client() {
+                        text.push_str(&format!("@return [{kind}, nil] nil when sent as null; {{Runtime::UNSET}} when omitted"));
+                    } else {
+                        text.push_str(&format!("@return [{kind}]"));
+                    }
+                    out.push_str(&docs::line_comment("      ", "#", &text));
                     out.push_str(&format!("      attr_reader :{}\n", field(&member.name)));
                 }
                 let mut args: Vec<_> = structure
@@ -63,6 +150,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 if error {
                     args.push(format!("metadata: {runtime}::ErrorMetadata.new"));
                 }
+                out.push_str("      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.\n");
                 out.push_str(&format!("      def initialize({})\n", args.join(", ")));
                 if error {
                     out.push_str("        super(metadata)\n");
@@ -99,31 +187,50 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                         m.optional_on_client()
                     ));
                 }
-                out.push_str("        object\n      end\n    end\n");
+                out.push_str("        object\n      end\n");
+                out.push_str(&inspect(
+                    service,
+                    name,
+                    &structure.members,
+                    structure.sensitive(),
+                    error,
+                ));
+                out.push_str("    end\n");
             }
             Shape::IntEnum(enumeration) => {
-                out.push_str(&format!("    class {name}\n      attr_reader :value\n      def initialize(value)\n        raise ::ArgumentError, 'Expected signed 32-bit integer' unless value.is_a?(::Integer) && (-(2**31)...2**31).cover?(value)\n        @value = value\n        freeze\n      end\n      def self.from_wire(value, context) = new(context.codec.number(value).integer(-(2**31), 2**31 - 1))\n      def to_wire(_context) = @value\n      def ==(other) = other.is_a?(self.class) && @value == other.value\n      alias eql? ==\n      def hash = @value.hash\n"));
+                out.push_str(&yard(enumeration.docs.as_deref(), "    "));
+                out.push_str(&format!("    class {name}\n      # @return [Integer] the integer sent on the wire\n      attr_reader :value\n      def initialize(value)\n        raise ::ArgumentError, 'Expected signed 32-bit integer' unless value.is_a?(::Integer) && (-(2**31)...2**31).cover?(value)\n        @value = value\n        freeze\n      end\n      def self.from_wire(value, context) = new(context.codec.number(value).integer(-(2**31), 2**31 - 1))\n      def to_wire(_context) = @value\n      def ==(other) = other.is_a?(self.class) && @value == other.value\n      alias eql? ==\n      def hash = @value.hash\n"));
                 for value in &enumeration.values {
+                    out.push_str(&yard(value.docs.as_deref(), "      "));
                     out.push_str(&format!(
                         "      {} = new({})\n",
                         enum_constant(&value.name),
                         value.value
                     ));
                 }
+                out.push_str(&format!(
+                    "      def inspect = '{name}(' + @value.to_s + ')'\n      alias to_s inspect\n"
+                ));
                 out.push_str("    end\n");
             }
             Shape::Enum(enumeration) => {
-                out.push_str(&format!("    class {name}\n      attr_reader :value\n      def initialize(value)\n        @value = {runtime}::WireCodec.string(value).freeze\n        freeze\n      end\n      def self.from_wire(value, _context) = new(value)\n      def to_wire(_context) = @value\n      def ==(other) = other.is_a?(self.class) && @value == other.value\n      alias eql? ==\n      def hash = @value.hash\n"));
+                out.push_str(&yard(enumeration.docs.as_deref(), "    "));
+                out.push_str(&format!("    class {name}\n      # @return [String] the string sent on the wire; a value this client does not list is kept as is\n      attr_reader :value\n      def initialize(value)\n        @value = {runtime}::WireCodec.string(value).freeze\n        freeze\n      end\n      def self.from_wire(value, _context) = new(value)\n      def to_wire(_context) = @value\n      def ==(other) = other.is_a?(self.class) && @value == other.value\n      alias eql? ==\n      def hash = @value.hash\n"));
                 for value in &enumeration.values {
+                    out.push_str(&yard(value.docs.as_deref(), "      "));
                     out.push_str(&format!(
                         "      {} = new({})\n",
                         enum_constant(&value.name),
                         literal(&value.value)
                     ));
                 }
+                out.push_str(&format!(
+                    "      def inspect = '{name}(' + @value + ')'\n      alias to_s inspect\n"
+                ));
                 out.push_str("    end\n");
             }
             Shape::Union(union) => {
+                out.push_str(&yard(union.docs.as_deref(), "    "));
                 out.push_str(&format!("    class {name}\n      def self.from_wire(value, context)\n        object = {runtime}::WireCodec.object(value)\n        raise ::ArgumentError, 'Union requires one member' unless object.size == 1\n        key, value = object.first\n        case key\n"));
                 for m in &union.members {
                     out.push_str(&format!("        when {} then {}.new(value.nil? ? nil : context.codec.decode(value, context.member(key)))\n",literal(&m.name),variant(&m.name)));
@@ -131,9 +238,16 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 out.push_str(&format!("        else Unknown.new(key, {runtime}::JsonValue.new(value))\n        end\n      end\n"));
                 for m in &union.members {
                     let wire = literal(&m.name);
-                    out.push_str(&format!("      class {} < {name}\n        attr_reader :value\n        def initialize(value)\n          @value = value\n          freeze\n        end\n        def to_wire(context)\n          {{{wire} => @value.nil? ? nil : context.codec.encode(@value, context.member({wire}))}}\n        end\n      end\n",variant(&m.name)));
+                    out.push_str(&yard(m.docs.as_deref(), "      "));
+                    let shown = if docs::is_redacted(service, union.sensitive(), m) {
+                        "Runtime::Describe.redact(@value)"
+                    } else {
+                        "@value"
+                    };
+                    out.push_str(&format!("      class {} < {name}\n        # @return [{}, nil] the member's value; nil when the union carries an explicit null\n        attr_reader :value\n        def initialize(value)\n          @value = value\n          freeze\n        end\n        def to_wire(context)\n          {{{wire} => @value.nil? ? nil : context.codec.encode(@value, context.member({wire}))}}\n        end\n        def inspect = Runtime::Describe.format({}, {{{}: {shown}}})\n        alias to_s inspect\n      end\n",variant(&m.name), yard_type(service, &m.target), literal(name), field(&m.name)));
                 }
-                out.push_str(&format!("      class Unknown < {name}\n        attr_reader :name, :value\n        def initialize(name, value)\n          @name = {runtime}::WireCodec.string(name).freeze\n          raise ::ArgumentError, 'Expected JsonValue' unless value.is_a?({runtime}::JsonValue)\n          @value = value\n          freeze\n        end\n        def to_wire(context)\n          raise ::ArgumentError, 'Unknown variant name is declared' if context.shape.fetch('members').key?(@name)\n          {{@name => @value.value}}\n        end\n      end\n    end\n"));
+                let type_literal = literal(name);
+                out.push_str(&format!("      # A member this client does not know, kept so it can be sent back unchanged.\n      class Unknown < {name}\n        # @return [String] the member name received\n        attr_reader :name\n        # @return [Runtime::JsonValue] the raw value received\n        attr_reader :value\n        # Omits the value: nothing says whether it is sensitive.\n        def inspect = Runtime::Describe.format({type_literal}, {{unknown_variant: @name}})\n        alias to_s inspect\n        def initialize(name, value)\n          @name = {runtime}::WireCodec.string(name).freeze\n          raise ::ArgumentError, 'Expected JsonValue' unless value.is_a?({runtime}::JsonValue)\n          @value = value\n          freeze\n        end\n        def to_wire(context)\n          raise ::ArgumentError, 'Unknown variant name is declared' if context.shape.fetch('members').key?(@name)\n          {{@name => @value.value}}\n        end\n      end\n    end\n"));
             }
             _ => continue,
         }
