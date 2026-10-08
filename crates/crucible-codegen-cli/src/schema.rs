@@ -117,6 +117,8 @@ fn describe(service: &Service, shape: &Shape) -> Value {
 fn describe_member(service: &Service, member: &Member) -> Value {
     let mut value = json!({
         "name": member.name,
+        // The SDK's serde keys the member by its wire name, not its model name.
+        "wire_name": member.wire_name,
         "flag": names::kebab(&member.name),
         "target": member.target.to_string(),
         "description": member.docs.as_deref().unwrap_or(""),
@@ -126,10 +128,18 @@ fn describe_member(service: &Service, member: &Member) -> Value {
     });
     if matches!(service.shape(&member.target), Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Timestamp)
     {
-        value["kind"] = json!(match service.timestamp_format(member) {
+        // The SDK field is parsed by the document codec; HTTP bindings only
+        // change how the value is spelled on the command line.
+        let document = service.document_timestamp_format(member);
+        value["kind"] = json!(match document {
             TimestampFormat::EpochSeconds => "number",
             TimestampFormat::DateTime | TimestampFormat::HttpDate => "string",
         });
+        value["timestamp_format"] = json!(document);
+        let bound = service.timestamp_format(member);
+        if bound != document {
+            value["bound_format"] = json!(bound);
+        }
     }
     value
 }
