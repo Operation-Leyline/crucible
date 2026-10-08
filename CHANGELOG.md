@@ -22,6 +22,13 @@ version's section when it is prepared.
   `crucible.describe/1` description contract with shared JSON Schemas. External
   projection also removes internal nested example members and diagnoses examples
   selecting internal union arms or enum values.
+- Generated service CLIs include a local `mcp` stdio server using shared MCP
+  schemas and registry, client audience, profiles, authentication and SDK calls.
+- MCP protected-resource discovery derived from configured access-token issuers,
+  the public MCP URL and model scopes, with path-suffixed RFC 9728 metadata and
+  scope-aware bearer challenges on endpoint and tool refusals. Additive
+  `McpConfig::authorization` and `crucible_auth::McpAuthenticator` require audience
+  binding by default and offer explicit Cognito compatibility for unbound tokens.
 
 - Stability policy for 0.x, this changelog, `docs/migrating.md`, the
   `consumers` CI job (starter, example service and a Leyline-shaped fixture)
