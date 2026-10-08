@@ -340,6 +340,46 @@ impl OperationAwareMiddleware for OperationAuth {
         Hook::Ready(Err(refusal.into()))
     }
 }
+
+struct FrameworkOperationAuth;
+impl OperationAwareMiddleware for FrameworkOperationAuth {
+    fn before<'a>(
+        &'a self,
+        job: &'a mut OperationJob<'_>,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
+        let refusal = if job.context().headers().contains_key("x-forbidden") {
+            crucible_server_runtime_rust::FrameworkError::Forbidden
+        } else {
+            crucible_server_runtime_rust::FrameworkError::Unauthenticated
+        };
+        Hook::Ready(Err(refusal.into()))
+    }
+}
+
+#[tokio::test]
+async fn framework_auth_refusals_keep_http_status_in_mcp() {
+    let service = weather_service::builder(Arc::new(MemoryCities::default()))
+        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .operation_middleware(FrameworkOperationAuth)
+        .build()
+        .unwrap();
+    for (headers, status) in [
+        (vec![], StatusCode::UNAUTHORIZED),
+        (vec![("x-forbidden", "1")], StatusCode::FORBIDDEN),
+    ] {
+        let (actual, _, body) = request(
+            &service,
+            "POST",
+            &rpc("tools/call", json!({"name":"CreateCity","arguments":{}})).to_string(),
+            &headers,
+        )
+        .await;
+        assert_eq!(actual, status);
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert!(body.get("jsonrpc").is_none(), "{body}");
+    }
+}
+
 #[tokio::test]
 async fn endpoint_and_operation_auth_remain_http_refusals() {
     let guarded = service(McpProtocol::new(weather::MCP_TOOLS).endpoint_guard(

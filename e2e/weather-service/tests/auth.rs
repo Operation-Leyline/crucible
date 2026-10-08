@@ -26,6 +26,84 @@ use std::{
 include!(concat!(env!("OUT_DIR"), "/auth_chain.rs"));
 use auth_weather::{BearerOnly, Identity, KeyOnly, Optional, Protected, Public};
 
+#[tokio::test]
+async fn mcp_authenticator_chain_preserves_http_refusals_and_principals() {
+    use crucible_server_runtime_rust::mcp::McpProtocol;
+
+    for modeled in [false, true] {
+        let chain = AuthenticatorChain::new(vec![id_auth(), Arc::new(ApiKey)]);
+        let chain = if modeled {
+            chain.refusal_factory(|_| {
+                auth_weather::AccessDeniedException {
+                    message: "access denied".into(),
+                }
+                .into()
+            })
+        } else {
+            chain
+        };
+        let service = Crucible::builder(operations())
+            .defaults()
+            .mcp(McpProtocol::new(auth_weather::MCP_TOOLS))
+            .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
+            .operation_middleware(chain)
+            .interceptor(ObservePrincipal)
+            .build()
+            .unwrap();
+        let token = format!(
+            "Bearer {}",
+            issuer()
+                .mint(&issuer().id_claims("person", "client"))
+                .unwrap()
+        );
+        for (credential, expected, challenge) in [
+            (None, StatusCode::UNAUTHORIZED, Some("Bearer")),
+            (
+                Some("Bearer garbage"),
+                StatusCode::UNAUTHORIZED,
+                Some("Bearer error=\"invalid_token\""),
+            ),
+            (Some(token.as_str()), StatusCode::OK, None),
+        ] {
+            let mut request = Request::post("/mcp").header("content-type", "application/json");
+            if let Some(credential) = credential {
+                request = request.header("authorization", credential);
+            }
+            let response = service
+                .handle(
+                    request
+                        .body(Body::from(
+                            json!({
+                                "jsonrpc":"2.0", "id":1, "method":"tools/call",
+                                "params":{"name":"BearerOnly", "arguments":{}}
+                            })
+                            .to_string(),
+                        ))
+                        .unwrap(),
+                )
+                .await;
+            assert_eq!(response.status(), expected, "modeled={modeled}");
+            if let Some(challenge) = challenge {
+                assert_eq!(response.headers()["www-authenticate"], challenge);
+            }
+            let body: Value = serde_json::from_slice(
+                &axum::body::to_bytes(response.into_body(), usize::MAX)
+                    .await
+                    .unwrap(),
+            )
+            .unwrap();
+            if expected == StatusCode::OK {
+                assert_eq!(body["result"]["structuredContent"]["subject"], "person");
+            } else {
+                assert!(body.get("jsonrpc").is_none(), "{body}");
+                if modeled {
+                    assert_eq!(body["__type"], "AccessDeniedException");
+                }
+            }
+        }
+    }
+}
+
 fn issuer() -> &'static TestTokenIssuer {
     static ISSUER: OnceLock<TestTokenIssuer> = OnceLock::new();
     ISSUER.get_or_init(|| TestTokenIssuer::new("https://issuer.example", "rsa-1").unwrap())

@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 
 use super::{EndpointAdmission, EndpointGuard, ToolDescriptor, ToolRegistry};
 use crate::protocol::{Answers, Protocol, ProtocolMatch, Route};
-use crate::{Hook, Job, OperationInfo, Operations, Prepare, Resolution, Result};
+use crate::{FrameworkError, Hook, Job, OperationInfo, Operations, Prepare, Resolution, Result};
 
 const VERSIONS: &[&str] = &["2025-03-26", "2025-06-18", "2025-11-25"];
 
@@ -304,9 +304,25 @@ impl Protocol for McpProtocol {
             Ok(())
         })())
     }
-    fn write(&self, job: &Job, _answers: &Answers<'_>) -> Response {
+    fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
         if !self.owns(job.request()) {
             return StatusCode::NOT_FOUND.into_response();
+        }
+        // Authenticator chains can substitute modeled errors while retaining
+        // the typed refusal on Context. Authentication stays an HTTP refusal,
+        // with the ordinary error body and challenge, rather than a tool error.
+        let refusal = match job.resolution() {
+            Some(Resolution::Framework(error)) => Some(error),
+            Some(Resolution::Modelled(_) | Resolution::Internal(_)) => {
+                job.context().attribute::<FrameworkError>()
+            }
+            _ => None,
+        };
+        if matches!(
+            refusal,
+            Some(FrameworkError::Unauthenticated | FrameworkError::Forbidden)
+        ) {
+            return crate::protocol::JsonProtocol.write(job, answers);
         }
         let Some(call) = job.context().attribute::<Call>() else {
             return rpc_error(Value::Null, -32603, "Internal error");

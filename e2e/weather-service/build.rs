@@ -5,6 +5,7 @@ fn main() {
     std::fs::write(
         auth_out.join("auth_chain.rs"),
         crucible_build::RustCodegen::from_model(auth)
+            .mcp()
             .render()
             .unwrap(),
     )
