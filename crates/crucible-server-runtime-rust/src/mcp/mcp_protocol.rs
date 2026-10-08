@@ -231,13 +231,8 @@ impl Protocol for McpProtocol {
                 job.respond(StatusCode::FORBIDDEN.into_response());
                 return Ok(());
             }
-            if let Some(guard) = &self.guard
-                && let EndpointAdmission::Respond(response) =
-                    guard.admit(job.request()).resolve().await
-            {
-                job.respond(response);
-                return Ok(());
-            }
+            // Browsers send preflights without credentials; only CORS-approved
+            // preflights may bypass endpoint authentication.
             if job.request().method == "OPTIONS"
                 && let Some(cors) = &self.cors
             {
@@ -245,6 +240,13 @@ impl Protocol for McpProtocol {
                 if job.outcome().is_some() {
                     return Ok(());
                 }
+            }
+            if let Some(guard) = &self.guard
+                && let EndpointAdmission::Respond(response) =
+                    guard.admit(job.request()).resolve().await
+            {
+                job.respond(response);
+                return Ok(());
             }
             if job.request().method != "POST" {
                 job.respond(

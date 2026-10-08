@@ -149,6 +149,87 @@ async fn mcp_uses_external_projection_and_hides_internal_operations_and_members(
 }
 
 #[tokio::test]
+async fn guarded_mcp_preflight_obeys_origin_and_cors_policy_without_credentials() {
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+    use crucible_server_runtime_rust::mcp::{EndpointAdmission, McpProtocol};
+
+    let service = Crucible::builder(api::operations(Arc::new(Handlers)))
+        .on_rejection(|rejection| {
+            Box::new(api::PublicFault {
+                message: Some(rejection.summary()),
+            })
+        })
+        .mcp(
+            McpProtocol::new(api::MCP_TOOLS)
+                .allowed_origins(["https://example.com"])
+                .endpoint_guard(|parts: &axum::http::request::Parts| {
+                    if parts.headers.contains_key("authorization") {
+                        EndpointAdmission::Admit
+                    } else {
+                        EndpointAdmission::Respond(StatusCode::UNAUTHORIZED.into_response())
+                    }
+                }),
+        )
+        .protocol(JsonProtocol)
+        .build()
+        .unwrap();
+
+    for (origin, requested_method, expected) in [
+        ("https://example.com", "POST", StatusCode::NO_CONTENT),
+        ("https://evil.example", "POST", StatusCode::FORBIDDEN),
+        ("https://example.com", "PATCH", StatusCode::UNAUTHORIZED),
+    ] {
+        let request = Request::builder()
+            .method("OPTIONS")
+            .uri("/mcp")
+            .header("origin", origin)
+            .header("access-control-request-method", requested_method)
+            .header(
+                "access-control-request-headers",
+                "content-type,mcp-protocol-version",
+            )
+            .body(Body::empty())
+            .unwrap();
+        let response = service.handle(request).await;
+        assert_eq!(response.status(), expected, "{origin}: {requested_method}");
+        if expected == StatusCode::NO_CONTENT {
+            assert_eq!(response.headers()["access-control-allow-origin"], "*");
+            let allowed = response.headers()["access-control-allow-headers"]
+                .to_str()
+                .unwrap();
+            for name in ["content-type", "mcp-protocol-version"] {
+                assert!(
+                    allowed
+                        .split(',')
+                        .map(str::trim)
+                        .any(|header| header == name)
+                );
+            }
+        }
+    }
+    for method in ["GET", "POST", "OPTIONS"] {
+        let request = Request::builder()
+            .method(method)
+            .uri("/mcp")
+            .header("origin", "https://example.com")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            service.handle(request).await.status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    let request = Request::post("/mcp")
+        .header("origin", "https://example.com")
+        .header("authorization", "Bearer good")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"jsonrpc":"2.0","id":1,"method":"ping"}"#))
+        .unwrap();
+    assert_eq!(service.handle(request).await.status(), StatusCode::OK);
+}
+
+#[tokio::test]
 async fn middleware_uses_generated_visibility_and_server_retains_every_operation() {
     assert!(api::Secret::INFO.internal);
     assert!(!api::Public::INFO.internal);
