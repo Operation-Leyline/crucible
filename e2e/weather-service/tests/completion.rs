@@ -1,4 +1,6 @@
 //! Completion observes the protocol response; streaming direct invokes fail safely.
+// The fixture deprecates `Ping`; these tests still drive it.
+#![allow(deprecated)]
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},

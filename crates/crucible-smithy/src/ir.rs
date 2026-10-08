@@ -11,6 +11,7 @@ use std::fmt;
 
 pub use crate::cors::Cors;
 pub use crate::discovery::{DiscoveredEndpoint, EndpointDiscovery};
+pub use crate::doc_notes::{Deprecation, DocNotes};
 pub use crate::extensions::*;
 pub use crate::jmespath_ir::{JmesComparator, JmesEntry, JmesExpression, JmesFunction};
 pub use crate::protocol_tests::{
@@ -42,6 +43,8 @@ pub struct Service {
     pub version: String,
     pub title: Option<String>,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     /// Auth schemes the service declares, in declaration order.
     pub auth: Vec<ShapeId>,
     pub auth_schemes: BTreeMap<ShapeId, AuthScheme>,
@@ -78,6 +81,8 @@ pub struct Resource {
     pub bindings: BTreeMap<ShapeId, ResourceOperationBindings>,
     pub traits: Traits,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -208,6 +213,19 @@ impl Shape {
         }
     }
 
+    /// Documentation-only traits; `Unit` carries none.
+    pub fn notes(&self) -> Option<&DocNotes> {
+        match self {
+            Self::Unit { .. } => None,
+            Self::Simple(s) => Some(&s.notes),
+            Self::Enum(s) => Some(&s.notes),
+            Self::IntEnum(s) => Some(&s.notes),
+            Self::List(s) => Some(&s.notes),
+            Self::Map(s) => Some(&s.notes),
+            Self::Structure(s) | Self::Union(s) => Some(&s.notes),
+        }
+    }
+
     pub fn members(&self) -> Vec<&Member> {
         match self {
             Self::Structure(s) | Self::Union(s) => s.members.iter().collect(),
@@ -241,6 +259,8 @@ pub struct Simple {
     pub constraints: Constraints,
     pub timestamp_format: Option<TimestampFormat>,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     pub traits: Traits,
 }
 
@@ -268,6 +288,8 @@ pub struct Enum {
     pub internal: bool,
     pub values: Vec<EnumValue>,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     pub traits: Traits,
 }
 
@@ -280,6 +302,8 @@ pub struct EnumValue {
     /// What goes on the wire.
     pub value: String,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
 }
 
 #[derive(Debug, Clone)]
@@ -288,6 +312,8 @@ pub struct IntEnum {
     pub internal: bool,
     pub values: Vec<IntEnumValue>,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     pub traits: Traits,
 }
 
@@ -298,6 +324,8 @@ pub struct IntEnumValue {
     pub name: String,
     pub value: i32,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
 }
 
 #[derive(Debug, Clone)]
@@ -309,6 +337,8 @@ pub struct List {
     pub member: Member,
     pub constraints: Constraints,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     pub traits: Traits,
 }
 
@@ -321,6 +351,8 @@ pub struct Map {
     pub value: Member,
     pub constraints: Constraints,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     pub traits: Traits,
 }
 
@@ -333,6 +365,8 @@ pub struct Structure {
     /// Present on a shape marked `@error`.
     pub error: Option<ErrorInfo>,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     pub traits: Traits,
 }
 
@@ -371,6 +405,8 @@ pub struct Member {
     /// Nested document encoding uses the document format instead.
     pub wire_timestamp_format: TimestampFormat,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     pub traits: Traits,
 }
 
@@ -472,6 +508,8 @@ pub struct Operation {
     /// The resource that binds the operation; `None` when the service does.
     pub resource: Option<ShapeId>,
     pub docs: Option<String>,
+    /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+    pub notes: DocNotes,
     pub method: String,
     pub uri: Uri,
     /// The status of a successful response.

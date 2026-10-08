@@ -5,13 +5,19 @@ use crate::{
 use crucible_codegen_common::docs;
 use crucible_smithy::{
     ShapeId,
-    ir::{Member, Service, Shape, SimpleKind},
+    ir::{DocNotes, Member, Service, Shape, SimpleKind},
 };
 
 /// A YARD comment for model text; empty when the model has none.
-fn yard(text: Option<&str>, indent: &str) -> String {
-    text.map(|text| docs::line_comment(indent, "#", &docs::escape(text)))
-        .unwrap_or_default()
+fn yard(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+    let mut text = docs::annotated(text, notes).unwrap_or_default();
+    if let Some(deprecated) = &notes.deprecated {
+        text.push_str(&format!(
+            "\n\n@deprecated {}",
+            docs::escape(&deprecated.note())
+        ));
+    }
+    docs::line_comment(indent, "#", text.trim_start())
 }
 
 /// The YARD spelling of a member's Ruby type.
@@ -116,12 +122,19 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 } else {
                     String::new()
                 };
-                out.push_str(&yard(structure.docs.as_deref(), "    "));
+                out.push_str(&yard(structure.docs.as_deref(), &structure.notes, "    "));
                 out.push_str(&format!("    class {name}{parent}\n"));
                 for member in &structure.members {
-                    let mut text = member.docs.as_deref().map(docs::escape).unwrap_or_default();
+                    let mut text =
+                        docs::annotated(member.docs.as_deref(), &member.notes).unwrap_or_default();
                     if !text.is_empty() {
                         text.push_str("\n\n");
+                    }
+                    if let Some(deprecated) = &member.notes.deprecated {
+                        text.push_str(&format!(
+                            "@deprecated {}\n",
+                            docs::escape(&deprecated.note())
+                        ));
                     }
                     let kind = yard_type(service, &member.target);
                     if member.optional_on_client() {
@@ -198,10 +211,14 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 out.push_str("    end\n");
             }
             Shape::IntEnum(enumeration) => {
-                out.push_str(&yard(enumeration.docs.as_deref(), "    "));
+                out.push_str(&yard(
+                    enumeration.docs.as_deref(),
+                    &enumeration.notes,
+                    "    ",
+                ));
                 out.push_str(&format!("    class {name}\n      # @return [Integer] the integer sent on the wire\n      attr_reader :value\n      def initialize(value)\n        raise ::ArgumentError, 'Expected signed 32-bit integer' unless value.is_a?(::Integer) && (-(2**31)...2**31).cover?(value)\n        @value = value\n        freeze\n      end\n      def self.from_wire(value, context) = new(context.codec.number(value).integer(-(2**31), 2**31 - 1))\n      def to_wire(_context) = @value\n      def ==(other) = other.is_a?(self.class) && @value == other.value\n      alias eql? ==\n      def hash = @value.hash\n"));
                 for value in &enumeration.values {
-                    out.push_str(&yard(value.docs.as_deref(), "      "));
+                    out.push_str(&yard(value.docs.as_deref(), &value.notes, "      "));
                     out.push_str(&format!(
                         "      {} = new({})\n",
                         enum_constant(&value.name),
@@ -214,10 +231,14 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 out.push_str("    end\n");
             }
             Shape::Enum(enumeration) => {
-                out.push_str(&yard(enumeration.docs.as_deref(), "    "));
+                out.push_str(&yard(
+                    enumeration.docs.as_deref(),
+                    &enumeration.notes,
+                    "    ",
+                ));
                 out.push_str(&format!("    class {name}\n      # @return [String] the string sent on the wire; a value this client does not list is kept as is\n      attr_reader :value\n      def initialize(value)\n        @value = {runtime}::WireCodec.string(value).freeze\n        freeze\n      end\n      def self.from_wire(value, _context) = new(value)\n      def to_wire(_context) = @value\n      def ==(other) = other.is_a?(self.class) && @value == other.value\n      alias eql? ==\n      def hash = @value.hash\n"));
                 for value in &enumeration.values {
-                    out.push_str(&yard(value.docs.as_deref(), "      "));
+                    out.push_str(&yard(value.docs.as_deref(), &value.notes, "      "));
                     out.push_str(&format!(
                         "      {} = new({})\n",
                         enum_constant(&value.name),
@@ -230,7 +251,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 out.push_str("    end\n");
             }
             Shape::Union(union) => {
-                out.push_str(&yard(union.docs.as_deref(), "    "));
+                out.push_str(&yard(union.docs.as_deref(), &union.notes, "    "));
                 out.push_str(&format!("    class {name}\n      def self.from_wire(value, context)\n        object = {runtime}::WireCodec.object(value)\n        raise ::ArgumentError, 'Union requires one member' unless object.size == 1\n        key, value = object.first\n        case key\n"));
                 for m in &union.members {
                     out.push_str(&format!("        when {} then {}.new(value.nil? ? nil : context.codec.decode(value, context.member(key)))\n",literal(&m.name),variant(&m.name)));
@@ -238,7 +259,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 out.push_str(&format!("        else Unknown.new(key, {runtime}::JsonValue.new(value))\n        end\n      end\n"));
                 for m in &union.members {
                     let wire = literal(&m.name);
-                    out.push_str(&yard(m.docs.as_deref(), "      "));
+                    out.push_str(&yard(m.docs.as_deref(), &m.notes, "      "));
                     let shown = if docs::is_redacted(service, union.sensitive(), m) {
                         "Runtime::Describe.redact(@value)"
                     } else {

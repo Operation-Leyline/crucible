@@ -148,6 +148,8 @@ func (p *ListCitiesPaginator) NextPage(ctx context.Context) (*ListCitiesOutput, 
 // Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
 //
 // This operation is safe to retry under the configured retry policy.
+//
+// Deprecated: Use Status instead. (since 2026-09)
 func (c *WeatherClient) Ping(ctx context.Context, input Unit) (Unit, error) {
  var output Unit
  values, err := c.call(ctx, "Ping", input)

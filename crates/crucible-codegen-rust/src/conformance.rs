@@ -21,7 +21,7 @@ use crucible_smithy::{Diagnostics, Protocol, ShapeId};
 use crate::names::{literal, snake};
 
 /// Generated tests are not held to the lints of hand-written code.
-const ALLOW: &str = "#[allow(clippy::all, non_snake_case)]";
+const ALLOW: &str = "#[allow(clippy::all, non_snake_case, deprecated)]";
 use crate::{events, server_api};
 
 /// A vector the service is known to fail, kept visible rather than dropped.
@@ -538,7 +538,7 @@ impl<'a> Generator<'a> {
         )
         .unwrap();
         out.push_str("#[allow(unused_imports)]\nuse ::crucible_server_runtime_rust::conformance::{ParamMember, ParamShape};\n");
-        out.push_str("#[allow(clippy::all)]\nfn __conformance_build(stub: ::std::sync::Arc<::crucible_server_runtime_rust::conformance::Stub>) -> ::crucible_server_runtime_rust::Crucible {\n");
+        out.push_str("#[allow(clippy::all, deprecated)]\nfn __conformance_build(stub: ::std::sync::Arc<::crucible_server_runtime_rust::conformance::Stub>) -> ::crucible_server_runtime_rust::Crucible {\n");
         out.push_str(&format!(
             "    let operations = ::crucible_server_runtime_rust::Operations::builder(&{module}::SERVICE)\n"
         ));

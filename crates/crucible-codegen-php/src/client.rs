@@ -39,12 +39,19 @@ fn operation_docs(
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
+    for note in docs::note_paragraphs(&op.notes) {
+        text.push_str("\n\n");
+        text.push_str(&note);
+    }
     if pages {
         text.push_str(
             "\n\nThis operation is paginated: use the `Pages` variant to read every page.",
         );
     }
     let mut tags = Vec::new();
+    if let Some(deprecated) = &op.notes.deprecated {
+        tags.push(format!("@deprecated {}", docs::escape(&deprecated.note())));
+    }
     if let Some(input) = input {
         tags.push(format!("@param {input} $input the request to send"));
     }

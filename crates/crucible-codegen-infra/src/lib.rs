@@ -237,7 +237,7 @@ fn resolve_property(
             (
                 member.target.clone(),
                 member.constraints.clone(),
-                member.docs.clone(),
+                member.notes.prose(member.docs.as_deref()),
                 sensitive || sensitive_shape(service, &member.target, &mut BTreeSet::new()),
             )
         }
@@ -246,7 +246,7 @@ fn resolve_property(
             let (constraints, docs, sensitive) = match shape {
                 Some(Shape::Simple(simple)) => (
                     simple.constraints.clone(),
-                    simple.docs.clone(),
+                    simple.notes.prose(simple.docs.as_deref()),
                     shape.is_some_and(Shape::sensitive),
                 ),
                 None if target.is_prelude()

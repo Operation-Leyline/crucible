@@ -1,0 +1,120 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.notes#Notes": {
+      "type": "service",
+      "version": "1",
+      "operations": [
+        { "target": "example.notes#Old" },
+        { "target": "example.notes#Plain" }
+      ],
+      "resources": [
+        { "target": "example.notes#Thing" }
+      ],
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#since": "1.0",
+        "smithy.api#externalDocumentation": {
+          "Home": "https://notes.example/docs"
+        }
+      }
+    },
+    "example.notes#Thing": {
+      "type": "resource",
+      "identifiers": { "thingId": { "target": "smithy.api#String" } },
+      "read": { "target": "example.notes#Plain" },
+      "traits": {
+        "smithy.api#unstable": {}
+      }
+    },
+    "example.notes#Old": {
+      "type": "operation",
+      "input": { "target": "example.notes#OldInput" },
+      "output": { "target": "smithy.api#Unit" },
+      "traits": {
+        "smithy.api#http": { "method": "POST", "uri": "/old" },
+        "smithy.api#deprecated": { "message": "Use Plain.", "since": "2.0" },
+        "smithy.api#externalDocumentation": {
+          "Zeta": "https://notes.example/zeta",
+          "Alpha": "https://notes.example/alpha"
+        }
+      }
+    },
+    "example.notes#OldInput": {
+      "type": "structure",
+      "members": {
+        "kept": { "target": "smithy.api#String" },
+        "bare": {
+          "target": "smithy.api#String",
+          "traits": { "smithy.api#deprecated": {} }
+        },
+        "messageOnly": {
+          "target": "smithy.api#String",
+          "traits": { "smithy.api#deprecated": { "message": "Gone soon." } }
+        },
+        "sinceOnly": {
+          "target": "smithy.api#String",
+          "traits": { "smithy.api#deprecated": { "since": "3.1" }, "smithy.api#since": "1.1" }
+        },
+        "color": { "target": "example.notes#Color" },
+        "level": { "target": "example.notes#Level" },
+        "legacy": { "target": "example.notes#Legacy" },
+        "tags": { "target": "example.notes#Tags" }
+      },
+      "traits": {
+        "smithy.api#input": {},
+        "smithy.api#unstable": {},
+        "smithy.api#since": "1.2"
+      }
+    },
+    "example.notes#Plain": {
+      "type": "operation",
+      "input": { "target": "smithy.api#Unit" },
+      "output": { "target": "smithy.api#Unit" },
+      "traits": {
+        "smithy.api#http": { "method": "GET", "uri": "/plain" },
+        "smithy.api#readonly": {}
+      }
+    },
+    "example.notes#Color": {
+      "type": "enum",
+      "members": {
+        "RED": {
+          "target": "smithy.api#Unit",
+          "traits": { "smithy.api#enumValue": "red", "smithy.api#deprecated": { "message": "Use CRIMSON." } }
+        },
+        "CRIMSON": {
+          "target": "smithy.api#Unit",
+          "traits": { "smithy.api#enumValue": "crimson", "smithy.api#since": "1.5" }
+        }
+      }
+    },
+    "example.notes#Level": {
+      "type": "intEnum",
+      "members": {
+        "LOW": {
+          "target": "smithy.api#Unit",
+          "traits": { "smithy.api#enumValue": 1, "smithy.api#deprecated": { "since": "2.0" } }
+        },
+        "HIGH": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": 2 } }
+      }
+    },
+    "example.notes#Legacy": {
+      "type": "string",
+      "traits": {
+        "smithy.api#enum": [
+          { "value": "a", "name": "A", "deprecated": true },
+          { "value": "b", "name": "B", "deprecated": false },
+          { "value": "c", "name": "C" }
+        ]
+      }
+    },
+    "example.notes#Tags": {
+      "type": "list",
+      "member": { "target": "smithy.api#String" },
+      "traits": {
+        "smithy.api#deprecated": { "message": "Send a map instead." }
+      }
+    }
+  }
+}

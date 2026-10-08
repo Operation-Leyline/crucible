@@ -67,7 +67,7 @@ pub(crate) fn emit(
                 _ => unreachable!("lowered error structure"),
             }))
         }).collect::<Vec<_>>().join(", ");
-        let mut description = op.docs.clone().unwrap_or_default();
+        let mut description = op.notes.prose(op.docs.as_deref()).unwrap_or_default();
         if let Some(pagination) = &op.paginated {
             if !description.is_empty() {
                 description.push_str("\n\n");

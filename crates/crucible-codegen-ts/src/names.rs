@@ -1,6 +1,7 @@
 //! Spelling model things in TypeScript.
 
 use crucible_smithy::ShapeId;
+use crucible_smithy::ir::DocNotes;
 use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, Structure};
 
 /// The TypeScript type of a member's target. `prefix` qualifies named shapes
@@ -151,9 +152,29 @@ pub(crate) fn literal(text: &str) -> String {
 
 /// A JSDoc block, or nothing when there are no docs.
 pub(crate) fn doc(out: &mut String, indent: &str, docs: Option<&str>) {
-    let Some(docs) = docs.map(str::trim).filter(|d| !d.is_empty()) else {
+    documented(out, indent, docs, &DocNotes::default());
+}
+
+/// A JSDoc block with the model's "Unstable."/"Since X." notes and a
+/// `@deprecated` tag, which editors strike through at the use site.
+pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, notes: &DocNotes) {
+    let mut text = docs.map(str::trim).unwrap_or_default().to_owned();
+    for line in notes.lines() {
+        if !text.is_empty() {
+            text.push_str("\n\n");
+        }
+        text.push_str(&line);
+    }
+    if let Some(deprecated) = &notes.deprecated {
+        if !text.is_empty() {
+            text.push_str("\n\n");
+        }
+        text.push_str(&format!("@deprecated {}", deprecated.note()));
+    }
+    let docs = text.as_str();
+    if docs.is_empty() {
         return;
-    };
+    }
     out.push_str(indent);
     out.push_str("/**\n");
     for line in docs.lines() {

@@ -61,8 +61,11 @@ pub fn emit(service: &Service, options: &Options, schema: &str) -> Vec<File> {
             .map(|id| format!("const {} *input, ", models::native_type(service, id, p)))
             .unwrap_or_default();
         let input_value = if op.input.is_some() { "input" } else { "NULL" };
-        let docs = crucible_codegen_common::doxygen(
-            &crucible_codegen_common::documentation::operation(service, op),
+        let docs = crucible_codegen_common::doxygen_for(
+            Some(&crucible_codegen_common::documentation::operation(
+                service, op,
+            )),
+            &op.notes,
             "",
         );
         header.push_str(&format!("\n/** Zero-initialize results. Free before reuse; value borrows base.arena. */\ntypedef struct {{ {p}_result base; const {output} *value; }} {name}_result;\n{docs}{p}_status {name}({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {name}_result *result, {p}_error *error);\nvoid {name}_result_free({name}_result *result);\n"));

@@ -1,3 +1,5 @@
+// The fixture deprecates `Ping`; these tests still drive it.
+#![allow(deprecated)]
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

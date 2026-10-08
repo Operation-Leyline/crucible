@@ -2,7 +2,7 @@
 
 /// Server API for `example.auth#AuthWeather`.
 pub mod auth_weather {
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
         #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]
@@ -15,7 +15,7 @@ pub mod auth_weather {
         }
     }
 
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod errors {
         use super::__redaction;
 
@@ -71,10 +71,10 @@ pub mod auth_weather {
     }
 
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use model::{Identity};
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use errors::{AccessDeniedException};
 
     #[allow(dead_code, unused_imports)]

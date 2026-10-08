@@ -3,6 +3,8 @@ package example.weather.model;
 
     /**
      * <p>Build one with {@link #builder()}; the public fields are also writable. Smithy shape <code>example.weather#PhotoSummary</code>.</p>
+     * <p>Unstable.</p>
+     * <p>Since 2026-10.</p>
      */
     public final class PhotoSummary {
         /**

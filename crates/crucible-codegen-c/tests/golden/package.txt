@@ -146,6 +146,8 @@ typedef struct { weather_result base; const weather_unit *value; } weather_opera
  * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
  *
  * This operation is safe to retry under the configured retry policy.
+ *
+ * @deprecated Use Status instead. (since 2026-09)
  */
 weather_status weather_operations_ping(weather_client *client, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_ping_result *result, weather_error *error);
 void weather_operations_ping_result_free(weather_operations_ping_result *result);
@@ -237,6 +239,11 @@ extern const weather_shape weather_shape_17;
  * A photo, carried unparsed.
  */
 extern const weather_shape weather_shape_18;
+/**
+ * Unstable.
+ *
+ * Since 2026-10.
+ */
 typedef struct weather_models_photo_summary weather_models_photo_summary;
 extern const weather_shape weather_shape_19;
 typedef struct weather_models_put_city_photo_input weather_models_put_city_photo_input;
@@ -286,6 +293,9 @@ struct weather_models_city_summary {
     struct { weather_presence state; weather_string value; } name;
     struct { weather_presence state; int64_t value; } population;
     struct { weather_presence state; weather_timestamp value; } updated_at;
+    /**
+     * @deprecated Use updatedAt. (since 2026-08)
+     */
     struct { weather_presence state; weather_timestamp value; } created_at;
 };
 /** Sets id present; referenced data is borrowed. */
@@ -828,6 +838,9 @@ weather_status weather_models_put_city_photo_output_encode(weather_arena *arena,
 /** Decodes into arena-owned native data; applies modeled defaults. */
 weather_status weather_models_put_city_photo_output_decode(weather_arena *arena, const weather_json *value, const weather_models_put_city_photo_output **output, weather_error *error);
 static inline weather_models_sky weather_models_sky_known_clear(void) { weather_models_sky result = {"clear", 5}; return result; }
+/**
+ * @deprecated Reported as CLEAR with a cloud cover reading.
+ */
 static inline weather_models_sky weather_models_sky_known_cloudy(void) { weather_models_sky result = {"cloudy", 6}; return result; }
 /** Formats a diagnostic value in arena; sensitive data is redacted. Output is assigned only on success. */
 weather_status weather_models_sky_debug(weather_arena *arena, weather_models_sky const *value, weather_string *output, weather_error *error);

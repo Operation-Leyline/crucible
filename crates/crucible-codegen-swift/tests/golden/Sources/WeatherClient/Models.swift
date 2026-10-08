@@ -23,6 +23,8 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
         }
         /// Whether `createdAt` was omitted, set to null, or given a value.
         public var `createdAtPresence`: OptionalValue<Timestamp>
+        /// Deprecated since 2026-08: Use updatedAt.
+        @available(*, deprecated, message: "Use updatedAt. (since 2026-08)")
         public var `createdAt`: Timestamp? {
             get { `createdAtPresence`.value }
             set { `createdAtPresence` = newValue.map { .value($0) } ?? .null }
@@ -419,6 +421,9 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
             return .object(object)
         }
     }
+    /// Unstable.
+    ///
+    /// Since 2026-10.
     public struct `PhotoSummary`: Swift.Sendable, WireCodable, ModelDescription {
         public var `size`: Swift.Int32
         public var `thumbnail`: Foundation.Data
@@ -514,6 +519,8 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
         public let rawValue: Swift.String
         public init(rawValue: Swift.String) { self.rawValue = rawValue }
         public static let `clear` = Self(rawValue: "clear")
+        /// Deprecated: Reported as CLEAR with a cloud cover reading.
+        @available(*, deprecated, message: "Reported as CLEAR with a cloud cover reading.")
         public static let `cloudy` = Self(rawValue: "cloudy")
         public var description: Swift.String { "Sky(\(rawValue))" }
         static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self { Self(rawValue: try value.string) }

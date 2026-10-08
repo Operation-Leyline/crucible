@@ -95,6 +95,8 @@ export class WeatherClient {
    * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
    *
    * This operation is safe to retry under the configured retry policy.
+   *
+   * @deprecated Use Status instead. (since 2026-09)
    */
   ping(options?: RequestOptions): Promise<void> {
     return this.#transport.send(spec.Ping, {}, options);

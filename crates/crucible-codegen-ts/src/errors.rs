@@ -5,7 +5,7 @@ use crucible_smithy::Diagnostics;
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Fault, Service, Shape, Structure};
 
-use crate::names::{doc, property, ts_type};
+use crate::names::{doc, documented, property, ts_type};
 
 /// Properties an error inherits, which a member must not shadow.
 const INHERITED: &[&str] = &[
@@ -38,7 +38,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         let name = service.name_of(id);
         let error = structure.error.as_ref().expect("filtered to errors");
         out.push('\n');
-        doc(&mut out, "", structure.docs.as_deref());
+        documented(&mut out, "", structure.docs.as_deref(), &structure.notes);
         out.push_str(&format!("export class {name} extends {exception} {{\n"));
         for member in &structure.members {
             if INHERITED.contains(&member.name.as_str()) {
@@ -52,11 +52,11 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                 continue;
             }
             if member.name == "message" {
-                doc(&mut out, "  ", member.docs.as_deref());
+                documented(&mut out, "  ", member.docs.as_deref(), &member.notes);
                 out.push_str("  declare message: string;\n");
                 continue;
             }
-            doc(&mut out, "  ", member.docs.as_deref());
+            documented(&mut out, "  ", member.docs.as_deref(), &member.notes);
             let marker = if member.optional_on_client() { "?" } else { "" };
             out.push_str(&format!(
                 "  declare readonly {}{marker}: {};\n",

@@ -85,6 +85,18 @@ reach, keyed by shape id. Lowering settles, once:
   shapes and members. Audience projection in `crucible-smithy` consumes these
   flags and validates removed references once. Shared output selection invokes
   projection before target capability checks; servers keep the full IR.
+- **Documentation notes**: `@deprecated` (message, since), `@since`, `@unstable`
+  and `@externalDocumentation` (sorted name to URL) become one typed `notes`
+  (`DocNotes`) on the service, resources, operations, shapes, members and enum
+  values. A malformed trait is a diagnostic against its shape. Every native
+  generator renders `@deprecated` in the target's own form (Rust `#[deprecated]`,
+  TypeScript/Java `@deprecated`, Kotlin `@Deprecated`, C# `[Obsolete]`, Swift
+  `@available`, Dart `@Deprecated`, Go `Deprecated:`, YARD/PHPDoc/Doxygen tags,
+  OpenAPI `deprecated`), falling back to a doc paragraph; `@since`, `@unstable`
+  and `@externalDocumentation` are documentation and appear where a target
+  already emits doc notes (OpenAPI: `externalDocs`, `x-smithy-since`,
+  `x-smithy-unstable`). Generated code that uses a deprecated item itself opts
+  out of the warning.
 - **Sensitivity**: member and target annotations resolve through the IR; generated
   static metadata supports recursive logging redaction.
 - **HTTP bindings**: label, query, header, body or payload for each input

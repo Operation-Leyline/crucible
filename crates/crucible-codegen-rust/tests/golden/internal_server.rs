@@ -2,7 +2,7 @@
 
 /// Server API for `example.audience#Api`.
 pub mod api {
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
         #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]
@@ -77,7 +77,7 @@ pub mod api {
         }
     }
 
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod errors {
         use super::__redaction;
 
@@ -183,10 +183,10 @@ pub mod api {
     }
 
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use model::{Choice, PrivateDetails, PublicInput, PublicOutput, SecretInput, SecretValue};
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use errors::{InternalFault, PublicFault};
 
     #[allow(dead_code, unused_imports)]

@@ -4,7 +4,7 @@ use crucible_smithy::Protocol;
 use crucible_smithy::ir::{Bindings, Member, Operation, PayloadKind, Service, Shape, Structure};
 use serde_json::{Map, Value, json};
 
-use crate::{description, examples, key, schemas, traits};
+use crate::{Slot, annotate, description, examples, key, schemas, traits};
 
 pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
     let keys = examples::keys(op);
@@ -21,6 +21,7 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
         "x-smithy-traits": raw_traits,
     });
     description(&mut value, op.docs.as_deref());
+    annotate(&mut value, &op.notes, Slot::Native);
     if let Some(resource) = &op.resource {
         value["tags"] = json!([service.name_of(resource)]);
     }
@@ -154,6 +155,7 @@ fn parameter(
         "explode": location == "query",
     });
     description(&mut value, member.docs.as_deref());
+    annotate(&mut value, &member.notes, Slot::Parameter);
     if let Some(examples) = examples {
         value["examples"] = examples;
     }
@@ -225,6 +227,7 @@ fn headers(
         let member = structure.member(&binding.member).expect("lowering resolves response headers");
         let mut header = json!({"schema": schemas::member(service, member, false, bindings.timestamp_formats.get(&member.name).copied(), bindings.header_encodings.get(&member.name).copied()), "style": "simple", "explode": false});
         description(&mut header, member.docs.as_deref());
+        annotate(&mut header, &member.notes, Slot::Parameter);
         if let Some(examples) = examples::member(service, structure, bindings, &member.name, samples) {
             header["examples"] = examples;
         }

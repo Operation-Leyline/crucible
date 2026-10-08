@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Operation, Service, Shape};
 
-use crate::names::{doc, literal, method_name, optional, smithy};
+use crate::names::{doc, documented, literal, method_name, optional, smithy};
 use crate::{Middleware, Options};
 
 pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String {
@@ -186,12 +186,13 @@ fn output_type(service: &Service, operation: &Operation) -> String {
 }
 
 fn method(out: &mut String, service: &Service, operation: &Operation, name: &str) {
-    doc(
+    documented(
         out,
         "  ",
         Some(&crucible_codegen_common::documentation::operation(
             service, operation,
         )),
+        &operation.notes,
     );
     let (params, input) = parameters(service, operation);
     out.push_str(&format!(

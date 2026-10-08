@@ -21,6 +21,7 @@ class CitySummary:
     population: int = field(repr=True)
     updated_at: datetime | None | Unset = field(default=UNSET, repr=True)
     created_at: datetime | None | Unset = field(default=UNSET, repr=True)
+    "Deprecated since 2026-08: Use updatedAt."
 
     def __repr__(self) -> str:
         """Describe present members, redacting modeled sensitive values."""
@@ -155,7 +156,7 @@ Photo: TypeAlias = bytes
 "A photo, carried unparsed."
 @dataclass(kw_only=True, repr=False)
 class PhotoSummary:
-    "Modeled PhotoSummary value.\n\nAttributes:\nsize: Modeled member.\nthumbnail: Modeled member.\ncaption: Modeled member."
+    "Modeled PhotoSummary value.\n\nUnstable.\n\nSince 2026-10.\n\nAttributes:\nsize: Modeled member.\nthumbnail: Modeled member.\ncaption: Modeled member."
     size: int = field(repr=True)
     thumbnail: Thumbnail = field(repr=True)
     caption: str | None | Unset = field(default=UNSET, repr=True)
@@ -187,6 +188,7 @@ class PutCityPhotoOutput:
 class Sky(OpenEnum):
     CLEAR = "clear"
     CLOUDY = "cloudy"
+    "Deprecated: Reported as CLEAR with a cloud cover reading."
 
 @dataclass(kw_only=True, repr=False)
 class StatusInput:

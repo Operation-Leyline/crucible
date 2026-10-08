@@ -19,6 +19,9 @@ type CitySummary struct {
     Name CityName
     Population int64
     UpdatedAt Optional[time.Time]
+    // CreatedAt:
+    //
+    // Deprecated: Use updatedAt. (since 2026-08)
     CreatedAt Optional[time.Time]
 }
 // String describes present members and redacts sensitive values.
@@ -461,6 +464,10 @@ func (e *NotFoundError) Unwrap() error { return e.Metadata }
 // A photo, carried unparsed.
 type Photo = []byte
 
+// PhotoSummary:
+// Unstable.
+//
+// Since 2026-10.
 type PhotoSummary struct {
     Size int32
     Thumbnail Thumbnail
@@ -559,6 +566,9 @@ func (m *PutCityPhotoOutput) GetPhoto() *PhotoSummary { return m.Photo }
 type Sky string
 const (
     SkyCLEAR Sky = "clear"
+    // SkyCLOUDY:
+    //
+    // Deprecated: Reported as CLEAR with a cloud cover reading.
     SkyCLOUDY Sky = "cloudy"
 )
 

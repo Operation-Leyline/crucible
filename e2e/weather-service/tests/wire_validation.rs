@@ -1,4 +1,6 @@
 //! Independent consumers of malformed HTTP input and output handling.
+// The fixture deprecates `Ping`; these tests still drive it.
+#![allow(deprecated)]
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 

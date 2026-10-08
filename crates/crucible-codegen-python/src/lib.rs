@@ -235,10 +235,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 python_doc(
                     &mut models,
                     "    ",
-                    enumeration
-                        .docs
-                        .as_deref()
-                        .unwrap_or("An open integer enumeration; unknown values are preserved."),
+                    &crucible_codegen_common::documentation::with_notes(
+                        Some(enumeration.docs.as_deref().unwrap_or(
+                            "An open integer enumeration; unknown values are preserved.",
+                        )),
+                        &enumeration.notes,
+                    )
+                    .unwrap_or_default(),
                 );
                 for value in &enumeration.values {
                     models.push_str(&format!(
@@ -246,8 +249,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         names::enum_member(&value.name),
                         value.value
                     ));
-                    if let Some(docs) = &value.docs {
-                        python_doc(&mut models, "    ", docs);
+                    if let Some(docs) = crucible_codegen_common::documentation::with_notes(
+                        value.docs.as_deref(),
+                        &value.notes,
+                    ) {
+                        python_doc(&mut models, "    ", &docs);
                     }
                 }
                 models.push('\n');
@@ -304,10 +310,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             )),
             Shape::Enum(e) => {
                 models.push_str(&format!("class {name}(OpenEnum):\n"));
-                if let Some(docs) = &e.docs {
+                if let Some(docs) =
+                    crucible_codegen_common::documentation::with_notes(e.docs.as_deref(), &e.notes)
+                {
                     models.push_str(&format!(
                         "    {}\n",
-                        literal(&crucible_codegen_common::documentation::text(docs))
+                        literal(&crucible_codegen_common::documentation::text(&docs))
                     ));
                 }
                 for v in &e.values {
@@ -316,8 +324,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         names::enum_member(&v.name),
                         literal(&v.value)
                     ));
-                    if let Some(docs) = &v.docs {
-                        python_doc(&mut models, "    ", docs);
+                    if let Some(docs) = crucible_codegen_common::documentation::with_notes(
+                        v.docs.as_deref(),
+                        &v.notes,
+                    ) {
+                        python_doc(&mut models, "    ", &docs);
                     }
                 }
                 if e.values.is_empty() {
@@ -337,6 +348,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     .docs
                     .clone()
                     .unwrap_or_else(|| format!("Modeled {name} value."));
+                docs = crucible_codegen_common::documentation::with_notes(Some(&docs), &s.notes)
+                    .unwrap_or(docs);
                 if !s.members.is_empty() {
                     docs.push_str("\n\nAttributes:\n");
                 }
@@ -385,8 +398,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                             }
                         ));
                     }
-                    if let Some(docs) = &m.docs {
-                        python_doc(&mut models, "    ", docs);
+                    if let Some(docs) = crucible_codegen_common::documentation::with_notes(
+                        m.docs.as_deref(),
+                        &m.notes,
+                    ) {
+                        python_doc(&mut models, "    ", &docs);
                     }
                 }
                 if matches!(shape, Shape::Union(_)) {
@@ -399,7 +415,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
         }
         if matches!(shape, Shape::Simple(_) | Shape::List(_) | Shape::Map(_)) {
-            if let Some(docs) = crucible_codegen_common::documentation::model(shape) {
+            if let Some(docs) = crucible_codegen_common::documentation::model_with_notes(shape) {
                 python_doc(&mut models, "", &docs);
             }
         }
@@ -479,7 +495,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             let docs = format!(
                 "        {}\n",
                 literal(&crucible_codegen_common::documentation::text(
-                    &crucible_codegen_common::documentation::operation(service, op)
+                    &crucible_codegen_common::documentation::operation_with_notes(service, op)
                 ))
             );
             client.push_str(&format!("    {def} {method}(self, {parameter}**options: Any) -> {output}:\n{docs}        return {wait}self._call({}, {argument}, **options)\n\n",literal(op.name())));

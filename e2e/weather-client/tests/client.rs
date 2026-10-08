@@ -1,5 +1,7 @@
 //! The generated Rust client against the generated Rust server, over real
 //! HTTP: each test serves the weather service on a loopback port.
+// The fixture deprecates `ping` and `createdAt`; the tests still exercise them.
+#![allow(deprecated)]
 
 use std::collections::BTreeMap;
 use std::sync::Arc;

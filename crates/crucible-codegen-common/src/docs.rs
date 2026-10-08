@@ -4,7 +4,7 @@
 //! doc format here (DocC, dartdoc, PHPDoc, YARD) renders Markdown, so the text
 //! passes through and only what could break the comment itself or be mistaken
 //! for doc-tool syntax is neutralised.
-use crucible_smithy::ir::{Member, Operation, Service, Shape};
+use crucible_smithy::ir::{DocNotes, Member, Operation, Service, Shape};
 
 const BACKSLASH: char = '\u{5c}';
 
@@ -56,6 +56,23 @@ pub fn operation_errors(service: &Service, op: &Operation) -> Vec<String> {
     names.sort();
     names.dedup();
     names
+}
+
+/// The model's "Unstable."/"Since X." notes and a "Deprecated" sentence as
+/// escaped paragraphs, for targets that say them in a comment. A target with a
+/// native deprecation attribute adds that beside this text.
+pub fn note_paragraphs(notes: &DocNotes) -> Vec<String> {
+    let mut paragraphs = notes.lines();
+    paragraphs.extend(notes.deprecated.as_ref().map(|d| escape(&d.sentence())));
+    paragraphs
+}
+
+/// Model documentation (escaped) followed by [`note_paragraphs`], for the
+/// line-comment targets. `None` when there is nothing to say.
+pub fn annotated(text: Option<&str>, notes: &DocNotes) -> Option<String> {
+    let mut parts: Vec<String> = text.map(escape).into_iter().collect();
+    parts.extend(note_paragraphs(notes));
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
 /// Sentences about retry and idempotency behaviour, from the same

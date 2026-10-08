@@ -3,7 +3,7 @@
 //! use (paragraphs, lists, code, emphasis, links, headings), and anything else,
 //! raw HTML included, is escaped so it can neither break the markup nor close
 //! the surrounding comment. One CommonMark parser serves all of them.
-use crucible_smithy::ir::{Operation, Service, Shape};
+use crucible_smithy::ir::{DocNotes, Operation, Service, Shape};
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 
 /// Documentation already preserved by Smithy lowering.
@@ -33,6 +33,27 @@ pub fn model(shape: &Shape) -> Option<String> {
         }
     }
     (!docs.is_empty()).then_some(docs)
+}
+
+/// Documentation followed by the model's notes: "Unstable.", "Since X." and a
+/// "Deprecated" sentence, as paragraphs. For targets whose only form is prose,
+/// and as the fallback when a target has no native deprecation attribute.
+pub fn with_notes(docs: Option<&str>, notes: &DocNotes) -> Option<String> {
+    notes.prose(docs)
+}
+
+/// A shape's documentation with its notes; see [`with_notes`].
+pub fn model_with_notes(shape: &Shape) -> Option<String> {
+    let docs = model(shape);
+    match shape.notes() {
+        Some(notes) => with_notes(docs.as_deref(), notes),
+        None => docs,
+    }
+}
+
+/// [`operation`] with the operation's notes; see [`with_notes`].
+pub fn operation_with_notes(service: &Service, op: &Operation) -> String {
+    with_notes(Some(&operation(service, op)), &op.notes).unwrap_or_default()
 }
 
 /// Operation prose and the already-resolved public call contract.

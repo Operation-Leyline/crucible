@@ -152,6 +152,9 @@ module Weather
     end
     # Read-only: retried automatically after transient failures.
     #
+    # Deprecated since 2026-09: Use Status instead.
+    #
+    # @deprecated Use Status instead. (since 2026-09)
     # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
     # @return [Runtime::Unit] the service's response
     # @raise [ThrottlingError]
@@ -200,6 +203,9 @@ module Weather
       attr_reader :population
       # @return [Runtime::Timestamp, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :updated_at
+      # Deprecated since 2026-08: Use updatedAt.
+      #
+      # @deprecated Use updatedAt. (since 2026-08)
       # @return [Runtime::Timestamp, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :created_at
       # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
@@ -670,6 +676,9 @@ end
 === lib/weather_client/models/photo_summary.rb ===
 # frozen_string_literal: true
 module Weather
+    # Unstable.
+    #
+    # Since 2026-10.
     class PhotoSummary
       # @return [Integer]
       attr_reader :size
@@ -819,6 +828,9 @@ module Weather
       alias eql? ==
       def hash = @value.hash
       CLEAR = new('clear')
+      # Deprecated: Reported as CLEAR with a cloud cover reading.
+      #
+      # @deprecated Reported as CLEAR with a cloud cover reading.
       CLOUDY = new('cloudy')
       def inspect = 'Sky(' + @value + ')'
       alias to_s inspect

@@ -21,6 +21,9 @@ package example.weather.model;
         public static final Sky CLEAR = new Sky("clear");
         /**
          * <p>The <code>cloudy</code> value.</p>
+         *
+         * @deprecated Reported as CLEAR with a cloud cover reading.
          */
+        @Deprecated
         public static final Sky CLOUDY = new Sky("cloudy");
     }

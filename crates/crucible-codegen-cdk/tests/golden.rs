@@ -156,6 +156,7 @@ fn timestamps_use_explicit_provider_representation() {
             constraints: Default::default(),
             timestamp_format: None,
             docs: None,
+            notes: Default::default(),
             traits: Default::default(),
         }),
     );

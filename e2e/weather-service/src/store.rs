@@ -106,6 +106,8 @@ impl CityStore for MemoryCities {
         }
         memory.next_id += 1;
         let now = chrono::Utc::now();
+        // The fixture marks `createdAt` deprecated; the service still serves it.
+        #[allow(deprecated)]
         let created = CitySummary {
             id: format!("c-{:08}", memory.next_id),
             name: city.name,

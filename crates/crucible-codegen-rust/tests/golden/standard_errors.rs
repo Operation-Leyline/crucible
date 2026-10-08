@@ -2,7 +2,7 @@
 
 /// Server API for `example.empty#Empty`.
 pub mod empty {
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
         #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]
@@ -42,7 +42,7 @@ pub mod empty {
         }
     }
 
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod errors {
         use super::__redaction;
 
@@ -207,10 +207,10 @@ pub mod empty {
     }
 
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use model::{ValidationExceptionField, ValidationExceptionFieldList, ValidationExceptionReason};
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use errors::{InternalServerException, UnknownOperationException, ValidationException};
 
     #[allow(dead_code, unused_imports)]

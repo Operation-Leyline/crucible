@@ -1498,11 +1498,20 @@
         ],
         "x-smithy-shape": "example.weather#Ping",
         "x-smithy-traits": {
+          "smithy.api#deprecated": {
+            "message": "Use Status instead.",
+            "since": "2026-09"
+          },
           "smithy.api#http": {
             "method": "GET",
             "uri": "/ping"
           },
           "smithy.api#readonly": {}
+        },
+        "deprecated": true,
+        "x-smithy-deprecation": {
+          "message": "Use Status instead.",
+          "since": "2026-09"
         },
         "x-smithy-readonly": true
       }
@@ -1728,7 +1737,16 @@
                 "type": "null"
               }
             ],
+            "deprecated": true,
+            "x-smithy-deprecation": {
+              "message": "Use updatedAt.",
+              "since": "2026-08"
+            },
             "x-smithy-traits": {
+              "smithy.api#deprecated": {
+                "message": "Use updatedAt.",
+                "since": "2026-08"
+              },
               "smithy.api#timestampFormat": "epoch-seconds"
             }
           }
@@ -2212,7 +2230,24 @@
         "required": [
           "size",
           "thumbnail"
-        ]
+        ],
+        "x-smithy-since": "2026-10",
+        "x-smithy-unstable": true,
+        "externalDocs": {
+          "url": "https://weather.example/docs/photos",
+          "description": "Photo guide"
+        },
+        "x-smithy-external-docs": {
+          "Reference": "https://weather.example/docs/photos/reference"
+        },
+        "x-smithy-traits": {
+          "smithy.api#externalDocumentation": {
+            "Reference": "https://weather.example/docs/photos/reference",
+            "Photo guide": "https://weather.example/docs/photos"
+          },
+          "smithy.api#since": "2026-10",
+          "smithy.api#unstable": {}
+        }
       },
       "example.weather.PutCityPhotoInput": {
         "type": "object",
@@ -2484,12 +2519,19 @@
   "x-smithy-protocol": "crucible.protocols#json",
   "x-smithy-traits": {
     "crucible.protocols#json": {},
+    "smithy.api#externalDocumentation": {
+      "Home": "https://weather.example/docs"
+    },
     "smithy.api#httpBearerAuth": {},
     "smithy.api#paginated": {
       "inputToken": "nextToken",
       "outputToken": "nextToken"
     },
     "smithy.api#title": "Weather"
+  },
+  "externalDocs": {
+    "url": "https://weather.example/docs",
+    "description": "Home"
   },
   "servers": [
     {
