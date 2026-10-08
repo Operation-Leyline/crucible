@@ -20,7 +20,8 @@ model.ts_client("ts").generate_into("../target/ts-sdk");
 Use `.client()` for Rust bindings included inside an existing crate and
 `.rust_client(name)` for a complete SDK package. `ServerOutput` retains the server
 options, and `ClientOutput` exposes client visibility, policy, and model export.
-The binding filename is `crucible_client.rs`; `include_client!()` selects it
+Enable static MCP descriptors with `model(..).server().mcp().generate()`; the
+existing runtime MCP registration stays the same. The binding filename is `crucible_client.rs`; `include_client!()` selects it
 through `CRUCIBLE_CLIENT_SOURCE` as before. Import `Audience` only from
 `crucible_build::Audience`.
 

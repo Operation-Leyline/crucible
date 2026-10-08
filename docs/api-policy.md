@@ -46,7 +46,7 @@ fn main() {
 }
 ```
 
-The same `.policy(...)` method works with `rust_service(...)`, `client(...)`,
+The same `.policy(...)` method works with `model(...).server()`, `model(...).client()`,
 `model("model.json").server()`, and `model("smithy").compile_with(...).server()`. Paths are relative to
 the package's `Cargo.toml`; a workspace can select `../../crucible.toml`.
 The selected config is required. Invalid config, missing config, or error

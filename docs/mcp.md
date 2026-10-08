@@ -10,11 +10,11 @@ Generate descriptors in the service's build script:
 
 ```rust
 fn main() {
-    crucible_build::rust_service_from_smithy("smithy").mcp().generate();
+    crucible_build::model("smithy").server().mcp().generate();
 }
 ```
 
-For a model dependency, use `crucible_build::rust_service("weather_model").mcp()`.
+For a model dependency, use `crucible_build::model("weather_model").server().mcp()`.
 The generated `SERVICE.mcp_tools` carries the descriptors, so runtime wiring
 does not pass `MCP_TOOLS` by hand. The module also exports `MCP_TOOLS` and
 `MCP_EXCLUSIONS` for inspection. Generation prints each streaming exclusion as
