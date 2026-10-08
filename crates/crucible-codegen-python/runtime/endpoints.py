@@ -8,6 +8,7 @@ from .query import Query
 
 
 def host_label(value: Any, subdomains: bool = False) -> bool:
+    """Check whether the value is a valid endpoint host label."""
     if not isinstance(value, str) or not value:
         return False
     labels = value.split(".") if subdomains else [value]
@@ -15,6 +16,7 @@ def host_label(value: Any, subdomains: bool = False) -> bool:
 
 
 def parse_url(value: Any) -> dict[str, Any] | None:
+    """Parse an absolute HTTP(S) endpoint, returning None for invalid values."""
     if not isinstance(value, str) or any(ord(char) <= 32 or ord(char) == 127 for char in value):
         return None
     try:
@@ -41,6 +43,7 @@ def parse_url(value: Any) -> dict[str, Any] | None:
 
 
 def attribute(value: Any, path: Any) -> Any:
+    """Read an endpoint-rule attribute path from a value."""
     if isinstance(path, str):
         steps: list[dict[str, Any]] = []
         for part in path.split("."):
@@ -63,6 +66,7 @@ def attribute(value: Any, path: Any) -> Any:
 
 
 def function(name: str, args: list[Any]) -> Any:
+    """Evaluate a lowered endpoint-rule function."""
     if name == "isSet":
         return args[0] is not None
     if name == "not":
@@ -89,6 +93,7 @@ def function(name: str, args: list[Any]) -> Any:
 
 
 def expression(node: dict[str, Any], values: dict[str, Any]) -> Any:
+    """Evaluate a lowered endpoint-rule expression."""
     kind = node["kind"]
     if kind == "reference":
         return values.get(node["name"])
@@ -112,6 +117,7 @@ def expression(node: dict[str, Any], values: dict[str, Any]) -> Any:
 
 
 def rules(nodes: list[dict[str, Any]], parameters: dict[str, Any]) -> dict[str, Any] | None:
+    """Evaluate the endpoint decision tree against resolved parameters."""
     for rule in nodes:
         scope = dict(parameters)
         for condition in rule["conditions"]:
@@ -139,6 +145,7 @@ def rules(nodes: list[dict[str, Any]], parameters: dict[str, Any]) -> dict[str, 
 
 def resolve(rule_set: dict[str, Any], sources: dict[str, Any], input: Any,
             client: dict[str, Any], builtins: dict[str, Any]) -> dict[str, Any]:
+    """Resolve endpoint rule parameters and evaluate the decision tree; invalid parameters or no match raise ValueError."""
     parameters = {}
     for name, parameter in rule_set["parameters"].items():
         value = None
@@ -171,6 +178,7 @@ def resolve(rule_set: dict[str, Any], sources: dict[str, Any], input: Any,
 
 
 def host_prefix(url: str, description: dict[str, Any], input: Any) -> str:
+    """Expand modeled host labels and prepend them to the endpoint host."""
     prefix = ""
     for part in description["parts"]:
         if part["kind"] == "literal":

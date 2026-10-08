@@ -24,6 +24,7 @@ _log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class OperationStarted:
+    """Call-start event with invocation identifier, service, operation and monotonic time."""
     invocation_id: str
     service: str
     operation: str
@@ -32,6 +33,7 @@ class OperationStarted:
 
 @dataclass(frozen=True)
 class AttemptStarted:
+    """Request-attempt event with credential/sensitive headers and target values redacted."""
     invocation_id: str
     service: str
     operation: str
@@ -51,6 +53,7 @@ class AttemptStarted:
 
 @dataclass(frozen=True)
 class AttemptFinished:
+    """Attempt-result event with safe error classification, latency and retry decision."""
     invocation_id: str
     service: str
     operation: str
@@ -69,6 +72,7 @@ class AttemptFinished:
 
 @dataclass(frozen=True)
 class OperationFinished:
+    """Final call event with total attempts, status, safe error classification and latency."""
     invocation_id: str
     service: str
     operation: str
@@ -83,19 +87,24 @@ class TelemetryHook:
     """Override any of these. A hook that raises is logged and never changes the call's outcome."""
 
     def operation_started(self, event: OperationStarted) -> None:
+        """Observe a logical call starting. Hook failures are isolated from the call."""
         pass
 
     def attempt_started(self, event: AttemptStarted) -> None:
+        """Observe a redacted outgoing attempt. Hook failures are isolated from the call."""
         pass
 
     def attempt_finished(self, event: AttemptFinished) -> None:
+        """Observe an attempt result and retry decision. Hook failures are isolated from the call."""
         pass
 
     def operation_finished(self, event: OperationFinished) -> None:
+        """Observe logical call completion. Hook failures are isolated from the call."""
         pass
 
 
 def emit(hook: TelemetryHook | None, method: str, event: Any) -> None:
+    """Invoke a telemetry hook; log hook failures without changing call results."""
     if hook is None:
         return
     try:
@@ -105,6 +114,7 @@ def emit(hook: TelemetryHook | None, method: str, event: Any) -> None:
 
 
 def redact_headers(headers: Any, sensitive: frozenset[str]) -> dict[str, str]:
+    """Copy headers and replace sensitive or credential values with the redaction marker."""
     return {name: REDACTED if name in CREDENTIAL_HEADERS or name in sensitive else value
             for name, value in ((key.lower(), value) for key, value in headers.items())}
 
@@ -128,12 +138,14 @@ class OpenTelemetryHook(TelemetryHook):
         self._spans: dict[str, Any] = {}
 
     def operation_started(self, event: OperationStarted) -> None:
+        """Observe a logical call starting. Hook failures are isolated from the call."""
         span = self._tracer.start_span(f"{event.service.rsplit('#', 1)[-1]}.{event.operation}", attributes={
             "rpc.system": "smithy", "rpc.service": event.service, "rpc.method": event.operation,
         })
         self._spans[event.invocation_id] = span
 
     def attempt_started(self, event: AttemptStarted) -> None:
+        """Observe a redacted outgoing attempt. Hook failures are isolated from the call."""
         span = self._spans.get(event.invocation_id)
         if span is None:
             return
@@ -143,6 +155,7 @@ class OpenTelemetryHook(TelemetryHook):
             span.set_attribute("http.request.resend_count", event.attempt - 1)
 
     def attempt_finished(self, event: AttemptFinished) -> None:
+        """Observe an attempt result and retry decision. Hook failures are isolated from the call."""
         span = self._spans.get(event.invocation_id)
         if span is None:
             return
@@ -154,6 +167,7 @@ class OpenTelemetryHook(TelemetryHook):
         span.add_event("crucible.attempt", attributes=attributes)
 
     def operation_finished(self, event: OperationFinished) -> None:
+        """Observe logical call completion. Hook failures are isolated from the call."""
         span = self._spans.pop(event.invocation_id, None)
         if span is None:
             return

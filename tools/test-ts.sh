@@ -16,6 +16,7 @@ crucible generate ts crates/crucible-smithy/tests/fixtures/internal.json \
   --out "$dir/generated-audience" --package-name @example/audience >/dev/null
 crucible generate ts crates/crucible-smithy/tests/fixtures/internal.json \
   --audience internal --out "$dir/generated-audience-internal" --package-name @example/audience-internal >/dev/null
+crucible generate ts tests/fixtures/client-docs.json --out "$dir/generated-docs" --package-name @example/docs >/dev/null
 crucible generate ts crates/crucible-smithy/tests/fixtures/weather.json \
   --out "$dir/generated" --package-name @example/weather \
   --endpoint https://weather.example --middleware content-sha256 >/dev/null

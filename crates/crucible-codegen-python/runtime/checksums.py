@@ -65,6 +65,7 @@ class Hasher:
 
 
 def digest(algorithm: str, data: bytes) -> str:
+    """Compute the selected checksum from buffered bytes."""
     hasher = Hasher(algorithm)
     hasher.update(data)
     return hasher.base64()
@@ -110,6 +111,7 @@ def prepare(config: dict[str, Any] | None, values: dict[str, Any], names: dict[s
 
 
 def request(settings: dict[str, Any], headers: Any, data: bytes) -> None:
+    """Choose and calculate a modeled request checksum according to the configured policy."""
     name = settings.get("header")
     if name and name not in headers:
         headers[name] = digest(settings["algorithm"], data)
@@ -136,11 +138,13 @@ def expected(settings: dict[str, Any], headers: Any) -> tuple[str, str] | None:
 
 
 def verify(algorithm: str, expected_value: str, actual: str) -> None:
+    """Verify an encoded response checksum; malformed or mismatching checksums raise ChecksumError."""
     if not hmac.compare_digest(expected_value.encode("utf-8"), actual.encode("ascii")):
         raise ChecksumError("response " + algorithm + " checksum mismatch")
 
 
 def response(settings: dict[str, Any], headers: Any, data: bytes) -> str | None:
+    """Select and verify a modeled response checksum according to the configured policy."""
     found = expected(settings, headers)
     if found is None:
         return None

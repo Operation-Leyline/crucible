@@ -21,12 +21,19 @@ import (
     "time"
 )
 
+// BasicCredentials holds HTTP Basic credentials. String and GoString redact both fields.
 type BasicCredentials struct { Username, Password string }
+// String returns a readable representation.
 func (BasicCredentials) String() string { return "BasicCredentials{redacted}" }
+// GoString returns the same redacted representation for Go syntax formatting.
 func (c BasicCredentials) GoString() string { return c.String() }
+// AWSCredentials holds AWS signing credentials and optional expiry. String and GoString redact credentials.
 type AWSCredentials struct { AccessKeyID, SecretAccessKey, SessionToken string; ExpiresAt time.Time }
+// String returns a readable representation.
 func (AWSCredentials) String() string { return "AWSCredentials{redacted}" }
+// GoString returns the same redacted representation for Go syntax formatting.
 func (c AWSCredentials) GoString() string { return c.String() }
+// CredentialsProvider resolves signing credentials for an attempt; nil means unavailable.
 type CredentialsProvider func(context.Context) (*AWSCredentials, error)
 
 // CredentialChain stops on the first identity or error. Nil means unavailable.
@@ -47,6 +54,7 @@ func staticCredentials(access, secret, token string) (*AWSCredentials, error) {
     if access == "" || secret == "" { return nil, errors.New("AWS credentials are incomplete") }
     return &AWSCredentials{AccessKeyID:access, SecretAccessKey:secret, SessionToken:token}, nil
 }
+// EnvironmentCredentials reads static AWS environment credentials; partial credentials return an error.
 func EnvironmentCredentials(ctx context.Context) (*AWSCredentials, error) {
     if err := ctx.Err(); err != nil { return nil, err }
     return staticCredentials(os.Getenv("AWS_ACCESS_KEY_ID"), os.Getenv("AWS_SECRET_ACCESS_KEY"), os.Getenv("AWS_SESSION_TOKEN"))
@@ -77,6 +85,7 @@ func ProfileCredentials(profile, filename string) CredentialsProvider {
         return staticCredentials(values["aws_access_key_id"], values["aws_secret_access_key"], values["aws_session_token"])
     }
 }
+// CachedCredentials coalesces concurrent provider refreshes and caches credentials until the refresh window.
 type CachedCredentials struct {
     provider CredentialsProvider
     skew time.Duration
@@ -85,10 +94,12 @@ type CachedCredentials struct {
     value *AWSCredentials
     refreshAt time.Time
 }
+// NewCachedCredentials requires a provider and nonnegative refresh window; credentials are resolved lazily.
 func NewCachedCredentials(provider CredentialsProvider, refreshBefore time.Duration) (*CachedCredentials, error) {
     if provider == nil || refreshBefore < 0 { return nil, errors.New("a provider and nonnegative refresh interval are required") }
     return &CachedCredentials{provider:provider, skew:refreshBefore}, nil
 }
+// Retrieve returns cached credentials or coalesces a provider refresh; ctx cancels waiting.
 func (c *CachedCredentials) Retrieve(ctx context.Context) (*AWSCredentials, error) {
     for {
         if err := ctx.Err(); err != nil { return nil, err }
@@ -114,6 +125,7 @@ func (c *CachedCredentials) Retrieve(ctx context.Context) (*AWSCredentials, erro
     }
 }
 
+// SigningOptions selects SigV4 region, service signing name and path/payload signing policy.
 type SigningOptions struct {
     Region, Service string
     Time time.Time

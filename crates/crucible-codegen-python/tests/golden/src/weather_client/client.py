@@ -5,62 +5,80 @@ from . import models as m
 from .runtime import SyncClient, AsyncClientBase
 
 class WeatherClient(SyncClient):
+    "HTTP client. Construct with endpoint and keyword configuration described by the inherited initializer. Use with or close(). Share across threads only if all supplied callbacks are thread-safe. The client only closes its own HTTPX transport; caller-supplied http transports remain caller-owned."
     def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:
         super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, content_sha256=True, **kwargs)
+    __init__.__doc__ = SyncClient.__init__.__doc__
 
     def create_city(self, input: m.CreateCityInput, **options: Any) -> m.CreateCityOutput:
+        "Call CreateCity.\n\nInput: CreateCityInput.\n\nReturns: CreateCityOutput.\n\nModeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nAn omitted clientToken idempotency token is generated once per call and reused for retries."
         return self._call("CreateCity", input, **options)
 
     def get_city(self, input: m.GetCityInput, **options: Any) -> m.GetCityOutput:
+        "Call GetCity.\n\nInput: GetCityInput.\n\nReturns: GetCityOutput.\n\nModeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return self._call("GetCity", input, **options)
 
     def get_city_photo(self, input: m.GetCityPhotoInput, **options: Any) -> m.GetCityPhotoOutput:
+        "Call GetCityPhoto.\n\nInput: GetCityPhotoInput.\n\nReturns: GetCityPhotoOutput.\n\nModeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return self._call("GetCityPhoto", input, **options)
 
     def list_cities(self, input: m.ListCitiesInput | None = None, **options: Any) -> m.ListCitiesOutput:
+        "Call ListCities.\n\nInput: ListCitiesInput.\n\nReturns: ListCitiesOutput.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy.\n\nReturns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens."
         return self._call("ListCities", input, **options)
 
     def list_cities_pages(self, input: m.ListCitiesInput | None = None, **options: Any) -> Iterator[m.ListCitiesOutput]:
+        """Yield pages lazily from a snapshot of input; stop on absent/empty tokens and reject repeated tokens."""
         for page in self._pages("ListCities", input, **options):
             yield page
 
     def ping(self, **options: Any) -> None:
+        "Call Ping.\n\nInput: no modeled input.\n\nReturns: no modeled output.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return self._call("Ping", None, **options)
 
     def put_city_photo(self, input: m.PutCityPhotoInput, **options: Any) -> m.PutCityPhotoOutput:
-        "Stores a city's photo exactly as sent."
+        "Stores a city's photo exactly as sent.\n\nInput: PutCityPhotoInput.\n\nReturns: PutCityPhotoOutput.\n\nModeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return self._call("PutCityPhoto", input, **options)
 
     def status(self, input: m.StatusInput | None = None, **options: Any) -> m.StatusOutput:
+        "Call Status.\n\nInput: StatusInput.\n\nReturns: StatusOutput.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return self._call("Status", input, **options)
 
 class AsyncWeatherClient(AsyncClientBase):
+    "HTTP client. Construct with endpoint and keyword configuration described by the inherited initializer. Use async with or await aclose(). Share across tasks on one event loop if callbacks are safe for concurrent calls. The client only closes its own HTTPX transport; caller-supplied http transports remain caller-owned."
     def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:
         super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, content_sha256=True, **kwargs)
+    __init__.__doc__ = AsyncClientBase.__init__.__doc__
 
     async def create_city(self, input: m.CreateCityInput, **options: Any) -> m.CreateCityOutput:
+        "Call CreateCity.\n\nInput: CreateCityInput.\n\nReturns: CreateCityOutput.\n\nModeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nAn omitted clientToken idempotency token is generated once per call and reused for retries."
         return await self._call("CreateCity", input, **options)
 
     async def get_city(self, input: m.GetCityInput, **options: Any) -> m.GetCityOutput:
+        "Call GetCity.\n\nInput: GetCityInput.\n\nReturns: GetCityOutput.\n\nModeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return await self._call("GetCity", input, **options)
 
     async def get_city_photo(self, input: m.GetCityPhotoInput, **options: Any) -> m.GetCityPhotoOutput:
+        "Call GetCityPhoto.\n\nInput: GetCityPhotoInput.\n\nReturns: GetCityPhotoOutput.\n\nModeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return await self._call("GetCityPhoto", input, **options)
 
     async def list_cities(self, input: m.ListCitiesInput | None = None, **options: Any) -> m.ListCitiesOutput:
+        "Call ListCities.\n\nInput: ListCitiesInput.\n\nReturns: ListCitiesOutput.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy.\n\nReturns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens."
         return await self._call("ListCities", input, **options)
 
     async def list_cities_pages(self, input: m.ListCitiesInput | None = None, **options: Any) -> AsyncIterator[m.ListCitiesOutput]:
+        """Yield pages lazily from a snapshot of input; stop on absent/empty tokens and reject repeated tokens."""
         async for page in self._pages("ListCities", input, **options):
             yield page
 
     async def ping(self, **options: Any) -> None:
+        "Call Ping.\n\nInput: no modeled input.\n\nReturns: no modeled output.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return await self._call("Ping", None, **options)
 
     async def put_city_photo(self, input: m.PutCityPhotoInput, **options: Any) -> m.PutCityPhotoOutput:
-        "Stores a city's photo exactly as sent."
+        "Stores a city's photo exactly as sent.\n\nInput: PutCityPhotoInput.\n\nReturns: PutCityPhotoOutput.\n\nModeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return await self._call("PutCityPhoto", input, **options)
 
     async def status(self, input: m.StatusInput | None = None, **options: Any) -> m.StatusOutput:
+        "Call Status.\n\nInput: StatusInput.\n\nReturns: StatusOutput.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return await self._call("Status", input, **options)
 

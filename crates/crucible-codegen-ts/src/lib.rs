@@ -31,6 +31,7 @@ const RUNTIME: &str = include_str!("../runtime/runtime.ts");
 /// would collide with it in `index.ts`.
 const RUNTIME_EXPORTS: &[&str] = &[
     "ServiceError",
+    "formatModel",
     "NetworkError",
     "TimeoutError",
     "AuthenticationError",

@@ -49,7 +49,54 @@ class Unset:
 UNSET = Unset()
 
 
+def model_repr(schema: dict[str, Any], target: str, value: Any) -> str:
+    """Format modeled values recursively without reading sensitive members.
+
+    Omitted members are skipped, null is shown as None, cycles as <recursive>,
+    and streams are never consumed. Unknown union payloads are redacted because
+    an older client cannot know their sensitivity.
+    """
+    active: set[int] = set()
+
+    def render(target: str, value: Any, sensitive: bool = False) -> str:
+        shape = schema["shapes"][target]
+        if sensitive or shape.get("sensitive"):
+            return "*** Sensitive Data Redacted ***"
+        if value is None:
+            return "None"
+        if shape.get("streaming"):
+            return "<stream>"
+        kind = shape["kind"]
+        if kind not in ("structure", "union", "list", "map"):
+            return repr(value)
+        if id(value) in active:
+            return "<recursive>"
+        active.add(id(value))
+        try:
+            if kind in ("structure", "union"):
+                parts = []
+                for name, member in shape["members"].items():
+                    native = member["attribute"]
+                    # Presence may be checked, but sensitive values are never formatted.
+                    item = value.get(native, UNSET) if isinstance(value, dict) else getattr(value, native, UNSET)
+                    if not isinstance(item, Unset):
+                        parts.append(native + "=" + render(member["target"], item, member.get("sensitive", False)))
+                if kind == "union" and not isinstance(getattr(value, "_unknown", UNSET), Unset):
+                    parts.append("_unknown=*** Sensitive Data Redacted ***")
+                return shape["name"] + "(" + ", ".join(parts) + ")"
+            if kind == "list":
+                member = shape["member"]
+                return "[" + ", ".join(render(member["target"], item, member.get("sensitive", False)) for item in value) + "]"
+            key, member = shape["key"], shape["value"]
+            return "{" + ", ".join(render(key["target"], k, key.get("sensitive", False)) + ": " + render(member["target"], v, member.get("sensitive", False)) for k, v in value.items()) + "}"
+        finally:
+            active.remove(id(value))
+
+    return render(target, value)
+
+
 class OpenEnum(StrEnum):
+    """String enum that preserves unknown server values as UNKNOWN members."""
     @classmethod
     def _missing_(cls, value: Any) -> OpenEnum | None:
         if not isinstance(value, str):
@@ -61,6 +108,7 @@ class OpenEnum(StrEnum):
 
 
 class OpenIntEnum(IntEnum):
+    """Signed 32-bit enum that preserves unknown server values."""
     @classmethod
     def _missing_(cls, value: Any) -> OpenIntEnum | None:
         if isinstance(value, bool) or not isinstance(value, int) or not -(2 ** 31) <= value < 2 ** 31:
@@ -88,6 +136,7 @@ def _json(value: Any) -> str:
 
 @dataclass(frozen=True)
 class ResponseMetadata:
+    """HTTP status, request identifier, headers and buffered body retained from a response."""
     status: int
     request_id: str | None
     headers: httpx.Headers
@@ -95,6 +144,7 @@ class ResponseMetadata:
 
 
 class ServiceError(Exception):
+    """Error response with name, message, metadata, retry classification and decoded modeled fields."""
     def __init__(self, *, name: str, message: str, metadata: ResponseMetadata,
                  retryable: bool = False, throttling: bool = False,
                  fields: dict[str, Any] | None = None) -> None:
@@ -111,6 +161,14 @@ class ServiceError(Exception):
             return self.fields[name]
         except KeyError:
             raise AttributeError(name) from None
+
+    def __repr__(self) -> str:
+        """Redact unknown response fields; generated errors provide modeled reprs."""
+        return type(self).__name__ + "(message=*** Sensitive Data Redacted ***)"
+
+    def __str__(self) -> str:
+        """Use the same redaction as repr for error text."""
+        return repr(self)
 
 
 class ServiceException(ServiceError):
@@ -364,6 +422,40 @@ class _Base:
                  middleware: list[Callable[..., Any]] | None = None,
                  retry_mode: str = "legacy", endpoint_discovery: bool | None = None,
                  telemetry: TelemetryHook | None = None, clock: Any = None) -> None:
+        """Configure without sending a request.
+
+        endpoint: Absolute HTTP(S) base URL; optional with endpoint rules.
+        http: Caller-owned HTTPX client; sync/async must match this client.
+        token: Bearer token or per-attempt provider; async clients await providers.
+        headers: Headers sent on every request.
+        basic_auth: BasicCredentials or per-attempt identity provider.
+        api_key: Modeled API key string or per-attempt provider.
+        credentials: AwsCredentials or per-attempt SigV4 provider.
+        region: Region for endpoint rules and SigV4 signing.
+        endpoint_parameters: Overrides for modeled endpoint parameters.
+        endpoint_builtins: Overrides for built-in endpoint values.
+        disable_host_prefix: Disable the modeled host prefix when True.
+        max_attempts: Total attempt limit, including first; default 3.
+        base_delay: Initial full-jitter ceiling in seconds; default 0.1.
+        max_delay: Maximum backoff ceiling in seconds; default 20.
+        timeout: Total call budget in seconds; default 30. Per-call timeout
+            overrides it; streaming reads retain the deadline.
+        content_sha256: Send SHA-256 headers for request bodies when enabled.
+        request_checksum_calculation: WHEN_SUPPORTED (default) or WHEN_REQUIRED.
+        response_checksum_validation: WHEN_SUPPORTED (default) or WHEN_REQUIRED.
+        checksum_validated: Callback receiving operation and verified algorithm.
+        middleware: Request callbacks run for every attempt before transport.
+        retry_mode: legacy (default), standard retry quota, or adaptive rate limit.
+        endpoint_discovery: None follows modeled policy; True enables optional
+            discovery; False disables optional discovery. Required discovery stays.
+        telemetry: Optional hook; exceptions are logged without failing calls.
+        clock: Monotonic clock/sleep implementation for tests.
+
+        Close owned transport with close/aclose or context management. Supplied
+        HTTPX transports remain caller-owned. Share only when all callbacks and
+        transport support concurrency; async clients belong to one event loop.
+        Configuration must remain immutable after construction.
+        """
         if endpoint is None and "endpointRules" not in schema or endpoint is not None and parse_url(endpoint) is None:
             raise ValueError("an absolute HTTP(S) endpoint is required")
         if max_attempts < 1 or timeout <= 0 or not math.isfinite(timeout):
@@ -945,12 +1037,15 @@ class _Trace:
 
 
 class SyncClient(_Base):
+    """Synchronous HTTPX transport runtime; close or context management closes only its owned transport."""
     def __init__(self, *, http: httpx.Client | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._http = http or httpx.Client()
         self._owns_http = http is None
+    __init__.__doc__ = _Base.__init__.__doc__
 
     def close(self) -> None:
+        """Close the client-owned synchronous HTTPX transport; a supplied transport remains open."""
         if self._owns_http:
             self._http.close()
 
@@ -1185,12 +1280,15 @@ class SyncClient(_Base):
 
 
 class AsyncClientBase(_Base):
+    """Async HTTPX transport runtime; aclose or async context management closes only its owned transport."""
     def __init__(self, *, http: httpx.AsyncClient | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._http = http or httpx.AsyncClient()
         self._owns_http = http is None
+    __init__.__doc__ = _Base.__init__.__doc__
 
     async def aclose(self) -> None:
+        """Close owned asynchronous transport or response resources; callers retain ownership of supplied HTTPX clients."""
         if self._owns_http:
             await self._http.aclose()
 

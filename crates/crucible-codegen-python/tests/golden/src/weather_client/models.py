@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, TypeAlias
-from .runtime import UNSET, Unset, OpenEnum, WeatherException
+from .runtime import UNSET, Unset, OpenEnum, model_repr, WeatherException
 
 CityId: TypeAlias = str
 
@@ -13,126 +13,233 @@ CityName: TypeAlias = str
 
 CitySummaries: TypeAlias = list["CitySummary"]
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, repr=False)
 class CitySummary:
+    "Modeled CitySummary value.\n\nAttributes:\nid: Modeled member.\nname: Modeled member.\npopulation: Modeled member.\nupdated_at: Modeled member.\ncreated_at: Modeled member."
     id: CityId = field(repr=True)
     name: CityName = field(repr=True)
     population: int = field(repr=True)
     updated_at: datetime | None | Unset = field(default=UNSET, repr=True)
     created_at: datetime | None | Unset = field(default=UNSET, repr=True)
 
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#CitySummary", self)
+
 class ConflictError(WeatherException):
+    "Modeled ConflictError value.\n\nAttributes:\nmessage: Modeled member."
     message: str
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#ConflictError", self)
+
+@dataclass(kw_only=True, repr=False)
 class Coordinates:
+    "Modeled Coordinates value.\n\nAttributes:\nlatitude: Modeled member.\nlongitude: Modeled member."
     latitude: float = field(repr=True)
     longitude: float = field(repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#Coordinates", self)
+
+@dataclass(kw_only=True, repr=False)
 class CreateCityInput:
+    "Modeled CreateCityInput value.\n\nAttributes:\nname: Modeled member.\nlocation: Modeled member.\nclient_token: Modeled member.\nexpected_revision: Modeled member."
     name: CityName = field(repr=True)
     location: Location | None | Unset = field(default=UNSET, repr=True)
     client_token: str | None | Unset = field(default=UNSET, repr=True)
     expected_revision: int | None | Unset = field(default=UNSET, repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#CreateCityInput", self)
+
+@dataclass(kw_only=True, repr=False)
 class CreateCityOutput:
+    "Modeled CreateCityOutput value.\n\nAttributes:\ncity: Modeled member."
     city: CitySummary = field(repr=True)
+
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#CreateCityOutput", self)
 
 DateTime: TypeAlias = datetime
 
 Forecast: TypeAlias = dict["Sky", "Any"]
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, repr=False)
 class GetCityInput:
+    "Modeled GetCityInput value.\n\nAttributes:\ncity_id: Modeled member.\nat: Modeled member."
     city_id: CityId = field(repr=True)
     at: DateTime | None | Unset = field(default=UNSET, repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#GetCityInput", self)
+
+@dataclass(kw_only=True, repr=False)
 class GetCityOutput:
+    "Modeled GetCityOutput value.\n\nAttributes:\ncity: Modeled member.\nforecast: Modeled member.\nrequest_id: Modeled member."
     city: CitySummary = field(repr=True)
     forecast: Forecast | None | Unset = field(default=UNSET, repr=True)
     request_id: str | None | Unset = field(default=UNSET, repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#GetCityOutput", self)
+
+@dataclass(kw_only=True, repr=False)
 class GetCityPhotoInput:
+    "Modeled GetCityPhotoInput value.\n\nAttributes:\ncity_id: Modeled member."
     city_id: CityId = field(repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#GetCityPhotoInput", self)
+
+@dataclass(kw_only=True, repr=False)
 class GetCityPhotoOutput:
+    "Modeled GetCityPhotoOutput value.\n\nAttributes:\ncaption: Modeled member.\nphoto: Modeled member."
     caption: str | None | Unset = field(default=UNSET, repr=True)
     photo: Photo | None | Unset = field(default=UNSET, repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#GetCityPhotoOutput", self)
+
+@dataclass(kw_only=True, repr=False)
 class ListCitiesInput:
+    "Modeled ListCitiesInput value.\n\nAttributes:\nnext_token: Modeled member.\nmax_results: Modeled member.\ntags: Modeled member."
     next_token: str | None | Unset = field(default=UNSET, repr=True)
     max_results: int | None | Unset = field(default=UNSET, repr=True)
     tags: Tags | None | Unset = field(default=UNSET, repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#ListCitiesInput", self)
+
+@dataclass(kw_only=True, repr=False)
 class ListCitiesOutput:
+    "Modeled ListCitiesOutput value.\n\nAttributes:\ncities: Modeled member.\nnext_token: Modeled member."
     cities: CitySummaries = field(repr=True)
     next_token: str | None | Unset = field(default=UNSET, repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#ListCitiesOutput", self)
+
+@dataclass(kw_only=True, repr=False)
 class Location:
+    "Modeled Location value.\n\nAttributes:\ncoordinates: Modeled member.\nunknown: Modeled member."
     coordinates: Coordinates | None | Unset = field(default=UNSET, repr=True)
     unknown: None | None | Unset = field(default=UNSET, repr=True)
     _unknown: tuple[str, Any] | Unset = field(default=UNSET, repr=False)
 
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#Location", self)
+
 class NotFoundError(WeatherException):
+    "Modeled NotFoundError value.\n\nAttributes:\nmessage: Modeled member.\nresource_id: Modeled member."
     message: str
     resource_id: str | Unset
 
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#NotFoundError", self)
+
 Photo: TypeAlias = bytes
 
-@dataclass(kw_only=True)
+"A photo, carried unparsed."
+@dataclass(kw_only=True, repr=False)
 class PhotoSummary:
+    "Modeled PhotoSummary value.\n\nAttributes:\nsize: Modeled member.\nthumbnail: Modeled member.\ncaption: Modeled member."
     size: int = field(repr=True)
     thumbnail: Thumbnail = field(repr=True)
     caption: str | None | Unset = field(default=UNSET, repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#PhotoSummary", self)
+
+@dataclass(kw_only=True, repr=False)
 class PutCityPhotoInput:
+    "Modeled PutCityPhotoInput value.\n\nAttributes:\ncity_id: Modeled member.\ncaption: Modeled member.\nphoto: Modeled member."
     city_id: CityId = field(repr=True)
     caption: str | None | Unset = field(default=UNSET, repr=True)
     photo: Photo = field(repr=True)
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#PutCityPhotoInput", self)
+
+@dataclass(kw_only=True, repr=False)
 class PutCityPhotoOutput:
+    "Modeled PutCityPhotoOutput value.\n\nAttributes:\nphoto: Modeled member."
     photo: PhotoSummary = field(repr=True)
+
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#PutCityPhotoOutput", self)
 
 class Sky(OpenEnum):
     CLEAR = "clear"
     CLOUDY = "cloudy"
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, repr=False)
 class StatusInput:
+    "Modeled StatusInput value."
     pass
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#StatusInput", self)
+
+@dataclass(kw_only=True, repr=False)
 class StatusOutput:
+    "Modeled StatusOutput value."
     pass
+
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#StatusOutput", self)
 
 Tags: TypeAlias = list["str"]
 
 class ThrottlingError(WeatherException):
+    "Modeled ThrottlingError value.\n\nAttributes:\nmessage: Modeled member.\nretry_after: Modeled member."
     message: str
     retry_after: int | Unset
 
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#ThrottlingError", self)
+
 Thumbnail: TypeAlias = bytes
 
+"The photo's first bytes: base64 in JSON."
 class ValidationError(WeatherException):
+    "Modeled ValidationError value.\n\nAttributes:\nmessage: Modeled member.\nreason: Modeled member.\nfield_list: Modeled member.\nrequest_id: Modeled member."
     message: str
     reason: ValidationReason | Unset
     field_list: ValidationFieldList | Unset
     request_id: str | Unset
 
-@dataclass(kw_only=True)
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#ValidationError", self)
+
+@dataclass(kw_only=True, repr=False)
 class ValidationField:
+    "Modeled ValidationField value.\n\nAttributes:\npath: Modeled member.\nmessage: Modeled member."
     path: str = field(repr=True)
     message: str = field(repr=True)
+
+    def __repr__(self) -> str:
+        """Describe present members, redacting modeled sensitive values."""
+        return model_repr(_SCHEMA, "example.weather#ValidationField", self)
 
 ValidationFieldList: TypeAlias = list["ValidationField"]
 

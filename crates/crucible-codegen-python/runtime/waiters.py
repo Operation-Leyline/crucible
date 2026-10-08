@@ -7,6 +7,7 @@ from .query import Query
 
 
 class WaiterError(Exception):
+    """Terminal waiter failure retaining attempts, last response, cause and modeled detail."""
     def __init__(self, name: str, attempts: int, *, response: Any = None, error: Exception | None = None, message: str | list[str] | None = None) -> None:
         super().__init__(f"waiter {name} failed after {attempts} attempts" + (f": {message}" if message else ""))
         self.name, self.attempts, self.response, self.error = name, attempts, response, error
@@ -14,10 +15,12 @@ class WaiterError(Exception):
 
 
 class WaiterTimeout(WaiterError, TimeoutError):
+    """The total waiter budget expired without a success acceptor match."""
     pass
 
 
 class Waiter:
+    """Evaluate modeled acceptors and compute jittered delays in seconds."""
     def __init__(self, name: str, description: dict[str, Any], timeout: float,
                  min_delay: float | None, max_delay: float | None) -> None:
         self.name, self.timeout = name, timeout
@@ -31,6 +34,7 @@ class Waiter:
         self.message: str | list[str] | None = None
 
     def state(self, input: Any, output: Any, error: Exception | None) -> str:
+        """Evaluate acceptors in order and return success, failure or retry for the last response/error."""
         self.message = None
         for acceptor, query in self.acceptors:
             matcher = acceptor["matcher"]
@@ -61,6 +65,7 @@ class Waiter:
         return "failure" if error is not None else "retry"
 
     def delay(self, attempt: int, remaining: float) -> float:
+        """Compute the next jittered waiter delay in seconds within the remaining budget."""
         ceiling = min(self.maximum, self.minimum * 2 ** min(attempt - 1, 62))
         delay = random.uniform(self.minimum, ceiling)
         if remaining <= self.minimum:

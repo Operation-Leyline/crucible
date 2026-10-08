@@ -34,12 +34,15 @@ class SystemClock:
     """Monotonic seconds and sleeps. Tests inject a clock with the same methods."""
 
     def now(self) -> float:
+        """Return monotonic seconds."""
         return time.monotonic()
 
     def sleep(self, seconds: float) -> None:
+        """Sleep synchronously for the supplied seconds."""
         time.sleep(seconds)
 
     async def asleep(self, seconds: float) -> None:
+        """Sleep asynchronously for the supplied seconds."""
         await asyncio.sleep(seconds)
 
 
@@ -79,6 +82,7 @@ class CubicCalculator:
         return (self.w_max * (1 - BETA) / SCALE_CONSTANT) ** (1 / 3)
 
     def success(self, timestamp: float) -> float:
+        """Compute the CUBIC send rate after a successful response."""
         return SCALE_CONSTANT * (timestamp - self.last_fail - self.k) ** 3 + self.w_max
 
     def throttle(self, rate: float, timestamp: float) -> float:
@@ -139,6 +143,7 @@ class SendTokenBucket:
         return 0.0 if self.capacity >= 0 else -self.capacity / self.fill_rate
 
     def give_back(self) -> None:
+        """Return reserved send capacity when a send is canceled."""
         if self.enabled:
             self.capacity = min(self.max_capacity, self.capacity + 1)
 
@@ -152,6 +157,7 @@ class AdaptiveRateLimiter:
         self.bucket = SendTokenBucket()
 
     def before_send(self, now: float) -> float:
+        """Reserve adaptive send capacity and return the required delay in seconds."""
         return self.bucket.reserve(now)
 
     def after_attempt(self, throttled: bool, now: float) -> None:
@@ -182,12 +188,14 @@ class RetryStrategy:
         self.limiter = AdaptiveRateLimiter(clock.now()) if mode == "adaptive" else None  # type: ignore[attr-defined]
 
     def send_delay(self) -> float:
+        """Reserve send capacity and return any required delay in seconds."""
         if self.limiter is None:
             return 0.0
         with self._lock:
             return self.limiter.before_send(self.clock.now())  # type: ignore[attr-defined]
 
     def cancel_send(self) -> None:
+        """Return a reserved adaptive send token when an attempt is canceled."""
         if self.limiter is not None:
             with self._lock:
                 self.limiter.bucket.give_back()
@@ -205,6 +213,7 @@ class RetryStrategy:
         return cost is not None, cost
 
     def succeeded(self, last_retry_cost: int | None) -> None:
+        """Refund retry quota after a successful call."""
         if self.quota is not None:
             self.quota.release(last_retry_cost)
 

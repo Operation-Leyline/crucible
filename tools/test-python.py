@@ -58,6 +58,12 @@ def qualify(package):
     protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
     protocol_path = package.parent / "protocol.json"
     protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
+    docs = package.parent / "docs"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
+        "tests/fixtures/client-docs.json", "--out", str(docs),
+        "--package-name", "docs-client", "--module-name", "docs_client")
+    run(sys.executable, "-m", "mypy", str(docs / "src"))
+    protocols.append(docs)
     checksum = package.parent / "checksum"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-smithy/tests/fixtures/checksums.json", "--out", str(checksum),

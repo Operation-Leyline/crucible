@@ -7,10 +7,12 @@
 import { ServiceError, ServiceException, fromWire, parseJson, stringifyJson, toBase64, toWire, wireName, type ErrorSpec, type ResponseMetadata, type Schema } from "./runtime.js";
 import type { AwsCredentials, SigningScope } from "./credentials.js";
 
+/** AWS event-stream media type used for framed HTTP payloads. */
 export const EVENT_STREAM_CONTENT_TYPE = "application/vnd.amazon.eventstream";
 const MAX_HEADERS = 128 * 1024;
 const MAX_PAYLOAD = 16 * 1024 * 1024;
 
+/** A typed AWS event-stream header value. */
 export type EventHeaderValue =
   | { readonly type: "boolean"; readonly value: boolean }
   | { readonly type: "byte" | "short" | "integer"; readonly value: number }
@@ -20,6 +22,7 @@ export type EventHeaderValue =
   /** Milliseconds since the Unix epoch. */
   | { readonly type: "timestamp"; readonly value: number };
 
+/** Typed event-stream headers and a buffered payload for one frame. */
 export interface EventMessage {
   readonly headers: readonly { readonly name: string; readonly value: EventHeaderValue }[];
   readonly payload: Uint8Array;
@@ -87,6 +90,7 @@ export function encodeHeaders(headers: EventMessage["headers"]): Uint8Array {
   return Uint8Array.from(parts);
 }
 
+/** Encode one event-stream frame including prelude and message CRC32 checksums. */
 export function encodeEventMessage(message: EventMessage): Uint8Array {
   const headers = encodeHeaders(message.headers);
   if (headers.length > MAX_HEADERS) throw frameError("headers exceed 128 KiB");
@@ -186,6 +190,7 @@ function stringHeader(message: EventMessage, name: string): string | undefined {
   return value?.type === "string" ? value.value : undefined;
 }
 
+/** Supported modeled event-stream header kinds. */
 export type EventHeaderKind = "boolean" | "byte" | "short" | "integer" | "long" | "blob" | "string" | "timestamp";
 
 /** One union member: an event, or (with `error`) a modeled error the stream may end with. */
@@ -299,6 +304,7 @@ export function initialRequest(document: string): EventMessage {
   };
 }
 
+/** Decoded event, modeled exception or unmodeled stream failure. */
 export type Received =
   | { readonly kind: "event"; readonly value: unknown }
   | { readonly kind: "initial"; readonly payload: Uint8Array }
@@ -484,6 +490,7 @@ export interface EventSigning {
   readonly ready: Promise<EventSigner | undefined>;
   resolve(signer: EventSigner | undefined): void;
 }
+/** Create the promise that releases event framing once signing credentials are resolved. */
 export function eventSigning(): EventSigning {
   let resolve!: (signer: EventSigner | undefined) => void;
   const ready = new Promise<EventSigner | undefined>(done => { resolve = done; });

@@ -21,12 +21,15 @@ export type Document = null | boolean | number | string | Document[] | { [key: s
 /** An exact decimal JSON number. Construct from text to avoid floating-point rounding. */
 export class Decimal {
   readonly #text: string;
+  /** Validate exact JSON number text or construct from an integer without rounding. */
   constructor(value: string | bigint) {
     const text = String(value);
     if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(text)) throw new TypeError("invalid decimal");
     this.#text = text;
   }
+  /** Return the original exact decimal text. */
   toString(): string { return this.#text; }
+  /** Compare numeric values while ignoring equivalent exponent and zero spellings. */
   equals(other: Decimal): boolean { return numericKey(this.#text) === numericKey(other.#text); }
 }
 function numericKey(text: string): string {
@@ -41,11 +44,15 @@ function numericKey(text: string): string {
 
 /** A streaming payload. Factory bodies must reproduce the same bytes on every retry. */
 export class ByteStream {
+  /** True for a source factory, which can reopen the same bytes for retries. */
   readonly replayable: boolean;
+  /** Declared byte length; undefined means unknown. */
   readonly length?: number;
+  /** Precomputed hexadecimal SHA-256 for signing; the source is never buffered to hash it. */
   readonly sha256?: string;
   #source: ReadableStream<Uint8Array> | (() => ReadableStream<Uint8Array>);
   #opened = false;
+  /** Wrap a one-shot stream or a replay factory, optionally declaring length and digest. */
   constructor(source: ReadableStream<Uint8Array> | (() => ReadableStream<Uint8Array>), options: { length?: number; sha256?: string } = {}) {
     if (!(source instanceof ReadableStream) && typeof source !== "function") throw new TypeError("ByteStream requires a ReadableStream or replay factory");
     if (options.length !== undefined && (!Number.isSafeInteger(options.length) || options.length < 0)) throw new TypeError("stream length must be a nonnegative safe integer");
@@ -77,6 +84,7 @@ export interface UnknownUnion {
 /** A union member or result that carries no value. On the wire it is `{}`. */
 export type Unit = Record<string, never>;
 
+/** Smithy timestamp encoding selected by the lowered wire contract. */
 export type TimestampFormat = "date-time" | "http-date" | "epoch-seconds";
 
 /** Static wire conversion and validation metadata emitted from the Smithy IR. */
@@ -99,18 +107,29 @@ export type Schema =
       readonly ignoreType?: boolean;
     };
 
+/** Static schema for a string value. */
 export const string: Schema = { kind: "string" };
+/** Static schema for a floating-point value. */
 export const number: Schema = { kind: "number" };
+/** Static schema for a boolean value. */
 export const boolean: Schema = { kind: "boolean" };
+/** Static schema for arbitrary JSON document values. */
 export const document: Schema = { kind: "document" };
+/** Static schema for buffered bytes. */
 export const blob: Schema = { kind: "blob" };
+/** Static schema for arbitrary-precision integers. */
 export const bigInteger: Schema = { kind: "bigInteger" };
+/** Static schema for exact decimal values. */
 export const bigDecimal: Schema = { kind: "bigDecimal" };
+/** Create a signed integer schema with the specified bit width. */
 export const integer = (bits: 8 | 16 | 32 | 64): Schema => ({ kind: "integer", bits });
+/** Create a timestamp schema using the selected wire format. */
 export const timestamp = (format: TimestampFormat): Schema => ({ kind: "timestamp", format });
+/** Create a lazy list schema with sparse and uniqueness policies. */
 export function list(member: Schema | (() => Schema), options: { sparse?: boolean; unique?: boolean } = {}): Schema {
   return { kind: "list", ...options, get member() { return typeof member === "function" ? member() : member; } };
 }
+/** Create a lazy map schema with an optional sparse-value policy. */
 export function map(value: Schema | (() => Schema), options: { sparse?: boolean } = {}): Schema {
   return { kind: "map", ...options, get value() { return typeof value === "function" ? value() : value; } };
 }
@@ -120,6 +139,7 @@ export function structure(members: () => Record<string, Schema>, defaults?: Reco
   let resolved: Record<string, Schema> | undefined;
   return { kind: "structure", get members() { return (resolved ??= members()); }, defaults, required, jsonNames, modelNames: reverseNames(jsonNames), omitNull };
 }
+/** Create a lazy union schema enforcing exactly one member; unknown wire members are preserved. */
 export function union(members: () => Record<string, Schema>, jsonNames?: Readonly<Record<string, string>>, ignoreType=false): Schema {
   let resolved: Record<string, Schema> | undefined;
   return { kind: "union", get members() { return (resolved ??= members()); }, jsonNames, modelNames: reverseNames(jsonNames), ignoreType };
@@ -128,6 +148,7 @@ export function union(members: () => Record<string, Schema>, jsonNames?: Readonl
 function reverseNames(names: Readonly<Record<string, string>> | undefined): Readonly<Record<string, string>> {
   return Object.fromEntries(Object.entries(names ?? {}).map(([model, wire]) => [wire, model]));
 }
+/** Resolve a modeled member name to its wire JSON name. */
 export function wireName(schema: Schema | undefined, name: string): string {
   if (schema?.kind !== "structure" && schema?.kind !== "union") return name;
   return schema.jsonNames && Object.hasOwn(schema.jsonNames, name) ? schema.jsonNames[name] : name;
@@ -186,6 +207,7 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/** Convert a model value to its lowered wire representation, validating required members and unions. */
 export function toWire(schema: Schema | undefined, value: unknown): unknown {
   if (schema === undefined || value === undefined || value === null) return value;
   switch (schema.kind) {
@@ -216,6 +238,7 @@ export function toWire(schema: Schema | undefined, value: unknown): unknown {
   }
 }
 
+/** Decode wire values into native model representations and preserve unknown union variants. */
 export function fromWire(schema: Schema | undefined, value: unknown): unknown {
   if (schema === undefined || schema.kind === "document" || value === undefined || value === null) return jsonValue(value);
   switch (schema.kind) {
@@ -396,6 +419,7 @@ export function stringifyJson(value: unknown): string {
   return write(value, 0);
 }
 
+/** Encode a Date using its modeled timestamp format. */
 export function formatTimestamp(value: Date, format: TimestampFormat): string | number {
   switch (format) {
     case "date-time":
@@ -418,6 +442,7 @@ export function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/** Decode standard base64 into bytes; invalid base64 throws. */
 export function fromBase64(text: string): Uint8Array {
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);
@@ -434,6 +459,7 @@ function epochMillis(seconds: number): number {
   return Math.abs(millis - nearest) < 5e-4 ? nearest : Math.floor(millis);
 }
 
+/** Decode timestamp text or epoch seconds to a Date; invalid timestamps throw. */
 export function parseTimestamp(value: string | number): Date {
   const date = typeof value === "number" ? new Date(epochMillis(value)) : new Date(value);
   if (Number.isNaN(date.getTime())) throw new TypeError(`not a timestamp: ${String(value)}`);
@@ -494,18 +520,26 @@ export interface OperationSpec {
   readonly retrySafe: boolean;
 }
 
+/** HTTP status, request identifier and headers retained from the response. */
 export interface ResponseMetadata {
+  /** HTTP response status code. */
   readonly status: number;
+  /** Service request identifier when present. */
   readonly requestId?: string;
+  /** Additional HTTP headers; per-call values override client headers. */
   readonly headers: Headers;
 }
 
 /** An error response the service sent. Each modelled error has its own subclass. */
 export class ServiceError extends Error {
+  /** Status, request identifier and headers from the service response. */
   readonly $metadata: ResponseMetadata;
+  /** Modeled client/server fault classification. */
   readonly $fault: "client" | "server";
+  /** Modeled retryability and throttling classification, when declared. */
   readonly $retryable?: { readonly throttling: boolean };
 
+  /** Construct an error response with its identity, message, metadata and retry classification. */
   constructor(
     name: string,
     message: string,
@@ -524,6 +558,38 @@ export class ServiceError extends Error {
 /** Base for every error response from this service. */
 export class ServiceException extends ServiceError {}
 
+type DebugMember = { readonly target: string; readonly attribute: string; readonly sensitive?: boolean };
+type DebugShape = { readonly name: string; readonly kind: string; readonly sensitive?: boolean; readonly streaming?: boolean; readonly members?: Readonly<Record<string, DebugMember>>; readonly member?: DebugMember; readonly key?: DebugMember; readonly value?: DebugMember };
+
+/** Format modeled error fields; omit undefined, preserve null, redact unknown union data and never read streams. */
+export function formatModel(shapes: Readonly<Record<string, DebugShape>>, target: string, value: unknown): string {
+  const active = new Set<object>();
+  const render = (target: string, value: unknown, sensitive = false): string => {
+    const shape = shapes[target];
+    if (sensitive || shape.sensitive) return "*** Sensitive Data Redacted ***";
+    if (value === null) return "null";
+    if (value === undefined) return "undefined";
+    if (shape.streaming) return "<stream>";
+    if (typeof value !== "object") return typeof value === "string" ? JSON.stringify(value) : String(value);
+    if (active.has(value)) return "<recursive>";
+    active.add(value);
+    try {
+      if (shape.kind === "structure" || shape.kind === "union") {
+        const fields = value as Record<string, unknown>;
+        const parts = Object.values(shape.members ?? {}).filter(member => Object.hasOwn(fields, member.attribute) && fields[member.attribute] !== undefined).map(member => `${member.attribute}=${render(member.target, fields[member.attribute], member.sensitive)}`);
+        if (shape.kind === "union" && fields.$unknown !== undefined) parts.push("$unknown=*** Sensitive Data Redacted ***");
+        return `${shape.name}(${parts.join(", ")})`;
+      }
+      if (shape.kind === "list") return `[${(value as unknown[]).map(item => render(shape.member!.target, item, shape.member!.sensitive)).join(", ")}]`;
+      if (shape.kind === "map") return `{${Object.entries(value).map(([key, item]) => `${render(shape.key!.target, key, shape.key!.sensitive)}: ${render(shape.value!.target, item, shape.value!.sensitive)}`).join(", ")}}`;
+      if (value instanceof Date) return value.toISOString();
+      if (value instanceof Decimal) return value.toString();
+      return stringifyJson(value);
+    } finally { active.delete(value); }
+  };
+  return render(target, value);
+}
+
 /** The request never got a response: DNS, connection, TLS or CORS. */
 export class NetworkError extends Error {
   constructor(readonly cause: unknown) {
@@ -537,6 +603,7 @@ export class TimeoutError extends Error {
   constructor() { super("call deadline exceeded"); this.name = "TimeoutError"; }
 }
 
+/** Static modeled error decoding metadata and its typed constructor. */
 export interface ErrorSpec {
   readonly payload?: string;
   readonly payloadKind?: "blob" | "string" | "document";
@@ -551,42 +618,64 @@ export interface ErrorSpec {
   readonly create: (fields: Record<string, unknown>, metadata: ResponseMetadata) => ServiceError;
 }
 
+/** HTTP transport receiving a Request and returning a Response. Defaults to global fetch. */
 export type Fetch = (input: Request) => Promise<Response>;
+/** The next middleware or fetch transport in the request chain. */
 export type Next = (request: Request) => Promise<Response>;
 /** Sees every attempt of every request, in order, before it is sent. */
 export type Middleware = (request: Request, next: Next) => Promise<Response>;
+/** A static identity or a provider invoked for each request attempt; undefined means unavailable. */
 export type IdentityProvider<T> = T | (() => T | undefined | Promise<T | undefined>);
+/** A bearer token or synchronous/asynchronous token provider. */
 export type TokenProvider = IdentityProvider<string>;
+/** Username and password for modeled HTTP Basic authentication. */
 export interface BasicCredentials { readonly username: string; readonly password: string; }
+/** The effective modeled authentication scheme for a request. */
 export type AuthScheme = { readonly kind: "bearer" } | { readonly kind: "basic" } | { readonly kind: "apiKey"; readonly name: string; readonly location: "header" | "query"; readonly scheme?: string | null } | { readonly kind: "sigV4"; readonly signingName: string };
+/** Authentication could not be resolved or credentials were invalid before sending. */
 export class AuthenticationError extends Error {
   constructor(message: string) { super(message); this.name = "AuthenticationError"; }
 }
 
+/** Exponential full-jitter retry delays and the total attempt limit. Only retry-safe calls are retried. */
 export interface RetryConfig {
   /** Attempts in all, the first included. */
   readonly maxAttempts?: number;
+  /** Initial full-jitter backoff ceiling in milliseconds; defaults to 100. */
   readonly baseDelayMs?: number;
+  /** Maximum retry backoff delay in milliseconds; defaults to 20,000. */
   readonly maxDelayMs?: number;
 }
 
+/** Configuration shared by every call; construction validates endpoint and retry settings. */
 export interface ClientConfig {
+  /** Absolute HTTP(S) base URL; if omitted, endpoint rules or a generated default must resolve it. */
   readonly endpoint?: string;
+  /** AWS region used for endpoint rules and SigV4 signing. */
   readonly region?: string;
+  /** Caller overrides for named endpoint rule parameters. */
   readonly endpointParameters?: Readonly<Record<string, unknown>>;
+  /** Caller overrides for endpoint built-in values. */
   readonly endpointBuiltins?: Readonly<Record<string, unknown>>;
+  /** Disable the modeled host prefix when true. */
   readonly disableHostPrefix?: boolean;
   /** Sent as a bearer token. A function is called for every attempt, so a refreshed token is picked up. */
   readonly token?: TokenProvider;
+  /** Static or per-attempt provider of HTTP Basic credentials. */
   readonly basicCredentials?: IdentityProvider<BasicCredentials>;
+  /** Static or per-attempt provider of the modeled API key. */
   readonly apiKey?: IdentityProvider<string>;
+  /** Static or per-attempt provider of AWS signing credentials. */
   readonly awsCredentials?: IdentityProvider<AwsCredentials>;
+  /** Override the modeled SigV4 service signing name. */
   readonly signingName?: string;
+  /** Custom fetch transport; otherwise global fetch is used. */
   readonly fetch?: Fetch;
   /** Headers sent on every request. */
   readonly headers?: Readonly<Record<string, string>>;
   /** Runs after the client's own middleware, nearest the network last. */
   readonly middleware?: readonly Middleware[];
+  /** Retry limits and backoff; false disables retries. */
   readonly retry?: RetryConfig | false;
   /** Total call budget, including credentials, middleware, attempts and response bodies. */
   readonly timeoutMs?: number;
@@ -598,15 +687,19 @@ export interface ClientConfig {
   readonly checksumValidated?: (operation: string, algorithm: string) => void;
 }
 
+/** Per-call cancellation, total timeout and header overrides. */
 export interface RequestOptions {
   /** Overrides the client budget; null disables it for this call. */
   readonly timeoutMs?: number | null;
+  /** Abort this call or waiter when the signal is aborted. */
   readonly signal?: AbortSignal;
+  /** Additional HTTP headers; per-call values override client headers. */
   readonly headers?: Readonly<Record<string, string>>;
 }
 
 const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
 
+/** Execute modeled operations with authentication, middleware, retries and a total deadline. */
 export class Transport {
   readonly #config: ClientConfig;
   readonly #endpoint: string;
@@ -634,12 +727,14 @@ export class Transport {
     this.#middleware = [...defaults.middleware, ...(config.middleware ?? [])];
   }
 
+  /** Poll a named modeled waiter with a total budget and cancellation signal. */
   wait<O>(operation: OperationSpec, name: string, input: object, options: WaiterOptions): Promise<WaiterResult<O>> {
     const spec = operation.waiters?.[name]; if (!spec) throw new TypeError(`unknown waiter ${name}`);
     const snapshot = snapshotValue(withIdempotencyToken(operation, input)) as object;
     return waitFor(name, spec, snapshot, (input, options) => this.send<O>(operation, input, options), options);
   }
 
+  /** Execute one logical call with configured retries, per-call overrides and a total deadline. */
   async send<O>(operation: OperationSpec, input: object, options: RequestOptions = {}): Promise<O> {
     const timeout = options.timeoutMs === undefined ? this.#config.timeoutMs : options.timeoutMs;
     if (timeout != null && (!Number.isFinite(timeout) || timeout < 0)) throw new TypeError("timeoutMs must be a finite nonnegative number");
@@ -1255,6 +1350,7 @@ async function readResponse(response: Response, signal: AbortSignal | undefined)
   }
 }
 
+/** Race an asynchronous task against cancellation and release a late result when requested. */
 export function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     const abort = () => reject(signal.reason);
@@ -1286,6 +1382,7 @@ function retryAfter(response: Response): number | undefined {
   return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
 }
 
+/** Wait for the given milliseconds or reject on cancellation. */
 export async function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
   // Browsers and Node clamp overflowing timer delays to approximately 1 ms.
   // Chunk long server delays while keeping every chunk abortable.

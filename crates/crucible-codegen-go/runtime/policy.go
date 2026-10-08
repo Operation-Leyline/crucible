@@ -36,7 +36,9 @@ type Clock interface {
 
 type systemClock struct{}
 
+// Now returns monotonic elapsed seconds.
 func (systemClock) Now() time.Time { return time.Now() }
+// Sleep waits for a delay unless ctx is canceled.
 func (systemClock) Sleep(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return ctx.Err()

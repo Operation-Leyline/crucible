@@ -3,23 +3,30 @@ import { query, type Expression } from "./query.js";
 
 type Matcher = { readonly kind: "success"; readonly expected: boolean } | { readonly kind: "errorType"; readonly name: string }
   | { readonly kind: "output" | "inputOutput"; readonly path: { readonly expression: Expression }; readonly comparator: "stringEquals" | "booleanEquals" | "allStringEquals" | "anyStringEquals"; readonly expected: string };
+/** Lowered waiter acceptors and modeled delay bounds in seconds. */
 export interface WaiterSpec {
   readonly minDelay: number; readonly maxDelay: number;
   readonly acceptors: readonly { readonly state: "success" | "failure" | "retry"; readonly matcher: Matcher; readonly message?: { readonly expression: Expression } | null }[];
 }
+/** Total waiter deadline and optional delay overrides, in milliseconds. */
 export interface WaiterOptions extends RequestOptions {
   /** Total waiter budget including calls, retries and delays. */
   readonly maxWaitTimeMs: number;
+  /** Override the minimum waiter delay in milliseconds. */
   readonly minDelayMs?: number;
+  /** Override the maximum waiter delay in milliseconds. */
   readonly maxDelayMs?: number;
 }
+/** A successful waiter match: either the accepted response or a modeled accepted error, plus attempt count. */
 export type WaiterResult<O> = { readonly outcome: "response"; readonly output: O; readonly attempts: number }
   | { readonly outcome: "error"; readonly error: unknown; readonly attempts: number };
+/** A terminal waiter failure retaining the attempt count, last response and cause. */
 export class WaiterError extends Error {
   constructor(readonly waiter: string, readonly attempts: number, readonly response: unknown, readonly cause: unknown, readonly detail?: string | readonly string[]) {
     super(`waiter ${waiter} failed after ${attempts} attempts${detail ? `: ${Array.isArray(detail) ? detail.join(", ") : detail}` : ""}`, { cause }); this.name = "WaiterError";
   }
 }
+/** The total waiter deadline expired before a success acceptor matched. */
 export class WaiterTimeout extends WaiterError { constructor(waiter: string, attempts: number, response: unknown, cause: unknown) { super(waiter, attempts, response, cause, "deadline exceeded"); this.name = "WaiterTimeout"; } }
 
 /** Waiter expressions use model names and timestamps in epoch seconds. */
@@ -61,6 +68,7 @@ function accept(spec: WaiterSpec, input: unknown, output: unknown, error: unknow
   }
   return { state: failed ? "failure" : "retry" };
 }
+/** Poll a call using modeled acceptors until success, terminal failure, cancellation or deadline. */
 export async function waitFor<I, O>(name: string, spec: WaiterSpec, input: I, call: (input: I, options: RequestOptions) => Promise<O>, options: WaiterOptions): Promise<WaiterResult<O>> {
   const minimum = options.minDelayMs ?? spec.minDelay * 1000, maximum = options.maxDelayMs ?? spec.maxDelay * 1000;
   if (!Number.isFinite(options.maxWaitTimeMs) || options.maxWaitTimeMs <= 0 || !Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum < 0 || maximum < minimum) throw new TypeError("waiter budget must be positive and delays finite, nonnegative, and ordered");

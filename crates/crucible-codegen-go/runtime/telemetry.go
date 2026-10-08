@@ -34,11 +34,16 @@ type TelemetryHook interface {
 // NopTelemetryHook ignores every event.
 type NopTelemetryHook struct{}
 
+// OperationStarted observes the start of a logical operation.
 func (NopTelemetryHook) OperationStarted(OperationStartedEvent)   {}
+// AttemptStarted observes an outgoing request attempt after sensitive headers and targets are redacted.
 func (NopTelemetryHook) AttemptStarted(AttemptStartedEvent)       {}
+// AttemptFinished observes the result of a request attempt and its retry decision.
 func (NopTelemetryHook) AttemptFinished(AttemptFinishedEvent)     {}
+// OperationFinished observes the completion of a logical operation.
 func (NopTelemetryHook) OperationFinished(OperationFinishedEvent) {}
 
+// OperationStartedEvent identifies the start of a call using a shared invocation identifier and monotonic time.
 type OperationStartedEvent struct {
 	// InvocationID is shared by one call's events.
 	InvocationID string
@@ -48,6 +53,7 @@ type OperationStartedEvent struct {
 	Time      time.Time
 }
 
+// AttemptStartedEvent describes one outgoing attempt with redacted target and headers and endpoint provenance.
 type AttemptStartedEvent struct {
 	InvocationID string
 	Service      string
@@ -69,6 +75,7 @@ type AttemptStartedEvent struct {
 	Time         time.Time
 }
 
+// AttemptFinishedEvent records status, safe error classification, byte counts, latency and retry decision.
 type AttemptFinishedEvent struct {
 	InvocationID string
 	Service      string
@@ -92,6 +99,7 @@ type AttemptFinishedEvent struct {
 	Time       time.Time
 }
 
+// OperationFinishedEvent records the final call status, safe error classification, total attempts and latency.
 type OperationFinishedEvent struct {
 	InvocationID string
 	Service      string

@@ -21,6 +21,7 @@ import httpx
 
 @dataclass(frozen=True)
 class BasicCredentials:
+    """HTTP Basic username and password. The password is omitted from repr."""
     username: str
     password: str = field(repr=False)
 
@@ -31,6 +32,7 @@ class BasicCredentials:
 
 @dataclass(frozen=True)
 class AwsCredentials:
+    """AWS signing credentials with optional timezone-aware expiry; secrets are omitted from repr."""
     access_key_id: str = field(repr=False)
     secret_access_key: str = field(repr=False)
     session_token: str | None = field(default=None, repr=False)
@@ -59,6 +61,7 @@ def credential_chain(*providers: Callable[[], Any]) -> Callable[[], Any]:
 
 
 def async_credential_chain(*providers: Callable[[], Any]) -> Callable[[], Any]:
+    """Try asynchronous or synchronous providers in order; None means unavailable, errors propagate."""
     async def resolve() -> Any:
         for provider in providers:
             value = provider()
@@ -71,6 +74,7 @@ def async_credential_chain(*providers: Callable[[], Any]) -> Callable[[], Any]:
 
 
 def environment_credentials() -> AwsCredentials | None:
+    """Read static AWS environment credentials; partial identities raise ValueError."""
     access = os.environ.get("AWS_ACCESS_KEY_ID")
     secret = os.environ.get("AWS_SECRET_ACCESS_KEY")
     if not access and not secret:
@@ -228,6 +232,7 @@ def sign_v4(request: httpx.Request, credentials: AwsCredentials, *, service: str
 
 
 def preset_auth(request: httpx.Request, scheme: dict[str, Any]) -> bool:
+    """Resolve the operation authentication scheme from modeled policy and configured identity sources."""
     kind = scheme["kind"]
     if kind == "apiKey":
         if scheme["location"] == "query":
@@ -248,6 +253,7 @@ def preset_auth(request: httpx.Request, scheme: dict[str, Any]) -> bool:
 
 def apply_auth(request: httpx.Request, scheme: dict[str, Any], identity: Any, *, region: str | None,
                unsigned_payload: bool = False) -> None:
+    """Apply the selected authentication to an HTTPX request before sending."""
     kind = scheme["kind"]
     if kind == "bearer":
         request.headers["authorization"] = f"Bearer {identity}"
