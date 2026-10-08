@@ -561,6 +561,7 @@ dependencies = [
  "chrono",
  "indexmap",
  "jmespath",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",
