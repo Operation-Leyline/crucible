@@ -10,6 +10,10 @@
 Everything shares one Cargo target directory (CARGO_TARGET_DIR if set,
 otherwise e2e/target, which the e2e job's cache already holds), so the
 dependencies compile once on one OS.
+
+Deprecated Crucible API is an error here (`-D deprecated`, which also covers
+build scripts): a consumer that still calls a shim has not moved to the current
+API, and the shims exist for downstream code, not for this repository.
 """
 
 import http.client
@@ -110,7 +114,8 @@ def leyline(env, work, target):
 
 def main():
     target = Path(os.environ.get("CARGO_TARGET_DIR") or ROOT / "e2e/target")
-    env = {**os.environ, "CARGO_TARGET_DIR": str(target)}
+    flags = f"{os.environ.get('RUSTFLAGS', '')} -D deprecated".strip()
+    env = {**os.environ, "CARGO_TARGET_DIR": str(target), "RUSTFLAGS": flags}
     with tempfile.TemporaryDirectory(prefix="crucible-consumers-") as directory:
         work = Path(directory)
         starter(env, work, target)
