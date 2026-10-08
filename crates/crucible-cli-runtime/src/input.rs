@@ -73,7 +73,7 @@ fn read_json(source: &str) -> Result<Value, Error> {
 fn bound_timestamp(member: &Member, raw: &str) -> Option<Value> {
     let (bound, document) = (member.bound_format?, member.timestamp_format?);
     let time = crucible_wire::time::parse(raw, bound.wire())?;
-    Some(crucible_wire::time::to_json(&time, document.wire()))
+    crucible_wire::time::to_json(&time, document.wire()).ok()
 }
 
 fn argument(kind: Kind, raw: &str) -> Result<Value, Error> {

@@ -131,7 +131,7 @@ pub fn join_header(items: impl IntoIterator<Item = String>) -> String {
 
 /// A bound member's value as the text of one label, query value or header
 /// item: timestamps in the binding's format, media-type strings in base64.
-pub fn scalar_text(value: &Value, scalar: Scalar) -> String {
+pub fn scalar_text(value: &Value, scalar: Scalar) -> Result<String, String> {
     use crate::operation::TimestampFormat;
     let format = match scalar {
         Scalar::DateTime => Some(TimestampFormat::DateTime),
@@ -140,28 +140,35 @@ pub fn scalar_text(value: &Value, scalar: Scalar) -> String {
         Scalar::Timestamp { text, .. } => Some(text),
         Scalar::Base64 => {
             use base64::Engine;
-            return base64::engine::general_purpose::STANDARD.encode(crate::split::text(value));
+            return Ok(base64::engine::general_purpose::STANDARD.encode(crate::split::text(value)));
         }
         _ => None,
     };
-    match format.and_then(|format| Some((crate::time::from_json(value)?, format))) {
-        Some((time, format)) => crate::time::format(&time, format),
-        None => crate::split::text(value),
+    match format {
+        Some(format) => {
+            let time =
+                crate::time::from_json(value).ok_or_else(|| "invalid timestamp".to_owned())?;
+            crate::time::format(&time, format)
+        }
+        None => Ok(crate::split::text(value)),
     }
 }
 
 /// A header member's text: a list's items joined as a header list.
-pub fn header_text(value: &Value, scalar: Scalar) -> String {
+pub fn header_text(value: &Value, scalar: Scalar) -> Result<String, String> {
     match (value, scalar) {
         // REST protocols send HTTP dates unquoted despite their commas.
-        (Value::Array(items), Scalar::List(item)) if item.http_date() => items
+        (Value::Array(items), Scalar::List(item)) if item.http_date() => Ok(items
             .iter()
             .map(|value| scalar_text(value, *item))
-            .collect::<Vec<_>>()
-            .join(", "),
-        (Value::Array(items), Scalar::List(item)) => {
-            join_header(items.iter().map(|value| scalar_text(value, *item)))
-        }
+            .collect::<Result<Vec<_>, _>>()?
+            .join(", ")),
+        (Value::Array(items), Scalar::List(item)) => Ok(join_header(
+            items
+                .iter()
+                .map(|value| scalar_text(value, *item))
+                .collect::<Result<Vec<_>, _>>()?,
+        )),
         (value, scalar) => scalar_text(value, scalar),
     }
 }

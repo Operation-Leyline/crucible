@@ -586,7 +586,8 @@ impl Transport {
                         .iter()
                         .find(|(member, _)| member.name == *name)
                         .map(|(member, value)| text(value, member.scalar))
-                        .ok_or_else(|| Error::Invalid(format!("`{name}` is required")))?;
+                        .ok_or_else(|| Error::Invalid(format!("`{name}` is required")))?
+                        .map_err(Error::Invalid)?;
                     if value.is_empty() {
                         return Err(Error::Invalid(format!("`{name}` is required")));
                     }
@@ -629,11 +630,13 @@ impl Transport {
             match member.location {
                 Location::Query(param) => {
                     let items: Vec<String> = match (value, member.scalar) {
-                        (Value::Array(items), Scalar::List(item)) => {
-                            items.iter().map(|value| text(value, *item)).collect()
-                        }
+                        (Value::Array(items), Scalar::List(item)) => items
+                            .iter()
+                            .map(|value| text(value, *item))
+                            .collect::<Result<_, _>>()
+                            .map_err(Error::Invalid)?,
                         (Value::Array(items), _) => items.iter().map(split::text).collect(),
-                        (other, scalar) => vec![text(other, scalar)],
+                        (other, scalar) => vec![text(other, scalar).map_err(Error::Invalid)?],
                     };
                     for item in items {
                         url.push(separator);
@@ -646,8 +649,10 @@ impl Transport {
                 Location::Header(name) => {
                     let name = HeaderName::from_bytes(name.as_bytes())
                         .map_err(|e| Error::Invalid(e.to_string()))?;
-                    let value = HeaderValue::from_str(&header_text(value, member.scalar))
-                        .map_err(|e| Error::Invalid(e.to_string()))?;
+                    let value = HeaderValue::from_str(
+                        &header_text(value, member.scalar).map_err(Error::Invalid)?,
+                    )
+                    .map_err(|e| Error::Invalid(e.to_string()))?;
                     headers.insert(name, value);
                 }
                 Location::QueryParams => {
@@ -686,8 +691,10 @@ impl Transport {
                         headers.insert(
                             HeaderName::from_bytes(name.as_bytes())
                                 .map_err(|e| Error::Invalid(e.to_string()))?,
-                            HeaderValue::from_str(&header_text(value, member.scalar))
-                                .map_err(|e| Error::Invalid(e.to_string()))?,
+                            HeaderValue::from_str(
+                                &header_text(value, member.scalar).map_err(Error::Invalid)?,
+                            )
+                            .map_err(|e| Error::Invalid(e.to_string()))?,
                         );
                     }
                 }
