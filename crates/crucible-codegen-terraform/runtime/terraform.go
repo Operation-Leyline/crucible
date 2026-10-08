@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -319,10 +320,7 @@ func (r *infraResource) missing(err error) bool {
 	}
 	// The SDK also supports status-only error decoding. Dropping managed state
 	// needs stronger evidence: an explicitly named absence response from the API.
-	var envelope struct {
-		Type string `json:"__type"`
-	}
-	if json.Unmarshal(serviceErr.Metadata.Body, &envelope) != nil || envelope.Type != serviceErr.Name {
+	if explicitErrorName(serviceErr) != serviceErr.Name {
 		return false
 	}
 	for _, name := range r.desc.NotFoundErrors {
@@ -331,6 +329,37 @@ func (r *infraResource) missing(err error) bool {
 		}
 	}
 	return false
+}
+// explicitErrorName is the error name the response itself carried, normalised
+// the way the client normalises it into ServiceError.Name. Where the name lives
+// is protocol-specific: a body __type for the plain JSON protocol, and for the
+// AWS JSON protocols also a body code or the X-Amzn-Errortype header (restJson1
+// bodies carry no __type; awsJson prefixes it with the namespace).
+func explicitErrorName(e *ServiceError) string {
+	var envelope struct {
+		Type string `json:"__type"`
+		Code string `json:"code"`
+	}
+	// An unparseable body simply carries no name.
+	_ = json.Unmarshal(e.Metadata.Body, &envelope)
+	name := envelope.Type
+	if header := e.Metadata.Headers.Get("X-Crucible-Error"); header != "" {
+		name = header
+	}
+	switch wireSchema.Protocol {
+	case "awsRestJson1", "awsJson1_0", "awsJson1_1":
+		if envelope.Code != "" {
+			name = envelope.Code
+		}
+		if header := e.Metadata.Headers.Get("X-Amzn-Errortype"); header != "" {
+			name = header
+		}
+		name = strings.SplitN(name, ":", 2)[0]
+		if index := strings.LastIndex(name, "#"); index >= 0 {
+			name = name[index+1:]
+		}
+	}
+	return name
 }
 func infraError(stage string, err error, diagnostics *diag.Diagnostics) {
 	// Server messages and transport errors can contain credentials or sensitive
@@ -349,7 +378,13 @@ func infraError(stage string, err error, diagnostics *diag.Diagnostics) {
 	}
 	diagnostics.AddError(stage+" failed", message)
 }
-func (r *infraResource) refresh(ctx context.Context, state *tfsdk.State, diagnostics *diag.Diagnostics, allowAbsent bool) {
+// importedKey marks state that holds only an imported id. Optional properties
+// are unmanaged until configured, but an import has no configuration to defer
+// to, so the first Read adopts the service's values; otherwise setting one later
+// would diff null against the real value and replace the resource.
+const importedKey = "imported"
+
+func (r *infraResource) refresh(ctx context.Context, state *tfsdk.State, diagnostics *diag.Diagnostics, allowAbsent, imported bool) {
 	input := r.input(ctx, "Read", *state, diagnostics)
 	if diagnostics.HasError() {
 		return
@@ -375,7 +410,7 @@ func (r *infraResource) refresh(ctx context.Context, state *tfsdk.State, diagnos
 		p := r.desc.Properties[name]
 		// An omitted optional property is not managed. Keep it null even when
 		// the service supplies a default, preserving Terraform's planned value.
-		if !p.Required {
+		if !p.Required && !imported {
 			prior := infraValue(ctx, *state, name, p.Kind, diagnostics)
 			if prior.IsNull() {
 				continue
@@ -448,12 +483,22 @@ func (r *infraResource) Create(ctx context.Context, req resource.CreateRequest, 
 	resp.State.Raw = req.Plan.Raw
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), types.StringValue(id))...)
 	if !resp.Diagnostics.HasError() {
-		r.refresh(ctx, &resp.State, &resp.Diagnostics, false)
+		r.refresh(ctx, &resp.State, &resp.Diagnostics, false, false)
 	}
 }
 func (r *infraResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	resp.State = req.State
-	r.refresh(ctx, &resp.State, &resp.Diagnostics, true)
+	imported := false
+	if req.Private != nil {
+		marker, diags := req.Private.GetKey(ctx, importedKey)
+		resp.Diagnostics.Append(diags...)
+		imported = len(marker) > 0
+	}
+	r.refresh(ctx, &resp.State, &resp.Diagnostics, true, imported)
+	if imported && !resp.Diagnostics.HasError() && resp.Private != nil {
+		// Consume the marker so later reads keep unset optional properties null.
+		resp.Diagnostics.Append(resp.Private.SetKey(ctx, importedKey, nil)...)
+	}
 }
 func (r *infraResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	resp.State = req.State
@@ -471,7 +516,7 @@ func (r *infraResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 	resp.State.Raw = req.Plan.Raw
-	r.refresh(ctx, &resp.State, &resp.Diagnostics, false)
+	r.refresh(ctx, &resp.State, &resp.Diagnostics, false, false)
 }
 func (r *infraResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	input := r.input(ctx, "Delete", req.State, &resp.Diagnostics)
@@ -487,4 +532,7 @@ func (r *infraResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 }
 func (*infraResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	if resp.Private != nil {
+		resp.Diagnostics.Append(resp.Private.SetKey(ctx, importedKey, []byte(`true`))...)
+	}
 }

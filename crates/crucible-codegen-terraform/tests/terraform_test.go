@@ -241,3 +241,116 @@ func TestCreatePreservesIdentityWhenRefreshFails(t *testing.T) {
 		t.Fatal("new identity lost")
 	}
 }
+
+// withProtocol swaps the generated wire schema's protocol for one test.
+func withProtocol(t *testing.T, protocol string) {
+	t.Helper()
+	previous := wireSchema.Protocol
+	wireSchema.Protocol = protocol
+	t.Cleanup(func() { wireSchema.Protocol = previous })
+}
+
+func TestMissingRecognisesProtocolErrorNames(t *testing.T) {
+	r := &infraResource{desc: infraDescriptions[0]}
+	for _, tc := range []struct {
+		name, protocol, body string
+		headers              http.Header
+		found                bool
+	}{
+		{"restJson1 header only", "awsRestJson1", `{"message":"gone"}`, http.Header{"X-Amzn-Errortype": {"NotFound:http://internal.amazon.com/"}}, true},
+		{"awsJson namespaced body", "awsJson1_1", `{"__type":"crucible.infra#NotFound"}`, nil, true},
+		{"awsJson code", "awsJson1_0", `{"code":"NotFound"}`, nil, true},
+		{"restJson1 other error", "awsRestJson1", `{}`, http.Header{"X-Amzn-Errortype": {"AccessDenied"}}, false},
+		{"restJson1 no name", "awsRestJson1", `{}`, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			withProtocol(t, tc.protocol)
+			name := "AccessDenied"
+			if tc.found {
+				name = "NotFound"
+			}
+			if tc.headers == nil {
+				tc.headers = http.Header{}
+			}
+			err := &ServiceError{Name: name, Metadata: ResponseMetadata{Status: 404, Headers: tc.headers, Body: []byte(tc.body)}}
+			if r.missing(err) != tc.found {
+				t.Fatalf("missing = %v, want %v", !tc.found, tc.found)
+			}
+		})
+	}
+}
+
+func TestImportedOptionalPropertiesDoNotForceReplacement(t *testing.T) {
+	ctx := context.Background()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"widget":{"id":"w-1","name":"alpha","enabled":true,"capacity":3,"slug":"imported-slug"}}`))
+	}))
+	defer server.Close()
+	// Drive the real protocol so the import marker travels in private state as it
+	// does under Terraform.
+	provider := providerserver.NewProtocol6(New())()
+	schemas, err := provider.GetProviderSchema(ctx, &tfprotov6.GetProviderSchemaRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	providerType := schemas.Provider.ValueType()
+	config, err := tfprotov6.NewDynamicValue(providerType, tftypes.NewValue(providerType, map[string]tftypes.Value{
+		"endpoint":     tftypes.NewValue(tftypes.String, server.URL),
+		"bearer_token": tftypes.NewValue(tftypes.String, nil),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configured, err := provider.ConfigureProvider(ctx, &tfprotov6.ConfigureProviderRequest{Config: &config})
+	if err != nil || len(configured.Diagnostics) > 0 {
+		t.Fatal(err, configured.Diagnostics)
+	}
+	imported, err := provider.ImportResourceState(ctx, &tfprotov6.ImportResourceStateRequest{TypeName: "inventory_widget", ID: "w-1"})
+	if err != nil || len(imported.Diagnostics) > 0 || len(imported.ImportedResources) != 1 {
+		t.Fatal(err, imported.Diagnostics)
+	}
+	widgetType := schemas.ResourceSchemas["inventory_widget"].ValueType()
+	read := func(state *tfprotov6.DynamicValue, private []byte) *tfprotov6.ReadResourceResponse {
+		t.Helper()
+		response, err := provider.ReadResource(ctx, &tfprotov6.ReadResourceRequest{TypeName: "inventory_widget", CurrentState: state, Private: private})
+		if err != nil || len(response.Diagnostics) > 0 {
+			t.Fatal(err, response.Diagnostics)
+		}
+		return response
+	}
+	slug := func(state *tfprotov6.DynamicValue) tftypes.Value {
+		t.Helper()
+		value, err := state.Unmarshal(widgetType)
+		if err != nil {
+			t.Fatal(err)
+		}
+		attributes := map[string]tftypes.Value{}
+		if err := value.As(&attributes); err != nil {
+			t.Fatal(err)
+		}
+		return attributes["slug"]
+	}
+	first := read(imported.ImportedResources[0].State, imported.ImportedResources[0].Private)
+	// The optional property now holds the service value, so configuring it right
+	// after import plans no change and RequiresReplace has nothing to fire on.
+	var got string
+	if err := slug(first.NewState).As(&got); err != nil || got != "imported-slug" {
+		t.Fatalf("import left optional property %v (%v)", slug(first.NewState), err)
+	}
+	// The marker is consumed: an ordinary read keeps an unconfigured optional null.
+	cleared := tftypes.NewValue(widgetType, map[string]tftypes.Value{
+		"id":       tftypes.NewValue(tftypes.String, "w-1"),
+		"name":     tftypes.NewValue(tftypes.String, "alpha"),
+		"enabled":  tftypes.NewValue(tftypes.Bool, true),
+		"capacity": tftypes.NewValue(tftypes.Number, 3),
+		"slug":     tftypes.NewValue(tftypes.String, nil),
+	})
+	state, err := tfprotov6.NewDynamicValue(widgetType, cleared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again := read(&state, first.Private); !slug(again.NewState).IsNull() {
+		t.Fatal("ordinary read adopted an unmanaged optional property")
+	}
+}
