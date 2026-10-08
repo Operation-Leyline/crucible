@@ -1,0 +1,175 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.behavior#Service": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#httpBearerAuth": {},
+        "smithy.api#httpBasicAuth": {},
+        "smithy.api#httpApiKeyAuth": {
+          "name": "x-api-key",
+          "in": "header",
+          "scheme": "ApiKey"
+        },
+        "aws.auth#sigv4": {
+          "name": "example"
+        },
+        "smithy.api#auth": [
+          "smithy.api#httpBearerAuth",
+          "smithy.api#httpBasicAuth",
+          "smithy.api#httpApiKeyAuth",
+          "aws.auth#sigv4"
+        ],
+        "smithy.rules#endpointRuleSet": {
+          "version": "1.0",
+          "parameters": {
+            "Region": {
+              "type": "String",
+              "builtIn": "AWS::Region",
+              "required": true,
+              "documentation": "Region"
+            }
+          },
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "fn": "stringEquals",
+                  "argv": [
+                    {
+                      "ref": "Region"
+                    },
+                    "local"
+                  ]
+                }
+              ],
+              "type": "endpoint",
+              "endpoint": {
+                "url": "https://{Region}.example.test",
+                "headers": {
+                  "x-region": [
+                    {
+                      "ref": "Region"
+                    }
+                  ]
+                },
+                "properties": {
+                  "authSchemes": [
+                    {
+                      "name": "sigv4",
+                      "signingName": "example",
+                      "signingRegion": "{Region}"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "conditions": [],
+              "type": "error",
+              "error": "Unknown region {Region}"
+            }
+          ]
+        }
+      },
+      "operations": [
+        {
+          "target": "example.behavior#Read"
+        },
+        {
+          "target": "example.behavior#Public"
+        }
+      ]
+    },
+    "example.behavior#Read": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/resource",
+          "code": 200
+        },
+        "smithy.api#endpoint": {
+          "hostPrefix": "{account}."
+        },
+        "smithy.waiters#waitable": {
+          "Ready": {
+            "minDelay": 1,
+            "maxDelay": 4,
+            "acceptors": [
+              {
+                "state": "success",
+                "matcher": {
+                  "output": {
+                    "path": "status",
+                    "comparator": "stringEquals",
+                    "expected": "READY"
+                  }
+                }
+              },
+              {
+                "state": "retry",
+                "matcher": {
+                  "errorType": "example.behavior#Missing"
+                }
+              },
+              {
+                "state": "failure",
+                "matcher": {
+                  "success": false
+                }
+              }
+            ]
+          }
+        },
+        "aws.auth#unsignedPayload": {}
+      },
+      "input": {
+        "target": "example.behavior#Input"
+      },
+      "output": {
+        "target": "example.behavior#Output"
+      }
+    },
+    "example.behavior#Public": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/public"
+        },
+        "smithy.api#auth": [],
+        "smithy.api#optionalAuth": {}
+      }
+    },
+    "example.behavior#Input": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "account": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#hostLabel": {},
+            "smithy.api#internal": {}
+          }
+        }
+      }
+    },
+    "example.behavior#Output": {
+      "type": "structure",
+      "members": {
+        "status": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#jsonName": "wire-status"
+          }
+        }
+      }
+    }
+  }
+}

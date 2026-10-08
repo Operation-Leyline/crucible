@@ -86,7 +86,7 @@ pub(crate) fn emit(service: &Service, options: &Options, diagnostics: &mut Diagn
 
 fn describe(service: &Service, shape: &Shape) -> Value {
     let mut value = match shape {
-        Shape::Unit => json!({"kind": "unit"}),
+        Shape::Unit { .. } => json!({"kind": "unit"}),
         Shape::Simple(simple) => json!({"kind": match simple.kind {
             SimpleKind::Boolean => "boolean",
             SimpleKind::String => "string",

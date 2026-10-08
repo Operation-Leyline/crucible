@@ -13,7 +13,7 @@ pub(crate) const DATE_TIME: &str = "::crucible_server_runtime_rust::time::Timest
 pub(crate) fn rust_type(service: &Service, target: &ShapeId, prefix: &str) -> String {
     if target.is_prelude() {
         match service.shape(target) {
-            Some(Shape::Unit) => {
+            Some(Shape::Unit { .. }) => {
                 return "::crucible_server_runtime_rust::operation::Unit".to_owned();
             }
             Some(Shape::Simple(simple)) => return builtin(simple.kind).to_owned(),

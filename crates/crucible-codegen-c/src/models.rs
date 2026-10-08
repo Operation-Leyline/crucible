@@ -16,7 +16,7 @@ pub fn native_name(service: &Service, id: &ShapeId, prefix: &str) -> String {
 pub fn native_type(service: &Service, id: &ShapeId, prefix: &str) -> String {
     match service.shape(id).expect("shape") {
         Shape::IntEnum(_) => native_name(service, id, prefix),
-        Shape::Unit => format!("{prefix}_unit"),
+        Shape::Unit { .. } => format!("{prefix}_unit"),
         Shape::Simple(simple) => match simple.kind {
             SimpleKind::BigInteger => format!("{prefix}_big_integer"),
             SimpleKind::BigDecimal => format!("{prefix}_big_decimal"),
@@ -93,7 +93,7 @@ fn member(
 fn kind(shape: &Shape) -> &'static str {
     match shape {
         Shape::IntEnum(_) => "int_enum",
-        Shape::Unit => "unit",
+        Shape::Unit { .. } => "unit",
         Shape::Structure(_) => "structure",
         Shape::Union(_) => "union",
         Shape::Enum(_) => "enum",

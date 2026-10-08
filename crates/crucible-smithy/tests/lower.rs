@@ -417,7 +417,7 @@ fn lowers_unions_enums_maps_and_prelude_targets() {
     let service = weather();
     assert!(matches!(
         service.shape(&id("smithy.api#Unit")),
-        Some(Shape::Unit)
+        Some(Shape::Unit { .. })
     ));
     assert!(matches!(
         service.shape(&id("example.weather#Location")),

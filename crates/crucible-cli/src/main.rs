@@ -1210,7 +1210,7 @@ fn summary(service: &Service) -> String {
     let mut kinds: BTreeMap<&str, usize> = BTreeMap::new();
     for shape in service.shapes.values() {
         let kind = match shape {
-            Shape::Unit => "unit",
+            Shape::Unit { .. } => "unit",
             Shape::Simple(_) => "simple",
             Shape::Enum(_) => "enum",
             Shape::IntEnum(_) => "intEnum",

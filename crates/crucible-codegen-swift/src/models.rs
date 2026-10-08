@@ -10,7 +10,7 @@ pub fn emit(service: &Service, module: &str) -> String {
         "\ninternal enum ModeledErrors {\n    static func decode(_ target: Swift.String, value: JSONValue, codec: WireCodec, metadata: ErrorMetadata) throws -> any ServiceError {\n        switch target {\n",
     );
     for (id, shape) in &service.shapes {
-        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         let name = model_name(service.name_of(id));

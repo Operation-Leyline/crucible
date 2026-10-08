@@ -237,7 +237,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
                 models.push('\n');
             }
-            Shape::Unit => models.push_str(&format!("{name}: TypeAlias = None\n\n")),
+            Shape::Unit { .. } => models.push_str(&format!("{name}: TypeAlias = None\n\n")),
             // A streaming blob is sent from a source and read from the response
             // without ever being held whole in memory.
             Shape::Simple(_) if streaming(shape) => {

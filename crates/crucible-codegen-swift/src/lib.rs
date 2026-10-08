@@ -379,7 +379,7 @@ fn model_name(name: &str) -> String {
 }
 fn ty(service: &Service, id: &ShapeId, _module: &str) -> String {
     match service.shape(id).expect("lowered shape") {
-        Shape::Unit => "Unit".into(),
+        Shape::Unit { .. } => "Unit".into(),
         Shape::Simple(s) => match s.kind {
             SimpleKind::BigInteger => "BigInteger".into(),
             SimpleKind::BigDecimal => "BigDecimal".into(),
@@ -456,7 +456,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     );
     names.insert(format!("{}Client", service.id.name()));
     for (id, shape) in &service.shapes {
-        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         if !identifier(service.name_of(id)) || !names.insert(model_name(service.name_of(id))) {

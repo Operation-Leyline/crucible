@@ -275,7 +275,7 @@ impl Checker<'_> {
             return;
         };
         match (old, new) {
-            (Shape::Unit, Shape::Unit) => {}
+            (Shape::Unit { .. }, Shape::Unit { .. }) => {}
             (Shape::Simple(a), Shape::Simple(b)) => {
                 if a.kind != b.kind
                     || a.streaming != b.streaming

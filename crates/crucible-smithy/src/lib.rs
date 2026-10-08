@@ -6,6 +6,7 @@
 //! copy here would drift from it.
 
 mod ast;
+mod audience;
 mod capabilities;
 mod cors;
 mod diagnostics;
@@ -30,6 +31,7 @@ mod xml;
 
 use std::collections::BTreeMap;
 
+pub use audience::{Audience, project};
 pub use capabilities::{Capabilities, Feature, FeatureUse};
 pub use diagnostics::{Diagnostic, Diagnostics};
 pub use protocol::{Protocol, ProtocolSettings};

@@ -46,7 +46,7 @@ pub fn emit(service: &Service) -> String {
                 out.push_str(&format!("  @core.override\n  core.Object toWire(wire.WireContext context) {{ final number = json.JsonNumber(value.toString()); context.codec.intEnumValue(number); return number; }}\n  @core.override\n  core.bool operator ==(core.Object other) => other is {name} && value == other.value;\n  @core.override\n  core.int get hashCode => value.hashCode;\n}}\n"));
                 decode.push_str(&format!("    case {target}: return {name}(context.codec.intEnumValue(value));\n"));
             },
-            Shape::Unit => decode.push_str(&format!("    case {target}:\n      if (wire.wireObject(value).isNotEmpty) {{ throw const core.FormatException('Unit requires an empty object'); }}\n      return const Unit();\n")),
+            Shape::Unit { .. } => decode.push_str(&format!("    case {target}:\n      if (wire.wireObject(value).isNotEmpty) {{ throw const core.FormatException('Unit requires an empty object'); }}\n      return const Unit();\n")),
             Shape::Simple(_) => {},
             Shape::List(list) => {
                 let item = format!("{}{}", ty(service, &list.member.target), if list.sparse { "?" } else { "" });

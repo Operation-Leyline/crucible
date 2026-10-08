@@ -1,0 +1,600 @@
+//! Audience semantics operate only on lowered IR, independently of an emitter.
+use std::collections::{BTreeMap, BTreeSet};
+
+use crate::ir::{
+    Bindings, EndpointParameterSource, HostPrefixPart, JmesExpression, Operation, Service, Shape,
+    WaiterMatcher,
+};
+use crate::{Diagnostics, ShapeId};
+
+/// Public packages omit internal API unless their producer explicitly opts in.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Audience {
+    #[default]
+    External,
+    Internal,
+}
+
+/// Project a contract without mutating the full model used by servers and policy.
+/// Refusals are collected before returning; callers must not publish partial output.
+pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnostics> {
+    if audience == Audience::Internal {
+        return Ok(service.clone());
+    }
+    let mut result = service.clone();
+    result
+        .operations
+        .retain(|op| !service.internal && !op.internal);
+    for op in &mut result.operations {
+        op.errors
+            .retain(|id| !service.shape(id).is_some_and(Shape::internal));
+    }
+    let operations: BTreeSet<_> = result.operations.iter().map(|op| op.id.clone()).collect();
+    result
+        .resources
+        .retain(|_, resource| !service.internal && !resource.internal);
+    // Only resources bound through surviving roots are part of this audience.
+    let mut resources = BTreeSet::new();
+    let mut pending = service.resource_roots.clone();
+    while let Some(id) = pending.pop() {
+        if let Some(resource) = result.resources.get(&id)
+            && resources.insert(id)
+        {
+            pending.extend(resource.resources.iter().cloned());
+        }
+    }
+    result.resources.retain(|id, _| resources.contains(id));
+    result.resource_roots.retain(|id| resources.contains(id));
+    let mut diagnostics = Diagnostics::default();
+    for resource in result.resources.values_mut() {
+        resource.resources.retain(|id| resources.contains(id));
+        for (name, slot) in [
+            ("create", &mut resource.lifecycle.create),
+            ("put", &mut resource.lifecycle.put),
+            ("read", &mut resource.lifecycle.read),
+            ("update", &mut resource.lifecycle.update),
+            ("delete", &mut resource.lifecycle.delete),
+            ("list", &mut resource.lifecycle.list),
+        ] {
+            if let Some(id) = slot.as_ref()
+                && !operations.contains(id)
+            {
+                diagnostics.push(&resource.id, format!("audience.resource_lifecycle: external resource {name} lifecycle requires removed internal operation {id}"));
+                *slot = None;
+            }
+        }
+        resource.operations.retain(|id| operations.contains(id));
+        resource
+            .collection_operations
+            .retain(|id| operations.contains(id));
+        resource.bindings.retain(|id, _| operations.contains(id));
+    }
+    let mut reached = BTreeSet::new();
+    let mut pending: Vec<_> = result
+        .operations
+        .iter()
+        .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
+        .cloned()
+        .collect();
+    for resource in result.resources.values() {
+        for target in resource
+            .identifiers
+            .values()
+            .chain(resource.properties.values())
+        {
+            check_target(service, &resource.id, target, &mut diagnostics);
+            pending.push(target.clone());
+        }
+    }
+    for op in &result.operations {
+        for target in op.input.iter().chain(&op.output) {
+            check_target(service, &op.id, target, &mut diagnostics);
+        }
+        check_references(service, op, &operations, &mut diagnostics);
+    }
+    if let Some(discovery) = &service.endpoint_discovery
+        && let Some(op) = result
+            .operations
+            .iter()
+            .find(|op| op.id == discovery.operation)
+    {
+        for path in discovery
+            .operation_member
+            .iter()
+            .chain(&discovery.identifiers_member)
+        {
+            check_path(
+                service,
+                op,
+                op.input.as_ref(),
+                path,
+                "endpoint",
+                &mut diagnostics,
+            );
+        }
+        for path in [
+            discovery.endpoints_member.clone(),
+            format!(
+                "{}.{}",
+                discovery.endpoints_member, discovery.address_member
+            ),
+            format!(
+                "{}.{}",
+                discovery.endpoints_member, discovery.cache_period_member
+            ),
+        ] {
+            check_path(
+                service,
+                op,
+                op.output.as_ref(),
+                &path,
+                "endpoint",
+                &mut diagnostics,
+            );
+        }
+        if let Some(error) = &discovery.error
+            && service.shape(error).is_some_and(Shape::internal)
+        {
+            diagnostics.push(&service.id, format!("audience.endpoint_reference: endpoint discovery requires removed internal error {error}"));
+        }
+    }
+    while let Some(id) = pending.pop() {
+        if !reached.insert(id.clone()) {
+            continue;
+        }
+        let Some(shape) = service.shape(&id) else {
+            continue;
+        };
+        if shape.internal() {
+            continue;
+        }
+        for member in shape.members() {
+            let member_id = id.with_member(&member.name);
+            if member.internal {
+                if member.required {
+                    diagnostics.push(&member_id, "audience.required_member: external contract requires an internal member that cannot be omitted");
+                }
+                if matches!(shape, Shape::List(_) | Shape::Map(_)) {
+                    diagnostics.push(&member_id, "audience.collection_member: external collection cannot omit its internal member");
+                }
+            } else {
+                check_target(service, &member_id, &member.target, &mut diagnostics);
+                pending.push(member.target.clone());
+            }
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    result
+        .shapes
+        .retain(|id, shape| reached.contains(id) && !shape.internal());
+    for shape in result.shapes.values_mut() {
+        match shape {
+            Shape::Structure(s) | Shape::Union(s) => {
+                s.members.retain(|m| !m.internal);
+                if let Some(error) = &mut s.error {
+                    let names: BTreeSet<_> = s.members.iter().map(|m| m.name.as_str()).collect();
+                    error.headers.retain(|b| names.contains(b.member.as_str()));
+                    error
+                        .prefix_headers
+                        .retain(|b| names.contains(b.member.as_str()));
+                    error
+                        .timestamp_formats
+                        .retain(|n, _| names.contains(n.as_str()));
+                    error
+                        .header_encodings
+                        .retain(|n, _| names.contains(n.as_str()));
+                    error.response_code = error
+                        .response_code
+                        .take()
+                        .filter(|n| names.contains(n.as_str()));
+                    error.payload = error
+                        .payload
+                        .take()
+                        .filter(|p| names.contains(p.member.as_str()));
+                }
+            }
+            Shape::Enum(s) => s.values.retain(|v| !v.internal),
+            Shape::IntEnum(s) => s.values.retain(|v| !v.internal),
+            _ => {}
+        }
+    }
+    for op in &mut result.operations {
+        retain_bindings(&result.shapes, op.input.as_ref(), &mut op.request);
+        retain_bindings(&result.shapes, op.output.as_ref(), &mut op.response);
+        op.idempotency_token = op
+            .idempotency_token
+            .take()
+            .filter(|n| member_exists(&result.shapes, op.input.as_ref(), n));
+        op.resource = op
+            .resource
+            .take()
+            .filter(|id| resources.contains(id) || service.resources.is_empty());
+    }
+    result
+        .resource_references
+        .retain(|id, _| reached.contains(id));
+    for references in result.resource_references.values_mut() {
+        references.retain(|r| !r.resolved || resources.contains(&r.resource));
+    }
+    result.xml_shapes.retain(|id, _| reached.contains(id));
+    for (id, xml) in &mut result.xml_shapes {
+        xml.members
+            .retain(|name, _| member_exists(&result.shapes, Some(id), name));
+    }
+    result.recursive_groups.retain_mut(|group| {
+        group.shapes.retain(|id| reached.contains(id));
+        group.members.retain(|id| {
+            id.member()
+                .is_some_and(|name| member_exists(&result.shapes, Some(&id.root()), name))
+        });
+        !group.shapes.is_empty()
+    });
+    result.requirements.retain(|usage| {
+        let root = usage.shape.root();
+        if root == service.id {
+            return true;
+        }
+        if operations.contains(&root) || resources.contains(&root) {
+            return true;
+        }
+        reached.contains(&root)
+            && usage
+                .shape
+                .member()
+                .is_none_or(|name| member_exists(&result.shapes, Some(&root), name))
+    });
+    result
+        .protocol_tests
+        .retain(|test| operations.contains(&test.operation));
+    result.endpoint_discovery = result
+        .endpoint_discovery
+        .take()
+        .filter(|d| operations.contains(&d.operation));
+    result
+        .renames
+        .retain(|id, _| reached.contains(id) || operations.contains(id) || resources.contains(id));
+    Ok(result)
+}
+
+fn check_target(
+    service: &Service,
+    owner: &ShapeId,
+    target: &ShapeId,
+    diagnostics: &mut Diagnostics,
+) {
+    if service.shape(target).is_some_and(Shape::internal) {
+        diagnostics.push(
+            owner,
+            format!("audience.internal_target: external contract targets internal shape {target}"),
+        );
+    }
+}
+
+fn member_exists(shapes: &BTreeMap<ShapeId, Shape>, id: Option<&ShapeId>, name: &str) -> bool {
+    id.and_then(|id| shapes.get(id))
+        .is_some_and(|s| s.members().iter().any(|m| m.name == name))
+}
+
+fn retain_bindings(
+    shapes: &BTreeMap<ShapeId, Shape>,
+    id: Option<&ShapeId>,
+    bindings: &mut Bindings,
+) {
+    let keep = |name: &str| member_exists(shapes, id, name);
+    bindings.labels.retain(|name| keep(name));
+    bindings.body.retain(|name| keep(name));
+    bindings.query.retain(|b| keep(&b.member));
+    bindings.headers.retain(|b| keep(&b.member));
+    bindings.prefix_headers.retain(|b| keep(&b.member));
+    bindings.timestamp_formats.retain(|n, _| keep(n));
+    bindings.header_encodings.retain(|n, _| keep(n));
+    bindings.query_params = bindings.query_params.take().filter(|n| keep(n));
+    bindings.response_code = bindings.response_code.take().filter(|n| keep(n));
+    bindings.payload = bindings.payload.take().filter(|p| keep(&p.member));
+    bindings.event_stream = bindings.event_stream.take().filter(|p| keep(&p.member));
+}
+
+fn check_path(
+    service: &Service,
+    op: &Operation,
+    root: Option<&ShapeId>,
+    path: &str,
+    kind: &str,
+    diagnostics: &mut Diagnostics,
+) {
+    let mut current = root.cloned();
+    for name in path.split('.') {
+        let Some(mut id) = current else {
+            break;
+        };
+        // Discovery paths cross a list of endpoint structures. Resolve the
+        // element type while preserving collection-member diagnostics elsewhere.
+        if let Some(Shape::List(list)) = service.shape(&id) {
+            id = list.member.target.clone();
+        }
+        let Some(member) = service
+            .shape(&id)
+            .and_then(|s| s.members().into_iter().find(|m| m.name == name))
+        else {
+            break;
+        };
+        if member.internal {
+            diagnostics.push(
+                &op.id,
+                format!(
+                    "audience.{kind}_reference: {kind} references removed member {}",
+                    id.with_member(name)
+                ),
+            );
+        }
+        current = Some(member.target.clone());
+    }
+}
+
+fn check_references(
+    service: &Service,
+    op: &Operation,
+    operations: &BTreeSet<ShapeId>,
+    diagnostics: &mut Diagnostics,
+) {
+    if let Some(p) = &op.paginated {
+        for path in std::iter::once(&p.input_token).chain(&p.page_size) {
+            check_path(
+                service,
+                op,
+                op.input.as_ref(),
+                path,
+                "paginator",
+                diagnostics,
+            );
+        }
+        for path in std::iter::once(&p.output_token).chain(&p.items) {
+            check_path(
+                service,
+                op,
+                op.output.as_ref(),
+                path,
+                "paginator",
+                diagnostics,
+            );
+        }
+    }
+    if let Some(endpoint) = &op.endpoint {
+        for part in &endpoint.parts {
+            if let HostPrefixPart::Label { member } = part {
+                check_path(
+                    service,
+                    op,
+                    op.input.as_ref(),
+                    member,
+                    "endpoint",
+                    diagnostics,
+                );
+            }
+        }
+    }
+    for sources in op.endpoint_parameters.values() {
+        for source in sources {
+            match source {
+                EndpointParameterSource::InputMember { member } => check_path(
+                    service,
+                    op,
+                    op.input.as_ref(),
+                    member,
+                    "endpoint",
+                    diagnostics,
+                ),
+                EndpointParameterSource::InputPath { path } => check_expression(
+                    service,
+                    op,
+                    op.input.as_ref(),
+                    &path.expression,
+                    "endpoint",
+                    false,
+                    diagnostics,
+                ),
+                _ => {}
+            }
+        }
+    }
+    for waiter in op.waiters.values() {
+        for acceptor in &waiter.acceptors {
+            match &acceptor.matcher {
+                WaiterMatcher::Output { path, .. } => check_expression(service, op, op.output.as_ref(), &path.expression, "waiter", false, diagnostics),
+                WaiterMatcher::InputOutput { path, .. } => check_expression(service, op, None, &path.expression, "waiter", true, diagnostics),
+                WaiterMatcher::ErrorType { name } if service.operations.iter().find(|o| o.id == op.id).is_some_and(|original| original.errors.iter().any(|id| (id.name() == name || id.to_string() == *name) && !op.errors.contains(id))) => diagnostics.push(&op.id, format!("audience.waiter_reference: waiter references removed internal error {name}")),
+                _ => {}
+            }
+            if let Some(path) = &acceptor.message {
+                check_expression(
+                    service,
+                    op,
+                    op.output.as_ref(),
+                    &path.expression,
+                    "waiter",
+                    false,
+                    diagnostics,
+                );
+            }
+        }
+    }
+    if let Some(discovery) = &service.endpoint_discovery {
+        if op.discovered_endpoint.is_some() && !operations.contains(&discovery.operation) {
+            diagnostics.push(
+                &op.id,
+                format!(
+                    "audience.endpoint_reference: endpoint discovery requires removed operation {}",
+                    discovery.operation
+                ),
+            );
+        }
+    }
+    if let Some(crate::ir::Checksum::AwsFlexible {
+        request_algorithm_member,
+        validation_mode_member,
+        ..
+    }) = &op.checksum
+    {
+        for member in request_algorithm_member
+            .iter()
+            .chain(validation_mode_member)
+        {
+            check_path(
+                service,
+                op,
+                op.input.as_ref(),
+                member,
+                "checksum",
+                diagnostics,
+            );
+        }
+    }
+}
+
+fn check_expression(
+    service: &Service,
+    op: &Operation,
+    root: Option<&ShapeId>,
+    expression: &JmesExpression,
+    kind: &str,
+    input_output: bool,
+    diagnostics: &mut Diagnostics,
+) {
+    let mut removed = BTreeSet::new();
+    expression_targets(
+        service,
+        op,
+        root.into_iter().cloned().collect(),
+        expression,
+        input_output,
+        &mut removed,
+    );
+    for id in removed {
+        diagnostics.push(
+            &op.id,
+            format!("audience.{kind}_reference: {kind} references removed member {id}"),
+        );
+    }
+}
+
+// Carry model types through compiled expressions so a nested field is checked
+// against its actual structure rather than a global set of member spellings.
+fn expression_targets(
+    service: &Service,
+    op: &Operation,
+    roots: Vec<ShapeId>,
+    expression: &JmesExpression,
+    input_output: bool,
+    removed: &mut BTreeSet<ShapeId>,
+) -> Vec<ShapeId> {
+    use JmesExpression as E;
+    let elements = |roots: Vec<ShapeId>| {
+        roots
+            .into_iter()
+            .flat_map(|id| match service.shape(&id) {
+                Some(Shape::List(s)) => vec![s.member.target.clone()],
+                Some(Shape::Map(s)) => vec![s.value.target.clone()],
+                _ => vec![id],
+            })
+            .collect::<Vec<_>>()
+    };
+    match expression {
+        E::Field { name } => {
+            if input_output {
+                return match name.as_str() {
+                    "input" => op.input.iter().cloned().collect(),
+                    "output" => op.output.iter().cloned().collect(),
+                    _ => vec![],
+                };
+            }
+            roots
+                .iter()
+                .filter_map(|id| {
+                    let member = service
+                        .shape(id)?
+                        .members()
+                        .into_iter()
+                        .find(|m| m.name == *name)?;
+                    if member.internal {
+                        removed.insert(id.with_member(name));
+                    }
+                    Some(member.target.clone())
+                })
+                .collect()
+        }
+        E::Subexpression { left, right } => {
+            let targets = expression_targets(service, op, roots, left, input_output, removed);
+            expression_targets(service, op, targets, right, false, removed)
+        }
+        E::Projection { left, right } => {
+            let targets = elements(expression_targets(
+                service,
+                op,
+                roots,
+                left,
+                input_output,
+                removed,
+            ));
+            expression_targets(service, op, targets, right, false, removed)
+        }
+        E::Flatten { expression } | E::ObjectValues { expression } => elements(expression_targets(
+            service,
+            op,
+            roots,
+            expression,
+            input_output,
+            removed,
+        )),
+        E::Index { .. } | E::Slice { .. } => elements(roots),
+        E::And { left, right } | E::Or { left, right } | E::Compare { left, right, .. } => {
+            let mut targets =
+                expression_targets(service, op, roots.clone(), left, input_output, removed);
+            targets.extend(expression_targets(
+                service,
+                op,
+                roots,
+                right,
+                input_output,
+                removed,
+            ));
+            targets
+        }
+        E::Condition { predicate, then } => {
+            expression_targets(service, op, roots.clone(), predicate, input_output, removed);
+            expression_targets(service, op, roots, then, input_output, removed)
+        }
+        E::Not { expression } | E::ExpressionReference { expression } => {
+            expression_targets(service, op, roots, expression, input_output, removed)
+        }
+        E::MultiList { expressions } => expressions
+            .iter()
+            .flat_map(|e| expression_targets(service, op, roots.clone(), e, input_output, removed))
+            .collect(),
+        E::MultiHash { entries } => entries
+            .iter()
+            .flat_map(|e| {
+                expression_targets(service, op, roots.clone(), &e.value, input_output, removed)
+            })
+            .collect(),
+        E::Function { arguments, .. } => {
+            let targets: Vec<_> = arguments
+                .iter()
+                .filter(|e| !matches!(e, E::ExpressionReference { .. }))
+                .flat_map(|e| {
+                    expression_targets(service, op, roots.clone(), e, input_output, removed)
+                })
+                .collect();
+            for e in arguments
+                .iter()
+                .filter(|e| matches!(e, E::ExpressionReference { .. }))
+            {
+                expression_targets(service, op, elements(targets.clone()), e, false, removed);
+            }
+            targets
+        }
+        E::Identity => roots,
+        E::Literal { .. } => vec![],
+    }
+}

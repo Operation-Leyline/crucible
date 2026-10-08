@@ -21,7 +21,7 @@ pub(crate) fn emit(service: &Service) -> String {
                 }
                 out.push_str(&format!("}} as const;\nexport type {name} = (typeof {name})[keyof typeof {name}] | (number & {{}});\n"));
             }
-            Shape::Unit => {}
+            Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
                 doc(&mut out, "", simple.docs.as_deref());
                 let ts = match simple.kind {

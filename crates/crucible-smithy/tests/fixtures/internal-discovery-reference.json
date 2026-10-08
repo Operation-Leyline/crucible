@@ -1,0 +1,144 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.discovery#Service": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {},
+        "aws.api#clientEndpointDiscovery": {
+          "operation": "example.discovery#Discover",
+          "error": "example.discovery#Expired"
+        }
+      },
+      "operations": [
+        {
+          "target": "example.discovery#Discover"
+        },
+        {
+          "target": "example.discovery#Get"
+        }
+      ]
+    },
+    "example.discovery#Discover": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/endpoints",
+          "code": 200
+        },
+        "smithy.api#internal": {}
+      },
+      "input": {
+        "target": "example.discovery#DiscoveryInput"
+      },
+      "output": {
+        "target": "example.discovery#DiscoveryOutput"
+      }
+    },
+    "example.discovery#Get": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/get",
+          "code": 200
+        },
+        "aws.api#clientDiscoveredEndpoint": {
+          "required": true
+        }
+      },
+      "input": {
+        "target": "example.discovery#Input"
+      },
+      "output": {
+        "target": "example.discovery#Node"
+      },
+      "errors": [
+        {
+          "target": "example.discovery#Expired"
+        }
+      ]
+    },
+    "example.discovery#DiscoveryInput": {
+      "type": "structure",
+      "members": {
+        "Operation": {
+          "target": "smithy.api#String"
+        },
+        "Identifiers": {
+          "target": "example.discovery#Identifiers"
+        }
+      }
+    },
+    "example.discovery#Identifiers": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "smithy.api#String"
+      }
+    },
+    "example.discovery#DiscoveryOutput": {
+      "type": "structure",
+      "members": {
+        "Endpoints": {
+          "target": "example.discovery#Endpoints"
+        }
+      }
+    },
+    "example.discovery#Endpoints": {
+      "type": "list",
+      "member": {
+        "target": "example.discovery#Endpoint"
+      }
+    },
+    "example.discovery#Endpoint": {
+      "type": "structure",
+      "members": {
+        "Address": {
+          "target": "smithy.api#String"
+        },
+        "CachePeriodInMinutes": {
+          "target": "smithy.api#Long"
+        }
+      }
+    },
+    "example.discovery#Input": {
+      "type": "structure",
+      "members": {
+        "id": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "aws.api#clientEndpointDiscoveryId": {}
+          }
+        }
+      }
+    },
+    "example.discovery#Expired": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 421
+      },
+      "members": {}
+    },
+    "example.discovery#Node": {
+      "type": "structure",
+      "members": {
+        "children": {
+          "target": "example.discovery#Nodes"
+        }
+      }
+    },
+    "example.discovery#Nodes": {
+      "type": "list",
+      "member": {
+        "target": "example.discovery#Node"
+      }
+    }
+  }
+}
