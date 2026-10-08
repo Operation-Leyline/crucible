@@ -129,7 +129,9 @@ fn xmldoc(indent: &str, model: Option<&str>, notes: &[String], tags: &[String]) 
         text.push('\n');
         text.push_str(tag);
     }
-    text.lines()
+    // C# ends a `///` comment at CR, NEL, LS and PS as well as LF.
+    docs::lines(&text)
+        .into_iter()
         .map(|line| format!("{indent}/// {line}\n"))
         .collect()
 }
@@ -886,4 +888,26 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::xmldoc;
+
+    #[test]
+    fn every_csharp_line_terminator_starts_a_new_doc_comment_line() {
+        // C# ends a `///` comment at CR, NEL, LS and PS, not only at LF, so a
+        // model could otherwise smuggle source text onto the same physical line.
+        let model = "a\rpublic class Evil {}\u{85}b\u{2028}c\u{2029}d\r\ne";
+        let note = "note\u{2028}class Injected {}".to_string();
+        let tag = "<returns>x\u{2029}class Tag {}</returns>".to_string();
+        let out = xmldoc("    ", Some(model), &[note], &[tag]);
+        for line in out.split('\n').filter(|line| !line.is_empty()) {
+            assert!(line.starts_with("    /// "), "{line:?}");
+        }
+        assert!(
+            !out.contains(['\r', '\u{85}', '\u{2028}', '\u{2029}']),
+            "{out:?}"
+        );
+    }
 }

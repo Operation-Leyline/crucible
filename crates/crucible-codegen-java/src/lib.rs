@@ -191,14 +191,14 @@ fn javadoc(indent: &str, model: Option<&str>, notes: &[String], tags: &[String])
         blocks.push(format!("<p>Returns {text}.</p>"));
     }
     let mut out = format!("{indent}/**\n");
-    for line in blocks.iter().flat_map(|block| block.lines()) {
+    for line in blocks.iter().flat_map(|block| docs::lines(block)) {
         out.push_str(&format!("{indent} * {line}\n"));
     }
     if !blocks.is_empty() && !tags.is_empty() {
         out.push_str(&format!("{indent} *\n"));
     }
-    for tag in tags {
-        out.push_str(&format!("{indent} * {tag}\n"));
+    for line in tags.iter().flat_map(|tag| docs::lines(tag)) {
+        out.push_str(&format!("{indent} * {line}\n"));
     }
     out.push_str(&format!("{indent} */\n"));
     out

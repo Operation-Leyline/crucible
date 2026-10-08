@@ -145,15 +145,15 @@ pub(crate) fn kdoc(indent: &str, model: Option<&str>, notes: &[String], tags: &[
         if index > 0 {
             out.push_str(&format!("{indent} *\n"));
         }
-        for line in block.lines() {
+        for line in docs::lines(block) {
             out.push_str(&format!("{indent} * {line}\n"));
         }
     }
     if !blocks.is_empty() && !tags.is_empty() {
         out.push_str(&format!("{indent} *\n"));
     }
-    for tag in tags {
-        out.push_str(&format!("{indent} * {}\n", docs::kdoc_guard(tag)));
+    for line in tags.iter().flat_map(|tag| docs::lines(tag)) {
+        out.push_str(&format!("{indent} * {}\n", docs::kdoc_guard(line)));
     }
     out.push_str(&format!("{indent} */\n"));
     out

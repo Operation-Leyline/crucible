@@ -164,6 +164,32 @@ pub fn xmldoc(markdown: &str) -> Vec<String> {
     render(markdown, Dialect::Xml)
 }
 
+/// Splits comment text into lines on every terminator a Java, Kotlin or C#
+/// lexer recognises: LF, CR, CRLF, NEL, LS and PS. `str::lines` stops at LF and
+/// CRLF only, so a lone CR or a Unicode separator would survive inside one
+/// `///` line, where the C# compiler ends the comment and reads the rest as
+/// source. Every emitter that prefixes lines with a comment marker uses this.
+pub fn lines(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    let mut chars = text.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        if !matches!(c, '\n' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}') {
+            continue;
+        }
+        out.push(&text[start..i]);
+        start = i + c.len_utf8();
+        if c == '\r' && matches!(chars.peek(), Some((_, '\n'))) {
+            chars.next();
+            start += 1;
+        }
+    }
+    if start < text.len() {
+        out.push(&text[start..]);
+    }
+    out
+}
+
 /// Escapes plain prose (not Smithy Markdown) for a Javadoc body.
 pub fn javadoc_text(text: &str) -> String {
     html_escape(text)
@@ -384,7 +410,9 @@ fn kdoc_escape(text: &str) -> String {
                 out.push(c);
             }
             '/' if previous == '*' => out.push_str("\\/"),
-            '@' if previous == '\0' || previous == ' ' => out.push_str("\\@"),
+            // Any whitespace can precede a line start: HTML block text keeps its
+            // newlines, and Dokka reads a line-initial `@` as a block tag.
+            '@' if previous == '\0' || previous.is_whitespace() => out.push_str("\\@"),
             c => out.push(c),
         }
         previous = c;
@@ -420,8 +448,21 @@ fn parse_blocks(markdown: &str) -> Vec<Block> {
             Event::Start(Tag::CodeBlock(_)) => code = Some(String::new()),
             Event::End(TagEnd::CodeBlock) => {
                 let body = code.take().unwrap_or_default();
-                let lines = body.trim_end_matches('\n').split('\n').map(str::to_owned);
-                blocks.push(Block::Code(lines.collect()));
+                let lines: Vec<String> = body
+                    .trim_end_matches('\n')
+                    .split('\n')
+                    .map(str::to_owned)
+                    .collect();
+                if lists.is_empty() {
+                    blocks.push(Block::Code(lines));
+                } else {
+                    // Items hold inlines only, so a nested block is flattened into
+                    // its item like a nested paragraph, not hoisted above the list.
+                    if !cur.is_empty() {
+                        push_text(&mut cur, " ");
+                    }
+                    cur.push(Inline::Code(lines.join(" ")));
+                }
             }
             Event::Text(t) if code.is_some() => code.as_mut().unwrap().push_str(&t),
             Event::Start(Tag::Paragraph) if !lists.is_empty() && !cur.is_empty() => {
@@ -586,5 +627,44 @@ mod tests {
             !guarded.contains("*/") && !guarded.contains("/*"),
             "{guarded}"
         );
+    }
+    #[test]
+    fn kdoc_escapes_a_block_tag_after_any_line_break() {
+        // HTML block text keeps its newlines, so `@` can start a KDoc line.
+        for html in ["<div>\n@param x\n</div>", "<div>\r\n@param x\r\n</div>"] {
+            let out = kdoc(html).join("\n");
+            assert!(!out.contains("\n@") && !out.contains("\r@"), "{out:?}");
+            assert!(out.contains("\\@param"), "{out:?}");
+        }
+        assert_eq!(
+            kdoc_text("a\u{2028}@b\u{85}@c\t@d"),
+            "a\u{2028}\\@b\u{85}\\@c\t\\@d"
+        );
+    }
+
+    #[test]
+    fn code_blocks_stay_inside_their_list_item() {
+        let source = "- step\n\n  ```\n  cmd\n  ```\n- next";
+        assert_eq!(kdoc(source), ["- step `cmd`\n- next"],);
+        assert_eq!(
+            javadoc(source),
+            ["<ul>\n<li>step <code>cmd</code></li>\n<li>next</li>\n</ul>"],
+        );
+        // Outside a list a fence is still a block of its own.
+        assert_eq!(javadoc("```\ncmd\n```"), ["<pre><code>cmd</code></pre>"],);
+    }
+
+    #[test]
+    fn lines_split_on_every_terminator_the_target_lexers_recognise() {
+        assert_eq!(
+            lines("a\nb\r\nc\rd\u{85}e\u{2028}f\u{2029}g"),
+            ["a", "b", "c", "d", "e", "f", "g"]
+        );
+        assert_eq!(lines("a\n\nb\n"), ["a", "", "b"]);
+        assert_eq!(lines("a\r\n\r\nb"), ["a", "", "b"]);
+        assert!(lines("").is_empty());
+        for line in lines("x\u{2028}y\u{2029}z\u{85}w\rv") {
+            assert!(!line.contains(['\r', '\u{85}', '\u{2028}', '\u{2029}']));
+        }
     }
 }
