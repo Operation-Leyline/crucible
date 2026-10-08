@@ -320,6 +320,10 @@ final class WireCodec {
     switch (shape['kind']) {
       case 'list':
         if (text.trim().isEmpty) return <Object?>[];
+        final item = wireObject(shape['member']);
+        final itemShape = this.shape(wireString(item['target']));
+        final httpDate = itemShape['kind'] == 'timestamp' &&
+            (item['format'] ?? itemShape['format']) == 'http-date';
         final values = <Object?>[];
         final part = StringBuffer();
         var quoted = false;
@@ -337,7 +341,11 @@ final class WireCodec {
           part.clear();
         }
         for (final rune in text.runes) {
-          if (rune == 44 && !quoted) {
+          // The comma after an HTTP-date weekday belongs to the date, not the list.
+          if (rune == 44 &&
+              !quoted &&
+              !(httpDate &&
+                  RegExp(r'^[A-Za-z]{3}$').hasMatch(part.toString().trim()))) {
             append();
             continue;
           }

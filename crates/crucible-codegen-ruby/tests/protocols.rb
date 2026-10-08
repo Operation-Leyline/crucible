@@ -18,6 +18,14 @@ end
   r = sdk::Runtime
   instant = r::Timestamp.new(-1, 750_000_000)
   date = 'Wed, 31 Dec 1969 23:59:59 GMT'
+  codec = r::WireCodec.new({'shapes' => {
+    'time' => {'kind' => 'timestamp', 'format' => 'date-time'},
+    'dates' => {'kind' => 'list', 'member' => {'target' => 'time', 'format' => 'http-date'}}
+  }}, {})
+  dates = [date, 'Thu, 01 Jan 1970 00:00:00 GMT']
+  [dates.join(', '), codec.bound(dates)].each do |wire|
+    check(codec.header({'target' => 'dates'}, wire) == dates, 'Explicit list member HTTP-date header format preserves date commas')
+  end
   transport = Handler.new do |request|
     check(request.method == 'POST', 'AWS JSON method')
     body = r::ExactJson.decode(request.body)

@@ -220,6 +220,9 @@ module CrucibleGenerated
         kind = shape.fetch('kind')
         if kind == 'list'
           return [] if text.strip.empty?
+          item = shape.fetch('member')
+          item_shape = self.shape(item.fetch('target'))
+          http_date = item_shape['kind'] == 'timestamp' && (item['format'] || item_shape['format']) == 'http-date'
           parts, part, quoted, escaped = [], +'', false, false
           append = lambda do
             value = part.strip
@@ -228,7 +231,8 @@ module CrucibleGenerated
             part = +''
           end
           text.each_char do |character|
-            if character == ',' && !quoted
+            # The comma after an HTTP-date weekday belongs to the date, not the list.
+            if character == ',' && !quoted && !(http_date && part.strip.match?(/\A[A-Za-z]{3}\z/))
               append.call
               next
             end
