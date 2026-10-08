@@ -128,6 +128,15 @@ private class Codec {
     fun decode(target: String, wire: String): Any? = invoke("decode", target, json(wire), null)
     fun encode(target: String, value: Any?, format: String? = null): JsonElement = invoke("encode", target, value, format) as JsonElement
     fun header(wire: String): JsonElement = invoke("header", json("""{"target":"example.weather#Tags"}""").asJsonObject, wire, null) as JsonElement
+    // The weather schema has no intEnum, bigInteger or bigDecimal shapes, so add them for header decoding.
+    fun numericHeaders(): List<JsonElement> {
+        var extended = schema
+        for (kind in listOf("intEnum", "bigInteger", "bigDecimal")) extended = changed(extended, listOf("shapes", "test#$kind"), json("""{"kind":"$kind"}"""))
+        instance = type.getConstructor(JsonObject::class.java).newInstance(extended)
+        return listOf("intEnum" to "2", "bigInteger" to "123456789012345678901234567890", "bigDecimal" to "1.5").map { (kind, wire) ->
+            invoke("header", json("""{"target":"test#$kind"}""").asJsonObject, wire, null) as JsonElement
+        }
+    }
     fun bound(values: JsonElement): String = invoke("bound", values) as String
     fun checkDenseMapNulls() {
         instance = type.getConstructor(JsonObject::class.java).newInstance(changed(schema, listOf("shapes", "example.weather#Forecast", "value", "target"), JsonPrimitive("smithy.api#String")))
@@ -216,6 +225,8 @@ private fun serialization(path: String) {
         check(encoded == test.asJsonObject.get("encoded").asString)
         check(codec.header(encoded) == test.asJsonObject.get("values"))
     }
+    val numeric = codec.numericHeaders()
+    check(numeric.map { it.jsonPrimitive.content } == listOf("2", "123456789012345678901234567890", "1.5") && numeric.none { it.jsonPrimitive.isString }) { "numeric headers decoded as strings" }
     check(codec.encode("example.weather#DateTime", Instant.parse("2026-10-01T00:00:00Z"), "http-date").asString == "Thu, 01 Oct 2026 00:00:00 GMT")
 }
 private fun exactJsonEquals(a: JsonElement, b: JsonElement): Boolean {
