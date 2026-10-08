@@ -1,7 +1,7 @@
 # Crucible Smithy traits
 
-`crucible-traits` supplies the `crucible.protocols#json` and
-`crucible.protocols#strict` definitions as a Cargo dependency. It embeds the
+`crucible-traits` supplies the `crucible.protocols#json`,
+`crucible.protocols#strict` and `crucible.auth#scopes` definitions as a Cargo dependency. It embeds the
 same model definitions used by the traits JAR, without runtime dependencies
 or a JVM. The Cargo package version follows Crucible's workspace version.
 
@@ -38,3 +38,8 @@ shapes remain available for existing service contracts;
 assembly. Write them under `OUT_DIR`. The one-crate build helper does this
 automatically. Include these errors in the service's `errors` declaration so
 generated clients retain the server's actual error contract.
+
+`AUTH` supplies `crucible.auth#scopes`, the OAuth scopes an operation requires
+(or, on the service, the default for operations that declare none). It is
+imported with the other definitions; enforcement is opt-in at runtime, see
+[docs/auth.md](../docs/auth.md).

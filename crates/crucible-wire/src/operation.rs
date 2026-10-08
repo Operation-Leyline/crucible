@@ -21,6 +21,12 @@ pub trait Operation: Send + Sync + 'static {
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = None;
     const OPTIONAL_AUTH: bool = false;
+    /// OAuth scopes a caller must hold, all of them (`@crucible.auth#scopes`:
+    /// the operation's own list, else the service default). Declaring them
+    /// enforces nothing until an authorization extension reads them.
+    const SCOPES: &'static [&'static str] = &[];
+    /// The service-wide default scopes, which a 401 challenge advertises.
+    const SERVICE_SCOPES: &'static [&'static str] = &[];
     const UNSIGNED_PAYLOAD: bool = false;
     /// The modeled wire protocol. Server defaults select the corresponding implementation.
     const PROTOCOL: Protocol = Protocol::CrucibleJson;

@@ -116,6 +116,14 @@ impl<'m> Lowerer<'m> {
         let auth_schemes = self.auth_configs(id, shape, &auth);
         let endpoint_rules = self.endpoint_rules(id, &shape.traits);
         let default_auth = self.effective_auth(id, &shape.traits, &auth);
+        let scopes = crate::scopes::lower(id, &shape.traits, &mut self.diagnostics);
+        if scopes.as_ref().is_some_and(|scopes| !scopes.is_empty()) && default_auth.is_empty() {
+            self.diagnostics.push(
+                id,
+                "@crucible.auth#scopes requires the service to declare an authentication scheme",
+            );
+        }
+        let default_scopes = scopes.unwrap_or_default();
         let service_errors: Vec<ShapeId> = shape.errors.iter().map(|r| r.target.clone()).collect();
         let default_pagination = shape.traits.get(&smithy("paginated"));
         for (operation, _) in self.operation_ids(shape) {
@@ -142,6 +150,7 @@ impl<'m> Lowerer<'m> {
                     &service_errors,
                     default_pagination,
                     &default_auth,
+                    &default_scopes,
                     &auth,
                 )
             })
@@ -296,6 +305,7 @@ impl<'m> Lowerer<'m> {
             title: string_trait(&shape.traits, "title"),
             docs: string_trait(&shape.traits, "documentation"),
             auth,
+            scopes: default_scopes,
             auth_schemes,
             endpoint_rules,
             protocol_tests,
@@ -506,6 +516,7 @@ impl<'m> Lowerer<'m> {
         service_errors: &[ShapeId],
         default_pagination: Option<&Value>,
         default_auth: &[ShapeId],
+        default_scopes: &[String],
         supported_auth: &[ShapeId],
     ) -> Option<Operation> {
         let Some(shape) = self.model.get(id) else {
@@ -517,6 +528,22 @@ impl<'m> Lowerer<'m> {
             self.effective_auth(id, &shape.traits, supported_auth)
         } else {
             default_auth.to_vec()
+        };
+        let scopes = match crate::scopes::lower(id, &shape.traits, &mut self.diagnostics) {
+            // A public operation has no caller to hold a scope. A service default
+            // is simply not inherited; an explicit list is a contradiction.
+            Some(scopes) if auth.is_empty() => {
+                if !scopes.is_empty() {
+                    self.diagnostics.push(
+                        id,
+                        "@crucible.auth#scopes requires an authenticated operation; this one has no effective authentication scheme",
+                    );
+                }
+                Vec::new()
+            }
+            Some(scopes) => scopes,
+            None if auth.is_empty() => Vec::new(),
+            None => default_scopes.to_vec(),
         };
         let (method, uri, status) = if self.protocol.uses_http_bindings() {
             let Some(http) = shape.traits.get(&smithy("http")) else {
@@ -633,6 +660,7 @@ impl<'m> Lowerer<'m> {
             checksum: self.checksum(id, shape, input.as_ref()),
             id: id.clone(),
             auth,
+            scopes,
             optional_auth: shape.traits.contains_key(&smithy("optionalAuth")),
             endpoint: self.endpoint_host_prefix(id, shape, input.as_ref()),
             endpoint_parameters: BTreeMap::new(),

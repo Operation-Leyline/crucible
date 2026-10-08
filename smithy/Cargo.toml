@@ -7,10 +7,10 @@ rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
 readme = "README.md"
-include = ["Cargo.toml", "README.md", "src/**", "crucible.smithy", "errors.smithy"]
+include = ["Cargo.toml", "README.md", "src/**", "crucible.smithy", "errors.smithy", "auth.smithy"]
 
 [package.metadata.smithy]
-models = ["crucible.smithy", "errors.smithy"]
+models = ["crucible.smithy", "errors.smithy", "auth.smithy"]
 
 [lints]
 workspace = true

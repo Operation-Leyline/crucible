@@ -44,6 +44,9 @@ pub struct Service {
     pub docs: Option<String>,
     /// Auth schemes the service declares, in declaration order.
     pub auth: Vec<ShapeId>,
+    /// `@crucible.auth#scopes` on the service: the default for operations that
+    /// declare none, and the scope a 401 challenge advertises. Model order.
+    pub scopes: Vec<String>,
     pub auth_schemes: BTreeMap<ShapeId, AuthScheme>,
     pub endpoint_rules: Option<EndpointRuleSet>,
     pub protocol_tests: Vec<HttpProtocolTest>,
@@ -119,6 +122,17 @@ pub struct ResourceReference {
 }
 
 impl Service {
+    /// Every scope the service declares, service default and operations, sorted
+    /// and unique: what an authorization server or discovery document advertises.
+    pub fn all_scopes(&self) -> Vec<&str> {
+        self.scopes
+            .iter()
+            .chain(self.operations.iter().flat_map(|op| &op.scopes))
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
     /// Emitters must check their own capabilities even for externally lowered IR.
     pub fn require_capabilities(
         &self,
@@ -465,6 +479,9 @@ pub struct Operation {
     pub id: ShapeId,
     /// Effective authentication schemes, after service and operation overrides.
     pub auth: Vec<ShapeId>,
+    /// OAuth scopes a caller must hold, all of them: the operation's own
+    /// `@crucible.auth#scopes`, else the service default. Empty when public.
+    pub scopes: Vec<String>,
     pub optional_auth: bool,
     pub endpoint: Option<EndpointHostPrefix>,
     pub endpoint_parameters: BTreeMap<String, Vec<EndpointParameterSource>>,
