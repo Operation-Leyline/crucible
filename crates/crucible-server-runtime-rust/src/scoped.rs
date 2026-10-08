@@ -98,6 +98,13 @@ impl<T: Interceptor> Interceptor for Scoped<T> {
     }
 }
 impl<T: Protocol> Protocol for Scoped<T> {
+    fn fallback(&self) -> bool {
+        self.inner.fallback()
+    }
+    fn admit<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        self.inner.admit(job)
+    }
+
     fn route(
         &self,
         request: &axum::http::request::Parts,

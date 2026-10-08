@@ -197,10 +197,6 @@ pub(crate) fn key(id: &ShapeId) -> String {
     format!("{}.{}", id.namespace(), id.name())
 }
 
-pub(crate) fn reference(id: &ShapeId) -> Value {
-    json!({"$ref": format!("#/components/schemas/{}", key(id))})
-}
-
 pub(crate) fn traits(traits: &Traits) -> Value {
     Value::Object(
         traits

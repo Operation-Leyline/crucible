@@ -29,6 +29,7 @@
 mod async_interceptor;
 mod async_middleware;
 mod async_operation_middleware;
+mod auth_refusal;
 #[cfg(any(test, feature = "test-support"))]
 pub mod conformance;
 pub mod context;
@@ -42,7 +43,9 @@ pub mod interceptors;
 pub mod job;
 #[cfg(feature = "logging")]
 pub mod logging;
+pub mod mcp;
 pub mod middleware;
+pub use auth_refusal::AuthRefusal;
 pub mod middlewares;
 mod operation_job;
 mod operation_metadata;

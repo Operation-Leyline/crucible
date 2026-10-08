@@ -65,6 +65,19 @@ pub enum ProtocolMatch {
 }
 
 pub trait Protocol: Send + Sync + 'static {
+    /// Whether this protocol can encode failures outside its owned requests.
+    /// Dedicated endpoints opt out so they do not replace ordinary API errors.
+    fn fallback(&self) -> bool {
+        true
+    }
+
+    /// Endpoint admission before transport middleware or body parsing. Only the
+    /// protocol owning the request runs this hook; `Job::respond` stops dispatch.
+    fn admit<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
+        let _ = job;
+        Hook::Ready(Ok(()))
+    }
+
     /// Identifies the operation before operation-aware middleware runs.
     /// Envelope-based protocols may read a bounded body here and retain
     /// decoded envelope state for `decode`; declining must leave the request

@@ -89,6 +89,7 @@ struct Inner {
     operation_middleware: Vec<Box<dyn OperationAwareMiddleware>>,
     interceptors: Vec<Box<dyn Interceptor>>,
     protocols: Vec<Box<dyn Protocol>>,
+    fallback: usize,
     translator: ExceptionTranslator,
     reject: Reject,
     body_limit: usize,
@@ -217,7 +218,7 @@ impl Crucible {
             .scope(async move {
                 let mut entered = Entered::default();
                 // An early transport failure still uses its owner's error envelope.
-                let mut selected = 0;
+                let mut selected = inner.fallback;
                 // Keep the job and entered phases outside the unwind boundary so
                 // a panic follows the same return path as an internal error.
                 if let Err(error) = recover_async(async {
@@ -225,7 +226,7 @@ impl Crucible {
                         .protocols
                         .iter()
                         .position(|p| p.owns(job.request()))
-                        .unwrap_or(0);
+                        .unwrap_or(inner.fallback);
                     self.execute(&mut job, &mut entered, &mut selected).await;
                     // Decoded input is still present when an interceptor refuses or answers.
                     if entered.decoded && job.wants_snapshot && job.input_snapshot.is_none() {
@@ -423,6 +424,16 @@ impl Crucible {
         selected: &mut usize,
     ) -> crate::Result<()> {
         let inner = &self.inner;
+        if let Some(protocol) = inner
+            .protocols
+            .get(*selected)
+            .filter(|p| p.owns(job.request()))
+        {
+            protocol.admit(job).resolve().await?;
+            if job.outcome.is_some() {
+                return Ok(());
+            }
+        }
         for middleware in &inner.middleware {
             middleware.before(job).resolve().await?;
             entered.transport += 1;
@@ -431,7 +442,7 @@ impl Crucible {
             }
         }
         job.input = None;
-        *selected = 0;
+        *selected = inner.fallback;
         let mut route = None;
         for (index, protocol) in inner.protocols.iter().enumerate() {
             match protocol.identify(job, &inner.operations).resolve().await {
@@ -446,6 +457,9 @@ impl Crucible {
                     return Err(error);
                 }
             }
+        }
+        if job.outcome.is_some() {
+            return Ok(());
         }
         let route = route.ok_or(FrameworkError::UnknownOperation)?;
         let entry = inner
@@ -594,6 +608,11 @@ impl Builder {
     /// Protocols are alternatives: only the first claiming protocol decodes/writes.
     pub fn protocol(mut self, protocol: impl Protocol) -> Self {
         self.protocols.push(Box::new(protocol));
+        self
+    }
+    /// Opt in to MCP on its configured path, before ordinary wire protocols.
+    pub fn mcp(mut self, protocol: crate::mcp::McpProtocol) -> Self {
+        self.protocols.insert(0, Box::new(protocol));
         self
     }
     pub fn protocols(mut self, protocols: impl IntoIterator<Item = Box<dyn Protocol>>) -> Self {
@@ -752,6 +771,11 @@ impl Builder {
                 .rev()
                 .find_map(|limits| limits(entry.info));
         }
+        let fallback = self
+            .protocols
+            .iter()
+            .position(|p| p.fallback())
+            .unwrap_or(0);
         let core = Crucible {
             inner: Arc::new(Inner {
                 cors,
@@ -760,6 +784,7 @@ impl Builder {
                 operation_middleware: self.operation_middleware,
                 interceptors: self.interceptors,
                 protocols: self.protocols,
+                fallback,
                 translator: self.translator,
                 reject,
                 body_limit: self.body_limit,

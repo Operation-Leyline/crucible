@@ -54,10 +54,14 @@ fn http_members_are_projected_into_their_wire_locations() {
         "#/components/schemas/smithy.api.Long"
     );
     let body = &create["requestBody"]["content"]["application/json"]["schema"];
-    assert_eq!(body["required"], json!(["name"]));
-    assert_eq!(body["properties"]["name"]["maxLength"], 40);
+    assert!(body.get("required").is_none());
+    assert_eq!(body["properties"]["name"]["anyOf"][0]["maxLength"], 40);
     // Lowering replaces the entire target length trait with the member's.
-    assert!(body["properties"]["name"].get("minLength").is_none());
+    assert!(
+        body["properties"]["name"]["anyOf"][0]
+            .get("minLength")
+            .is_none()
+    );
     assert!(body["properties"].get("expectedRevision").is_none());
     assert_eq!(create["requestBody"]["required"], true);
     assert_eq!(create["x-smithy-idempotency-token"], "clientToken");
@@ -115,7 +119,7 @@ fn constraint_overrides_can_relax_the_target_without_intersection() {
             json!({"min": 0, "max": 200});
     }));
     let name = &doc["paths"]["/cities"]["post"]["requestBody"]["content"]["application/json"]["schema"]
-        ["properties"]["name"];
+        ["properties"]["name"]["anyOf"][0];
     assert_eq!(name["minLength"], 0);
     assert_eq!(name["maxLength"], 200);
     assert!(name.get("$ref").is_none());
@@ -374,11 +378,9 @@ fn json_names_sparse_collections_sets_and_large_numbers_are_preserved() {
         m["shapes"]["example.weather#CreateCityInput"]["members"]["name"]["traits"]["smithy.api#jsonName"] =
             json!("city_name");
     }));
-    assert_eq!(
-        renamed["paths"]["/cities"]["post"]["requestBody"]["content"]["application/json"]["schema"]
-            ["required"],
-        json!(["city_name"])
-    );
+    let body = &renamed["paths"]["/cities"]["post"]["requestBody"]["content"]["application/json"]["schema"];
+    assert!(body.get("required").is_none());
+    assert!(body["properties"].get("city_name").is_some());
 }
 
 #[test]

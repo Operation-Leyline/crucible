@@ -233,15 +233,28 @@
                 "type": "object",
                 "properties": {
                   "name": {
-                    "type": "string",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "x-smithy-traits": {
+                          "smithy.api#length": {
+                            "min": 1,
+                            "max": 100
+                          }
+                        },
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
                     "x-smithy-traits": {
                       "example.weather#audited": {},
                       "smithy.api#length": {
                         "max": 40
                       },
                       "smithy.api#required": {}
-                    },
-                    "maxLength": 40
+                    }
                   },
                   "location": {
                     "anyOf": [
@@ -267,9 +280,6 @@
                     }
                   }
                 },
-                "required": [
-                  "name"
-                ],
                 "additionalProperties": false
               },
               "examples": {
@@ -1700,14 +1710,7 @@
             "maxLength": 100
           },
           "population": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/smithy.api.Long"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "$ref": "#/components/schemas/smithy.api.Long",
             "x-smithy-traits": {
               "smithy.api#default": 0
             },
@@ -1788,15 +1791,28 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#length": {
+                    "min": 1,
+                    "max": 100
+                  }
+                },
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
             "x-smithy-traits": {
               "example.weather#audited": {},
               "smithy.api#length": {
                 "max": 40
               },
               "smithy.api#required": {}
-            },
-            "maxLength": 40
+            }
           },
           "location": {
             "anyOf": [
@@ -1835,9 +1851,6 @@
             }
           }
         },
-        "required": [
-          "name"
-        ],
         "additionalProperties": false,
         "x-smithy-traits": {
           "crucible.protocols#strict": {},
@@ -1881,12 +1894,22 @@
         "type": "object",
         "properties": {
           "cityId": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#pattern": "^c-[a-z0-9]{8}$"
+                },
+                "pattern": "^c-[a-z0-9]{8}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "x-smithy-traits": {
               "smithy.api#httpLabel": {},
               "smithy.api#required": {}
-            },
-            "pattern": "^c-[a-z0-9]{8}$"
+            }
           },
           "at": {
             "anyOf": [
@@ -1903,9 +1926,6 @@
             }
           }
         },
-        "required": [
-          "cityId"
-        ],
         "x-smithy-traits": {
           "smithy.api#input": {}
         }
@@ -1954,17 +1974,24 @@
         "type": "object",
         "properties": {
           "cityId": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#pattern": "^c-[a-z0-9]{8}$"
+                },
+                "pattern": "^c-[a-z0-9]{8}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "x-smithy-traits": {
               "smithy.api#httpLabel": {},
               "smithy.api#required": {}
-            },
-            "pattern": "^c-[a-z0-9]{8}$"
+            }
           }
         },
-        "required": [
-          "cityId"
-        ],
         "x-smithy-traits": {
           "smithy.api#input": {}
         }
@@ -2225,12 +2252,22 @@
         "type": "object",
         "properties": {
           "cityId": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#pattern": "^c-[a-z0-9]{8}$"
+                },
+                "pattern": "^c-[a-z0-9]{8}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "x-smithy-traits": {
               "smithy.api#httpLabel": {},
               "smithy.api#required": {}
-            },
-            "pattern": "^c-[a-z0-9]{8}$"
+            }
           },
           "caption": {
             "anyOf": [
@@ -2246,24 +2283,35 @@
             }
           },
           "photo": {
-            "type": "string",
-            "contentEncoding": "base64",
-            "description": "A photo, carried unparsed.",
+            "anyOf": [
+              {
+                "type": "string",
+                "contentEncoding": "base64",
+                "description": "A photo, carried unparsed.",
+                "x-smithy-traits": {
+                  "smithy.api#documentation": "A photo, carried unparsed.",
+                  "smithy.api#length": {
+                    "min": 1,
+                    "max": 4096
+                  },
+                  "smithy.api#mediaType": "image/jpeg"
+                },
+                "x-smithy-length": {
+                  "unit": "bytes",
+                  "min": 1,
+                  "max": 4096
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
             "x-smithy-traits": {
               "smithy.api#httpPayload": {},
               "smithy.api#required": {}
-            },
-            "x-smithy-length": {
-              "unit": "bytes",
-              "min": 1,
-              "max": 4096
             }
           }
         },
-        "required": [
-          "cityId",
-          "photo"
-        ],
         "x-smithy-traits": {
           "smithy.api#input": {}
         }
