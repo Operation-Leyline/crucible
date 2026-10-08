@@ -1,8 +1,16 @@
 # frozen_string_literal: true
 module CrucibleGenerated
   module Runtime
+    # One outgoing HTTP request. Frozen: {#with} returns a changed copy.
     class HttpRequest
-      attr_reader :url, :method, :headers, :body
+      # @return [String] the absolute URL
+      attr_reader :url
+      # @return [String] the HTTP method, upper case
+      attr_reader :method
+      # @return [Hash{String => String}] the request headers, names in lower case
+      attr_reader :headers
+      # @return [String, ByteStream, nil] the body bytes, a streaming body, or nil for none
+      attr_reader :body
       def initialize(url:, method:, headers: {}, body: nil)
         token = /\A[!#$%&'*+.^_`|~0-9A-Za-z-]+\z/
         raise ::ArgumentError, 'Invalid HTTP method' unless method.is_a?(::String) && token.match?(method)
@@ -17,6 +25,7 @@ module CrucibleGenerated
         @body = body.is_a?(ByteStream) || body.is_a?(StreamBody) ? body : body&.dup&.b&.freeze
         freeze
       end
+      # @return [HttpRequest] a copy with the given parts replaced
       def with(headers: @headers, body: @body, url: @url, method: @method)
         self.class.new(url: url, method: method, headers: headers, body: body)
       end

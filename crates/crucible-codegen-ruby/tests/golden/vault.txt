@@ -1,0 +1,583 @@
+=== lib/vault_client.rb ===
+# frozen_string_literal: true
+require_relative 'vault_client/runtime/unit'
+require_relative 'vault_client/runtime/describe'
+require_relative 'vault_client/runtime/json_number'
+require_relative 'vault_client/runtime/exact_json'
+require_relative 'vault_client/runtime/json_value'
+require_relative 'vault_client/runtime/timestamp'
+require_relative 'vault_client/runtime/wire_context'
+require_relative 'vault_client/runtime/wire_codec'
+require_relative 'vault_client/runtime/error_metadata'
+require_relative 'vault_client/runtime/service_error'
+require_relative 'vault_client/runtime/cancellation_token'
+require_relative 'vault_client/runtime/call_scope'
+require_relative 'vault_client/runtime/basic_credentials'
+require_relative 'vault_client/runtime/aws_credentials'
+require_relative 'vault_client/runtime/cached_credentials'
+require_relative 'vault_client/runtime/credentials'
+require_relative 'vault_client/runtime/authentication'
+require_relative 'vault_client/runtime/byte_stream'
+require_relative 'vault_client/runtime/query'
+require_relative 'vault_client/runtime/waiters'
+require_relative 'vault_client/runtime/endpoints'
+require_relative 'vault_client/runtime/checksums'
+require_relative 'vault_client/runtime/xml_protocol'
+require_relative 'vault_client/runtime/client_config'
+require_relative 'vault_client/runtime/http_request'
+require_relative 'vault_client/runtime/http_response'
+require_relative 'vault_client/runtime/net_http_transport'
+require_relative 'vault_client/runtime/client_runtime'
+module Vault
+  VaultException = Runtime::VaultException
+end
+require_relative 'vault_client/models/access_denied'
+require_relative 'vault_client/models/credential'
+require_relative 'vault_client/models/get_secret_input'
+require_relative 'vault_client/models/get_secret_output'
+require_relative 'vault_client/models/kind'
+require_relative 'vault_client/models/level'
+require_relative 'vault_client/models/list_secrets_input'
+require_relative 'vault_client/models/list_secrets_output'
+require_relative 'vault_client/models/put_secret_input'
+require_relative 'vault_client/models/put_secret_output'
+require_relative 'vault_client/models/secret'
+require_relative 'vault_client/models/registry'
+module Vault
+  def self.codec
+    @codec ||= Runtime::WireCodec.new(Runtime::ExactJson.decode(::File.read(::File.join(__dir__, 'vault_client/schema.json'))), Registry::TYPES)
+  end
+end
+require_relative 'vault_client/client'
+
+=== lib/vault_client/client.rb ===
+# frozen_string_literal: true
+module Vault
+  # Client for the Vault service.
+  #
+  # Stores secrets.
+  #
+  # See [the guide](https://example.com/guide) and \[Secret] for `*/` details. @since 1
+  #
+  # Create one `VaultClient` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {#close} when finished. Every operation blocks until it completes and reports failure as a `ServiceException` for a service response, a {Runtime::NetworkError} when no response arrives, a {Runtime::DeadlineError} when the call outlasts {Runtime::ClientConfig#timeout}, or a {Runtime::CancelledError}.
+  class VaultClient
+    # Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see {Runtime::ClientConfig} for credentials, retries, timeouts and the transport.
+    #
+    # @param config [Runtime::ClientConfig]
+    # @raise [ArgumentError] when the endpoint or another setting is invalid
+    def initialize(config = Runtime::ClientConfig.new)
+      @runtime = Runtime::ClientRuntime.new(config, ::Vault.codec, endpoint: '', digest: false)
+    end
+    # Releases the HTTP connection this client created. A transport passed in the configuration is left open.
+    def close = @runtime.close
+    # Reads one secret.
+    #
+    # Read-only: retried automatically after transient failures.
+    #
+    # @param input [GetSecretInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [GetSecretOutput] the service's response
+    # @raise [AccessDenied]
+    # @raise [Runtime::ServiceException] for any other error response
+    def get_secret(input, cancellation: nil)
+      @runtime.call('GetSecret', input, cancellation: cancellation)
+    end
+    # Lists secrets.
+    #
+    # Read-only: retried automatically after transient failures.
+    #
+    # This operation is paginated: use the `_pages` variant to read every page.
+    #
+    # @param input [ListSecretsInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [ListSecretsOutput] the service's response
+    # @raise [AccessDenied]
+    # @raise [Runtime::ServiceException] for any other error response
+    def list_secrets(input, cancellation: nil)
+      @runtime.call('ListSecrets', input, cancellation: cancellation)
+    end
+    # Every page of {#list_secrets}, following the pagination token until the service stops returning one. Returns an `Enumerator`; the call for each page is made as it is consumed, so each can fail.
+    #
+    # @param input [ListSecretsInput] the request for the first page
+    # @param cancellation [Runtime::CancellationToken, nil]
+    # @return [Enumerator<ListSecretsOutput>]
+    def list_secrets_pages(input, cancellation: nil)
+      @runtime.pages('ListSecrets', input, cancellation: cancellation)
+    end
+    # Stores a secret.
+    #
+    # Idempotent: retried automatically after transient failures.
+    #
+    # `client_token` is filled with a fresh token when omitted, so retries do not repeat the effect.
+    #
+    # @param input [PutSecretInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [PutSecretOutput] the service's response
+    # @raise [AccessDenied]
+    # @raise [Runtime::ServiceException] for any other error response
+    def put_secret(input, cancellation: nil)
+      @runtime.call('PutSecret', input, cancellation: cancellation)
+    end
+  end
+end
+
+=== lib/vault_client/models/access_denied.rb ===
+# frozen_string_literal: true
+module Vault
+    # The caller may not read this secret.
+    class AccessDenied < ::Vault::Runtime::VaultException
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :message_value
+      # Redacted.
+      #
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :reason
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
+      def initialize(message_value: ::Vault::Runtime::UNSET, reason: ::Vault::Runtime::UNSET, metadata: ::Vault::Runtime::ErrorMetadata.new)
+        super(metadata)
+        @message_value = message_value
+        @reason = reason
+      end
+      def self.from_wire(value, context, metadata = ::Vault::Runtime::ErrorMetadata.new)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        new(
+          message_value: context.read('message', object, optional: true),
+          reason: context.read('reason', object, optional: true),
+          metadata: metadata,
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'message', @message_value, optional: true)
+        context.put(object, 'reason', @reason, optional: true)
+        object
+      end
+      # @return [String] `AccessDenied(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('AccessDenied', {message_value: @message_value, reason: Runtime::Describe.redact(@reason), metadata: @metadata})
+    end
+end
+
+=== lib/vault_client/models/credential.rb ===
+# frozen_string_literal: true
+module Vault
+    # A way to prove identity.
+    class Credential
+      def self.from_wire(value, context)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        raise ::ArgumentError, 'Union requires one member' unless object.size == 1
+        key, value = object.first
+        case key
+        when 'password' then PasswordVariant.new(value.nil? ? nil : context.codec.decode(value, context.member(key)))
+        when 'username' then UsernameVariant.new(value.nil? ? nil : context.codec.decode(value, context.member(key)))
+        when 'pin' then PinVariant.new(value.nil? ? nil : context.codec.decode(value, context.member(key)))
+        else Unknown.new(key, ::Vault::Runtime::JsonValue.new(value))
+        end
+      end
+      # A password.
+      class PasswordVariant < Credential
+        # @return [String, nil] the member's value; nil when the union carries an explicit null
+        attr_reader :value
+        def initialize(value)
+          @value = value
+          freeze
+        end
+        def to_wire(context)
+          {'password' => @value.nil? ? nil : context.codec.encode(@value, context.member('password'))}
+        end
+        def inspect = Runtime::Describe.format('Credential', {password: Runtime::Describe.redact(@value)})
+        alias to_s inspect
+      end
+      class UsernameVariant < Credential
+        # @return [String, nil] the member's value; nil when the union carries an explicit null
+        attr_reader :value
+        def initialize(value)
+          @value = value
+          freeze
+        end
+        def to_wire(context)
+          {'username' => @value.nil? ? nil : context.codec.encode(@value, context.member('username'))}
+        end
+        def inspect = Runtime::Describe.format('Credential', {username: @value})
+        alias to_s inspect
+      end
+      class PinVariant < Credential
+        # @return [String, nil] the member's value; nil when the union carries an explicit null
+        attr_reader :value
+        def initialize(value)
+          @value = value
+          freeze
+        end
+        def to_wire(context)
+          {'pin' => @value.nil? ? nil : context.codec.encode(@value, context.member('pin'))}
+        end
+        def inspect = Runtime::Describe.format('Credential', {pin: Runtime::Describe.redact(@value)})
+        alias to_s inspect
+      end
+      # A member this client does not know, kept so it can be sent back unchanged.
+      class Unknown < Credential
+        # @return [String] the member name received
+        attr_reader :name
+        # @return [Runtime::JsonValue] the raw value received
+        attr_reader :value
+        # Omits the value: nothing says whether it is sensitive.
+        def inspect = Runtime::Describe.format('Credential', {unknown_variant: @name})
+        alias to_s inspect
+        def initialize(name, value)
+          @name = ::Vault::Runtime::WireCodec.string(name).freeze
+          raise ::ArgumentError, 'Expected JsonValue' unless value.is_a?(::Vault::Runtime::JsonValue)
+          @value = value
+          freeze
+        end
+        def to_wire(context)
+          raise ::ArgumentError, 'Unknown variant name is declared' if context.shape.fetch('members').key?(@name)
+          {@name => @value.value}
+        end
+      end
+    end
+end
+
+=== lib/vault_client/models/get_secret_input.rb ===
+# frozen_string_literal: true
+module Vault
+    class GetSecretInput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :name
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
+      def initialize(name: ::Vault::Runtime::UNSET)
+        @name = name
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        new(
+          name: context.read('name', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'name', @name, optional: true)
+        object
+      end
+      # @return [String] `GetSecretInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('GetSecretInput', {name: @name})
+      alias to_s inspect
+    end
+end
+
+=== lib/vault_client/models/get_secret_output.rb ===
+# frozen_string_literal: true
+module Vault
+    class GetSecretOutput
+      # @return [Secret]
+      attr_reader :secret
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
+      def initialize(secret:)
+        @secret = secret
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        new(
+          secret: context.read('secret', object, optional: false),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'secret', @secret, optional: false)
+        object
+      end
+      # @return [String] `GetSecretOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('GetSecretOutput', {secret: @secret})
+      alias to_s inspect
+    end
+end
+
+=== lib/vault_client/models/kind.rb ===
+# frozen_string_literal: true
+module Vault
+    # What a secret unlocks.
+    class Kind
+      # @return [String] the string sent on the wire; a value this client does not list is kept as is
+      attr_reader :value
+      def initialize(value)
+        @value = ::Vault::Runtime::WireCodec.string(value).freeze
+        freeze
+      end
+      def self.from_wire(value, _context) = new(value)
+      def to_wire(_context) = @value
+      def ==(other) = other.is_a?(self.class) && @value == other.value
+      alias eql? ==
+      def hash = @value.hash
+      # A website login.
+      LOGIN = new('login')
+      API_KEY = new('api-key')
+      def inspect = 'Kind(' + @value + ')'
+      alias to_s inspect
+    end
+end
+
+=== lib/vault_client/models/level.rb ===
+# frozen_string_literal: true
+module Vault
+    # How sensitive a secret is.
+    class Level
+      # @return [Integer] the integer sent on the wire
+      attr_reader :value
+      def initialize(value)
+        raise ::ArgumentError, 'Expected signed 32-bit integer' unless value.is_a?(::Integer) && (-(2**31)...2**31).cover?(value)
+        @value = value
+        freeze
+      end
+      def self.from_wire(value, context) = new(context.codec.number(value).integer(-(2**31), 2**31 - 1))
+      def to_wire(_context) = @value
+      def ==(other) = other.is_a?(self.class) && @value == other.value
+      alias eql? ==
+      def hash = @value.hash
+      # Rarely rotated.
+      LOW = new(1)
+      HIGH = new(2)
+      def inspect = 'Level(' + @value.to_s + ')'
+      alias to_s inspect
+    end
+end
+
+=== lib/vault_client/models/list_secrets_input.rb ===
+# frozen_string_literal: true
+module Vault
+    class ListSecretsInput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :next_token
+      # @return [Integer, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :max_results
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
+      def initialize(next_token: ::Vault::Runtime::UNSET, max_results: ::Vault::Runtime::UNSET)
+        @next_token = next_token
+        @max_results = max_results
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        new(
+          next_token: context.read('nextToken', object, optional: true),
+          max_results: context.read('maxResults', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'nextToken', @next_token, optional: true)
+        context.put(object, 'maxResults', @max_results, optional: true)
+        object
+      end
+      # @return [String] `ListSecretsInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('ListSecretsInput', {next_token: @next_token, max_results: @max_results})
+      alias to_s inspect
+    end
+end
+
+=== lib/vault_client/models/list_secrets_output.rb ===
+# frozen_string_literal: true
+module Vault
+    class ListSecretsOutput
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :next_token
+      # @return [Array<Secret>, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :secrets
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
+      def initialize(next_token: ::Vault::Runtime::UNSET, secrets: ::Vault::Runtime::UNSET)
+        @next_token = next_token
+        @secrets = secrets
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        new(
+          next_token: context.read('nextToken', object, optional: true),
+          secrets: context.read('secrets', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'nextToken', @next_token, optional: true)
+        context.put(object, 'secrets', @secrets, optional: true)
+        object
+      end
+      # @return [String] `ListSecretsOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('ListSecretsOutput', {next_token: @next_token, secrets: @secrets})
+      alias to_s inspect
+    end
+end
+
+=== lib/vault_client/models/put_secret_input.rb ===
+# frozen_string_literal: true
+module Vault
+    class PutSecretInput
+      # @return [Secret, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :secret
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :client_token
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
+      def initialize(secret: ::Vault::Runtime::UNSET, client_token: ::Vault::Runtime::UNSET)
+        @secret = secret
+        @client_token = client_token
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        new(
+          secret: context.read('secret', object, optional: true),
+          client_token: context.read('clientToken', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'secret', @secret, optional: true)
+        context.put(object, 'clientToken', @client_token, optional: true)
+        object
+      end
+      # @return [String] `PutSecretInput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('PutSecretInput', {secret: @secret, client_token: @client_token})
+      alias to_s inspect
+    end
+end
+
+=== lib/vault_client/models/put_secret_output.rb ===
+# frozen_string_literal: true
+module Vault
+    class PutSecretOutput
+      # @return [Integer, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :revision
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
+      def initialize(revision: ::Vault::Runtime::UNSET)
+        @revision = revision
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        new(
+          revision: context.read('revision', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'revision', @revision, optional: true)
+        object
+      end
+      # @return [String] `PutSecretOutput(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('PutSecretOutput', {revision: @revision})
+      alias to_s inspect
+    end
+end
+
+=== lib/vault_client/models/registry.rb ===
+# frozen_string_literal: true
+module Vault
+    module Registry
+      TYPES = {
+        'example.vault#AccessDenied' => AccessDenied,
+        'example.vault#Credential' => Credential,
+        'example.vault#GetSecretInput' => GetSecretInput,
+        'example.vault#GetSecretOutput' => GetSecretOutput,
+        'example.vault#Kind' => Kind,
+        'example.vault#Level' => Level,
+        'example.vault#ListSecretsInput' => ListSecretsInput,
+        'example.vault#ListSecretsOutput' => ListSecretsOutput,
+        'example.vault#PutSecretInput' => PutSecretInput,
+        'example.vault#PutSecretOutput' => PutSecretOutput,
+        'example.vault#Secret' => Secret,
+      }.freeze
+    end
+end
+
+=== lib/vault_client/models/secret.rb ===
+# frozen_string_literal: true
+module Vault
+    # A stored secret.
+    class Secret
+      # The <b>name</b> of the secret.
+      #
+      # @return [String]
+      attr_reader :name
+      # Never printed.
+      #
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :password
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :pin
+      # @return [Array<String>, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :history
+      # @return [Hash{String => String}, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :by_name
+      # @return [Array<String>, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :aliases
+      # @return [Hash{String => String}, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :labels
+      # @return [Kind, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :kind
+      # @return [Level, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :level
+      # @return [Credential, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :credential
+      # @return [Runtime::Timestamp, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :created_at
+      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :payload
+      # @return [Integer, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      attr_reader :revision
+      # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
+      def initialize(name:, password: ::Vault::Runtime::UNSET, pin: ::Vault::Runtime::UNSET, history: ::Vault::Runtime::UNSET, by_name: ::Vault::Runtime::UNSET, aliases: ::Vault::Runtime::UNSET, labels: ::Vault::Runtime::UNSET, kind: ::Vault::Runtime::UNSET, level: ::Vault::Runtime::UNSET, credential: ::Vault::Runtime::UNSET, created_at: ::Vault::Runtime::UNSET, payload: ::Vault::Runtime::UNSET, revision: ::Vault::Runtime::UNSET)
+        @name = name
+        @password = password
+        @pin = pin
+        @history = history
+        @by_name = by_name
+        @aliases = aliases
+        @labels = labels
+        @kind = kind
+        @level = level
+        @credential = credential
+        @created_at = created_at
+        @payload = payload
+        @revision = revision
+        freeze
+      end
+      def self.from_wire(value, context)
+        object = ::Vault::Runtime::WireCodec.object(value)
+        new(
+          name: context.read('name', object, optional: false),
+          password: context.read('password', object, optional: true),
+          pin: context.read('pin', object, optional: true),
+          history: context.read('history', object, optional: true),
+          by_name: context.read('byName', object, optional: true),
+          aliases: context.read('aliases', object, optional: true),
+          labels: context.read('labels', object, optional: true),
+          kind: context.read('kind', object, optional: true),
+          level: context.read('level', object, optional: true),
+          credential: context.read('credential', object, optional: true),
+          created_at: context.read('createdAt', object, optional: true),
+          payload: context.read('payload', object, optional: true),
+          revision: context.read('revision', object, optional: true),
+        )
+      end
+      def to_wire(context)
+        object = {}
+        context.put(object, 'name', @name, optional: false)
+        context.put(object, 'password', @password, optional: true)
+        context.put(object, 'pin', @pin, optional: true)
+        context.put(object, 'history', @history, optional: true)
+        context.put(object, 'byName', @by_name, optional: true)
+        context.put(object, 'aliases', @aliases, optional: true)
+        context.put(object, 'labels', @labels, optional: true)
+        context.put(object, 'kind', @kind, optional: true)
+        context.put(object, 'level', @level, optional: true)
+        context.put(object, 'credential', @credential, optional: true)
+        context.put(object, 'createdAt', @created_at, optional: true)
+        context.put(object, 'payload', @payload, optional: true)
+        context.put(object, 'revision', @revision, optional: true)
+        object
+      end
+      # @return [String] `Secret(member=value, ...)` with sensitive members redacted and unset ones omitted
+      def inspect = Runtime::Describe.format('Secret', {name: @name, password: Runtime::Describe.redact(@password), pin: Runtime::Describe.redact(@pin), history: Runtime::Describe.redact(@history), by_name: Runtime::Describe.redact(@by_name), aliases: @aliases, labels: @labels, kind: @kind, level: @level, credential: @credential, created_at: @created_at, payload: Runtime::Describe.bytes(@payload), revision: @revision})
+      alias to_s inspect
+    end
+end
+

@@ -192,3 +192,105 @@ fn streamed_responses_take_a_target_or_block() {
             .contains("def upload(input, cancellation: nil)")
     );
 }
+
+fn vault_files() -> Vec<crucible_codegen_ruby::File> {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-docs.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_ruby::capabilities())
+    .unwrap();
+    let options = Options {
+        package_name: "vault_client".into(),
+        module_name: "Vault".into(),
+        package_version: "0.0.0".into(),
+        endpoint: None,
+        content_sha256: false,
+    };
+    emit(&service, &options).unwrap()
+}
+
+#[test]
+fn smithy_documentation_reaches_models_and_client() {
+    let files = vault_files();
+    let file = |path: &str| {
+        &files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+    };
+    let secret = file("lib/vault_client/models/secret.rb");
+    let client = file("lib/vault_client/client.rb");
+    for (text, source) in [
+        ("# A stored secret.", secret),
+        ("# The <b>name</b> of the secret.", secret),
+        ("# What a secret unlocks.", file("lib/vault_client/models/kind.rb")),
+        ("# A website login.", file("lib/vault_client/models/kind.rb")),
+        ("# Rarely rotated.", file("lib/vault_client/models/level.rb")),
+        ("# A way to prove identity.", file("lib/vault_client/models/credential.rb")),
+        ("# A password.", file("lib/vault_client/models/credential.rb")),
+        ("# The caller may not read this secret.", file("lib/vault_client/models/access_denied.rb")),
+        ("# Reads one secret.", client),
+        ("# Stores secrets.", client),
+        ("# @raise [AccessDenied]", client),
+        ("# Read-only: retried automatically", client),
+        ("# Idempotent: retried automatically", client),
+        ("`client_token` is filled with a fresh token", client),
+        ("# Every page of {#list_secrets}", client),
+    ] {
+        assert!(source.contains(text), "{text}");
+    }
+    // A bare `[Secret]` would be a YARD reference that cannot resolve.
+    assert!(client.contains(r"\[Secret]"));
+    assert!(file(".yardopts").contains("--markup markdown"));
+}
+
+#[test]
+fn sensitive_members_are_redacted_in_string_representations() {
+    let files = vault_files();
+    let source = |path: &str| {
+        &files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+    };
+    let secret = source("lib/vault_client/models/secret.rb");
+    for member in ["password", "pin", "history", "by_name"] {
+        assert!(
+            secret.contains(&format!("{member}: Runtime::Describe.redact(@{member})")),
+            "{member}"
+        );
+    }
+    for member in ["name", "aliases", "labels", "kind", "revision"] {
+        assert!(
+            !secret.contains(&format!("Describe.redact(@{member})")),
+            "{member}"
+        );
+    }
+    assert!(secret.contains("payload: Runtime::Describe.bytes(@payload)"));
+    assert!(source("lib/vault_client/models/access_denied.rb").contains("reason: Runtime::Describe.redact(@reason)"));
+    let credential = source("lib/vault_client/models/credential.rb");
+    assert!(credential.contains("password: Runtime::Describe.redact(@value)"));
+    assert!(credential.contains("pin: Runtime::Describe.redact(@value)"));
+    assert!(credential.contains("username: @value"));
+    assert!(credential.contains("unknown_variant: @name"));
+}
+
+#[test]
+fn vault_package_matches_golden() {
+    let snapshot = vault_files()
+        .iter()
+        .filter(|f| !f.path.contains("/runtime/") && f.path.ends_with(".rb"))
+        .map(|f| format!("=== {} ===\n{}\n", f.path, f.contents))
+        .collect::<String>();
+    let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/vault.txt");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&golden, &snapshot).unwrap();
+    }
+    assert_eq!(
+        snapshot.replace("\r\n", "\n"),
+        fs::read_to_string(golden).expect("golden").replace("\r\n", "\n")
+    );
+}
