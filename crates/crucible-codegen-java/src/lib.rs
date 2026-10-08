@@ -99,6 +99,14 @@ fn field(text: &str) -> String {
         text.into()
     }
 }
+fn member_field(text: &str, package: &str) -> String {
+    let name = field(text);
+    if name == package.split('.').next().expect("validated package") {
+        format!("{name}_")
+    } else {
+        name
+    }
+}
 fn accessor(name: &str, error: bool) -> String {
     if error
         && [
@@ -350,7 +358,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         "unsupported Java native default value",
                     );
                 }
-                let native = field(&m.name);
+                let native = member_field(&m.name, &options.package_name);
                 if !accessors.insert(accessor(&native, s.error.is_some())) {
                     diagnostics.push(
                         &id.with_member(&m.name),
@@ -531,7 +539,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push_str(&format!("    public final class {name}{} {{\n",if s.error.is_some(){format!(" extends {package}.{exception}")}else{String::new()}));
                 if s.error.is_some(){models.push_str("        private static final long serialVersionUID = 1L;\n");}
                 for m in &s.members {
-                    let t=ty(service,&m.target,package); let f=field(&m.name);
+                    let t=ty(service,&m.target,package); let f=member_field(&m.name,package);
                     if m.optional_on_client() || matches!(shape,Shape::Union(_)) {models.push_str(&format!("        public {package}.OptionalValue<{t}> {f} = {package}.OptionalValue.unset();\n"));}
                     else {
                         let initial = m.client_default().map(|value| format!(" = {}", default_expression(service, &m.target, value, package).expect("validated default"))).unwrap_or_default();
@@ -542,7 +550,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push_str("        public static Builder builder() { return new Builder(); }\n");
                 let mut builder = format!("        public static final class Builder {{\n            private final {name} value = new {name}();\n");
                 for (index, m) in s.members.iter().enumerate() {
-                    let t=ty(service,&m.target,package); let f=field(&m.name);
+                    let t=ty(service,&m.target,package); let f=member_field(&m.name,package);
                     let optional = m.optional_on_client() || matches!(shape,Shape::Union(_));
                     // '$' cannot occur in a lowered Smithy member name, keeping
                     // these private flags independent of modeled identifiers.
@@ -555,13 +563,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     models.push_str(&format!("        public {t} {getter}() {{ return {read}; }}\n"));
                     let assigned = if optional {format!("{package}.OptionalValue.of(item)")}else{"item".into()};
                     let clear = if matches!(shape, Shape::Union(_)) {
-                        s.members.iter().map(|other| format!("value.{} = {package}.OptionalValue.unset(); ", field(&other.name))).collect::<String>() + "value.unknownVariant = null; "
+                        s.members.iter().map(|other| format!("value.{} = {package}.OptionalValue.unset(); ", member_field(&other.name,package))).collect::<String>() + "value.unknownVariant = null; "
                     } else { String::new() };
                     builder.push_str(&format!("            public Builder {f}({t} item) {{ {clear}{set_default}value.{f} = {assigned}; return this; }}\n"));
                 }
                 builder.push_str(&format!("            public {name} build() {{\n                {name} result = new {name}();\n"));
                 for (index, m) in s.members.iter().enumerate() {
-                    let f=field(&m.name);
+                    let f=member_field(&m.name,package);
                     let assigned = if !m.optional_on_client() && m.client_default().is_some() && !matches!(shape, Shape::Union(_)) {
                         format!("if ($defaultSet{index}) ")
                     } else { String::new() };
@@ -570,7 +578,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 if matches!(shape, Shape::Union(_)) { builder.push_str("                result.unknownVariant = value.unknownVariant;\n"); }
                 builder.push_str("                return result;\n            }\n");
                 if matches!(shape, Shape::Union(_)) {
-                    let clear = s.members.iter().map(|other| format!("value.{} = {package}.OptionalValue.unset(); ", field(&other.name))).collect::<String>();
+                    let clear = s.members.iter().map(|other| format!("value.{} = {package}.OptionalValue.unset(); ", member_field(&other.name,package))).collect::<String>();
                     builder.push_str(&format!("            public Builder unknownVariant({package}.UnknownUnion item) {{ {clear}value.unknownVariant = item; return this; }}\n"));
                 }
                 builder.push_str("        }\n");
