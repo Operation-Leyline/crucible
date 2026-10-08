@@ -86,7 +86,7 @@ impl Explorer {
             )
                 .into_response();
         }
-        let (bytes, mime, immutable) = match suffix {
+        let (bytes, mime, revalidate) = match suffix {
             "/" | "/index.html" => (
                 Bytes::from_static(INDEX.as_bytes()),
                 "text/html; charset=utf-8",
@@ -132,8 +132,8 @@ impl Explorer {
         headers.insert(header::CONTENT_LENGTH, length.into());
         headers.insert(
             header::CACHE_CONTROL,
-            HeaderValue::from_static(if immutable {
-                "private, max-age=31536000, immutable"
+            HeaderValue::from_static(if revalidate {
+                "private, no-cache"
             } else {
                 "no-store"
             }),
@@ -143,7 +143,14 @@ impl Explorer {
 }
 
 fn secure(mut response: Response) -> Response {
+    response
+        .extensions_mut()
+        .insert(crate::endpoint::SameOrigin);
     let headers = response.headers_mut();
+    headers.insert(
+        "cross-origin-resource-policy",
+        HeaderValue::from_static("same-origin"),
+    );
     headers.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(CSP),

@@ -71,8 +71,8 @@ fn site(description: &str) -> [File; 4] {
         File {
             path: "describe.js".into(),
             contents: format!(
-                "globalThis.CRUCIBLE_DESCRIPTION = {};\n",
-                description.trim_end()
+                "globalThis.CRUCIBLE_DESCRIPTION = JSON.parse({});\n",
+                serde_json::to_string(description.trim_end()).expect("JSON text")
             ),
         },
     ]

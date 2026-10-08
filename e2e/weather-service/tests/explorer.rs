@@ -39,9 +39,9 @@ async fn json_body(response: axum::response::Response) -> Value {
 }
 
 #[tokio::test]
-async fn every_asset_has_security_headers_and_only_code_is_immutable() {
+async fn every_asset_has_security_headers_and_code_is_revalidated() {
     let service = service(Explorer::new(weather::DESCRIPTION));
-    for (name, mime, immutable) in [
+    for (name, mime, revalidate) in [
         ("", "text/html; charset=utf-8", false),
         ("index.html", "text/html; charset=utf-8", false),
         ("explorer.js", "text/javascript; charset=utf-8", true),
@@ -67,11 +67,12 @@ async fn every_asset_has_security_headers_and_only_code_is_immutable() {
             "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'"
         );
         assert_eq!(
-            response.headers()["cache-control"]
-                .to_str()
-                .unwrap()
-                .contains("immutable"),
-            immutable
+            response.headers()["cache-control"],
+            if revalidate {
+                "private, no-cache"
+            } else {
+                "no-store"
+            }
         );
         assert!(
             !to_bytes(response.into_body(), usize::MAX)
@@ -398,5 +399,64 @@ async fn endpoint_auth_adapter_and_normal_route_auth_are_independent() {
             .await
             .unwrap()
             .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn explorer_contract_is_same_origin_despite_service_cors() {
+    mod generated {
+        include!(concat!(env!("OUT_DIR"), "/cors.rs"));
+    }
+    struct Reader;
+    impl generated::cors_service::ReadOperation for Reader {
+        async fn read(
+            &self,
+            _: generated::cors_service::ReadInput,
+        ) -> crucible_server_runtime_rust::Result<generated::cors_service::ReadOutput> {
+            Ok(generated::cors_service::ReadOutput {
+                header: Some("ok".into()),
+            })
+        }
+    }
+    let service = Crucible::builder(generated::cors_service::operations(Arc::new(Reader)))
+        .on_rejection(|_| {
+            Box::new(generated::cors_service::CorsError {
+                message: Some("rejected".into()),
+                header: None,
+            })
+        })
+        .protocol(crucible_server_runtime_rust::JsonProtocol)
+        .explorer(Explorer::new(weather::DESCRIPTION))
+        .build()
+        .unwrap();
+    for path in [
+        "/explorer/",
+        "/explorer/describe.json",
+        "/explorer/describe.js",
+        "/explorer/try-it.js",
+        "/explorer/unknown",
+    ] {
+        let mut req = request(path, Some("127.0.0.1:1234"));
+        req.headers_mut()
+            .insert("origin", "https://other.example".parse().unwrap());
+        let response = service.handle(req).await;
+        assert!(
+            !response
+                .headers()
+                .contains_key("access-control-allow-origin"),
+            "{path}"
+        );
+        assert_eq!(
+            response.headers()["cross-origin-resource-policy"],
+            "same-origin"
+        );
+    }
+    let response = service
+        .handle(request("/cors/example", Some("127.0.0.1:1234")))
+        .await;
+    assert!(
+        response
+            .headers()
+            .contains_key("access-control-allow-origin")
     );
 }

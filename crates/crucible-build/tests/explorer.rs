@@ -60,3 +60,28 @@ fn explorer_generated_bindings_are_valid_rust() {
             .success()
     );
 }
+
+#[test]
+fn explorer_preserves_normal_server_bindings_and_resource_documentation() {
+    let mut source: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(fixture()).unwrap()).unwrap();
+    source["shapes"]["example.weather#ResourceOnlyId"] = serde_json::json!({"type": "string"});
+    source["shapes"]["example.weather#City"]["identifiers"]["tracking"] =
+        serde_json::json!({"target": "example.weather#ResourceOnlyId"});
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("model.json");
+    std::fs::write(&path, source.to_string()).unwrap();
+    let plain = model(&path).server().render().unwrap();
+    let explorer = model(&path).server().explorer().render().unwrap();
+    let prefix = explorer
+        .split("    /// Embedded Explorer contract")
+        .next()
+        .unwrap();
+    assert_eq!(
+        plain.strip_suffix("}\n").unwrap().trim_end(),
+        prefix.trim_end()
+    );
+    assert!(explorer.contains("example.weather#City"));
+    assert!(!plain.contains("ResourceOnlyId"));
+    assert!(explorer.contains("ResourceOnlyId"));
+}

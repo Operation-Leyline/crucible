@@ -140,8 +140,8 @@ prepares title/read-only configuration once.
 The runtime embeds the docs renderer's original `explorer.js` and `explorer.css`
 and adds try-it through `registerOperationPanel`; it does not fork the renderer.
 The build-generated `describe.json` and `describe.js` are served without
-per-request model parsing or serialization. Code and style assets have private
-immutable cache headers. The page, description and configuration use `no-store`
+per-request model parsing or serialization. Code and style assets use `private, no-cache` headers so browsers revalidate
+after a rebuild. The page, description and configuration use `no-store`
 to expose rebuilds immediately.
 
 Every endpoint response sets `X-Content-Type-Options: nosniff`,
@@ -153,3 +153,6 @@ default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img
 
 See [service API references](docs.md) for the shared describe/1 contract and
 [the framework pipeline](framework.md#the-request-pipeline) for ordinary calls.
+
+Explorer responses use a same-origin resource policy and do not inherit the
+modeled API CORS policy. Ordinary API calls retain their modeled CORS behavior.

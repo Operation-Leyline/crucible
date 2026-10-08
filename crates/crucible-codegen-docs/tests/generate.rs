@@ -128,12 +128,12 @@ fn site_is_identical_across_services_and_loads_its_own_description() {
     }
     for generated in [&weather, &catalog] {
         let get = |name: &str| &generated.iter().find(|f| f.path == name).unwrap().contents;
-        // The script form is the JSON verbatim, so file:// and fetch agree.
+        // Parse JSON data so file:// and fetch preserve arbitrary map keys alike.
         assert_eq!(
             get("describe.js"),
             &format!(
-                "globalThis.CRUCIBLE_DESCRIPTION = {};\n",
-                get("describe.json").trim_end()
+                "globalThis.CRUCIBLE_DESCRIPTION = JSON.parse({});\n",
+                serde_json::to_string(get("describe.json").trim_end()).unwrap()
             )
         );
         // A strict CSP (script-src 'self'; style-src 'self') forbids inline code.
@@ -359,5 +359,37 @@ fn documentation_requires_the_resource_projection_and_detects_filename_collision
             .unwrap_err()
             .to_string()
             .contains("docs.filename")
+    );
+}
+
+#[test]
+fn file_description_preserves_arbitrary_example_keys() {
+    let mut source: Value = serde_json::from_str(WEATHER).unwrap();
+    source["shapes"]["example.weather#ExampleDocument"] = json!({"type": "document"});
+    source["shapes"]["example.weather#CreateCityInput"]["members"]["metadata"] =
+        json!({"target": "example.weather#ExampleDocument"});
+    source["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#examples"][0]["input"]["metadata"] =
+        json!({"__proto__": {"example": true}});
+    let generated = files(&source.to_string(), Audience::Internal);
+    let script = &generated
+        .iter()
+        .find(|f| f.path == "describe.js")
+        .unwrap()
+        .contents;
+    let json = &generated
+        .iter()
+        .find(|f| f.path == "describe.json")
+        .unwrap()
+        .contents;
+    assert!(json.contains("__proto__"));
+    let encoded = script
+        .strip_prefix("globalThis.CRUCIBLE_DESCRIPTION = JSON.parse(")
+        .unwrap()
+        .strip_suffix(");\n")
+        .unwrap();
+    let decoded: String = serde_json::from_str(encoded).unwrap();
+    assert_eq!(
+        serde_json::from_str::<Value>(&decoded).unwrap(),
+        serde_json::from_str::<Value>(json).unwrap()
     );
 }

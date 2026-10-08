@@ -138,6 +138,15 @@ pub fn client_capabilities() -> crucible_smithy::Capabilities {
 }
 
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {
+    generate_with_explorer_model(service, options, service)
+}
+
+/// Generate server bindings while describing a separately lowered documentation model.
+pub fn generate_with_explorer_model(
+    service: &Service,
+    options: &Options,
+    explorer_service: &Service,
+) -> Result<String, Diagnostics> {
     service.require_capabilities(&capabilities())?;
     let mut diagnostics = Diagnostics::default();
     let strict = models::strict_shapes(service, options.strict_inputs);
@@ -225,9 +234,10 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     };
     let explorer = match options.explorer {
         Some(audience) => {
-            let description = crucible_smithy::project(service, audience).and_then(|projected| {
-                crucible_codegen_common::describe::describe_for_explorer(&projected)
-            });
+            let description =
+                crucible_smithy::project(explorer_service, audience).and_then(|projected| {
+                    crucible_codegen_common::describe::describe_for_explorer(&projected)
+                });
             match description {
                 Ok(description) => {
                     let description = description.to_json();

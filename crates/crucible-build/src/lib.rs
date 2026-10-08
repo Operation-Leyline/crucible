@@ -720,15 +720,11 @@ impl ServerOutput {
         };
         let capabilities_all =
             crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
-        let service = if self.options.explorer.is_some() && self.side == Side::Server {
-            model.lower_documentation(self.service.as_ref(), self.protocol)
-        } else {
-            match self.protocol {
-                Some(protocol) => {
-                    model.lower_with_protocol(self.service.as_ref(), &capabilities_all, protocol)
-                }
-                None => model.lower_with_capabilities(self.service.as_ref(), &capabilities_all),
+        let service = match self.protocol {
+            Some(protocol) => {
+                model.lower_with_protocol(self.service.as_ref(), &capabilities_all, protocol)
             }
+            None => model.lower_with_capabilities(self.service.as_ref(), &capabilities_all),
         }
         .map_err(|error| error.to_string())?;
         if let Some(policy) = &self.policy {
@@ -776,7 +772,24 @@ impl ServerOutput {
             }
         }
         let generated = match self.side {
-            Side::Server => crucible_codegen_rust::generate(&service, &self.options),
+            Side::Server => {
+                let explorer_service = if self.options.explorer.is_some() {
+                    let json = std::fs::read_to_string(&self.model).map_err(|e| e.to_string())?;
+                    let model = SmithyModel::from_json(&json).map_err(|e| e.to_string())?;
+                    Some(
+                        model
+                            .lower_documentation(self.service.as_ref(), self.protocol)
+                            .map_err(|e| e.to_string())?,
+                    )
+                } else {
+                    None
+                };
+                crucible_codegen_rust::generate_with_explorer_model(
+                    &service,
+                    &self.options,
+                    explorer_service.as_ref().unwrap_or(&service),
+                )
+            }
             Side::Client => crucible_codegen_rust::generate_client(&service),
         };
         generated.map_err(|diagnostics| {
