@@ -1,7 +1,8 @@
 # Releasing Crucible
 
 Crucible versions are released manually as GitHub tags (`vX.Y.Z`) and releases.
-The framework and generators share `[workspace.package].version`. Package
+The framework, generators, `crucible-traits` Cargo package, and traits model JAR
+share `[workspace.package].version`. Package
 registry publication is separate; this workflow publishes no registry packages.
 
 Every release has an entry in the [CHANGELOG](../CHANGELOG.md). Upgrading
@@ -102,12 +103,18 @@ git diff -- Cargo.toml Cargo.lock e2e/Cargo.lock
 python tools/crucible_release.py check 0.2.1
 ```
 
-The preparation helper updates the workspace version and both lockfiles. It
+The preparation helper updates the workspace version and both lockfiles. The
+traits JAR reads that version directly from the workspace manifest, so there is
+no separate Smithy version file to bump. The Traits workflow watches the
+workspace manifest and publishes `traits-vX.Y.Z` with
+`crucible-traits-X.Y.Z.jar`; existing published versions are never replaced. It
 preserves registry dependency versions and example-service package versions.
 It does not update checked-in generator golden files. Generated package
-metadata also records the Crucible version: refresh those goldens before
+metadata and the Rust generated-code ABI checks also record the Crucible
+version: refresh those goldens before
 committing a version bump, and review the diff to confirm that only intended
-output changed:
+output changed. Build dependencies and runtimes must use the same version;
+generated Rust rejects skew at compile time. See [runtime stability](stability.md):
 
 ```sh
 CRUCIBLE_BLESS=1 cargo test --locked
