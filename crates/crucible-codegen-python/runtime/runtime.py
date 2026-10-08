@@ -288,6 +288,8 @@ class _Codec:
             return base64.b64encode(value.encode("utf-8")).decode("ascii")
         if shape["kind"] == "timestamp":
             value = _timestamp(value, fmt or member["format"], False)
+        if shape["kind"] in ("float", "double") and isinstance(value, (float, Decimal)) and not math.isfinite(value):
+            return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
         if isinstance(value, bool):
             return "true" if value else "false"
         return str(value)

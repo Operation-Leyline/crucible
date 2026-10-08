@@ -200,6 +200,27 @@ class RuntimeTests(unittest.TestCase):
                 self.assertEqual(encoded, case["encoded"])
                 self.assertEqual(codec.read_header(member, encoded), case["values"])
 
+    def test_non_finite_float_bindings(self):
+        import math
+        codec = _Codec(m._SCHEMA, m._CLASSES)
+        # Extend shapes with Float and Double if they are not already there
+        if "smithy.api#Float" not in codec.shapes:
+            codec.shapes["smithy.api#Float"] = {"kind": "float"}
+        if "smithy.api#Double" not in codec.shapes:
+            codec.shapes["smithy.api#Double"] = {"kind": "double"}
+            
+        for target, value, expected in [
+            ("smithy.api#Float", float("nan"), "NaN"),
+            ("smithy.api#Double", float("inf"), "Infinity"),
+            ("smithy.api#Double", float("-inf"), "-Infinity"),
+            ("smithy.api#Double", Decimal("NaN"), "NaN"),
+            ("smithy.api#Double", Decimal("Infinity"), "Infinity"),
+            ("smithy.api#Double", Decimal("-Infinity"), "-Infinity"),
+        ]:
+            with self.subTest(target=target, value=value):
+                encoded = codec.bound({"target": target}, value)
+                self.assertEqual(encoded, expected)
+
     def test_cleartext_credentials_are_rejected_before_send(self):
         with httpx.Client(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:
             with self.assertRaisesRegex(ValueError, "plaintext"):
