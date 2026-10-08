@@ -2,10 +2,27 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// An open enum: a value this client does not know is kept as is, so compare with the constants or Value.
+/// </summary>
+/// <param name="Value">The wire value.</param>
 public sealed record @ValidationReason(string Value) {
+    /// <inheritdoc/>
     public override string ToString() => Value;
+    /// <summary>
+    /// The unknownOperation value.
+    /// </summary>
     public static readonly @ValidationReason @UNKNOWN_OPERATION = new("unknownOperation");
+    /// <summary>
+    /// The cannotParse value.
+    /// </summary>
     public static readonly @ValidationReason @CANNOT_PARSE = new("cannotParse");
+    /// <summary>
+    /// The fieldValidationFailed value.
+    /// </summary>
     public static readonly @ValidationReason @FIELD_VALIDATION_FAILED = new("fieldValidationFailed");
+    /// <summary>
+    /// The other value.
+    /// </summary>
     public static readonly @ValidationReason @OTHER = new("other");
 }

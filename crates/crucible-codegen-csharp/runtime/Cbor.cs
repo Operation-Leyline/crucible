@@ -15,6 +15,9 @@ public static class Cbor
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly object Break = new();
 
+    /// <summary>Encodes a value as CBOR (RFC 8949) for the RPC v2 protocol.</summary>
+    /// <param name="item">A null, boolean, number, string, byte array, list, <see cref="CborMap"/> or <see cref="CborTag"/>.</param>
+    /// <returns>The encoded bytes.</returns>
     public static byte[] Encode(object? item)
     {
         using var output = new MemoryStream();

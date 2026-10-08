@@ -2,11 +2,49 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// A modeled error: HTTP 400, a client fault. It is thrown by operations that list it and derives from WeatherException.
+/// </summary>
 public sealed class @ValidationError : global::Example.Weather.WeatherException {
+    /// <summary>
+    /// The <c>message</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public string @MessageValue { get; set; } = default!;
+    /// <summary>
+    /// The <c>reason</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public global::Example.Weather.Models.@ValidationReason @Reason { get; set; } = default!;
+    /// <summary>
+    /// Whether fieldList was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>> @FieldListPresence { get; set; }
+    /// <summary>
+    /// The <c>fieldList</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; FieldListPresence tells the two apart.</para>
+    /// </remarks>
     public global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>? @FieldList { get => @FieldListPresence.IsSet && !@FieldListPresence.IsNull ? @FieldListPresence.Value : (global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>?)null; set => @FieldListPresence = value is null ? global::Example.Weather.Optional<global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>>.Null : global::Example.Weather.Optional<global::System.Collections.Generic.List<global::Example.Weather.Models.@ValidationField>>.Of(value); }
+    /// <summary>
+    /// Whether requestId was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<string> @RequestIdValuePresence { get; set; }
+    /// <summary>
+    /// The <c>requestId</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; RequestIdValuePresence tells the two apart.</para>
+    /// </remarks>
     public string? @RequestIdValue { get => @RequestIdValuePresence.IsSet && !@RequestIdValuePresence.IsNull ? @RequestIdValuePresence.Value : (string?)null; set => @RequestIdValuePresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("ValidationError", ("MessageValue", @MessageValue), ("Reason", @Reason), ("FieldList", @FieldListPresence), ("RequestIdValue", @RequestIdValuePresence));
 }

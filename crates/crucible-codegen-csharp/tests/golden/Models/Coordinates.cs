@@ -2,7 +2,27 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#Coordinates.
+/// </summary>
 public sealed class @Coordinates {
+    /// <summary>
+    /// The <c>latitude</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public double @Latitude { get; set; } = default!;
+    /// <summary>
+    /// The <c>longitude</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public double @Longitude { get; set; } = default!;
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("Coordinates", ("Latitude", @Latitude), ("Longitude", @Longitude));
 }

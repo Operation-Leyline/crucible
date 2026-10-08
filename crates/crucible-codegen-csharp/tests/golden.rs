@@ -158,3 +158,69 @@ fn service_exception_cannot_shadow_runtime_failures() {
             .contains("C# runtime export")
     );
 }
+
+fn docs_files() -> Vec<crucible_codegen_csharp::File> {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-docs.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let mut options = options();
+    options.namespace = "Example.Docs".into();
+    emit(&service, &options).unwrap()
+}
+
+#[test]
+fn smithy_documentation_is_well_formed_xml_doc() {
+    let files = docs_files();
+    for file in files.iter().filter(|f| f.path.ends_with(".cs")) {
+        for line in file
+            .contents
+            .lines()
+            .filter(|l| l.trim_start().starts_with("///"))
+        {
+            let text = line.trim_start().trim_start_matches('/').trim();
+            // Raw angle brackets from the model must arrive escaped.
+            assert!(
+                !text.contains("<b>") && !text.contains("<T>"),
+                "{}: {line}",
+                file.path
+            );
+        }
+    }
+    let client = &files
+        .iter()
+        .find(|f| f.path.ends_with("DocsClient.cs"))
+        .unwrap()
+        .contents;
+    assert!(client.contains("&lt;b&gt;html&lt;/b&gt; @param"));
+    assert!(client.contains("<see href=\"https://example.com/a_b\">docs</see>"));
+    assert!(client.contains("<exception cref=\"global::Example.Docs.Models.Unavailable\">"));
+}
+
+#[test]
+fn sensitive_members_are_redacted_in_to_string() {
+    let files = docs_files();
+    let source = |name: &str| {
+        &files
+            .iter()
+            .find(|f| f.path.ends_with(name))
+            .unwrap()
+            .contents
+    };
+    let input = source("Models/GreetInput.cs");
+    // Direct, via a sensitive target shape, and via a collection of one.
+    for member in ["Password", "Token", "Secrets"] {
+        assert!(
+            input.contains(&format!(
+                "(\"{member}\", global::Example.Docs.ModelFormat.Redact(@{member}Presence))"
+            )),
+            "{member} must be redacted"
+        );
+    }
+    assert!(input.contains("(\"Names\", @NamesPresence)"));
+    assert!(source("Models/Profile.cs").contains("ModelFormat.Redact(@PinPresence)"));
+    assert!(source("Models/Choice.cs").contains("ModelFormat.Redact(@CodePresence)"));
+    assert!(source("Models/Unavailable.cs").contains("ModelFormat.Redact(@RetryTokenPresence)"));
+}

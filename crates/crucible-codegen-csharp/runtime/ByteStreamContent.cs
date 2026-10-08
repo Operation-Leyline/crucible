@@ -13,6 +13,8 @@ public sealed class ByteStreamContent : HttpContent
     private global::System.IO.Stream? active;
     private int disposed;
 
+    /// <summary>Sends the stream as an HTTP body.</summary>
+    /// <param name="stream">The stream to send.</param>
     public ByteStreamContent(ByteStream stream) : this(stream, null, null) { }
     internal ByteStreamContent(ByteStream stream, long? minimum, long? maximum)
     {
@@ -26,15 +28,18 @@ public sealed class ByteStreamContent : HttpContent
     /// <summary>A failure of the caller's stream or its declared length, which is never retried as a network error.</summary>
     internal Exception? SourceFailure { get; private set; }
 
+    /// <inheritdoc/>
     protected override bool TryComputeLength(out long length)
     {
         length = Body.Length ?? 0;
         return Body.Length.HasValue;
     }
 
+    /// <inheritdoc/>
     protected override Task SerializeToStreamAsync(global::System.IO.Stream stream, TransportContext? context) =>
         SerializeToStreamAsync(stream, context, CancellationToken.None);
 
+    /// <inheritdoc/>
     protected override async Task SerializeToStreamAsync(global::System.IO.Stream stream, TransportContext? context, CancellationToken cancellationToken)
     {
         global::System.IO.Stream source; bool owned;
@@ -78,6 +83,7 @@ public sealed class ByteStreamContent : HttpContent
         throw error;
     }
 
+    /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
         if (disposing && Interlocked.Exchange(ref disposed, 1) == 0 && active is { } open)

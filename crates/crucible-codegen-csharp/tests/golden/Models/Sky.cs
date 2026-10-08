@@ -2,8 +2,19 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// An open enum: a value this client does not know is kept as is, so compare with the constants or Value.
+/// </summary>
+/// <param name="Value">The wire value.</param>
 public sealed record @Sky(string Value) {
+    /// <inheritdoc/>
     public override string ToString() => Value;
+    /// <summary>
+    /// The clear value.
+    /// </summary>
     public static readonly @Sky @CLEAR = new("clear");
+    /// <summary>
+    /// The cloudy value.
+    /// </summary>
     public static readonly @Sky @CLOUDY = new("cloudy");
 }

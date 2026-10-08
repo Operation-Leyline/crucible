@@ -2,8 +2,31 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// A modeled error: HTTP 429, a client fault. It is thrown by operations that list it and derives from WeatherException.
+/// </summary>
 public sealed class @ThrottlingError : global::Example.Weather.WeatherException {
+    /// <summary>
+    /// The <c>message</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public string @MessageValue { get; set; } = default!;
+    /// <summary>
+    /// Whether retryAfter was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<int> @RetryAfterPresence { get; set; }
+    /// <summary>
+    /// The <c>retryAfter</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; RetryAfterPresence tells the two apart.</para>
+    /// </remarks>
     public int? @RetryAfter { get => @RetryAfterPresence.IsSet && !@RetryAfterPresence.IsNull ? @RetryAfterPresence.Value : (int?)null; set => @RetryAfterPresence = value is null ? global::Example.Weather.Optional<int>.Null : global::Example.Weather.Optional<int>.Of(value.Value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("ThrottlingError", ("MessageValue", @MessageValue), ("RetryAfter", @RetryAfterPresence));
 }

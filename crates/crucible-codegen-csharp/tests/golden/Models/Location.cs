@@ -2,10 +2,39 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// A union: exactly one variant is set. A variant this client does not know is kept in UnknownVariant.
+/// </summary>
 public sealed class @Location {
+    /// <summary>
+    /// Whether coordinates was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<global::Example.Weather.Models.@Coordinates> @CoordinatesPresence { get; set; }
+    /// <summary>
+    /// The <c>coordinates</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; CoordinatesPresence tells the two apart.</para>
+    /// </remarks>
     public global::Example.Weather.Models.@Coordinates? @Coordinates { get => @CoordinatesPresence.IsSet && !@CoordinatesPresence.IsNull ? @CoordinatesPresence.Value : (global::Example.Weather.Models.@Coordinates?)null; set => @CoordinatesPresence = value is null ? global::Example.Weather.Optional<global::Example.Weather.Models.@Coordinates>.Null : global::Example.Weather.Optional<global::Example.Weather.Models.@Coordinates>.Of(value); }
+    /// <summary>
+    /// Whether unknown was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<global::Example.Weather.Unit> @UnknownPresence { get; set; }
+    /// <summary>
+    /// The <c>unknown</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; UnknownPresence tells the two apart.</para>
+    /// </remarks>
     public global::Example.Weather.Unit? @Unknown { get => @UnknownPresence.IsSet && !@UnknownPresence.IsNull ? @UnknownPresence.Value : (global::Example.Weather.Unit?)null; set => @UnknownPresence = value is null ? global::Example.Weather.Optional<global::Example.Weather.Unit>.Null : global::Example.Weather.Optional<global::Example.Weather.Unit>.Of(value); }
+    /// <summary>
+    /// The variant this client does not recognize, or null. Its payload is never printed, since it may be sensitive.
+    /// </summary>
     public global::Example.Weather.UnknownUnion? UnknownVariant { get; set; }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("Location", ("Coordinates", @CoordinatesPresence), ("Unknown", @UnknownPresence), ("UnknownVariant", global::Example.Weather.ModelFormat.Optional(UnknownVariant)));
 }

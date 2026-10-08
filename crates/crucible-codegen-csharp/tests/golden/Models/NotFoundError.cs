@@ -2,8 +2,31 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// A modeled error: HTTP 404, a client fault. It is thrown by operations that list it and derives from WeatherException.
+/// </summary>
 public sealed class @NotFoundError : global::Example.Weather.WeatherException {
+    /// <summary>
+    /// The <c>message</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public string @MessageValue { get; set; } = default!;
+    /// <summary>
+    /// Whether resourceId was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<string> @ResourceIdPresence { get; set; }
+    /// <summary>
+    /// The <c>resourceId</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; ResourceIdPresence tells the two apart.</para>
+    /// </remarks>
     public string? @ResourceId { get => @ResourceIdPresence.IsSet && !@ResourceIdPresence.IsNull ? @ResourceIdPresence.Value : (string?)null; set => @ResourceIdPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("NotFoundError", ("MessageValue", @MessageValue), ("ResourceId", @ResourceIdPresence));
 }

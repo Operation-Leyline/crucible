@@ -1,3 +1,4 @@
+/// <summary>Caches the result of a credential provider and refreshes it shortly before it expires. Concurrent callers share one refresh, and a cancelled caller never starts a second one.</summary>
 public sealed class CachedCredentials
 {
     private readonly Func<CancellationToken, ValueTask<AwsCredentials?>> provider;
@@ -6,12 +7,18 @@ public sealed class CachedCredentials
     private Task<AwsCredentials?>? pending;
     private AwsCredentials? value;
     private DateTimeOffset? refreshAt;
+    /// <summary>Wraps a provider.</summary>
+    /// <param name="provider">The underlying source.</param>
+    /// <param name="refreshBefore">How long before expiry to fetch again; one minute when null.</param>
     public CachedCredentials(Func<CancellationToken, ValueTask<AwsCredentials?>> provider, TimeSpan? refreshBefore = null)
     {
         ArgumentNullException.ThrowIfNull(provider);
         this.provider = provider; this.refreshBefore = refreshBefore ?? TimeSpan.FromMinutes(1);
         if (this.refreshBefore < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(refreshBefore));
     }
+    /// <summary>Returns cached credentials, refreshing them first when close to expiry.</summary>
+    /// <param name="token">Cancels the wait.</param>
+    /// <returns>The credentials, or null when the provider has none.</returns>
     public async ValueTask<AwsCredentials?> RetrieveAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();

@@ -2,10 +2,17 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
+/// <summary>AWS Signature Version 4 request signing.</summary>
 public static class SigV4Signer
 {
     internal static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     private static byte[] Hmac(byte[] key, string value) => HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(value));
+    /// <summary>Signs a request in place, setting its Authorization, date, token and content-hash headers.</summary>
+    /// <param name="request">The request to sign.</param>
+    /// <param name="credentials">The credentials to sign with.</param>
+    /// <param name="options">The region and service.</param>
+    /// <param name="token">Cancels signing.</param>
+    /// <exception cref="ArgumentException">The credentials are missing or expired, or the scope is invalid.</exception>
     public static async ValueTask SignAsync(HttpRequestMessage request, AwsCredentials credentials, SigningOptions options, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();

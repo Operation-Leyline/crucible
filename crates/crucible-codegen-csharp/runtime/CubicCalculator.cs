@@ -1,12 +1,17 @@
 /// <summary>CUBIC congestion control applied to a client's send rate, as in the AWS SDKs' adaptive retry mode.</summary>
 public sealed class CubicCalculator
 {
+    /// <summary>Multiplicative decrease applied to the rate on throttling.</summary>
     public const double Beta = 0.7;
+    /// <summary>The CUBIC growth scale.</summary>
     public const double ScaleConstant = 0.4;
     private double lastMaxRate;
     private double k;
     private double lastThrottle;
 
+    /// <summary>Starts a CUBIC curve.</summary>
+    /// <param name="lastMaxRate">The rate at the last throttle.</param>
+    /// <param name="lastThrottleTime">When the last throttle happened, in seconds.</param>
     public CubicCalculator(double lastMaxRate, double lastThrottleTime)
     {
         this.lastMaxRate = lastMaxRate;

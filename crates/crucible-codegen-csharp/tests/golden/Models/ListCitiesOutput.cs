@@ -2,8 +2,31 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#ListCitiesOutput.
+/// </summary>
 public sealed class @ListCitiesOutput {
+    /// <summary>
+    /// The <c>cities</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public global::System.Collections.Generic.List<global::Example.Weather.Models.@CitySummary> @Cities { get; set; } = default!;
+    /// <summary>
+    /// Whether nextToken was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<string> @NextTokenPresence { get; set; }
+    /// <summary>
+    /// The <c>nextToken</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; NextTokenPresence tells the two apart.</para>
+    /// </remarks>
     public string? @NextToken { get => @NextTokenPresence.IsSet && !@NextTokenPresence.IsNull ? @NextTokenPresence.Value : (string?)null; set => @NextTokenPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("ListCitiesOutput", ("Cities", @Cities), ("NextToken", @NextTokenPresence));
 }

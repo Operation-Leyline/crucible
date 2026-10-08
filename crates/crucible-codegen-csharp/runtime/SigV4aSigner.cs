@@ -47,6 +47,12 @@ public static class SigV4aSigner
         throw new CryptographicException("SigV4a key derivation exhausted its counter");
     }
 
+    /// <summary>Signs a request with SigV4a (ECDSA P-256) credentials.</summary>
+    /// <param name="request">The request to sign; its headers are updated.</param>
+    /// <param name="credentials">The credentials to sign with.</param>
+    /// <param name="options">The region set and service.</param>
+    /// <param name="token">Cancels signing.</param>
+    /// <returns>The signature details.</returns>
     public static async ValueTask<SigV4aSigningResult> SignAsync(HttpRequestMessage request, AwsCredentials credentials, SigV4aSigningOptions options, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();

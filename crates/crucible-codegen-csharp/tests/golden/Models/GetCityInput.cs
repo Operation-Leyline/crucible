@@ -2,9 +2,35 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#GetCityInput.
+/// </summary>
 public sealed class @GetCityInput {
+    /// <summary>
+    /// Whether cityId was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<string> @CityIdPresence { get; set; }
+    /// <summary>
+    /// The <c>cityId</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; CityIdPresence tells the two apart.</para>
+    /// </remarks>
     public string? @CityId { get => @CityIdPresence.IsSet && !@CityIdPresence.IsNull ? @CityIdPresence.Value : (string?)null; set => @CityIdPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    /// <summary>
+    /// Whether at was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<global::System.DateTimeOffset> @AtPresence { get; set; }
+    /// <summary>
+    /// The <c>at</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; AtPresence tells the two apart.</para>
+    /// </remarks>
     public global::System.DateTimeOffset? @At { get => @AtPresence.IsSet && !@AtPresence.IsNull ? @AtPresence.Value : (global::System.DateTimeOffset?)null; set => @AtPresence = value is null ? global::Example.Weather.Optional<global::System.DateTimeOffset>.Null : global::Example.Weather.Optional<global::System.DateTimeOffset>.Of(value.Value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("GetCityInput", ("CityId", @CityIdPresence), ("At", @AtPresence));
 }

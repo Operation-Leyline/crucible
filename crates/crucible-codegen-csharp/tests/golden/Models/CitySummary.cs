@@ -2,12 +2,56 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#CitySummary.
+/// </summary>
 public sealed class @CitySummary {
+    /// <summary>
+    /// The <c>id</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public string @Id { get; set; } = default!;
+    /// <summary>
+    /// The <c>name</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public string @Name { get; set; } = default!;
+    /// <summary>
+    /// The <c>population</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Has a default value when left unset.</para>
+    /// </remarks>
     public long @Population { get; set; } = default!;
+    /// <summary>
+    /// Whether updatedAt was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<global::System.DateTimeOffset> @UpdatedAtPresence { get; set; }
+    /// <summary>
+    /// The <c>updatedAt</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; UpdatedAtPresence tells the two apart.</para>
+    /// </remarks>
     public global::System.DateTimeOffset? @UpdatedAt { get => @UpdatedAtPresence.IsSet && !@UpdatedAtPresence.IsNull ? @UpdatedAtPresence.Value : (global::System.DateTimeOffset?)null; set => @UpdatedAtPresence = value is null ? global::Example.Weather.Optional<global::System.DateTimeOffset>.Null : global::Example.Weather.Optional<global::System.DateTimeOffset>.Of(value.Value); }
+    /// <summary>
+    /// Whether createdAt was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<global::System.DateTimeOffset> @CreatedAtPresence { get; set; }
+    /// <summary>
+    /// The <c>createdAt</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; CreatedAtPresence tells the two apart.</para>
+    /// </remarks>
     public global::System.DateTimeOffset? @CreatedAt { get => @CreatedAtPresence.IsSet && !@CreatedAtPresence.IsNull ? @CreatedAtPresence.Value : (global::System.DateTimeOffset?)null; set => @CreatedAtPresence = value is null ? global::Example.Weather.Optional<global::System.DateTimeOffset>.Null : global::Example.Weather.Optional<global::System.DateTimeOffset>.Of(value.Value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("CitySummary", ("Id", @Id), ("Name", @Name), ("Population", @Population), ("UpdatedAt", @UpdatedAtPresence), ("CreatedAt", @CreatedAtPresence));
 }
