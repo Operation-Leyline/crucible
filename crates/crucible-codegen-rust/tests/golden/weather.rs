@@ -789,6 +789,7 @@ pub mod weather {
         traits: &[],
     };
 
+    #[allow(deprecated)]
     impl ::crucible_server_runtime_rust::Operation for Ping {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::operation::AuthScheme::Bearer]);
@@ -960,6 +961,7 @@ pub mod weather {
         }
 
         /// Serves Ping with `implementation`.
+        #[allow(deprecated)]
         pub fn ping<S: PingOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
             Self(self.0.add::<Ping, S, _>(implementation, |implementation, _| async move { implementation.ping().await }))
         }

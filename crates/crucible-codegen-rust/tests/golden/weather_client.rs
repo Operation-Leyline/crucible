@@ -1994,6 +1994,7 @@ static PING_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucibl
     traits: &[],
 };
 
+#[allow(deprecated)]
 impl ::crucible_client_runtime_rust::Operation for Ping {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::operation::AuthScheme::Bearer]);

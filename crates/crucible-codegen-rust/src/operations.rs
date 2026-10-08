@@ -302,8 +302,15 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
     if op.unsigned_payload {
         auth.push_str("    const UNSIGNED_PAYLOAD: bool = true;\n");
     }
+    // The marker is `#[deprecated]` for callers; the framework wiring below is
+    // generated code that must name it regardless.
+    let allow = if op.notes.deprecated.is_some() {
+        "#[allow(deprecated)]\n"
+    } else {
+        ""
+    };
     out.push_str(&format!(
-        "impl ::crucible_server_runtime_rust::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible_server_runtime_rust::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
+        "{allow}impl ::crucible_server_runtime_rust::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible_server_runtime_rust::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
         op.auth.iter().any(|id| id.to_string() == "smithy.api#httpBearerAuth"),
         operation_static(op),
         input_type(service, op),
@@ -434,8 +441,13 @@ fn registration(service: &Service) -> String {
             format!("|implementation, _| async move {{ implementation.{method}().await }}")
         };
         out.push_str(&format!(
-            "    /// Serves {name} with `implementation`.\n    pub fn {method}<S: {name}Operation>(self, implementation: ::std::sync::Arc<S>) -> Self {{\n        Self(self.0.add::<{name}, S, _>(implementation, {call}))\n    }}\n\n",
+            "    /// Serves {name} with `implementation`.\n{allow}    pub fn {method}<S: {name}Operation>(self, implementation: ::std::sync::Arc<S>) -> Self {{\n        Self(self.0.add::<{name}, S, _>(implementation, {call}))\n    }}\n\n",
             name = op.name(),
+            allow = if op.notes.deprecated.is_some() {
+                "    #[allow(deprecated)]\n"
+            } else {
+                ""
+            },
         ));
     }
     out.push_str(
