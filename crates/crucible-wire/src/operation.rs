@@ -66,6 +66,7 @@ pub trait Operation: Send + Sync + 'static {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct ServiceInfo {
     pub cors: Option<&'static CorsInfo>,
     /// External MCP tools, present only when service generation enabled MCP.
@@ -103,6 +104,7 @@ impl ServiceInfo {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct OperationInfo {
     /// Smithy @internal; caller authorization remains application policy.
     pub internal: bool,
@@ -155,6 +157,7 @@ impl OperationInfo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Segment {
     GreedyLabel(&'static str),
     Literal(&'static str),
@@ -163,6 +166,7 @@ pub enum Segment {
 
 /// A member of an input, output or error structure, and where it travels.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct MemberInfo {
     pub name: &'static str,
     pub location: Location,
@@ -252,6 +256,7 @@ fn trait_value(traits: &[(&str, &str)], id: &str) -> Option<Value> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Location {
     Label,
     Query(&'static str),
@@ -297,6 +302,7 @@ impl Location {
 
 /// How a bound member's text reads as JSON. Body members are `Json`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Scalar {
     BigInteger,
     BigDecimal,
@@ -343,6 +349,7 @@ pub enum TimestampFormat {
 
 /// The protocol a generated client or server speaks, chosen once from the model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Protocol {
     /// `crucible.protocols#json`: HTTP bindings, `__type` or
     /// `x-crucible-error` naming errors.
@@ -464,6 +471,7 @@ impl std::fmt::Display for ChecksumAlgorithm {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct ErrorInfo {
     pub name: &'static str,
     pub status: u16,
@@ -475,6 +483,7 @@ pub struct ErrorInfo {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Fault {
     /// The caller's mistake: a 4xx.
     Client,
@@ -606,6 +615,7 @@ pub fn response_status(value: i64) -> u16 {
 
 /// Effective authentication options in modeled priority order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AuthScheme {
     Bearer,
     Basic,

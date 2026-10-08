@@ -236,8 +236,7 @@ fn empty_services_can_generate_their_declared_rejection_errors() {
     .unwrap();
     assert!(code.contains("pub struct ValidationError"));
     assert!(code.contains("pub struct InternalError"));
-    assert!(code.contains("reject: Some(reject)"));
-    assert!(code.contains("internal: Some(internal)"));
+    assert!(code.contains("Some(reject),\n        Some(internal),"));
 }
 
 #[test]
@@ -375,7 +374,7 @@ fn non_throttling_retryability_reaches_client_metadata() {
     });
     let code = generate_client(&service).unwrap();
     assert!(
-        code.contains("retryable: true,\n        throttling: false,"),
+        code.contains("Fault::Client,\n        true,\n        false,"),
         "{code}"
     );
 }
@@ -388,7 +387,7 @@ fn a_sensitive_blob_payload_is_redacted_from_logs() {
     let code = generate(&service, &Options::default()).unwrap();
     assert!(
         code.contains(
-            "name: \"photo\", location: ::crucible_server_runtime_rust::operation::Location::Payload(\"image/jpeg\"), scalar: ::crucible_server_runtime_rust::operation::Scalar::Json, redaction: &::crucible_server_runtime_rust::operation::Redaction::Sensitive"
+            "member_info(\"photo\", ::crucible_server_runtime_rust::__generated::operation::Location::Payload(\"image/jpeg\"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &::crucible_server_runtime_rust::__generated::operation::Redaction::Sensitive"
         ),
         "{code}"
     );
@@ -418,7 +417,7 @@ fn a_validation_error_crucible_cannot_fill_leaves_rejection_to_the_service() {
             json!({ "target": "smithy.api#String", "traits": { "smithy.api#required": {} } });
     });
     let code = generate(&service, &Options::default()).unwrap();
-    assert!(code.contains("    reject: None,"), "{code}");
+    assert!(code.contains("classify,\n        None,"), "{code}");
     assert!(!code.contains("fn reject("));
 }
 
@@ -496,7 +495,7 @@ fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one(
         "{code}"
     );
     assert!(code.contains(
-        "pages.fresh_token(|input| input.client_token = ::crucible_client_runtime_rust::Field::Value(::crucible_client_runtime_rust::idempotency_token()))"
+        "pages.fresh_token(|input| input.client_token = ::crucible_client_runtime_rust::__generated::Field::Value(::crucible_client_runtime_rust::__generated::idempotency_token()))"
     ));
 }
 
@@ -538,7 +537,10 @@ fn without_the_standard_reason_an_unknown_operation_keeps_the_protocol_answer() 
         members.as_object_mut().unwrap().remove("reason");
     });
     let code = generate(&service, &Options::default()).unwrap();
-    assert!(code.contains("    unknown: None,"), "{code}");
+    assert!(
+        code.contains("Some(reject),\n        None,\n        None,\n    );"),
+        "{code}"
+    );
     assert!(!code.contains("fn unknown("));
 }
 
@@ -745,18 +747,16 @@ fn aws_json_protocols_describe_their_wire_in_client_markers() {
         assert!(client.contains("const IGNORE_TYPE: bool = true;"));
         assert!(client.contains("codec::NullAbsent<"));
         assert!(client.contains("codec::NonFinite"));
-        assert!(
-            client.contains(
-                "skip_serializing_if = \"::crucible_client_runtime_rust::Field::is_unset\""
-            )
-        );
+        assert!(client.contains(
+            "skip_serializing_if = \"::crucible_client_runtime_rust::__generated::Field::is_unset\""
+        ));
         // Documents keep explicit nulls.
         assert!(client.contains(
-            "#[serde(rename = \"document\", default, skip_serializing_if = \"::crucible_client_runtime_rust::Field::is_absent\")]"
+            "#[serde(rename = \"document\", default, skip_serializing_if = \"::crucible_client_runtime_rust::__generated::Field::is_absent\")]"
         ));
         let rest = protocol == Protocol::AwsRestJson1;
         assert_eq!(
-            client.contains("Scalar::Timestamp { text: ::crucible_client_runtime_rust::operation::TimestampFormat::HttpDate, json: ::crucible_client_runtime_rust::operation::TimestampFormat::EpochSeconds }"),
+            client.contains("Scalar::Timestamp { text: ::crucible_client_runtime_rust::__generated::operation::TimestampFormat::HttpDate, json: ::crucible_client_runtime_rust::__generated::operation::TimestampFormat::EpochSeconds }"),
             rest
         );
     }
@@ -771,7 +771,11 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
     .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
     .unwrap();
     let client = generate_client(&service).unwrap();
-    assert!(client.contains("Some(::crucible_client_runtime_rust::operation::Checksum::Md5)"));
+    assert!(
+        client.contains(
+            "Some(::crucible_client_runtime_rust::__generated::operation::Checksum::Md5)"
+        )
+    );
     assert!(client.contains("request_algorithm_member: Some(\"algorithm\"), validation_mode_member: Some(\"validation\")"));
     assert!(client.contains("ChecksumAlgorithm::Crc64Nvme"));
     let mut ast: Value = serde_json::from_str(include_str!(
@@ -787,13 +791,13 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
     let client = generate_client(&service).unwrap();
     assert!(client.contains("Location::TextPayload(\"text/plain\")"));
     assert!(client.contains("Location::DocumentPayload(\"application/json\")"));
-    assert!(
-        client.contains("Scalar::List(&::crucible_client_runtime_rust::operation::Scalar::Base64)")
-    );
-    assert!(client.contains("Location::PrefixHeaders(\"x-extra-\"), scalar: ::crucible_client_runtime_rust::operation::Scalar::Base64"));
+    assert!(client.contains(
+        "Scalar::List(&::crucible_client_runtime_rust::__generated::operation::Scalar::Base64)"
+    ));
+    assert!(client.contains("Location::PrefixHeaders(\"x-extra-\"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Base64"));
     // The error's payload is described too, so its body decodes as text.
     assert!(client.contains(
-        "name: \"details\", location: ::crucible_client_runtime_rust::operation::Location::TextPayload"
+        "member_info(\"details\", ::crucible_client_runtime_rust::__generated::operation::Location::TextPayload"
     ));
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/error-payloads.json"
@@ -839,9 +843,9 @@ fn keyword_operation_derivatives_and_outputless_waiters_use_valid_names_and_type
     assert!(code.contains("pub async fn r#type("));
     assert!(code.contains("pub async fn type_with_options_2("));
     assert!(code.contains("pub async fn wait_until_match_2("));
-    assert!(
-        code.contains("WaiterResult<::crucible_client_runtime_rust::operation::Unit, TypeError>")
-    );
+    assert!(code.contains(
+        "WaiterResult<::crucible_client_runtime_rust::__generated::operation::Unit, TypeError>"
+    ));
     assert!(!code.contains("wait_until_r#"));
 }
 
@@ -872,8 +876,14 @@ fn finite_only_float_members_use_checked_codec() {
     });
     let server = generate(&service, &Options::default()).unwrap();
     let client = generate_client(&service).unwrap();
-    assert!(server.contains("Adapter::<::crucible_server_runtime_rust::codec::FiniteFloat>"));
-    assert!(client.contains("Adapter::<::crucible_client_runtime_rust::codec::FiniteFloat>"));
+    assert!(
+        server
+            .contains("Adapter::<::crucible_server_runtime_rust::__generated::codec::FiniteFloat>")
+    );
+    assert!(
+        client
+            .contains("Adapter::<::crucible_client_runtime_rust::__generated::codec::FiniteFloat>")
+    );
     let adapters = [&server, &client]
         .into_iter()
         .flat_map(|code| code.lines())

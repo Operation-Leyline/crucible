@@ -38,6 +38,7 @@ pub fn error_envelope(bytes: &[u8]) -> Option<serde_json::Value> {
 }
 
 /// Error discriminator added outside the modeled fields, retaining native CBOR values.
+#[doc(hidden)]
 pub fn write_typed<T: Serialize + ?Sized>(
     value: &T,
     type_name: &'static str,

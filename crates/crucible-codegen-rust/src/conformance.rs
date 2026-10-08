@@ -258,7 +258,7 @@ impl<'a> Generator<'a> {
                     message.body_media_type.as_deref(),
                 );
                 Ok(format!(
-                    "::crucible_server_runtime_rust::conformance::request::<{marker}>(__conformance_build, &::crucible_server_runtime_rust::conformance::RequestVector {{ id: {}, params: {}, shape: {shape}, request: {request} }});",
+                    "::crucible_server_runtime_rust::__generated::conformance::request::<{marker}>(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::RequestVector {{ id: {}, params: {}, shape: {shape}, request: {request} }});",
                     literal(&test.id),
                     literal(&params(test)),
                 ))
@@ -267,7 +267,7 @@ impl<'a> Generator<'a> {
                 let shape = self.vector_shape(test.shape.as_ref())?;
                 let seed = self.seed(operation, siblings)?;
                 let vector = format!(
-                    "&::crucible_server_runtime_rust::conformance::ResponseVector {{ id: {}, params: {}, shape: {shape}, seed: {seed}, expect: {} }}",
+                    "&::crucible_server_runtime_rust::__generated::conformance::ResponseVector {{ id: {}, params: {}, shape: {shape}, seed: {seed}, expect: {} }}",
                     literal(&test.id),
                     literal(&params(test)),
                     expected_response(*code, message),
@@ -278,12 +278,12 @@ impl<'a> Generator<'a> {
                         .as_ref()
                         .ok_or("an error vector names no error")?;
                     Ok(format!(
-                        "::crucible_server_runtime_rust::conformance::error::<{marker}, {module}::{}>(__conformance_build, {vector});",
+                        "::crucible_server_runtime_rust::__generated::conformance::error::<{marker}, {module}::{}>(__conformance_build, {vector});",
                         self.service.name_of(error)
                     ))
                 } else {
                     Ok(format!(
-                        "::crucible_server_runtime_rust::conformance::response::<{marker}>(__conformance_build, {vector});"
+                        "::crucible_server_runtime_rust::__generated::conformance::response::<{marker}>(__conformance_build, {vector});"
                     ))
                 }
             }
@@ -298,7 +298,7 @@ impl<'a> Generator<'a> {
                     request.body_media_type.as_deref(),
                 );
                 Ok(format!(
-                    "::crucible_server_runtime_rust::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::conformance::MalformedVector {{ id: {}, request: {http}, refusal: {} }});",
+                    "::crucible_server_runtime_rust::__generated::conformance::malformed(__conformance_build, &::crucible_server_runtime_rust::__generated::conformance::MalformedVector {{ id: {}, request: {http}, refusal: {} }});",
                     literal(&test.id),
                     refusal(response.code, &response.headers, response.body.as_ref()),
                 ))
@@ -537,21 +537,27 @@ impl<'a> Generator<'a> {
             "// {vectors} smithy.test vectors; not generated: {other_protocol} for another protocol, {client_only} client-only.\n"
         )
         .unwrap();
-        out.push_str("#[allow(unused_imports)]\nuse ::crucible_server_runtime_rust::conformance::{ParamMember, ParamShape};\n");
-        out.push_str("#[allow(clippy::all, deprecated)]\nfn __conformance_build(stub: ::std::sync::Arc<::crucible_server_runtime_rust::conformance::Stub>) -> ::crucible_server_runtime_rust::Crucible {\n");
+        writeln!(
+            out,
+            "::crucible_server_runtime_rust::__generated::check_abi!({:?});\n",
+            env!("CARGO_PKG_VERSION")
+        )
+        .unwrap();
+        out.push_str("#[allow(unused_imports)]\nuse ::crucible_server_runtime_rust::__generated::conformance::{ParamMember, ParamShape};\n");
+        out.push_str("#[allow(clippy::all, deprecated)]\nfn __conformance_build(stub: ::std::sync::Arc<::crucible_server_runtime_rust::__generated::conformance::Stub>) -> ::crucible_server_runtime_rust::__generated::Crucible {\n");
         out.push_str(&format!(
-            "    let operations = ::crucible_server_runtime_rust::Operations::builder(&{module}::SERVICE)\n"
+            "    let operations = ::crucible_server_runtime_rust::__generated::Operations::builder(&{module}::SERVICE)\n"
         ));
         for operation in &service.operations {
             let marker = format!("{module}::{}", operation.name());
             writeln!(
                 out,
-                "        .add::<{marker}, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<{marker}>)"
+                "        .add::<{marker}, _, _>(stub.clone(), ::crucible_server_runtime_rust::__generated::conformance::Stub::call::<{marker}>)"
             )
             .unwrap();
         }
         out.push_str("        .build()\n        .expect(\"every operation is registered\");\n");
-        out.push_str("    __conformance_configure(::crucible_server_runtime_rust::Crucible::builder(operations).defaults())\n        .build()\n        .expect(\"the service builds\")\n}\n\n");
+        out.push_str("    __conformance_configure(::crucible_server_runtime_rust::__generated::Crucible::builder(operations).defaults())\n        .build()\n        .expect(\"the service builds\")\n}\n\n");
         // The shared shapes are all emitted; a model uses only some of them.
         for (name, shape) in [
             ("SHAPE_PLAIN", "Plain".to_owned()),
@@ -578,7 +584,9 @@ static {name}: ParamShape = ParamShape::{shape};"
 }
 
 fn timestamp(format: &str) -> String {
-    format!("Timestamp(::crucible_server_runtime_rust::operation::TimestampFormat::{format})")
+    format!(
+        "Timestamp(::crucible_server_runtime_rust::__generated::operation::TimestampFormat::{format})"
+    )
 }
 
 fn params(test: &HttpProtocolTest) -> String {
@@ -615,7 +623,7 @@ fn http_request(
     body_media_type: Option<&str>,
 ) -> String {
     format!(
-        "::crucible_server_runtime_rust::conformance::HttpRequest {{ method: {}, uri: {}, host: {}, query: {}, headers: {}, body: {}, body_media_type: {} }}",
+        "::crucible_server_runtime_rust::__generated::conformance::HttpRequest {{ method: {}, uri: {}, host: {}, query: {}, headers: {}, body: {}, body_media_type: {} }}",
         literal(method),
         literal(uri),
         option(host),
@@ -628,7 +636,7 @@ fn http_request(
 
 fn expected_response(code: u16, message: &HttpMessageExpectation) -> String {
     format!(
-        "::crucible_server_runtime_rust::conformance::ExpectedResponse {{ code: {code}, headers: {}, forbid_headers: {}, require_headers: {}, body: {}, body_media_type: {} }}",
+        "::crucible_server_runtime_rust::__generated::conformance::ExpectedResponse {{ code: {code}, headers: {}, forbid_headers: {}, require_headers: {}, body: {}, body_media_type: {} }}",
         pairs(&message.headers),
         strings(&message.forbid_headers),
         strings(&message.require_headers),
@@ -646,11 +654,11 @@ fn refusal(
         Some(body) => {
             let assertion = match &body.assertion {
                 MalformedBodyAssertion::Contents(text) => format!(
-                    "::crucible_server_runtime_rust::conformance::BodyAssertion::Contents({})",
+                    "::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::Contents({})",
                     literal(text)
                 ),
                 MalformedBodyAssertion::MessageRegex(pattern) => format!(
-                    "::crucible_server_runtime_rust::conformance::BodyAssertion::MessageRegex({})",
+                    "::crucible_server_runtime_rust::__generated::conformance::BodyAssertion::MessageRegex({})",
                     literal(pattern)
                 ),
             };
@@ -659,7 +667,7 @@ fn refusal(
         None => "None".to_owned(),
     };
     format!(
-        "::crucible_server_runtime_rust::conformance::Refusal {{ code: {code}, headers: {}, body: {body} }}",
+        "::crucible_server_runtime_rust::__generated::conformance::Refusal {{ code: {code}, headers: {}, body: {body} }}",
         pairs(headers)
     )
 }

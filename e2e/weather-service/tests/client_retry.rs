@@ -1,4 +1,5 @@
 //! Both client runtimes consume this same HTTP retry decision table.
+use crucible_server_runtime_rust::__generated as generated;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
@@ -31,49 +32,31 @@ struct Request<const SAFE: bool>;
 impl<const SAFE: bool> Operation for Request<SAFE> {
     type Input = StatusInput;
     type Output = Value;
-    const INFO: &'static OperationInfo = &OperationInfo {
-        id: "conformance#RetryCase",
-        name: "RetryCase",
-        resource: None,
-        method: "POST",
-        path: &[],
-        literal_query: &[],
-        status: 200,
-        input: &[],
-        output: &[],
-        errors: &["Ordinary", "Transient", "Throttled"],
-        readonly: SAFE,
-        idempotent: false,
-        internal: false,
-        idempotency_token: None,
-        traits: &[],
-    };
+    const INFO: &'static OperationInfo = &generated::operation_info(
+        "conformance#RetryCase",
+        "RetryCase",
+        None,
+        "POST",
+        &[],
+        &[],
+        200,
+        &[],
+        &[],
+        &["Ordinary", "Transient", "Throttled"],
+        SAFE,
+        false,
+        false,
+        None,
+        &[],
+    );
 }
 
-static ORDINARY: ErrorInfo = ErrorInfo {
-    name: "Ordinary",
-    status: 400,
-    fault: Fault::Client,
-    retryable: false,
-    throttling: false,
-    members: &[],
-};
-static TRANSIENT: ErrorInfo = ErrorInfo {
-    name: "Transient",
-    status: 400,
-    fault: Fault::Client,
-    retryable: true,
-    throttling: false,
-    members: &[],
-};
-static THROTTLED: ErrorInfo = ErrorInfo {
-    name: "Throttled",
-    status: 429,
-    fault: Fault::Client,
-    retryable: true,
-    throttling: true,
-    members: &[],
-};
+static ORDINARY: ErrorInfo =
+    generated::error_info("Ordinary", 400, Fault::Client, false, false, &[]);
+static TRANSIENT: ErrorInfo =
+    generated::error_info("Transient", 400, Fault::Client, true, false, &[]);
+static THROTTLED: ErrorInfo =
+    generated::error_info("Throttled", 429, Fault::Client, true, true, &[]);
 
 #[derive(Debug)]
 struct Modelled(&'static ErrorInfo);

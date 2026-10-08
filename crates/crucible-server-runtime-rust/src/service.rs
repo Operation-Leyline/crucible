@@ -657,6 +657,8 @@ impl Builder {
                 Wire::AwsJson11 { .. } => builder.protocol(AwsJsonProtocol::v11().only(&names)),
                 Wire::SmithyRpcV2Json => builder.protocol(RpcV2JsonProtocol.only(&names)),
                 Wire::SmithyRpcV2Cbor => builder.protocol(RpcV2CborProtocol.only(&names)),
+                // Generated bindings and this runtime share a version; no unknown wire is routable.
+                _ => panic!("unsupported generated wire protocol"),
             };
         }
         builder.protocol(InvokeProtocol)
@@ -815,6 +817,7 @@ impl Builder {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BuildError {
     /// No protocol was registered, so nothing can identify requests.
     NoProtocol,

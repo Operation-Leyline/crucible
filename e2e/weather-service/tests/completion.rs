@@ -1,6 +1,7 @@
 //! Completion observes the protocol response; streaming direct invokes fail safely.
 // The fixture deprecates `Ping`; these tests still drive it.
 #![allow(deprecated)]
+use crucible_server_runtime_rust::__generated as generated;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -23,66 +24,125 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use weather_service::weather;
 
-const BODY: MemberInfo = MemberInfo {
-    name: "body",
-    location: Location::StreamingPayload {
+const BODY: MemberInfo = generated::member_info(
+    "body",
+    Location::StreamingPayload {
         media_type: "application/octet-stream",
         requires_length: false,
         minimum: None,
         maximum: None,
     },
-    scalar: Scalar::Json,
-    redaction: &Redaction::Public,
-    traits: &[],
+    Scalar::Json,
+    &Redaction::Public,
+    &[],
+);
+const TAG: MemberInfo = generated::member_info(
+    "tag",
+    Location::Header("x-tag"),
+    Scalar::String,
+    &Redaction::Public,
+    &[],
+);
+static UPLOAD: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        "test.completion#Upload",
+        "Upload",
+        base.resource,
+        "PUT",
+        &[Segment::Literal("upload")],
+        base.literal_query,
+        base.status,
+        &[BODY, TAG],
+        base.output,
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-const TAG: MemberInfo = MemberInfo {
-    name: "tag",
-    location: Location::Header("x-tag"),
-    scalar: Scalar::String,
-    redaction: &Redaction::Public,
-    traits: &[],
+static DOWNLOAD: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        "test.completion#Download",
+        "Download",
+        base.resource,
+        base.method,
+        &[Segment::Literal("download")],
+        base.literal_query,
+        base.status,
+        base.input,
+        &[BODY],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static UPLOAD: OperationInfo = OperationInfo {
-    id: "test.completion#Upload",
-    name: "Upload",
-    method: "PUT",
-    path: &[Segment::Literal("upload")],
-    input: &[BODY, TAG],
-    ..*weather::Ping::INFO
+static BROKEN: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        "test.completion#Broken",
+        "Broken",
+        base.resource,
+        base.method,
+        &[Segment::Literal("broken")],
+        base.literal_query,
+        base.status,
+        base.input,
+        &[generated::member_info(
+            "value",
+            Location::Body,
+            Scalar::String,
+            &Redaction::Public,
+            &[],
+        )],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static DOWNLOAD: OperationInfo = OperationInfo {
-    id: "test.completion#Download",
-    name: "Download",
-    path: &[Segment::Literal("download")],
-    output: &[BODY],
-    ..*weather::Ping::INFO
+static FAULT: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        "test.completion#Fault",
+        "Fault",
+        base.resource,
+        base.method,
+        &[Segment::Literal("fault")],
+        base.literal_query,
+        base.status,
+        base.input,
+        base.output,
+        &["ConflictError"],
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static BROKEN: OperationInfo = OperationInfo {
-    id: "test.completion#Broken",
-    name: "Broken",
-    path: &[Segment::Literal("broken")],
-    output: &[MemberInfo {
-        name: "value",
-        location: Location::Body,
-        scalar: Scalar::String,
-        redaction: &Redaction::Public,
-        traits: &[],
-    }],
-    ..*weather::Ping::INFO
-};
-static FAULT: OperationInfo = OperationInfo {
-    id: "test.completion#Fault",
-    name: "Fault",
-    path: &[Segment::Literal("fault")],
-    errors: &["ConflictError"],
-    ..*weather::Ping::INFO
-};
-static SERVICE: ServiceInfo = ServiceInfo {
-    mcp_tools: None,
-    cors: None,
-    id: "test.completion#Service",
-    operations: &[&UPLOAD, &DOWNLOAD, &BROKEN, &FAULT],
-    ..weather::SERVICE
+static SERVICE: ServiceInfo = {
+    let base = &(weather::SERVICE);
+    generated::service_info(
+        "test.completion#Service",
+        base.version,
+        None,
+        None,
+        &[&UPLOAD, &DOWNLOAD, &BROKEN, &FAULT],
+        base.errors,
+        base.classify,
+        base.reject,
+        base.internal,
+        base.unknown,
+    )
 };
 
 #[derive(Serialize, Deserialize)]

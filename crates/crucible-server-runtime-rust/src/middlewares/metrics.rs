@@ -10,6 +10,7 @@ use crate::operation::OperationInfo;
 use crate::{Job, Middleware};
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct RequestRecord<'a> {
     pub request_id: &'a str,
     /// `None` for a request no operation serves.

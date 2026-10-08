@@ -10,8 +10,9 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use crate::OperationMetadata;
-use crate::error::{Error, Result};
-use crate::operation::{Input, Operation, OperationInfo, Output, Segment, ServiceInfo};
+use crate::error::Result;
+use crate::generated_operations_builder::OperationsBuilder;
+use crate::operation::{Input, Operation, OperationInfo, Output, ServiceInfo};
 use crate::protocol::BoundValue;
 use crate::validate::{Rejection, Validator};
 
@@ -52,11 +53,12 @@ pub struct Operations {
     pub(crate) entries: BTreeMap<&'static str, Entry>,
     /// Operations by path length (the index), built once, so routing a
     /// request compares only the paths that could match.
-    routes: Vec<Vec<&'static OperationInfo>>,
-    greedy_routes: Vec<&'static OperationInfo>,
+    pub(crate) routes: Vec<Vec<&'static OperationInfo>>,
+    pub(crate) greedy_routes: Vec<&'static OperationInfo>,
 }
 
 impl Operations {
+    #[doc(hidden)]
     pub fn builder(service: &'static ServiceInfo) -> OperationsBuilder {
         OperationsBuilder {
             operations: Operations {
@@ -100,91 +102,6 @@ impl fmt::Debug for Operations {
     }
 }
 
-pub struct OperationsBuilder {
-    operations: Operations,
-}
-
-impl OperationsBuilder {
-    /// Registers `O`, served by `call` on `implementation`. Generated code
-    /// calls this; a service registers through the generated setters.
-    ///
-    /// `call` returns the implementation's future as it is; the framework
-    /// boxes it once, together with turning its output into the response.
-    pub fn add<O, S, Fut>(
-        mut self,
-        implementation: Arc<S>,
-        call: impl Fn(Arc<S>, O::Input) -> Fut + Send + Sync + 'static,
-    ) -> Self
-    where
-        O: Operation,
-        S: Send + Sync + 'static,
-        Fut: Future<Output = Result<O::Output>> + Send + 'static,
-    {
-        let invoke: Invoke = Arc::new(move |input: Box<dyn Input>| {
-            let input = match input.into_any().downcast::<O::Input>() {
-                Ok(input) => *input,
-                Err(_) => {
-                    let error =
-                        Error::internal(format!("{}: input of the wrong type", O::INFO.name));
-                    return Box::pin(std::future::ready(Err(error)));
-                }
-            };
-            let output = call(implementation.clone(), input);
-            Box::pin(
-                async move { Ok(Box::new(StreamingOutput::<O>(output.await?)) as Box<dyn Output>) },
-            )
-        });
-        self.operations.entries.insert(
-            O::INFO.name,
-            Entry {
-                info: O::INFO,
-                metadata: OperationMetadata::of::<O>(),
-                decode: decode::<O>,
-                decode_json: decode_json::<O>,
-                decode_cbor: decode_cbor::<O>,
-                decode_bound: decode_bound::<O>,
-                decode_events: decode_events::<O>,
-                invoke,
-                body_limit: None,
-            },
-        );
-        self
-    }
-
-    /// The table, or the operations the service has not implemented.
-    pub fn build(mut self) -> std::result::Result<Operations, MissingOperations> {
-        for entry in self.operations.entries.values() {
-            let info = entry.info;
-            if info
-                .path
-                .iter()
-                .any(|s| matches!(s, Segment::GreedyLabel(_)))
-            {
-                self.operations.greedy_routes.push(info);
-                continue;
-            }
-            let routes = &mut self.operations.routes;
-            if routes.len() <= info.path.len() {
-                routes.resize_with(info.path.len() + 1, Vec::new);
-            }
-            routes[info.path.len()].push(info);
-        }
-        let missing: Vec<&'static str> = self
-            .operations
-            .service
-            .operations
-            .iter()
-            .map(|op| op.name)
-            .filter(|name| !self.operations.entries.contains_key(name))
-            .collect();
-        if missing.is_empty() {
-            Ok(self.operations)
-        } else {
-            Err(MissingOperations(missing))
-        }
-    }
-}
-
 /// An input that does not read as its type. A member a strict structure
 /// does not define is named in the path, and so is a required member that
 /// is missing (a payload sent as an empty body, say).
@@ -205,7 +122,7 @@ fn unreadable(error: serde_json::Error) -> Rejection {
     Rejection::malformed("", message)
 }
 
-fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
+pub(crate) fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
     let input: O::Input = serde_json::from_value(value).map_err(unreadable)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
@@ -213,7 +130,9 @@ fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rej
 
 /// The input straight from JSON bytes, in one pass: for an input with no
 /// member bound outside the body. An empty or JSON-whitespace-only body is `{}`.
-fn decode_json<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
+pub(crate) fn decode_json<O: Operation>(
+    bytes: &[u8],
+) -> std::result::Result<Box<dyn Input>, Rejection> {
     let bytes = if crucible_wire::text::empty_json_body(bytes) {
         b"{}".as_slice()
     } else {
@@ -224,7 +143,9 @@ fn decode_json<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>
     Ok(Box::new(input))
 }
 
-fn decode_cbor<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>, Rejection> {
+pub(crate) fn decode_cbor<O: Operation>(
+    bytes: &[u8],
+) -> std::result::Result<Box<dyn Input>, Rejection> {
     if !O::HAS_INPUT && !bytes.is_empty() {
         return Err(Rejection::malformed(
             "",
@@ -243,7 +164,7 @@ fn decode_cbor<O: Operation>(bytes: &[u8]) -> std::result::Result<Box<dyn Input>
 }
 
 /// The input from its bound members and its JSON body, in one pass.
-fn decode_bound<'a, O: Operation>(
+pub(crate) fn decode_bound<'a, O: Operation>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
     stream: Option<crucible_wire::stream::ByteStream>,
@@ -257,7 +178,7 @@ fn decode_bound<'a, O: Operation>(
     Ok(Box::new(input))
 }
 
-fn decode_events<O: Operation>(
+pub(crate) fn decode_events<O: Operation>(
     body: &[u8],
     bound: Vec<(&'static str, BoundValue<'_>)>,
     events: crucible_wire::event_stream::Incoming,
@@ -289,7 +210,7 @@ impl fmt::Display for MissingOperations {
 
 impl std::error::Error for MissingOperations {}
 
-struct StreamingOutput<O: Operation>(O::Output);
+pub(crate) struct StreamingOutput<O: Operation>(pub(crate) O::Output);
 impl<O: Operation> Output for StreamingOutput<O> {
     fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
         crucible_wire::cbor::write(&self.0, out)

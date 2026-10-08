@@ -295,13 +295,7 @@ mod tests {
     use crucible_wire::operation::{Redaction, Scalar};
 
     const fn member(name: &'static str, location: Location) -> MemberInfo {
-        MemberInfo {
-            name,
-            location,
-            scalar: Scalar::String,
-            redaction: &Redaction::Public,
-            traits: &[],
-        }
+        crate::__generated::member_info(name, location, Scalar::String, &Redaction::Public, &[])
     }
     static RPC: [MemberInfo; 2] = [
         member("algorithm", Location::Body),

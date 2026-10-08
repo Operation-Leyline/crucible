@@ -1,4 +1,5 @@
 //! Public framework consumers exercising HTTP bindings and protocol selection.
+use crucible_server_runtime_rust::__generated as generated;
 
 use std::sync::{
     Arc,
@@ -23,13 +24,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 const fn member(name: &'static str, location: Location, scalar: Scalar) -> MemberInfo {
-    MemberInfo {
-        name,
-        location,
-        scalar,
-        redaction: &Redaction::Public,
-        traits: &[],
-    }
+    generated::member_info(name, location, scalar, &Redaction::Public, &[])
 }
 
 static OUTPUT: &[MemberInfo] = &[member("observed", Location::Body, Scalar::Json)];
@@ -39,56 +34,72 @@ const fn operation(
     path: &'static [Segment],
     query: &'static [(&'static str, Option<&'static str>)],
 ) -> OperationInfo {
-    OperationInfo {
-        id: "audit#Operation",
+    generated::operation_info(
+        "audit#Operation",
         name,
-        resource: None,
-        method: "POST",
+        None,
+        "POST",
         path,
-        literal_query: query,
-        status: 200,
-        input: &[],
-        output: OUTPUT,
-        errors: &[],
-        readonly: false,
-        idempotent: false,
-        internal: false,
-        idempotency_token: None,
-        traits: &[],
-    }
+        query,
+        200,
+        &[],
+        OUTPUT,
+        &[],
+        false,
+        false,
+        false,
+        None,
+        &[],
+    )
 }
 
-static BINDINGS: OperationInfo = OperationInfo {
-    input: &[
-        member(
-            "headerDisplay",
-            Location::Header("x-required"),
-            Scalar::String,
-        ),
-        member("queryDisplay", Location::Query("q"), Scalar::String),
-        member("bodyDisplay", Location::Body, Scalar::String),
-        member(
-            "strings",
-            Location::Header("x-strings"),
-            Scalar::List(&Scalar::String),
-        ),
-        member(
-            "dates",
-            Location::Header("x-dates"),
-            Scalar::List(&Scalar::HttpDate),
-        ),
-        member(
-            "encoded",
-            Location::Header("x-encoded"),
-            Scalar::List(&Scalar::Base64),
-        ),
-        member(
-            "numbers",
-            Location::Header("x-numbers"),
-            Scalar::List(&Scalar::Integer),
-        ),
-    ],
-    ..operation("Bindings", &[Segment::Literal("bindings")], &[])
+static BINDINGS: OperationInfo = {
+    let base = &(operation("Bindings", &[Segment::Literal("bindings")], &[]));
+    generated::operation_info(
+        base.id,
+        base.name,
+        base.resource,
+        base.method,
+        base.path,
+        base.literal_query,
+        base.status,
+        &[
+            member(
+                "headerDisplay",
+                Location::Header("x-required"),
+                Scalar::String,
+            ),
+            member("queryDisplay", Location::Query("q"), Scalar::String),
+            member("bodyDisplay", Location::Body, Scalar::String),
+            member(
+                "strings",
+                Location::Header("x-strings"),
+                Scalar::List(&Scalar::String),
+            ),
+            member(
+                "dates",
+                Location::Header("x-dates"),
+                Scalar::List(&Scalar::HttpDate),
+            ),
+            member(
+                "encoded",
+                Location::Header("x-encoded"),
+                Scalar::List(&Scalar::Base64),
+            ),
+            member(
+                "numbers",
+                Location::Header("x-numbers"),
+                Scalar::List(&Scalar::Integer),
+            ),
+        ],
+        base.output,
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
 
 #[derive(Deserialize, Serialize)]
@@ -125,14 +136,14 @@ impl Operation for Bindings {
     type Output = Value;
 }
 
-static ERROR: ErrorInfo = ErrorInfo {
-    name: "Invalid",
-    status: 400,
-    fault: Fault::Client,
-    retryable: false,
-    throttling: false,
-    members: &[member("message", Location::Body, Scalar::String)],
-};
+static ERROR: ErrorInfo = generated::error_info(
+    "Invalid",
+    400,
+    Fault::Client,
+    false,
+    false,
+    &[member("message", Location::Body, Scalar::String)],
+);
 #[derive(Debug)]
 struct Invalid(String);
 impl std::fmt::Display for Invalid {
@@ -149,18 +160,18 @@ impl crucible_server_runtime_rust::ModelledError for Invalid {
         json!({"message": self.0})
     }
 }
-static SERVICE: ServiceInfo = ServiceInfo {
-    mcp_tools: None,
-    cors: None,
-    id: "audit#Bindings",
-    version: "1",
-    operations: &[&BINDINGS],
-    errors: &[&ERROR],
-    classify: |_| None,
-    reject: Some(|rejection| Box::new(Invalid(rejection.summary()))),
-    internal: None,
-    unknown: None,
-};
+static SERVICE: ServiceInfo = generated::service_info(
+    "audit#Bindings",
+    "1",
+    None,
+    None,
+    &[&BINDINGS],
+    &[&ERROR],
+    |_| None,
+    Some(|rejection| Box::new(Invalid(rejection.summary()))),
+    None,
+    None,
+);
 
 fn service(calls: Arc<AtomicUsize>) -> Crucible {
     let operations = Operations::builder(&SERVICE)
@@ -371,18 +382,18 @@ route_operation!(Regular, REGULAR);
 route_operation!(Greedy, GREEDY);
 route_operation!(Flag, FLAG);
 route_operation!(Exact, EXACT);
-static ROUTES: ServiceInfo = ServiceInfo {
-    mcp_tools: None,
-    cors: None,
-    id: "audit#Routes",
-    version: "1",
-    operations: &[&EARLY, &LATE, &REGULAR, &GREEDY, &FLAG, &EXACT],
-    errors: &[],
-    classify: |_| None,
-    reject: None,
-    internal: None,
-    unknown: None,
-};
+static ROUTES: ServiceInfo = generated::service_info(
+    "audit#Routes",
+    "1",
+    None,
+    None,
+    &[&EARLY, &LATE, &REGULAR, &GREEDY, &FLAG, &EXACT],
+    &[],
+    |_| None,
+    None,
+    None,
+    None,
+);
 
 fn route_operations() -> Operations {
     Operations::builder(&ROUTES)
@@ -451,19 +462,60 @@ fn routing_normalizes_trailing_slashes_and_encoded_literals() {
 
 #[test]
 fn explicit_head_routes_take_precedence_over_get_fallback() {
-    static GET: OperationInfo = OperationInfo {
-        method: "GET",
-        ..operation("Get", &[Segment::Literal("head")], &[])
+    static GET: OperationInfo = {
+        let base = &(operation("Get", &[Segment::Literal("head")], &[]));
+        generated::operation_info(
+            base.id,
+            base.name,
+            base.resource,
+            "GET",
+            base.path,
+            base.literal_query,
+            base.status,
+            base.input,
+            base.output,
+            base.errors,
+            base.readonly,
+            base.idempotent,
+            base.internal,
+            base.idempotency_token,
+            base.traits,
+        )
     };
-    static HEAD: OperationInfo = OperationInfo {
-        method: "HEAD",
-        ..operation("Head", &[Segment::Literal("head")], &[])
+    static HEAD: OperationInfo = {
+        let base = &(operation("Head", &[Segment::Literal("head")], &[]));
+        generated::operation_info(
+            base.id,
+            base.name,
+            base.resource,
+            "HEAD",
+            base.path,
+            base.literal_query,
+            base.status,
+            base.input,
+            base.output,
+            base.errors,
+            base.readonly,
+            base.idempotent,
+            base.internal,
+            base.idempotency_token,
+            base.traits,
+        )
     };
-    static SERVICE: ServiceInfo = ServiceInfo {
-        mcp_tools: None,
-        cors: None,
-        operations: &[&GET, &HEAD],
-        ..ROUTES
+    static SERVICE: ServiceInfo = {
+        let base = &(ROUTES);
+        generated::service_info(
+            base.id,
+            base.version,
+            None,
+            None,
+            &[&GET, &HEAD],
+            base.errors,
+            base.classify,
+            base.reject,
+            base.internal,
+            base.unknown,
+        )
     };
     route_operation!(Get, GET);
     route_operation!(Head, HEAD);
@@ -899,11 +951,20 @@ fn malformed_literal_fallback_keeps_path_specificity_ahead_of_query_preference()
     );
     static UNCONSTRAINED_GREEDY: OperationInfo =
         operation("UnconstrainedGreedy", &[Segment::GreedyLabel("path")], &[]);
-    static SERVICE: ServiceInfo = ServiceInfo {
-        mcp_tools: None,
-        cors: None,
-        operations: &[&SPECIFIC, &GENERIC, &UNCONSTRAINED_GREEDY],
-        ..ROUTES
+    static SERVICE: ServiceInfo = {
+        let base = &(ROUTES);
+        generated::service_info(
+            base.id,
+            base.version,
+            None,
+            None,
+            &[&SPECIFIC, &GENERIC, &UNCONSTRAINED_GREEDY],
+            base.errors,
+            base.classify,
+            base.reject,
+            base.internal,
+            base.unknown,
+        )
     };
     route_operation!(Specific, SPECIFIC);
     route_operation!(Generic, GENERIC);

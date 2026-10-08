@@ -19,7 +19,7 @@ fn edited(edit: impl FnOnce(&mut Value)) -> Service {
 fn the_shared_exception_overrides_the_validation_reason_even_without_operations() {
     let service = edited(|_| {});
     let code = generate(&service, &Options::default()).unwrap();
-    assert!(code.contains("unknown: Some(unknown)"));
+    assert!(code.contains("Some(internal),\n        Some(unknown),"));
     assert!(code.contains("fn unknown()"));
     assert!(code.contains("Box::new(errors::UnknownOperationException"));
     assert!(code.contains("Box::new(errors::InternalServerException"));
@@ -61,7 +61,9 @@ fn a_custom_404_requires_explicit_selection_and_can_include_request_id() {
     )
     .unwrap();
     assert!(code.contains("Box::new(errors::ResourceNotFoundException"));
-    assert!(code.contains("request_id: ::crucible_server_runtime_rust::Context::try_current()"));
+    assert!(code.contains(
+        "request_id: ::crucible_server_runtime_rust::__generated::Context::try_current()"
+    ));
 }
 
 #[test]
@@ -132,5 +134,5 @@ fn declared_standard_errors_are_typed_client_responses() {
     ] {
         assert!(code.contains(&format!("{name}(errors::{name})")), "{name}");
     }
-    assert!(code.contains("retryable: true"));
+    assert!(code.contains("Fault::Server,\n        true,\n        false,"));
 }

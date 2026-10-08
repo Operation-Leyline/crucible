@@ -15,9 +15,9 @@ fn sdk_exposes_models_and_exceptions_directly() {
     assert!(code.contains("GetCityInput, GetCityOutput"));
     assert!(code.contains("ConflictError, NotFoundError"));
     assert!(code.contains("pub async fn get_city(&self, input: GetCityInput)"));
-    assert!(
-        code.contains("Result<GetCityOutput, ::crucible_client_runtime_rust::Error<GetCityError>>")
-    );
+    assert!(code.contains(
+        "Result<GetCityOutput, ::crucible_client_runtime_rust::__generated::Error<GetCityError>>"
+    ));
 }
 
 #[test]

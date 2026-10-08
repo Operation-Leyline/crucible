@@ -46,7 +46,7 @@ pub(crate) fn emit(
         }
     };
     let mut out = String::from(
-        "\n/// External MCP tools; excluded operations are listed in MCP_EXCLUSIONS.\n#[allow(dead_code)]\npub static MCP_TOOLS: &[::crucible_server_runtime_rust::mcp::ToolDescriptor] = &[\n",
+        "\n/// External MCP tools; excluded operations are listed in MCP_EXCLUSIONS.\n#[allow(dead_code)]\npub static MCP_TOOLS: &[::crucible_server_runtime_rust::__generated::mcp::ToolDescriptor] = &[\n",
     );
     let notes = exclusions(&external);
     let mut operations: Vec<_> = external.operations.iter().collect();
@@ -62,7 +62,7 @@ pub(crate) fn emit(
         let errors = op.errors.iter().map(|id| {
             let message = external.shape(id).expect("lowered error").members().into_iter().find(|m| m.name == "message")
                 .map_or_else(|| "None".to_owned(), |m| format!("Some({})",literal(&m.wire_name)));
-            format!("::crucible_server_runtime_rust::mcp::ToolError {{ name: {}, message_member: {message} }}",literal(match external.shape(id).expect("lowered error") {
+            format!("::crucible_server_runtime_rust::__generated::mcp::ToolError {{ name: {}, message_member: {message} }}",literal(match external.shape(id).expect("lowered error") {
                 Shape::Structure(s) => &s.error.as_ref().expect("error metadata").wire_code,
                 _ => unreachable!("lowered error structure"),
             }))
@@ -90,7 +90,7 @@ pub(crate) fn emit(
             }
         }
         let output = json_schema::standalone(&external, op.output.as_ref());
-        out.push_str(&format!("    ::crucible_server_runtime_rust::mcp::ToolDescriptor {{ name: {}, operation: {}, description: {}, input_schema: {}, output_schema: Some({}), read_only: {}, idempotent: {}, destructive: {}, errors: &[{errors}] }},\n",
+        out.push_str(&format!("    ::crucible_server_runtime_rust::__generated::mcp::ToolDescriptor {{ name: {}, operation: {}, description: {}, input_schema: {}, output_schema: Some({}), read_only: {}, idempotent: {}, destructive: {}, errors: &[{errors}] }},\n",
             literal(op.name()), literal(op.name()), literal(&description),
             literal(&input.to_string()), literal(&output.to_string()), op.readonly,
             op.idempotent || op.idempotency_token.is_some(), !op.readonly));

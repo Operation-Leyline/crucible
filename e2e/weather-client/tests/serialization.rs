@@ -1,7 +1,7 @@
 //! Shared client serialization: every corpus case runs against native models.
 // The fixture deprecates `createdAt`; the corpus still covers it.
 #![allow(deprecated)]
-use crucible_client_runtime_rust::__private::serde::{Serialize, de::DeserializeOwned};
+use crucible_client_runtime_rust::__generated::serde::{Serialize, de::DeserializeOwned};
 use crucible_client_runtime_rust::Field;
 use serde_json::Value;
 use weather_client::{CitySummary, GetCityOutput, Location, Photo, Sky};

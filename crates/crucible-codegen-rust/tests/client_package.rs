@@ -382,8 +382,11 @@ fn main() {
     let _: Option<renamed_weather_sdk::runtime::Error<renamed_weather_sdk::GetCityError>> = None;
 }
 "#).unwrap();
-    let target =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.codex-target/rust-native-consumer");
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.codex-target/rust-native-consumer")
+        });
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     successful(
         Command::new(&cargo)

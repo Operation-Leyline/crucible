@@ -26,16 +26,21 @@
 //! axum::serve(listener, service.into_router()).await?;
 //! ```
 
+include!(concat!(env!("OUT_DIR"), "/check_abi.rs"));
+
 mod async_interceptor;
 mod async_middleware;
 mod async_operation_middleware;
 mod auth_refusal;
 #[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
 pub mod conformance;
 pub mod context;
 mod decoded_job;
+pub mod error;
 mod exception_translator;
 mod fn_middleware;
+mod generated_operations_builder;
 mod hook;
 pub mod host;
 pub mod interceptor;
@@ -61,9 +66,10 @@ pub mod service;
 // What the server shares with clients lives in crucible-wire, re-exported
 // at the paths generated code names.
 pub use crucible_wire::blob::Blob;
+pub(crate) use crucible_wire::cbor;
 pub use crucible_wire::event_stream;
 pub use crucible_wire::event_stream::{EventReceiver, EventStream, EventStreamError};
-pub use crucible_wire::{blob, cbor, codec, error, number, open, operation, time, validate};
+pub use crucible_wire::{blob, number, operation, time, validate};
 
 pub use async_interceptor::AsyncInterceptor;
 pub use async_middleware::AsyncMiddleware;
@@ -97,10 +103,27 @@ pub use service::{BuildError, Builder, Crucible, Endpoint, RequestIdSource};
 /// `TypedInterceptor` with `async fn`.
 pub use async_trait::async_trait;
 
-/// What generated code names through `crucible_server_runtime_rust::__private`, so a service
+/// What generated code names through `crucible_server_runtime_rust::__generated`, so a service
 /// needs no direct dependency on serde, chrono or regex.
 #[doc(hidden)]
-pub mod __private {
+pub mod __generated {
+    #[cfg(any(test, feature = "test-support"))]
+    pub use crate::conformance;
+    pub use crate::generated_operations_builder::OperationsBuilder;
+    pub use crate::{
+        Context, Crucible, MissingOperations, ModelledError, Operation, OperationInfo, Operations,
+        Result, ServiceInfo, WithContext, mcp, operations,
+    };
+    pub use __crucible_check_abi as check_abi;
+    pub use crucible_wire::__generated::{error_info, member_info, operation_info, service_info};
+    pub use crucible_wire::blob::Blob;
+    pub use crucible_wire::event_stream::EventStream;
+    pub use crucible_wire::number::{BigDecimal, BigInteger};
+    pub use crucible_wire::stream::ByteStream;
+    pub use crucible_wire::{
+        cbor, codec, error, event_stream, number, open, operation, time, validate,
+    };
+
     pub use chrono;
     pub use regex;
     pub use serde;

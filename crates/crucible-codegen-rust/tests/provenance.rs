@@ -235,7 +235,9 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
     .unwrap();
     fs::write(consumer.join("src/main.rs"), "fn main() { let service = crucible_smithy::Model::from_json(include_str!(\"model.json\")).unwrap().lower(None).unwrap(); let files = crucible_codegen_rust::emit_client_package(&service, &Default::default()).unwrap(); print!(\"{}\", files[0].contents); }\n").unwrap();
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
-    let target = root.join(".codex-target/rust-git-source-consumer");
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| root.join(".codex-target/rust-git-source-consumer"));
     let output = success(
         Command::new(&cargo)
             .args(["run", "--quiet", "--manifest-path"])

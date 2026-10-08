@@ -610,6 +610,7 @@ impl Transport {
                         encode(&mut url, &value);
                     }
                 }
+                _ => return Err(Error::Invalid("unsupported path segment".into())),
             }
         }
         if info.path.is_empty() {
@@ -706,6 +707,7 @@ impl Transport {
                 | Location::ResponseCode
                 | Location::StreamingPayload { .. }
                 | Location::EventStream => {}
+                _ => return Err(Error::Invalid("unsupported member binding".into())),
             }
         }
         // A payload is sent raw under its media type; an absent one sends
@@ -1286,30 +1288,12 @@ mod tests {
     use crate::config::Retry;
     use crucible_wire::operation::Fault;
 
-    static A: ErrorInfo = ErrorInfo {
-        name: "A",
-        status: 400,
-        fault: Fault::Client,
-        retryable: false,
-        throttling: false,
-        members: &[],
-    };
-    static B: ErrorInfo = ErrorInfo {
-        name: "B",
-        status: 404,
-        fault: Fault::Client,
-        retryable: false,
-        throttling: false,
-        members: &[],
-    };
-    static C: ErrorInfo = ErrorInfo {
-        name: "C",
-        status: 400,
-        fault: Fault::Client,
-        retryable: false,
-        throttling: false,
-        members: &[],
-    };
+    static A: ErrorInfo =
+        crate::__generated::error_info("A", 400, Fault::Client, false, false, &[]);
+    static B: ErrorInfo =
+        crate::__generated::error_info("B", 404, Fault::Client, false, false, &[]);
+    static C: ErrorInfo =
+        crate::__generated::error_info("C", 400, Fault::Client, false, false, &[]);
 
     #[test]
     fn a_status_names_an_error_only_when_one_error_has_it() {
@@ -1374,14 +1358,8 @@ mod tests {
 
     #[derive(Debug)]
     struct Malformed;
-    static THROTTLED: ErrorInfo = ErrorInfo {
-        name: "Throttled",
-        status: 429,
-        fault: Fault::Client,
-        retryable: true,
-        throttling: true,
-        members: &[],
-    };
+    static THROTTLED: ErrorInfo =
+        crate::__generated::error_info("Throttled", 429, Fault::Client, true, true, &[]);
     impl OperationErrors for Malformed {
         fn decode(_: u16, _: Option<&str>, _: &HeaderMap, _: &[u8]) -> Option<Self> {
             None

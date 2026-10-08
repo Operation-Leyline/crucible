@@ -1,4 +1,5 @@
 use axum::{body::Body, http::Request};
+use crucible_server_runtime_rust::__generated as generated;
 use crucible_server_runtime_rust::{
     Crucible, FrameworkError, InvokeProtocol, Operation, Operations,
     operation::{AuthScheme, OperationInfo, Protocol, Segment, ServiceInfo, Unit},
@@ -7,35 +8,35 @@ use crucible_server_runtime_rust::{
 use serde_json::Value;
 use std::sync::Arc;
 
-static INFO: OperationInfo = OperationInfo {
-    id: "example.auth#Probe",
-    name: "Probe",
-    resource: None,
-    internal: false,
-    method: "POST",
-    path: &[Segment::Literal("refusal")],
-    literal_query: &[],
-    status: 200,
-    input: &[],
-    output: &[],
-    errors: &[],
-    readonly: false,
-    idempotent: false,
-    idempotency_token: None,
-    traits: &[],
-};
-static SERVICE: ServiceInfo = ServiceInfo {
-    mcp_tools: None,
-    cors: None,
-    id: "example.auth#Refusals",
-    version: "1",
-    operations: &[&INFO],
-    errors: &[],
-    classify: |_| None,
-    reject: None,
-    internal: None,
-    unknown: None,
-};
+static INFO: OperationInfo = generated::operation_info(
+    "example.auth#Probe",
+    "Probe",
+    None,
+    "POST",
+    &[Segment::Literal("refusal")],
+    &[],
+    200,
+    &[],
+    &[],
+    &[],
+    false,
+    false,
+    false,
+    None,
+    &[],
+);
+static SERVICE: ServiceInfo = generated::service_info(
+    "example.auth#Refusals",
+    "1",
+    None,
+    None,
+    &[&INFO],
+    &[],
+    |_| None,
+    None,
+    None,
+    None,
+);
 
 struct Probe<const P: u8>;
 impl<const P: u8> Operation for Probe<P> {
@@ -125,7 +126,7 @@ async fn check<const P: u8>(invoke: bool) {
             .await
             .unwrap();
         let value: Value = if P == 5 && !invoke {
-            crucible_server_runtime_rust::cbor::read(&bytes).unwrap()
+            crucible_server_runtime_rust::__generated::cbor::read(&bytes).unwrap()
         } else {
             serde_json::from_slice(&bytes).unwrap()
         };

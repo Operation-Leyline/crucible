@@ -20,7 +20,7 @@ pub(crate) fn unknown_variant<'a>(names: impl Iterator<Item = &'a str>) -> Strin
 
 fn serde_impls(out: &mut String, name: &str, kind: &str) {
     out.push_str(&format!(
-        "impl ::crucible_server_runtime_rust::__private::serde::Serialize for {name} {{\n    fn serialize<S: ::crucible_server_runtime_rust::__private::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {{\n        ::crucible_server_runtime_rust::open::serialize_{kind}(self, serializer)\n    }}\n}}\nimpl<'de> ::crucible_server_runtime_rust::__private::serde::Deserialize<'de> for {name} {{\n    fn deserialize<D: ::crucible_server_runtime_rust::__private::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {{\n        ::crucible_server_runtime_rust::open::deserialize_{kind}(deserializer)\n    }}\n}}\n"
+        "impl ::crucible_server_runtime_rust::__generated::serde::Serialize for {name} {{\n    fn serialize<S: ::crucible_server_runtime_rust::__generated::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {{\n        ::crucible_server_runtime_rust::__generated::open::serialize_{kind}(self, serializer)\n    }}\n}}\nimpl<'de> ::crucible_server_runtime_rust::__generated::serde::Deserialize<'de> for {name} {{\n    fn deserialize<D: ::crucible_server_runtime_rust::__generated::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {{\n        ::crucible_server_runtime_rust::__generated::open::deserialize_{kind}(deserializer)\n    }}\n}}\n"
     ));
 }
 
@@ -43,7 +43,7 @@ pub(crate) fn enumeration(out: &mut String, name: &str, values: &Enum, debug: bo
             literal(&value.value)
         ));
     }
-    out.push_str(&format!("            Self::{unknown}(value) => value,\n        }}\n    }}\n}}\nimpl ::crucible_server_runtime_rust::open::Enum for {name} {{\n    fn as_str(&self) -> &str {{ self.as_str() }}\n    fn from_string(value: ::std::string::String) -> Self {{\n        match value.as_str() {{\n"));
+    out.push_str(&format!("            Self::{unknown}(value) => value,\n        }}\n    }}\n}}\nimpl ::crucible_server_runtime_rust::__generated::open::Enum for {name} {{\n    fn as_str(&self) -> &str {{ self.as_str() }}\n    fn from_string(value: ::std::string::String) -> Self {{\n        match value.as_str() {{\n"));
     for value in &values.values {
         out.push_str(&format!(
             "            {} => Self::{},\n",
@@ -101,17 +101,21 @@ pub(crate) fn union(
         ""
     };
     if client {
-        out.push_str(&format!("    /// An arm introduced by a newer service.\n    {unknown}(::crucible_server_runtime_rust::UnknownUnion),\n"));
+        out.push_str(&format!("    /// An arm introduced by a newer service.\n    {unknown}(::crucible_server_runtime_rust::__generated::UnknownUnion),\n"));
     }
-    out.push_str(&format!("}}\nimpl ::crucible_server_runtime_rust::open::Union for {name} {{\n{ignore}    fn deserialize_member<'de, D: ::crucible_server_runtime_rust::__private::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {{\n        match name.as_str() {{\n"));
+    out.push_str(&format!("}}\nimpl ::crucible_server_runtime_rust::__generated::open::Union for {name} {{\n{ignore}    fn deserialize_member<'de, D: ::crucible_server_runtime_rust::__generated::serde::Deserializer<'de>>(name: ::std::string::String, value: D) -> ::std::result::Result<Self, D::Error> {{\n        match name.as_str() {{\n"));
     for member in &union.members {
         let decode = if let Some(mut codec) = crate::types::codec(service, member) {
             if boxed.contains(&id.with_member(&member.name)) {
-                codec = format!("::crucible_server_runtime_rust::codec::Boxed<{codec}>");
+                codec =
+                    format!("::crucible_server_runtime_rust::__generated::codec::Boxed<{codec}>");
             }
-            format!("::crucible_server_runtime_rust::codec::Adapter::<{codec}>::deserialize")
+            format!(
+                "::crucible_server_runtime_rust::__generated::codec::Adapter::<{codec}>::deserialize"
+            )
         } else {
-            "::crucible_server_runtime_rust::__private::serde::Deserialize::deserialize".to_owned()
+            "::crucible_server_runtime_rust::__generated::serde::Deserialize::deserialize"
+                .to_owned()
         };
         out.push_str(&format!(
             "            {} => {decode}(value).map(Self::{}),\n",
@@ -120,18 +124,19 @@ pub(crate) fn union(
         ));
     }
     if client {
-        out.push_str(&format!("            _ => ::crucible_server_runtime_rust::__private::serde::Deserialize::deserialize(value).map(|value| Self::{unknown}(::crucible_server_runtime_rust::UnknownUnion {{ name, value }})),\n"));
+        out.push_str(&format!("            _ => ::crucible_server_runtime_rust::__generated::serde::Deserialize::deserialize(value).map(|value| Self::{unknown}(::crucible_server_runtime_rust::__generated::UnknownUnion {{ name, value }})),\n"));
     } else {
-        out.push_str("            _ => Err(::crucible_server_runtime_rust::__private::serde::de::Error::custom(\"unknown union member\")),\n");
+        out.push_str("            _ => Err(::crucible_server_runtime_rust::__generated::serde::de::Error::custom(\"unknown union member\")),\n");
     }
-    out.push_str("        }\n    }\n    fn serialize_member<S: ::crucible_server_runtime_rust::__private::serde::ser::SerializeMap>(&self, map: &mut S) -> ::std::result::Result<(), S::Error> {\n        match self {\n");
+    out.push_str("        }\n    }\n    fn serialize_member<S: ::crucible_server_runtime_rust::__generated::serde::ser::SerializeMap>(&self, map: &mut S) -> ::std::result::Result<(), S::Error> {\n        match self {\n");
     for member in &union.members {
         let value = if let Some(mut codec) = crate::types::codec(service, member) {
             if boxed.contains(&id.with_member(&member.name)) {
-                codec = format!("::crucible_server_runtime_rust::codec::Boxed<{codec}>");
+                codec =
+                    format!("::crucible_server_runtime_rust::__generated::codec::Boxed<{codec}>");
             }
             format!(
-                "&::crucible_server_runtime_rust::codec::Ref::<_, {codec}>(value, ::std::marker::PhantomData)"
+                "&::crucible_server_runtime_rust::__generated::codec::Ref::<_, {codec}>(value, ::std::marker::PhantomData)"
             )
         } else {
             "value".to_owned()
@@ -149,7 +154,7 @@ pub(crate) fn union(
         .collect::<Vec<_>>()
         .join(", ");
     if client {
-        out.push_str(&format!("            Self::{unknown}(value) => ::crucible_server_runtime_rust::open::serialize_unknown(value, &[{known}], map),\n"));
+        out.push_str(&format!("            Self::{unknown}(value) => ::crucible_server_runtime_rust::__generated::open::serialize_unknown(value, &[{known}], map),\n"));
     }
     out.push_str("        }\n    }\n}\n");
     serde_impls(out, name, "union");
@@ -191,7 +196,7 @@ pub(crate) fn int_enumeration(
     if client {
         out.push_str(&format!("            Self::{unknown}(value) => *value,\n"));
     }
-    out.push_str(&format!("        }}\n    }}\n}}\nimpl ::crucible_server_runtime_rust::open::IntEnum for {name} {{\n    fn as_i32(&self) -> i32 {{ self.as_i32() }}\n    fn from_i32(value: i32) -> ::std::option::Option<Self> {{\n        match value {{\n"));
+    out.push_str(&format!("        }}\n    }}\n}}\nimpl ::crucible_server_runtime_rust::__generated::open::IntEnum for {name} {{\n    fn as_i32(&self) -> i32 {{ self.as_i32() }}\n    fn from_i32(value: i32) -> ::std::option::Option<Self> {{\n        match value {{\n"));
     for value in &values.values {
         out.push_str(&format!(
             "            {} => Some(Self::{}),\n",

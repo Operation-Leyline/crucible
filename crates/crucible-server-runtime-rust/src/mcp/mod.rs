@@ -4,6 +4,7 @@ mod mcp_config;
 mod mcp_protocol;
 mod tool_registry;
 
+#[doc(hidden)]
 pub use crucible_wire::mcp::{ToolDescriptor, ToolError};
 pub use endpoint_guard::{EndpointAdmission, EndpointGuard};
 pub use mcp_config::McpConfig;

@@ -397,6 +397,7 @@ impl MessageDecoder {
 
 /// An event stream union, as generated server and client markers describe it.
 #[derive(Debug)]
+#[doc(hidden)]
 pub struct EventStreamInfo {
     /// The protocol sends the structure's other members as an
     /// `initial-request` / `initial-response` event (protocols without HTTP
@@ -409,6 +410,7 @@ pub struct EventStreamInfo {
 
 /// One union member: an event, or an `@error` structure the stream may end with.
 #[derive(Debug)]
+#[doc(hidden)]
 pub struct EventInfo {
     /// The union member's name: its `:event-type` or `:exception-type`.
     pub name: &'static str,
@@ -427,6 +429,7 @@ pub type DocumentEncoder = fn(&Value) -> Result<Bytes, String>;
 pub type DocumentDecoder = fn(&[u8]) -> Result<Value, String>;
 
 #[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
 pub struct EventMember {
     /// The member's name: a header member's header name.
     pub name: &'static str,
@@ -436,12 +439,14 @@ pub struct EventMember {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[doc(hidden)]
 pub enum EventBinding {
     Header(EventHeaderKind),
     Payload(EventPayloadKind),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[doc(hidden)]
 pub enum EventHeaderKind {
     Boolean,
     Byte,
@@ -455,6 +460,7 @@ pub enum EventHeaderKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[doc(hidden)]
 pub enum EventPayloadKind {
     Blob,
     String,

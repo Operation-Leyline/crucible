@@ -21,3 +21,7 @@ pub mod stream;
 pub mod text;
 pub mod time;
 pub mod validate;
+
+#[doc(hidden)]
+#[path = "generated.rs"]
+pub mod __generated;

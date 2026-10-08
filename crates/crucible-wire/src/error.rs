@@ -128,6 +128,7 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
 
 /// How a generated error implements [`ModelledError::write_json`]: one pass,
 /// no JSON value in between.
+#[doc(hidden)]
 pub fn write_error<E: ModelledError + serde::Serialize>(
     error: &E,
     out: &mut Vec<u8>,
@@ -197,6 +198,7 @@ impl fmt::Display for FrameworkError {
 impl std::error::Error for FrameworkError {}
 
 /// Serializes a generated error's body and dynamic HTTP bindings in one pass.
+#[doc(hidden)]
 pub fn write_error_http<E: ModelledError + serde::Serialize>(
     error: &E,
     out: &mut Vec<u8>,
@@ -206,6 +208,7 @@ pub fn write_error_http<E: ModelledError + serde::Serialize>(
 }
 
 /// A generated error with its serving protocol's discriminator, in one pass.
+#[doc(hidden)]
 pub fn write_error_http_typed<E: ModelledError + serde::Serialize>(
     error: &E,
     type_name: Option<&'static str>,

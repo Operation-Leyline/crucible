@@ -1,3 +1,4 @@
+use crucible_server_runtime_rust::__generated as generated;
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -166,12 +167,21 @@ static EXPLICIT_CORS: crucible_server_runtime_rust::operation::CorsInfo =
         exposed_headers: &["x-crucible-error", "x-request-id"],
         methods: &["GET"],
     };
-static EXPLICIT_SERVICE: crucible_server_runtime_rust::ServiceInfo =
-    crucible_server_runtime_rust::ServiceInfo {
-        mcp_tools: None,
-        cors: Some(&EXPLICIT_CORS),
-        ..cors_service::SERVICE
-    };
+static EXPLICIT_SERVICE: crucible_server_runtime_rust::ServiceInfo = {
+    let base = &(cors_service::SERVICE);
+    generated::service_info(
+        base.id,
+        base.version,
+        Some(&EXPLICIT_CORS),
+        None,
+        base.operations,
+        base.errors,
+        base.classify,
+        base.reject,
+        base.internal,
+        base.unknown,
+    )
+};
 
 #[tokio::test]
 async fn explicit_origin_credentials_no_cache_and_direct_invocations() {

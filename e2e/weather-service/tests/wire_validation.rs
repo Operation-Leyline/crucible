@@ -1,6 +1,7 @@
 //! Independent consumers of malformed HTTP input and output handling.
 // The fixture deprecates `Ping`; these tests still drive it.
 #![allow(deprecated)]
+use crucible_server_runtime_rust::__generated as generated;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
@@ -22,132 +23,270 @@ use serde_json::{Value, json};
 use weather_service::weather;
 
 const fn member(name: &'static str, location: Location) -> MemberInfo {
-    MemberInfo {
-        name,
-        location,
-        scalar: Scalar::String,
-        redaction: &Redaction::Public,
-        traits: &[],
-    }
+    generated::member_info(name, location, Scalar::String, &Redaction::Public, &[])
 }
 const BODY: MemberInfo = member("body", Location::Body);
 const HEADER: MemberInfo = member("header", Location::Header("x-header"));
 const PREFIX: MemberInfo = member("prefix", Location::PrefixHeaders("x-prefix-"));
-static BODY_ONLY: OperationInfo = OperationInfo {
-    name: "BodyOnly",
-    path: &[Segment::Literal("body")],
-    input: &[BODY],
-    output: &[BODY],
-    ..*weather::Ping::INFO
+static BODY_ONLY: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "BodyOnly",
+        base.resource,
+        base.method,
+        &[Segment::Literal("body")],
+        base.literal_query,
+        base.status,
+        &[BODY],
+        &[BODY],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static BOUND: OperationInfo = OperationInfo {
-    name: "Bound",
-    path: &[Segment::Literal("bound")],
-    input: &[BODY, HEADER],
-    output: &[BODY],
-    ..*weather::Ping::INFO
+static BOUND: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "Bound",
+        base.resource,
+        base.method,
+        &[Segment::Literal("bound")],
+        base.literal_query,
+        base.status,
+        &[BODY, HEADER],
+        &[BODY],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static REQUIRED: OperationInfo = OperationInfo {
-    name: "Required",
-    path: &[Segment::Literal("required")],
-    input: &[BODY],
-    ..*weather::Ping::INFO
+static REQUIRED: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "Required",
+        base.resource,
+        base.method,
+        &[Segment::Literal("required")],
+        base.literal_query,
+        base.status,
+        &[BODY],
+        base.output,
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static REQUIRED_BOUND: OperationInfo = OperationInfo {
-    name: "RequiredBound",
-    path: &[Segment::Literal("required-bound")],
-    input: &[BODY, HEADER],
-    ..*weather::Ping::INFO
+static REQUIRED_BOUND: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "RequiredBound",
+        base.resource,
+        base.method,
+        &[Segment::Literal("required-bound")],
+        base.literal_query,
+        base.status,
+        &[BODY, HEADER],
+        base.output,
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static QUERIES: OperationInfo = OperationInfo {
-    name: "Queries",
-    path: &[Segment::Literal("queries")],
-    input: &[
-        member("queries", Location::QueryParams),
-        MemberInfo {
-            scalar: Scalar::List(&Scalar::String),
-            ..member("tags", Location::Query("tag"))
-        },
-    ],
-    output: &[
-        member("queries", Location::Body),
-        member("tags", Location::Body),
-    ],
-    ..*weather::Ping::INFO
+static QUERIES: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "Queries",
+        base.resource,
+        base.method,
+        &[Segment::Literal("queries")],
+        base.literal_query,
+        base.status,
+        &[member("queries", Location::QueryParams), {
+            let base = &(member("tags", Location::Query("tag")));
+            generated::member_info(
+                base.name,
+                base.location,
+                Scalar::List(&Scalar::String),
+                base.redaction,
+                base.traits,
+            )
+        }],
+        &[
+            member("queries", Location::Body),
+            member("tags", Location::Body),
+        ],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static HEADERS: OperationInfo = OperationInfo {
-    name: "Headers",
-    path: &[Segment::Literal("headers")],
-    output: &[BODY, HEADER, PREFIX],
-    errors: &["HeaderError"],
-    ..*weather::Ping::INFO
+static HEADERS: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "Headers",
+        base.resource,
+        base.method,
+        &[Segment::Literal("headers")],
+        base.literal_query,
+        base.status,
+        base.input,
+        &[BODY, HEADER, PREFIX],
+        &["HeaderError"],
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static STREAM: OperationInfo = OperationInfo {
-    name: "Stream",
-    path: &[Segment::Literal("stream")],
-    output: &[
-        member(
+static STREAM: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "Stream",
+        base.resource,
+        base.method,
+        &[Segment::Literal("stream")],
+        base.literal_query,
+        base.status,
+        base.input,
+        &[
+            member(
+                "body",
+                Location::StreamingPayload {
+                    media_type: "application/octet-stream",
+                    requires_length: false,
+                    minimum: None,
+                    maximum: None,
+                },
+            ),
+            HEADER,
+            PREFIX,
+        ],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
+};
+static TEXT: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "Text",
+        base.resource,
+        base.method,
+        &[Segment::Literal("text")],
+        base.literal_query,
+        base.status,
+        &[member("body", Location::TextPayload("text/plain"))],
+        &[BODY],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
+};
+static BLOB: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "Blob",
+        base.resource,
+        base.method,
+        &[Segment::Literal("blob")],
+        base.literal_query,
+        base.status,
+        &[member(
             "body",
-            Location::StreamingPayload {
-                media_type: "application/octet-stream",
-                requires_length: false,
-                minimum: None,
-                maximum: None,
-            },
-        ),
-        HEADER,
-        PREFIX,
-    ],
-    ..*weather::Ping::INFO
+            Location::Payload("application/octet-stream"),
+        )],
+        &[BODY],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static TEXT: OperationInfo = OperationInfo {
-    name: "Text",
-    path: &[Segment::Literal("text")],
-    input: &[member("body", Location::TextPayload("text/plain"))],
-    output: &[BODY],
-    ..*weather::Ping::INFO
+static DOCUMENT: OperationInfo = {
+    let base = &(*weather::Ping::INFO);
+    generated::operation_info(
+        base.id,
+        "Document",
+        base.resource,
+        base.method,
+        &[Segment::Literal("document")],
+        base.literal_query,
+        base.status,
+        &[member(
+            "body",
+            Location::DocumentPayload("application/json"),
+        )],
+        &[BODY],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
 };
-static BLOB: OperationInfo = OperationInfo {
-    name: "Blob",
-    path: &[Segment::Literal("blob")],
-    input: &[member(
-        "body",
-        Location::Payload("application/octet-stream"),
-    )],
-    output: &[BODY],
-    ..*weather::Ping::INFO
-};
-static DOCUMENT: OperationInfo = OperationInfo {
-    name: "Document",
-    path: &[Segment::Literal("document")],
-    input: &[member(
-        "body",
-        Location::DocumentPayload("application/json"),
-    )],
-    output: &[BODY],
-    ..*weather::Ping::INFO
-};
-static SERVICE: ServiceInfo = ServiceInfo {
-    mcp_tools: None,
-    cors: None,
-    operations: &[
-        &BODY_ONLY,
-        &BOUND,
-        &REQUIRED,
-        &REQUIRED_BOUND,
-        &QUERIES,
-        &HEADERS,
-        &STREAM,
-        &TEXT,
-        &BLOB,
-        &DOCUMENT,
-    ],
-    classify: |error| {
-        error
-            .downcast_ref::<HeaderError>()
-            .map(|error| error as &dyn ModelledError)
-    },
-    ..weather::SERVICE
+static SERVICE: ServiceInfo = {
+    let base = &(weather::SERVICE);
+    generated::service_info(
+        base.id,
+        base.version,
+        None,
+        None,
+        &[
+            &BODY_ONLY,
+            &BOUND,
+            &REQUIRED,
+            &REQUIRED_BOUND,
+            &QUERIES,
+            &HEADERS,
+            &STREAM,
+            &TEXT,
+            &BLOB,
+            &DOCUMENT,
+        ],
+        base.errors,
+        |error| {
+            error
+                .downcast_ref::<HeaderError>()
+                .map(|error| error as &dyn ModelledError)
+        },
+        base.reject,
+        base.internal,
+        base.unknown,
+    )
 };
 
 #[derive(Serialize, Deserialize)]
@@ -237,14 +376,14 @@ impl Operation for Stream {
     }
 }
 
-static ERROR: ErrorInfo = ErrorInfo {
-    name: "HeaderError",
-    status: 409,
-    fault: Fault::Client,
-    retryable: false,
-    throttling: false,
-    members: &[BODY, HEADER, PREFIX],
-};
+static ERROR: ErrorInfo = generated::error_info(
+    "HeaderError",
+    409,
+    Fault::Client,
+    false,
+    false,
+    &[BODY, HEADER, PREFIX],
+);
 #[derive(Debug, Serialize)]
 struct HeaderError {
     body: String,
