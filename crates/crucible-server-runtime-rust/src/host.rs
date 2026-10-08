@@ -97,7 +97,7 @@ mod http_server {
     use axum::http::Request;
     use axum::response::Response;
     use hyper::body::Incoming;
-    use hyper_util::rt::TokioIo;
+    use hyper_util::rt::{TokioIo, TokioTimer};
     use tokio::net::{TcpListener, TcpStream};
     use tokio::sync::watch;
 
@@ -139,7 +139,11 @@ mod http_server {
             let mut stopping = stop.subscribe();
             let open = open.clone();
             tokio::spawn(async move {
+                // The timer arms hyper's header read timeout (30 s by
+                // default), so a client that never finishes its headers
+                // cannot hold a connection open.
                 let connection = hyper::server::conn::http1::Builder::new()
+                    .timer(TokioTimer::new())
                     .serve_connection(TokioIo::new(stream), handler)
                     .with_upgrades();
                 let mut connection = pin!(connection);
