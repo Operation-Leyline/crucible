@@ -257,3 +257,32 @@ fn declared_capabilities_cover_auth_endpoints_waiters_checksums_and_aws_json() {
         )));
     }
 }
+
+/// yyjson documents a 40-byte minimum for the buffer `yyjson_write_number` fills.
+#[test]
+fn yyjson_number_buffers_meet_the_documented_minimum() {
+    let runtime = Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+    let mut checked = 0;
+    for entry in fs::read_dir(runtime).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|extension| extension != "c") {
+            continue;
+        }
+        let text = fs::read_to_string(&path).unwrap();
+        if !text.contains("yyjson_write_number") {
+            continue;
+        }
+        for declaration in text.split("char ").skip(1) {
+            let Some((name, rest)) = declaration.split_once('[') else {
+                continue;
+            };
+            if name != "native" {
+                continue;
+            }
+            let size: usize = rest.split(']').next().unwrap().parse().unwrap();
+            assert!(size >= 40, "{}: char {name}[{size}]", path.display());
+            checked += 1;
+        }
+    }
+    assert!(checked >= 2, "found {checked} number buffers");
+}
