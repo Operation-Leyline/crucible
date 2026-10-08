@@ -159,3 +159,40 @@ fn service_client_export_collisions_are_diagnosed() {
         assert!(emit(&service, &options()).is_err(), "{name}");
     }
 }
+
+#[test]
+fn documentation_and_formatting_use_the_lowered_contract() {
+    let service = Model::from_json(include_str!("../../../tests/fixtures/client-docs.json"))
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_python::capabilities())
+        .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let models = &files
+        .iter()
+        .find(|f| f.path.ends_with("models.py"))
+        .unwrap()
+        .contents;
+    let client = &files
+        .iter()
+        .find(|f| f.path.ends_with("client.py"))
+        .unwrap()
+        .contents;
+    assert!(models.contains("https://example.com"));
+    assert!(models.contains("line two"));
+    assert!(models.contains("Label marker."));
+    assert!(client.contains("Modeled errors: Problem"));
+    assert!(client.contains("Construct") || client.contains("Construct with"));
+    assert!(models.contains("def __repr__"));
+}
+
+#[test]
+fn formatting_helper_names_are_reserved() {
+    let service = Model::from_json(include_str!(
+        "../../../tests/fixtures/client-docs-python-collisions.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let diagnostics = emit(&service, &options()).err().unwrap();
+    assert!(diagnostics.to_string().contains("model_repr"));
+}

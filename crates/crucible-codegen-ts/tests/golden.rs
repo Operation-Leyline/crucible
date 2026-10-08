@@ -650,3 +650,67 @@ fn an_operation_named_endpoint_rules_is_diagnosed_when_rules_are_exported() {
         "{diagnostics}"
     );
 }
+
+#[test]
+fn documentation_and_formatting_use_the_lowered_contract() {
+    let service = Model::from_json(include_str!("../../../tests/fixtures/client-docs.json"))
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
+        .unwrap();
+    let files = emit(
+        &service,
+        &Options {
+            package_name: "@example/docs".into(),
+            package_version: "0.0.0".into(),
+            client_name: None,
+            endpoint: None,
+            middleware: vec![],
+            package_json: None,
+        },
+    )
+    .unwrap();
+    let models = &files
+        .iter()
+        .find(|f| f.path.ends_with("models.ts"))
+        .unwrap()
+        .contents;
+    let client = &files
+        .iter()
+        .find(|f| f.path.ends_with("client.ts"))
+        .unwrap()
+        .contents;
+    assert!(models.contains("https://example.com"));
+    assert!(models.contains("line two"));
+    assert!(models.contains("Label marker."));
+    assert!(client.contains("Modeled errors: Problem"));
+    assert!(client.contains("Construct") || client.contains("Construct with"));
+    assert!(models.contains("export interface Record"));
+}
+
+#[test]
+fn representation_method_collisions_are_diagnosed() {
+    let service = Model::from_json(include_str!(
+        "../../../tests/fixtures/client-docs-ts-collisions.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
+    .unwrap();
+    let diagnostics = emit(
+        &service,
+        &Options {
+            package_name: "@example/docs".into(),
+            package_version: "0.0.0".into(),
+            client_name: None,
+            endpoint: None,
+            middleware: vec![],
+            package_json: None,
+        },
+    )
+    .err()
+    .unwrap();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("an error member cannot be named `toString` in TypeScript")
+    );
+}

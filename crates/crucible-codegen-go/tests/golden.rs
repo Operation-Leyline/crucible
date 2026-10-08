@@ -353,3 +353,63 @@ fn runtime_policy_names_cannot_collide_with_models() {
         );
     }
 }
+
+#[test]
+fn documentation_and_formatting_use_the_lowered_contract() {
+    let service = Model::from_json(include_str!("../../../tests/fixtures/client-docs.json"))
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_go::capabilities())
+        .unwrap();
+    let files = emit(
+        &service,
+        &Options {
+            module_path: "example.com/docs".into(),
+            package_name: "docs".into(),
+            endpoint: None,
+            content_sha256: false,
+        },
+    )
+    .unwrap();
+    let models = &files
+        .iter()
+        .find(|f| f.path.ends_with("models.go"))
+        .unwrap()
+        .contents;
+    let client = &files
+        .iter()
+        .find(|f| f.path.ends_with("client.go"))
+        .unwrap()
+        .contents;
+    assert!(models.contains("https://example.com"));
+    assert!(models.contains("line two"));
+    assert!(models.contains("Label marker."));
+    assert!(client.contains("Modeled errors: Problem"));
+    assert!(client.contains("Construct") || client.contains("Construct with"));
+    assert!(models.contains("String() string"));
+}
+
+#[test]
+fn representation_method_collisions_are_diagnosed() {
+    let service = Model::from_json(include_str!(
+        "../../../tests/fixtures/client-docs-go-collisions.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_go::capabilities())
+    .unwrap();
+    let diagnostics = emit(
+        &service,
+        &Options {
+            module_path: "example.com/docs".into(),
+            package_name: "docs".into(),
+            endpoint: None,
+            content_sha256: false,
+        },
+    )
+    .err()
+    .unwrap();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("member collides with a Go model field or method")
+    );
+}

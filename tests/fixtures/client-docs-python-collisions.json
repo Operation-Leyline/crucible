@@ -1,0 +1,37 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.docs#Docs": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.docs#Inspect"
+        }
+      ],
+      "rename": {
+        "example.docs#Record": "model_repr"
+      }
+    },
+    "example.docs#Inspect": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/inspect",
+          "code": 200
+        }
+      },
+      "input": {
+        "target": "example.docs#Record"
+      }
+    },
+    "example.docs#Record": {
+      "type": "structure",
+      "members": {}
+    }
+  }
+}

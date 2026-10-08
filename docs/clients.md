@@ -42,6 +42,30 @@ prerequisites as listed in its guide. Install the CLI once from your pinned
 Crucible checkout with `cargo install --path crates/crucible-cli --locked`.
 Examples using `crucible` assume that executable is on `PATH`.
 
+## API documentation and debug formatting
+
+The TypeScript, Python and Go clients preserve Smithy documentation on models,
+members, enum values and operations. Their client and runtime documentation also
+describes configuration, transport ownership, retries, pagination and waiters.
+TypeScript retains CommonMark in escaped documentation comments. Python docstrings
+and Go doc comments render CommonMark as readable text, preserving links and code.
+
+Python model `repr` and Go model `String`/`GoString` describe nested members and
+collections. TypeScript models are plain interfaces and aliases; error classes
+provide `toString` and Node.js inspection. These formatters omit absent members,
+display explicit nulls, and replace sensitive members and sensitive targets with
+`*** Sensitive Data Redacted ***`. Unknown union payloads are also redacted.
+Streams are described without reading them. Native scalar and collection aliases
+retain their language's own formatting when used outside a modeled container.
+
+Formatting does not change equality or hashing:
+
+| Language | Existing equality and hashing |
+|---|---|
+| TypeScript | Objects and errors use identity equality. Scalars use JavaScript equality; `Decimal.equals` compares decimal values. No generated value hash. |
+| Python | Model dataclasses use field equality and are unhashable. Errors use identity equality/hash. Enums and native aliases retain native equality/hash; mutable collections are unhashable. |
+| Go | Scalars and enums use native equality. Structs are comparable only when all fields are comparable; pointers compare identity. Slices/maps have no generated value equality/hash. `Decimal.Equal` compares numeric values. |
+
 ## Catching service errors
 
 Generated modeled exceptions share a service-named base, such as

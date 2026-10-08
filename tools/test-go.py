@@ -18,6 +18,15 @@ def run(*args, **kwargs):
 
 
 def qualify(output):
+    docs = output / "docs"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
+        "tests/fixtures/client-docs.json", "--out", str(docs),
+        "--module-path", "example.com/docs", "--package-name", "docs")
+    shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/docs_test.go", docs / "docs_test.go")
+    run(GO, "fmt", "./...", cwd=docs)
+    run(GO, "vet", "./...", cwd=docs)
+    run(GO, "test", "-count=1", "-v", "./...", cwd=docs)
+    run(GO, "doc", "-all", ".", cwd=docs, stdout=subprocess.DEVNULL)
     checksum = output / "checksum"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
         "crates/crucible-smithy/tests/fixtures/checksums.json", "--out", str(checksum),

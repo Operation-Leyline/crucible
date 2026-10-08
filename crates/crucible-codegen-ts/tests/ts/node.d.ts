@@ -5,6 +5,10 @@ declare module "node:test" {
   export function test(name: string, options: { skip: boolean | string }, run: () => void | Promise<void>): void;
 }
 
+declare module "node:util" {
+  export function inspect(value: unknown): string;
+}
+
 declare module "node:fs" {
   export function readFileSync(path: URL, encoding: "utf8"): string;
 }
