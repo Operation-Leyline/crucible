@@ -1,3 +1,5 @@
+// The fixture deprecates Ping; this test still checks its MCP body limits.
+#![allow(deprecated)]
 use crucible_server_runtime_rust::__generated as generated;
 use std::sync::Arc;
 
