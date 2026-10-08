@@ -1,6 +1,8 @@
 //! Compact runtime descriptions of already-lowered wire semantics.
 pub mod docs;
 pub mod documentation;
+pub mod json_schema;
+
 use crucible_smithy::ir::{Bindings, Fault, Member, Service, Shape, SimpleKind, TimestampFormat};
 use serde_json::{Value, json};
 

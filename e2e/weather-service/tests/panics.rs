@@ -20,6 +20,7 @@ use weather_service::weather;
 
 const SECRET: &str = "panic secret must stay in logs";
 static SERVICE: ServiceInfo = ServiceInfo {
+    mcp_tools: None,
     cors: None,
     operations: &[weather::Ping::INFO],
     ..weather::SERVICE

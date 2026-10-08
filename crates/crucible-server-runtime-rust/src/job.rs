@@ -215,7 +215,10 @@ impl Job {
 
     pub(crate) fn fail(&mut self, error: Error) {
         self.error_revision += 1;
-        self.outcome = Some(Outcome::Failed(error));
+        self.outcome = Some(match error.downcast_ref::<crate::AuthRefusal>() {
+            Some(refusal) => Outcome::Answered(refusal.response()),
+            None => Outcome::Failed(error),
+        });
     }
 
     /// Replaces a failure, as an exception translator does. Ignored when the

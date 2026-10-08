@@ -161,6 +161,23 @@ a JSON body, its byte count checked by `@length`. An `@httpPayload` blob is
 the request body itself, and its `Blob` shares the body's buffer rather than
 copying it.
 
+## Model Context Protocol
+
+Generate static public tool descriptions with `.mcp()` on the service build
+helper, then opt in at runtime with
+`.mcp(McpConfig::new())` on the service builder. MCP serves
+the descriptors carried by generated `SERVICE.mcp_tools`; runtime setup does
+not pass the descriptor constant separately. It handles
+stateless JSON-RPC requests on `/mcp` alongside the modeled protocols. Tool calls
+enter the normal operation pipeline; endpoint guards also protect initialization
+and discovery. HTTP authentication refusals preserve their status and challenge.
+
+Descriptors use the External audience projection and share JSON Schema emission
+with OpenAPI. Streaming operations receive explicit build warnings. Outputs are
+checked against their advertised schemas before publication. See
+[serving MCP](mcp.md) for configuration, agent connections, Origin rules,
+authentication hooks, and transport limits.
+
 ## Internal operations
 
 Servers implement all operations regardless of client audience. Generated static
@@ -388,8 +405,10 @@ the protocol even if its envelope is malformed or its operation is unknown;
 a claimed invalid request never falls through to another protocol. Use
 `Claimed(None)` for an unknown operation and return `Err(rejection.into())`
 for a malformed envelope. An error from identification is answered by that
-protocol. With no claim, the first registered protocol writes the
-unknown-operation response.
+protocol. With no claim, the first registered fallback protocol writes the
+unknown-operation response. The defaulted, hidden `fallback` and `admit` hooks
+support built-in endpoint admission and error encoding; ordinary protocol
+extensions inherit their defaults.
 
 Header/URI protocols can implement synchronous `route`, `route_scoped`, and
 `owns`; default identification uses them. Filter scoped candidates before

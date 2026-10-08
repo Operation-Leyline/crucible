@@ -19,6 +19,7 @@ pub(crate) struct Functions {
 pub(crate) fn emit(
     service: &Service,
     functions: Functions,
+    mcp: bool,
     diagnostics: &mut Diagnostics,
 ) -> String {
     let mut out = String::new();
@@ -45,7 +46,7 @@ pub(crate) fn emit(
         out.push('\n');
         out.push_str(unknown);
     }
-    out.push_str(&service_info(service, &functions));
+    out.push_str(&service_info(service, &functions, mcp));
     out.push_str(&registration(service));
     out
 }
@@ -379,7 +380,7 @@ fn wire(service: &Service, op: &Operation) -> String {
     out
 }
 
-fn service_info(service: &Service, functions: &Functions) -> String {
+fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
     let cors = service.cors.as_ref().map_or_else(|| "None".to_owned(), |cors| {
         let list = |values: &[String]| values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ");
         format!("Some(&::crucible_server_runtime_rust::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})", literal(&cors.origin), cors.max_age, cors.allow_credentials, list(&cors.allowed_headers), list(&cors.allowed_header_prefixes), list(&cors.exposed_headers), list(&cors.methods))
@@ -400,8 +401,9 @@ fn service_info(service: &Service, functions: &Functions) -> String {
             "None".to_owned()
         }
     };
+    let mcp_tools = if mcp { "Some(MCP_TOOLS)" } else { "None" };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {{\n    id: {},\n    version: {},\n    cors: {cors},\n    operations: &[\n        {}{}\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {{\n    id: {},\n    version: {},\n    cors: {cors},\n    mcp_tools: {mcp_tools},\n    operations: &[\n        {}{}\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),

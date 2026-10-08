@@ -15,6 +15,7 @@ pub struct Cors {
     allowed: HeaderValue,
     exposed: HeaderValue,
     methods: HeaderValue,
+    method_names: Vec<&'static str>,
     max_age: HeaderValue,
 }
 
@@ -30,8 +31,44 @@ impl Cors {
             allowed: header(&info.allowed_headers.join(", "))?,
             exposed: header(&info.exposed_headers.join(", "))?,
             methods: header(&info.methods.join(", "))?,
+            method_names: info.methods.to_vec(),
             max_age: header(&info.max_age.to_string())?,
         })
+    }
+
+    /// Adds a dedicated endpoint's methods and protocol headers at construction.
+    /// The generated CORS audience/auth policy still controls origin and credentials.
+    pub fn extend(
+        mut self,
+        methods: &[&'static str],
+        headers: &[&str],
+    ) -> std::result::Result<Self, String> {
+        for method in methods {
+            Method::from_bytes(method.as_bytes()).map_err(|e| e.to_string())?;
+            if !self.method_names.contains(method) {
+                self.method_names.push(method);
+            }
+        }
+        self.method_names.sort_unstable();
+        self.methods =
+            HeaderValue::from_str(&self.method_names.join(", ")).map_err(|e| e.to_string())?;
+        let mut names = self
+            .info
+            .allowed_headers
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect::<Vec<_>>();
+        for name in headers {
+            names.push(
+                HeaderName::from_bytes(name.as_bytes())
+                    .map_err(|e| e.to_string())?
+                    .to_string(),
+            );
+        }
+        names.sort_unstable();
+        names.dedup();
+        self.allowed = HeaderValue::from_str(&names.join(", ")).map_err(|e| e.to_string())?;
+        Ok(self)
     }
 
     pub(crate) fn permits(&self, headers: &HeaderMap) -> bool {
@@ -63,7 +100,7 @@ impl Middleware for Cors {
                 .headers
                 .get("access-control-request-method")
                 .and_then(|value| value.to_str().ok())
-            && self.info.methods.contains(&method)
+            && self.method_names.contains(&method)
         {
             let mut response = Response::new(Body::empty());
             *response.status_mut() = StatusCode::NO_CONTENT;

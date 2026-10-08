@@ -26,6 +26,7 @@ mod errors;
 mod events;
 mod file;
 mod info;
+mod mcp;
 mod models;
 mod names;
 mod open;
@@ -40,6 +41,7 @@ pub use client_options::ClientOptions;
 pub use client_package::emit_client_package;
 pub use conformance::{ConformanceOptions, Seed, Skip, generate_conformance};
 pub use file::File;
+pub use mcp::exclusions as mcp_exclusions;
 pub use names::escape_identifier;
 pub use runtime_dependency::RuntimeDependency;
 pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffold};
@@ -64,6 +66,8 @@ const ALLOW: &str = "#[allow(clippy::all, unused_imports, unused_variables, dead
 /// answered with the protocol's own `InternalFailure`.
 #[derive(Debug, Clone, Default)]
 pub struct Options {
+    /// Generate External-audience MCP tool descriptors. Serving remains opt-in.
+    pub mcp: bool,
     /// The error a rejected request becomes. Unset, the service's one error
     /// named `*Validation*`, if it has exactly one. Set, it must be an error
     /// crucible can fill (`message`, and a `fieldList` of `path`/`name` +
@@ -208,15 +212,20 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     let operations = format!(
         "{}{}{}",
         info::redactions(service),
-        operations::emit(service, functions, &mut diagnostics),
+        operations::emit(service, functions, options.mcp, &mut diagnostics),
         events::statics(service, &mut diagnostics, false)
     );
     let exports = server_api::exports(service, &mut diagnostics);
+    let mcp = if options.mcp {
+        mcp::emit(service, &strict, &mut diagnostics)
+    } else {
+        String::new()
+    };
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
     let body = format!(
-        "{ALLOW}mod model {{\n{}}}\n\n{ALLOW}mod errors {{\n{}}}\n\n{exports}\n{operations}",
+        "{ALLOW}mod model {{\n{}}}\n\n{ALLOW}mod errors {{\n{}}}\n\n{exports}\n{operations}{mcp}",
         indent(&model),
         indent(&errors),
     );

@@ -1700,14 +1700,7 @@
             "maxLength": 100
           },
           "population": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/smithy.api.Long"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "$ref": "#/components/schemas/smithy.api.Long",
             "x-smithy-traits": {
               "smithy.api#default": 0
             },

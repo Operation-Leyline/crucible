@@ -112,6 +112,7 @@ pub mod legacy {
         id: "example.legacy#Legacy",
         version: "1",
         cors: None,
+        mcp_tools: None,
         operations: &[
             &SET_COLOR_OPERATION,
         ],

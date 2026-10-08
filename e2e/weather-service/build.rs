@@ -5,6 +5,7 @@ fn main() {
     std::fs::write(
         auth_out.join("auth_chain.rs"),
         crucible_build::RustCodegen::from_model(auth)
+            .mcp()
             .render()
             .unwrap(),
     )
@@ -15,6 +16,7 @@ fn main() {
     std::fs::write(
         out.join("observability.rs"),
         crucible_build::RustCodegen::from_model(model)
+            .mcp()
             .render()
             .unwrap(),
     )
@@ -40,11 +42,13 @@ fn main() {
     std::fs::write(
         out.join("audience_server.rs"),
         crucible_build::RustCodegen::from_model(model)
+            .mcp()
             .render()
             .unwrap(),
     )
     .unwrap();
     crucible_build::rust_service("weather_model")
+        .mcp()
         .conformance()
         .generate();
 }
