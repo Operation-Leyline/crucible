@@ -89,6 +89,7 @@ pub async fn http_on_until(
 #[cfg(feature = "http")]
 mod http_server {
     use std::convert::Infallible;
+    use std::net::SocketAddr;
     use std::pin::{Pin, pin};
     use std::sync::Arc;
     use std::time::Duration;
@@ -106,14 +107,17 @@ mod http_server {
     /// One `Arc` clone per request; the service itself is cloned per
     /// connection only.
     #[derive(Clone)]
-    struct Handler(Arc<Crucible>);
+    struct Handler(Arc<Crucible>, Option<SocketAddr>);
 
     impl hyper::service::Service<Request<Incoming>> for Handler {
         type Response = Response;
         type Error = Infallible;
         type Future = Pin<Box<dyn Future<Output = Result<Response, Infallible>> + Send>>;
 
-        fn call(&self, request: Request<Incoming>) -> Self::Future {
+        fn call(&self, mut request: Request<Incoming>) -> Self::Future {
+            if let Some(peer) = self.1 {
+                request.extensions_mut().insert(peer);
+            }
             let service = self.0.clone();
             Box::pin(async move { Ok(service.handle(request.map(Body::new)).await) })
         }
@@ -124,7 +128,7 @@ mod http_server {
         listener: TcpListener,
         signal: impl Future<Output = ()> + Send,
     ) {
-        let handler = Handler(Arc::new(service));
+        let handler = Handler(Arc::new(service), None);
         // Connections watch `stop` to start closing; the server waits on
         // `open` until every connection task has dropped its receiver.
         let (stop, _) = watch::channel(());
@@ -135,7 +139,8 @@ mod http_server {
                 stream = accept(&listener) => stream,
                 () = &mut signal => break,
             };
-            let handler = handler.clone();
+            let mut handler = handler.clone();
+            handler.1 = stream.peer_addr().ok();
             let mut stopping = stop.subscribe();
             let open = open.clone();
             tokio::spawn(async move {

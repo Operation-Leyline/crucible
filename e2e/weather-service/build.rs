@@ -4,7 +4,12 @@ fn main() {
     let auth_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
     std::fs::write(
         auth_out.join("auth_chain.rs"),
-        crucible_build::model(auth).server().mcp().render().unwrap(),
+        crucible_build::model(auth)
+            .server()
+            .mcp()
+            .explorer()
+            .render()
+            .unwrap(),
     )
     .unwrap();
     let scopes = "../../crates/crucible-smithy/tests/fixtures/scopes.json";
@@ -49,12 +54,14 @@ fn main() {
         crucible_build::model(model)
             .server()
             .mcp()
+            .explorer()
             .render()
             .unwrap(),
     )
     .unwrap();
     crucible_build::model("weather_model")
         .server()
+        .explorer()
         .mcp()
         .conformance()
         .generate();

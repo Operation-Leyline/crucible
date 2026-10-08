@@ -468,6 +468,7 @@ pub struct ServerOutput {
     side: Side,
     pub(crate) protocol: Option<crucible_smithy::Protocol>,
     audience: Audience,
+    explorer_audience: Audience,
     pub(crate) policy: Option<PathBuf>,
     model_output: Option<PathBuf>,
     conformance: Option<ConformanceOptions>,
@@ -492,6 +493,7 @@ impl ServerOutput {
             side: Side::Server,
             protocol: None,
             audience: Audience::External,
+            explorer_audience: Audience::Internal,
             policy: None,
             model_output: None,
             conformance: None,
@@ -504,9 +506,14 @@ impl ServerOutput {
         Model::from_json(source).server()
     }
 
-    /// Select client visibility. Server generation always retains everything.
+    /// Select client or Explorer visibility. Explorer defaults to Internal;
+    /// normal server operations always retain everything.
     pub fn audience(mut self, audience: Audience) -> Self {
         self.audience = audience;
+        self.explorer_audience = audience;
+        if self.options.explorer.is_some() {
+            self.options.explorer = Some(audience);
+        }
         self
     }
 
@@ -545,6 +552,14 @@ impl ServerOutput {
     /// Generate static External-audience MCP descriptors; enable the protocol at runtime.
     pub fn mcp(mut self) -> Self {
         self.options.mcp = true;
+        self
+    }
+    /// Embed a static `DESCRIPTION` for the local-development Explorer.
+    /// Internal audience is the default; `.audience(..)` changes the description
+    /// without removing any normal server operation. Enable the runtime's
+    /// `explorer` Cargo feature in the service.
+    pub fn explorer(mut self) -> Self {
+        self.options.explorer = Some(self.explorer_audience);
         self
     }
 
@@ -757,7 +772,24 @@ impl ServerOutput {
             }
         }
         let generated = match self.side {
-            Side::Server => crucible_codegen_rust::generate(&service, &self.options),
+            Side::Server => {
+                let explorer_service = if self.options.explorer.is_some() {
+                    let json = std::fs::read_to_string(&self.model).map_err(|e| e.to_string())?;
+                    let model = SmithyModel::from_json(&json).map_err(|e| e.to_string())?;
+                    Some(
+                        model
+                            .lower_documentation(self.service.as_ref(), self.protocol)
+                            .map_err(|e| e.to_string())?,
+                    )
+                } else {
+                    None
+                };
+                crucible_codegen_rust::generate_with_explorer_model(
+                    &service,
+                    &self.options,
+                    explorer_service.as_ref().unwrap_or(&service),
+                )
+            }
             Side::Client => crucible_codegen_rust::generate_client(&service),
         };
         generated.map_err(|diagnostics| {

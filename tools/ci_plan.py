@@ -88,6 +88,8 @@ ALL_HOSTS = ["ubuntu-latest", "windows-latest", "macos-latest"]
 def affected_groups(paths):
     selected = {"rust"}
     for path in paths:
+        if path in {"crates/crucible-codegen-docs/runtime/explorer.js", "crates/crucible-codegen-docs/tests/site/fake-dom.mjs"}:
+            selected.add("e2e")
         if path.startswith("ide/smithy-cargo/"):
             selected.add("editor")
             continue

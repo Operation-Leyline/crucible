@@ -78,6 +78,13 @@ impl Cors {
     }
 
     pub(crate) fn decorate(&self, response: &mut Response) {
+        if response
+            .extensions()
+            .get::<crate::endpoint::SameOrigin>()
+            .is_some()
+        {
+            return;
+        }
         let headers = response.headers_mut();
         headers.insert("access-control-allow-origin", self.origin.clone());
         headers.insert("access-control-expose-headers", self.exposed.clone());

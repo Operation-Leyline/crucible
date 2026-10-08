@@ -9,6 +9,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+node --test crates/crucible-server-runtime-rust/tests/explorer/*.test.mjs
+
 cargo run -q -p crucible-cli -- generate ts crates/crucible-smithy/tests/fixtures/weather.json \
   --out e2e/generated/weather-ts --package-name @example/weather >/dev/null
 cargo test -q --locked --manifest-path e2e/Cargo.toml
@@ -28,6 +30,8 @@ for _ in $(seq 100); do
 done
 address="$(sed -n 's/^listening on //p' "$log")"
 [[ -n "$address" ]] || { cat "$log"; echo "the server did not start"; exit 1; }
+
+EXPLORER_URL="http://$address" node --test crates/crucible-server-runtime-rust/tests/explorer/served.test.mjs
 
 rm -rf e2e/ts/dist
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p e2e/ts

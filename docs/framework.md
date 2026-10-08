@@ -741,6 +741,19 @@ plumbing.
 
 ## Hosting
 
+### Local API explorer
+
+Enable the runtime's optional `explorer` feature, generate the description with
+`crucible_build::model(..).server().explorer()`, and register
+`Builder::explorer(Explorer::new(service::DESCRIPTION))` inside
+`if cfg!(debug_assertions)`. The service then serves `/explorer/` for loopback
+peers. The endpoint works on HTTP and Lambda; unknown peers are denied unless
+access is explicitly changed. Try-it calls use normal HTTP routes and the
+ordinary request pipeline. See [Crucible Explorer](explorer.md) for configuration,
+authentication, audience selection and browser limits.
+
+### Host selection
+
 `crucible_server_runtime_rust::host::run(service)` reads the environment at startup:
 
 - **Inside Lambda** (`AWS_LAMBDA_RUNTIME_API` set): it takes events from the

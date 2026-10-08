@@ -3,7 +3,8 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
 
-use super::{EndpointAdmission, ToolDescriptor, ToolRegistry};
+use super::{ToolDescriptor, ToolRegistry};
+use crate::endpoint::EndpointAdmission;
 use crate::protocol::{Answers, Protocol, ProtocolMatch, Route};
 use crate::{FrameworkError, Hook, Job, OperationInfo, Operations, Prepare, Resolution, Result};
 

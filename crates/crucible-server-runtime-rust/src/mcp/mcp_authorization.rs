@@ -1,4 +1,4 @@
-use super::EndpointGuard;
+use crate::endpoint::EndpointGuard;
 
 /// Endpoint admission and discovery share one trusted authorization configuration.
 pub trait McpAuthorization: EndpointGuard {

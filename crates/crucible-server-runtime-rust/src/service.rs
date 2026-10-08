@@ -627,6 +627,13 @@ impl Builder {
         self.protocols.insert(0, Box::new(protocol));
         self
     }
+    /// Serve the embedded local-development API explorer. Generate its static
+    /// description with `crucible_build::model(..).server().explorer()`.
+    #[cfg(feature = "explorer")]
+    pub fn explorer(mut self, explorer: crate::explorer::Explorer) -> Self {
+        self.protocols.insert(0, Box::new(explorer));
+        self
+    }
     pub fn protocols(mut self, protocols: impl IntoIterator<Item = Box<dyn Protocol>>) -> Self {
         self.protocols.extend(protocols);
         self

@@ -17,6 +17,16 @@ version's section when it is prepared.
 
 ### Added
 
+- Crucible Explorer: optional `explorer` runtime feature and
+  `.server().explorer()` build output, serving an embedded API reference with
+  schema forms, JSON calls, credentials, curl copying and pagination. Defaults
+  to loopback admission and Internal audience; supports every HTTP host,
+  explicit remote/custom admission and read-only UI configuration. Service
+  starters enable the endpoint only in debug builds; see [Explorer](docs/explorer.md).
+- Shared `endpoint::{EndpointGuard, EndpointAdmission}` admission interface and
+  `crucible_auth::EndpointAuthenticator` adapter. Existing MCP imports continue
+  to work.
+
 - Native service API references: `crucible generate docs`, named `.docs(...)`
   build outputs with audience selection, mdBook Markdown pages, and the stable
   `crucible.describe/1` description contract with shared JSON Schemas. External
