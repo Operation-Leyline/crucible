@@ -178,12 +178,15 @@ impl Codec<f32> for FiniteFloat {
     }
 
     fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
-        if !deserializer.is_human_readable() {
-            return <NonFinite as Codec<f32>>::deserialize(deserializer);
-        }
         // Serde's f32 visitor narrows unchecked, including finite f64 values
         // that become infinity. Check the destination before handing it out.
-        let value = f64::deserialize(deserializer)? as f32;
+        let value = if deserializer.is_human_readable() {
+            f64::deserialize(deserializer)? as f32
+        } else {
+            // Preserve the binary format's native f32 decoding entry point,
+            // then enforce this codec's finite-only contract.
+            <NonFinite as Codec<f32>>::deserialize(deserializer)?
+        };
         if value.is_finite() {
             Ok(value)
         } else {
@@ -427,6 +430,23 @@ mod tests {
             Adapter::<super::FiniteFloat>::deserialize::<f32, _>(BinaryFloat).unwrap(),
             1.5
         );
+    }
+
+    #[test]
+    fn finite_only_binary_body_rejects_non_finite_and_overflow() {
+        #[derive(serde::Deserialize)]
+        struct Single(#[serde(with = "Adapter::<super::FiniteFloat>")] f32);
+
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 1e39, -1e39] {
+            let mut bytes = Vec::new();
+            crate::cbor::write(&value, &mut bytes).unwrap();
+            assert!(crate::cbor::read::<Single>(&bytes).is_err(), "{value}");
+        }
+        for value in [f32::MAX, f32::MIN, 0.1] {
+            let mut bytes = Vec::new();
+            crate::cbor::write(&value, &mut bytes).unwrap();
+            assert_eq!(crate::cbor::read::<Single>(&bytes).unwrap().0, value);
+        }
     }
 
     #[test]
