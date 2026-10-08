@@ -715,3 +715,59 @@ fn renamed_errors_cannot_share_a_wire_discriminator_even_on_distinct_operations(
         "{diagnostics}"
     );
 }
+
+/// Weather with `extra` shapes reachable from `CitySummary` as members `m0..`.
+fn weather_with_shapes(extra: &[&str]) -> Value {
+    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+    for (n, id) in extra.iter().enumerate() {
+        model["shapes"][*id] = json!({ "type": "string" });
+        model["shapes"]["example.weather#CitySummary"]["members"][format!("m{n}")] =
+            json!({ "target": id });
+    }
+    model
+}
+
+#[test]
+fn shape_names_clashing_across_namespaces_or_by_case_are_diagnosed() {
+    let model = weather_with_shapes(&[
+        "example.weather#Thing",
+        "other.ns#Thing",
+        "example.weather#thing",
+    ]);
+    let diagnostics = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        diagnostics
+            .contains("other.ns#Thing: shape name `Thing` is also used by example.weather#Thing"),
+        "{diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("example.weather#thing: shape name `thing` differs from `Thing` of example.weather#Thing only by case"),
+        "{diagnostics}"
+    );
+    assert!(diagnostics.contains("rename"), "{diagnostics}");
+}
+
+#[test]
+fn renaming_clashing_shapes_on_the_service_resolves_the_diagnostic() {
+    let mut model = weather_with_shapes(&[
+        "example.weather#Thing",
+        "other.ns#Thing",
+        "example.weather#thing",
+    ]);
+    model["shapes"]["example.weather#Weather"]["rename"] = json!({
+        "other.ns#Thing": "OtherThing",
+        "example.weather#thing": "LowerThing",
+    });
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    assert_eq!(
+        service.name_of(&ShapeId::new("other.ns", "Thing")),
+        "OtherThing"
+    );
+}
