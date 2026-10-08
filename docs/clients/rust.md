@@ -66,7 +66,7 @@ The example prints `Hello, World!`. The same `--crucible-rev`, `--runtime-path`
 and `--smithy-version` options work for service and client starters. See the
 [quick start](../quickstart.md#versioning-and-offline-builds) for compiler
 selection and offline caching. An explicit compiler uses
-`client_from_smithy_with("smithy", |config, out| smithy_tooling::build(config, out))`.
+`model("smithy").compile_with(|config, out| smithy_tooling::build(config, out)).client()`.
 
 ### Sharing a model package
 

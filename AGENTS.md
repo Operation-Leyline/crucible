@@ -26,13 +26,16 @@ CRUCIBLE_BLESS=1 cargo test       # rewrite golden files after an intended outpu
 On a shared machine, use your own `CARGO_TARGET_DIR` and a low
 `CARGO_BUILD_JOBS`. Builds compete with other sessions' builds.
 
-Stability: the policy for 0.x is in `docs/releases.md`. A change to the
+Stability: the policy for 0.x is in `docs/releases.md`; the runtime surface
+and the hidden `__generated` boundary are in `docs/stability.md`. A change to the
 documented stable surface needs a `CHANGELOG.md` entry (and a `Migration`
 entry plus a one-minor `#[deprecated]` shim for a breaking one; a removal may
 skip the shim only when its `Migration` entry names it); everything
 under `__generated`/`__private` and per-language `Options` structs is exempt.
 `tests/consumers/` builds the surface the way real services use it: keep it
 compiling rather than editing it to pass, unless the policy allows the break.
+`tools/test-consumers.py` builds with `-D deprecated`, so in-repo consumers use
+the current API, never a deprecated shim.
 
 Changes land by pull request (branch `claude/<slug>`, `gh pr create`),
 reviewed by CodeRabbit; never push to main.

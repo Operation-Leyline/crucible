@@ -46,8 +46,10 @@ in the following minor release, with a *Removed* entry. Removing a public item
 without a shim is allowed only in a minor release whose Migration entry names
 it, and should be the exception.
 
-This policy should be cross-linked from `docs/stability.md` once the runtime ABI
-boundary (`__generated`, `check_abi!`) lands.
+The runtime side of this policy (what service authors may rely on, the hidden
+`__generated` boundary and the `check_abi!` version gate) is specified in
+[Rust runtime stability](stability.md), and each upgrade is walked through in
+[Migrating between releases](migrating.md).
 
 ## What qualifies a change
 
