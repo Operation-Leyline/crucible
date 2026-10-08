@@ -13,6 +13,7 @@ cargo fmt --all
 cargo clippy --all-targets -- -D warnings
 cargo test
 cargo run -p crucible-cli -- check <model.json>
+# build.rs: crucible_build::model("smithy").server().generate();
 bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=... to reuse a local tsc)
 bash tools/test-e2e.sh            # e2e/: framework tests, the Rust client over HTTP, then the TS client
 python tools/test-c.py           # installed C17 consumer, shared fixtures, native HTTP

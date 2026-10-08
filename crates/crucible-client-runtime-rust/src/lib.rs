@@ -2,7 +2,7 @@
 //! generates from the model package:
 //!
 //! ```ignore
-//! fn main() { crucible_build::client("weather_model").generate(); }
+//! fn main() { crucible_build::model("weather_model").client().generate(); }
 //! ```
 //!
 //! and its code includes the result with `crucible_client_runtime_rust::include_client!()`:
@@ -62,7 +62,7 @@ pub fn idempotency_token() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-/// Includes the client `crucible_build::client(..).generate()` wrote.
+/// Includes the client `crucible_build::model(..).client().generate()` wrote.
 #[macro_export]
 macro_rules! include_client {
     () => {

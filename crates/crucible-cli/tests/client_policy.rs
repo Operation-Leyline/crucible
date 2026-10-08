@@ -64,7 +64,8 @@ fn client_build_helper_probe() {
     if std::env::var_os("CRUCIBLE_CLIENT_POLICY_PROBE").is_none() {
         return;
     }
-    crucible_build::client_from_smithy("smithy")
+    crucible_build::model("smithy")
+        .client()
         .policy("crucible.toml")
         .generate();
 }
@@ -91,7 +92,7 @@ fn direct_client_helper_enforces_policy_edits_before_replacing_artifacts() {
         "cargo::rerun-if-changed={}",
         project.join("crucible.toml").display()
     )));
-    let client = out.join("crucible_client_runtime_rust.rs");
+    let client = out.join("crucible_client.rs");
     let before = (fs::read(&client).unwrap(), fs::read(&exported).unwrap());
     assert!(String::from_utf8_lossy(&before.0).contains("GreetingClient"));
     assert_eq!(before.1, fs::read(out.join("smithy/model.json")).unwrap());

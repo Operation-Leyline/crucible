@@ -99,7 +99,7 @@ build script is:
 
 ```rust
 fn main() {
-    crucible_build::rust_service_from_smithy("smithy")
+    crucible_build::model("smithy").server()
         .policy("crucible.toml")
         .generate();
 }
@@ -122,10 +122,10 @@ cargo run -p crucible-cli -- new my-service
 
 For a Rust client library with the same Smithy build setup, use
 `crucible new my-client --client`. Its build script calls
-`crucible_build::client_from_smithy("smithy")` and selects the same policy hook.
+`crucible_build::model("smithy").client()` and selects the same policy hook.
 Shared model crates
 can compile and publish their contract with
-`crucible_build::publish_model_from_smithy("smithy")`. See the
+`crucible_build::model("smithy").publish()`. See the
 [Rust client guide](docs/clients/rust.md#generating-a-client).
 
 The [framework guide](docs/framework.md) explains model packages, generated

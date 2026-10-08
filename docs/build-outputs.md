@@ -1,5 +1,44 @@
 # Building named model outputs
 
+All build scripts start with `crucible_build::model(source)`. The source is a
+Smithy directory, a `.json` AST, or the `links` name of a direct model-package
+dependency. Source compilation is cached on the returned `Model`; named outputs
+share its lowered model and artifact registry. Model publication is needed only
+when another crate consumes the AST.
+
+```rust
+// model crate
+crucible_build::model("smithy").publish();
+// service crate
+crucible_build::model("weather_model").server().strict_inputs().generate();
+// SDK producer
+let model = crucible_build::model("weather_model");
+model.rust_client("rust").package("weather-sdk").generate_into("../target/rust-sdk");
+model.ts_client("ts").generate_into("../target/ts-sdk");
+```
+
+Use `.client()` for Rust bindings included inside an existing crate and
+`.rust_client(name)` for a complete SDK package. `ServerOutput` retains the server
+options, and `ClientOutput` exposes client visibility, policy, and model export.
+The binding filename is `crucible_client.rs`; `include_client!()` selects it
+through `CRUCIBLE_CLIENT_SOURCE` as before. Import `Audience` only from
+`crucible_build::Audience`.
+
+The old entry points and `RustCodegen` alias are deprecated since 0.5.0 and remain
+for one minor release. Replace `smithy`, `model_from_json`, and `model_dependency`
+with `model`; replace server/client helpers with `model(..).server()` or
+`model(..).client()`, and publication helpers with `model(..).publish()`.
+An explicitly selected compiler uses `model(..).compile_with(compiler)` before
+selecting a binding or publishing. The deprecated `outputs` module
+retains generator/options imports during migration; import these directly from
+`crucible_build` in new code. It does not export `Audience`; the redundant `clients` namespace is removed.
+
+Missing model links return `MissingModelDependency` through `try_model(source)`.
+The build-script `model(source)` reports the same named error with the Cargo
+metadata variable and the required `[dependencies]`, `links`, and publication
+setup. Relative paths resolve from `CARGO_MANIFEST_DIR`. Existing paths take
+precedence over dependency names.
+
 Compile a Smithy model once and select named clients, documents, infrastructure packages, and CLIs from `build.rs`.
 Each output has its own target and native settings. A separate producer package
 can also generate from a model dependency's compiled AST.
@@ -52,7 +91,7 @@ Pin that dependency to your chosen Crucible revision. In `smithy/build.rs`:
 
 ```rust
 fn main() {
-    let model = crucible_build::smithy("model").compile();
+    let model = crucible_build::model("model");
     model.publish();
     model.rust_client("rust")
         .package("weather-sdk")
@@ -88,7 +127,7 @@ all API; the default external variant omits `@internal` API. Java settings also 
 `.content_sha256(true)`.
 
 To apply project conventions before publication and generation, use
-`crucible_build::smithy("model").policy("../crucible.toml").compile()` with
+`crucible_build::model("model").policy("../crucible.toml")` with
 your policy file. `.named("example.weather#Weather")` selects a service;
 `.protocol("aws.protocols#restJson1")` selects a declared protocol. See
 [API policy and compatibility](api-policy.md) for policy and CI comparisons.
@@ -196,13 +235,13 @@ All helpers support `generate`, `try_generate`, `generate_into`, and
 native options; TypeScript exposes its middleware settings instead.
 
 All fluent helpers also accept `.options(...)` to replace all native settings.
-The shared interface remains available through `crucible_build::clients`:
+The shared interface is available directly from `crucible_build`:
 
 ```rust
-use crucible_build::clients::{Client, JavaOptions};
+use crucible_build::{Client, JavaOptions};
 
 fn main() {
-    let model = crucible_build::smithy("model").compile();
+    let model = crucible_build::model("model");
     model.publish();
     model.sdk("java", Client::Java(JavaOptions {
         group_id: "example.weather".into(),
@@ -323,10 +362,10 @@ resolve with `crucible_build::artifact(links, name)`.
 
 All these outputs share named artifact discovery, stable file publication,
 export tracking, and the four generation methods with client SDKs. Advanced
-integrations can use `model.output(name, crucible_build::outputs::Generator::...)`
+integrations can use `model.output(name, crucible_build::Generator::...)`
 with native configuration values. `crucible export-artifact` accepts their output
 names too. Server bindings retain their direct fluent
-`crucible_build::rust_service("weather_model").generate()` API inside the service
+`crucible_build::model("weather_model").server().generate()` API inside the service
 crate.
 
 ### Server output targets
@@ -337,7 +376,7 @@ changing the client interface or the model compiler. Advanced producers can
 export Rust bindings as a named artifact:
 
 ```rust
-use crucible_build::outputs::{Server, RustServerOptions};
+use crucible_build::{Server, RustServerOptions};
 
 model.output("rust-bindings", Server::Rust(RustServerOptions::default()).into())
     .generate_into("../target/server-bindings");
@@ -354,7 +393,7 @@ The model producer may publish only the AST:
 ```rust
 // smithy/build.rs
 fn main() {
-    crucible_build::smithy("model").compile().publish();
+    crucible_build::model("model").publish();
 }
 ```
 
@@ -365,7 +404,7 @@ Enable its `java` feature for this example:
 ```rust
 // sdks/java/build.rs
 fn main() {
-    let model = crucible_build::model_dependency("weather_model");
+    let model = crucible_build::model("weather_model");
     model.java_client("java")
         .group_id("example.weather")
         .artifact_id("weather-client")
@@ -413,7 +452,7 @@ dependency:
 ```rust
 // service/build.rs
 fn main() {
-    crucible_build::rust_service("weather_model").generate();
+    crucible_build::model("weather_model").server().generate();
 }
 ```
 
@@ -431,7 +470,7 @@ and the registry together. It consumes the model dependency's published AST;
 it does not invoke the Smithy compiler again.
 
 A server can also compile sources directly, using
-`crucible_build::rust_service_from_smithy("../smithy/model").generate()` in its build script
+`crucible_build::model("../smithy/model").server().generate()` in its build script
 with the same inclusion hook. That setup needs no model Cargo package.
 The inclusion macro connects Cargo's generated build output to Rust's module
 system without exposing an output filename or writing generated code into the

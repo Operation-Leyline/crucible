@@ -4,7 +4,7 @@ fn main() {
     let auth_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
     std::fs::write(
         auth_out.join("auth_chain.rs"),
-        crucible_build::RustCodegen::from_model(auth)
+        crucible_build::model(auth).server()
             .mcp()
             .render()
             .unwrap(),
@@ -14,7 +14,7 @@ fn main() {
     println!("cargo::rerun-if-changed={scopes}");
     std::fs::write(
         auth_out.join("scopes.rs"),
-        crucible_build::RustCodegen::from_model(scopes)
+        crucible_build::model(scopes).server()
             .mcp()
             .render()
             .unwrap(),
@@ -25,7 +25,7 @@ fn main() {
     let out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
     std::fs::write(
         out.join("observability.rs"),
-        crucible_build::RustCodegen::from_model(model)
+        crucible_build::model(model).server()
             .mcp()
             .render()
             .unwrap(),
@@ -33,7 +33,7 @@ fn main() {
     .unwrap();
     std::fs::write(
         out.join("observability_client.rs"),
-        crucible_build::RustCodegen::client_from_model(model)
+        crucible_build::model(model).client()
             .render()
             .unwrap(),
     )
@@ -42,7 +42,7 @@ fn main() {
     println!("cargo::rerun-if-changed={cors}");
     std::fs::write(
         out.join("cors.rs"),
-        crucible_build::RustCodegen::from_model(cors)
+        crucible_build::model(cors).server()
             .render()
             .unwrap(),
     )
@@ -51,13 +51,13 @@ fn main() {
     println!("cargo::rerun-if-changed={model}");
     std::fs::write(
         out.join("audience_server.rs"),
-        crucible_build::RustCodegen::from_model(model)
+        crucible_build::model(model).server()
             .mcp()
             .render()
             .unwrap(),
     )
     .unwrap();
-    crucible_build::rust_service("weather_model")
+    crucible_build::model("weather_model").server()
         .mcp()
         .conformance()
         .generate();

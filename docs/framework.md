@@ -16,7 +16,7 @@ Crucible is two products:
 leyline-model/      model package: Smithy sources + the JSON AST its smithy build produces
 leyline-service/    service package
   Cargo.toml          [dependencies] crucible-server-runtime-rust, leyline-model   [build-dependencies] crucible-build
-  build.rs            crucible_build::rust_service("leyline_model").generate()
+  build.rs            crucible_build::model("leyline_model").server().generate()
   src/                impl GetGraphOperation for Leyline { ... }   Crucible::builder()...
 ```
 
@@ -29,7 +29,7 @@ same revision. Hand wiring needs two hooks:
 ```rust
 // build.rs
 fn main() {
-    crucible_build::rust_service_from_smithy("smithy").generate();
+    crucible_build::model("smithy").server().generate();
 }
 ```
 
@@ -49,7 +49,7 @@ use crucible_server_runtime_rust::Result;
 There is no wrapper module to create. The source path is relative to this
 crate's manifest; it can also point outside the crate, such as
 `../smithy/model`. With a published model dependency, replace the build call
-with `crucible_build::rust_service("weather_model").generate()`; inclusion is the
+with `crucible_build::model("weather_model").server().generate()`; inclusion is the
 same, and Smithy is not compiled again.
 
 The helper provides the pinned compiler, imports Crucible definitions, watches
@@ -79,31 +79,31 @@ sources. Its build script compiles and publishes the AST with:
 
 ```rust
 fn main() {
-    crucible_build::publish_model_from_smithy("smithy");
+    crucible_build::model("smithy").publish();
 }
 ```
 
 The helper manages the pinned compiler, imports Crucible definitions, flattens
 mixins, and keeps a stable AST under `OUT_DIR`. The service and client depend
 on this package and read the AST from `DEP_<NAME>_MODEL`, using
-`crucible_build::rust_service("<name>")` or `crucible_build::client("<name>")`.
+`crucible_build::model("<name>").server()` or `crucible_build::model("<name>").client()`.
 "This service depends on leyline-model 1.4" is an ordinary, version-pinned
 Cargo dependency.
 
 Alternatively, check in a precompiled JSON AST and keep it fresh in CI. Publish
-its path with `crucible_build::publish_model("model.json")`; that layout needs
+its path with `crucible_build::model("model.json").publish()`; that layout needs
 no JVM when building the service or client.
 
 For model-owned Rust and Java SDK outputs, compile once with
-`crucible_build::smithy("model").compile()`, publish the model, and add a
+`crucible_build::model("model")`, publish the model, and add a
 named generation call per SDK variant. Another package can generate from
-`crucible_build::model_dependency("<links>")` without assembling Smithy again.
+`crucible_build::model("<links>")` without assembling Smithy again.
 See [building named SDK packages](build-outputs.md) for feature selection, native
 package export, and direct service/SDK integration.
 
 ## Generated code
 
-`crucible_build::rust_service(..).generate()` writes one file into `OUT_DIR`; the service
+`crucible_build::model(..).server().generate()` writes one file into `OUT_DIR`; the service
 includes it with `crucible_server_runtime_rust::include_service!()`. Per operation `GetGraph` it
 generates:
 
@@ -603,7 +603,7 @@ members, regardless of the selected client audience.
 
 ```rust
 // build.rs
-crucible_build::rust_service("weather_model")
+crucible_build::model("weather_model").server()
     .conformance()
     .skip_vector("SomeVector", "why the server fails it today")
     .generate();
@@ -768,7 +768,7 @@ errors through the SDK. See [building named SDK packages](build-outputs.md) for
 model-owned and separate-producer layouts.
 
 For generation directly inside an existing Rust crate,
-`crucible_build::client("<links>")` generates a client from the same model
+`crucible_build::model("<links>").client()` generates a client from the same model
 package, into `crucible_client_runtime_rust::include_client!()`. The client uses
 `crucible-client-runtime-rust`, which re-exports the shared `crucible-wire` runtime. The IR
 settles member bindings and constraints for both sides. Client models use
@@ -778,7 +778,7 @@ server models keep server nullability and closed enums and unions. See the
 existing consumers.
 
 For a standalone client, `crucible new hello-client --client` creates a library
-whose build script calls `crucible_build::client_from_smithy("smithy").generate()`.
+whose build script calls `crucible_build::model("smithy").client().generate()`.
 It uses the same managed compiler as the service starter, and needs no separate
 model package or hand-written Smithy build configuration.
 

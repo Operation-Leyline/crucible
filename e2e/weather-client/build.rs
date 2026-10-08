@@ -1,7 +1,8 @@
 fn main() {
-    crucible_build::client("weather_model").generate();
+    crucible_build::model("weather_model").client().generate();
     println!("cargo::rerun-if-changed=tests/fixtures/presence.json");
-    let code = crucible_build::RustCodegen::client_from_model("tests/fixtures/presence.json")
+    let code = crucible_build::model("tests/fixtures/presence.json")
+        .client()
         .render()
         .expect("client presence fixture");
     let out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
@@ -9,7 +10,8 @@ fn main() {
     println!("cargo::rerun-if-changed={fixture}");
     std::fs::write(
         out.join("endpoint_client.rs"),
-        crucible_build::RustCodegen::client_from_model(fixture)
+        crucible_build::model(fixture)
+            .client()
             .render()
             .expect("endpoint and waiter fixture"),
     )
@@ -18,7 +20,8 @@ fn main() {
     println!("cargo::rerun-if-changed={fixture}");
     std::fs::write(
         out.join("sigv4_client.rs"),
-        crucible_build::RustCodegen::client_from_model(fixture)
+        crucible_build::model(fixture)
+            .client()
             .render()
             .expect("SigV4 fixture"),
     )
@@ -26,7 +29,8 @@ fn main() {
     std::fs::write(out.join("presence_client.rs"), code).unwrap();
     let fixture = "../../crates/crucible-smithy/tests/fixtures/review-hardening.json";
     println!("cargo::rerun-if-changed={fixture}");
-    let code = crucible_build::RustCodegen::client_from_model(fixture)
+    let code = crucible_build::model(fixture)
+        .client()
         .render()
         .expect("hardening fixture");
     std::fs::write(out.join("hardening_client.rs"), code).unwrap();
@@ -35,55 +39,48 @@ fn main() {
     for (name, codegen) in [
         (
             "dynamic_client.rs",
-            crucible_build::RustCodegen::client_from_model(fixture),
+            crucible_build::model(fixture).client().render(),
         ),
         (
             "dynamic_server.rs",
-            crucible_build::RustCodegen::from_model(fixture),
+            crucible_build::model(fixture).server().render(),
         ),
     ] {
-        std::fs::write(
-            out.join(name),
-            codegen.render().expect("dynamic bindings fixture"),
-        )
-        .unwrap();
+        std::fs::write(out.join(name), codegen.expect("dynamic bindings fixture")).unwrap();
     }
     let fixture = "../../crates/crucible-codegen-ts/tests/fixtures/streaming.json";
     println!("cargo::rerun-if-changed={fixture}");
     for (name, codegen) in [
         (
             "streaming_client.rs",
-            crucible_build::RustCodegen::client_from_model(fixture),
+            crucible_build::model(fixture).client().render(),
         ),
         (
             "streaming_server.rs",
-            crucible_build::RustCodegen::from_model(fixture),
+            crucible_build::model(fixture).server().render(),
         ),
     ] {
-        std::fs::write(out.join(name), codegen.render().expect("streaming fixture")).unwrap();
+        std::fs::write(out.join(name), codegen.expect("streaming fixture")).unwrap();
     }
     let fixture = "tests/fixtures/extended-runtime.json";
     println!("cargo::rerun-if-changed={fixture}");
     for (name, codegen) in [
         (
             "types_client.rs",
-            crucible_build::RustCodegen::client_from_model(fixture),
+            crucible_build::model(fixture).client().render(),
         ),
         (
             "types_server.rs",
-            crucible_build::RustCodegen::from_model(fixture),
+            crucible_build::model(fixture).server().render(),
         ),
     ] {
-        std::fs::write(
-            out.join(name),
-            codegen.render().expect("extended types fixture"),
-        )
-        .unwrap();
+        std::fs::write(out.join(name), codegen.expect("extended types fixture")).unwrap();
     }
     for name in ["header", "query"] {
         let fixture = format!("../../crates/crucible-codegen-ts/tests/fixtures/auth-{name}.json");
         println!("cargo::rerun-if-changed={fixture}");
-        let code = crucible_build::RustCodegen::client_from_model(&fixture)
+        let code = crucible_build::model(&fixture)
+            .client()
             .render()
             .expect("auth fixture");
         std::fs::write(out.join(format!("auth_{name}_client.rs")), code).unwrap();
@@ -92,7 +89,8 @@ fn main() {
     println!("cargo::rerun-if-changed={fixture}");
     std::fs::write(
         out.join("keyword_client.rs"),
-        crucible_build::RustCodegen::client_from_model(fixture)
+        crucible_build::model(fixture)
+            .client()
             .render()
             .expect("keyword waiter fixture"),
     )
@@ -101,9 +99,7 @@ fn main() {
     println!("cargo::rerun-if-changed={fixture}");
     std::fs::write(
         out.join("wire_server.rs"),
-        crucible_build::RustCodegen::from_model(fixture)
-            .render()
-            .unwrap(),
+        crucible_build::model(fixture).server().render().unwrap(),
     )
     .unwrap();
     let fixture = "../../crates/crucible-codegen-ts/tests/fixtures/auth-header.json";
@@ -122,9 +118,7 @@ fn main() {
     std::fs::write(&path, model.to_string()).unwrap();
     std::fs::write(
         out.join("auth_server.rs"),
-        crucible_build::RustCodegen::from_model(&path)
-            .render()
-            .unwrap(),
+        crucible_build::model(&path).server().render().unwrap(),
     )
     .unwrap();
     let fixture = "../../crates/crucible-smithy/tests/fixtures/internal.json";
@@ -135,7 +129,8 @@ fn main() {
     ] {
         std::fs::write(
             out.join(file),
-            crucible_build::RustCodegen::client_from_model(fixture)
+            crucible_build::model(fixture)
+                .client()
                 .audience(audience)
                 .render()
                 .unwrap(),
@@ -173,7 +168,8 @@ fn event_streams(out: &std::path::Path) {
         std::fs::write(&path, model.to_string()).unwrap();
         std::fs::write(
             out.join(name),
-            crucible_build::RustCodegen::client_from_model(&path)
+            crucible_build::model(&path)
+                .client()
                 .render()
                 .unwrap_or_else(|error| panic!("{name}: {error}")),
         )
@@ -211,17 +207,12 @@ fn event_streams(out: &std::path::Path) {
         let path = out.join(format!("events_{protocol}.json"));
         std::fs::write(&path, model.to_string()).unwrap();
         for (target, codegen) in [
-            (
-                "client",
-                crucible_build::RustCodegen::client_from_model(&path),
-            ),
-            ("server", crucible_build::RustCodegen::from_model(&path)),
+            ("client", crucible_build::model(&path).client().render()),
+            ("server", crucible_build::model(&path).server().render()),
         ] {
             std::fs::write(
                 out.join(format!("events_{protocol}_{target}.rs")),
-                codegen
-                    .render()
-                    .unwrap_or_else(|error| panic!("{protocol}/{target}: {error}")),
+                codegen.unwrap_or_else(|error| panic!("{protocol}/{target}: {error}")),
             )
             .unwrap();
         }
@@ -234,7 +225,8 @@ fn event_streams(out: &std::path::Path) {
 fn wire_extensions(out: &std::path::Path) {
     let generate = |fixture: &str, name: &str| {
         println!("cargo::rerun-if-changed={fixture}");
-        let code = crucible_build::RustCodegen::client_from_model(fixture)
+        let code = crucible_build::model(fixture)
+            .client()
             .render()
             .unwrap_or_else(|error| panic!("{fixture}: {error}"));
         std::fs::write(out.join(name), code).unwrap();
@@ -250,9 +242,7 @@ fn wire_extensions(out: &std::path::Path) {
     std::fs::write(&path, model.to_string()).unwrap();
     std::fs::write(
         out.join("wire_client.rs"),
-        crucible_build::RustCodegen::client_from_model(&path)
-            .render()
-            .unwrap(),
+        crucible_build::model(&path).client().render().unwrap(),
     )
     .unwrap();
     generate("tests/fixtures/payload-kinds.json", "kinds_client.rs");
@@ -276,7 +266,8 @@ fn wire_extensions(out: &std::path::Path) {
     std::fs::write(&path, model.to_string()).unwrap();
     std::fs::write(
         out.join("checksum_streaming_client.rs"),
-        crucible_build::RustCodegen::client_from_model(&path)
+        crucible_build::model(&path)
+            .client()
             .render()
             .expect("streaming checksum fixture"),
     )
@@ -324,14 +315,16 @@ fn wire_extensions(out: &std::path::Path) {
         std::fs::write(&path, model.to_string()).unwrap();
         std::fs::write(
             out.join(format!("protocol_{protocol}_client.rs")),
-            crucible_build::RustCodegen::client_from_model(&path)
+            crucible_build::model(&path)
+                .client()
                 .render()
                 .unwrap_or_else(|error| panic!("{protocol}: {error}")),
         )
         .unwrap();
         std::fs::write(
             out.join(format!("protocol_{protocol}_server.rs")),
-            crucible_build::RustCodegen::from_model(&path)
+            crucible_build::model(&path)
+                .server()
                 .render()
                 .unwrap_or_else(|error| panic!("{protocol} server: {error}")),
         )
