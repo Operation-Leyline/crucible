@@ -208,6 +208,7 @@ pub mod scoped_weather {
         id: "example.scopes#ScopedWeather",
         version: "1",
         cors: None,
+        mcp_tools: None,
         operations: &[
             &INHERITS_OPERATION,
             &OPTIONAL_WITH_SCOPES_OPERATION,
@@ -229,27 +230,27 @@ pub mod scoped_weather {
     impl OperationsBuilder {
         /// Serves Inherits with `implementation`.
         pub fn inherits<S: InheritsOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Inherits, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.inherits().await })))
+            Self(self.0.add::<Inherits, S, _>(implementation, |implementation, _| async move { implementation.inherits().await }))
         }
 
         /// Serves OptionalWithScopes with `implementation`.
         pub fn optional_with_scopes<S: OptionalWithScopesOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<OptionalWithScopes, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.optional_with_scopes().await })))
+            Self(self.0.add::<OptionalWithScopes, S, _>(implementation, |implementation, _| async move { implementation.optional_with_scopes().await }))
         }
 
         /// Serves OptsOut with `implementation`.
         pub fn opts_out<S: OptsOutOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<OptsOut, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.opts_out().await })))
+            Self(self.0.add::<OptsOut, S, _>(implementation, |implementation, _| async move { implementation.opts_out().await }))
         }
 
         /// Serves Overrides with `implementation`.
         pub fn overrides<S: OverridesOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Overrides, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.overrides().await })))
+            Self(self.0.add::<Overrides, S, _>(implementation, |implementation, _| async move { implementation.overrides().await }))
         }
 
         /// Serves Public with `implementation`.
         pub fn public<S: PublicOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Public, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.public().await })))
+            Self(self.0.add::<Public, S, _>(implementation, |implementation, _| async move { implementation.public().await }))
         }
 
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::Operations, ::crucible_server_runtime_rust::MissingOperations> {

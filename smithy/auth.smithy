@@ -24,5 +24,5 @@ list scopes {
 
 /// One scope token.
 @length(min: 1)
-@pattern("^[\x21\x23-\x5B\x5D-\x7E]+$")
+@pattern("^[\\x21\\x23-\\x5B\\x5D-\\x7E]+$")
 string ScopeName

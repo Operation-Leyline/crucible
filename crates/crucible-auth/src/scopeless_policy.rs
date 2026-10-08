@@ -9,13 +9,37 @@ pub enum ScopelessPolicy {
     Refuse,
     /// Principals of these token kinds skip scope checks entirely, scopes or no
     /// scopes. The service answers for their authorization some other way
-    /// (tenant membership, groups); an access token is never exempted by
-    /// default.
+    /// (tenant membership, groups). Access tokens are always checked, even if
+    /// listed here.
     Exempt(Vec<TokenKind>),
 }
 
 impl ScopelessPolicy {
     pub(crate) fn exempts(&self, kind: &TokenKind) -> bool {
-        matches!(self, Self::Exempt(kinds) if kinds.contains(kind))
+        matches!(self, Self::Exempt(kinds) if !matches!(kind, TokenKind::Access) && kinds.contains(kind))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ScopelessPolicy;
+    use crate::TokenKind;
+
+    #[test]
+    fn exemptions_preserve_other_token_kinds_but_never_include_access_tokens() {
+        let kinds = vec![
+            TokenKind::Id,
+            TokenKind::ApiKey,
+            TokenKind::Other("session".into()),
+        ];
+        let mut configured = kinds.clone();
+        configured.push(TokenKind::Access);
+        let policy = ScopelessPolicy::Exempt(configured);
+        assert!(!policy.exempts(&TokenKind::Access));
+        for kind in kinds {
+            assert!(policy.exempts(&kind));
+            assert!(!ScopelessPolicy::Refuse.exempts(&kind));
+        }
+        assert!(!policy.exempts(&TokenKind::Other("unlisted".into())));
     }
 }

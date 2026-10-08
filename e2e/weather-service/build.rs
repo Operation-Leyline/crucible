@@ -15,6 +15,7 @@ fn main() {
     std::fs::write(
         auth_out.join("scopes.rs"),
         crucible_build::RustCodegen::from_model(scopes)
+            .mcp()
             .render()
             .unwrap(),
     )

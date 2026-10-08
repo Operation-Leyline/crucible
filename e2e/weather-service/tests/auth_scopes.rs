@@ -25,11 +25,11 @@ fn issuer() -> &'static TestTokenIssuer {
 
 fn operations() -> Operations {
     Operations::builder(&scoped_weather::SERVICE)
-        .add::<Inherits, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
-        .add::<Overrides, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
-        .add::<OptsOut, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
-        .add::<Public, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
-        .add::<OptionalWithScopes, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
+        .add::<Inherits, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
+        .add::<Overrides, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
+        .add::<OptsOut, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
+        .add::<Public, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
+        .add::<OptionalWithScopes, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
         .build()
         .unwrap()
 }
@@ -167,6 +167,88 @@ async fn an_access_token_without_a_scope_claim_is_refused() {
         call(&service, "/inherits", Some(&token)).await.0,
         StatusCode::FORBIDDEN
     );
+}
+
+#[tokio::test]
+async fn access_tokens_cannot_be_exempted_from_scope_checks() {
+    let service = enforcing(ScopeEnforcer::new(ScopelessPolicy::Exempt(vec![
+        TokenKind::Access,
+        TokenKind::Id,
+    ])));
+    for scope in [None, Some("other")] {
+        let token = access(scope);
+        let (status, headers, _) = call(&service, "/inherits", Some(&token)).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            headers["www-authenticate"],
+            "Bearer error=\"insufficient_scope\", scope=\"weather/read\""
+        );
+    }
+    assert_eq!(
+        call(&service, "/inherits", Some(&access(Some("weather/read"))))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(&service, "/inherits", Some(&id_token())).await.0,
+        StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn mcp_tool_calls_enforce_scopes_before_running_the_handler() {
+    use crucible_server_runtime_rust::mcp::McpConfig;
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let seen = calls.clone();
+    let operations = Operations::builder(&scoped_weather::SERVICE)
+        .add::<Inherits, _, _>(seen, |seen, _| {
+            Box::pin(async move {
+                seen.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            })
+        })
+        .add::<Overrides, _, _>(Arc::new(()), |_, _| async { Ok(()) })
+        .add::<OptsOut, _, _>(Arc::new(()), |_, _| async { Ok(()) })
+        .add::<Public, _, _>(Arc::new(()), |_, _| async { Ok(()) })
+        .add::<OptionalWithScopes, _, _>(Arc::new(()), |_, _| async { Ok(()) })
+        .build()
+        .unwrap();
+    let service = Crucible::builder(operations)
+        .defaults()
+        .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
+        .operation_middleware(AuthenticatorChain::new(authenticators()))
+        .interceptor(ScopeEnforcer::strict())
+        .mcp(McpConfig::new())
+        .build()
+        .unwrap();
+    for (scope, expected) in [
+        (None, StatusCode::FORBIDDEN),
+        (Some("other"), StatusCode::FORBIDDEN),
+        (Some("weather/read"), StatusCode::OK),
+    ] {
+        let request = Request::post("/mcp")
+            .header("content-type", "application/json")
+            .header("authorization", access(scope))
+            .body(Body::from(json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"Inherits","arguments":{}}}).to_string())).unwrap();
+        let response = service.handle(request).await;
+        assert_eq!(response.status(), expected);
+        if expected == StatusCode::FORBIDDEN {
+            assert_eq!(
+                response.headers()["www-authenticate"],
+                "Bearer error=\"insufficient_scope\", scope=\"weather/read\""
+            );
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+        } else {
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let body: Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(body["result"]["isError"], false);
+        }
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]
