@@ -370,13 +370,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
         let name = exported(service.name_of(id));
-        go_doc_for(
-            &mut models,
-            "",
-            &name,
-            shape_docs(shape).as_deref(),
-            shape.notes().unwrap_or(&DocNotes::default()),
-        );
+        // A streaming blob declares no type, so a comment here would attach to
+        // the next declaration.
+        if !matches!(shape, Shape::Simple(s) if s.streaming) {
+            go_doc_for(
+                &mut models,
+                "",
+                &name,
+                shape_docs(shape).as_deref(),
+                shape.notes().unwrap_or(&DocNotes::default()),
+            );
+        }
         match shape {
             Shape::IntEnum(e) => {
                 models.push_str(&format!(

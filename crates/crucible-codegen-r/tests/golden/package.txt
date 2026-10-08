@@ -652,6 +652,10 @@ resource_id: Model member.
 \title{PhotoSummary}
 \description{Native model constructor.
 
+Unstable.
+
+Since 2026-10.
+
 }
 \details{size: Model member.
 thumbnail: Model member.

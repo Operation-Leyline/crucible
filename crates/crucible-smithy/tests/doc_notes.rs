@@ -225,6 +225,10 @@ fn malformed_documentation_traits_are_collected_diagnostics() {
                 "example.notes#Legacy",
                 "@enum definition deprecated must be boolean",
             ),
+            (
+                "example.notes#Input$unstableNotEmpty",
+                "@unstable must be an empty structure",
+            ),
         ] {
             assert!(
                 diagnostics
@@ -233,6 +237,6 @@ fn malformed_documentation_traits_are_collected_diagnostics() {
                 "missing {shape}: {message} in {diagnostics}"
             );
         }
-        assert_eq!(diagnostics.len(), 7, "{diagnostics}");
+        assert_eq!(diagnostics.len(), 8, "{diagnostics}");
     }
 }

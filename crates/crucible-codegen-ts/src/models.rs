@@ -4,7 +4,7 @@
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, SimpleKind, Structure};
 
-use crate::names::{doc, documented, literal, optional, property, ts_type};
+use crate::names::{documented, literal, optional, property, ts_type};
 
 pub(crate) fn emit(service: &Service) -> String {
     let mut out = String::new();
@@ -20,12 +20,13 @@ pub(crate) fn emit(service: &Service) -> String {
                     out.push_str(&format!("  {}: {},\n", property(&value.name), value.value));
                 }
                 out.push_str("} as const;\n");
-                doc(
+                documented(
                     &mut out,
                     "",
                     values.docs.as_deref().or(Some(
                         "Open integer values, including unrecognized server values.",
                     )),
+                    &values.notes,
                 );
                 out.push_str(&format!(
                     "export type {name} = (typeof {name})[keyof typeof {name}] | (number & {{}});\n"

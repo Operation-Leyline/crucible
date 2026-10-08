@@ -20,6 +20,11 @@ pub struct Deprecation {
 }
 
 impl Deprecation {
+    /// The message when it says something: an empty one counts as absent.
+    pub fn message(&self) -> Option<&str> {
+        self.message.as_deref().filter(|m| !m.trim().is_empty())
+    }
+
     /// One sentence for targets that can only say it in prose; the text is
     /// the model's, so a generator escapes it for its own comment syntax.
     pub fn sentence(&self) -> String {
@@ -27,7 +32,7 @@ impl Deprecation {
         if let Some(since) = &self.since {
             text.push_str(&format!(" since {since}"));
         }
-        match &self.message {
+        match self.message() {
             Some(message) => format!("{text}: {message}"),
             None => format!("{text}."),
         }
@@ -36,9 +41,9 @@ impl Deprecation {
     /// The message alone, or the generic sentence when the model gave none:
     /// what a native attribute's message argument carries.
     pub fn note(&self) -> String {
-        match (&self.message, &self.since) {
+        match (self.message(), &self.since) {
             (Some(message), Some(since)) => format!("{message} (since {since})"),
-            (Some(message), None) => message.clone(),
+            (Some(message), None) => message.to_owned(),
             (None, Some(since)) => format!("Deprecated since {since}."),
             (None, None) => "Deprecated.".to_owned(),
         }
@@ -107,7 +112,11 @@ impl DocNotes {
                 None => diagnostics.push(id, "@since must be a string"),
             }
         }
-        notes.unstable = get("unstable").is_some();
+        match get("unstable") {
+            None => {}
+            Some(Value::Object(fields)) if fields.is_empty() => notes.unstable = true,
+            Some(_) => diagnostics.push(id, "@unstable must be an empty structure"),
+        }
         if let Some(value) = get("externalDocumentation") {
             match value.as_object() {
                 Some(links) => {

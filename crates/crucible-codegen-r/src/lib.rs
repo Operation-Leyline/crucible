@@ -427,7 +427,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
             _ => {}
         }
-        files.push(File { path: format!("man/{name}.Rd"), contents: format!("\\name{{{name}}}\n\\alias{{{name}}}\n\\title{{{name}}}\n\\description{{{}}}\n\\details{{{}}}\n", markdown::render(crucible_codegen_common::documentation::shape(shape).unwrap_or("Native model constructor.")), markdown::render(&details)) });
+        files.push(File { path: format!("man/{name}.Rd"), contents: format!("\\name{{{name}}}\n\\alias{{{name}}}\n\\title{{{name}}}\n\\description{{{}}}\n\\details{{{}}}\n", markdown::render(&crucible_codegen_common::documentation::with_notes(Some(crucible_codegen_common::documentation::shape(shape).unwrap_or("Native model constructor.")), shape.notes().unwrap_or(&Default::default())).unwrap_or_default()), markdown::render(&details)) });
         files.push(File {
             path: format!("R/model-{name}.R"),
             contents: out,

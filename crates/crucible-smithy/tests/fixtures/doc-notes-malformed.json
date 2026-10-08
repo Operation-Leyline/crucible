@@ -36,6 +36,7 @@
           "target": "smithy.api#String",
           "traits": { "smithy.api#externalDocumentation": { "Guide": 1, "Good": "https://notes.example" } }
         },
+        "unstableNotEmpty": { "target": "smithy.api#String", "traits": { "smithy.api#unstable": false } },
         "legacy": { "target": "example.notes#Legacy" }
       },
       "traits": { "smithy.api#input": {} }
