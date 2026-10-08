@@ -13,6 +13,8 @@ pub enum Generator {
     Server(Server),
     #[cfg(feature = "openapi")]
     OpenApi(crate::OpenApiOptions),
+    #[cfg(feature = "docs")]
+    Docs,
     #[cfg(feature = "cdk")]
     Cdk {
         bindings: crate::ProvisioningBindings,
@@ -35,6 +37,8 @@ impl Generator {
             Self::Server(server) => server.target(),
             #[cfg(feature = "openapi")]
             Self::OpenApi(_) => "openapi",
+            #[cfg(feature = "docs")]
+            Self::Docs => "docs",
             #[cfg(feature = "cdk")]
             Self::Cdk { .. } => "cdk",
             #[cfg(feature = "terraform")]
@@ -65,6 +69,16 @@ impl Generator {
         match self {
             Self::Client(client) => client.emit_projected(service),
             Self::Server(server) => server.emit(service),
+            #[cfg(feature = "docs")]
+            Self::Docs => crucible_codegen_docs::generate(service).map(|files| {
+                files
+                    .into_iter()
+                    .map(|file| File {
+                        path: file.path,
+                        contents: file.contents,
+                    })
+                    .collect()
+            }),
             #[cfg(feature = "openapi")]
             Self::OpenApi(options) => {
                 crucible_codegen_openapi::generate(service, options).map(|contents| {

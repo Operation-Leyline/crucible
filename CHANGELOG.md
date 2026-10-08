@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Added
 
+- Native service API references: `crucible generate docs`, named `.docs(...)`
+  build outputs with audience selection, mdBook Markdown pages, and the stable
+  `crucible.describe/1` description contract with shared JSON Schemas. External
+  projection also removes internal nested example members and diagnoses examples
+  selecting internal union arms or enum values.
+
 - Stability policy for 0.x, this changelog, `docs/migrating.md`, the
   `consumers` CI job (starter, example service and a Leyline-shaped fixture)
   and a release gate that runs it before a tag is created (#180). The job

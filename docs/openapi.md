@@ -3,6 +3,9 @@
 Crucible exports an OpenAPI 3.1.1 JSON document from the same lowered Smithy IR
 used by its server and client generators. Smithy remains the source of truth.
 
+For a human-readable reference with resources, pagination, idempotency, and RPC
+JSON protocol support, use [service API reference generation](docs.md).
+
 ## Generating a document
 
 Build the Smithy JSON AST with `flattenAndRemoveMixins`, then run:

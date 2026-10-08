@@ -90,6 +90,8 @@ impl Output<'_> {
             ));
         }
         let service = match &self.generator {
+            #[cfg(feature = "docs")]
+            Generator::Docs => self.model.documentation()?,
             #[cfg(feature = "cdk")]
             Generator::Cdk { .. } => self.model.infrastructure()?,
             #[cfg(feature = "terraform")]

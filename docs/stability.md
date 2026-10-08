@@ -13,6 +13,15 @@ or Git revision. Never edit generated files to bypass the version check.
 
 ## Service construction and invocation
 
+The build API `crucible_build::Model::docs` and `ModelPackage::docs`, enabled by
+the `docs` feature, add a named API-reference output without changing existing
+defaults. `DocsOutput::{audience, generate, generate_into, try_generate,
+try_generate_into}` and `Generator::Docs` are part of the documented consumer
+surface. The serialized `crucible.describe/1` contract is stable as described in
+[service API reference documentation](docs.md); its public `Description` struct
+is non-exhaustive. Additive metadata fields may join format 1; incompatible
+field meanings require a new format version.
+
 `Crucible::builder` takes the operation registry produced by the generated
 service module. `Crucible::{invoke, invoke_json, invoke_json_with}` support
 direct calls, `handle` serves an HTTP request, and `into_router` integrates with

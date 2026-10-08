@@ -14,13 +14,25 @@ pub struct ModelPackage {
     pub(crate) service: Service,
     pub(crate) output: PathBuf,
     pub(crate) artifacts: RefCell<BTreeMap<String, Artifact>>,
-    #[cfg(any(feature = "cdk", feature = "terraform"))]
+    #[cfg(feature = "docs")]
+    documentation: std::cell::OnceCell<Result<Service, String>>,
+    #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
     model_ast: crucible_smithy::Model,
     #[cfg(any(feature = "cdk", feature = "terraform"))]
     infrastructure: std::cell::OnceCell<Result<Service, String>>,
-    #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
+    #[cfg(any(
+        feature = "rust",
+        feature = "docs",
+        feature = "cdk",
+        feature = "terraform"
+    ))]
     selected_protocol: Option<crucible_smithy::Protocol>,
-    #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
+    #[cfg(any(
+        feature = "rust",
+        feature = "docs",
+        feature = "cdk",
+        feature = "terraform"
+    ))]
     policy: Option<PathBuf>,
 }
 
@@ -30,12 +42,22 @@ impl ModelPackage {
         server_requires_rejection: bool,
         service: Service,
         output: PathBuf,
-        #[cfg(any(feature = "cdk", feature = "terraform"))] model_ast: crucible_smithy::Model,
-        #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
+        #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
+        model_ast: crucible_smithy::Model,
+        #[cfg(any(
+            feature = "rust",
+            feature = "docs",
+            feature = "cdk",
+            feature = "terraform"
+        ))]
         selected_protocol: Option<crucible_smithy::Protocol>,
-        #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))] policy: Option<
-            PathBuf,
-        >,
+        #[cfg(any(
+            feature = "rust",
+            feature = "docs",
+            feature = "cdk",
+            feature = "terraform"
+        ))]
+        policy: Option<PathBuf>,
     ) -> Result<Self, String> {
         let package = Self {
             model,
@@ -43,13 +65,25 @@ impl ModelPackage {
             service,
             output,
             artifacts: RefCell::new(BTreeMap::new()),
-            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            #[cfg(feature = "docs")]
+            documentation: std::cell::OnceCell::new(),
+            #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
             model_ast,
             #[cfg(any(feature = "cdk", feature = "terraform"))]
             infrastructure: std::cell::OnceCell::new(),
-            #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
+            #[cfg(any(
+                feature = "rust",
+                feature = "docs",
+                feature = "cdk",
+                feature = "terraform"
+            ))]
             selected_protocol,
-            #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
+            #[cfg(any(
+                feature = "rust",
+                feature = "docs",
+                feature = "cdk",
+                feature = "terraform"
+            ))]
             policy,
         };
         // OUT_DIR survives rebuilds: reset membership so removed generation
@@ -71,6 +105,23 @@ impl ModelPackage {
                     None => self.model_ast.lower_infrastructure(Some(&self.service.id)),
                 }
                 .map_err(|error| error.to_string())?;
+                if let Some(policy) = &self.policy {
+                    crate::check_policy(&service, policy)?;
+                }
+                Ok(service)
+            })
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+
+    #[cfg(feature = "docs")]
+    pub(crate) fn documentation(&self) -> Result<&Service, String> {
+        self.documentation
+            .get_or_init(|| {
+                let service = self
+                    .model_ast
+                    .lower_documentation(Some(&self.service.id), self.selected_protocol)
+                    .map_err(|error| error.to_string())?;
                 if let Some(policy) = &self.policy {
                     crate::check_policy(&service, policy)?;
                 }
@@ -206,6 +257,12 @@ impl ModelPackage {
     #[cfg(feature = "openapi")]
     pub fn openapi(&self, name: &str) -> crate::OpenApiOutput<'_> {
         crate::OpenApiOutput::new(self, name)
+    }
+
+    /// Configure a named service API reference. Enable the `docs` feature.
+    #[cfg(feature = "docs")]
+    pub fn docs(&self, name: &str) -> crate::DocsOutput<'_> {
+        crate::DocsOutput::new(self, name)
     }
 
     /// Configure a named CDK construct library output. Enable the `cdk` feature.

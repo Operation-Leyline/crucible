@@ -22,6 +22,9 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
         return Ok(service.clone());
     }
     let mut result = service.clone();
+    result
+        .errors
+        .retain(|id| !service.internal && !service.shape(id).is_some_and(Shape::internal));
     // CORS describes the deployed server contract, which audience selection
     // never projects. Keep its full header and method lists on client views too.
     result
@@ -76,6 +79,7 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
         .operations
         .iter()
         .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
+        .chain(&result.errors)
         .cloned()
         .collect();
     for resource in result.resources.values() {
@@ -216,6 +220,27 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
             .resource
             .take()
             .filter(|id| resources.contains(id) || service.resources.is_empty());
+        // Examples are model values too: project nested structure/union members,
+        // not only their top-level bindings, before any emitter can see them.
+        for example in &mut op.examples {
+            let mut valid = true;
+            if let Some(value) = &mut example.input {
+                valid &= project_example(&result.shapes, op.input.as_ref(), value);
+            }
+            if let Some(value) = &mut example.output {
+                valid &= project_example(&result.shapes, op.output.as_ref(), value);
+            }
+            example.error = example
+                .error
+                .take()
+                .filter(|e| op.errors.contains(&e.shape));
+            if let Some(error) = &mut example.error {
+                valid &= project_example(&result.shapes, Some(&error.shape), &mut error.content);
+            }
+            if !valid {
+                diagnostics.push(&op.id, format!("audience.example_reference: example {:?} uses a removed internal union arm or enum value", example.title));
+            }
+        }
     }
     result
         .resource_references
@@ -258,7 +283,45 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     result
         .renames
         .retain(|id, _| reached.contains(id) || operations.contains(id) || resources.contains(id));
-    Ok(result)
+    if diagnostics.is_empty() {
+        Ok(result)
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn project_example(
+    shapes: &BTreeMap<ShapeId, Shape>,
+    id: Option<&ShapeId>,
+    value: &mut serde_json::Value,
+) -> bool {
+    match (id.and_then(|id| shapes.get(id)), value) {
+        (
+            Some(shape @ (Shape::Structure(s) | Shape::Union(s))),
+            serde_json::Value::Object(values),
+        ) => {
+            values.retain(|name, _| s.member(name).is_some());
+            let mut valid = !matches!(shape, Shape::Union(_)) || !values.is_empty();
+            for (name, value) in values {
+                valid &= project_example(shapes, s.member(name).map(|m| &m.target), value);
+            }
+            valid
+        }
+        (Some(Shape::List(s)), serde_json::Value::Array(values)) => values
+            .iter_mut()
+            .all(|value| project_example(shapes, Some(&s.member.target), value)),
+        (Some(Shape::Map(s)), serde_json::Value::Object(values)) => values
+            .values_mut()
+            .all(|value| project_example(shapes, Some(&s.value.target), value)),
+        (Some(Shape::Enum(s)), serde_json::Value::String(value)) => {
+            s.values.iter().any(|v| v.value == *value)
+        }
+        (Some(Shape::IntEnum(s)), serde_json::Value::Number(value)) => s
+            .values
+            .iter()
+            .any(|v| Some(i64::from(v.value)) == value.as_i64()),
+        _ => true,
+    }
 }
 
 fn removed_enum_default(service: &Service, member: &Member) -> bool {

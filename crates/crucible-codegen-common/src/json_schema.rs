@@ -91,6 +91,12 @@ fn base(service: &Service, shape: &Shape) -> Value {
                 SimpleKind::Long => {
                     json!({"type": "integer", "format": "int64", "minimum": i64::MIN, "maximum": i64::MAX})
                 }
+                SimpleKind::BigInteger if service.protocol_settings.arbitrary_precision_strings => {
+                    json!({"type": "string", "pattern": "^-?[0-9]+$", "x-smithy-type": "bigInteger"})
+                }
+                SimpleKind::BigDecimal if service.protocol_settings.arbitrary_precision_strings => {
+                    json!({"type": "string", "x-smithy-type": "bigDecimal"})
+                }
                 SimpleKind::BigInteger => json!({"type": "integer"}),
                 SimpleKind::BigDecimal => json!({"type": "number"}),
                 SimpleKind::Float | SimpleKind::Double => {

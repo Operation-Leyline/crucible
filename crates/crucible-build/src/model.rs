@@ -241,6 +241,12 @@ impl Model {
         crate::OpenApiOutput::new(self.package(), name)
     }
 
+    /// Configure a named service API reference. Enable the `docs` feature.
+    #[cfg(feature = "docs")]
+    pub fn docs(&self, name: &str) -> crate::DocsOutput<'_> {
+        crate::DocsOutput::new(self.package(), name)
+    }
+
     /// Configure a named CDK construct library output. Enable the `cdk` feature.
     #[cfg(feature = "cdk")]
     pub fn cdk(&self, name: &str) -> crate::CdkOutput<'_> {

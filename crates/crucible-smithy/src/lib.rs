@@ -139,6 +139,19 @@ impl Model {
         protocol: Option<Protocol>,
         infrastructure: bool,
     ) -> Result<ir::Service, Error> {
+        let id = self.service_id(service)?;
+        lower::lower(
+            &self.shapes,
+            &id,
+            capabilities,
+            protocol,
+            infrastructure,
+            false,
+        )
+        .map_err(Error::Unsupported)
+    }
+
+    fn service_id(&self, service: Option<&ShapeId>) -> Result<ShapeId, Error> {
         let id = match service {
             Some(id) if self.services().contains(id) => id.clone(),
             Some(id) => return Err(Error::UnknownService(id.clone())),
@@ -148,8 +161,26 @@ impl Model {
                 many => return Err(Error::AmbiguousService(many.to_vec())),
             },
         };
-        lower::lower(&self.shapes, &id, capabilities, protocol, infrastructure)
-            .map_err(Error::Unsupported)
+        Ok(id)
+    }
+
+    /// Lower API reference metadata, including resource lifecycle and resource-only
+    /// shapes, without imposing provisioning member-binding restrictions.
+    pub fn lower_documentation(
+        &self,
+        service: Option<&ShapeId>,
+        protocol: Option<Protocol>,
+    ) -> Result<ir::Service, Error> {
+        let id = self.service_id(service)?;
+        lower::lower(
+            &self.shapes,
+            &id,
+            &Capabilities::new(Feature::ALL.iter().copied()),
+            protocol,
+            false,
+            true,
+        )
+        .map_err(Error::Unsupported)
     }
 }
 

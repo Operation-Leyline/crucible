@@ -56,6 +56,8 @@ class PlanTests(unittest.TestCase):
 
     def test_openapi_export_keeps_its_rust_qualification(self):
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/src/lib.rs"]), {"rust"})
+        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/src/lib.rs"]), {"rust"})
+        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/tests/golden/weather-external/describe.json"]), {"rust"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/tests/golden/weather.openapi.json"]), {"rust"})
 
     def test_onboarding_and_editor_integration_paths_keep_their_gates(self):
