@@ -18,8 +18,16 @@ fn files(source: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
     generate(&project(&service, audience).unwrap()).unwrap()
 }
 
+/// The renderer is identical for every service; `golden/site` holds its single
+/// reviewed copy, so a runtime edit shows up once rather than in every fixture.
+const SITE_RUNTIME: [&str; 3] = ["index.html", "explorer.js", "explorer.css"];
+
 fn golden(name: &str, source: &str, audience: Audience) {
-    let files = files(source, audience);
+    let files: Vec<_> = files(source, audience)
+        .into_iter()
+        // describe.js repeats describe.json; the site test pins that.
+        .filter(|f| f.path != "describe.js" && !SITE_RUNTIME.contains(&f.path.as_str()))
+        .collect();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden")
         .join(name);
@@ -67,6 +75,86 @@ fn weather_external_and_internal_match_reviewed_goldens() {
 fn rpc_metadata_examples_and_shapes_match_reviewed_goldens() {
     golden("catalog-external", CATALOG, Audience::External);
     golden("catalog-internal", CATALOG, Audience::Internal);
+}
+
+#[test]
+fn site_files_match_reviewed_goldens() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/site");
+    let generated = files(WEATHER, Audience::External);
+    let mut found = BTreeSet::new();
+    for file in generated
+        .iter()
+        .filter(|f| SITE_RUNTIME.contains(&f.path.as_str()))
+    {
+        found.insert(file.path.clone());
+        let path = root.join(&file.path);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            fs::create_dir_all(&root).unwrap();
+            fs::write(&path, &file.contents).unwrap();
+        }
+        assert_eq!(
+            fs::read_to_string(&path).unwrap().replace("\r\n", "\n"),
+            file.contents,
+            "{}",
+            path.display()
+        );
+    }
+    assert_eq!(found.len(), SITE_RUNTIME.len());
+    let on_disk: BTreeSet<_> = fs::read_dir(&root)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(on_disk, found, "stale golden files");
+}
+
+#[test]
+fn site_is_identical_across_services_and_loads_its_own_description() {
+    let weather = files(WEATHER, Audience::External);
+    let catalog = files(CATALOG, Audience::Internal);
+    for name in SITE_RUNTIME {
+        let pick = |files: &[crucible_codegen_docs::File]| {
+            files
+                .iter()
+                .find(|f| f.path == name)
+                .unwrap()
+                .contents
+                .clone()
+        };
+        assert_eq!(
+            pick(&weather),
+            pick(&catalog),
+            "{name} must not be baked per service"
+        );
+    }
+    for generated in [&weather, &catalog] {
+        let get = |name: &str| &generated.iter().find(|f| f.path == name).unwrap().contents;
+        // The script form is the JSON verbatim, so file:// and fetch agree.
+        assert_eq!(
+            get("describe.js"),
+            &format!(
+                "globalThis.CRUCIBLE_DESCRIPTION = {};\n",
+                get("describe.json").trim_end()
+            )
+        );
+        // A strict CSP (script-src 'self'; style-src 'self') forbids inline code.
+        let html = get("index.html");
+        assert!(
+            !html.contains("style=") && !html.contains("<style"),
+            "inline style"
+        );
+        assert!(
+            !html.contains("javascript:") && !html.contains(" on"),
+            "inline handler"
+        );
+        let scripts = html.matches("<script").count();
+        assert_eq!(
+            scripts,
+            html.matches("<script src=").count(),
+            "inline script"
+        );
+        assert_eq!(scripts, 2);
+        assert!(get("explorer.js").len() + get("explorer.css").len() < 100 * 1024);
+    }
 }
 
 #[test]
