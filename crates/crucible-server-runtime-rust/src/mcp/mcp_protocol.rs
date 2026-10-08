@@ -24,6 +24,8 @@ pub(crate) struct McpProtocol {
     cors: Option<crate::middlewares::Cors>,
     config: super::McpConfig,
     discovery: Option<super::oauth_discovery::OAuthDiscovery>,
+    /// Well-known path and serialized document, built once in `prepare`.
+    metadata: Option<(String, String)>,
 }
 
 impl McpProtocol {
@@ -37,6 +39,7 @@ impl McpProtocol {
             cors: None,
             config,
             discovery: None,
+            metadata: None,
         }
     }
     fn registry(&self) -> &ToolRegistry {
@@ -150,11 +153,10 @@ impl Protocol for McpProtocol {
         false
     }
     fn owns(&self, request: &Parts) -> bool {
-        (request.uri.path() == self.config.path
-            || self
-                .discovery
-                .as_ref()
-                .is_some_and(|d| request.uri.path() == d.path))
+        let path = request.uri.path();
+        (path == self.config.path
+            || self.discovery.as_ref().is_some_and(|d| path == d.path)
+            || self.metadata.as_ref().is_some_and(|(p, _)| p == path))
             && request
                 .extensions
                 .get::<crate::protocol::Invocation>()
@@ -178,6 +180,13 @@ impl Protocol for McpProtocol {
                     .and_then(|cors| cors.extend(&["POST"], &["mcp-protocol-version"]))
             })
             .transpose()?;
+        if let Some(metadata) = &self.config.authorization_server {
+            let path = metadata.well_known_path()?;
+            if path == self.config.path {
+                return Err("MCP path collides with the authorization server metadata path".into());
+            }
+            self.metadata = Some((path, metadata.document()));
+        }
         let descriptors = self.descriptors.ok_or(
             "MCP descriptors were not generated; enable .mcp() in the service build script",
         )?;
@@ -192,6 +201,10 @@ impl Protocol for McpProtocol {
             .map(|authorization| {
                 super::oauth_discovery::OAuthDiscovery::new(
                     authorization.as_ref(),
+                    self.config
+                        .authorization_server
+                        .as_ref()
+                        .map(|m| m.issuer()),
                     &self.config.path,
                     descriptors,
                     prepare,
@@ -226,6 +239,13 @@ impl Protocol for McpProtocol {
                     )
                         .into_response()
                 });
+                return Ok(());
+            }
+            // Authorization server metadata is public for the same reason.
+            if let Some((path, document)) = &self.metadata
+                && job.request().uri.path() == path
+            {
+                job.respond(metadata_response(&job.request().method, document));
                 return Ok(());
             }
             // No Host-derived resource URLs or CORS-derived wildcard permission.
@@ -415,6 +435,25 @@ impl Protocol for McpProtocol {
     }
 }
 
+fn metadata_response(method: &axum::http::Method, document: &str) -> Response {
+    if !matches!(method.as_str(), "GET" | "HEAD") {
+        return (
+            StatusCode::METHOD_NOT_ALLOWED,
+            [(header::ALLOW, "GET, HEAD")],
+        )
+            .into_response();
+    }
+    (
+        [
+            (header::CONTENT_TYPE, "application/json"),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+            // A public document with no credentials; browser clients may read it.
+            (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
+        ],
+        document.to_owned(),
+    )
+        .into_response()
+}
 fn rpc_result(id: Value, result: Value) -> Response {
     json_response(json!({"jsonrpc":"2.0","id":id,"result":result}))
 }

@@ -36,7 +36,7 @@ service's entry points for registering implementations.
 | Operation-aware extensions | `operation_middleware`, `operation_middlewares` |
 | Decoded invocation extensions | `interceptor`, `interceptors` |
 | Wire protocol selection | `protocol`, `protocols`, `defaults` |
-| MCP serving | `mcp` |
+| MCP serving | `mcp`; `McpConfig::authorization_server_metadata` with `mcp::AuthorizationServerMetadata` |
 | Error normalization | `exception_translator`, `on_rejection` |
 | Hosting integration | `tower_layer`, `request_id` |
 | Request limits | `body_limit`, `operation_body_limit`, `body_limits` |

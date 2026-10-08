@@ -18,6 +18,9 @@ pub(super) struct OAuthDiscovery {
 impl OAuthDiscovery {
     pub fn new(
         authorization: &dyn McpAuthorization,
+        // The service's own metadata issuer; it stands in for the token issuers
+        // so clients discover metadata that advertises PKCE.
+        authorization_server: Option<&str>,
         endpoint: &str,
         tools: &[ToolDescriptor],
         prepare: &Prepare<'_>,
@@ -34,7 +37,14 @@ impl OAuthDiscovery {
         {
             return Err("MCP resource must be a canonical HTTPS URL with the configured endpoint path and no credentials, query or fragment".into());
         }
-        let servers: BTreeSet<_> = authorization.authorization_servers().into_iter().collect();
+        let servers: BTreeSet<_> = match authorization_server {
+            Some(issuer) => BTreeSet::from([issuer.to_owned()]),
+            None => authorization
+                .authorization_servers()
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        };
         if servers.is_empty() {
             return Err("MCP authorization requires at least one issuer".into());
         }

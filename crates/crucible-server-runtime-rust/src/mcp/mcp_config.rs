@@ -1,4 +1,4 @@
-use super::{EndpointGuard, McpAuthorization};
+use super::{AuthorizationServerMetadata, EndpointGuard, McpAuthorization};
 
 /// Endpoint settings for the MCP tools carried by generated service metadata.
 pub struct McpConfig {
@@ -9,6 +9,7 @@ pub struct McpConfig {
     pub(crate) authorization: Option<Box<dyn McpAuthorization>>,
     pub(crate) server_name: String,
     pub(crate) server_version: String,
+    pub(crate) authorization_server: Option<AuthorizationServerMetadata>,
 }
 
 impl Default for McpConfig {
@@ -27,6 +28,7 @@ impl McpConfig {
             authorization: None,
             server_name: String::new(),
             server_version: String::new(),
+            authorization_server: None,
         }
     }
     pub fn path(mut self, path: impl Into<String>) -> Self {
@@ -50,6 +52,15 @@ impl McpConfig {
     /// Combining this with `endpoint_guard` is rejected at service construction.
     pub fn authorization(mut self, authorization: impl McpAuthorization) -> Self {
         self.authorization = Some(Box::new(authorization));
+        self
+    }
+    /// Serve an RFC 8414 authorization server metadata document at its
+    /// well-known path, publicly and outside `endpoint_guard`: clients fetch it
+    /// before they hold a token. When `authorization` derives protected-resource
+    /// metadata, this issuer replaces the token issuers in `authorization_servers`.
+    /// Opt-in; see docs/mcp.md.
+    pub fn authorization_server_metadata(mut self, metadata: AuthorizationServerMetadata) -> Self {
+        self.authorization_server = Some(metadata);
         self
     }
     pub fn server_info(mut self, name: impl Into<String>, version: impl Into<String>) -> Self {

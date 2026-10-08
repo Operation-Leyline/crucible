@@ -50,6 +50,11 @@ version's section when it is prepared.
   operations carry `Operation::SCOPES` and `SERVICE_SCOPES` (also on
   `OperationMetadata`); `crucible_auth::ScopeEnforcer` is an opt-in
   interceptor that enforces them with RFC 6750 bearer challenges (#178).
+- `McpConfig::authorization_server_metadata(AuthorizationServerMetadata)`: an
+  opt-in, public RFC 8414 document that advertises `S256` and points at an
+  identity provider's endpoints (`AuthorizationServerMetadata::cognito`), for
+  MCP clients that refuse Cognito's own discovery metadata. Cognito app-client
+  settings and client setup are in `docs/mcp.md`.
 - `@deprecated`, `@since`, `@unstable` and `@externalDocumentation` are lowered
   into the IR and rendered by every native generator and OpenAPI (#179).
   Generated Rust marks deprecated shapes `#[deprecated]` and silences the
