@@ -128,8 +128,7 @@ pub fn read<'a, T: DeserializeOwned>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
 ) -> Result<T, serde_json::Error> {
-    let names: Vec<&'static str> = bound.iter().map(|(name, _)| *name).collect();
-    read_excluding(body, bound, names)
+    read_excluding(body, bound, &[])
 }
 
 /// Reads an HTTP input, keeping every member declared outside the body
@@ -139,19 +138,15 @@ pub fn read_http<'a, T: DeserializeOwned>(
     bound: Vec<(&'static str, BoundValue<'a>)>,
     members: &[MemberInfo],
 ) -> Result<T, serde_json::Error> {
-    let mut names: Vec<&'static str> = members
-        .iter()
-        .filter(|member| member.location != Location::Body)
-        .map(|member| member.name)
-        .collect();
-    names.extend(bound.iter().map(|(name, _)| *name));
-    read_excluding(body, bound, names)
+    read_excluding(body, bound, members)
 }
 
+/// Body members named by `bound` or declared outside the body in `members`
+/// are skipped; both are checked in place rather than collected per request.
 fn read_excluding<'a, T: DeserializeOwned>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
-    names: Vec<&'static str>,
+    members: &[MemberInfo],
 ) -> Result<T, serde_json::Error> {
     if text::empty_json_body(body) {
         return T::deserialize(BoundOnly { bound });
@@ -159,7 +154,7 @@ fn read_excluding<'a, T: DeserializeOwned>(
     let mut json = serde_json::Deserializer::from_slice(body);
     let value = json.deserialize_map(Bridge {
         bound,
-        names,
+        members,
         target: PhantomData::<T>,
     })?;
     json.end()?;
@@ -168,13 +163,13 @@ fn read_excluding<'a, T: DeserializeOwned>(
 
 /// Hands serde_json's map access to the target type, chained after the
 /// bound members.
-struct Bridge<'b, T> {
+struct Bridge<'b, 'm, T> {
     bound: Vec<(&'static str, BoundValue<'b>)>,
-    names: Vec<&'static str>,
+    members: &'m [MemberInfo],
     target: PhantomData<T>,
 }
 
-impl<'de, T: DeserializeOwned> Visitor<'de> for Bridge<'de, T> {
+impl<'de, T: DeserializeOwned> Visitor<'de> for Bridge<'de, '_, T> {
     type Value = T;
 
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -184,8 +179,9 @@ impl<'de, T: DeserializeOwned> Visitor<'de> for Bridge<'de, T> {
     fn visit_map<A: MapAccess<'de>>(self, json: A) -> Result<T, A::Error> {
         T::deserialize(Merged {
             access: Chain {
-                bound: self.bound.into_iter(),
-                names: self.names,
+                bound: self.bound,
+                next: 0,
+                members: self.members,
                 value: None,
                 json: Some(json),
             },
@@ -221,9 +217,10 @@ impl<'de> Deserializer<'de> for BoundOnly<'de> {
     type Error = serde_json::Error;
 
     fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        visitor.visit_map(Chain::<'de, NoBody> {
-            bound: self.bound.into_iter(),
-            names: Vec::new(),
+        visitor.visit_map(Chain::<'de, '_, NoBody> {
+            bound: self.bound,
+            next: 0,
+            members: &[],
             value: None,
             json: None,
         })
@@ -256,23 +253,30 @@ impl<'de> MapAccess<'de> for NoBody {
 
 /// Bound members first, then the body's members, skipping any the bound
 /// members already gave.
-struct Chain<'b, A> {
-    bound: std::vec::IntoIter<(&'static str, BoundValue<'b>)>,
-    names: Vec<&'static str>,
+struct Chain<'b, 'm, A> {
+    /// Kept whole, not drained, so the body can be checked against the bound
+    /// names after their values are handed out.
+    bound: Vec<(&'static str, BoundValue<'b>)>,
+    /// The next bound member to hand out.
+    next: usize,
+    members: &'m [MemberInfo],
     /// The bound value whose key was just handed out.
     value: Option<BoundValue<'b>>,
     json: Option<A>,
 }
 
-impl<'de, A: MapAccess<'de>> MapAccess<'de> for Chain<'de, A> {
+impl<'de, A: MapAccess<'de>> MapAccess<'de> for Chain<'de, '_, A> {
     type Error = A::Error;
 
     fn next_key_seed<K: DeserializeSeed<'de>>(
         &mut self,
         seed: K,
     ) -> Result<Option<K::Value>, A::Error> {
-        if let Some((name, value)) = self.bound.next() {
-            self.value = Some(value);
+        if let Some((name, value)) = self.bound.get_mut(self.next) {
+            self.next += 1;
+            // The name stays for the body check; the value moves out, leaving
+            // a placeholder nothing reads.
+            self.value = Some(std::mem::replace(value, BoundValue::Boolean(false)));
             return seed
                 .deserialize(BorrowedStrDeserializer::new(name))
                 .map(Some);
@@ -284,7 +288,12 @@ impl<'de, A: MapAccess<'de>> MapAccess<'de> for Chain<'de, A> {
             let Some(Key(key)) = json.next_key::<Key<'de>>()? else {
                 return Ok(None);
             };
-            if self.names.iter().any(|name| *name == key) {
+            if self.bound.iter().any(|(name, _)| *name == key)
+                || self
+                    .members
+                    .iter()
+                    .any(|member| member.location != Location::Body && member.name == key)
+            {
                 json.next_value::<IgnoredAny>()?;
                 continue;
             }

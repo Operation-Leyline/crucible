@@ -144,8 +144,44 @@ impl fmt::Display for Step {
 /// only when a violation needs it, so a valid input costs no strings.
 #[derive(Default)]
 pub struct Validator {
-    path: Vec<Step>,
+    path: Steps,
     violations: Vec<Violation>,
+}
+
+/// Steps kept inline before spilling to the heap: deeper than most inputs go.
+const INLINE_STEPS: usize = 8;
+
+/// The path to the value being checked. Its first steps live inline, so
+/// walking a valid input allocates nothing for the path either.
+#[derive(Default)]
+struct Steps {
+    inline: [Option<Step>; INLINE_STEPS],
+    len: usize,
+    spill: Vec<Step>,
+}
+
+impl Steps {
+    fn push(&mut self, step: Step) {
+        if self.len < INLINE_STEPS {
+            self.inline[self.len] = Some(step);
+        } else {
+            self.spill.push(step);
+        }
+        self.len += 1;
+    }
+
+    fn pop(&mut self) {
+        self.len -= 1;
+        if self.len < INLINE_STEPS {
+            self.inline[self.len] = None;
+        } else {
+            self.spill.pop();
+        }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &Step> {
+        self.inline.iter().flatten().chain(&self.spill)
+    }
 }
 
 impl Validator {

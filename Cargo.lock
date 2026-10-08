@@ -822,6 +822,8 @@ dependencies = [
  "crucible-wire",
  "futures-util",
  "http-body-util",
+ "hyper",
+ "hyper-util",
  "lambda_http",
  "lambda_runtime",
  "regex",

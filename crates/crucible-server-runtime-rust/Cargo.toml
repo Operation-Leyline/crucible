@@ -12,7 +12,7 @@ repository.workspace = true
 # is a deployment change, not a rebuild with different features.
 default = ["http", "lambda"]
 # A dedicated HTTP server: containers, ECS, a laptop.
-http = ["tokio/net", "tokio/signal"]
+http = ["dep:hyper", "dep:hyper-util", "tokio/net", "tokio/signal", "tokio/sync"]
 # AWS Lambda: HTTP events (Function URLs, API Gateway, ALB) and direct JSON invokes.
 lambda = ["dep:lambda_http", "dep:lambda_runtime"]
 logging = ["dep:tracing-subscriber"]
@@ -26,6 +26,8 @@ crucible-wire.workspace = true
 async-trait = "0.1"
 axum = "0.8"
 http-body-util = "0.1"
+hyper = { version = "1", optional = true, features = ["server", "http1"] }
+hyper-util = { version = "0.1", optional = true, features = ["tokio"] }
 futures-util = "0.3"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
 lambda_http = { version = "1.3", optional = true, default-features = false, features = ["apigw_rest", "apigw_http", "alb"] }

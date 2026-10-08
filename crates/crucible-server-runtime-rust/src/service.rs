@@ -1,7 +1,6 @@
 //! The orchestrator: routes a request, runs the phased pipeline around the
 //! operation, and has the routing protocol write the response.
 
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -93,8 +92,6 @@ struct Inner {
     translator: ExceptionTranslator,
     reject: Reject,
     body_limit: usize,
-    /// Per-operation overrides of `body_limit`, by operation shape id.
-    body_limits: HashMap<&'static str, usize>,
     request_id: Option<RequestIdSource>,
 }
 
@@ -119,10 +116,7 @@ impl Crucible {
     /// layers. Layers added here instead apply on this host only; prefer
     /// [`Builder::tower_layer`], which every host runs.
     pub fn into_router(self) -> axum::Router {
-        axum::Router::new().fallback(move |request: Request<Body>| {
-            let service = self.clone();
-            async move { service.handle(request).await }
-        })
+        axum::Router::new().fallback_service(self)
     }
 
     /// Calls an operation by name with its input as JSON bytes, through the
@@ -194,19 +188,17 @@ impl Crucible {
             .filter(|id| !id.is_empty() && id.len() <= MAX_REQUEST_ID && id.to_str().is_ok())
             .unwrap_or_else(request_id);
         let deadline = meta.and_then(|meta| meta.deadline);
-        let parts = Arc::new(parts);
-        let context = Arc::new(Context::new(id, None, parts.clone()));
+        let context = Arc::new(Context::new(id, None, parts));
         if let Some(deadline) = deadline {
             context.set_deadline(deadline);
         }
         let mut job = Job {
             service: inner.operations.service,
             context: context.clone(),
-            request: parts,
             body: Bytes::new(),
             raw_body: Some(body),
             body_limit: inner.body_limit,
-            body_read_error: None,
+            body_read: crate::job::BodyRead::Pending,
             body_stream: None,
             labels: Vec::new(),
             decode: None,
@@ -468,11 +460,7 @@ impl Crucible {
         job.decode_cbor = Some(entry.decode_cbor);
         job.decode_bound = Some(entry.decode_bound);
         job.decode_events = Some(entry.decode_events);
-        let limit = inner
-            .body_limits
-            .get(entry.info.id)
-            .copied()
-            .unwrap_or(inner.body_limit);
+        let limit = entry.body_limit.unwrap_or(inner.body_limit);
         let buffered = job.select_body_limit(limit);
         for middleware in &inner.operation_middleware {
             middleware
@@ -518,6 +506,27 @@ impl Crucible {
             job.error_revision += 1;
         }
         Ok(())
+    }
+}
+
+/// The service as a tower service, for mounting in an application's own
+/// router or wrapping in layers on one host only: every call is
+/// [`Crucible::handle`].
+impl Service<Request<Body>> for Crucible {
+    type Response = Response;
+    type Error = Infallible;
+    type Future = std::pin::Pin<Box<dyn Future<Output = Result<Response, Infallible>> + Send>>;
+
+    fn poll_ready(
+        &mut self,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Infallible>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, request: Request<Body>) -> Self::Future {
+        let service = self.clone();
+        Box::pin(async move { Ok(service.handle(request).await) })
     }
 }
 
@@ -736,20 +745,13 @@ impl Builder {
             (None, Some(generated)) => Arc::new(generated) as Reject,
             (None, None) => return Err(BuildError::NoRejection),
         };
-        let body_limits = self
-            .operations
-            .service
-            .operations
-            .iter()
-            .filter_map(|op| {
-                let limit = self
-                    .body_limits
-                    .iter()
-                    .rev()
-                    .find_map(|limits| limits(op))?;
-                Some((op.id, limit))
-            })
-            .collect();
+        for entry in self.operations.entries.values_mut() {
+            entry.body_limit = self
+                .body_limits
+                .iter()
+                .rev()
+                .find_map(|limits| limits(entry.info));
+        }
         let core = Crucible {
             inner: Arc::new(Inner {
                 cors,
@@ -761,7 +763,6 @@ impl Builder {
                 translator: self.translator,
                 reject,
                 body_limit: self.body_limit,
-                body_limits,
                 request_id: self.request_id,
             }),
             endpoint: None,

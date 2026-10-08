@@ -176,7 +176,7 @@ pub mod cors_service {
     impl OperationsBuilder {
         /// Serves Read with `implementation`.
         pub fn read<S: ReadOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Read, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.read(input).await })))
+            Self(self.0.add::<Read, S, _>(implementation, |implementation, input| async move { implementation.read(input).await }))
         }
 
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::Operations, ::crucible_server_runtime_rust::MissingOperations> {

@@ -41,11 +41,11 @@ fn identity() -> Identity {
 
 fn operations() -> Operations {
     Operations::builder(&auth_weather::SERVICE)
-        .add::<Protected, _>(Arc::new(()), |_, _| Box::pin(async { Ok(identity()) }))
-        .add::<Optional, _>(Arc::new(()), |_, _| Box::pin(async { Ok(identity()) }))
-        .add::<Public, _>(Arc::new(()), |_, _| Box::pin(async { Ok(identity()) }))
-        .add::<BearerOnly, _>(Arc::new(()), |_, _| Box::pin(async { Ok(identity()) }))
-        .add::<KeyOnly, _>(Arc::new(()), |_, _| Box::pin(async { Ok(identity()) }))
+        .add::<Protected, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
+        .add::<Optional, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
+        .add::<Public, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
+        .add::<BearerOnly, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
+        .add::<KeyOnly, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .build()
         .unwrap()
 }
@@ -538,7 +538,7 @@ static LEGACY_SERVICE: ServiceInfo = ServiceInfo {
 #[test]
 fn legacy_authentication_metadata_fails_closed_at_startup() {
     let operations = Operations::builder(&LEGACY_SERVICE)
-        .add::<LegacyProbe, _>(Arc::new(()), |_, _| Box::pin(async { Ok(identity()) }))
+        .add::<LegacyProbe, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .build()
         .unwrap();
     let error = Crucible::builder(operations)

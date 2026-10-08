@@ -175,7 +175,7 @@ static EXPLICIT_SERVICE: crucible_server_runtime_rust::ServiceInfo =
 #[tokio::test]
 async fn explicit_origin_credentials_no_cache_and_direct_invocations() {
     let operations = crucible_server_runtime_rust::Operations::builder(&EXPLICIT_SERVICE)
-        .add::<cors_service::Read, Reader>(Arc::new(Reader), |implementation, input| {
+        .add::<cors_service::Read, Reader, _>(Arc::new(Reader), |implementation, input| {
             Box::pin(async move { implementation.read(input).await })
         })
         .build()

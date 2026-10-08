@@ -800,18 +800,21 @@ process, against the same read written straight on axum:
   machine.
 - **`requests`**: criterion timings.
 
-| request | allocations at first | now | bare axum |
-|---|---|---|---|
-| `get_city` (label, query, header out) | 89 | 37 | 40 |
-| `list_cities` (10 items) | 200 | 50 | |
-| `create_city` (a replay: the token names an existing city) | 62 | 27 | |
-| `ping` | 20 | 12 | |
-| rejected label (validation error) | 83 | 54 | |
-| direct invoke, JSON bytes in and out | 116 | 28 | |
-| Lambda direct invoke, from the raw event | | 33 | |
+| request | allocations at first | before serving on hyper | now | bare axum |
+|---|---|---|---|---|
+| `get_city` (label, query, header out) | 89 | 46 | 38 | 47 |
+| `get_city` through `into_router()` | | 57 | 46 | |
+| `list_cities` (10 items) | 200 | 103 | 95 | |
+| `create_city` (a replay: the token names an existing city) | 62 | 38 | 30 | |
+| `ping` | 20 | 14 | 8 | |
+| rejected label (validation error) | 83 | 46 | 39 | |
+| direct invoke, JSON bytes in and out | 116 | 36 | 31 | |
+| Lambda direct invoke, from the raw event | | 40 | 35 | |
 
 In time, `get_city` is about on a par with hand-written axum (3.3 µs against
-3.6 µs on the same run), down from 7 µs.
+3.6 µs on the same run), down from 7 µs. These benchmarks call
+`Crucible::handle` in process; over sockets, `host::http_on` serves the
+service on hyper directly, with no router in front.
 
 What got it there:
 
@@ -833,6 +836,16 @@ What got it there:
   member, borrowing when nothing needs decoding. Label names are the model's
   `'static` strings.
 - **Smaller fixed costs.** The request id is formatted once and shared with
-  the response header, the request head is shared between the job and the
-  context, routes are indexed by path length, and generated header names are
-  lowercase.
+  the response header, the context owns the request head and the job reads
+  it there, routes are indexed by path length in a list, per-operation body
+  limits are settled at build, and generated header names are lowercase.
+- **No router in front.** Crucible routes every request itself, so the HTTP
+  host hands hyper's requests straight to it; `into_router()` remains for
+  mounting the service in an application's own axum router.
+- **Routing without collecting.** Path segments are byte ranges of the path,
+  a greedy label is one slice of it, and the methods allowed at a path (for
+  a 405) are gathered only when no operation matched.
+- **Nothing built for the common case.** A body read in progress is a state,
+  not a pre-built rejection; the validator keeps its first steps inline; body
+  members bound elsewhere are excluded by checking the operation's members in
+  place; and an operation's future is boxed once, with its output conversion.

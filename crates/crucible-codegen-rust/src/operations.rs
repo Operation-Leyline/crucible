@@ -420,16 +420,12 @@ fn registration(service: &Service) -> String {
     for op in &service.operations {
         let method = function(op.name());
         let call = if op.input.is_some() {
-            format!(
-                "|implementation, input| ::std::boxed::Box::pin(async move {{ implementation.{method}(input).await }})"
-            )
+            format!("|implementation, input| async move {{ implementation.{method}(input).await }}")
         } else {
-            format!(
-                "|implementation, _| ::std::boxed::Box::pin(async move {{ implementation.{method}().await }})"
-            )
+            format!("|implementation, _| async move {{ implementation.{method}().await }}")
         };
         out.push_str(&format!(
-            "    /// Serves {name} with `implementation`.\n    pub fn {method}<S: {name}Operation>(self, implementation: ::std::sync::Arc<S>) -> Self {{\n        Self(self.0.add::<{name}, S>(implementation, {call}))\n    }}\n\n",
+            "    /// Serves {name} with `implementation`.\n    pub fn {method}<S: {name}Operation>(self, implementation: ::std::sync::Arc<S>) -> Self {{\n        Self(self.0.add::<{name}, S, _>(implementation, {call}))\n    }}\n\n",
             name = op.name(),
         ));
     }

@@ -89,7 +89,7 @@ fn every_kind_of_vector_calls_its_harness_function() {
     // The registration is generic: no operation's behaviour is written here.
     assert!(
         code.contains(
-            ".add::<crate::weather::GetCity, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::GetCity>)"
+            ".add::<crate::weather::GetCity, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::GetCity>)"
         ),
         "{code}"
     );

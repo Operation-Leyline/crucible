@@ -66,11 +66,132 @@ pub async fn http(service: Crucible, address: SocketAddr) -> Result<(), BoxError
 /// take a socket from a supervisor.
 #[cfg(feature = "http")]
 pub async fn http_on(service: Crucible, listener: tokio::net::TcpListener) -> Result<(), BoxError> {
+    http_on_until(service, listener, shutdown()).await
+}
+
+/// [`http_on`] until `signal` completes instead of SIGTERM or Ctrl-C: it then
+/// stops accepting, lets each connection finish its request in flight, and
+/// returns once they have closed.
+///
+/// The service is hyper's directly: Crucible routes every request itself, so
+/// a router in front would only add work. HTTP/1.1 with upgrades, as before.
+#[cfg(feature = "http")]
+pub async fn http_on_until(
+    service: Crucible,
+    listener: tokio::net::TcpListener,
+    signal: impl Future<Output = ()> + Send,
+) -> Result<(), BoxError> {
     tracing::info!(address = %listener.local_addr()?, "crucible listening");
-    axum::serve(listener, service.into_router())
-        .with_graceful_shutdown(shutdown())
-        .await?;
+    http_server::serve(service, listener, signal).await;
     Ok(())
+}
+
+#[cfg(feature = "http")]
+mod http_server {
+    use std::convert::Infallible;
+    use std::pin::{Pin, pin};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use axum::body::Body;
+    use axum::http::Request;
+    use axum::response::Response;
+    use hyper::body::Incoming;
+    use hyper_util::rt::{TokioIo, TokioTimer};
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio::sync::watch;
+
+    use crate::service::Crucible;
+
+    /// One `Arc` clone per request; the service itself is cloned per
+    /// connection only.
+    #[derive(Clone)]
+    struct Handler(Arc<Crucible>);
+
+    impl hyper::service::Service<Request<Incoming>> for Handler {
+        type Response = Response;
+        type Error = Infallible;
+        type Future = Pin<Box<dyn Future<Output = Result<Response, Infallible>> + Send>>;
+
+        fn call(&self, request: Request<Incoming>) -> Self::Future {
+            let service = self.0.clone();
+            Box::pin(async move { Ok(service.handle(request.map(Body::new)).await) })
+        }
+    }
+
+    pub(super) async fn serve(
+        service: Crucible,
+        listener: TcpListener,
+        signal: impl Future<Output = ()> + Send,
+    ) {
+        let handler = Handler(Arc::new(service));
+        // Connections watch `stop` to start closing; the server waits on
+        // `open` until every connection task has dropped its receiver.
+        let (stop, _) = watch::channel(());
+        let (open_tx, open) = watch::channel(());
+        let mut signal = pin!(signal);
+        loop {
+            let stream = tokio::select! {
+                stream = accept(&listener) => stream,
+                () = &mut signal => break,
+            };
+            let handler = handler.clone();
+            let mut stopping = stop.subscribe();
+            let open = open.clone();
+            tokio::spawn(async move {
+                // The timer arms hyper's header read timeout (30 s by
+                // default), so a client that never finishes its headers
+                // cannot hold a connection open.
+                let connection = hyper::server::conn::http1::Builder::new()
+                    .timer(TokioTimer::new())
+                    .serve_connection(TokioIo::new(stream), handler)
+                    .with_upgrades();
+                let mut connection = pin!(connection);
+                let mut closing = false;
+                loop {
+                    tokio::select! {
+                        result = connection.as_mut() => {
+                            if let Err(error) = result {
+                                tracing::trace!("connection ended: {error:#}");
+                            }
+                            break;
+                        }
+                        _ = stopping.changed(), if !closing => {
+                            closing = true;
+                            connection.as_mut().graceful_shutdown();
+                        }
+                    }
+                }
+                drop(open);
+            });
+        }
+        drop(listener);
+        stop.send_replace(());
+        drop(open);
+        open_tx.closed().await;
+    }
+
+    /// Accepts the next connection, riding out errors as `axum::serve` and
+    /// hyper 0.14 did: a peer's reset is skipped, and anything else (running
+    /// out of file descriptors, say) is logged and retried after a second.
+    async fn accept(listener: &TcpListener) -> TcpStream {
+        loop {
+            match listener.accept().await {
+                Ok((stream, _)) => return stream,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::ConnectionRefused
+                            | std::io::ErrorKind::ConnectionAborted
+                            | std::io::ErrorKind::ConnectionReset
+                    ) => {}
+                Err(error) => {
+                    tracing::error!("accept error: {error}");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+    }
 }
 
 #[cfg(not(feature = "http"))]

@@ -106,21 +106,102 @@ fn route_candidates(
         return (None, Vec::new());
     };
     let rest = rest.trim_end_matches('/');
-    let path: Vec<&str> = if rest.is_empty() {
-        Vec::new()
-    } else {
-        rest.split('/').collect()
-    };
     let query = request.uri.query().unwrap_or("");
     let query_violations = query_violations(query);
+    // The methods allowed at the path only matter when no operation answers
+    // (a 405), so they are gathered by a second pass in that case alone.
+    let route = best_route(
+        request,
+        operations,
+        applies,
+        rest,
+        query,
+        &query_violations,
+        None,
+    );
+    if route.is_some() {
+        return (route, Vec::new());
+    }
     let mut allowed = Vec::new();
+    best_route(
+        request,
+        operations,
+        applies,
+        rest,
+        query,
+        &query_violations,
+        Some(&mut allowed),
+    );
+    allowed.sort_unstable();
+    allowed.dedup();
+    (None, allowed)
+}
+
+/// The path's segments as byte ranges of it: none for an empty path. Ranges
+/// rather than a collected list, so routing allocates nothing for the path
+/// and a greedy label is one slice of it.
+struct Segments<'a> {
+    path: &'a str,
+    at: usize,
+    done: bool,
+}
+
+impl<'a> Segments<'a> {
+    fn new(path: &'a str) -> Self {
+        Self {
+            path,
+            at: 0,
+            done: path.is_empty(),
+        }
+    }
+}
+
+impl Iterator for Segments<'_> {
+    type Item = (usize, usize);
+
+    fn next(&mut self) -> Option<(usize, usize)> {
+        if self.done {
+            return None;
+        }
+        let start = self.at;
+        match self.path[start..].find('/') {
+            Some(length) => {
+                self.at = start + length + 1;
+                Some((start, start + length))
+            }
+            None => {
+                self.done = true;
+                Some((start, self.path.len()))
+            }
+        }
+    }
+}
+
+/// The most specific operation serving the request. With `allowed`, it
+/// also collects the methods every operation at the path accepts.
+fn best_route(
+    request: &Parts,
+    operations: &Operations,
+    applies: &dyn Fn(&OperationInfo) -> bool,
+    rest: &str,
+    query: &str,
+    query_violations: &[Violation],
+    mut allowed: Option<&mut Vec<&'static str>>,
+) -> Option<Route> {
+    let segments = Segments::new(rest).count();
     let mut best: Option<(&OperationInfo, Route, bool)> = None;
     for &op in operations
-        .routes(path.len())
+        .routes(segments)
         .iter()
         .chain(operations.greedy_routes())
     {
         if !applies(op) {
+            continue;
+        }
+        let exact_method = op.method == request.method.as_str();
+        let method_matches = exact_method || request.method == "HEAD" && op.method == "GET";
+        // Only the 405 pass needs the paths of other methods.
+        if !method_matches && allowed.is_none() {
             continue;
         }
         let query_matches = match literal_queries_match(query, op) {
@@ -128,17 +209,17 @@ fn route_candidates(
             Some(false) => continue,
             None => false,
         };
-        let mut labels = Vec::new();
-        let mut violations = query_violations.clone();
-        if path.len() < op.path.len() {
+        if segments < op.path.len() {
             continue;
         }
-        let mut cursor = 0;
+        let mut labels = Vec::new();
+        let mut violations = query_violations.to_vec();
+        let mut parts = Segments::new(rest);
         let matched = op.path.iter().all(|segment| {
-            let Some(part) = path.get(cursor) else {
+            let Some((start, end)) = parts.next() else {
                 return false;
             };
-            cursor += 1;
+            let part = &rest[start..end];
             match segment {
                 Segment::Literal(text) => literal_segment_matches(text, part),
                 Segment::Label(name) => {
@@ -152,31 +233,37 @@ fn route_candidates(
                     true
                 }
                 Segment::GreedyLabel(name) => {
-                    let width = path.len() - op.path.len() + 1;
-                    let joined = path[cursor - 1..cursor - 1 + width].join("/");
-                    cursor += width - 1;
+                    // The segments it spans, joined by their slashes, are
+                    // the path from its first to its last.
+                    let mut last = end;
+                    for _ in 1..segments - op.path.len() + 1 {
+                        match parts.next() {
+                            Some((_, end)) => last = end,
+                            None => return false,
+                        }
+                    }
+                    let joined = &rest[start..last];
                     if joined.is_empty() {
                         return false;
                     }
-                    match percent_decode(&joined, false) {
+                    match percent_decode(joined, false) {
                         Ok(value) => labels.push((*name, value.into_owned())),
                         Err(message) => violations.push(malformed(name, &message)),
                     }
                     true
                 }
             }
-        }) && cursor == path.len();
+        }) && parts.next().is_none();
         if !matched {
             continue;
         }
-        if query_matches {
+        if query_matches && let Some(allowed) = allowed.as_deref_mut() {
             allowed.push(op.method);
             if op.method == "GET" {
                 allowed.push("HEAD");
             }
         }
-        let exact_method = op.method == request.method.as_str();
-        if !(exact_method || request.method == "HEAD" && op.method == "GET") {
+        if !method_matches {
             continue;
         }
         if best.as_ref().is_none_or(|(most, _, most_query_matches)| {
@@ -196,9 +283,7 @@ fn route_candidates(
             ));
         }
     }
-    allowed.sort_unstable();
-    allowed.dedup();
-    (best.map(|(_, route, _)| route), allowed)
+    best.map(|(_, route, _)| route)
 }
 
 // Decode within a segment so an encoded separator never changes path structure.

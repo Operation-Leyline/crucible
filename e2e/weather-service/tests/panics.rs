@@ -140,7 +140,7 @@ fn builder(
     counts: &Counts,
 ) -> crucible_server_runtime_rust::Builder {
     let operations = Operations::builder(&SERVICE)
-        .add::<weather::Ping, _>(Arc::new(phase), |phase, _| {
+        .add::<weather::Ping, _, _>(Arc::new(phase), |phase, _| {
             Box::pin(async move {
                 tokio::task::yield_now().await;
                 if *phase == Phase::Handler {
@@ -308,7 +308,7 @@ async fn panicking_error_writer_falls_back_to_internal_failure_and_logs() {
     let records = Records::default();
     let counts = Counts::default();
     let operations = Operations::builder(&SERVICE)
-        .add::<weather::Ping, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
+        .add::<weather::Ping, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(()) }))
         .build()
         .unwrap();
     let service = Crucible::builder(operations)
