@@ -95,6 +95,8 @@ fn a_paginator_does_not_take_another_operations_method_name() {
     let service = weather(|ast| {
         ast["shapes"]["example.weather#ListCitiesPages"] =
             ast["shapes"]["example.weather#Ping"].clone();
+        ast["shapes"]["example.weather#ListCitiesPages"]["traits"]["smithy.api#http"]["uri"] =
+            json!("/list-cities-pages");
         ast["shapes"]["example.weather#Weather"]["operations"]
             .as_array_mut()
             .unwrap()
