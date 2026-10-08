@@ -196,7 +196,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
         if !exported.insert(name.to_owned())
             || !model_files.insert(name.to_ascii_lowercase())
-            || ["operations", "runtime"].contains(&name.to_ascii_lowercase().as_str())
+            || ["client", "operations", "runtime"].contains(&name.to_ascii_lowercase().as_str())
             || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
             || [
                 "list",

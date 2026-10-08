@@ -292,7 +292,14 @@ fn runtime_documentation_uses_the_public_basic_auth_setting() {
 
 #[test]
 fn model_names_cannot_collide_with_package_documentation() {
-    for name in ["operations", "runtime", "Operations", "Runtime"] {
+    for name in [
+        "client",
+        "operations",
+        "runtime",
+        "Client",
+        "Operations",
+        "Runtime",
+    ] {
         let mut model = weather();
         let id = format!("example.weather#{name}");
         model["shapes"][&id] = serde_json::json!({"type": "structure", "members": {}});
