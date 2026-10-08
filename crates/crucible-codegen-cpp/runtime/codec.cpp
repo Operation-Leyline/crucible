@@ -133,6 +133,8 @@ Json header(const Schema& schema, const Json& member, std::string_view text, std
         const auto native = declared && !declared->is_null() ? std::string_view(declared->string()) : std::string_view(shape.at("format").string());
         return native == "epoch-seconds" ? Json(time.epoch()) : native == "http-date" ? Json(time.http_date()) : Json(time.date_time());
     }
+    // JSON has no non-finite numbers, so they stay strings; the float decoder reads them back.
+    if ((kind == "float" || kind == "double") && (text == "NaN" || text == "Infinity" || text == "-Infinity")) return Json(std::string(text));
     if (kind == "byte" || kind == "short" || kind == "integer" || kind == "long" || kind == "intEnum" || kind == "bigInteger" || kind == "bigDecimal" || kind == "float" || kind == "double" || kind == "boolean" || (kind == "timestamp" && member.at("format").string() == "epoch-seconds")) return Json::parse(text);
     return Json(std::string(text));
 }

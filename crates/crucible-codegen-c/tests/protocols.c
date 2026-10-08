@@ -27,6 +27,7 @@ int main(void) {
     proto_models_values_input_set_date(&input, instant);
     proto_models_values_input_set_dates(&input, &times);
     proto_models_values_input_set_query(&input, instant);
+    proto_models_values_input_set_queries(&input, &times);
     proto_models_values_input_set_float_value(&input, NAN);
     proto_models_values_input_set_double_value(&input, INFINITY);
     proto_models_values_input_null_nullable(&input);
@@ -41,6 +42,12 @@ int main(void) {
     check(isnan(proto_models_values_output_get_float_value(output)) && isinf(proto_models_values_output_get_double_value(output)), "nonfinite floats");
     check(equal(proto_models_values_output_get_renamed(output), "hello"), "renamed member");
     check(proto_models_values_output_get_when(output).seconds == -1 && proto_models_values_output_get_when(output).nanoseconds == 750000000, "epoch timestamp");
+#ifdef REST_HEADERS
+    /* Only the restJson1 fixture response carries these headers. */
+    check(output->ratio.state == proto_present && isnan(output->ratio.value), "response header nonfinite float");
+    check(output->date.state == proto_present && output->date.value.seconds == -1, "response header http-date");
+    check(output->dates.state == proto_present && output->dates.value->length == 2 && output->dates.value->items[0].seconds == -1 && output->dates.value->items[1].seconds == 1, "response header http-date list");
+#endif
     const proto_models_choice *choice = proto_models_values_output_get_choice(output);
     check(choice && choice->tag == proto_models_choice_tag_text && equal(choice->value.text, "ok"), "union ignores __type");
     proto_operations_echo_result_free(&result); proto_client_free(client);

@@ -167,11 +167,17 @@ def features():
                 if (url.path != "/echo" or self.headers.get("x-date") != "Wed, 31 Dec 1969 23:59:59 GMT"
                         or parse_qs(url.query).get("time") != ["1969-12-31T23:59:59.75Z"] or body.get("wire-name") != "hello"):
                     failures.append("REST binding")
+                # List items use the binding's timestamp format, not the document's epoch seconds; http-dates hold a comma, so they are quoted.
+                if (self.headers.get("x-dates") != '"Wed, 31 Dec 1969 23:59:59 GMT"'
+                        or parse_qs(url.query).get("times") != ["1969-12-31T23:59:59.75Z"]):
+                    failures.append("REST list timestamp binding")
             if failures:
                 return self.problem(", ".join(failures) + ": " + self.body.decode())
             body["choice"] = {"text": "ok", "__type": "ignored"}
             body["nullable"] = None
-            self.respond(200, json.dumps(body).encode())
+            # Response headers carry HTTP dates, which the client must read as timestamps.
+            self.respond(200, json.dumps(body).encode(), None if target else {
+                "x-float": "NaN", "x-date": "Wed, 31 Dec 1969 23:59:59 GMT", "x-dates": '"Wed, 31 Dec 1969 23:59:59 GMT", "Thu, 01 Jan 1970 00:00:01 GMT"'})
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     server.daemon_threads = True
@@ -231,7 +237,13 @@ def qualify_features(output):
         ("jobs", ROOT / "crates/crucible-codegen-java/tests/waiters.json", ()),
     ]
     protocols = [("rest", "restJson1"), ("json10", "awsJson1_0"), ("json11", "awsJson1_1")]
-    packages += [(prefix, fixtures / "protocol-json.json", ("--protocol", "aws.protocols#" + name)) for prefix, name in protocols]
+    # The shared fixture has no float header; restJson1 carries non-finite floats there as NaN, Infinity and -Infinity.
+    protocol_model = json.loads((fixtures / "protocol-json.json").read_text(encoding="utf-8"))
+    protocol_model["shapes"]["example.json#ValuesOutput"]["members"]["ratio"] = {
+        "target": "smithy.api#Float", "traits": {"smithy.api#httpHeader": "x-float"}}
+    protocol_path = output / "protocol-json.json"
+    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
+    packages += [(prefix, protocol_path, ("--protocol", "aws.protocols#" + name)) for prefix, name in protocols]
     for prefix, model, extra in packages:
         generate(model, output / "features" / prefix, prefix + "_client", prefix, *extra)
     consumer = output / "features-consumer"
@@ -239,7 +251,7 @@ def qualify_features(output):
     template = (tests / "protocols.c").read_text(encoding="utf-8")
     for prefix, _ in protocols:
         (consumer / f"protocol_{prefix}.c").write_text(
-            template.replace("proto_", prefix + "_").replace("PREFIX proto", "PREFIX " + prefix), encoding="utf-8")
+            ("#define REST_HEADERS 1\n" if prefix == "rest" else "") + template.replace("proto_", prefix + "_").replace("PREFIX proto", "PREFIX " + prefix), encoding="utf-8")
     executables = {"auth_test": ("auth.c", "auth"), "checksum_test": ("checksums.c", "checksum"),
                    "endpoint_test": ("endpoints.c", "behavior"), "waiter_test": ("waiters.c", "jobs")}
     lines = ["cmake_minimum_required(VERSION 3.20)", "project(features LANGUAGES C)", "find_package(Threads REQUIRED)"]
