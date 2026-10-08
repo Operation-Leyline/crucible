@@ -57,6 +57,35 @@ pub fn keyword(value: &str) -> bool {
         "void",
         "volatile",
         "while",
+        "class",
+        "new",
+        "this",
+        "private",
+        "public",
+        "namespace",
+        "template",
+        "typename",
+        "using",
+        "virtual",
+        "operator",
+        "constexpr",
+        "nullptr",
+        "delete",
+        "friend",
+        "throw",
+        "try",
+        "catch",
+        "explicit",
+        "export",
+        "mutable",
+        "noexcept",
+        "override",
+        "final",
+        "decltype",
+        "static_cast",
+        "reinterpret_cast",
+        "const_cast",
+        "dynamic_cast",
         "alignas",
         "alignof",
         "bool",
@@ -97,4 +126,14 @@ pub fn field(value: &str) -> String {
         out.push_str("_value");
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn escapes_cpp_keywords_in_public_headers() {
+        for name in ["class", "new", "this"] {
+            assert_eq!(super::field(name), format!("{name}_value"));
+        }
+    }
 }
