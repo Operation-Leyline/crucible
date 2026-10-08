@@ -185,6 +185,8 @@ fn close_operation_and_get_body_are_diagnosed() {
     let mut model = weather();
     model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["method"] =
         "GET".into();
+    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["uri"] =
+        "/create-city".into();
     let diagnostics = emit(&lower(&model), &options()).err().unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(
