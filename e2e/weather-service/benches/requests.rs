@@ -86,6 +86,23 @@ fn requests(c: &mut Criterion) {
         })
     });
 
+    // What an application mounting the service in its own axum app pays.
+    let router = service.clone().into_router();
+    c.bench_function("router_get_city", |b| {
+        b.to_async(&runtime).iter(|| {
+            let router = router.clone();
+            async move {
+                use tower::ServiceExt;
+                let request = get("/cities/c-00000050?at=2026-10-01T12%3A00%3A00Z");
+                let response = router.oneshot(request).await.unwrap();
+                axum::body::to_bytes(response.into_body(), usize::MAX)
+                    .await
+                    .unwrap()
+                    .len()
+            }
+        })
+    });
+
     let bare = bare_axum(cities);
     c.bench_function("bare_axum_get_city", |b| {
         b.to_async(&runtime).iter(|| {
