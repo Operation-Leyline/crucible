@@ -33,7 +33,7 @@
           "exists": [],
           "notFound": []
         },
-        "smithy.api#longPoll": {},
+        "smithy.api#longPoll": { "timeoutMillis": 1000 },
         "smithy.test#smokeTests": [],
         "smithy.api#createsResources": [
           {
