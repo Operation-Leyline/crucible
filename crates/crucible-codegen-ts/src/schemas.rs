@@ -9,6 +9,31 @@ use crucible_smithy::ir::{Binding, Member, Operation, Service, Shape, SimpleKind
 use crate::errors::error_shapes;
 use crate::names::{literal, property, smithy};
 
+/// Everything `schemas.ts` can import, whether or not this service needs it.
+/// An operation with one of these names is declared under another local name
+/// and exported as itself, so it cannot merge with or shadow the import.
+pub(crate) const IMPORTS: &[&str] = &[
+    "Schema",
+    "OperationSpec",
+    "ErrorSpec",
+    "EndpointRules",
+    "bigDecimal",
+    "bigInteger",
+    "blob",
+    "boolean",
+    "document",
+    "integer",
+    "list",
+    "map",
+    "number",
+    "parseBehavior",
+    "parseJson",
+    "string",
+    "structure",
+    "timestamp",
+    "union",
+];
+
 pub(crate) fn emit(service: &Service) -> String {
     let converting = converting(service);
     let mut out = String::new();
@@ -621,11 +646,14 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     let retry_safe = op.readonly || op.idempotent || op.idempotency_token.is_some();
     fields.push(format!("retrySafe: {retry_safe}"));
 
-    format!(
-        "export const {}: OperationSpec = {{\n  {},\n}};\n",
-        op.name(),
-        fields.join(",\n  ")
-    )
+    let name = op.name();
+    let body = format!("OperationSpec = {{\n  {},\n}};\n", fields.join(",\n  "));
+    if IMPORTS.contains(&name) {
+        // Exporting under the name needs no local binding of it, so the import keeps its own.
+        format!("const __op_{name}: {body}export {{ __op_{name} as {name} }};\n")
+    } else {
+        format!("export const {name}: {body}")
+    }
 }
 
 /// An event stream member's spec: per union member, its structure's schema
