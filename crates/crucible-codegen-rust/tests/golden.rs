@@ -648,3 +648,22 @@ fn paginated_endpoint_metadata_matches_the_golden_file() {
         .unwrap();
     matches_golden(&format!("{pages}\n    }}\n"), "paginated_endpoints.rs");
 }
+
+#[test]
+fn finite_only_float_members_use_checked_codec() {
+    let service = edited(|model| {
+        model["shapes"]["example.weather#Coordinates"]["members"]["latitude"]["target"] =
+            json!("smithy.api#Float");
+    });
+    let server = generate(&service, &Options::default()).unwrap();
+    let client = generate_client(&service).unwrap();
+    assert!(server.contains("Adapter::<::crucible_server_runtime_rust::codec::FiniteFloat>"));
+    assert!(client.contains("Adapter::<::crucible_client_runtime_rust::codec::FiniteFloat>"));
+    let adapters = [&server, &client]
+        .into_iter()
+        .flat_map(|code| code.lines())
+        .filter(|line| line.contains("codec::FiniteFloat"))
+        .map(|line| format!("{}\n", line.trim()))
+        .collect::<String>();
+    matches_golden(&adapters, "finite_float.rs");
+}

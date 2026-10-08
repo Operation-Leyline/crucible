@@ -150,6 +150,9 @@ pub(crate) fn codec(service: &Service, member: &Member) -> Option<String> {
         {
             Some(format!("{base}NonFinite"))
         }
+        Shape::Simple(simple) if simple.kind == SimpleKind::Float => {
+            Some(format!("{base}FiniteFloat"))
+        }
         Shape::Simple(simple) if simple.kind == SimpleKind::Timestamp => {
             if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor {
                 return Some("::crucible_server_runtime_rust::cbor::Timestamp".to_owned());
