@@ -450,7 +450,7 @@ checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
 name = "crucible-build"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen",
  "crucible-codegen-rust",
@@ -465,7 +465,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "clap",
  "crucible-build",
@@ -498,7 +498,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-cli-runtime"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -511,7 +511,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-client-runtime-rust"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -535,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-c",
  "crucible-codegen-cdk",
@@ -563,7 +563,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-c"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-cdk"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-infra",
  "crucible-smithy",
@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-rust",
  "crucible-smithy",
@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-common"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-smithy",
  "serde_json",
@@ -601,7 +601,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-cpp"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -611,7 +611,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-csharp"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -621,7 +621,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-dart"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -631,7 +631,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-go"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -641,7 +641,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-infra"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-smithy",
  "serde",
@@ -650,7 +650,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-java"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -660,7 +660,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-kotlin"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -670,7 +670,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-openapi"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-smithy",
  "serde_json",
@@ -678,7 +678,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-php"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -688,7 +688,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-python"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -698,7 +698,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-r"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -708,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-ruby"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -718,7 +718,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-rust"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-swift"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-terraform"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-go",
  "crucible-codegen-infra",
@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-ts"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -763,7 +763,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-policy"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "crucible-smithy",
  "regex",
@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-server-runtime-rust"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -796,7 +796,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-smithy"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -809,11 +809,11 @@ dependencies = [
 
 [[package]]
 name = "crucible-traits"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "crucible-wire"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "bigdecimal",
