@@ -117,8 +117,10 @@ fn main() {
 The model compiles lazily on the first output or publication call and is lowered
 once for named outputs. `publish()` exposes the compiled
 `model.json` through Cargo metadata. Generation writes artifacts under `OUT_DIR/outputs/<name>` and records them in `crucible-artifacts.json`.
-Publishing without named outputs clears registrations from earlier builds. Publishing
-after generation on the same model handle preserves its current registrations.
+Publishing with no configured policy and no initialized named outputs clears
+registrations from earlier builds. A configured policy initializes the model package,
+so publication preserves existing registrations. Publishing after generation on the
+same model handle likewise preserves its current registrations.
 `generate_into` also exports the artifact to a stable path relative to the build
 script's Cargo manifest. Cargo watches model inputs and exported generated files;
 edits to the model or deletion of an export trigger regeneration. Native build
