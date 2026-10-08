@@ -66,16 +66,80 @@ fn absent_prelude_context_shapes_are_supported() {
 }
 
 #[test]
-fn nested_shapes_keep_wire_member_spelling() {
+fn nested_shapes_use_jsii_member_spelling_and_map_to_wire_names() {
     let (mut service, bindings, options) = inputs();
     if let Some(crucible_smithy::ir::Shape::Structure(s)) =
         service.shapes.get_mut(&"example#Settings".parse().unwrap())
     {
-        s.members[0].name = "Enabled".into();
+        s.members[0].name = "Max_Count".into();
     }
     let plan = resolve(&service, &bindings).unwrap();
     let files = emit(&service, &plan, &options).unwrap();
-    assert!(files[0].contents.contains("readonly Enabled:"));
+    let source = &files[0].contents;
+    assert!(source.contains("readonly maxCount:"), "{source}");
+    assert!(!source.contains("Max_Count:"), "{source}");
+    // The schema carries the wire spelling so synthesis can restore it.
+    assert!(
+        source.contains("\"maxCount\":{\"wire\":\"Max_Count\""),
+        "{source}"
+    );
+}
+
+#[test]
+fn snake_case_resource_properties_and_attributes_are_jsii_camel_case() {
+    let (service, bindings, options) = inputs();
+    let mut plan = resolve(&service, &bindings).unwrap();
+    let properties = &mut plan.resources[0].properties;
+    let property = properties.remove("Name").unwrap();
+    properties.insert("max_count".into(), property);
+    let attribute = plan.resources[0].attributes.remove("Id").unwrap();
+    plan.resources[0]
+        .attributes
+        .insert("city_id".into(), attribute);
+    let files = emit(&service, &plan, &options).unwrap();
+    let source = &files[0].contents;
+    assert!(source.contains("readonly maxCount: string;"), "{source}");
+    assert!(
+        source.contains("\"max_count\": toWire(props.maxCount,"),
+        "{source}"
+    );
+    assert!(
+        source.contains("public readonly attrCityId: string;"),
+        "{source}"
+    );
+    assert!(source.contains("getAttString(\"city_id\")"), "{source}");
+}
+
+#[test]
+fn colliding_camel_case_members_are_diagnosed() {
+    let (service, bindings, options) = inputs();
+    let mut plan = resolve(&service, &bindings).unwrap();
+    let properties = &mut plan.resources[0].properties;
+    let property = properties.get("Name").unwrap().clone();
+    properties.insert("name_".into(), property);
+    assert!(
+        emit(&service, &plan, &options)
+            .unwrap_err()
+            .to_string()
+            .contains("collides")
+    );
+}
+
+#[test]
+fn fixed_width_integers_carry_their_type_range() {
+    let (mut service, bindings, options) = inputs();
+    if let Some(crucible_smithy::ir::Shape::Structure(s)) =
+        service.shapes.get_mut(&"example#Settings".parse().unwrap())
+    {
+        s.members[1].constraints = Default::default();
+    }
+    let plan = resolve(&service, &bindings).unwrap();
+    let files = emit(&service, &plan, &options).unwrap();
+    assert!(
+        files[0]
+            .contents
+            .contains("\"intRange\":[-2147483648,2147483647]")
+    );
 }
 
 #[test]
@@ -147,5 +211,21 @@ fn csharp_class_member_collision_is_diagnosed_before_emission() {
             .unwrap_err()
             .to_string()
             .contains("enclosing class in .NET")
+    );
+}
+
+#[test]
+fn runtime_rejects_unknown_keys_aliasing_a_member_wire_name() {
+    let (service, bindings, options) = inputs();
+    let plan = resolve(&service, &bindings).unwrap();
+    let files = emit(&service, &plan, &options).unwrap();
+    let runtime = files
+        .iter()
+        .find(|file| file.path == "src/validation.ts")
+        .unwrap();
+    assert!(
+        runtime.contents.contains("aliases '${owner}'"),
+        "{}",
+        runtime.contents
     );
 }

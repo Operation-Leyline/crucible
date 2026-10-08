@@ -425,8 +425,17 @@ export function fromBase64(text: string): Uint8Array {
   return bytes;
 }
 
+// Seconds times 1000 can land just below the true millisecond (1090069807.626
+// * 1000 is ...625.9999), so snap values within float noise to the nearest
+// millisecond. Finer fractions truncate, as `Date` does for date-time text.
+function epochMillis(seconds: number): number {
+  const millis = seconds * 1000;
+  const nearest = Math.round(millis);
+  return Math.abs(millis - nearest) < 5e-4 ? nearest : Math.floor(millis);
+}
+
 export function parseTimestamp(value: string | number): Date {
-  const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
+  const date = typeof value === "number" ? new Date(epochMillis(value)) : new Date(value);
   if (Number.isNaN(date.getTime())) throw new TypeError(`not a timestamp: ${String(value)}`);
   return date;
 }

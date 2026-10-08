@@ -51,6 +51,8 @@ def prepare(work, npm, node):
         "--config", FIXTURES / "options.json", "--out", package)
     run(npm, "install", "--ignore-scripts", "--no-audit", "--no-fund", cwd=package)
     run(npm, "run", "build", cwd=package)
+    copy("validation.cjs", package / "validation.cjs")
+    run(node, "validation.cjs", cwd=package)
     packed = json.loads(run(npm, "pack", "--ignore-scripts", "--json", capture=True, cwd=package))
     tarball = package / packed[0]["filename"]
     # A version is deliberately reused by fixtures. A content-addressed path
