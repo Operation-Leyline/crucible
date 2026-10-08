@@ -1545,8 +1545,13 @@ impl<'m> Lowerer<'m> {
                 }
                 // The enum IR carries docs; deprecated and tags remain in the shape's raw trait.
                 values.push(EnumValue {
-                    // Legacy definitions have no member traits or per-value visibility.
-                    internal: false,
+                    // Smithy's enum conversion maps this legacy tag to @internal.
+                    internal: definition
+                        .get("tags")
+                        .and_then(Value::as_array)
+                        .is_some_and(|tags| {
+                            tags.iter().any(|tag| tag.as_str() == Some("internal"))
+                        }),
                     name: name.to_owned(),
                     value: value.to_owned(),
                     docs: definition

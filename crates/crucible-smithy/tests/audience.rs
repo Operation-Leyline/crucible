@@ -4,6 +4,43 @@ use crucible_smithy::{Audience, Capabilities, Feature, Model, ShapeId, project};
 const INTERNAL: &str = include_str!("fixtures/internal.json");
 
 #[test]
+fn legacy_internal_tags_project_values_and_reject_removed_defaults() {
+    let source = include_str!("fixtures/internal-legacy-enum.json");
+    let full = lower(source, false);
+    let color_id = ShapeId::new("example.legacy", "Color");
+    let Shape::Enum(color) = full.shape(&color_id).unwrap() else {
+        panic!("legacy enum")
+    };
+    assert!(!color.internal);
+    assert!(color.values[0].internal);
+    assert!(!color.values[1].internal);
+    let external = project(&full, Audience::External).unwrap();
+    let Shape::Enum(visible) = external.shape(&color_id).unwrap() else {
+        panic!("legacy enum")
+    };
+    assert_eq!(visible.values.len(), 1);
+    assert_eq!(visible.values[0].value, "blue-wire");
+    let internal = project(&full, Audience::Internal).unwrap();
+    let Shape::Enum(visible) = internal.shape(&color_id).unwrap() else {
+        panic!("legacy enum")
+    };
+    assert_eq!(visible.values.len(), 2);
+
+    let mut model: serde_json::Value = serde_json::from_str(source).unwrap();
+    model["shapes"]["example.legacy#Output"]["members"]["color"]["traits"]["smithy.api#default"] =
+        serde_json::json!("red-wire");
+    let with_default = lower(&model.to_string(), false);
+    let diagnostics = project(&with_default, Audience::External).unwrap_err();
+    assert_eq!(diagnostics.len(), 1, "{diagnostics}");
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("audience.default_reference:")
+    );
+    assert!(project(&with_default, Audience::Internal).is_ok());
+}
+
+#[test]
 fn legacy_enum_visibility_follows_the_shape_and_preserves_public_values() {
     let source = include_str!("fixtures/legacy-enum.json");
     let full = lower(source, false);
