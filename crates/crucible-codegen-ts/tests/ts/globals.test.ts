@@ -42,3 +42,17 @@ test("errors named after JavaScript globals are thrown as their own classes", as
   const server = await client.json({ date: "fail" }).catch((error: unknown) => error);
   assert.ok(server instanceof ServerError); assert.equal(server.$fault, "server");
 });
+
+// Operations named like what schemas.ts imports (Schema, OperationSpec, list) must not merge with or shadow those imports.
+test("operations named like schemas.ts imports compile and reach their routes", async () => {
+  const paths: string[] = [];
+  const client = new GlobalsClient({ endpoint: "https://globals.test", retry: false, fetch: async request => {
+    const path = new URL(request.url).pathname;
+    paths.push(path);
+    return new Response(JSON.stringify({ name: path }), { headers: { "content-type": "application/json" } });
+  } });
+  assert.deepEqual(await client.schema(), { name: "/schema" });
+  assert.deepEqual(await client.operationSpec(), { name: "/operation-spec" });
+  assert.deepEqual(await client.list(), { name: "/list" });
+  assert.deepEqual(paths, ["/schema", "/operation-spec", "/list"]);
+});

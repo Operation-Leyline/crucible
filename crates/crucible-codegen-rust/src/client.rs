@@ -42,16 +42,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
     }
     out.push_str(&crate::events::statics(service, diagnostics, true));
     let mut methods = String::new();
-    let mut names: std::collections::BTreeSet<String> = service
-        .operations
-        .iter()
-        .flat_map(|op| {
-            [
-                function(op.name()),
-                format!("{}_pages", function(op.name()).trim_start_matches("r#")),
-            ]
-        })
-        .collect();
+    let mut method_names = method_names(service).into_iter();
     for op in &service.operations {
         let output = if op.output.is_some() {
             output_type(service, op).replace("model::", "")
@@ -64,27 +55,11 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             out.push_str(&format!("\n#[allow(non_upper_case_globals)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible_server_runtime_rust::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
         }
         methods.push_str(&method(service, op, None));
-        let base = format!(
-            "{}_with_options",
-            function(op.name()).trim_start_matches("r#")
-        );
-        let mut options_name = base.clone();
-        let mut suffix = 2;
-        while !names.insert(options_name.clone()) {
-            options_name = format!("{base}_{suffix}");
-            suffix += 1;
-        }
-        methods.push_str(&method(service, op, Some(&options_name)));
-        methods.push_str(&pages(service, op, diagnostics));
-        for waiter in op.waiters.keys() {
-            let base = format!("wait_until_{}", function(waiter).trim_start_matches("r#"));
-            let mut name = base.clone();
-            let mut suffix = 2;
-            while !names.insert(name.clone()) {
-                name = format!("{base}_{suffix}");
-                suffix += 1;
-            }
-            methods.push_str(&waiter_method(service, op, waiter, &name));
+        let derived = method_names.next().expect("a method set per operation");
+        methods.push_str(&method(service, op, Some(&derived.options)));
+        methods.push_str(&pages(service, op, derived.pages.as_deref(), diagnostics));
+        for (waiter, name) in op.waiters.keys().zip(&derived.waiters) {
+            methods.push_str(&waiter_method(service, op, waiter, name));
         }
         if function(op.name()) == "new" {
             diagnostics.push(
@@ -104,6 +79,69 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         service.id.name()
     ));
     out
+}
+
+/// The generated methods an operation adds beside its own.
+struct Derived {
+    options: String,
+    /// Only a `@paginated` operation has pages.
+    pages: Option<String>,
+    /// One per waiter, in the operation's waiter order.
+    waiters: Vec<String>,
+}
+
+/// Method names for every operation, in operation order. An operation's own
+/// method always keeps its name; a derived method (`*_with_options`, `*_pages`,
+/// `wait_until_*`) takes a numeric suffix instead of colliding with it or
+/// with another derived method, so `ListThings` beside `ListThingsPages`
+/// stays valid.
+fn method_names(service: &Service) -> Vec<Derived> {
+    let mut taken: std::collections::BTreeSet<String> = service
+        .operations
+        .iter()
+        .map(|op| function(op.name()))
+        .collect();
+    let mut unique = |base: String| {
+        let mut name = base.clone();
+        let mut suffix = 2;
+        while !taken.insert(name.clone()) {
+            name = format!("{base}_{suffix}");
+            suffix += 1;
+        }
+        name
+    };
+    service
+        .operations
+        .iter()
+        .map(|op| {
+            let base = function(op.name());
+            let base = base.trim_start_matches("r#");
+            Derived {
+                options: unique(format!("{base}_with_options")),
+                pages: op
+                    .paginated
+                    .as_ref()
+                    .map(|_| unique(format!("{base}_pages"))),
+                waiters: op
+                    .waiters
+                    .keys()
+                    .map(|waiter| {
+                        unique(format!(
+                            "wait_until_{}",
+                            function(waiter).trim_start_matches("r#")
+                        ))
+                    })
+                    .collect(),
+            }
+        })
+        .collect()
+}
+
+/// The client method that pages through `op`, or `None` without `@paginated`.
+/// Exposed so the generated service CLI calls the method the SDK names.
+pub fn pages_method(service: &Service, op: &Operation) -> Option<String> {
+    let index = service.operations.iter().position(|o| o.id == op.id)?;
+    method_names(service).swap_remove(index).pages
 }
 
 /// One native enum lets callers unify modeled failures from different operations.
@@ -412,8 +450,13 @@ fn token_member<'s>(service: &'s Service, op: &Operation) -> Option<&'s Member> 
 
 /// `*_pages(input)`: a `Paginator` that resends the input with each
 /// response's token, including a nested output token path.
-fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> String {
-    let Some(paginated) = &op.paginated else {
+fn pages(
+    service: &Service,
+    op: &Operation,
+    method: Option<&str>,
+    diagnostics: &mut Diagnostics,
+) -> String {
+    let (Some(paginated), Some(method)) = (&op.paginated, method) else {
         return String::new();
     };
     let input = string_member(service, op.input.as_ref(), &paginated.input_token);
@@ -463,8 +506,7 @@ fn pages(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> St
         String::new()
     };
     format!(
-        "\n    /// Every page of {name}, one request each.\n    pub fn {}_pages(&self, input: {}) -> ::crucible_server_runtime_rust::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){metadata}{finish}\n    }}\n",
-        function(name).trim_start_matches("r#"),
+        "\n    /// Every page of {name}, one request each.\n    pub fn {method}(&self, input: {}) -> ::crucible_server_runtime_rust::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){metadata}{finish}\n    }}\n",
         input_type(service, op).replace("model::", ""),
         output,
         get(input, "input"),

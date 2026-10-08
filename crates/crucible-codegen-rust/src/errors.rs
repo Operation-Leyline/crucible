@@ -7,7 +7,7 @@ use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::info::{constant, error_bindings, members};
 use crate::models::member_field;
-use crate::names::{doc, field, literal, variant};
+use crate::names::{check_distinct, doc, field, literal, variant};
 use crate::types::{boxed_members, simple_kind};
 
 pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
@@ -27,13 +27,18 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
 pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostics) -> String {
     let boxed = boxed_members(service);
     let builders = crate::builders::names(service);
-    let mut out = String::from(
-        "use ::crucible_server_runtime_rust::operation::{ErrorInfo, Fault};\nuse super::__redaction;\n",
-    );
+    let mut out = String::from("use super::__redaction;\n");
     let mut defaults = String::new();
     for (id, structure) in error_shapes(service) {
         let name = service.name_of(id);
         let error = structure.error.as_ref().expect("filtered to errors");
+        check_distinct(
+            id,
+            structure.members.iter().map(|m| m.name.as_str()),
+            field,
+            "field",
+            diagnostics,
+        );
         out.push('\n');
         doc(&mut out, "", structure.docs.as_deref());
         out.push_str(crate::DERIVE);
@@ -71,7 +76,7 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
         let throttling = error.retryable.is_some_and(|r| r.throttling);
         let retryable = error.retryable.is_some();
         out.push_str(&format!(
-            "pub(super) static {}: ErrorInfo = ErrorInfo {{\n    name: {},\n    status: {},\n    fault: Fault::{fault},\n    retryable: {retryable},\n    throttling: {throttling},\n    members: {},\n}};\n\n",
+            "pub(super) static {}: ::crucible_server_runtime_rust::operation::ErrorInfo = ::crucible_server_runtime_rust::operation::ErrorInfo {{\n    name: {},\n    status: {},\n    fault: ::crucible_server_runtime_rust::operation::Fault::{fault},\n    retryable: {retryable},\n    throttling: {throttling},\n    members: {},\n}};\n\n",
             info_static(name),
             literal(&error.wire_code),
             error.status,
@@ -83,7 +88,7 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
             format!("    fn response_status(&self) -> u16 {{ {get} }}\n\n")
         });
         out.push_str(&format!(
-            "impl ::crucible_server_runtime_rust::ModelledError for {name} {{\n    fn shape_id(&self) -> &'static str {{ {} }}\n    fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> {{ ::crucible_server_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }}\n{status}    fn info(&self) -> &'static ErrorInfo {{\n        &{}\n    }}\n\n    fn to_json(&self) -> ::crucible_server_runtime_rust::__private::serde_json::Value {{\n        ::crucible_server_runtime_rust::__private::serde_json::to_value(self).unwrap_or_default()\n    }}\n\n    fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {{\n        ::crucible_server_runtime_rust::error::write_error(self, out)\n    }}\n\n    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::crucible_server_runtime_rust::operation::ResponseBindings> {{\n        ::crucible_server_runtime_rust::error::write_error_http(self, out)\n    }}\n\n    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::crucible_server_runtime_rust::operation::ResponseBindings> {{\n        ::crucible_server_runtime_rust::error::write_error_http_typed(self, type_name, out)\n    }}\n}}\n\n",
+            "impl ::crucible_server_runtime_rust::ModelledError for {name} {{\n    fn shape_id(&self) -> &'static str {{ {} }}\n    fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> {{ ::crucible_server_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }}\n{status}    fn info(&self) -> &'static ::crucible_server_runtime_rust::operation::ErrorInfo {{\n        &{}\n    }}\n\n    fn to_json(&self) -> ::crucible_server_runtime_rust::__private::serde_json::Value {{\n        ::crucible_server_runtime_rust::__private::serde_json::to_value(self).unwrap_or_default()\n    }}\n\n    fn write_json(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::std::vec::Vec<(&'static str, ::std::string::String)>> {{\n        ::crucible_server_runtime_rust::error::write_error(self, out)\n    }}\n\n    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::crucible_server_runtime_rust::operation::ResponseBindings> {{\n        ::crucible_server_runtime_rust::error::write_error_http(self, out)\n    }}\n\n    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__private::serde_json::Result<::crucible_server_runtime_rust::operation::ResponseBindings> {{\n        ::crucible_server_runtime_rust::error::write_error_http_typed(self, type_name, out)\n    }}\n}}\n\n",
             literal(&id.to_string()),
             info_static(name)
         ));

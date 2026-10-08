@@ -4,7 +4,6 @@
 pub mod empty {
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
     mod model {
-        use ::crucible_server_runtime_rust::validate::{Validate, Validator};
 
         #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__private::serde")]
@@ -45,7 +44,6 @@ pub mod empty {
 
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
     mod errors {
-        use ::crucible_server_runtime_rust::operation::{ErrorInfo, Fault};
         use super::__redaction;
 
         #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]
@@ -57,10 +55,10 @@ pub mod empty {
             pub retry_after_seconds: ::std::option::Option<i32>,
         }
 
-        pub(super) static INTERNAL_SERVER_EXCEPTION_INFO: ErrorInfo = ErrorInfo {
+        pub(super) static INTERNAL_SERVER_EXCEPTION_INFO: ::crucible_server_runtime_rust::operation::ErrorInfo = ::crucible_server_runtime_rust::operation::ErrorInfo {
             name: "InternalServerException",
             status: 500,
-            fault: Fault::Server,
+            fault: ::crucible_server_runtime_rust::operation::Fault::Server,
             retryable: true,
             throttling: false,
             members: &[
@@ -72,7 +70,7 @@ pub mod empty {
         impl ::crucible_server_runtime_rust::ModelledError for InternalServerException {
             fn shape_id(&self) -> &'static str { "crucible.errors#InternalServerException" }
             fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_server_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
-            fn info(&self) -> &'static ErrorInfo {
+            fn info(&self) -> &'static ::crucible_server_runtime_rust::operation::ErrorInfo {
                 &INTERNAL_SERVER_EXCEPTION_INFO
             }
 
@@ -108,10 +106,10 @@ pub mod empty {
             pub message: ::std::string::String,
         }
 
-        pub(super) static UNKNOWN_OPERATION_EXCEPTION_INFO: ErrorInfo = ErrorInfo {
+        pub(super) static UNKNOWN_OPERATION_EXCEPTION_INFO: ::crucible_server_runtime_rust::operation::ErrorInfo = ::crucible_server_runtime_rust::operation::ErrorInfo {
             name: "UnknownOperationException",
             status: 404,
-            fault: Fault::Client,
+            fault: ::crucible_server_runtime_rust::operation::Fault::Client,
             retryable: false,
             throttling: false,
             members: &[
@@ -122,7 +120,7 @@ pub mod empty {
         impl ::crucible_server_runtime_rust::ModelledError for UnknownOperationException {
             fn shape_id(&self) -> &'static str { "crucible.errors#UnknownOperationException" }
             fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_server_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
-            fn info(&self) -> &'static ErrorInfo {
+            fn info(&self) -> &'static ::crucible_server_runtime_rust::operation::ErrorInfo {
                 &UNKNOWN_OPERATION_EXCEPTION_INFO
             }
 
@@ -162,10 +160,10 @@ pub mod empty {
             pub field_list: ::std::option::Option<super::model::ValidationExceptionFieldList>,
         }
 
-        pub(super) static VALIDATION_EXCEPTION_INFO: ErrorInfo = ErrorInfo {
+        pub(super) static VALIDATION_EXCEPTION_INFO: ::crucible_server_runtime_rust::operation::ErrorInfo = ::crucible_server_runtime_rust::operation::ErrorInfo {
             name: "ValidationException",
             status: 400,
-            fault: Fault::Client,
+            fault: ::crucible_server_runtime_rust::operation::Fault::Client,
             retryable: false,
             throttling: false,
             members: &[
@@ -178,7 +176,7 @@ pub mod empty {
         impl ::crucible_server_runtime_rust::ModelledError for ValidationException {
             fn shape_id(&self) -> &'static str { "crucible.errors#ValidationException" }
             fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_server_runtime_rust::cbor::write_typed(self, self.shape_id(), out) }
-            fn info(&self) -> &'static ErrorInfo {
+            fn info(&self) -> &'static ::crucible_server_runtime_rust::operation::ErrorInfo {
                 &VALIDATION_EXCEPTION_INFO
             }
 

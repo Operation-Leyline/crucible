@@ -5,7 +5,27 @@
       "type": "service",
       "version": "1",
       "traits": { "crucible.protocols#json": {} },
-      "operations": [{ "target": "example.globals#JSON" }]
+      "operations": [
+        { "target": "example.globals#JSON" },
+        { "target": "example.globals#Schema" },
+        { "target": "example.globals#OperationSpec" },
+        { "target": "example.globals#list" }
+      ]
+    },
+    "example.globals#Schema": {
+      "type": "operation",
+      "traits": { "smithy.api#http": { "method": "POST", "uri": "/schema" } },
+      "output": { "target": "example.globals#Record" }
+    },
+    "example.globals#OperationSpec": {
+      "type": "operation",
+      "traits": { "smithy.api#http": { "method": "POST", "uri": "/operation-spec" } },
+      "output": { "target": "example.globals#Record" }
+    },
+    "example.globals#list": {
+      "type": "operation",
+      "traits": { "smithy.api#http": { "method": "POST", "uri": "/list" } },
+      "output": { "target": "example.globals#Record" }
     },
     "example.globals#JSON": {
       "type": "operation",

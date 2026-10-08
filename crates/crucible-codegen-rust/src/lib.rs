@@ -33,6 +33,7 @@ mod scaffold;
 mod server_api;
 mod types;
 
+pub use client::pages_method;
 pub use client_options::ClientOptions;
 pub use client_package::emit_client_package;
 pub use file::File;

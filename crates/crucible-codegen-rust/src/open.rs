@@ -180,7 +180,7 @@ pub(crate) fn int_enumeration(
     if client {
         out.push_str(&format!("            Self::{unknown}(value) => *value,\n"));
     }
-    out.push_str(&format!("        }}\n    }}\n}}\nimpl ::crucible_server_runtime_rust::open::IntEnum for {name} {{\n    fn as_i32(&self) -> i32 {{ self.as_i32() }}\n    fn from_i32(value: i32) -> Option<Self> {{\n        match value {{\n"));
+    out.push_str(&format!("        }}\n    }}\n}}\nimpl ::crucible_server_runtime_rust::open::IntEnum for {name} {{\n    fn as_i32(&self) -> i32 {{ self.as_i32() }}\n    fn from_i32(value: i32) -> ::std::option::Option<Self> {{\n        match value {{\n"));
     for value in &values.values {
         out.push_str(&format!(
             "            {} => Some(Self::{}),\n",

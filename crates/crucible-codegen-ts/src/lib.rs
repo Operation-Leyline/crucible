@@ -227,6 +227,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     for operation in &service.operations {
+        // `schemas.ts` also exports the service's endpoint rules under this name.
+        if service.endpoint_rules.is_some() && operation.name() == "endpointRules" {
+            diagnostics.push(
+                &operation.id,
+                "`endpointRules` collides with the endpoint rules `schemas.ts` exports",
+            );
+        }
         if RESERVED.contains(&operation.name()) {
             diagnostics.push(
                 &operation.id,

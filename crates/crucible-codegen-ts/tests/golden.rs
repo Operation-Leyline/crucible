@@ -474,3 +474,147 @@ fn configured_client_cannot_shadow_the_service_exception() {
             .contains("client name collides")
     );
 }
+
+/// `schemas.ts` imports `Schema`, `OperationSpec` and helpers such as `list`
+/// by those names, so an operation called the same must not be declared under
+/// the import's name (TS2395) yet stay reachable as `spec.Schema`.
+#[test]
+fn operations_named_like_schemas_imports_are_exported_under_an_alias() {
+    let service = Model::from_json(include_str!("fixtures/globals.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let options = Options {
+        package_name: "globals".into(),
+        package_version: "0.0.0".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+    };
+    let files = emit(&service, &options).unwrap();
+    let file = |path: &str| {
+        &files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+    };
+    let schemas = file("src/schemas.ts");
+    for name in ["Schema", "OperationSpec", "list"] {
+        assert!(
+            schemas.contains(&format!("const __op_{name}: OperationSpec = {{")),
+            "{schemas}"
+        );
+        assert!(
+            schemas.contains(&format!("export {{ __op_{name} as {name} }};")),
+            "{schemas}"
+        );
+        assert!(
+            !schemas.contains(&format!("export const {name}:")),
+            "{schemas}"
+        );
+    }
+    // Other operations keep their plain exports.
+    assert!(schemas.contains("export const JSON: OperationSpec = {"));
+    assert!(file("src/client.ts").contains("spec.Schema"));
+}
+
+/// The private alias for `Schema` is `__op_Schema`; an operation that already
+/// has that name must not be redeclared by it.
+#[test]
+fn the_import_alias_avoids_another_operations_name() {
+    let mut model: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/globals.json")).unwrap();
+    let shapes = model["shapes"].as_object_mut().unwrap();
+    let service_id = shapes
+        .iter()
+        .find(|(_, shape)| shape["type"] == "service")
+        .map(|(id, _)| id.clone())
+        .unwrap();
+    shapes.insert(
+        "example.globals#__op_Schema".into(),
+        serde_json::json!({
+            "type": "operation",
+            "traits": { "smithy.api#http": { "method": "GET", "uri": "/op-schema" } }
+        }),
+    );
+    shapes.get_mut(&service_id).unwrap()["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({ "target": "example.globals#__op_Schema" }));
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let options = Options {
+        package_name: "globals".into(),
+        package_version: "0.0.0".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+    };
+    let files = emit(&service, &options).unwrap();
+    let schemas = &files
+        .iter()
+        .find(|file| file.path == "src/schemas.ts")
+        .unwrap()
+        .contents;
+    assert!(
+        schemas.contains("export const __op_Schema: OperationSpec = {"),
+        "{schemas}"
+    );
+    assert!(
+        schemas.contains("const ___op_Schema: OperationSpec = {"),
+        "{schemas}"
+    );
+    assert!(
+        schemas.contains("export { ___op_Schema as Schema };"),
+        "{schemas}"
+    );
+}
+
+#[test]
+fn an_operation_named_endpoint_rules_is_diagnosed_when_rules_are_exported() {
+    let mut model: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/endpoints.json")).unwrap();
+    let shapes = model["shapes"].as_object_mut().unwrap();
+    let service_id = shapes
+        .iter()
+        .find(|(_, shape)| shape["type"] == "service")
+        .map(|(id, _)| id.clone())
+        .unwrap();
+    shapes.insert(
+        "example.behavior#endpointRules".into(),
+        serde_json::json!({
+            "type": "operation",
+            "traits": { "smithy.api#http": { "method": "GET", "uri": "/rules" } }
+        }),
+    );
+    shapes.get_mut(&service_id).unwrap()["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({ "target": "example.behavior#endpointRules" }));
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
+        .unwrap();
+    let diagnostics = emit(
+        &service,
+        &Options {
+            package_name: "endpoints".into(),
+            package_version: "0.0.0".into(),
+            client_name: None,
+            endpoint: None,
+            middleware: vec![],
+            package_json: None,
+        },
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        diagnostics.contains("example.behavior#endpointRules: `endpointRules` collides"),
+        "{diagnostics}"
+    );
+}

@@ -105,15 +105,13 @@ fn configuration_and_reserved_names_are_diagnosed() {
 #[test]
 fn model_field_and_union_collisions_are_collected() {
     let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#Coordinates":"citysummary"});
     for member in ["message", "messageValue"] {
         model["shapes"]["example.weather#CreateCityInput"]["members"][member] =
             serde_json::json!({"target":"smithy.api#String"});
     }
     model["shapes"]["example.weather#Location"]["members"]["unknownVariant"] =
         serde_json::json!({"target":"smithy.api#String"});
-    assert_eq!(emit(&lower(&model), &options()).err().unwrap().len(), 3);
+    assert_eq!(emit(&lower(&model), &options()).err().unwrap().len(), 2);
 }
 #[test]
 fn recursive_aliases_are_diagnosed_before_doc_type_expansion() {

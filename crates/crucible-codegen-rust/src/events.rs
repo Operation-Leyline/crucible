@@ -150,7 +150,7 @@ pub(crate) fn marker_items(service: &Service, op: &Operation, client: bool) -> S
             member.optional_on_server()
         };
         let direction = if input { "INPUT" } else { "OUTPUT" };
-        out.push_str(&format!("    const {direction}_EVENTS: Option<&'static ::crucible_server_runtime_rust::event_stream::EventStreamInfo> = Some(&{});\n", info_static(service, &binding.target)));
+        out.push_str(&format!("    const {direction}_EVENTS: ::std::option::Option<&'static ::crucible_server_runtime_rust::event_stream::EventStreamInfo> = Some(&{});\n", info_static(service, &binding.target)));
         if input == client {
             let get = if optional {
                 format!(
@@ -162,7 +162,7 @@ pub(crate) fn marker_items(service: &Service, op: &Operation, client: bool) -> S
             };
             let direction = if input { "input" } else { "output" };
             let ty = if input { "Input" } else { "Output" };
-            out.push_str(&format!("    fn {direction}_events(value: &Self::{ty}) -> Option<::std::io::Result<::crucible_server_runtime_rust::event_stream::Outgoing>> {{ {get} }}\n"));
+            out.push_str(&format!("    fn {direction}_events(value: &Self::{ty}) -> ::std::option::Option<::std::io::Result<::crucible_server_runtime_rust::event_stream::Outgoing>> {{ {get} }}\n"));
         } else {
             let stream = format!(
                 "::crucible_server_runtime_rust::EventStream::{}(events)",

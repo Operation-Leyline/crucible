@@ -241,6 +241,13 @@ impl<'m> Lowerer<'m> {
             self.diagnostics
                 .push(id, "awsQuery requires service @xmlNamespace");
         }
+        crate::names::check_unique(
+            self.shapes
+                .keys()
+                .filter(|id| !id.is_prelude())
+                .map(|id| (id, shape.rename.get(id).map_or(id.name(), String::as_str))),
+            &mut self.diagnostics,
+        );
         let mut waiter_names = BTreeSet::new();
         for operation in &operations {
             for name in operation.waiters.keys() {

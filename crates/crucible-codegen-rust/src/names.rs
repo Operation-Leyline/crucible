@@ -1,5 +1,9 @@
 //! Spelling model things in Rust.
 
+use std::collections::BTreeMap;
+
+use crucible_smithy::{Diagnostics, ShapeId};
+
 /// `nextToken` → `next_token`, `HTTPStatus` → `http_status`, keywords escaped.
 pub(crate) fn field(name: &str) -> String {
     escape(&snake(name))
@@ -32,6 +36,28 @@ pub(crate) fn variant(name: &str) -> String {
         out.push('_');
     }
     out
+}
+
+/// Diagnoses members that share a Rust spelling after case conversion
+/// (`fooBar` and `foo_bar` are both `foo_bar`), which would declare one field,
+/// builder method or variant twice. Valid Smithy; not representable in Rust.
+pub(crate) fn check_distinct<'a>(
+    owner: &ShapeId,
+    members: impl Iterator<Item = &'a str>,
+    spell: fn(&str) -> String,
+    what: &str,
+    diagnostics: &mut Diagnostics,
+) {
+    let mut seen: BTreeMap<String, &str> = BTreeMap::new();
+    for name in members {
+        let rust = spell(name);
+        if let Some(previous) = seen.insert(rust.clone(), name) {
+            diagnostics.push(
+                &owner.with_member(name),
+                format!("members `{previous}` and `{name}` are both {what} `{rust}` in Rust"),
+            );
+        }
+    }
 }
 
 pub(crate) fn snake(name: &str) -> String {
