@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 crucible-smithy.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
+pulldown-cmark = { version = "0.13", default-features = false }
 
 [lints]
 workspace = true

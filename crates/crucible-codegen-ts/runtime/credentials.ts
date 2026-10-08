@@ -1,12 +1,18 @@
 import { AuthenticationError, type IdentityProvider } from "./runtime.js";
 
+/** Static AWS signing credentials with optional session token and expiration. */
 export interface AwsCredentials {
+  /** AWS access key identifier. */
   readonly accessKeyId: string;
+  /** AWS signing secret; keep private. */
   readonly secretAccessKey: string;
+  /** Temporary-session token when present; keep private. */
   readonly sessionToken?: string;
+  /** Credential expiry; cached providers refresh before this time. */
   readonly expiration?: Date;
 }
 
+/** Read static AWS credentials from a caller-supplied environment map; partial credentials throw AuthenticationError. */
 export function credentialsFromEnvironment(environment: Readonly<Record<string,string | undefined>>): AwsCredentials | undefined {
   const accessKeyId=environment.AWS_ACCESS_KEY_ID, secretAccessKey=environment.AWS_SECRET_ACCESS_KEY;
   if (!accessKeyId && !secretAccessKey) return undefined;
@@ -29,6 +35,7 @@ export function credentialsFromProfile(text: string, profile="default"): AwsCred
   return {accessKeyId,secretAccessKey,sessionToken:values.aws_session_token};
 }
 
+/** Try providers in order until an identity is available; provider failures propagate. */
 export function chainCredentials(...providers: readonly IdentityProvider<AwsCredentials>[]): () => Promise<AwsCredentials | undefined> {
   return async () => { for (const provider of providers) { const value=await (typeof provider==="function"?provider():provider); if (value) return value; } return undefined; };
 }
@@ -55,8 +62,10 @@ async function hmac(key: BufferSource, value:string): Promise<ArrayBuffer> {
   const imported=await crypto.subtle.importKey("raw",key,{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   return crypto.subtle.sign("HMAC",imported,bytes(value));
 }
+/** Region, service signing name and path/payload policy used by SigV4. */
 export interface SigningScope { readonly region: string; readonly name: string; readonly disableDoubleEncoding?: boolean; readonly disableNormalizePath?: boolean; readonly unsignedPayload?: boolean; }
 
+/** Sign a request in place using AWS Signature V4. Streaming bodies require a declared digest. */
 export async function signSigV4(request: Request, credentials: AwsCredentials, scope: SigningScope, streaming=false): Promise<Request> {
   if (!credentials.accessKeyId || !credentials.secretAccessKey || !scope.region || !scope.name) throw new AuthenticationError("SigV4 requires credentials, region, and signing name");
   if (credentials.expiration && (!Number.isFinite(credentials.expiration.getTime()) || credentials.expiration.getTime()<=Date.now())) throw new AuthenticationError("AWS credentials are expired");

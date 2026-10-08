@@ -1,4 +1,5 @@
 //! Native Go models, context-aware clients, and a standard-library runtime.
+use crucible_codegen_common::documentation::{model as shape_docs, operation as operation_docs};
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
@@ -282,6 +283,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             for m in &s.members {
                 let native = exported(&m.name);
                 if !members.insert(native.clone())
+                    || ["String", "GoString"].contains(&native.as_str())
                     || matches!(shape, Shape::Union(_)) && native == "UnknownVariant"
                     || s.error.is_some()
                         && ["Error", "Unwrap", "Metadata"].contains(&native.as_str())
@@ -368,12 +370,19 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
         let name = exported(service.name_of(id));
+        go_doc(&mut models, "", &name, shape_docs(shape).as_deref());
         match shape {
             Shape::IntEnum(e) => {
                 models.push_str(&format!(
                     "// {name} preserves unrecognized integer values.\ntype {name} int32\nconst (\n"
                 ));
                 for v in &e.values {
+                    go_doc(
+                        &mut models,
+                        "    ",
+                        &format!("{name}{}", exported(&v.name)),
+                        v.docs.as_deref(),
+                    );
                     models.push_str(&format!(
                         "    {name}{} {name} = {}\n",
                         exported(&v.name),
@@ -400,6 +409,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     "// {name} preserves unrecognized string values.\ntype {name} string\nconst (\n"
                 ));
                 for v in &e.values {
+                    go_doc(
+                        &mut models,
+                        "    ",
+                        &format!("{name}{}", exported(&v.name)),
+                        v.docs.as_deref(),
+                    );
                     models.push_str(&format!(
                         "    {name}{} {name} = {}\n",
                         exported(&v.name),
@@ -411,6 +426,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             Shape::Structure(s) | Shape::Union(s) => {
                 models.push_str(&format!("type {name} struct {{\n"));
                 for m in &s.members {
+                    go_doc(&mut models, "    ", &exported(&m.name), m.docs.as_deref());
                     let t = member_ty(service, &m.target, &outputs, id);
                     // A stream is never null: a nil input reader sends an empty body.
                     let t = if is_stream(service, &m.target) {
@@ -429,11 +445,22 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     models.push_str("    Metadata *ServiceError\n");
                 }
                 models.push_str("}\n");
+                models.push_str(&format!("// String describes present members and redacts sensitive values.\nfunc (m {name}) String() string {{ return formatModel(wireSchema, {}, m) }}\n// GoString applies the same redaction for Go syntax formatting.\nfunc (m {name}) GoString() string {{ return m.String() }}\n", literal(&id.to_string())));
                 // Keep tri-state storage available, while ordinary callers use
                 // native arguments and return values as in conventional Go APIs.
                 let mut used: BTreeSet<String> =
                     s.members.iter().map(|m| exported(&m.name)).collect();
-                used.extend(["Error", "Unwrap", "Metadata", "UnknownVariant"].map(str::to_owned));
+                used.extend(
+                    [
+                        "Error",
+                        "Unwrap",
+                        "Metadata",
+                        "UnknownVariant",
+                        "String",
+                        "GoString",
+                    ]
+                    .map(str::to_owned),
+                );
                 for m in &s.members {
                     let native = exported(&m.name);
                     let t = member_ty(service, &m.target, &outputs, id);
@@ -450,6 +477,27 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                             method = format!("{base}{suffix}");
                             suffix += 1;
                         }
+                        go_doc(
+                            &mut models,
+                            "",
+                            &method,
+                            Some(match action {
+                                "Set" => {
+                                    if matches!(shape, Shape::Union(_)) {
+                                        "Set this union arm and clear the other arms."
+                                    } else {
+                                        "Set the member value."
+                                    }
+                                }
+                                "Get" => {
+                                    "Return the member value; absent and null optional members return the zero value."
+                                }
+                                "Has" => {
+                                    "Report whether the member is present, including explicit null."
+                                }
+                                _ => "Report whether the member is explicitly null.",
+                            }),
+                        );
                         match action {
                             "Set" => {
                                 let value = if optional { "Some(value)" } else { "value" };
@@ -459,7 +507,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                             "Get" => {
                                 let value = if optional { format!("m.{native}.Value") } else { format!("m.{native}") };
                                 if optional {
-                                    models.push_str(&format!("// {method} returns the value, or its zero value when absent or null.\nfunc (m *{name}) {method}() {t} {{ if m != nil && m.{native}.Set && !m.{native}.Null {{ return {value} }}; var zero {t}; return zero }}\n"));
+                                    models.push_str(&format!("func (m *{name}) {method}() {t} {{ if m != nil && m.{native}.Set && !m.{native}.Null {{ return {value} }}; var zero {t}; return zero }}\n"));
                                 } else {
                                     models.push_str(&format!("func (m *{name}) {method}() {t} {{ return {value} }}\n"));
                                 }
@@ -470,10 +518,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     }
                 }
                 if s.error.is_some() {
-                    models.push_str(&format!("func (*{name}) serviceException() {{}}\nfunc (e *{name}) Error() string {{ return e.Metadata.Error() }}\nfunc (e *{name}) Unwrap() error {{ return e.Metadata }}\n"));
+                    models.push_str(&format!("func (*{name}) serviceException() {{}}\n// Error returns the redacted modeled representation.\nfunc (e *{name}) Error() string {{ return e.String() }}\n// Unwrap exposes the underlying service response metadata.\nfunc (e *{name}) Unwrap() error {{ return e.Metadata }}\n"));
                 }
                 models.push('\n');
             }
+        }
+        if matches!(
+            shape,
+            Shape::List(_) | Shape::Map(_) | Shape::Enum(_) | Shape::IntEnum(_)
+        ) {
+            models.push_str(&format!("// String renders nested values and redacts sensitive data.\nfunc (m {name}) String() string {{ return formatModel(wireSchema, {}, m) }}\n// GoString applies the same redaction for Go syntax formatting.\nfunc (m {name}) GoString() string {{ return m.String() }}\n\n", literal(&id.to_string())));
         }
     }
     let mut client = header.clone();
@@ -483,13 +537,27 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     if service.operations.iter().any(|op| !op.waiters.is_empty()) {
         client.push_str("import (\"time\"; \"fmt\")\n\n");
     }
-    let schema = serde_json::to_string(&crucible_codegen_common::schema(service, exported))
-        .expect("schema serializes");
+    let mut schema = crucible_codegen_common::schema(service, exported);
+    for (id, shape) in &service.shapes {
+        if shape.sensitive() {
+            schema["shapes"][id.to_string()]["sensitive"] = serde_json::Value::Bool(true);
+        }
+    }
+    let schema = serde_json::to_string(&schema).expect("schema serializes");
     client.push_str(&format!(
         "var wireSchema = mustSchema({})\n\n",
         literal(&schema)
     ));
-    client.push_str(&format!("type {client_name} struct {{ *clientRuntime }}\n\nfunc New{client_name}(config Config) (*{client_name}, error) {{\n if config.Endpoint == \"\" {{ config.Endpoint = {} }}\n runtime, err := newClient(config, wireSchema, {})\n if err != nil {{ return nil, err }}\n return &{client_name}{{clientRuntime: runtime}}, nil\n}}\n\n",literal(options.endpoint.as_deref().unwrap_or("")),options.content_sha256));
+    go_doc(
+        &mut client,
+        "",
+        &client_name,
+        Some(&format!(
+            "{}\n\nHTTP client. Construct with New{client_name}(Config). It can be shared across goroutines if supplied transports, callbacks and middleware are concurrency-safe. There is no close method; callers own custom transport cleanup. Do not mutate shared configuration maps after construction.",
+            service.docs.as_deref().unwrap_or("")
+        )),
+    );
+    client.push_str(&format!("type {client_name} struct {{ *clientRuntime }}\n\n// New{client_name} validates configuration and applies defaults without sending a request.\nfunc New{client_name}(config Config) (*{client_name}, error) {{\n if config.Endpoint == \"\" {{ config.Endpoint = {} }}\n runtime, err := newClient(config, wireSchema, {})\n if err != nil {{ return nil, err }}\n return &{client_name}{{clientRuntime: runtime}}, nil\n}}\n\n",literal(options.endpoint.as_deref().unwrap_or("")),options.content_sha256));
     client.push_str("func modeledError(target string, values map[string]any, metadata *ServiceError) error {\n switch target {\n");
     for (id, shape) in &service.shapes {
         if matches!(shape,Shape::Structure(s) if s.error.is_some()) {
@@ -520,8 +588,18 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         } else {
             ""
         };
+        go_doc(&mut client, "", &name, Some(&operation_docs(service, op)));
         client.push_str(&format!("func (c *{client_name}) {name}(ctx context.Context, input {input}) ({output}, error) {{\n var output {output}\n values, err := c.call(ctx, {}, input)\n if err != nil {{ return output, err }}\n err = decodeModel(c.schema, {}, values, &output){release}\n return output, err\n}}\n\n",literal(op.name()),literal(&target)));
-        for waiter in op.waiters.keys() {
+        for (waiter, description) in &op.waiters {
+            go_doc(
+                &mut client,
+                "",
+                &format!("WaitUntil{}", exported(waiter)),
+                Some(&format!(
+                    "{}\nPoll until a modeled acceptor succeeds, fails or the total timeout/context expires. Returns the last accepted response; errors include WaiterError and WaiterTimeoutError. Delay overrides use WaiterOptions.",
+                    description.documentation.as_deref().unwrap_or("")
+                )),
+            );
             client.push_str(&format!("func (c *{client_name}) WaitUntil{}(ctx context.Context, input {input}, timeout time.Duration, options ...WaiterOptions) ({output}, error) {{\n var result {output}; var config WaiterOptions\n if len(options) > 1 {{ return result, fmt.Errorf(\"only one waiter options value is accepted\") }}\n if len(options) == 1 {{ config = options[0] }}\n value, err := c.wait(ctx, {}, {}, input, timeout, config, func(values map[string]any) (any, error) {{ var output {output}; err := decodeModel(c.schema, {}, values, &output); return output, err }})\n if err != nil || value == nil {{ return result, err }}\n return value.({output}), nil\n}}\n\n",exported(waiter),literal(op.name()),literal(waiter),literal(&target)));
         }
         if let Some(p) = &op.paginated {
@@ -535,7 +613,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 op.output.as_ref().expect("paginated output"),
                 &p.output_token,
             );
-            client.push_str(&format!("type {name}Paginator struct {{ client *{client_name}; input map[string]any; seen map[string]bool; done bool }}\nfunc (c *{client_name}) {name}Pages(input {input}) (*{name}Paginator, error) {{\n values, err := encodeModel(c.schema, {}, input)\n if err != nil {{ return nil, err }}\n seen := map[string]bool{{}}\n if token, ok := values[{}].(string); ok && token != \"\" {{ seen[token] = true }}\n return &{name}Paginator{{client:c, input:values, seen:seen}}, nil\n}}\nfunc (p *{name}Paginator) HasMorePages() bool {{ return !p.done }}\nfunc (p *{name}Paginator) NextPage(ctx context.Context) ({output}, error) {{\n var result {output}\n if p.done {{ return result, errNoMorePages }}\n values, err := p.client.callValues(ctx, {}, p.input)\n if err != nil {{ return result, err }}\n if err = decodeModel(p.client.schema, {}, values, &result); err != nil {{ return result, err }}\n token, err := pageToken(values, {})\n if err != nil {{ return result, err }}\n if token == \"\" {{ p.done = true }} else if p.seen[token] {{ p.done = true; return result, errRepeatedToken }} else {{ p.seen[token] = true; p.input[{}] = token }}\n return result, nil\n}}\n\n",literal(&op.input.as_ref().expect("paginated input").to_string()),literal(&input_token),literal(op.name()),literal(&target),literal(&output_token),literal(&input_token)));
+            client.push_str(&format!("// {name}Paginator fetches pages sequentially and rejects repeated tokens. Do not share it across goroutines.\ntype {name}Paginator struct {{ client *{client_name}; input map[string]any; seen map[string]bool; done bool }}\n// {name}Pages snapshots input and creates a paginator without sending a request.\nfunc (c *{client_name}) {name}Pages(input {input}) (*{name}Paginator, error) {{\n values, err := encodeModel(c.schema, {}, input)\n if err != nil {{ return nil, err }}\n seen := map[string]bool{{}}\n if token, ok := values[{}].(string); ok && token != \"\" {{ seen[token] = true }}\n return &{name}Paginator{{client:c, input:values, seen:seen}}, nil\n}}\n// HasMorePages reports whether pagination has reached the end.\nfunc (p *{name}Paginator) HasMorePages() bool {{ return !p.done }}\n// NextPage fetches one page using ctx and advances its token; returns an error for exhausted or repeated tokens.\nfunc (p *{name}Paginator) NextPage(ctx context.Context) ({output}, error) {{\n var result {output}\n if p.done {{ return result, errNoMorePages }}\n values, err := p.client.callValues(ctx, {}, p.input)\n if err != nil {{ return result, err }}\n if err = decodeModel(p.client.schema, {}, values, &result); err != nil {{ return result, err }}\n token, err := pageToken(values, {})\n if err != nil {{ return result, err }}\n if token == \"\" {{ p.done = true }} else if p.seen[token] {{ p.done = true; return result, errRepeatedToken }} else {{ p.seen[token] = true; p.input[{}] = token }}\n return result, nil\n}}\n\n",literal(&op.input.as_ref().expect("paginated input").to_string()),literal(&input_token),literal(op.name()),literal(&target),literal(&output_token),literal(&input_token)));
         }
     }
     let provenance = serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
@@ -664,4 +742,18 @@ fn wire_path(service: &Service, root: &crucible_smithy::ShapeId, path: &str) -> 
         target = &member.target;
     }
     result.join(".")
+}
+
+fn go_doc(out: &mut String, indent: &str, name: &str, docs: Option<&str>) {
+    if let Some(docs) = docs {
+        let docs = crucible_codegen_common::documentation::text(docs);
+        out.push_str(&format!("{indent}// {name}:\n"));
+        for line in docs.lines() {
+            if line.is_empty() {
+                out.push_str(&format!("{indent}//\n"));
+            } else {
+                out.push_str(&format!("{indent}// {line}\n"));
+            }
+        }
+    }
 }

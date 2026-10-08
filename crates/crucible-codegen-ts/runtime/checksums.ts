@@ -47,10 +47,12 @@ export interface Hasher {
 const ALGORITHMS = ["CRC32", "CRC32C", "CRC64NVME", "MD5", "SHA1", "SHA256", "SHA512"];
 const SUBTLE: Readonly<Record<string, string>> = { SHA1: "SHA-1", SHA256: "SHA-256", SHA512: "SHA-512" };
 
+/** Test whether this runtime implements a modeled checksum algorithm. */
 export function checksumSupported(algorithm: unknown): algorithm is string {
   return typeof algorithm === "string" && ALGORITHMS.includes(algorithm);
 }
 
+/** Return the AWS checksum header name for an algorithm. */
 export function checksumHeader(algorithm: string): string {
   return `x-amz-checksum-${algorithm.toLowerCase()}`;
 }
@@ -154,6 +156,7 @@ export function verifyingStream(source: ReadableStream<Uint8Array>, algorithm: s
   }, { highWaterMark: 0 });
 }
 
+/** Create an incremental checksum accumulator for the selected algorithm. */
 export function createHasher(algorithm: string): Hasher {
   switch (algorithm) {
     case "CRC32": return new Crc32(crcTable(0xedb88320));

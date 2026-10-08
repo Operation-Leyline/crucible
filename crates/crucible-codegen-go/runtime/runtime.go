@@ -36,17 +36,22 @@ type Optional[T any] struct {
 }
 
 func (Optional[T]) isOptional()       {}
+// Some creates a present non-null optional member.
 func Some[T any](value T) Optional[T] { return Optional[T]{Value: value, Set: true} }
+// Null creates a present JSON-null optional member.
 func Null[T any]() Optional[T]        { return Optional[T]{Set: true, Null: true} }
 
 type optionalField interface{ isOptional() }
+// Unit represents an operation with no modeled input or output.
 type Unit struct{}
 
 // Decimal is an exact JSON decimal. Its zero value denotes zero. ParseDecimal
 // validates text; casting directly is also checked before sending a request.
 type Decimal string
 
+// String returns a readable representation.
 func (d Decimal) String() string { if d == "" { return "0" }; return string(d) }
+// MarshalJSON validates and encodes the exact decimal as a JSON number.
 func (d Decimal) MarshalJSON() ([]byte, error) {
 	text := d.String()
 	if strings.TrimSpace(text) != text || !json.Valid([]byte(text)) || !(text[0] == '-' || text[0] >= '0' && text[0] <= '9') {
@@ -54,12 +59,14 @@ func (d Decimal) MarshalJSON() ([]byte, error) {
 	}
 	return []byte(text), nil
 }
+// ParseDecimal validates an exact JSON number without converting through binary floating point.
 func ParseDecimal(text string) (Decimal, error) {
 	if text == "" { return "", errors.New("empty decimal") }
 	value := Decimal(text)
 	_, err := value.MarshalJSON()
 	return value, err
 }
+// UnmarshalJSON validates and decodes an exact JSON decimal.
 func (d *Decimal) UnmarshalJSON(data []byte) error {
 	value, err := ParseDecimal(string(data))
 	if err == nil { *d = value }
@@ -113,22 +120,26 @@ func wireEqual(left, right any) bool {
 		return reflect.DeepEqual(left, right)
 	}
 }
+// UnknownUnion preserves an unrecognized union member and its wire value. Debug formatting redacts its payload.
 type UnknownUnion struct {
 	Name  string
 	Value any
 }
 
+// ResponseMetadata retains status, request identifier, headers and the buffered response body.
 type ResponseMetadata struct {
 	Status    int
 	RequestID string
 	Headers   http.Header
 	Body      []byte
 }
+// ServiceException is the common interface for modeled and unrecognized service responses; use errors.As to catch it.
 type ServiceException interface {
     error
     serviceException()
 }
 
+// ServiceError retains an error response identity, message, HTTP metadata and retry classification.
 type ServiceError struct {
 	Name       string
 	Message    string
@@ -139,35 +150,60 @@ type ServiceError struct {
 
 func (*ServiceError) serviceException() {}
 
+// Error returns diagnostic error text.
 func (e *ServiceError) Error() string { return e.Name + ": " + e.Message }
 
+// NetworkError wraps a transport failure; Unwrap exposes its cause.
 type NetworkError struct{ Cause error }
 
+// Error returns diagnostic error text.
 func (e *NetworkError) Error() string { return "transport failed: " + e.Cause.Error() }
+// Unwrap returns the underlying error for errors.Is and errors.As.
 func (e *NetworkError) Unwrap() error { return e.Cause }
 
+// HTTPClient sends a request and returns its HTTP response; *http.Client implements it.
 type HTTPClient interface {
 	Do(*http.Request) (*http.Response, error)
 }
+// Config configures endpoint selection, authentication, transport, deadlines and retries. Treat maps and callbacks as immutable after construction.
 type Config struct {
+	// RequestChecksumCalculation Selects WHEN_SUPPORTED (default) or WHEN_REQUIRED request checksums.
 	RequestChecksumCalculation ChecksumPolicy
+	// ResponseChecksumValidation Selects WHEN_SUPPORTED (default) or WHEN_REQUIRED response validation.
 	ResponseChecksumValidation ChecksumPolicy
+	// ChecksumValidated Receives operation and algorithm after a response checksum is verified.
 	ChecksumValidated func(operation, algorithm string)
+	// EndpointParameters Overrides modeled endpoint rule parameters; keep immutable after construction.
 	EndpointParameters map[string]any
+	// EndpointBuiltIns Overrides endpoint built-in values; keep immutable after construction.
 	EndpointBuiltIns map[string]any
+	// DisableHostPrefix Disables the modeled host prefix when true.
 	DisableHostPrefix bool
+	// BasicCredentials Resolves HTTP Basic credentials for each attempt.
 	BasicCredentials func(context.Context) (*BasicCredentials, error)
+	// APIKey Resolves the modeled API key for each attempt.
 	APIKey func(context.Context) (string, error)
+	// Credentials Resolves SigV4 signing credentials for each attempt.
 	Credentials CredentialsProvider
+	// Region AWS region for endpoint rules and signing.
 	Region string
+	// Endpoint Absolute HTTP(S) base URL; optional when endpoint rules resolve it.
 	Endpoint    string
+	// HTTPClient Transport; nil creates an http.Client that refuses redirects. Custom transports remain caller-owned.
 	HTTPClient  HTTPClient
+	// Token Resolves the bearer token for each attempt.
 	Token       func(context.Context) (string, error)
+	// Headers Headers copied during construction and sent on every request.
 	Headers     http.Header
+	// MaxAttempts Total attempt limit including first; zero defaults to 3.
 	MaxAttempts int
+	// Timeout Total call budget; zero defaults to 30 seconds. Context cancellation can shorten it.
 	Timeout     time.Duration
+	// BaseDelay Initial full-jitter backoff ceiling; zero defaults to 100 milliseconds.
 	BaseDelay   time.Duration
+	// MaxDelay Maximum backoff ceiling; zero defaults to 20 seconds.
 	MaxDelay    time.Duration
+	// Middleware Request callbacks run in order on every attempt before transport.
 	Middleware  []func(context.Context, *http.Request) error
 	// RetryMode is RetryModeLegacy (the zero value), RetryModeStandard or RetryModeAdaptive.
 	RetryMode RetryMode
@@ -217,6 +253,7 @@ type errorDescription struct {
 	Headers    [][2]string
 }
 type shapeDescription struct {
+	Sensitive bool
 	Streaming bool
 	Sparse bool
 	Set bool
@@ -228,6 +265,63 @@ type shapeDescription struct {
 	Value   memberDescription
 	Members map[string]memberDescription
 	Error   *errorDescription
+}
+
+// formatModel uses wire metadata rather than fmt.Stringer so nested sensitive
+// targets and collection members are redacted before any custom formatter runs.
+func formatModel(schema *schemaDescription, target string, value any) string {
+	active := map[any]bool{}
+	depth := 0
+	var render func(string, reflect.Value, bool) string
+	render = func(target string, value reflect.Value, sensitive bool) string {
+		shape := schema.Shapes[target]
+		depth++; defer func() { depth-- }()
+		if depth > 64 { return "<recursive>" }
+		if sensitive || shape.Sensitive { return "*** Sensitive Data Redacted ***" }
+		if !value.IsValid() { return "null" }
+		for value.Kind() == reflect.Interface { if value.IsNil() { return "null" }; value = value.Elem() }
+		if value.Kind() == reflect.Pointer && shape.Kind != "structure" && shape.Kind != "union" && shape.Kind != "list" && shape.Kind != "map" { if value.IsNil() { return "null" }; return fmt.Sprint(value.Interface()) }
+		if value.Kind() == reflect.Pointer {
+			if value.IsNil() { return "null" }
+			key := value.Interface()
+			if active[key] { return "<recursive>" }; active[key] = true; defer delete(active, key)
+			value = value.Elem()
+		}
+		if shape.Streaming { return "<stream>" }
+		switch shape.Kind {
+		case "structure", "union":
+			parts := []string{}
+			names := make([]string, 0, len(shape.Members)); for name := range shape.Members { names = append(names, name) }; sort.Strings(names)
+			for _, name := range names {
+				member := shape.Members[name]; item := value.FieldByName(member.Attribute)
+				if item.IsValid() && item.CanInterface() {
+					if _, ok := item.Interface().(optionalField); ok {
+						if !item.FieldByName("Set").Bool() { continue }
+						if item.FieldByName("Null").Bool() { if member.Sensitive { parts = append(parts, member.Attribute+"=*** Sensitive Data Redacted ***") } else { parts = append(parts, member.Attribute+"=null") }; continue }
+						item = item.FieldByName("Value")
+					}
+					parts = append(parts, member.Attribute+"="+render(member.Target, item, member.Sensitive))
+				}
+			}
+			if shape.Kind == "union" { if unknown := value.FieldByName("UnknownVariant"); unknown.IsValid() && !unknown.IsNil() { parts = append(parts, "UnknownVariant=*** Sensitive Data Redacted ***") } }
+			return value.Type().Name()+"("+strings.Join(parts, ", ")+")"
+		case "list":
+			parts := []string{}; for i := 0; i < value.Len(); i++ { parts = append(parts, render(shape.Member.Target, value.Index(i), shape.Member.Sensitive)) }; return "["+strings.Join(parts, ", ")+"]"
+		case "map":
+			parts := []string{}; iterator := value.MapRange(); for iterator.Next() { parts = append(parts, render(shape.Key.Target, iterator.Key(), shape.Key.Sensitive)+": "+render(shape.Value.Target, iterator.Value(), shape.Value.Sensitive)) }; sort.Strings(parts); return "{"+strings.Join(parts, ", ")+"}"
+		default:
+			// Read primitive values directly: a generated integer enum implements
+			// Stringer too, so fmt.Sprint on it would re-enter this formatter.
+			switch value.Kind() {
+			case reflect.String: return strconv.Quote(value.String())
+			case reflect.Bool: return strconv.FormatBool(value.Bool())
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64: return strconv.FormatInt(value.Int(), 10)
+			case reflect.Float32, reflect.Float64: return strconv.FormatFloat(value.Float(), 'g', -1, value.Type().Bits())
+			default: return fmt.Sprint(value.Interface())
+			}
+		}
+	}
+	return render(target, reflect.ValueOf(value), false)
 }
 func (s shapeDescription) errorCode() string {
 	if s.Error != nil && s.Error.WireCode != "" { return s.Error.WireCode }; return s.Name

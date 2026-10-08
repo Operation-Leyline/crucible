@@ -1,4 +1,5 @@
 //! Compact runtime descriptions of already-lowered wire semantics.
+pub mod documentation;
 use crucible_smithy::ir::{Bindings, Fault, Member, Service, Shape, SimpleKind, TimestampFormat};
 use serde_json::{Value, json};
 

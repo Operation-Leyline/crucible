@@ -11,7 +11,14 @@ use crate::{Middleware, Options};
 
 pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String {
     let mut out = String::new();
-    doc(&mut out, "", service.docs.as_deref());
+    doc(
+        &mut out,
+        "",
+        Some(&format!(
+            "{}\n\nFetch-based HTTP client. Construct with ClientConfig. Calls may run concurrently when custom fetch, middleware and credential providers support concurrency. The client owns no transport pool and has no close method; callers manage custom fetch resources.",
+            service.docs.as_deref().unwrap_or("")
+        )),
+    );
     out.push_str(&format!(
         "export class {client} {{\n  readonly #transport: Transport;\n\n"
     ));
@@ -32,6 +39,13 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
         ""
     };
     let bearer = service.auth.contains(&smithy("httpBearerAuth"));
+    doc(
+        &mut out,
+        "  ",
+        Some(
+            "Configure endpoint, authentication, retries, timeout and fetch middleware. Uses global fetch when no fetch is supplied.",
+        ),
+    );
     out.push_str(&format!(
         "  constructor(config: ClientConfig = {{}}) {{\n    \
          this.#transport = new Transport(config, {{ endpoint: {endpoint}, middleware: [{}], bearer: {bearer}{endpoint_rules} }}, spec.errors);\n  }}\n",
@@ -58,10 +72,18 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
                 &waiter_reserved,
                 &mut waiter_used,
             );
-            doc(&mut out, "  ", waiter.documentation.as_deref());
+            out.push('\n');
+            doc(
+                &mut out,
+                "  ",
+                Some(&format!(
+                    "{}\n\nPoll until a modeled acceptor succeeds, fails or the total budget expires. Returns a WaiterResult; rejects with WaiterError or WaiterTimeout. Options supply the total budget and optional delay overrides in milliseconds.",
+                    waiter.documentation.as_deref().unwrap_or("")
+                )),
+            );
             let (params, input) = parameters(service, operation);
             let params = params.replace("options?: RequestOptions", "options: WaiterOptions");
-            out.push_str(&format!("\n  {helper}({params}): Promise<WaiterResult<{}>> {{\n    return this.#transport.wait(spec.{}, {}, {input}, options);\n  }}\n", output_type(service, operation), operation.name(), literal(waiter_name)));
+            out.push_str(&format!("  {helper}({params}): Promise<WaiterResult<{}>> {{\n    return this.#transport.wait(spec.{}, {}, {input}, options);\n  }}\n", output_type(service, operation), operation.name(), literal(waiter_name)));
         }
         if operation.paginated.is_some() {
             out.push('\n');
@@ -164,7 +186,13 @@ fn output_type(service: &Service, operation: &Operation) -> String {
 }
 
 fn method(out: &mut String, service: &Service, operation: &Operation, name: &str) {
-    doc(out, "  ", operation.docs.as_deref());
+    doc(
+        out,
+        "  ",
+        Some(&crucible_codegen_common::documentation::operation(
+            service, operation,
+        )),
+    );
     let (params, input) = parameters(service, operation);
     out.push_str(&format!(
         "  {}({params}): Promise<{}> {{\n    return this.#transport.send(spec.{}, {input}, options);\n  }}\n",
@@ -183,7 +211,7 @@ fn paginator(
 ) {
     let paginated = operation.paginated.as_ref().expect("checked by the caller");
     out.push_str(&format!(
-        "  /** Every page of {}, following `{}` until a page comes back without one. */\n",
+        "  /** Every page of {}, following `{}` until absent or empty; rejects repeated tokens. Input is snapshotted. */\n",
         operation.name(),
         paginated.output_token
     ));

@@ -1,6 +1,7 @@
 // Evaluates the compiler's normalized JMESPath AST; no runtime expression parser.
 import { Decimal, numericText, parseJson, stringifyJson } from "./runtime.js";
 
+/** A lowered JMESPath expression used by waiter matchers. */
 export type Expression =
   | { readonly kind: "identity" }
   | { readonly kind: "field"; readonly name: string }
@@ -102,6 +103,7 @@ function invoke(name: string, args: unknown[]): unknown {
   }
 }
 
+/** Evaluate a lowered JMESPath expression against a model value. */
 export function query(node: Expression, input: unknown): unknown {
   switch (node.kind) {
     case "identity": return input ?? null;

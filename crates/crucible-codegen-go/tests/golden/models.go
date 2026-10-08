@@ -9,6 +9,11 @@ type CityName = string
 
 type CitySummaries []*CitySummary
 
+// String renders nested values and redacts sensitive data.
+func (m CitySummaries) String() string { return formatModel(wireSchema, "example.weather#CitySummaries", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m CitySummaries) GoString() string { return m.String() }
+
 type CitySummary struct {
     Id CityId
     Name CityName
@@ -16,40 +21,92 @@ type CitySummary struct {
     UpdatedAt Optional[time.Time]
     CreatedAt Optional[time.Time]
 }
+// String describes present members and redacts sensitive values.
+func (m CitySummary) String() string { return formatModel(wireSchema, "example.weather#CitySummary", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m CitySummary) GoString() string { return m.String() }
+// SetId:
+// Set the member value.
 func (m *CitySummary) SetId(value CityId) { m.Id = value }
+// GetId:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CitySummary) GetId() CityId { return m.Id }
+// SetName:
+// Set the member value.
 func (m *CitySummary) SetName(value CityName) { m.Name = value }
+// GetName:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CitySummary) GetName() CityName { return m.Name }
+// SetPopulation:
+// Set the member value.
 func (m *CitySummary) SetPopulation(value int64) { m.Population = value }
+// GetPopulation:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CitySummary) GetPopulation() int64 { return m.Population }
+// SetUpdatedAt:
+// Set the member value.
 func (m *CitySummary) SetUpdatedAt(value time.Time) { m.UpdatedAt = Some(value) }
-// GetUpdatedAt returns the value, or its zero value when absent or null.
+// GetUpdatedAt:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CitySummary) GetUpdatedAt() time.Time { if m != nil && m.UpdatedAt.Set && !m.UpdatedAt.Null { return m.UpdatedAt.Value }; var zero time.Time; return zero }
+// HasUpdatedAt:
+// Report whether the member is present, including explicit null.
 func (m *CitySummary) HasUpdatedAt() bool { return m != nil && m.UpdatedAt.Set }
+// IsNullUpdatedAt:
+// Report whether the member is explicitly null.
 func (m *CitySummary) IsNullUpdatedAt() bool { return m != nil && m.UpdatedAt.Set && m.UpdatedAt.Null }
+// SetCreatedAt:
+// Set the member value.
 func (m *CitySummary) SetCreatedAt(value time.Time) { m.CreatedAt = Some(value) }
-// GetCreatedAt returns the value, or its zero value when absent or null.
+// GetCreatedAt:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CitySummary) GetCreatedAt() time.Time { if m != nil && m.CreatedAt.Set && !m.CreatedAt.Null { return m.CreatedAt.Value }; var zero time.Time; return zero }
+// HasCreatedAt:
+// Report whether the member is present, including explicit null.
 func (m *CitySummary) HasCreatedAt() bool { return m != nil && m.CreatedAt.Set }
+// IsNullCreatedAt:
+// Report whether the member is explicitly null.
 func (m *CitySummary) IsNullCreatedAt() bool { return m != nil && m.CreatedAt.Set && m.CreatedAt.Null }
 
 type ConflictError struct {
     Message string
     Metadata *ServiceError
 }
+// String describes present members and redacts sensitive values.
+func (m ConflictError) String() string { return formatModel(wireSchema, "example.weather#ConflictError", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m ConflictError) GoString() string { return m.String() }
+// SetMessage:
+// Set the member value.
 func (m *ConflictError) SetMessage(value string) { m.Message = value }
+// GetMessage:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ConflictError) GetMessage() string { return m.Message }
 func (*ConflictError) serviceException() {}
-func (e *ConflictError) Error() string { return e.Metadata.Error() }
+// Error returns the redacted modeled representation.
+func (e *ConflictError) Error() string { return e.String() }
+// Unwrap exposes the underlying service response metadata.
 func (e *ConflictError) Unwrap() error { return e.Metadata }
 
 type Coordinates struct {
     Latitude float64
     Longitude float64
 }
+// String describes present members and redacts sensitive values.
+func (m Coordinates) String() string { return formatModel(wireSchema, "example.weather#Coordinates", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m Coordinates) GoString() string { return m.String() }
+// SetLatitude:
+// Set the member value.
 func (m *Coordinates) SetLatitude(value float64) { m.Latitude = value }
+// GetLatitude:
+// Return the member value; absent and null optional members return the zero value.
 func (m *Coordinates) GetLatitude() float64 { return m.Latitude }
+// SetLongitude:
+// Set the member value.
 func (m *Coordinates) SetLongitude(value float64) { m.Longitude = value }
+// GetLongitude:
+// Return the member value; absent and null optional members return the zero value.
 func (m *Coordinates) GetLongitude() float64 { return m.Longitude }
 
 type CreateCityInput struct {
@@ -58,50 +115,113 @@ type CreateCityInput struct {
     ClientToken Optional[string]
     ExpectedRevision Optional[int64]
 }
+// String describes present members and redacts sensitive values.
+func (m CreateCityInput) String() string { return formatModel(wireSchema, "example.weather#CreateCityInput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m CreateCityInput) GoString() string { return m.String() }
+// SetName:
+// Set the member value.
 func (m *CreateCityInput) SetName(value CityName) { m.Name = Some(value) }
-// GetName returns the value, or its zero value when absent or null.
+// GetName:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CreateCityInput) GetName() CityName { if m != nil && m.Name.Set && !m.Name.Null { return m.Name.Value }; var zero CityName; return zero }
+// HasName:
+// Report whether the member is present, including explicit null.
 func (m *CreateCityInput) HasName() bool { return m != nil && m.Name.Set }
+// IsNullName:
+// Report whether the member is explicitly null.
 func (m *CreateCityInput) IsNullName() bool { return m != nil && m.Name.Set && m.Name.Null }
+// SetLocation:
+// Set the member value.
 func (m *CreateCityInput) SetLocation(value *Location) { m.Location = Some(value) }
-// GetLocation returns the value, or its zero value when absent or null.
+// GetLocation:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CreateCityInput) GetLocation() *Location { if m != nil && m.Location.Set && !m.Location.Null { return m.Location.Value }; var zero *Location; return zero }
+// HasLocation:
+// Report whether the member is present, including explicit null.
 func (m *CreateCityInput) HasLocation() bool { return m != nil && m.Location.Set }
+// IsNullLocation:
+// Report whether the member is explicitly null.
 func (m *CreateCityInput) IsNullLocation() bool { return m != nil && m.Location.Set && m.Location.Null }
+// SetClientToken:
+// Set the member value.
 func (m *CreateCityInput) SetClientToken(value string) { m.ClientToken = Some(value) }
-// GetClientToken returns the value, or its zero value when absent or null.
+// GetClientToken:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CreateCityInput) GetClientToken() string { if m != nil && m.ClientToken.Set && !m.ClientToken.Null { return m.ClientToken.Value }; var zero string; return zero }
+// HasClientToken:
+// Report whether the member is present, including explicit null.
 func (m *CreateCityInput) HasClientToken() bool { return m != nil && m.ClientToken.Set }
+// IsNullClientToken:
+// Report whether the member is explicitly null.
 func (m *CreateCityInput) IsNullClientToken() bool { return m != nil && m.ClientToken.Set && m.ClientToken.Null }
+// SetExpectedRevision:
+// Set the member value.
 func (m *CreateCityInput) SetExpectedRevision(value int64) { m.ExpectedRevision = Some(value) }
-// GetExpectedRevision returns the value, or its zero value when absent or null.
+// GetExpectedRevision:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CreateCityInput) GetExpectedRevision() int64 { if m != nil && m.ExpectedRevision.Set && !m.ExpectedRevision.Null { return m.ExpectedRevision.Value }; var zero int64; return zero }
+// HasExpectedRevision:
+// Report whether the member is present, including explicit null.
 func (m *CreateCityInput) HasExpectedRevision() bool { return m != nil && m.ExpectedRevision.Set }
+// IsNullExpectedRevision:
+// Report whether the member is explicitly null.
 func (m *CreateCityInput) IsNullExpectedRevision() bool { return m != nil && m.ExpectedRevision.Set && m.ExpectedRevision.Null }
 
 type CreateCityOutput struct {
     City *CitySummary
 }
+// String describes present members and redacts sensitive values.
+func (m CreateCityOutput) String() string { return formatModel(wireSchema, "example.weather#CreateCityOutput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m CreateCityOutput) GoString() string { return m.String() }
+// SetCity:
+// Set the member value.
 func (m *CreateCityOutput) SetCity(value *CitySummary) { m.City = value }
+// GetCity:
+// Return the member value; absent and null optional members return the zero value.
 func (m *CreateCityOutput) GetCity() *CitySummary { return m.City }
 
 type DateTime = time.Time
 
 type Forecast map[Sky]any
 
+// String renders nested values and redacts sensitive data.
+func (m Forecast) String() string { return formatModel(wireSchema, "example.weather#Forecast", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m Forecast) GoString() string { return m.String() }
+
 type GetCityInput struct {
     CityId Optional[CityId]
     At Optional[DateTime]
 }
+// String describes present members and redacts sensitive values.
+func (m GetCityInput) String() string { return formatModel(wireSchema, "example.weather#GetCityInput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m GetCityInput) GoString() string { return m.String() }
+// SetCityId:
+// Set the member value.
 func (m *GetCityInput) SetCityId(value CityId) { m.CityId = Some(value) }
-// GetCityId returns the value, or its zero value when absent or null.
+// GetCityId:
+// Return the member value; absent and null optional members return the zero value.
 func (m *GetCityInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
+// HasCityId:
+// Report whether the member is present, including explicit null.
 func (m *GetCityInput) HasCityId() bool { return m != nil && m.CityId.Set }
+// IsNullCityId:
+// Report whether the member is explicitly null.
 func (m *GetCityInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
+// SetAt:
+// Set the member value.
 func (m *GetCityInput) SetAt(value DateTime) { m.At = Some(value) }
-// GetAt returns the value, or its zero value when absent or null.
+// GetAt:
+// Return the member value; absent and null optional members return the zero value.
 func (m *GetCityInput) GetAt() DateTime { if m != nil && m.At.Set && !m.At.Null { return m.At.Value }; var zero DateTime; return zero }
+// HasAt:
+// Report whether the member is present, including explicit null.
 func (m *GetCityInput) HasAt() bool { return m != nil && m.At.Set }
+// IsNullAt:
+// Report whether the member is explicitly null.
 func (m *GetCityInput) IsNullAt() bool { return m != nil && m.At.Set && m.At.Null }
 
 type GetCityOutput struct {
@@ -109,41 +229,92 @@ type GetCityOutput struct {
     Forecast Optional[Forecast]
     RequestId Optional[string]
 }
+// String describes present members and redacts sensitive values.
+func (m GetCityOutput) String() string { return formatModel(wireSchema, "example.weather#GetCityOutput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m GetCityOutput) GoString() string { return m.String() }
+// SetCity:
+// Set the member value.
 func (m *GetCityOutput) SetCity(value *CitySummary) { m.City = value }
+// GetCity:
+// Return the member value; absent and null optional members return the zero value.
 func (m *GetCityOutput) GetCity() *CitySummary { return m.City }
+// SetForecast:
+// Set the member value.
 func (m *GetCityOutput) SetForecast(value Forecast) { m.Forecast = Some(value) }
-// GetForecast returns the value, or its zero value when absent or null.
+// GetForecast:
+// Return the member value; absent and null optional members return the zero value.
 func (m *GetCityOutput) GetForecast() Forecast { if m != nil && m.Forecast.Set && !m.Forecast.Null { return m.Forecast.Value }; var zero Forecast; return zero }
+// HasForecast:
+// Report whether the member is present, including explicit null.
 func (m *GetCityOutput) HasForecast() bool { return m != nil && m.Forecast.Set }
+// IsNullForecast:
+// Report whether the member is explicitly null.
 func (m *GetCityOutput) IsNullForecast() bool { return m != nil && m.Forecast.Set && m.Forecast.Null }
+// SetRequestId:
+// Set the member value.
 func (m *GetCityOutput) SetRequestId(value string) { m.RequestId = Some(value) }
-// GetRequestId returns the value, or its zero value when absent or null.
+// GetRequestId:
+// Return the member value; absent and null optional members return the zero value.
 func (m *GetCityOutput) GetRequestId() string { if m != nil && m.RequestId.Set && !m.RequestId.Null { return m.RequestId.Value }; var zero string; return zero }
+// HasRequestId:
+// Report whether the member is present, including explicit null.
 func (m *GetCityOutput) HasRequestId() bool { return m != nil && m.RequestId.Set }
+// IsNullRequestId:
+// Report whether the member is explicitly null.
 func (m *GetCityOutput) IsNullRequestId() bool { return m != nil && m.RequestId.Set && m.RequestId.Null }
 
 type GetCityPhotoInput struct {
     CityId Optional[CityId]
 }
+// String describes present members and redacts sensitive values.
+func (m GetCityPhotoInput) String() string { return formatModel(wireSchema, "example.weather#GetCityPhotoInput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m GetCityPhotoInput) GoString() string { return m.String() }
+// SetCityId:
+// Set the member value.
 func (m *GetCityPhotoInput) SetCityId(value CityId) { m.CityId = Some(value) }
-// GetCityId returns the value, or its zero value when absent or null.
+// GetCityId:
+// Return the member value; absent and null optional members return the zero value.
 func (m *GetCityPhotoInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
+// HasCityId:
+// Report whether the member is present, including explicit null.
 func (m *GetCityPhotoInput) HasCityId() bool { return m != nil && m.CityId.Set }
+// IsNullCityId:
+// Report whether the member is explicitly null.
 func (m *GetCityPhotoInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
 
 type GetCityPhotoOutput struct {
     Caption Optional[string]
     Photo Optional[Photo]
 }
+// String describes present members and redacts sensitive values.
+func (m GetCityPhotoOutput) String() string { return formatModel(wireSchema, "example.weather#GetCityPhotoOutput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m GetCityPhotoOutput) GoString() string { return m.String() }
+// SetCaption:
+// Set the member value.
 func (m *GetCityPhotoOutput) SetCaption(value string) { m.Caption = Some(value) }
-// GetCaption returns the value, or its zero value when absent or null.
+// GetCaption:
+// Return the member value; absent and null optional members return the zero value.
 func (m *GetCityPhotoOutput) GetCaption() string { if m != nil && m.Caption.Set && !m.Caption.Null { return m.Caption.Value }; var zero string; return zero }
+// HasCaption:
+// Report whether the member is present, including explicit null.
 func (m *GetCityPhotoOutput) HasCaption() bool { return m != nil && m.Caption.Set }
+// IsNullCaption:
+// Report whether the member is explicitly null.
 func (m *GetCityPhotoOutput) IsNullCaption() bool { return m != nil && m.Caption.Set && m.Caption.Null }
+// SetPhoto:
+// Set the member value.
 func (m *GetCityPhotoOutput) SetPhoto(value Photo) { m.Photo = Some(value) }
-// GetPhoto returns the value, or its zero value when absent or null.
+// GetPhoto:
+// Return the member value; absent and null optional members return the zero value.
 func (m *GetCityPhotoOutput) GetPhoto() Photo { if m != nil && m.Photo.Set && !m.Photo.Null { return m.Photo.Value }; var zero Photo; return zero }
+// HasPhoto:
+// Report whether the member is present, including explicit null.
 func (m *GetCityPhotoOutput) HasPhoto() bool { return m != nil && m.Photo.Set }
+// IsNullPhoto:
+// Report whether the member is explicitly null.
 func (m *GetCityPhotoOutput) IsNullPhoto() bool { return m != nil && m.Photo.Set && m.Photo.Null }
 
 type ListCitiesInput struct {
@@ -151,32 +322,72 @@ type ListCitiesInput struct {
     MaxResults Optional[int32]
     Tags Optional[Tags]
 }
+// String describes present members and redacts sensitive values.
+func (m ListCitiesInput) String() string { return formatModel(wireSchema, "example.weather#ListCitiesInput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m ListCitiesInput) GoString() string { return m.String() }
+// SetNextToken:
+// Set the member value.
 func (m *ListCitiesInput) SetNextToken(value string) { m.NextToken = Some(value) }
-// GetNextToken returns the value, or its zero value when absent or null.
+// GetNextToken:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ListCitiesInput) GetNextToken() string { if m != nil && m.NextToken.Set && !m.NextToken.Null { return m.NextToken.Value }; var zero string; return zero }
+// HasNextToken:
+// Report whether the member is present, including explicit null.
 func (m *ListCitiesInput) HasNextToken() bool { return m != nil && m.NextToken.Set }
+// IsNullNextToken:
+// Report whether the member is explicitly null.
 func (m *ListCitiesInput) IsNullNextToken() bool { return m != nil && m.NextToken.Set && m.NextToken.Null }
+// SetMaxResults:
+// Set the member value.
 func (m *ListCitiesInput) SetMaxResults(value int32) { m.MaxResults = Some(value) }
-// GetMaxResults returns the value, or its zero value when absent or null.
+// GetMaxResults:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ListCitiesInput) GetMaxResults() int32 { if m != nil && m.MaxResults.Set && !m.MaxResults.Null { return m.MaxResults.Value }; var zero int32; return zero }
+// HasMaxResults:
+// Report whether the member is present, including explicit null.
 func (m *ListCitiesInput) HasMaxResults() bool { return m != nil && m.MaxResults.Set }
+// IsNullMaxResults:
+// Report whether the member is explicitly null.
 func (m *ListCitiesInput) IsNullMaxResults() bool { return m != nil && m.MaxResults.Set && m.MaxResults.Null }
+// SetTags:
+// Set the member value.
 func (m *ListCitiesInput) SetTags(value Tags) { m.Tags = Some(value) }
-// GetTags returns the value, or its zero value when absent or null.
+// GetTags:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ListCitiesInput) GetTags() Tags { if m != nil && m.Tags.Set && !m.Tags.Null { return m.Tags.Value }; var zero Tags; return zero }
+// HasTags:
+// Report whether the member is present, including explicit null.
 func (m *ListCitiesInput) HasTags() bool { return m != nil && m.Tags.Set }
+// IsNullTags:
+// Report whether the member is explicitly null.
 func (m *ListCitiesInput) IsNullTags() bool { return m != nil && m.Tags.Set && m.Tags.Null }
 
 type ListCitiesOutput struct {
     Cities CitySummaries
     NextToken Optional[string]
 }
+// String describes present members and redacts sensitive values.
+func (m ListCitiesOutput) String() string { return formatModel(wireSchema, "example.weather#ListCitiesOutput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m ListCitiesOutput) GoString() string { return m.String() }
+// SetCities:
+// Set the member value.
 func (m *ListCitiesOutput) SetCities(value CitySummaries) { m.Cities = value }
+// GetCities:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ListCitiesOutput) GetCities() CitySummaries { return m.Cities }
+// SetNextToken:
+// Set the member value.
 func (m *ListCitiesOutput) SetNextToken(value string) { m.NextToken = Some(value) }
-// GetNextToken returns the value, or its zero value when absent or null.
+// GetNextToken:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ListCitiesOutput) GetNextToken() string { if m != nil && m.NextToken.Set && !m.NextToken.Null { return m.NextToken.Value }; var zero string; return zero }
+// HasNextToken:
+// Report whether the member is present, including explicit null.
 func (m *ListCitiesOutput) HasNextToken() bool { return m != nil && m.NextToken.Set }
+// IsNullNextToken:
+// Report whether the member is explicitly null.
 func (m *ListCitiesOutput) IsNullNextToken() bool { return m != nil && m.NextToken.Set && m.NextToken.Null }
 
 type Location struct {
@@ -184,15 +395,33 @@ type Location struct {
     Unknown Optional[Unit]
     UnknownVariant *UnknownUnion
 }
+// String describes present members and redacts sensitive values.
+func (m Location) String() string { return formatModel(wireSchema, "example.weather#Location", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m Location) GoString() string { return m.String() }
+// SetCoordinates:
+// Set this union arm and clear the other arms.
 func (m *Location) SetCoordinates(value *Coordinates) { *m = Location{}; m.Coordinates = Some(value) }
-// GetCoordinates returns the value, or its zero value when absent or null.
+// GetCoordinates:
+// Return the member value; absent and null optional members return the zero value.
 func (m *Location) GetCoordinates() *Coordinates { if m != nil && m.Coordinates.Set && !m.Coordinates.Null { return m.Coordinates.Value }; var zero *Coordinates; return zero }
+// HasCoordinates:
+// Report whether the member is present, including explicit null.
 func (m *Location) HasCoordinates() bool { return m != nil && m.Coordinates.Set }
+// IsNullCoordinates:
+// Report whether the member is explicitly null.
 func (m *Location) IsNullCoordinates() bool { return m != nil && m.Coordinates.Set && m.Coordinates.Null }
+// SetUnknown:
+// Set this union arm and clear the other arms.
 func (m *Location) SetUnknown(value Unit) { *m = Location{}; m.Unknown = Some(value) }
-// GetUnknown returns the value, or its zero value when absent or null.
+// GetUnknown:
+// Return the member value; absent and null optional members return the zero value.
 func (m *Location) GetUnknown() Unit { if m != nil && m.Unknown.Set && !m.Unknown.Null { return m.Unknown.Value }; var zero Unit; return zero }
+// HasUnknown:
+// Report whether the member is present, including explicit null.
 func (m *Location) HasUnknown() bool { return m != nil && m.Unknown.Set }
+// IsNullUnknown:
+// Report whether the member is explicitly null.
 func (m *Location) IsNullUnknown() bool { return m != nil && m.Unknown.Set && m.Unknown.Null }
 
 type NotFoundError struct {
@@ -200,17 +429,36 @@ type NotFoundError struct {
     ResourceId Optional[string]
     Metadata *ServiceError
 }
+// String describes present members and redacts sensitive values.
+func (m NotFoundError) String() string { return formatModel(wireSchema, "example.weather#NotFoundError", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m NotFoundError) GoString() string { return m.String() }
+// SetMessage:
+// Set the member value.
 func (m *NotFoundError) SetMessage(value string) { m.Message = value }
+// GetMessage:
+// Return the member value; absent and null optional members return the zero value.
 func (m *NotFoundError) GetMessage() string { return m.Message }
+// SetResourceId:
+// Set the member value.
 func (m *NotFoundError) SetResourceId(value string) { m.ResourceId = Some(value) }
-// GetResourceId returns the value, or its zero value when absent or null.
+// GetResourceId:
+// Return the member value; absent and null optional members return the zero value.
 func (m *NotFoundError) GetResourceId() string { if m != nil && m.ResourceId.Set && !m.ResourceId.Null { return m.ResourceId.Value }; var zero string; return zero }
+// HasResourceId:
+// Report whether the member is present, including explicit null.
 func (m *NotFoundError) HasResourceId() bool { return m != nil && m.ResourceId.Set }
+// IsNullResourceId:
+// Report whether the member is explicitly null.
 func (m *NotFoundError) IsNullResourceId() bool { return m != nil && m.ResourceId.Set && m.ResourceId.Null }
 func (*NotFoundError) serviceException() {}
-func (e *NotFoundError) Error() string { return e.Metadata.Error() }
+// Error returns the redacted modeled representation.
+func (e *NotFoundError) Error() string { return e.String() }
+// Unwrap exposes the underlying service response metadata.
 func (e *NotFoundError) Unwrap() error { return e.Metadata }
 
+// Photo:
+// A photo, carried unparsed.
 type Photo = []byte
 
 type PhotoSummary struct {
@@ -218,14 +466,33 @@ type PhotoSummary struct {
     Thumbnail Thumbnail
     Caption Optional[string]
 }
+// String describes present members and redacts sensitive values.
+func (m PhotoSummary) String() string { return formatModel(wireSchema, "example.weather#PhotoSummary", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m PhotoSummary) GoString() string { return m.String() }
+// SetSize:
+// Set the member value.
 func (m *PhotoSummary) SetSize(value int32) { m.Size = value }
+// GetSize:
+// Return the member value; absent and null optional members return the zero value.
 func (m *PhotoSummary) GetSize() int32 { return m.Size }
+// SetThumbnail:
+// Set the member value.
 func (m *PhotoSummary) SetThumbnail(value Thumbnail) { m.Thumbnail = value }
+// GetThumbnail:
+// Return the member value; absent and null optional members return the zero value.
 func (m *PhotoSummary) GetThumbnail() Thumbnail { return m.Thumbnail }
+// SetCaption:
+// Set the member value.
 func (m *PhotoSummary) SetCaption(value string) { m.Caption = Some(value) }
-// GetCaption returns the value, or its zero value when absent or null.
+// GetCaption:
+// Return the member value; absent and null optional members return the zero value.
 func (m *PhotoSummary) GetCaption() string { if m != nil && m.Caption.Set && !m.Caption.Null { return m.Caption.Value }; var zero string; return zero }
+// HasCaption:
+// Report whether the member is present, including explicit null.
 func (m *PhotoSummary) HasCaption() bool { return m != nil && m.Caption.Set }
+// IsNullCaption:
+// Report whether the member is explicitly null.
 func (m *PhotoSummary) IsNullCaption() bool { return m != nil && m.Caption.Set && m.Caption.Null }
 
 type PutCityPhotoInput struct {
@@ -233,26 +500,59 @@ type PutCityPhotoInput struct {
     Caption Optional[string]
     Photo Optional[Photo]
 }
+// String describes present members and redacts sensitive values.
+func (m PutCityPhotoInput) String() string { return formatModel(wireSchema, "example.weather#PutCityPhotoInput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m PutCityPhotoInput) GoString() string { return m.String() }
+// SetCityId:
+// Set the member value.
 func (m *PutCityPhotoInput) SetCityId(value CityId) { m.CityId = Some(value) }
-// GetCityId returns the value, or its zero value when absent or null.
+// GetCityId:
+// Return the member value; absent and null optional members return the zero value.
 func (m *PutCityPhotoInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
+// HasCityId:
+// Report whether the member is present, including explicit null.
 func (m *PutCityPhotoInput) HasCityId() bool { return m != nil && m.CityId.Set }
+// IsNullCityId:
+// Report whether the member is explicitly null.
 func (m *PutCityPhotoInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
+// SetCaption:
+// Set the member value.
 func (m *PutCityPhotoInput) SetCaption(value string) { m.Caption = Some(value) }
-// GetCaption returns the value, or its zero value when absent or null.
+// GetCaption:
+// Return the member value; absent and null optional members return the zero value.
 func (m *PutCityPhotoInput) GetCaption() string { if m != nil && m.Caption.Set && !m.Caption.Null { return m.Caption.Value }; var zero string; return zero }
+// HasCaption:
+// Report whether the member is present, including explicit null.
 func (m *PutCityPhotoInput) HasCaption() bool { return m != nil && m.Caption.Set }
+// IsNullCaption:
+// Report whether the member is explicitly null.
 func (m *PutCityPhotoInput) IsNullCaption() bool { return m != nil && m.Caption.Set && m.Caption.Null }
+// SetPhoto:
+// Set the member value.
 func (m *PutCityPhotoInput) SetPhoto(value Photo) { m.Photo = Some(value) }
-// GetPhoto returns the value, or its zero value when absent or null.
+// GetPhoto:
+// Return the member value; absent and null optional members return the zero value.
 func (m *PutCityPhotoInput) GetPhoto() Photo { if m != nil && m.Photo.Set && !m.Photo.Null { return m.Photo.Value }; var zero Photo; return zero }
+// HasPhoto:
+// Report whether the member is present, including explicit null.
 func (m *PutCityPhotoInput) HasPhoto() bool { return m != nil && m.Photo.Set }
+// IsNullPhoto:
+// Report whether the member is explicitly null.
 func (m *PutCityPhotoInput) IsNullPhoto() bool { return m != nil && m.Photo.Set && m.Photo.Null }
 
 type PutCityPhotoOutput struct {
     Photo *PhotoSummary
 }
+// String describes present members and redacts sensitive values.
+func (m PutCityPhotoOutput) String() string { return formatModel(wireSchema, "example.weather#PutCityPhotoOutput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m PutCityPhotoOutput) GoString() string { return m.String() }
+// SetPhoto:
+// Set the member value.
 func (m *PutCityPhotoOutput) SetPhoto(value *PhotoSummary) { m.Photo = value }
+// GetPhoto:
+// Return the member value; absent and null optional members return the zero value.
 func (m *PutCityPhotoOutput) GetPhoto() *PhotoSummary { return m.Photo }
 
 // Sky preserves unrecognized string values.
@@ -262,30 +562,67 @@ const (
     SkyCLOUDY Sky = "cloudy"
 )
 
+// String renders nested values and redacts sensitive data.
+func (m Sky) String() string { return formatModel(wireSchema, "example.weather#Sky", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m Sky) GoString() string { return m.String() }
+
 type StatusInput struct {
 }
+// String describes present members and redacts sensitive values.
+func (m StatusInput) String() string { return formatModel(wireSchema, "example.weather#StatusInput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m StatusInput) GoString() string { return m.String() }
 
 type StatusOutput struct {
 }
+// String describes present members and redacts sensitive values.
+func (m StatusOutput) String() string { return formatModel(wireSchema, "example.weather#StatusOutput", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m StatusOutput) GoString() string { return m.String() }
 
 type Tags []string
+
+// String renders nested values and redacts sensitive data.
+func (m Tags) String() string { return formatModel(wireSchema, "example.weather#Tags", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m Tags) GoString() string { return m.String() }
 
 type ThrottlingError struct {
     Message string
     RetryAfter Optional[int32]
     Metadata *ServiceError
 }
+// String describes present members and redacts sensitive values.
+func (m ThrottlingError) String() string { return formatModel(wireSchema, "example.weather#ThrottlingError", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m ThrottlingError) GoString() string { return m.String() }
+// SetMessage:
+// Set the member value.
 func (m *ThrottlingError) SetMessage(value string) { m.Message = value }
+// GetMessage:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ThrottlingError) GetMessage() string { return m.Message }
+// SetRetryAfter:
+// Set the member value.
 func (m *ThrottlingError) SetRetryAfter(value int32) { m.RetryAfter = Some(value) }
-// GetRetryAfter returns the value, or its zero value when absent or null.
+// GetRetryAfter:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ThrottlingError) GetRetryAfter() int32 { if m != nil && m.RetryAfter.Set && !m.RetryAfter.Null { return m.RetryAfter.Value }; var zero int32; return zero }
+// HasRetryAfter:
+// Report whether the member is present, including explicit null.
 func (m *ThrottlingError) HasRetryAfter() bool { return m != nil && m.RetryAfter.Set }
+// IsNullRetryAfter:
+// Report whether the member is explicitly null.
 func (m *ThrottlingError) IsNullRetryAfter() bool { return m != nil && m.RetryAfter.Set && m.RetryAfter.Null }
 func (*ThrottlingError) serviceException() {}
-func (e *ThrottlingError) Error() string { return e.Metadata.Error() }
+// Error returns the redacted modeled representation.
+func (e *ThrottlingError) Error() string { return e.String() }
+// Unwrap exposes the underlying service response metadata.
 func (e *ThrottlingError) Unwrap() error { return e.Metadata }
 
+// Thumbnail:
+// The photo's first bytes: base64 in JSON.
 type Thumbnail = []byte
 
 type ValidationError struct {
@@ -295,34 +632,79 @@ type ValidationError struct {
     RequestId Optional[string]
     Metadata *ServiceError
 }
+// String describes present members and redacts sensitive values.
+func (m ValidationError) String() string { return formatModel(wireSchema, "example.weather#ValidationError", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m ValidationError) GoString() string { return m.String() }
+// SetMessage:
+// Set the member value.
 func (m *ValidationError) SetMessage(value string) { m.Message = value }
+// GetMessage:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ValidationError) GetMessage() string { return m.Message }
+// SetReason:
+// Set the member value.
 func (m *ValidationError) SetReason(value ValidationReason) { m.Reason = value }
+// GetReason:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ValidationError) GetReason() ValidationReason { return m.Reason }
+// SetFieldList:
+// Set the member value.
 func (m *ValidationError) SetFieldList(value ValidationFieldList) { m.FieldList = Some(value) }
-// GetFieldList returns the value, or its zero value when absent or null.
+// GetFieldList:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ValidationError) GetFieldList() ValidationFieldList { if m != nil && m.FieldList.Set && !m.FieldList.Null { return m.FieldList.Value }; var zero ValidationFieldList; return zero }
+// HasFieldList:
+// Report whether the member is present, including explicit null.
 func (m *ValidationError) HasFieldList() bool { return m != nil && m.FieldList.Set }
+// IsNullFieldList:
+// Report whether the member is explicitly null.
 func (m *ValidationError) IsNullFieldList() bool { return m != nil && m.FieldList.Set && m.FieldList.Null }
+// SetRequestId:
+// Set the member value.
 func (m *ValidationError) SetRequestId(value string) { m.RequestId = Some(value) }
-// GetRequestId returns the value, or its zero value when absent or null.
+// GetRequestId:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ValidationError) GetRequestId() string { if m != nil && m.RequestId.Set && !m.RequestId.Null { return m.RequestId.Value }; var zero string; return zero }
+// HasRequestId:
+// Report whether the member is present, including explicit null.
 func (m *ValidationError) HasRequestId() bool { return m != nil && m.RequestId.Set }
+// IsNullRequestId:
+// Report whether the member is explicitly null.
 func (m *ValidationError) IsNullRequestId() bool { return m != nil && m.RequestId.Set && m.RequestId.Null }
 func (*ValidationError) serviceException() {}
-func (e *ValidationError) Error() string { return e.Metadata.Error() }
+// Error returns the redacted modeled representation.
+func (e *ValidationError) Error() string { return e.String() }
+// Unwrap exposes the underlying service response metadata.
 func (e *ValidationError) Unwrap() error { return e.Metadata }
 
 type ValidationField struct {
     Path string
     Message string
 }
+// String describes present members and redacts sensitive values.
+func (m ValidationField) String() string { return formatModel(wireSchema, "example.weather#ValidationField", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m ValidationField) GoString() string { return m.String() }
+// SetPath:
+// Set the member value.
 func (m *ValidationField) SetPath(value string) { m.Path = value }
+// GetPath:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ValidationField) GetPath() string { return m.Path }
+// SetMessage:
+// Set the member value.
 func (m *ValidationField) SetMessage(value string) { m.Message = value }
+// GetMessage:
+// Return the member value; absent and null optional members return the zero value.
 func (m *ValidationField) GetMessage() string { return m.Message }
 
 type ValidationFieldList []*ValidationField
+
+// String renders nested values and redacts sensitive data.
+func (m ValidationFieldList) String() string { return formatModel(wireSchema, "example.weather#ValidationFieldList", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m ValidationFieldList) GoString() string { return m.String() }
 
 // ValidationReason preserves unrecognized string values.
 type ValidationReason string
@@ -332,4 +714,9 @@ const (
     ValidationReasonFIELDVALIDATIONFAILED ValidationReason = "fieldValidationFailed"
     ValidationReasonOTHER ValidationReason = "other"
 )
+
+// String renders nested values and redacts sensitive data.
+func (m ValidationReason) String() string { return formatModel(wireSchema, "example.weather#ValidationReason", m) }
+// GoString applies the same redaction for Go syntax formatting.
+func (m ValidationReason) GoString() string { return m.String() }
 

@@ -8,6 +8,7 @@ from jmespath import functions, visitor  # type: ignore[import-untyped]
 
 
 def equal(left: Any, right: Any) -> bool:
+    """Compare JSON-like values using JMESPath numeric equality while keeping booleans distinct from numbers."""
     if isinstance(left, dict) and isinstance(right, dict):
         return left.keys() == right.keys() and all(equal(value, right[key]) for key, value in left.items())
     if isinstance(left, list) and isinstance(right, list):
@@ -18,6 +19,7 @@ def equal(left: Any, right: Any) -> bool:
 
 
 def json_text(value: Any) -> str:
+    """Serialize JSON-like values while preserving exact Decimal numbers."""
     if isinstance(value, Decimal):
         if not value.is_finite():
             raise ValueError("nonfinite JSON number")
@@ -30,6 +32,7 @@ def json_text(value: Any) -> str:
 
 
 class Functions(functions.Functions):
+    """JMESPath functions extended for exact Decimal values."""
     def _get_allowed_pytypes(self, types: Any) -> Any:
         allowed, nested = super()._get_allowed_pytypes(types)
         if "int" in allowed:
@@ -70,6 +73,7 @@ class Functions(functions.Functions):
 
 
 class Interpreter(visitor.TreeInterpreter):
+    """JMESPath interpreter preserving numeric and object-value semantics of the lowered expressions."""
     def visit_condition(self, node: Any, value: Any) -> Any:
         return self.visit(node["children"][1], value) if self._is_true(self.visit(node["children"][0], value)) else None
 
@@ -90,6 +94,7 @@ class Interpreter(visitor.TreeInterpreter):
 
 
 def ast(expression: dict[str, Any]) -> dict[str, Any]:
+    """Convert lowered expression IR to the pinned native JMESPath interpreter AST."""
     kind = expression["kind"]
     simple = {"identity": "identity", "field": "field", "index": "index", "literal": "literal"}
     if kind in simple:
@@ -117,9 +122,11 @@ def ast(expression: dict[str, Any]) -> dict[str, Any]:
 
 
 class Query:
+    """Compile a lowered JMESPath expression once and evaluate it against model values."""
     def __init__(self, expression: dict[str, Any]) -> None:
         self._ast = ast(expression)
         self._interpreter = Interpreter(visitor.Options(custom_functions=Functions()))
 
     def search(self, value: Any) -> Any:
+        """Evaluate the compiled expression against a model value."""
         return self._interpreter.visit(self._ast, value)

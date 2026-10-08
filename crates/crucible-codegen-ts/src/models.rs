@@ -19,7 +19,17 @@ pub(crate) fn emit(service: &Service) -> String {
                     doc(&mut out, "  ", value.docs.as_deref());
                     out.push_str(&format!("  {}: {},\n", property(&value.name), value.value));
                 }
-                out.push_str(&format!("}} as const;\nexport type {name} = (typeof {name})[keyof typeof {name}] | (number & {{}});\n"));
+                out.push_str("} as const;\n");
+                doc(
+                    &mut out,
+                    "",
+                    values.docs.as_deref().or(Some(
+                        "Open integer values, including unrecognized server values.",
+                    )),
+                );
+                out.push_str(&format!(
+                    "export type {name} = (typeof {name})[keyof typeof {name}] | (number & {{}});\n"
+                ));
             }
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
@@ -55,7 +65,11 @@ pub(crate) fn emit(service: &Service) -> String {
                 ));
             }
             Shape::List(list) => {
-                doc(&mut out, "", list.docs.as_deref());
+                doc(
+                    &mut out,
+                    "",
+                    crucible_codegen_common::documentation::model(shape).as_deref(),
+                );
                 let item = ts_type(service, &list.member.target, "");
                 let item = if list.sparse {
                     format!("({item} | null)")
@@ -65,7 +79,11 @@ pub(crate) fn emit(service: &Service) -> String {
                 out.push_str(&format!("export type {name} = {item}[];\n"));
             }
             Shape::Map(map) => {
-                doc(&mut out, "", map.docs.as_deref());
+                doc(
+                    &mut out,
+                    "",
+                    crucible_codegen_common::documentation::model(shape).as_deref(),
+                );
                 let value = ts_type(service, &map.value.target, "");
                 let value = if map.sparse {
                     format!("{value} | null")
@@ -144,8 +162,10 @@ fn union_arms(out: &mut String, service: &Service, union: &Structure) {
             .filter(|other| other.name != member.name)
             .map(|other| format!(" {}?: never;", property(&other.name)))
             .collect();
+        out.push_str("  | {\n");
+        doc(out, "      ", member.docs.as_deref());
         out.push_str(&format!(
-            "  | {{ {}: {};{others} $unknown?: never; }}\n",
+            "      {}: {};{others} $unknown?: never;\n    }}\n",
             property(&member.name),
             ts_type(service, &member.target, "")
         ));

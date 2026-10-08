@@ -5,45 +5,127 @@ import type { ClientConfig, RequestOptions } from "./runtime.js";
 import type * as m from "./models.js";
 import * as spec from "./schemas.js";
 
+/**
+ * Fetch-based HTTP client. Construct with ClientConfig. Calls may run concurrently when custom fetch, middleware and credential providers support concurrency. The client owns no transport pool and has no close method; callers manage custom fetch resources.
+ */
 export class WeatherClient {
   readonly #transport: Transport;
 
+  /**
+   * Configure endpoint, authentication, retries, timeout and fetch middleware. Uses global fetch when no fetch is supplied.
+   */
   constructor(config: ClientConfig = {}) {
     this.#transport = new Transport(config, { endpoint: "https://weather.example", middleware: [contentSha256], bearer: true }, spec.errors);
   }
 
+  /**
+   * Call CreateCity.
+   *
+   * Input: CreateCityInput.
+   *
+   * Returns: CreateCityOutput.
+   *
+   * Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+   *
+   * An omitted clientToken idempotency token is generated once per call and reused for retries.
+   */
   createCity(input: m.CreateCityInput, options?: RequestOptions): Promise<m.CreateCityOutput> {
     return this.#transport.send(spec.CreateCity, input, options);
   }
 
+  /**
+   * Call GetCity.
+   *
+   * Input: GetCityInput.
+   *
+   * Returns: GetCityOutput.
+   *
+   * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+   *
+   * This operation is safe to retry under the configured retry policy.
+   */
   getCity(input: m.GetCityInput, options?: RequestOptions): Promise<m.GetCityOutput> {
     return this.#transport.send(spec.GetCity, input, options);
   }
 
+  /**
+   * Call GetCityPhoto.
+   *
+   * Input: GetCityPhotoInput.
+   *
+   * Returns: GetCityPhotoOutput.
+   *
+   * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+   *
+   * This operation is safe to retry under the configured retry policy.
+   */
   getCityPhoto(input: m.GetCityPhotoInput, options?: RequestOptions): Promise<m.GetCityPhotoOutput> {
     return this.#transport.send(spec.GetCityPhoto, input, options);
   }
 
+  /**
+   * Call ListCities.
+   *
+   * Input: ListCitiesInput.
+   *
+   * Returns: ListCitiesOutput.
+   *
+   * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+   *
+   * This operation is safe to retry under the configured retry policy.
+   *
+   * Returns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens.
+   */
   listCities(input: m.ListCitiesInput = {}, options?: RequestOptions): Promise<m.ListCitiesOutput> {
     return this.#transport.send(spec.ListCities, input, options);
   }
 
-  /** Every page of ListCities, following `nextToken` until a page comes back without one. */
+  /** Every page of ListCities, following `nextToken` until absent or empty; rejects repeated tokens. Input is snapshotted. */
   paginateListCities(input: m.ListCitiesInput = {}, options?: RequestOptions): AsyncGenerator<m.ListCitiesOutput, void, undefined> {
     return paginate(page => this.listCities(page, options), input, "nextToken", ["nextToken"]);
   }
 
+  /**
+   * Call Ping.
+   *
+   * Input: no modeled input.
+   *
+   * Returns: no modeled output.
+   *
+   * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+   *
+   * This operation is safe to retry under the configured retry policy.
+   */
   ping(options?: RequestOptions): Promise<void> {
     return this.#transport.send(spec.Ping, {}, options);
   }
 
   /**
    * Stores a city's photo exactly as sent.
+   *
+   * Input: PutCityPhotoInput.
+   *
+   * Returns: PutCityPhotoOutput.
+   *
+   * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+   *
+   * This operation is safe to retry under the configured retry policy.
    */
   putCityPhoto(input: m.PutCityPhotoInput, options?: RequestOptions): Promise<m.PutCityPhotoOutput> {
     return this.#transport.send(spec.PutCityPhoto, input, options);
   }
 
+  /**
+   * Call Status.
+   *
+   * Input: StatusInput.
+   *
+   * Returns: StatusOutput.
+   *
+   * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+   *
+   * This operation is safe to retry under the configured retry policy.
+   */
   status(input: m.StatusInput = {}, options?: RequestOptions): Promise<m.StatusOutput> {
     return this.#transport.send(spec.Status, input, options);
   }

@@ -35,6 +35,7 @@ class _Flight:
 
 
 class EndpointCache:
+    """Coalesce concurrent endpoint discovery and cache addresses until their expiry."""
     def __init__(self, clock: Any) -> None:
         self._clock = clock
         self._entries: dict[str, DiscoveredAddress] = {}
@@ -67,6 +68,7 @@ class EndpointCache:
             return expires is not None
 
     def record_failure(self, key: str) -> None:
+        """Record a discovery failure to suppress optional discovery during the cooldown."""
         with self._lock:
             self._failures[key] = self._clock.now() + FAILURE_TTL
 

@@ -68,8 +68,12 @@ export interface ListCitiesOutput {
 }
 
 export type Location =
-  | { coordinates: Coordinates; unknown?: never; $unknown?: never; }
-  | { unknown: Unit; coordinates?: never; $unknown?: never; }
+  | {
+      coordinates: Coordinates; unknown?: never; $unknown?: never;
+    }
+  | {
+      unknown: Unit; coordinates?: never; $unknown?: never;
+    }
   | (UnknownUnion & { coordinates?: never; unknown?: never; });
 
 /**

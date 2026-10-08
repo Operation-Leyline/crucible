@@ -15,6 +15,7 @@ const INHERITED: &[&str] = &[
     "$metadata",
     "$fault",
     "$retryable",
+    "toString",
 ];
 
 pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
@@ -51,6 +52,8 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                 continue;
             }
             if member.name == "message" {
+                doc(&mut out, "  ", member.docs.as_deref());
+                out.push_str("  declare message: string;\n");
                 continue;
             }
             doc(&mut out, "  ", member.docs.as_deref());
@@ -75,18 +78,98 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             let name = crate::names::literal(&member.name);
             format!("    if (globalThis.Object.hasOwn(fields, {name})) globalThis.Object.defineProperty(this, {name}, {{ value: fields[{name}], enumerable: true }});\n")
         }).collect::<Vec<_>>().join("");
+        doc(
+            &mut out,
+            "  ",
+            Some("Construct from decoded model fields and HTTP response metadata."),
+        );
         out.push_str(&format!(
             "  constructor(fields: globalThis.Record<string, unknown>, metadata: ResponseMetadata) {{\n    \
              super({}, typeof fields.message === \"string\" ? fields.message : \"\", metadata, \"{fault}\", {retryable});\n\
              {assignments}  }}\n}}\n",
             crate::names::literal(&error.wire_code)
         ));
+        // Models are interfaces; only errors have a class representation.
+        let end = out.len() - 2;
+        out.insert_str(end, &format!("  /** Describe modeled members with recursive sensitive-data redaction. */\n  override toString(): string {{ return formatModel(debugShapes, {}, this); }}\n  /** Use the same redaction when inspected by Node.js. */\n  [globalThis.Symbol.for(\"nodejs.util.inspect.custom\")](): string {{ return this.toString(); }}\n", crate::names::literal(&id.to_string())));
     }
     let mut header = String::from(crate::HEADER);
-    header.push_str(&format!("import {{ {exception} }} from \"./runtime.js\";\nexport {{ {exception} }} from \"./runtime.js\";\n"));
+    header.push_str(&format!("import {{ {exception}, formatModel }} from \"./runtime.js\";\nexport {{ {exception} }} from \"./runtime.js\";\n"));
     header.push_str(&crate::names::runtime_types(&out, &["ResponseMetadata"]));
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }
-    header + &out
+    let mut shapes = crucible_codegen_common::schema(service, str::to_owned)["shapes"].clone();
+    // Only error classes need formatting metadata, including their nested targets.
+    let mut pending: Vec<_> = error_shapes(service)
+        .iter()
+        .map(|(id, _)| id.to_string())
+        .collect();
+    let mut reachable = std::collections::BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !reachable.insert(id.clone()) {
+            continue;
+        }
+        let shape = &shapes[&id];
+        let mut members: Vec<_> = shape["members"]
+            .as_object()
+            .map_or_else(Vec::new, |members| members.values().collect());
+        members.extend(
+            ["member", "key", "value"]
+                .iter()
+                .filter_map(|key| shape.get(key)),
+        );
+        pending.extend(
+            members
+                .iter()
+                .filter_map(|member| member["target"].as_str().map(str::to_owned)),
+        );
+    }
+    shapes
+        .as_object_mut()
+        .expect("shape table")
+        .retain(|id, _| reachable.contains(id));
+    for (id, shape) in &service.shapes {
+        if shape.sensitive() && reachable.contains(&id.to_string()) {
+            shapes[id.to_string()]["sensitive"] = serde_json::json!(true);
+        }
+    }
+    // Keep only formatting metadata; transport/error metadata is unrelated.
+    for shape in shapes.as_object_mut().expect("shape table").values_mut() {
+        shape.as_object_mut().expect("shape").retain(|key, _| {
+            [
+                "kind",
+                "name",
+                "sensitive",
+                "streaming",
+                "members",
+                "member",
+                "key",
+                "value",
+            ]
+            .contains(&key.as_str())
+        });
+        for (key, value) in shape.as_object_mut().expect("shape").iter_mut() {
+            if key == "members" {
+                for member in value.as_object_mut().expect("members").values_mut() {
+                    debug_member(member);
+                }
+            } else if ["member", "key", "value"].contains(&key.as_str()) {
+                debug_member(value);
+            }
+        }
+    }
+    header
+        + &format!(
+            "\nconst debugShapes = globalThis.JSON.parse({});\n",
+            crate::names::literal(&shapes.to_string())
+        )
+        + &out
+}
+
+fn debug_member(member: &mut serde_json::Value) {
+    member
+        .as_object_mut()
+        .expect("member")
+        .retain(|key, _| ["target", "attribute", "sensitive"].contains(&key.as_str()));
 }

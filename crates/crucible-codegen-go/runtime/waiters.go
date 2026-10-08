@@ -13,12 +13,19 @@ import (
     "time"
 )
 
+// WaiterOptions overrides modeled minimum and maximum polling delays; nil fields retain modeled values.
 type WaiterOptions struct { MinDelay, MaxDelay *time.Duration }
+// WaiterError retains the waiter name, attempt count, last response, cause and modeled failure detail.
 type WaiterError struct { Name string; Attempts int; Response any; Cause error; Message any }
+// Error returns diagnostic error text.
 func (e *WaiterError) Error() string { return fmt.Sprintf("waiter %s failed after %d attempts: %v",e.Name,e.Attempts,e.Message) }
+// Unwrap returns the underlying error for errors.Is and errors.As.
 func (e *WaiterError) Unwrap() error { return e.Cause }
+// WaiterTimeoutError reports the total waiter deadline expiring; errors.Is matches context.DeadlineExceeded.
 type WaiterTimeoutError struct { *WaiterError }
+// Timeout reports that the waiter failure is a timeout.
 func (*WaiterTimeoutError) Timeout() bool { return true }
+// Is matches the context deadline error or the wrapped cause.
 func (e *WaiterTimeoutError) Is(target error) bool { return target == context.DeadlineExceeded || errors.Is(e.Cause,target) }
 
 func (c *clientRuntime) queryModel(target string, value any, format string) (any,error) {

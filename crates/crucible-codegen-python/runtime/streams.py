@@ -154,14 +154,17 @@ class ByteStream:
 
     @property
     def length(self) -> int | None:
+        """Declared stream byte length, or None when unknown."""
         return self._length
 
     @property
     def replayable(self) -> bool:
+        """Whether each attempt can reopen the source to produce the same bytes."""
         return self._replayable
 
     @property
     def sha256(self) -> str | None:
+        """Declared hexadecimal SHA-256 digest, if available; no stream is read to compute it."""
         return self._sha256
 
     def __repr__(self) -> str:
@@ -209,6 +212,7 @@ class ByteStream:
         yield from iterator
 
     def iter_chunks(self) -> Iterator[bytes]:
+        """Yield source byte chunks without buffering the entire stream."""
         return iter(self)
 
     def read(self, size: int = -1) -> bytes:
@@ -282,6 +286,7 @@ class ByteStream:
             yield chunk
 
     async def aread(self, size: int = -1) -> bytes:
+        """Read the asynchronous response stream to completion; checksum errors may be raised at the end."""
         iterator = self._aiterator()
         if size < 0:
             async for chunk in iterator:
@@ -299,6 +304,7 @@ class ByteStream:
         return data
 
     async def aclose(self) -> None:
+        """Close owned asynchronous transport or response resources; callers retain ownership of supplied HTTPX clients."""
         self._closed = True
         iterator, self._async = self._async, None
         if iterator is not None and hasattr(iterator, "aclose"):
@@ -338,6 +344,7 @@ class Upload:
             raise StreamLengthError(f"the stream is shorter than the modeled minimum length {self._minimum}")
 
     def sync(self) -> Iterable[bytes]:
+        """Open and adapt the source for a synchronous request attempt."""
         upload = self
 
         class Body:
@@ -354,6 +361,7 @@ class Upload:
         return Body()
 
     def asynchronous(self) -> AsyncIterable[bytes]:
+        """Open and adapt the source for an asynchronous request attempt."""
         upload = self
 
         class Body:
@@ -370,11 +378,13 @@ class Upload:
         return Body()
 
     def close(self) -> None:
+        """Close the client-owned synchronous HTTPX transport; a supplied transport remains open."""
         source, self._source = self._source, None
         if source is not None:
             _close(source)
 
     async def aclose(self) -> None:
+        """Close owned asynchronous transport or response resources; callers retain ownership of supplied HTTPX clients."""
         source, self._source = self._source, None
         if source is not None:
             await _aclose(source)

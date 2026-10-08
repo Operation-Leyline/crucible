@@ -12,16 +12,22 @@ type Expression = { readonly kind: "string"; readonly parts: readonly Part[] }
 type Rule = { readonly conditions: readonly { readonly function: string; readonly arguments: readonly Expression[]; readonly assign: string | null }[]; readonly result:
   { readonly kind: "tree"; readonly rules: readonly Rule[] } | { readonly kind: "error"; readonly message: Expression } |
   { readonly kind: "endpoint"; readonly url: Expression; readonly headers: Readonly<Record<string, readonly Expression[]>>; readonly properties: Readonly<Record<string, Expression>> } };
+/** Lowered endpoint rules with parameter definitions and decision rules. */
 export interface EndpointRules { readonly version: string; readonly parameters: Readonly<Record<string, { readonly kind: "string" | "boolean" | "stringArray"; readonly required: boolean }>>; readonly rules: readonly Rule[]; }
+/** Static, modeled input, default or built-in source for an endpoint rule parameter. */
 export type ParameterSource = { readonly kind: "static" | "default"; readonly value: unknown } | { readonly kind: "inputMember"; readonly member: string }
   | { readonly kind: "inputPath"; readonly path: { readonly expression: QueryExpression } } | { readonly kind: "client" | "builtIn"; readonly name: string };
+/** Literal and input-member labels prepended to an endpoint host. */
 export interface EndpointPrefix { readonly parts: readonly ({ readonly kind: "literal"; readonly value: string } | { readonly kind: "label"; readonly member: string })[]; }
+/** Selected URL, additional headers and endpoint authentication properties. */
 export interface ResolvedEndpoint { readonly url: string; readonly headers: Readonly<Record<string, readonly string[]>>; readonly properties: Readonly<Record<string, unknown>>; }
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 
+/** Check whether a value can safely form a host label; subdomains optionally allow dots. */
 export function hostLabel(value: unknown, subdomains = false): boolean {
   return typeof value === "string" && value.length > 0 && (subdomains ? value.split(".") : [value]).every(label => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label));
 }
+/** Parse an absolute HTTP(S) URL; invalid or unsupported values return null. */
 export function parseEndpoint(value: unknown): { scheme: string; authority: string; path: string; normalizedPath: string; isIp: boolean } | null {
   if (typeof value !== "string" || /[\x00-\x20\x7f?#\\]/.test(value) || !/^https?:\/\//.test(value)) return null;
   try {
@@ -87,6 +93,7 @@ function rules(nodes: readonly Rule[], parameters: Record<string, unknown>): Res
   }
   return undefined;
 }
+/** Resolve endpoint parameters and evaluate the modeled endpoint rule tree; invalid parameters or no match throw. */
 export function resolveEndpoint(description: EndpointRules, sources: Readonly<Record<string, readonly ParameterSource[]>>, input: Record<string, unknown>, client: Readonly<Record<string, unknown>>, builtins: Readonly<Record<string, unknown>>): ResolvedEndpoint {
   const parameters = Object.create(null) as Record<string, unknown>;
   for (const [name, parameter] of Object.entries(description.parameters)) {
@@ -107,6 +114,7 @@ export function resolveEndpoint(description: EndpointRules, sources: Readonly<Re
   }
   const result = rules(description.rules, parameters); if (!result) throw new TypeError("no endpoint rule matched"); return result;
 }
+/** Expand modeled host labels and prepend them to the endpoint hostname. */
 export function hostPrefix(endpoint: string, description: EndpointPrefix, input: Record<string, unknown>): string {
   const prefix = description.parts.map(part => { if (part.kind === "literal") return part.value; const value = input[part.member]; if (!hostLabel(value)) throw new TypeError(`invalid endpoint host label ${part.member}`); return value; }).join("");
   const url = new URL(endpoint), host = prefix + url.hostname;

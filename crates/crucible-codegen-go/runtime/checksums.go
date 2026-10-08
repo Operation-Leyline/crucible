@@ -17,13 +17,16 @@ import (
     "strings"
 )
 
+// ChecksumPolicy selects checksum behavior for supported versus required modeled checksums.
 type ChecksumPolicy string
 const (
     ChecksumWhenSupported ChecksumPolicy = "WHEN_SUPPORTED"
     ChecksumWhenRequired ChecksumPolicy = "WHEN_REQUIRED"
 )
 
+// ChecksumError reports a malformed or mismatching response checksum.
 type ChecksumError struct { Algorithm string }
+// Error returns diagnostic error text.
 func (e *ChecksumError) Error() string { return "response " + e.Algorithm + " checksum mismatch" }
 
 type checksumDescription struct {
