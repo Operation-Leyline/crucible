@@ -54,6 +54,7 @@ jobs:
       swift: ${{ steps.select.outputs.swift }}
       terraform: ${{ steps.select.outputs.terraform }}
       typescript: ${{ steps.select.outputs.typescript }}
+      docs_site: ${{ steps.select.outputs.docs_site }}
       onboarding_hosts: ${{ steps.select.outputs.onboarding_hosts }}
     steps:
       - uses: actions/checkout@v4
@@ -683,6 +684,20 @@ jobs:
         with: { node-version: 22 }
       - run: bash tools/test-ts.sh
 
+  # The static API reference renderer, run under Node's built-in test runner
+  # against the generator's describe.json goldens.
+  docs-site:
+    needs: [plan, rust]
+    if: needs.plan.outputs.docs_site == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: bash tools/test-docs-site.sh
+
   # The example service (e2e/): built the way a real one is, tested in
   # process, then served and driven by the generated TypeScript client.
   e2e:
@@ -788,7 +803,7 @@ jobs:
   # A stable aggregate reports failures while allowing intentionally omitted jobs.
   ci:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, e2e, consumers, onboarding, editor]
+    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, docs-site, e2e, consumers, onboarding, editor]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

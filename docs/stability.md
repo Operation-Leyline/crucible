@@ -20,7 +20,10 @@ try_generate_into}` and `Generator::Docs` are part of the documented consumer
 surface. The serialized `crucible.describe/1` contract is stable as described in
 [service API reference documentation](docs.md); its public `Description` struct
 is non-exhaustive. Additive metadata fields may join format 1; incompatible
-field meanings require a new format version.
+field meanings require a new format version. The static HTML reference's file
+names (`index.html`, `explorer.js`, `explorer.css`, `describe.js`) and the
+`CrucibleExplorer.registerOperationPanel` hook are stable as described there;
+the renderer's CSS class names and internal functions are not.
 
 `Crucible::builder` takes the operation registry produced by the generated
 service module. `Crucible::{invoke, invoke_json, invoke_json_with}` support

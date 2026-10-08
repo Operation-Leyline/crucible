@@ -29,6 +29,11 @@ version's section when it is prepared.
   scope-aware bearer challenges on endpoint and tool refusals. Additive
   `McpConfig::authorization` and `crucible_auth::McpAuthenticator` require audience
   binding by default and offer explicit Cognito compatibility for unbound tokens.
+- Static single-page HTML API reference in every docs output: `index.html`,
+  `explorer.js`, `explorer.css`, `describe.json`, and `describe.js` (for
+  `file://`). The renderer is dependency-free and has a
+  `CrucibleExplorer.registerOperationPanel` extension hook; see
+  [service API references](docs/docs.md#static-html-reference).
 
 - Stability policy for 0.x, this changelog, `docs/migrating.md`, the
   `consumers` CI job (starter, example service and a Leyline-shaped fixture)

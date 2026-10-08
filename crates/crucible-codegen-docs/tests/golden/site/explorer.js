@@ -733,7 +733,7 @@
     const container = win.document.querySelector("[data-crucible-explorer]");
     if (!container || container.hasAttribute("data-manual")) return null;
     try {
-      return start(container, await load(win));
+      return start(container, await load(win), { window: win });
     } catch (error) {
       container.textContent = `Cannot load the API description: ${error && error.message}`;
       return null;
