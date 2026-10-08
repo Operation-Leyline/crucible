@@ -3,18 +3,38 @@ use std::sync::Arc;
 use axum::body::{Body, to_bytes};
 use axum::http::{HeaderMap, Request, StatusCode, header};
 use axum::response::IntoResponse;
-use crucible_server_runtime_rust::mcp::{EndpointAdmission, McpProtocol};
+use crucible_server_runtime_rust::mcp::{EndpointAdmission, McpConfig};
 use crucible_server_runtime_rust::{
     AuthRefusal, Crucible, Hook, OperationAwareMiddleware, OperationJob,
 };
 use serde_json::{Value, json};
 use weather_service::{MemoryCities, weather};
 
-fn service(protocol: McpProtocol) -> Crucible {
+fn service(config: McpConfig) -> Crucible {
     weather_service::builder(Arc::new(MemoryCities::default()))
-        .mcp(protocol)
+        .mcp(config)
         .build()
         .unwrap()
+}
+
+#[test]
+fn runtime_mcp_requires_generated_service_descriptors() {
+    use crucible_server_runtime_rust::{BuildError, Operations, ServiceInfo};
+
+    static WITHOUT_MCP: ServiceInfo = ServiceInfo {
+        mcp_tools: None,
+        operations: &[],
+        ..weather::SERVICE
+    };
+    let operations = Operations::builder(&WITHOUT_MCP).build().unwrap();
+    let result = Crucible::builder(operations)
+        .defaults()
+        .mcp(McpConfig::new())
+        .build();
+    assert!(
+        matches!(result, Err(BuildError::Prepare(message)) if message.contains("enable .mcp()"))
+    );
+    assert!(weather::SERVICE.mcp_tools.is_some());
 }
 
 #[tokio::test]
@@ -26,11 +46,7 @@ async fn opt_in_custom_path_serves_json_over_real_http() {
             .0,
         StatusCode::BAD_REQUEST
     );
-    let service = service(
-        McpProtocol::new(weather::MCP_TOOLS)
-            .path("/agents/mcp")
-            .allow_any_origin(),
-    );
+    let service = service(McpConfig::new().path("/agents/mcp").allow_any_origin());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
@@ -148,7 +164,7 @@ async fn call(service: &Crucible, tools: &Value, name: &str, arguments: Value) -
 
 #[tokio::test]
 async fn discovery_and_every_operation_output_match_schemas() {
-    let service = service(McpProtocol::new(weather::MCP_TOOLS).server_info("Weather", "1"));
+    let service = service(McpConfig::new().server_info("Weather", "1"));
     let init = send(&service,rpc("initialize",json!({"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}))).await;
     assert_eq!(init["result"]["protocolVersion"], "2025-06-18");
     assert_eq!(
@@ -248,8 +264,7 @@ async fn discovery_and_every_operation_output_match_schemas() {
 
 #[tokio::test]
 async fn transport_security_and_json_rpc_errors() {
-    let service =
-        service(McpProtocol::new(weather::MCP_TOOLS).allowed_origins(["https://agent.example"]));
+    let service = service(McpConfig::new().allowed_origins(["https://agent.example"]));
     for method in ["GET", "DELETE", "PUT"] {
         let (status, headers, _) = request(&service, method, "invalid", &[]).await;
         assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
@@ -372,7 +387,7 @@ impl crucible_server_runtime_rust::Middleware for TransportRefusal {
 #[tokio::test]
 async fn selected_tool_uses_precomputed_operation_body_limit() {
     let service = weather_service::builder(Arc::new(MemoryCities::default()))
-        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .mcp(McpConfig::new())
         .operation_body_limit::<weather::Ping>(1)
         .build()
         .unwrap();
@@ -394,12 +409,12 @@ async fn selected_tool_uses_precomputed_operation_body_limit() {
 #[tokio::test]
 async fn pre_dispatch_failures_preserve_http_errors() {
     let limited = weather_service::builder(Arc::new(MemoryCities::default()))
-        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .mcp(McpConfig::new())
         .body_limit(1)
         .build()
         .unwrap();
     let refused = weather_service::builder(Arc::new(MemoryCities::default()))
-        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .mcp(McpConfig::new())
         .middleware(TransportRefusal)
         .build()
         .unwrap();
@@ -420,7 +435,7 @@ async fn pre_dispatch_failures_preserve_http_errors() {
 #[tokio::test]
 async fn framework_auth_refusals_keep_http_status_in_mcp() {
     let service = weather_service::builder(Arc::new(MemoryCities::default()))
-        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .mcp(McpConfig::new())
         .operation_middleware(FrameworkOperationAuth)
         .build()
         .unwrap();
@@ -443,8 +458,8 @@ async fn framework_auth_refusals_keep_http_status_in_mcp() {
 
 #[tokio::test]
 async fn endpoint_and_operation_auth_remain_http_refusals() {
-    let guarded = service(McpProtocol::new(weather::MCP_TOOLS).endpoint_guard(
-        |parts: &axum::http::request::Parts| {
+    let guarded = service(
+        McpConfig::new().endpoint_guard(|parts: &axum::http::request::Parts| {
             if parts
                 .headers
                 .get("authorization")
@@ -460,8 +475,8 @@ async fn endpoint_and_operation_auth_remain_http_refusals() {
                         .into_response(),
                 )
             }
-        },
-    ));
+        }),
+    );
     for method in [
         "initialize",
         "tools/list",
@@ -495,7 +510,7 @@ async fn endpoint_and_operation_auth_remain_http_refusals() {
         StatusCode::OK
     );
     let service = weather_service::builder(Arc::new(MemoryCities::default()))
-        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .mcp(McpConfig::new())
         .operation_middleware(OperationAuth)
         .build()
         .unwrap();

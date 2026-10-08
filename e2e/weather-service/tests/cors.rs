@@ -168,6 +168,7 @@ static EXPLICIT_CORS: crucible_server_runtime_rust::operation::CorsInfo =
     };
 static EXPLICIT_SERVICE: crucible_server_runtime_rust::ServiceInfo =
     crucible_server_runtime_rust::ServiceInfo {
+        mcp_tools: None,
         cors: Some(&EXPLICIT_CORS),
         ..cors_service::SERVICE
     };

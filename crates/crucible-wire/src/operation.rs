@@ -62,6 +62,8 @@ pub trait Operation: Send + Sync + 'static {
 #[derive(Debug)]
 pub struct ServiceInfo {
     pub cors: Option<&'static CorsInfo>,
+    /// External MCP tools, present only when service generation enabled MCP.
+    pub mcp_tools: Option<&'static [crate::mcp::ToolDescriptor]>,
     /// The service's shape id, `namespace#Name`.
     pub id: &'static str,
     pub version: &'static str,

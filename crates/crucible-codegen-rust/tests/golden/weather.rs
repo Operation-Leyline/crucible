@@ -911,6 +911,7 @@ pub mod weather {
         id: "example.weather#Weather",
         version: "2026-10-01",
         cors: None,
+        mcp_tools: None,
         operations: &[
             &CREATE_CITY_OPERATION,
             &GET_CITY_OPERATION,

@@ -3,7 +3,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
 
-use super::{EndpointAdmission, EndpointGuard, ToolDescriptor, ToolRegistry};
+use super::{EndpointAdmission, ToolDescriptor, ToolRegistry};
 use crate::protocol::{Answers, Protocol, ProtocolMatch, Route};
 use crate::{FrameworkError, Hook, Job, OperationInfo, Operations, Prepare, Resolution, Result};
 
@@ -18,53 +18,24 @@ struct Call {
 
 /// Stateless Streamable HTTP: one JSON response per request, no SSE or sessions.
 /// Use `Builder::mcp` to register this before ordinary protocols.
-pub struct McpProtocol {
-    descriptors: &'static [ToolDescriptor],
+pub(crate) struct McpProtocol {
+    descriptors: Option<&'static [ToolDescriptor]>,
     registry: Option<ToolRegistry>,
     cors: Option<crate::middlewares::Cors>,
-    path: String,
-    origins: Vec<String>,
-    any_origin: bool,
-    guard: Option<Box<dyn EndpointGuard>>,
-    server_name: String,
-    server_version: String,
+    config: super::McpConfig,
 }
 
 impl McpProtocol {
-    pub fn new(descriptors: &'static [ToolDescriptor]) -> Self {
+    pub(crate) fn new(
+        config: super::McpConfig,
+        descriptors: Option<&'static [ToolDescriptor]>,
+    ) -> Self {
         Self {
             descriptors,
             registry: None,
             cors: None,
-            path: "/mcp".into(),
-            origins: Vec::new(),
-            any_origin: false,
-            guard: None,
-            server_name: String::new(),
-            server_version: String::new(),
+            config,
         }
-    }
-    pub fn path(mut self, path: impl Into<String>) -> Self {
-        self.path = path.into();
-        self
-    }
-    pub fn allowed_origins(mut self, origins: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        self.origins = origins.into_iter().map(Into::into).collect();
-        self
-    }
-    /// Explicit opt-in; service CORS `*` never enables this.
-    pub fn allow_any_origin(mut self) -> Self {
-        self.any_origin = true;
-        self
-    }
-    pub fn endpoint_guard(mut self, guard: impl EndpointGuard) -> Self {
-        self.guard = Some(Box::new(guard));
-        self
-    }
-    pub fn server_info(mut self, name: impl Into<String>, version: impl Into<String>) -> Self {
-        self.server_name = name.into();
-        self.server_version = version.into();
-        self
     }
     fn registry(&self) -> &ToolRegistry {
         self.registry.as_ref().expect("MCP prepared by builder")
@@ -127,7 +98,7 @@ impl McpProtocol {
                     };
                     rpc_result(
                         id,
-                        json!({"protocolVersion":version,"serverInfo":{"name":self.server_name,"version":self.server_version},"capabilities":{"tools":{"listChanged":false}}}),
+                        json!({"protocolVersion":version,"serverInfo":{"name":self.config.server_name,"version":self.config.server_version},"capabilities":{"tools":{"listChanged":false}}}),
                     )
                 }
             }
@@ -177,21 +148,21 @@ impl Protocol for McpProtocol {
         false
     }
     fn owns(&self, request: &Parts) -> bool {
-        request.uri.path() == self.path
+        request.uri.path() == self.config.path
             && request
                 .extensions
                 .get::<crate::protocol::Invocation>()
                 .is_none()
     }
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
-        if !self.path.starts_with('/') || self.path.contains(['?', '#']) {
+        if !self.config.path.starts_with('/') || self.config.path.contains(['?', '#']) {
             return Err("MCP path must be an absolute URL path".into());
         }
-        if self.server_name.is_empty() {
-            self.server_name = prepare.service().id.to_owned();
+        if self.config.server_name.is_empty() {
+            self.config.server_name = prepare.service().id.to_owned();
         }
-        if self.server_version.is_empty() {
-            self.server_version = prepare.service().version.to_owned();
+        if self.config.server_version.is_empty() {
+            self.config.server_version = prepare.service().version.to_owned();
         }
         self.cors = prepare
             .service()
@@ -201,8 +172,11 @@ impl Protocol for McpProtocol {
                     .and_then(|cors| cors.extend(&["POST"], &["mcp-protocol-version"]))
             })
             .transpose()?;
-        let registry = ToolRegistry::new(self.descriptors)?;
-        for descriptor in self.descriptors {
+        let descriptors = self.descriptors.ok_or(
+            "MCP descriptors were not generated; enable .mcp() in the service build script",
+        )?;
+        let registry = ToolRegistry::new(descriptors)?;
+        for descriptor in descriptors {
             if !prepare
                 .operations()
                 .any(|op| op.name == descriptor.operation && !op.internal)
@@ -220,12 +194,12 @@ impl Protocol for McpProtocol {
         Hook::wait(async move {
             // No Host-derived resource URLs or CORS-derived wildcard permission.
             let origins = job.request().headers.get_all(header::ORIGIN);
-            if !self.any_origin
+            if !self.config.any_origin
                 && origins.iter().any(|origin| {
                     !origin
                         .to_str()
                         .ok()
-                        .is_some_and(|o| self.origins.iter().any(|allowed| allowed == o))
+                        .is_some_and(|o| self.config.origins.iter().any(|allowed| allowed == o))
                 })
             {
                 job.respond(StatusCode::FORBIDDEN.into_response());
@@ -241,7 +215,7 @@ impl Protocol for McpProtocol {
                     return Ok(());
                 }
             }
-            if let Some(guard) = &self.guard
+            if let Some(guard) = &self.config.guard
                 && let EndpointAdmission::Respond(response) =
                     guard.admit(job.request()).resolve().await
             {

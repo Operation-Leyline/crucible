@@ -159,6 +159,7 @@ pub mod cors_service {
         id: "example.cors#CorsService",
         version: "1",
         cors: Some(&::crucible_server_runtime_rust::operation::CorsInfo { origin: "*", max_age: 600, allow_credentials: false, allowed_headers: &["authorization", "content-type", "x-extra", "x-input"], allowed_header_prefixes: &["x-meta-"], exposed_headers: &["content-type", "www-authenticate", "x-crucible-error", "x-error", "x-extra-response", "x-output", "x-request-id"], methods: &["GET"] }),
+        mcp_tools: None,
         operations: &[
             &READ_OPERATION,
         ],

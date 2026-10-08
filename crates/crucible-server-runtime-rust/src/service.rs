@@ -610,8 +610,10 @@ impl Builder {
         self.protocols.push(Box::new(protocol));
         self
     }
-    /// Opt in to MCP on its configured path, before ordinary wire protocols.
-    pub fn mcp(mut self, protocol: crate::mcp::McpProtocol) -> Self {
+    /// Serve the tools carried by generated service metadata on the configured path.
+    /// Service generation must enable `.mcp()` in its build script.
+    pub fn mcp(mut self, config: crate::mcp::McpConfig) -> Self {
+        let protocol = crate::mcp::McpProtocol::new(config, self.operations.service.mcp_tools);
         self.protocols.insert(0, Box::new(protocol));
         self
     }

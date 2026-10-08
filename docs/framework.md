@@ -165,7 +165,9 @@ copying it.
 
 Generate static public tool descriptions with `.mcp()` on the service build
 helper, then opt in at runtime with
-`.mcp(McpProtocol::new(weather::MCP_TOOLS))` on the service builder. MCP serves
+`.mcp(McpConfig::new())` on the service builder. MCP serves
+the descriptors carried by generated `SERVICE.mcp_tools`; runtime setup does
+not pass the descriptor constant separately. It handles
 stateless JSON-RPC requests on `/mcp` alongside the modeled protocols. Tool calls
 enter the normal operation pipeline; endpoint guards also protect initialization
 and discovery. HTTP authentication refusals preserve their status and challenge.
@@ -403,8 +405,10 @@ the protocol even if its envelope is malformed or its operation is unknown;
 a claimed invalid request never falls through to another protocol. Use
 `Claimed(None)` for an unknown operation and return `Err(rejection.into())`
 for a malformed envelope. An error from identification is answered by that
-protocol. With no claim, the first registered protocol writes the
-unknown-operation response.
+protocol. With no claim, the first registered fallback protocol writes the
+unknown-operation response. The defaulted, hidden `fallback` and `admit` hooks
+support built-in endpoint admission and error encoding; ordinary protocol
+extensions inherit their defaults.
 
 Header/URI protocols can implement synchronous `route`, `route_scoped`, and
 `owns`; default identification uses them. Filter scoped candidates before

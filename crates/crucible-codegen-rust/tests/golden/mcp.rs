@@ -1,3 +1,25 @@
+
+    pub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {
+        id: "example.weather#Weather",
+        version: "2026-10-01",
+        cors: None,
+        mcp_tools: Some(MCP_TOOLS),
+        operations: &[
+            &CREATE_CITY_OPERATION,
+            &GET_CITY_OPERATION,
+            &GET_CITY_PHOTO_OPERATION,
+            &LIST_CITIES_OPERATION,
+            &PING_OPERATION,
+            &PUT_CITY_PHOTO_OPERATION,
+            &STATUS_OPERATION,
+        ],
+        errors: &[&errors::CONFLICT_ERROR_INFO, &errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO],
+        classify,
+        reject: Some(reject),
+        internal: None,
+        unknown: Some(unknown),
+    };
+
  excluded operations are listed in MCP_EXCLUSIONS.
     #[allow(dead_code)]
     pub static MCP_TOOLS: &[::crucible_server_runtime_rust::mcp::ToolDescriptor] = &[

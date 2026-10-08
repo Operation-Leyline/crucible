@@ -212,7 +212,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     let operations = format!(
         "{}{}{}",
         info::redactions(service),
-        operations::emit(service, functions, &mut diagnostics),
+        operations::emit(service, functions, options.mcp, &mut diagnostics),
         events::statics(service, &mut diagnostics, false)
     );
     let exports = server_api::exports(service, &mut diagnostics);

@@ -44,6 +44,7 @@ static INFO: OperationInfo = OperationInfo {
     traits: &[],
 };
 static SERVICE: ServiceInfo = ServiceInfo {
+    mcp_tools: None,
     cors: None,
     id: "lifecycle#Service",
     version: "1",

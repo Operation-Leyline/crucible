@@ -283,6 +283,7 @@ pub mod auth_weather {
         id: "example.auth#AuthWeather",
         version: "1",
         cors: None,
+        mcp_tools: None,
         operations: &[
             &BEARER_ONLY_OPERATION,
             &KEY_ONLY_OPERATION,

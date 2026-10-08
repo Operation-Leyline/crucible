@@ -68,7 +68,7 @@ impl OperationAwareMiddleware for InternalCallers {
 
 #[tokio::test]
 async fn mcp_uses_external_projection_and_hides_internal_operations_and_members() {
-    use crucible_server_runtime_rust::mcp::McpProtocol;
+    use crucible_server_runtime_rust::mcp::McpConfig;
     use serde_json::{Value, json};
     assert!(api::MCP_EXCLUSIONS.is_empty());
     let service = Crucible::builder(api::operations(Arc::new(Handlers)))
@@ -77,7 +77,7 @@ async fn mcp_uses_external_projection_and_hides_internal_operations_and_members(
                 message: Some(rejection.summary()),
             })
         })
-        .mcp(McpProtocol::new(api::MCP_TOOLS).allowed_origins(["https://example.com"]))
+        .mcp(McpConfig::new().allowed_origins(["https://example.com"]))
         .protocol(JsonProtocol)
         .build()
         .unwrap();
@@ -152,7 +152,7 @@ async fn mcp_uses_external_projection_and_hides_internal_operations_and_members(
 async fn guarded_mcp_preflight_obeys_origin_and_cors_policy_without_credentials() {
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
-    use crucible_server_runtime_rust::mcp::{EndpointAdmission, McpProtocol};
+    use crucible_server_runtime_rust::mcp::{EndpointAdmission, McpConfig};
 
     let service = Crucible::builder(api::operations(Arc::new(Handlers)))
         .on_rejection(|rejection| {
@@ -161,7 +161,7 @@ async fn guarded_mcp_preflight_obeys_origin_and_cors_policy_without_credentials(
             })
         })
         .mcp(
-            McpProtocol::new(api::MCP_TOOLS)
+            McpConfig::new()
                 .allowed_origins(["https://example.com"])
                 .endpoint_guard(|parts: &axum::http::request::Parts| {
                     if parts.headers.contains_key("authorization") {

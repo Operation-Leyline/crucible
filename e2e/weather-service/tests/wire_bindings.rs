@@ -150,6 +150,7 @@ impl crucible_server_runtime_rust::ModelledError for Invalid {
     }
 }
 static SERVICE: ServiceInfo = ServiceInfo {
+    mcp_tools: None,
     cors: None,
     id: "audit#Bindings",
     version: "1",
@@ -371,6 +372,7 @@ route_operation!(Greedy, GREEDY);
 route_operation!(Flag, FLAG);
 route_operation!(Exact, EXACT);
 static ROUTES: ServiceInfo = ServiceInfo {
+    mcp_tools: None,
     cors: None,
     id: "audit#Routes",
     version: "1",
@@ -458,6 +460,7 @@ fn explicit_head_routes_take_precedence_over_get_fallback() {
         ..operation("Head", &[Segment::Literal("head")], &[])
     };
     static SERVICE: ServiceInfo = ServiceInfo {
+        mcp_tools: None,
         cors: None,
         operations: &[&GET, &HEAD],
         ..ROUTES
@@ -897,6 +900,7 @@ fn malformed_literal_fallback_keeps_path_specificity_ahead_of_query_preference()
     static UNCONSTRAINED_GREEDY: OperationInfo =
         operation("UnconstrainedGreedy", &[Segment::GreedyLabel("path")], &[]);
     static SERVICE: ServiceInfo = ServiceInfo {
+        mcp_tools: None,
         cors: None,
         operations: &[&SPECIFIC, &GENERIC, &UNCONSTRAINED_GREEDY],
         ..ROUTES

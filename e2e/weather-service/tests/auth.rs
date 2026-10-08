@@ -28,7 +28,7 @@ use auth_weather::{BearerOnly, Identity, KeyOnly, Optional, Protected, Public};
 
 #[tokio::test]
 async fn mcp_authenticator_chain_preserves_http_refusals_and_principals() {
-    use crucible_server_runtime_rust::mcp::McpProtocol;
+    use crucible_server_runtime_rust::mcp::McpConfig;
 
     for modeled in [false, true] {
         let chain = AuthenticatorChain::new(vec![id_auth(), Arc::new(ApiKey)]);
@@ -44,7 +44,7 @@ async fn mcp_authenticator_chain_preserves_http_refusals_and_principals() {
         };
         let service = Crucible::builder(operations())
             .defaults()
-            .mcp(McpProtocol::new(auth_weather::MCP_TOOLS))
+            .mcp(McpConfig::new())
             .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
             .operation_middleware(chain)
             .interceptor(ObservePrincipal)
@@ -602,6 +602,7 @@ impl Operation for LegacyProbe {
     type Output = Identity;
 }
 static LEGACY_SERVICE: ServiceInfo = ServiceInfo {
+    mcp_tools: None,
     cors: None,
     id: "example.auth#Legacy",
     version: "1",

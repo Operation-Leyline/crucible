@@ -15,24 +15,28 @@ fn main() {
 ```
 
 For a model dependency, use `crucible_build::rust_service("weather_model").mcp()`.
-The generated service module exports `MCP_TOOLS` and `MCP_EXCLUSIONS`. Generation
-prints each streaming exclusion as a Cargo build warning.
+The generated `SERVICE.mcp_tools` carries the descriptors, so runtime wiring
+does not pass `MCP_TOOLS` by hand. The module also exports `MCP_TOOLS` and
+`MCP_EXCLUSIONS` for inspection. Generation prints each streaming exclusion as
+a Cargo build warning.
 
 Register MCP on the runtime builder. This example uses the Weather service;
 substitute your service module and implementation:
 
 ```rust
-use crucible_server_runtime_rust::{Crucible, mcp::McpProtocol};
+use crucible_server_runtime_rust::{Crucible, mcp::McpConfig};
 
 let service = Crucible::builder(weather::operations(implementation))
     .defaults()
-    .mcp(McpProtocol::new(weather::MCP_TOOLS)
+    .mcp(McpConfig::new()
         .server_info("Weather", "1.0")
         .allowed_origins(["https://agent.example.com"]))
     .build()?;
 ```
 
-`Builder::mcp` registers MCP before the ordinary wire protocols. The default path
+`Builder::mcp` reads the generated descriptors from its service metadata and
+registers MCP before the ordinary wire protocols. Requesting MCP without build
+script `.mcp()` returns a service build error. The default path
 is `/mcp`; `.path("/agents/mcp")` changes it. The same service router and HTTP
 hosts serve it. Configure the public endpoint URL in your client or deployment;
 MCP never constructs a resource URL from the request's `Host` header.
@@ -58,7 +62,7 @@ parameter on the next call. Weather's `ListCities` takes `nextToken` and
 ## Authentication and endpoint admission
 
 Reuse the service's bearer/API-key middleware for tool calls. Configure
-`McpProtocol::endpoint_guard` to authenticate the endpoint itself: initialization,
+`McpConfig::endpoint_guard` to authenticate the endpoint itself: initialization,
 discovery, notifications, and ping have no operation, so operation-aware
 middleware cannot protect them. The guard runs before transport middleware and
 JSON-RPC parsing, after Origin validation, on every request to the MCP path.
@@ -72,9 +76,9 @@ authenticated principal with `Context::current().set_attribute(principal)`.
 ```rust
 use axum::http::{StatusCode, header, request::Parts};
 use axum::response::IntoResponse;
-use crucible_server_runtime_rust::mcp::EndpointAdmission;
+use crucible_server_runtime_rust::mcp::{EndpointAdmission, McpConfig};
 
-let protocol = McpProtocol::new(weather::MCP_TOOLS)
+let config = McpConfig::new()
     .endpoint_guard(|parts: &Parts| {
         // Replace this fixed comparison with your application's verifier.
         if parts.headers.get("authorization").is_some_and(|v| v == "Bearer good") {

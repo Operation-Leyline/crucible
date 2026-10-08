@@ -297,6 +297,7 @@ pub mod api {
         id: "example.audience#Api",
         version: "1",
         cors: None,
+        mcp_tools: None,
         operations: &[
             &PUBLIC_OPERATION,
             &SECRET_OPERATION,

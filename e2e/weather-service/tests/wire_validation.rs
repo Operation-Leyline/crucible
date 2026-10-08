@@ -126,6 +126,7 @@ static DOCUMENT: OperationInfo = OperationInfo {
     ..*weather::Ping::INFO
 };
 static SERVICE: ServiceInfo = ServiceInfo {
+    mcp_tools: None,
     cors: None,
     operations: &[
         &BODY_ONLY,

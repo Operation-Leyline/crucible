@@ -20,12 +20,21 @@ fn static_descriptors_match_golden() {
         "../../crucible-smithy/tests/fixtures/weather.json"
     ))
     .unwrap();
+    assert!(code.contains("mcp_tools: Some(MCP_TOOLS)"));
     let descriptors = code.split("    /// External MCP tools;").nth(1).unwrap();
+    let metadata = code
+        .split("    /// The service, as the framework sees it.")
+        .nth(1)
+        .unwrap()
+        .split("    /// Registers implementations")
+        .next()
+        .unwrap();
+    let snapshot = format!("{metadata}{descriptors}");
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/mcp.rs");
     if std::env::var_os("CRUCIBLE_BLESS").is_some() {
-        std::fs::write(&path, descriptors).unwrap();
+        std::fs::write(&path, &snapshot).unwrap();
     }
-    assert_eq!(descriptors, std::fs::read_to_string(path).unwrap());
+    assert_eq!(snapshot, std::fs::read_to_string(path).unwrap());
 }
 #[test]
 fn tool_name_diagnostics_are_collected() {
