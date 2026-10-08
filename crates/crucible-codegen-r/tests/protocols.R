@@ -44,6 +44,15 @@ if (version == '') {
 check(length(seen) == 1L, 'One request')
 client$close()
 
+if (version == '') {
+  dates <- list('Wed, 31 Dec 1969 23:59:59 GMT', 'Thu, 01 Jan 1970 00:00:00 GMT')
+  description <- get('.crucible_shape', sdk)('example.json#ValuesOutput')$members$dates
+  header <- get('.crucible_header', sdk)
+  for (wire in c(paste(unlist(dates), collapse = ', '), get('.crucible_bound', sdk)(dates))) {
+    check(identical(header(description, wire, 'http-date'), dates), 'HTTP-date header lists preserve date commas')
+  }
+}
+
 for (discriminator in list(list(code = 'Problem'), list(`__type` = 'example.json#Problem:http://internal'))) {
   body <- json_encode(do.call(json_object, c(discriminator, list(Message = 'bad'))))
   client <- sdk$JsonServiceClient(client_config(endpoint = 'https://example.test', transport = function(...) list(status = 409L, headers = list('x-amzn-requestid' = 'request-42'), body = charToRaw(body))))

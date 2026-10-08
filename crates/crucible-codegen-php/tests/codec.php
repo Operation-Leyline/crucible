@@ -5,6 +5,8 @@ use CrucibleGenerated\Runtime\{ExactJson, WireCodec, JsonValue, JsonObject, Json
 $schema = WireCodec::object(ExactJson::decode('{"shapes":{
   "doc":{"kind":"document"}, "long":{"kind":"long"}, "str":{"kind":"string"},
   "list":{"kind":"list","member":{"target":"str"}},
+  "time":{"kind":"timestamp","format":"date-time"},
+  "dates":{"kind":"list","member":{"target":"time","format":"http-date"}},
   "parent":{"kind":"structure","members":{
     "doc":{"target":"doc","default":null},
     "count":{"target":"long","default":9223372036854775807},
@@ -25,5 +27,10 @@ foreach ($cases as $case) {
     $member = new JsonObject(['target' => 'list']);
     check($codec->header($member,$case['wire']) === $case['values'], 'Shared header parse');
     check($codec->header($member,$codec->bound($case['values'])) === $case['values'],'Shared header round trip');
+}
+$dates = ['Wed, 31 Dec 1969 23:59:59 GMT', 'Thu, 01 Jan 1970 00:00:00 GMT'];
+foreach ([implode(', ', $dates), $codec->bound($dates)] as $wire) {
+    check($codec->header(new JsonObject(['target' => 'dates']), $wire) === $dates, 'HTTP-date header lists preserve date commas');
+    check($codec->header(new JsonObject(['target' => 'dates']), $wire, 'http-date') === $dates, 'HTTP-date header list binding override');
 }
 echo "PHP schema codec checks passed\n";

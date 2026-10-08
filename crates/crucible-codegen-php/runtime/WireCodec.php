@@ -235,6 +235,9 @@ final readonly class WireCodec
         $kind = $shape->get('kind');
         if ($kind === 'list') {
             if (trim($text) === '') return [];
+            $item = self::object($shape->get('member'));
+            $itemShape = $this->shape(self::string($item->get('target')));
+            $httpDate = $itemShape->get('kind') === 'timestamp' && ($format ?? $item->get('format') ?? $itemShape->get('format')) === 'http-date';
             $parts = [];
             $part = '';
             $quoted = false;
@@ -247,7 +250,8 @@ final readonly class WireCodec
             };
             for ($index = 0; $index < strlen($text); $index++) {
                 $character = $text[$index];
-                if ($character === ',' && !$quoted) { $append(); continue; }
+                // The comma after an HTTP-date weekday belongs to the date, not the list.
+                if ($character === ',' && !$quoted && !($httpDate && preg_match('/^[A-Za-z]{3}$/', trim($part)) === 1)) { $append(); continue; }
                 $part .= $character;
                 if ($escaped) $escaped = false;
                 elseif ($character === '\\' && $quoted) $escaped = true;
