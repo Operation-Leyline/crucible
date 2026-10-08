@@ -392,7 +392,9 @@ public final class WeatherClient {
      * <p>This operation is read-only; the client may retry it.</p>
      *
      * @return a future of the response
+     * @deprecated Use Status instead. (since 2026-09)
      */
+    @Deprecated
     public java.util.concurrent.CompletableFuture<example.weather.model.Unit> pingAsync() {
         return runtime.call("Ping", null, example.weather.model.Unit.class);
     }
@@ -406,7 +408,9 @@ public final class WeatherClient {
      * @throws example.weather.model.ValidationError if the service returns <code>example.weather#ValidationError</code>
      * @throws example.weather.WeatherException for any other error response
      * @throws example.weather.NetworkError if the transport fails
+     * @deprecated Use Status instead. (since 2026-09)
      */
+    @Deprecated
     public example.weather.model.Unit ping() {
         return ClientRuntime.await(pingAsync());
     }

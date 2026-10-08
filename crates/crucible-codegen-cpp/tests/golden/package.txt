@@ -121,6 +121,8 @@ public:
      * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
      *
      * This operation is safe to retry under the configured retry policy.
+     *
+     * @deprecated Use Status instead. (since 2026-09)
      */
     [[nodiscard]] runtime::Unit ping(std::stop_token stop = {}) const;
     /**
@@ -189,6 +191,9 @@ struct CitySummary {
     std::string name;
     std::int64_t population;
     ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> updated_at;
+    /**
+     * @deprecated Use updatedAt. (since 2026-08)
+     */
     ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> created_at;
     /** Constructs this value from its required and optional members. */
     explicit CitySummary(std::string id, std::string name, std::int64_t population, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> updated_at = {}, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> created_at = {}) : id(std::move(id)), name(std::move(name)), population(std::move(population)), updated_at(std::move(updated_at)), created_at(std::move(created_at)) {}
@@ -277,6 +282,9 @@ struct Sky {
     explicit Sky(std::string value = {}) : value(std::move(value)) {}
     auto operator<=>(const Sky&) const = default;
     static Sky known_clear() { return Sky{"clear"}; }
+    /**
+     * @deprecated Reported as CLEAR with a cloud cover reading.
+     */
     static Sky known_cloudy() { return Sky{"cloudy"}; }
     /** Diagnostic representation. */
     friend std::string debug_string([[maybe_unused]] const Sky& model) { return ::example::weather::runtime::Debug("Sky").field("value", model.value, false).finish(); }
@@ -361,6 +369,11 @@ struct NotFoundError : ::example::weather::runtime::WeatherException {
         return debug.finish();
     }
 };
+/**
+ * Unstable.
+ *
+ * Since 2026-10.
+ */
 
 struct PhotoSummary {
     std::int32_t size;

@@ -2,7 +2,7 @@
 
 /// Server API for `example.cors#CorsService`.
 pub mod cors_service {
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
         pub type Headers = ::std::collections::BTreeMap<::std::string::String, ::std::string::String>;
@@ -32,7 +32,7 @@ pub mod cors_service {
         }
     }
 
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod errors {
         use super::__redaction;
 
@@ -91,10 +91,10 @@ pub mod cors_service {
     }
 
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use model::{Headers, ReadInput, ReadOutput};
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use errors::{CorsError};
 
     #[allow(dead_code, unused_imports)]

@@ -2,7 +2,7 @@
 //! `OperationInfo`, and the trait the service implements; for the service its
 //! `ServiceInfo` and the registration functions.
 
-use crucible_smithy::ir::{Operation, Segment, Service, Shape};
+use crucible_smithy::ir::{DocNotes, Operation, Segment, Service, Shape};
 use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::errors::{error_shapes, info_static};
@@ -81,7 +81,14 @@ pub(crate) fn structure<'s>(
 fn operation_items(service: &Service, op: &Operation) -> String {
     let name = op.name();
     let mut out = marker(service, op, &output_type(service, op), false);
-    documented(&mut out, "", op.docs.as_deref(), &op.notes);
+    // The marker type is what callers name, so it carries `#[deprecated]`. The
+    // trait is what a service implements: warning there would only nag the
+    // author about an operation they are still required to serve.
+    let served = DocNotes {
+        deprecated: None,
+        ..op.notes.clone()
+    };
+    documented(&mut out, "", op.docs.as_deref(), &served);
     let parameter = if op.input.is_some() {
         format!(
             ", input: {}",

@@ -782,7 +782,7 @@ fn go_doc_for(out: &mut String, indent: &str, name: &str, docs: Option<&str>, no
     if let Some(deprecated) = &notes.deprecated {
         let text = docs.get_or_insert_with(String::new);
         // The header line is a paragraph of its own, so `Deprecated:` begins one.
-        text.push_str("\n\n");
+        text.push_str(if text.is_empty() { "\n" } else { "\n\n" });
         // A model message may span lines; each stays inside the paragraph.
         text.push_str(&format!(
             "Deprecated: {}",

@@ -7,6 +7,8 @@
 export const Color = {
   /**
    * Warm red.
+   *
+   * @deprecated Deprecated.
    */
   RED: "red-wire",
   /**

@@ -32,7 +32,10 @@ package example.weather.model;
         /**
          * <p>The <code>createdAt</code> member.</p>
          * <p>Unset members are omitted from requests; see {@link example.weather.OptionalValue}.</p>
+         *
+         * @deprecated Use updatedAt. (since 2026-08)
          */
+        @Deprecated
         public example.weather.OptionalValue<java.time.Instant> createdAt = example.weather.OptionalValue.unset();
         /**
          * <p>Returns a new builder for <code>CitySummary</code>.</p>

@@ -194,11 +194,7 @@ fn javadoc_for(
     meta: &DocNotes,
 ) -> String {
     let mut notes = notes.to_vec();
-    notes.extend(
-        meta.lines()
-            .iter()
-            .map(|line| format!("<p>{}</p>", docs::javadoc_text(line))),
-    );
+    notes.extend(meta.lines().iter().map(|line| docs::javadoc_text(line)));
     let mut tags = tags.to_vec();
     if let Some(deprecated) = &meta.deprecated {
         tags.push(format!(

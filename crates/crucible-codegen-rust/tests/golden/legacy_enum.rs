@@ -2,7 +2,7 @@
 
 /// Server API for `example.legacy#Legacy`.
 pub mod legacy {
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
         /// A legacy color enum.
@@ -10,6 +10,7 @@ pub mod legacy {
         #[serde(crate = "::crucible_server_runtime_rust::__private::serde")]
         pub enum Color {
             /// Warm red.
+            #[deprecated(note = "Deprecated.")]
             #[serde(rename = "red-wire")]
             Red,
             /// Cool blue.
@@ -48,13 +49,13 @@ pub mod legacy {
         }
     }
 
-    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
+    #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod errors {
         use super::__redaction;
     }
 
     #[doc(inline)]
-    #[allow(unused_imports)]
+    #[allow(unused_imports, deprecated)]
     pub use model::{Color, Input, Output};
 
     #[allow(dead_code, unused_imports)]

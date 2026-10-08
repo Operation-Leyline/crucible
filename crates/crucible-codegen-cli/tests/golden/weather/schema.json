@@ -36,7 +36,7 @@
     {
       "name": "ping",
       "operation": "Ping",
-      "description": "",
+      "description": "Deprecated since 2026-09: Use Status instead.",
       "input": null,
       "paginated": false
     },
@@ -115,7 +115,7 @@
           "wire_name": "createdAt",
           "flag": "created-at",
           "target": "smithy.api#Timestamp",
-          "description": "",
+          "description": "Deprecated since 2026-08: Use updatedAt.",
           "required": false,
           "sensitive": false,
           "kind": "number",

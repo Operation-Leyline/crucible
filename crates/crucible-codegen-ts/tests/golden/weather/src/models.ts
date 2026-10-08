@@ -13,6 +13,9 @@ export interface CitySummary {
   name: CityName;
   population: bigint;
   updatedAt?: globalThis.Date;
+  /**
+   * @deprecated Use updatedAt. (since 2026-08)
+   */
   createdAt?: globalThis.Date;
 }
 
@@ -81,6 +84,11 @@ export type Location =
  */
 export type Photo = globalThis.Uint8Array;
 
+/**
+ * Unstable.
+ *
+ * Since 2026-10.
+ */
 export interface PhotoSummary {
   size: number;
   thumbnail: Thumbnail;
@@ -99,6 +107,9 @@ export interface PutCityPhotoOutput {
 
 export const Sky = {
   CLEAR: "clear",
+  /**
+   * @deprecated Reported as CLEAR with a cloud cover reading.
+   */
   CLOUDY: "cloudy",
 } as const;
 export type Sky = (typeof Sky)[keyof typeof Sky];

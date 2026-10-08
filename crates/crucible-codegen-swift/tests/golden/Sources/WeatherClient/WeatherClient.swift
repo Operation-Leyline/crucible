@@ -59,9 +59,12 @@ public final class WeatherClient: Sendable {
     }
     /// Read-only: retried automatically after transient failures.
     ///
+    /// Deprecated since 2026-09: Use Status instead.
+    ///
     /// - Parameter input: The ``Unit`` to send.
     /// - Returns: The ``Unit`` the service returned.
     /// - Throws: ``ThrottlingError``, ``ValidationError``, or another ``WeatherException`` when the service responds with an error.
+    @available(*, deprecated, message: "Use Status instead. (since 2026-09)")
     public func `ping`(_ input: Unit = .init()) async throws -> Unit {
         try await runtime.call("Ping", input: input, as: Unit.self)
     }

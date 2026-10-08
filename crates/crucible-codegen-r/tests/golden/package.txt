@@ -139,6 +139,8 @@ S3method(print, crucible_error)
 #' Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
 #'
 #' This operation is safe to retry under the configured retry policy.
+#'
+#' Deprecated since 2026-09: Use Status instead.
 #' @md
   client$`ping` <- function(input = NULL, cancellation = NULL) client$call("Ping", input, cancellation)
 #' @description
@@ -236,6 +238,8 @@ print.crucible_error <- print.crucible_model
 #' @param population Model member; UNSET omits an optional member and NULL sends null.
 #' @param updated_at Model member; UNSET omits an optional member and NULL sends null.
 #' @param created_at Model member; UNSET omits an optional member and NULL sends null.
+#' 
+#' Deprecated since 2026-08: Use updatedAt.
 `CitySummary` <- function(`id`, `name`, `population`, `updated_at` = UNSET, `created_at` = UNSET) .crucible_model("example.weather#CitySummary", list("id" = `id`, "name" = `name`, "population" = `population`, "updated_at" = `updated_at`, "created_at" = `created_at`))
 
 === R/model-ConflictError.R ===
@@ -355,6 +359,10 @@ print.crucible_error <- print.crucible_model
 # Generated from the lowered Smithy model.
 #' @description
 #' Constructs a native model value.
+#'
+#' Unstable.
+#'
+#' Since 2026-10.
 #' @md
 #' @param size Model member; UNSET omits an optional member and NULL sends null.
 #' @param thumbnail Model member; UNSET omits an optional member and NULL sends null.
@@ -389,6 +397,8 @@ print.crucible_error <- print.crucible_model
 #' @md
 #' @details
 #' CLOUDY = cloudy: Known enum value.
+#'
+#' Deprecated: Reported as CLEAR with a cloud cover reading.
 #' @md
 `Sky` <- function(value) structure(.crucible_string(value), class = c("Sky", 'crucible_enum', 'character'), crucible_target = "example.weather#Sky" )
 
@@ -486,6 +496,8 @@ name: Model member.
 population: Model member.
 updated_at: Model member.
 created_at: Model member.
+
+Deprecated since 2026-08: Use updatedAt.
 
 }
 
@@ -681,6 +693,8 @@ photo: Model member.
 \details{CLEAR = clear: Known enum value.
 CLOUDY = cloudy: Known enum value.
 
+Deprecated: Reported as CLEAR with a cloud cover reading.
+
 }
 
 === man/StatusInput.Rd ===
@@ -837,6 +851,8 @@ Returns: no modeled output.
 Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
 
 This operation is safe to retry under the configured retry policy.
+
+Deprecated since 2026-09: Use Status instead.
 
 put_city_photo
 Stores a city's photo exactly as sent.

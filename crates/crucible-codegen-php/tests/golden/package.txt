@@ -36,7 +36,7 @@ final class CitySummary implements \Example\Weather\Runtime\WireModel
      * @param string $name
      * @param int $population
      * @param \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $updatedAt
-     * @param \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $createdAt
+     * @param \Example\Weather\Runtime\Timestamp|null|\Example\Weather\Runtime\Absent $createdAt Deprecated since 2026-08: Use updatedAt.
      */
     public function __construct(
         public readonly string $id,
@@ -662,6 +662,11 @@ final class NotFoundError extends \Example\Weather\WeatherException implements \
 declare(strict_types=1);
 namespace Example\Weather;
 
+/**
+ * Unstable.
+ *
+ * Since 2026-10.
+ */
 final class PhotoSummary implements \Example\Weather\Runtime\WireModel
 {
     /**
@@ -807,6 +812,11 @@ final readonly class Sky implements \Example\Weather\Runtime\WireModel
 {
     public function __construct(public string $value) {}
     public const CLEAR = 'clear';
+    /**
+     * Deprecated: Reported as CLEAR with a cloud cover reading.
+     *
+     * @deprecated Reported as CLEAR with a cloud cover reading.
+     */
     public const CLOUDY = 'cloudy';
     public function toWire(\Example\Weather\Runtime\WireContext $context): string { return $this->value; }
     public function __toString(): string { return 'Sky(' . $this->value . ')'; }
@@ -1126,6 +1136,9 @@ final class WeatherClient
     /**
      * Read-only: retried automatically after transient failures.
      *
+     * Deprecated since 2026-09: Use Status instead.
+     *
+     * @deprecated Use Status instead. (since 2026-09)
      * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
      * @return Runtime\Unit the service's response
      * @throws \Example\Weather\ThrottlingError

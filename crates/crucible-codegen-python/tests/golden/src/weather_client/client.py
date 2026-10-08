@@ -32,7 +32,7 @@ class WeatherClient(SyncClient):
             yield page
 
     def ping(self, **options: Any) -> None:
-        "Call Ping.\n\nInput: no modeled input.\n\nReturns: no modeled output.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
+        "Call Ping.\n\nInput: no modeled input.\n\nReturns: no modeled output.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy.\n\nDeprecated since 2026-09: Use Status instead."
         return self._call("Ping", None, **options)
 
     def put_city_photo(self, input: m.PutCityPhotoInput, **options: Any) -> m.PutCityPhotoOutput:
@@ -71,7 +71,7 @@ class AsyncWeatherClient(AsyncClientBase):
             yield page
 
     async def ping(self, **options: Any) -> None:
-        "Call Ping.\n\nInput: no modeled input.\n\nReturns: no modeled output.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
+        "Call Ping.\n\nInput: no modeled input.\n\nReturns: no modeled output.\n\nModeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy.\n\nDeprecated since 2026-09: Use Status instead."
         return await self._call("Ping", None, **options)
 
     async def put_city_photo(self, input: m.PutCityPhotoInput, **options: Any) -> m.PutCityPhotoOutput:
