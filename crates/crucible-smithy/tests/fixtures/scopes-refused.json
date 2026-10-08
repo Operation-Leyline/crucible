@@ -1,0 +1,28 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.scopes#BadWeather": {
+      "type": "service", "version": "1",
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#httpBearerAuth": {}
+      },
+      "operations": [
+        {"target":"example.scopes#NotAList"}, {"target":"example.scopes#NotAString"},
+        {"target":"example.scopes#Empty"}, {"target":"example.scopes#HasSpace"},
+        {"target":"example.scopes#HasQuote"}, {"target":"example.scopes#NonAscii"},
+        {"target":"example.scopes#Duplicate"}, {"target":"example.scopes#PublicWithScopes"}
+      ]
+    },
+    "crucible.protocols#json": {"type":"structure", "traits":{"smithy.api#trait":{},"smithy.api#protocolDefinition":{}}},
+    "crucible.auth#scopes": {"type":"list", "member":{"target":"smithy.api#String"}, "traits":{"smithy.api#trait":{}}},
+    "example.scopes#NotAList": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/a","code":200}, "crucible.auth#scopes":"weather/read"}},
+    "example.scopes#NotAString": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/b","code":200}, "crucible.auth#scopes":[7]}},
+    "example.scopes#Empty": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/c","code":200}, "crucible.auth#scopes":[""]}},
+    "example.scopes#HasSpace": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/d","code":200}, "crucible.auth#scopes":["weather read"]}},
+    "example.scopes#HasQuote": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/e","code":200}, "crucible.auth#scopes":["weather\"read", "weather\\read"]}},
+    "example.scopes#NonAscii": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/f","code":200}, "crucible.auth#scopes":["météo"]}},
+    "example.scopes#Duplicate": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/g","code":200}, "crucible.auth#scopes":["weather/read","weather/read"]}},
+    "example.scopes#PublicWithScopes": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/h","code":200}, "smithy.api#auth":[], "crucible.auth#scopes":["weather/read"]}}
+  }
+}

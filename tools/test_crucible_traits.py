@@ -40,6 +40,7 @@ class CargoTraits(unittest.TestCase):
             with zipfile.ZipFile(build_traits_jar.build(directory / "jar")) as archive:
                 self.assertEqual(model, archive.read("META-INF/smithy/crucible.smithy").decode())
                 self.assertEqual((installed / "errors.smithy").read_text(encoding="utf-8"), archive.read("META-INF/smithy/errors.smithy").decode())
+                self.assertEqual((installed / "auth.smithy").read_text(encoding="utf-8"), archive.read("META-INF/smithy/auth.smithy").decode())
 
             consumer = directory / "consumer"
             (consumer / "src").mkdir(parents=True)
@@ -60,6 +61,8 @@ fn main() -> std::io::Result<()> {
     }
     crucible_traits::write_models("smithy-imports")?;
     assert_eq!(std::fs::read("smithy-imports/errors.smithy")?, crucible_traits::ERRORS.as_bytes());
+    assert!(crucible_traits::AUTH.contains("list scopes"));
+    assert_eq!(std::fs::read("smithy-imports/auth.smithy")?, crucible_traits::AUTH.as_bytes());
     let path = std::path::Path::new("src/smithy-ide/crucible.smithy");
     crucible_traits::write_model(path)?;
     assert_eq!(std::fs::read(path)?, crucible_traits::MODEL.as_bytes());

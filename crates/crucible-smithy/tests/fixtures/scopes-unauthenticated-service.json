@@ -1,0 +1,13 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.scopes#NoAuthWeather": {
+      "type": "service", "version": "1",
+      "traits": {"crucible.protocols#json": {}, "crucible.auth#scopes": ["weather/read"]},
+      "operations": [{"target":"example.scopes#Anyone"}]
+    },
+    "crucible.protocols#json": {"type":"structure", "traits":{"smithy.api#trait":{},"smithy.api#protocolDefinition":{}}},
+    "crucible.auth#scopes": {"type":"list", "member":{"target":"smithy.api#String"}, "traits":{"smithy.api#trait":{}}},
+    "example.scopes#Anyone": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/anyone","code":200}}}
+  }
+}

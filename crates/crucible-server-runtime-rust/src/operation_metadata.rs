@@ -9,6 +9,10 @@ pub struct OperationMetadata {
     /// Prepared once at registration for protocol-independent bearer challenges.
     pub bearer_auth: bool,
     pub optional_auth: bool,
+    /// Every one of these OAuth scopes is required; empty requires none.
+    pub scopes: &'static [&'static str],
+    /// The service default scope list, advertised on authentication challenges.
+    pub service_scopes: &'static [&'static str],
     pub unsigned_payload: bool,
     pub has_input: bool,
     pub has_output: bool,
@@ -27,6 +31,8 @@ impl OperationMetadata {
                     .any(|scheme| matches!(scheme, AuthScheme::Bearer))
             }),
             optional_auth: O::OPTIONAL_AUTH,
+            scopes: O::SCOPES,
+            service_scopes: O::SERVICE_SCOPES,
             unsigned_payload: O::UNSIGNED_PAYLOAD,
             has_input: O::HAS_INPUT,
             has_output: O::HAS_OUTPUT,

@@ -21,6 +21,9 @@ class TraitsJar(unittest.TestCase):
                 errors = archive.read("META-INF/smithy/errors.smithy").decode()
                 for name in ["ValidationException", "InternalServerException", "UnknownOperationException"]:
                     self.assertIn(f"structure {name}", errors)
+                auth = archive.read("META-INF/smithy/auth.smithy").decode()
+                self.assertIn("namespace crucible.auth", auth)
+                self.assertIn("list scopes", auth)
 
 
 if __name__ == "__main__":

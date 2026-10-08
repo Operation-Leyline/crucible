@@ -15,7 +15,7 @@ import sys
 import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-MODELS = ["crucible.smithy", "errors.smithy"]
+MODELS = ["crucible.smithy", "errors.smithy", "auth.smithy"]
 
 
 def version() -> str:

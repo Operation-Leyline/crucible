@@ -25,6 +25,21 @@ fn auth_chain_server_metadata_matches_golden() {
 }
 
 #[test]
+fn scoped_server_metadata_matches_golden() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/scopes.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+    .unwrap();
+    let code = generate(&service, &Options::default()).unwrap();
+    // The client marker has no use for scopes: they gate the server only.
+    let client = generate_client(&service).unwrap();
+    assert!(!client.contains("const SCOPES"), "{client}");
+    matches_golden(&code, "scopes.rs");
+}
+
+#[test]
 fn cors_server_description_matches_golden() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/cors.json"

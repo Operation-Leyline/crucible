@@ -291,6 +291,9 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         "    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
         op.optional_auth
     );
+    if !client {
+        auth.push_str(&scope_items(service, op));
+    }
     auth.push_str(&wire(service, op));
     auth.push_str(&crate::events::marker_items(service, op, client));
     if op.input.is_none() {
@@ -474,4 +477,33 @@ fn registration(service: &Service) -> String {
         bounds.join(" + ")
     ));
     out
+}
+
+/// Scope lists are `'static` data like the rest of the marker; an empty list is
+/// the trait default, so unscoped services are unchanged.
+fn scope_items(service: &Service, op: &Operation) -> String {
+    let list = |scopes: &[String]| {
+        format!(
+            "&[{}]",
+            scopes
+                .iter()
+                .map(|scope| literal(scope))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    let mut items = String::new();
+    if !op.scopes.is_empty() {
+        items.push_str(&format!(
+            "    const SCOPES: &'static [&'static str] = {};\n",
+            list(&op.scopes)
+        ));
+    }
+    if !service.scopes.is_empty() && !op.auth.is_empty() {
+        items.push_str(&format!(
+            "    const SERVICE_SCOPES: &'static [&'static str] = {};\n",
+            list(&service.scopes)
+        ));
+    }
+    items
 }

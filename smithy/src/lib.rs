@@ -21,11 +21,16 @@ pub const MODEL: &str = include_str!("../crucible.smithy");
 /// Reusable errors a service explicitly includes in its error contract.
 pub const ERRORS: &str = include_str!("../errors.smithy");
 
-/// Writes the protocol traits and reusable errors as separate model imports.
+/// Authorization traits, such as `crucible.auth#scopes`.
+pub const AUTH: &str = include_str!("../auth.smithy");
+
+/// Writes the protocol traits, reusable errors and authorization traits as
+/// separate model imports.
 pub fn write_models(directory: impl AsRef<Path>) -> io::Result<()> {
     let directory = directory.as_ref();
     write_model(directory.join("crucible.smithy"))?;
-    write_source(&directory.join("errors.smithy"), ERRORS)
+    write_source(&directory.join("errors.smithy"), ERRORS)?;
+    write_source(&directory.join("auth.smithy"), AUTH)
 }
 
 /// Writes the bundled model to `path`, creating parent directories as needed.

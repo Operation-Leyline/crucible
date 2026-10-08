@@ -28,6 +28,7 @@ mod protocol;
 mod protocol_tests;
 mod recursion;
 mod resources;
+mod scopes;
 mod shape_id;
 mod timestamp_default;
 mod xml;

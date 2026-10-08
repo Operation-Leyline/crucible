@@ -1,5 +1,8 @@
-use crate::{AuthenticateResult, Authenticator, authentication_plan::AuthenticationPlan};
-use axum::http::{HeaderValue, header};
+use crate::{
+    AuthenticateResult, Authenticator, authentication_plan::AuthenticationPlan,
+    bearer_challenge::bearer_challenge,
+};
+use axum::http::header;
 use crucible_server_runtime_rust::{
     AsyncOperationAwareMiddleware, FrameworkError, OperationJob, Prepare, Result,
     operation::AuthScheme,
@@ -107,14 +110,13 @@ impl AsyncOperationAwareMiddleware for AuthenticatorChain {
             return Ok(());
         }
         if plan.bearer {
-            job.response_headers_mut().insert(
-                header::WWW_AUTHENTICATE,
-                HeaderValue::from_static(if refused {
-                    "Bearer error=\"invalid_token\""
-                } else {
-                    "Bearer"
-                }),
+            // RFC 6750 3: the challenge names the scope a client should request.
+            let challenge = bearer_challenge(
+                refused.then_some("invalid_token"),
+                job.metadata().service_scopes,
             );
+            job.response_headers_mut()
+                .insert(header::WWW_AUTHENTICATE, challenge);
         }
         job.context().set_attribute(FrameworkError::Unauthenticated);
         Err((self.refusal)(FrameworkError::Unauthenticated))

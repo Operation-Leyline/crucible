@@ -138,7 +138,7 @@ pub fn compile_smithy_with(
     let config = root.join("smithy-build.json");
     let contents = serde_json::to_vec_pretty(&serde_json::json!({
         "version": "1.0", "sources": [source],
-        "imports": [imports.join("crucible.smithy"), imports.join("errors.smithy")],
+        "imports": [imports.join("crucible.smithy"), imports.join("errors.smithy"), imports.join("auth.smithy")],
         "projections": {"crucible": {
             "transforms": [{"name": "flattenAndRemoveMixins"}], "plugins": {"model": {}}
         }}

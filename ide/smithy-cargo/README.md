@@ -19,7 +19,7 @@ Packages expose models and source directories through their manifest:
 
 ```toml
 [package.metadata.smithy]
-models = ["crucible.smithy", "errors.smithy"]
+models = ["crucible.smithy", "errors.smithy", "auth.smithy"]
 sources = ["smithy"]
 ```
 
