@@ -205,6 +205,8 @@ pub(crate) fn redactions(service: &Service) -> String {
 }
 
 /// Traits from outside Smithy's and AWS's namespaces: the model's own.
+/// `smithy.test` vectors are Smithy's: they live in the IR's protocol tests,
+/// not in every service's operation metadata.
 pub(crate) fn custom_traits(traits: &crucible_smithy::ir::Traits) -> String {
     let pairs: Vec<String> = traits
         .iter()
@@ -212,6 +214,7 @@ pub(crate) fn custom_traits(traits: &crucible_smithy::ir::Traits) -> String {
             !id.is_prelude()
                 && !id.namespace().starts_with("aws.")
                 && id.namespace() != "crucible.protocols"
+                && id.namespace() != "smithy.test"
         })
         .map(|(id, value)| {
             format!(

@@ -83,7 +83,7 @@
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "rust")]
-use crucible_codegen_rust::Options;
+use crucible_codegen_rust::{ConformanceOptions, Options, Seed, Skip};
 #[cfg(feature = "rust")]
 use crucible_smithy::Model;
 use crucible_smithy::ShapeId;
@@ -295,6 +295,7 @@ pub struct RustCodegen {
     side: Side,
     policy: Option<PathBuf>,
     model_output: Option<PathBuf>,
+    conformance: Option<ConformanceOptions>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -316,6 +317,7 @@ impl RustCodegen {
             side: Side::Server,
             policy: None,
             model_output: None,
+            conformance: None,
         }
     }
 
@@ -380,6 +382,65 @@ impl RustCodegen {
         self
     }
 
+    /// Also generate the model's `smithy.test` vectors as server tests, into
+    /// `OUT_DIR/crucible_conformance.rs`. Server side only. Request vectors
+    /// run against a stub that captures the decoded input, response vectors
+    /// have a stub return their `params`, and malformed-request vectors must
+    /// be refused before any operation runs; the checks live in
+    /// `crucible_server_runtime_rust::conformance`. Include the tests in the
+    /// crate's test build with `crucible_server_runtime_rust::include_conformance!()`,
+    /// with that crate's `test-support` feature enabled. A model without an
+    /// applicable vector fails the build.
+    pub fn conformance(mut self) -> Self {
+        self.conformance.get_or_insert_with(Default::default);
+        self
+    }
+
+    /// Keeps a vector the server is known to fail in the run as an ignored
+    /// test carrying `reason`, instead of dropping it. `vector` is the id
+    /// `crucible conformance` exports (`Id[name=value]` for a `testParameters` case,
+    /// or the template id for all of its cases). A name matching no vector
+    /// fails the build, so a skip cannot outlive its vector. Implies
+    /// [`conformance`](Self::conformance).
+    pub fn skip_vector(mut self, vector: &str, reason: &str) -> Self {
+        self.conformance
+            .get_or_insert_with(Default::default)
+            .skip
+            .push(Skip {
+                vector: vector.to_owned(),
+                reason: reason.to_owned(),
+            });
+        self
+    }
+
+    /// A request `operation` accepts, for the response vectors of an operation
+    /// that has no request vector and cannot be called empty (an RPC operation,
+    /// say: its request is a route and headers, not input). The headers it
+    /// needs are the protocol's. Implies [`conformance`](Self::conformance).
+    pub fn seed_request(
+        mut self,
+        operation: &str,
+        method: &str,
+        uri: &str,
+        headers: &[(&str, &str)],
+        body: Option<&str>,
+    ) -> Self {
+        self.conformance
+            .get_or_insert_with(Default::default)
+            .seeds
+            .push(Seed {
+                operation: operation.to_owned(),
+                method: method.to_owned(),
+                uri: uri.to_owned(),
+                headers: headers
+                    .iter()
+                    .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                    .collect(),
+                body: body.map(str::to_owned),
+            });
+        self
+    }
+
     /// Writes the code into `OUT_DIR`. A model crucible cannot generate from
     /// fails the build with every reason listed.
     pub fn generate(self) {
@@ -398,6 +459,13 @@ impl RustCodegen {
             Side::Client => "crucible_client_runtime_rust.rs",
         };
         std::fs::write(out.join(file), code).expect("crucible: cannot write the generated code");
+        if self.conformance.is_some() {
+            let tests = self
+                .render_conformance()
+                .unwrap_or_else(|message| panic!("crucible: {message}"));
+            std::fs::write(out.join("crucible_conformance.rs"), tests)
+                .expect("crucible: cannot write the generated conformance tests");
+        }
         if self.side == Side::Client {
             println!(
                 "cargo::rustc-env=CRUCIBLE_CLIENT_SOURCE={}",
@@ -434,8 +502,7 @@ impl RustCodegen {
         }
     }
 
-    /// The generated code, or why there is none.
-    pub fn render(&self) -> Result<String, String> {
+    fn lower(&self) -> Result<crucible_smithy::ir::Service, String> {
         let json = std::fs::read_to_string(&self.model)
             .map_err(|error| format!("cannot read {}: {error}", self.model.display()))?;
         let model = Model::from_json(&json).map_err(|error| error.to_string())?;
@@ -443,9 +510,34 @@ impl RustCodegen {
             Side::Server => crucible_codegen_rust::capabilities(),
             Side::Client => crucible_codegen_rust::client_capabilities(),
         };
-        let service = model
+        model
             .lower_with_capabilities(self.service.as_ref(), &capabilities)
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| error.to_string())
+    }
+
+    /// The conformance tests, or why there are none.
+    pub fn render_conformance(&self) -> Result<String, String> {
+        let options = self
+            .conformance
+            .as_ref()
+            .ok_or("conformance tests were not requested: call `.conformance()`")?;
+        if self.side != Side::Server {
+            return Err("conformance tests test a server, not a client".to_owned());
+        }
+        crucible_codegen_rust::generate_conformance(&self.lower()?, options).map_err(
+            |diagnostics| {
+                format!(
+                    "cannot generate conformance tests from {}:
+{diagnostics}",
+                    self.model.display()
+                )
+            },
+        )
+    }
+
+    /// The generated code, or why there is none.
+    pub fn render(&self) -> Result<String, String> {
+        let service = self.lower()?;
         if let Some(policy) = &self.policy {
             check_policy(&service, policy)?;
         }
