@@ -632,7 +632,7 @@ async fn json_bodies_require_a_compatible_content_type_before_invocation() {
 }
 
 #[tokio::test]
-async fn rest_json_checks_payload_media_types_and_rejects_unmodeled_bodies() {
+async fn rest_json_checks_payload_media_types_and_accepts_empty_json_objects() {
     let service = Crucible::builder(route_operations())
         .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
         .protocol(crucible_server_runtime_rust::RestJsonProtocol)
@@ -646,7 +646,8 @@ async fn rest_json_checks_payload_media_types_and_rejects_unmodeled_bodies() {
                 .unwrap(),
         )
         .await;
-    assert_eq!(response.status(), 415);
+    // REST JSON derives application/json even when there are no body members.
+    assert_eq!(response.status(), 200);
 
     let operations = weather_service::weather::operations(Arc::new(weather_service::Weather::new(
         Arc::new(weather_service::MemoryCities::default()),
