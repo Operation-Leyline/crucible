@@ -1,0 +1,46 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.greedy#Greedy": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [{ "target": "example.greedy#Get" }]
+    },
+    "example.greedy#Get": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/b/{a+}/{b+}",
+          "code": 200
+        }
+      },
+      "input": { "target": "example.greedy#Input" }
+    },
+    "example.greedy#Input": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "a": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#httpLabel": {}
+          }
+        },
+        "b": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#httpLabel": {}
+          }
+        }
+      }
+    }
+  }
+}
