@@ -79,9 +79,17 @@ impl AuthorizationServerMetadata {
             let parsed = Url::parse(url).map_err(|error| {
                 format!("authorization server metadata {name} must be a valid https URL: {error}")
             })?;
-            if parsed.scheme() != "https" || parsed.host_str().is_none() {
+            if !url.starts_with("https://")
+                || parsed.scheme() != "https"
+                || parsed.host_str().is_none()
+            {
                 return Err(format!(
                     "authorization server metadata {name} must be an https URL"
+                ));
+            }
+            if !parsed.username().is_empty() || parsed.password().is_some() {
+                return Err(format!(
+                    "authorization server metadata {name} must not contain userinfo"
                 ));
             }
         }
@@ -91,11 +99,10 @@ impl AuthorizationServerMetadata {
                 "authorization server metadata issuer must have no query or fragment".into(),
             );
         }
-        let rest = &self.issuer["https://".len()..];
-        let path = rest
-            .find('/')
-            .map_or("", |i| &rest[i..])
-            .trim_end_matches('/');
+        let issuer = Url::parse(&self.issuer).map_err(|error| {
+            format!("authorization server metadata issuer must be a valid https URL: {error}")
+        })?;
+        let path = issuer.path().trim_end_matches('/');
         Ok(format!("/.well-known/oauth-authorization-server{path}"))
     }
 

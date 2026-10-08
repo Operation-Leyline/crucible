@@ -232,6 +232,27 @@ fn invalid_metadata_fails_service_construction() {
             "https://idp.example.com:bad/token",
         ),
         cognito().revocation_endpoint("https://auth.example.com:bad/oauth2/revoke"),
+        AuthorizationServerMetadata::new(
+            "https:/\u{e9}.example.com",
+            "https://idp.example.com/authorize",
+            "https://idp.example.com/token",
+        ),
+        AuthorizationServerMetadata::new(
+            "https://user:secret@api.example.com",
+            "https://idp.example.com/authorize",
+            "https://idp.example.com/token",
+        ),
+        AuthorizationServerMetadata::new(
+            "https://api.example.com",
+            "https://user@idp.example.com/authorize",
+            "https://idp.example.com/token",
+        ),
+        AuthorizationServerMetadata::new(
+            "https://api.example.com",
+            "https://idp.example.com/authorize",
+            "https://:secret@idp.example.com/token",
+        ),
+        cognito().revocation_endpoint("https://user:secret@auth.example.com/oauth2/revoke"),
     ];
     for metadata in invalid {
         let result = service(McpConfig::new().authorization_server_metadata(metadata));
