@@ -1510,6 +1510,25 @@ impl<'m> Lowerer<'m> {
                 );
             }
             if let (Some(name), Some(value)) = (name, value) {
+                let valid_name = name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+                    && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                if !valid_name {
+                    self.diagnostics.push(
+                        id,
+                        format!(
+                            "@smithy.api#enum definition {index} name must be a Smithy identifier"
+                        ),
+                    );
+                }
+                if value.is_empty() {
+                    self.diagnostics.push(
+                        id,
+                        format!("@smithy.api#enum definition {index} value must not be empty"),
+                    );
+                }
+                if !valid_name || value.is_empty() {
+                    continue;
+                }
                 if !names.insert(name) {
                     self.diagnostics.push(
                         id,

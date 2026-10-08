@@ -160,3 +160,55 @@ fn idempotent_existence_members_are_rejected_individually_including_empty_lists(
         }
     }
 }
+
+#[test]
+fn invalid_legacy_enum_names_and_empty_values_collect_shape_diagnostics() {
+    let model = Model::from_json(include_str!("fixtures/legacy-enum-invalid-fields.json")).unwrap();
+    for result in [model.lower(None), model.lower_infrastructure(None)] {
+        let Error::Unsupported(diagnostics) = result.unwrap_err() else {
+            panic!("unsupported")
+        };
+        assert_eq!(diagnostics.len(), 6, "{diagnostics}");
+        for (index, message) in [
+            (0, "name must be a Smithy identifier"),
+            (0, "value must not be empty"),
+            (1, "name must be a Smithy identifier"),
+            (2, "name must be a Smithy identifier"),
+            (3, "name must be a Smithy identifier"),
+            (4, "value must not be empty"),
+        ] {
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.shape == ShapeId::new("example.legacy", "Color")
+                        && diagnostic
+                            .message
+                            .contains(&format!("definition {index} {message}"))
+                }),
+                "missing {message} at definition {index}: {diagnostics}"
+            );
+        }
+    }
+}
+
+#[test]
+fn valid_legacy_enum_identifiers_and_nonempty_wire_values_are_preserved() {
+    for name in ["_", "_RED_2", "Red1"] {
+        let mut source: Value = serde_json::from_str(LEGACY).unwrap();
+        source["shapes"]["example.legacy#Color"]["traits"]["smithy.api#enum"] =
+            json!([{"name": name, "value": "red-wire \u{e9}"}]);
+        let model = Model::from_json(&source.to_string()).unwrap();
+        for service in [
+            model.lower(None).unwrap(),
+            model.lower_infrastructure(None).unwrap(),
+        ] {
+            let Shape::Enum(color) = service
+                .shape(&ShapeId::new("example.legacy", "Color"))
+                .unwrap()
+            else {
+                panic!("legacy string enum must lower to Enum");
+            };
+            assert_eq!(color.values[0].name, name);
+            assert_eq!(color.values[0].value, "red-wire \u{e9}");
+        }
+    }
+}
