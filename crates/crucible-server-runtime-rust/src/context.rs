@@ -33,8 +33,8 @@ pub struct Context {
     operation_metadata: OnceLock<OperationMetadata>,
     received: Instant,
     deadline: Mutex<Option<Instant>>,
-    /// Shared with the job, not copied: one request head per request.
-    request: Arc<Parts>,
+    /// The request head, held once: the job reads it from here.
+    pub(crate) request: Parts,
     attributes: Mutex<Extensions>,
     span: tracing::Span,
     dispatch: tracing::Dispatch,
@@ -44,7 +44,7 @@ impl Context {
     pub(crate) fn new(
         request_id: HeaderValue,
         operation: Option<&'static OperationInfo>,
-        request: Arc<Parts>,
+        request: Parts,
     ) -> Self {
         let span = tracing::info_span!(
             "crucible.request",

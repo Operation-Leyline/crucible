@@ -2,7 +2,7 @@
 //! orchestrator calls. Generated code fills it: `operations(service)` for one
 //! type implementing every operation, or `Operations::builder` for several.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -45,14 +45,17 @@ pub(crate) struct Entry {
     pub decode_bound: DecodeBound,
     pub decode_events: DecodeEvents,
     pub invoke: Invoke,
+    /// This operation's body limit when the builder chose one; `None` keeps
+    /// the service-wide limit. Settled at build, not looked up per request.
+    pub body_limit: Option<usize>,
 }
 
 pub struct Operations {
     pub(crate) service: &'static ServiceInfo,
     pub(crate) entries: BTreeMap<&'static str, Entry>,
-    /// Operations by path length, built once, so routing a request compares
-    /// only the paths that could match.
-    routes: HashMap<usize, Vec<&'static OperationInfo>>,
+    /// Operations by path length (the index), built once, so routing a
+    /// request compares only the paths that could match.
+    routes: Vec<Vec<&'static OperationInfo>>,
     greedy_routes: Vec<&'static OperationInfo>,
 }
 
@@ -62,7 +65,7 @@ impl Operations {
             operations: Operations {
                 service,
                 entries: BTreeMap::new(),
-                routes: HashMap::new(),
+                routes: Vec::new(),
                 greedy_routes: Vec::new(),
             },
         }
@@ -87,7 +90,7 @@ impl Operations {
 
     /// The operations whose path has `segments` segments.
     pub fn routes(&self, segments: usize) -> &[&'static OperationInfo] {
-        self.routes.get(&segments).map_or(&[], Vec::as_slice)
+        self.routes.get(segments).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -133,6 +136,7 @@ impl OperationsBuilder {
                 decode_bound: decode_bound::<O>,
                 decode_events: decode_events::<O>,
                 invoke,
+                body_limit: None,
             },
         );
         self
@@ -150,11 +154,11 @@ impl OperationsBuilder {
                 self.operations.greedy_routes.push(info);
                 continue;
             }
-            self.operations
-                .routes
-                .entry(info.path.len())
-                .or_default()
-                .push(info);
+            let routes = &mut self.operations.routes;
+            if routes.len() <= info.path.len() {
+                routes.resize_with(info.path.len() + 1, Vec::new);
+            }
+            routes[info.path.len()].push(info);
         }
         let missing: Vec<&'static str> = self
             .operations

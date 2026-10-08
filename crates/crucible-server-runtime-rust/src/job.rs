@@ -17,14 +17,25 @@ use crate::{Outcome, Resolution};
 pub(crate) type Decode = fn(Value) -> std::result::Result<Box<dyn Input>, Rejection>;
 pub(crate) type DecodeJson = fn(&[u8]) -> std::result::Result<Box<dyn Input>, Rejection>;
 
+/// Where reading the buffered body stands. A read in progress is a state, not
+/// a pre-built rejection, so the common path allocates nothing for it.
+pub(crate) enum BodyRead {
+    /// Not read yet, or read successfully.
+    Pending,
+    /// A read started and has not finished. Seen by a later read, it means
+    /// the earlier one was cancelled: its body is gone, so it must not be
+    /// taken for an empty successful one.
+    Reading,
+    Failed(Rejection),
+}
+
 pub struct Job {
     pub(crate) service: &'static ServiceInfo,
     pub(crate) context: Arc<Context>,
-    pub(crate) request: Arc<Parts>,
     pub(crate) body: Bytes,
     pub(crate) raw_body: Option<Body>,
     pub(crate) body_limit: usize,
-    pub(crate) body_read_error: Option<Rejection>,
+    pub(crate) body_read: BodyRead,
     pub(crate) body_stream: Option<crucible_wire::stream::ByteStream>,
     pub(crate) labels: Vec<(&'static str, String)>,
     pub(crate) decode: Option<Decode>,
@@ -56,7 +67,7 @@ impl Job {
     }
 
     pub fn request(&self) -> &Parts {
-        &self.request
+        &self.context.request
     }
 
     /// Buffered bytes, empty until [`Job::read_body`] or the selected protocol
@@ -71,13 +82,13 @@ impl Job {
         if self.body.len() > limit {
             let rejection =
                 Rejection::malformed("", format!("the body is larger than {limit} bytes"));
-            self.body_read_error = Some(rejection.clone());
+            self.body_read = BodyRead::Failed(rejection.clone());
             return Err(rejection.into());
         }
         // A protocol may buffer its envelope before the operation is known.
         // Preserve a streaming payload if an outer middleware read its bytes.
         if self.raw_body.is_none()
-            && self.body_read_error.is_none()
+            && matches!(self.body_read, BodyRead::Pending)
             && self.body_stream.is_none()
             && self.operation().is_some_and(|op| {
                 op.input.iter().any(|member| {
@@ -89,6 +100,7 @@ impl Job {
                 })
             })
             && self
+                .context
                 .request
                 .extensions
                 .get::<crate::protocol::Invocation>()
@@ -104,8 +116,14 @@ impl Job {
     /// need body bytes. Later calls reuse the bytes or the same rejection.
     /// HTTP streaming payloads stay lazy; direct invocations always buffer JSON.
     pub async fn read_body(&mut self) -> Result<()> {
-        if let Some(error) = &self.body_read_error {
-            return Err(error.clone().into());
+        match &self.body_read {
+            BodyRead::Pending => {}
+            BodyRead::Failed(error) => return Err(error.clone().into()),
+            BodyRead::Reading => {
+                let rejection = Rejection::malformed("", "request body reading did not complete");
+                self.body_read = BodyRead::Failed(rejection.clone());
+                return Err(rejection.into());
+            }
         }
         let Some(body) = self.raw_body.take() else {
             return Ok(());
@@ -115,6 +133,7 @@ impl Job {
             .operation_metadata()
             .is_some_and(|m| m.input_events.is_some())
             && self
+                .context
                 .request
                 .extensions
                 .get::<crate::protocol::Invocation>()
@@ -130,6 +149,7 @@ impl Job {
             .operation()
             .and_then(|op| crucible_wire::operation::Location::payload(op.input));
         if self
+            .context
             .request
             .extensions
             .get::<crate::protocol::Invocation>()
@@ -143,6 +163,7 @@ impl Job {
                 .with_maximum(self.body_limit)
                 .with_bounds(minimum, maximum);
             if let Some(length) = self
+                .context
                 .request
                 .headers
                 .get("content-length")
@@ -156,14 +177,11 @@ impl Job {
         }
         // Cancellation drops the raw body too; a later read must not accept it
         // as an empty successful body.
-        self.body_read_error = Some(Rejection::malformed(
-            "",
-            "request body reading did not complete",
-        ));
+        self.body_read = BodyRead::Reading;
         match axum::body::to_bytes(body, self.body_limit).await {
             Ok(bytes) => {
                 self.body = bytes;
-                self.body_read_error = None;
+                self.body_read = BodyRead::Pending;
                 Ok(())
             }
             Err(error) => {
@@ -175,7 +193,7 @@ impl Job {
                     "could not read the request body".to_owned()
                 };
                 let rejection = Rejection::malformed("", message);
-                self.body_read_error = Some(rejection.clone());
+                self.body_read = BodyRead::Failed(rejection.clone());
                 Err(rejection.into())
             }
         }
