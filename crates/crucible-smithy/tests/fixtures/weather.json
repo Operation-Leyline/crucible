@@ -68,7 +68,26 @@
             "traits": {
                 "smithy.api#http": { "method": "POST", "uri": "/cities", "code": 201 },
                 "smithy.api#idempotent": {},
-                "example.weather#tier": "write"
+                "example.weather#tier": "write",
+                "smithy.api#examples": [
+                    {
+                        "title": "Create a city",
+                        "documentation": "Creates Lisbon with coordinates.",
+                        "input": {
+                            "name": "Lisbon",
+                            "location": { "coordinates": { "latitude": 38.72, "longitude": -9.14 } },
+                            "expectedRevision": 7
+                        },
+                        "output": {
+                            "city": { "id": "c-0a1b2c3d", "name": "Lisbon", "population": 545000, "updatedAt": "2026-01-02T03:04:05Z", "createdAt": 1767323045 }
+                        }
+                    },
+                    {
+                        "title": "Create a duplicate city",
+                        "input": { "name": "Lisbon" },
+                        "error": { "shapeId": "example.weather#ConflictError", "content": { "message": "Lisbon already exists" } }
+                    }
+                ]
             }
         },
         "example.weather#CreateCityInput": {
@@ -104,7 +123,23 @@
             "errors": [ { "target": "example.weather#NotFoundError" } ],
             "traits": {
                 "smithy.api#http": { "method": "GET", "uri": "/cities/{cityId}" },
-                "smithy.api#readonly": {}
+                "smithy.api#readonly": {},
+                "smithy.api#examples": [
+                    {
+                        "title": "Read a city",
+                        "input": { "cityId": "c-0a1b2c3d", "at": "2026-01-02T03:04:05Z" },
+                        "output": {
+                            "city": { "id": "c-0a1b2c3d", "name": "Lisbon" },
+                            "forecast": { "clear": { "highC": 21 } },
+                            "requestId": "req-1"
+                        }
+                    },
+                    {
+                        "title": "Read a missing city",
+                        "input": { "cityId": "c-ffffffff" },
+                        "error": { "shapeId": "example.weather#NotFoundError", "content": { "message": "No such city", "resourceId": "c-ffffffff" } }
+                    }
+                ]
             }
         },
         "example.weather#GetCityInput": {
@@ -140,7 +175,17 @@
             "traits": {
                 "smithy.api#http": { "method": "GET", "uri": "/cities" },
                 "smithy.api#readonly": {},
-                "smithy.api#paginated": { "items": "cities", "pageSize": "maxResults" }
+                "smithy.api#paginated": { "items": "cities", "pageSize": "maxResults" },
+                "smithy.api#examples": [
+                    {
+                        "title": "List the first page",
+                        "input": { "maxResults": 2, "tags": ["coastal", "capital"] },
+                        "output": {
+                            "cities": [ { "id": "c-0a1b2c3d", "name": "Lisbon" } ],
+                            "nextToken": "page-2"
+                        }
+                    }
+                ]
             }
         },
         "example.weather#ListCitiesInput": {
