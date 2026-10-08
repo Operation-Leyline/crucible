@@ -119,10 +119,7 @@ impl Crucible {
     /// layers. Layers added here instead apply on this host only; prefer
     /// [`Builder::tower_layer`], which every host runs.
     pub fn into_router(self) -> axum::Router {
-        axum::Router::new().fallback(move |request: Request<Body>| {
-            let service = self.clone();
-            async move { service.handle(request).await }
-        })
+        axum::Router::new().fallback_service(self)
     }
 
     /// Calls an operation by name with its input as JSON bytes, through the
@@ -518,6 +515,27 @@ impl Crucible {
             job.error_revision += 1;
         }
         Ok(())
+    }
+}
+
+/// The service as a tower service, for mounting in an application's own
+/// router or wrapping in layers on one host only: every call is
+/// [`Crucible::handle`].
+impl Service<Request<Body>> for Crucible {
+    type Response = Response;
+    type Error = Infallible;
+    type Future = std::pin::Pin<Box<dyn Future<Output = Result<Response, Infallible>> + Send>>;
+
+    fn poll_ready(
+        &mut self,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Infallible>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, request: Request<Body>) -> Self::Future {
+        let service = self.clone();
+        Box::pin(async move { Ok(service.handle(request).await) })
     }
 }
 
