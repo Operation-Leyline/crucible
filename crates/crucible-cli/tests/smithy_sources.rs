@@ -388,7 +388,7 @@ fn reusable_assembly_reports_errors_and_keeps_unchanged_ast_stable() {
             configuration["projections"]["crucible"]["transforms"][0]["name"],
             "flattenAndRemoveMixins"
         );
-        assert_eq!(configuration["imports"].as_array().unwrap().len(), 2);
+        assert_eq!(configuration["imports"].as_array().unwrap().len(), 3);
         fs::create_dir_all(compiled.join("crucible/model"))?;
         fs::write(
             compiled.join("crucible/model/model.json"),
