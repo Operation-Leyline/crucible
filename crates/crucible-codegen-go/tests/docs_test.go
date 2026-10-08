@@ -1,6 +1,9 @@
 package docs
 
 import (
+    "bytes"
+    "io"
+    "math/big"
     "fmt"
     "strings"
     "testing"
@@ -29,4 +32,20 @@ func TestRecursiveFormattingRedactsMembersAndTargets(t *testing.T) {
     }
     unknown := Choice{UnknownVariant:&UnknownUnion{Name:"future",Value:"unknown-secret"}}
     if strings.Contains(unknown.String(),"unknown-secret") { t.Fatal(unknown.String()) }
+}
+
+func TestStreamingFormattingDoesNotExposeOrConsumePointers(t *testing.T) {
+    schema := &schemaDescription{Shapes: map[string]shapeDescription{
+        "stream": {Kind: "blob", Streaming: true},
+        "integer": {Kind: "bigInteger"},
+    }}
+    buffer := bytes.NewBufferString("stream-secret")
+    reader := bytes.NewReader([]byte("reader-secret"))
+    for _, value := range []io.Reader{buffer, reader} {
+        if text := formatModel(schema, "stream", value); text != "<stream>" { t.Fatal(text) }
+    }
+    if buffer.String() != "stream-secret" || reader.Len() != len("reader-secret") { t.Fatal("formatting consumed stream") }
+    var absent *bytes.Buffer
+    if text := formatModel(schema, "stream", absent); text != "null" { t.Fatal(text) }
+    if text := formatModel(schema, "integer", big.NewInt(42)); text != "42" { t.Fatal(text) }
 }

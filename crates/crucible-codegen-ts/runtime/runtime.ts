@@ -643,7 +643,7 @@ export interface RetryConfig {
   readonly maxAttempts?: number;
   /** Initial full-jitter backoff ceiling in milliseconds; defaults to 100. */
   readonly baseDelayMs?: number;
-  /** Override the maximum waiter delay in milliseconds. */
+  /** Maximum retry backoff delay in milliseconds; defaults to 20,000. */
   readonly maxDelayMs?: number;
 }
 

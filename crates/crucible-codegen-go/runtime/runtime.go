@@ -280,6 +280,7 @@ func formatModel(schema *schemaDescription, target string, value any) string {
 		if sensitive || shape.Sensitive { return "*** Sensitive Data Redacted ***" }
 		if !value.IsValid() { return "null" }
 		for value.Kind() == reflect.Interface { if value.IsNil() { return "null" }; value = value.Elem() }
+		if shape.Streaming { if value.Kind() == reflect.Pointer && value.IsNil() { return "null" }; return "<stream>" }
 		if value.Kind() == reflect.Pointer && shape.Kind != "structure" && shape.Kind != "union" && shape.Kind != "list" && shape.Kind != "map" { if value.IsNil() { return "null" }; return fmt.Sprint(value.Interface()) }
 		if value.Kind() == reflect.Pointer {
 			if value.IsNil() { return "null" }
@@ -287,7 +288,6 @@ func formatModel(schema *schemaDescription, target string, value any) string {
 			if active[key] { return "<recursive>" }; active[key] = true; defer delete(active, key)
 			value = value.Elem()
 		}
-		if shape.Streaming { return "<stream>" }
 		switch shape.Kind {
 		case "structure", "union":
 			parts := []string{}

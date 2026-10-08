@@ -177,6 +177,13 @@ fn documentation_and_formatting_use_the_lowered_contract() {
         .find(|f| f.path.ends_with("client.py"))
         .unwrap()
         .contents;
+    let runtime = &files
+        .iter()
+        .find(|f| f.path.ends_with("streams.py"))
+        .unwrap()
+        .contents;
+    assert!(runtime.contains("the default negative size reads to completion"));
+    assert!(!runtime.contains("Read the asynchronous response stream to completion"));
     assert!(models.contains("https://example.com"));
     assert!(models.contains("line two"));
     assert!(models.contains("Label marker."));

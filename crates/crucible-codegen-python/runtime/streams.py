@@ -286,7 +286,9 @@ class ByteStream:
             yield chunk
 
     async def aread(self, size: int = -1) -> bytes:
-        """Read the asynchronous response stream to completion; checksum errors may be raised at the end."""
+        """Read up to size bytes; the default negative size reads to completion.
+
+        End-of-stream checksum verification may raise errors when completion is reached."""
         iterator = self._aiterator()
         if size < 0:
             async for chunk in iterator:

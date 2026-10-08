@@ -679,6 +679,13 @@ fn documentation_and_formatting_use_the_lowered_contract() {
         .find(|f| f.path.ends_with("client.ts"))
         .unwrap()
         .contents;
+    let runtime = &files
+        .iter()
+        .find(|f| f.path.ends_with("runtime.ts"))
+        .unwrap()
+        .contents;
+    assert!(runtime.contains("Maximum retry backoff delay in milliseconds"));
+    assert!(!runtime.contains("Override the maximum waiter delay"));
     assert!(models.contains("https://example.com"));
     assert!(models.contains("line two"));
     assert!(models.contains("Label marker."));
