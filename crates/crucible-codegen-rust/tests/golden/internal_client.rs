@@ -695,34 +695,46 @@ impl ApiClient {
         }
     }
 
-    /// Calls Public.
+    /// Call Public.
     ///
-    /// Input: PublicInput. Output: PublicOutput.
-    /// Modeled errors: PublicFault, InternalFault. Transport and unknown service failures remain separate.
+    /// Input: PublicInput.
+    ///
+    /// Returns: PublicOutput.
+    ///
+    /// Modeled errors: PublicFault, InternalFault. Transport, timeout and decoding failures can also occur.
     pub async fn public(&self, input: PublicInput) -> ::std::result::Result<PublicOutput, ::crucible_client_runtime_rust::Error<PublicError>> {
         self.transport.send::<Public, PublicError>(&input).await
     }
 
-    /// Calls Public.
+    /// Call Public.
     ///
-    /// Input: PublicInput. Output: PublicOutput.
-    /// Modeled errors: PublicFault, InternalFault. Transport and unknown service failures remain separate.
+    /// Input: PublicInput.
+    ///
+    /// Returns: PublicOutput.
+    ///
+    /// Modeled errors: PublicFault, InternalFault. Transport, timeout and decoding failures can also occur.
     pub async fn public_with_options(&self, input: PublicInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<PublicOutput, ::crucible_client_runtime_rust::Error<PublicError>> {
         self.transport.send_with_options::<Public, PublicError>(&input, &options).await
     }
 
-    /// Calls Secret.
+    /// Call Secret.
     ///
-    /// Input: SecretInput. Output: unit.
-    /// Modeled errors: PublicFault. Transport and unknown service failures remain separate.
+    /// Input: SecretInput.
+    ///
+    /// Returns: no modeled output.
+    ///
+    /// Modeled errors: PublicFault. Transport, timeout and decoding failures can also occur.
     pub async fn secret(&self, input: SecretInput) -> ::std::result::Result<(), ::crucible_client_runtime_rust::Error<SecretError>> {
         self.transport.send::<Secret, SecretError>(&input).await.map(|_| ())
     }
 
-    /// Calls Secret.
+    /// Call Secret.
     ///
-    /// Input: SecretInput. Output: unit.
-    /// Modeled errors: PublicFault. Transport and unknown service failures remain separate.
+    /// Input: SecretInput.
+    ///
+    /// Returns: no modeled output.
+    ///
+    /// Modeled errors: PublicFault. Transport, timeout and decoding failures can also occur.
     pub async fn secret_with_options(&self, input: SecretInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<(), ::crucible_client_runtime_rust::Error<SecretError>> {
         self.transport.send_with_options::<Secret, SecretError>(&input, &options).await.map(|_| ())
     }

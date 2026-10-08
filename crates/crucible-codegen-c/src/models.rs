@@ -129,7 +129,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
     );
     for (id, shape) in &service.shapes {
         let native = native_name(service, id, p);
-        if let Some(docs) = crucible_codegen_common::shape_docs(shape) {
+        if let Some(docs) = crucible_codegen_common::documentation::shape(shape) {
             header.push_str(&crucible_codegen_common::doxygen(docs, ""));
         }
         if complex(shape) {

@@ -247,16 +247,24 @@ impl LegacyClient {
         }
     }
 
-    /// Calls SetColor.
+    /// Call SetColor.
     ///
-    /// Input: Input. Output: Output.
+    /// Input: Input.
+    ///
+    /// Returns: Output.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn set_color(&self, input: Input) -> ::std::result::Result<Output, ::crucible_client_runtime_rust::Error<SetColorError>> {
         self.transport.send::<SetColor, SetColorError>(&input).await
     }
 
-    /// Calls SetColor.
+    /// Call SetColor.
     ///
-    /// Input: Input. Output: Output.
+    /// Input: Input.
+    ///
+    /// Returns: Output.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn set_color_with_options(&self, input: Input, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<Output, ::crucible_client_runtime_rust::Error<SetColorError>> {
         self.transport.send_with_options::<SetColor, SetColorError>(&input, &options).await
     }

@@ -283,7 +283,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             .iter()
             .find(|id| service.name_of(id) == *error)
             .and_then(|id| service.shape(id))
-            .and_then(crucible_codegen_common::shape_docs);
+            .and_then(crucible_codegen_common::documentation::shape);
         doc(
             &mut out,
             "    ",
@@ -389,7 +389,9 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     doc(
         &mut out,
         "    ",
-        Some(&crucible_codegen_common::operation_docs(service, op)),
+        Some(&crucible_codegen_common::documentation::operation(
+            service, op,
+        )),
     );
     let output = if op.output.is_some() {
         output_type(service, op).replace("model::", "")

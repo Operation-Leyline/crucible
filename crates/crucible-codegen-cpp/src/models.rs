@@ -178,7 +178,7 @@ impl<'a> Layout<'a> {
             let name = self.service.name_of(&id);
             let qualified = format!("::{ns}::models::{name}");
             let shape = self.service.shape(&id).expect("shape");
-            if let Some(docs) = crucible_codegen_common::shape_docs(shape) {
+            if let Some(docs) = crucible_codegen_common::documentation::shape(shape) {
                 header.push_str(&crucible_codegen_common::doxygen(docs, ""));
             }
             match shape {

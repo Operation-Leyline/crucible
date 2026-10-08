@@ -67,11 +67,15 @@ weather_status weather_client_new(const weather_client_config *config, weather_c
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { weather_result base; const weather_models_create_city_output *value; } weather_operations_create_city_result;
 /**
- * Calls CreateCity.
+ * Call CreateCity.
  *
- * Input: CreateCityInput. Output: CreateCityOutput.
- * Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
- * An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
+ * Input: CreateCityInput.
+ *
+ * Returns: CreateCityOutput.
+ *
+ * Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+ *
+ * An omitted clientToken idempotency token is generated once per call and reused for retries.
  */
 weather_status weather_operations_create_city(weather_client *client, const weather_models_create_city_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_create_city_result *result, weather_error *error);
 void weather_operations_create_city_result_free(weather_operations_create_city_result *result);
@@ -79,10 +83,15 @@ void weather_operations_create_city_result_free(weather_operations_create_city_r
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { weather_result base; const weather_models_get_city_output *value; } weather_operations_get_city_result;
 /**
- * Calls GetCity.
+ * Call GetCity.
  *
- * Input: GetCityInput. Output: GetCityOutput.
- * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+ * Input: GetCityInput.
+ *
+ * Returns: GetCityOutput.
+ *
+ * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+ *
+ * This operation is safe to retry under the configured retry policy.
  */
 weather_status weather_operations_get_city(weather_client *client, const weather_models_get_city_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_get_city_result *result, weather_error *error);
 void weather_operations_get_city_result_free(weather_operations_get_city_result *result);
@@ -90,10 +99,15 @@ void weather_operations_get_city_result_free(weather_operations_get_city_result 
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { weather_result base; const weather_models_get_city_photo_output *value; } weather_operations_get_city_photo_result;
 /**
- * Calls GetCityPhoto.
+ * Call GetCityPhoto.
  *
- * Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
- * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+ * Input: GetCityPhotoInput.
+ *
+ * Returns: GetCityPhotoOutput.
+ *
+ * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+ *
+ * This operation is safe to retry under the configured retry policy.
  */
 weather_status weather_operations_get_city_photo(weather_client *client, const weather_models_get_city_photo_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_get_city_photo_result *result, weather_error *error);
 void weather_operations_get_city_photo_result_free(weather_operations_get_city_photo_result *result);
@@ -101,11 +115,17 @@ void weather_operations_get_city_photo_result_free(weather_operations_get_city_p
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { weather_result base; const weather_models_list_cities_output *value; } weather_operations_list_cities_result;
 /**
- * Calls ListCities.
+ * Call ListCities.
  *
- * Input: ListCitiesInput. Output: ListCitiesOutput.
- * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
- * The pages helper fetches lazily until the continuation token is exhausted.
+ * Input: ListCitiesInput.
+ *
+ * Returns: ListCitiesOutput.
+ *
+ * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+ *
+ * This operation is safe to retry under the configured retry policy.
+ *
+ * Returns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens.
  */
 weather_status weather_operations_list_cities(weather_client *client, const weather_models_list_cities_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_list_cities_result *result, weather_error *error);
 void weather_operations_list_cities_result_free(weather_operations_list_cities_result *result);
@@ -117,10 +137,15 @@ weather_status weather_operations_list_cities_pages_next(weather_pages *pages, b
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { weather_result base; const weather_unit *value; } weather_operations_ping_result;
 /**
- * Calls Ping.
+ * Call Ping.
  *
- * Input: none. Output: unit.
- * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+ * Input: no modeled input.
+ *
+ * Returns: no modeled output.
+ *
+ * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+ *
+ * This operation is safe to retry under the configured retry policy.
  */
 weather_status weather_operations_ping(weather_client *client, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_ping_result *result, weather_error *error);
 void weather_operations_ping_result_free(weather_operations_ping_result *result);
@@ -130,8 +155,13 @@ typedef struct { weather_result base; const weather_models_put_city_photo_output
 /**
  * Stores a city's photo exactly as sent.
  *
- * Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
- * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+ * Input: PutCityPhotoInput.
+ *
+ * Returns: PutCityPhotoOutput.
+ *
+ * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+ *
+ * This operation is safe to retry under the configured retry policy.
  */
 weather_status weather_operations_put_city_photo(weather_client *client, const weather_models_put_city_photo_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_put_city_photo_result *result, weather_error *error);
 void weather_operations_put_city_photo_result_free(weather_operations_put_city_photo_result *result);
@@ -139,10 +169,15 @@ void weather_operations_put_city_photo_result_free(weather_operations_put_city_p
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { weather_result base; const weather_models_status_output *value; } weather_operations_status_result;
 /**
- * Calls Status.
+ * Call Status.
  *
- * Input: StatusInput. Output: StatusOutput.
- * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+ * Input: StatusInput.
+ *
+ * Returns: StatusOutput.
+ *
+ * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+ *
+ * This operation is safe to retry under the configured retry policy.
  */
 weather_status weather_operations_status(weather_client *client, const weather_models_status_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_status_result *result, weather_error *error);
 void weather_operations_status_result_free(weather_operations_status_result *result);

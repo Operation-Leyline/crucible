@@ -69,7 +69,7 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
             .filter(|payload| payload.streaming)
             .map(|payload| names::field(&payload.member));
         header.push_str(&crucible_codegen_common::doxygen(
-            &crucible_codegen_common::operation_docs(service, operation),
+            &crucible_codegen_common::documentation::operation(service, operation),
             "    ",
         ));
         header.push_str(&format!(

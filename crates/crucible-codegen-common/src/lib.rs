@@ -583,19 +583,6 @@ mod tests {
     }
 }
 
-/// Documentation text already resolved by Smithy lowering.
-pub fn shape_docs(shape: &Shape) -> Option<&str> {
-    match shape {
-        Shape::Unit { .. } => None,
-        Shape::Simple(s) => s.docs.as_deref(),
-        Shape::Enum(s) => s.docs.as_deref(),
-        Shape::IntEnum(s) => s.docs.as_deref(),
-        Shape::List(s) => s.docs.as_deref(),
-        Shape::Map(s) => s.docs.as_deref(),
-        Shape::Structure(s) | Shape::Union(s) => s.docs.as_deref(),
-    }
-}
-
 /// CommonMark supported by Doxygen, with comment boundaries and commands escaped.
 pub fn doxygen(text: &str, indent: &str) -> String {
     let text = text
@@ -639,38 +626,6 @@ pub fn sensitive_collection(service: &Service, id: &crucible_smithy::ShapeId) ->
         }
     }
     visit(service, id, &mut std::collections::BTreeSet::new())
-}
-
-/// Operation contract notes independent of the target's syntax.
-pub fn operation_docs(service: &Service, op: &crucible_smithy::ir::Operation) -> String {
-    let mut text = op
-        .docs
-        .clone()
-        .unwrap_or_else(|| format!("Calls {}.", op.name()));
-    text.push_str(&format!(
-        "\n\nInput: {}. Output: {}.",
-        op.input.as_ref().map_or("none", |id| service.name_of(id)),
-        op.output.as_ref().map_or("unit", |id| service.name_of(id))
-    ));
-    if !op.errors.is_empty() {
-        text.push_str(&format!(
-            "\nModeled errors: {}. Transport and unknown service failures remain separate.",
-            op.errors
-                .iter()
-                .map(|id| service.name_of(id))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-    }
-    if op.paginated.is_some() {
-        text.push_str(
-            "\nThe pages helper fetches lazily until the continuation token is exhausted.",
-        );
-    }
-    if op.idempotency_token.is_some() {
-        text.push_str("\nAn omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.");
-    }
-    text
 }
 
 #[cfg(test)]

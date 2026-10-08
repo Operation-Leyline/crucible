@@ -79,55 +79,90 @@ S3method(print, crucible_error)
 `WeatherClient` <- function(config = client_config()) {
   client <- .crucible_client(config, NULL, TRUE)
 #' @description
-#' Calls CreateCity.
+#' Call CreateCity.
 #'
-#' Input: CreateCityInput. Output: CreateCityOutput.
-#' Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-#' An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
+#' Input: CreateCityInput.
+#'
+#' Returns: CreateCityOutput.
+#'
+#' Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+#'
+#' An omitted clientToken idempotency token is generated once per call and reused for retries.
 #' @md
   client$`create_city` <- function(input, cancellation = NULL) client$call("CreateCity", input, cancellation)
 #' @description
-#' Calls GetCity.
+#' Call GetCity.
 #'
-#' Input: GetCityInput. Output: GetCityOutput.
-#' Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+#' Input: GetCityInput.
+#'
+#' Returns: GetCityOutput.
+#'
+#' Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+#'
+#' This operation is safe to retry under the configured retry policy.
 #' @md
   client$`get_city` <- function(input, cancellation = NULL) client$call("GetCity", input, cancellation)
 #' @description
-#' Calls GetCityPhoto.
+#' Call GetCityPhoto.
 #'
-#' Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
-#' Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+#' Input: GetCityPhotoInput.
+#'
+#' Returns: GetCityPhotoOutput.
+#'
+#' Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+#'
+#' This operation is safe to retry under the configured retry policy.
 #' @md
   client$`get_city_photo` <- function(input, cancellation = NULL) client$call("GetCityPhoto", input, cancellation)
 #' @description
-#' Calls ListCities.
+#' Call ListCities.
 #'
-#' Input: ListCitiesInput. Output: ListCitiesOutput.
-#' Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-#' The pages helper fetches lazily until the continuation token is exhausted.
+#' Input: ListCitiesInput.
+#'
+#' Returns: ListCitiesOutput.
+#'
+#' Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+#'
+#' This operation is safe to retry under the configured retry policy.
+#'
+#' Returns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens.
 #' @md
   client$`list_cities` <- function(input, cancellation = NULL) client$call("ListCities", input, cancellation)
   client$`list_cities_pages` <- function(input, cancellation = NULL) client$pages("ListCities", input, cancellation)
 #' @description
-#' Calls Ping.
+#' Call Ping.
 #'
-#' Input: none. Output: unit.
-#' Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+#' Input: no modeled input.
+#'
+#' Returns: no modeled output.
+#'
+#' Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+#'
+#' This operation is safe to retry under the configured retry policy.
 #' @md
   client$`ping` <- function(input = NULL, cancellation = NULL) client$call("Ping", input, cancellation)
 #' @description
 #' Stores a city's photo exactly as sent.
 #'
-#' Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
-#' Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+#' Input: PutCityPhotoInput.
+#'
+#' Returns: PutCityPhotoOutput.
+#'
+#' Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+#'
+#' This operation is safe to retry under the configured retry policy.
 #' @md
   client$`put_city_photo` <- function(input, cancellation = NULL) client$call("PutCityPhoto", input, cancellation)
 #' @description
-#' Calls Status.
+#' Call Status.
 #'
-#' Input: StatusInput. Output: StatusOutput.
-#' Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+#' Input: StatusInput.
+#'
+#' Returns: StatusOutput.
+#'
+#' Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+#'
+#' This operation is safe to retry under the configured retry policy.
 #' @md
   client$`status` <- function(input, cancellation = NULL) client$call("Status", input, cancellation)
   client
@@ -747,48 +782,83 @@ OTHER = other: Known enum value.
 \alias{operations}
 \title{Operation contracts}
 \description{create_city
-Calls CreateCity.
+Call CreateCity.
 
-Input: CreateCityInput. Output: CreateCityOutput.
-Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
+Input: CreateCityInput.
+
+Returns: CreateCityOutput.
+
+Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+
+An omitted clientToken idempotency token is generated once per call and reused for retries.
 
 get_city
-Calls GetCity.
+Call GetCity.
 
-Input: GetCityInput. Output: GetCityOutput.
-Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+Input: GetCityInput.
+
+Returns: GetCityOutput.
+
+Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+
+This operation is safe to retry under the configured retry policy.
 
 get_city_photo
-Calls GetCityPhoto.
+Call GetCityPhoto.
 
-Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
-Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+Input: GetCityPhotoInput.
+
+Returns: GetCityPhotoOutput.
+
+Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+
+This operation is safe to retry under the configured retry policy.
 
 list_cities
-Calls ListCities.
+Call ListCities.
 
-Input: ListCitiesInput. Output: ListCitiesOutput.
-Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-The pages helper fetches lazily until the continuation token is exhausted.
+Input: ListCitiesInput.
+
+Returns: ListCitiesOutput.
+
+Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+
+This operation is safe to retry under the configured retry policy.
+
+Returns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens.
 
 ping
-Calls Ping.
+Call Ping.
 
-Input: none. Output: unit.
-Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+Input: no modeled input.
+
+Returns: no modeled output.
+
+Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+
+This operation is safe to retry under the configured retry policy.
 
 put_city_photo
 Stores a city's photo exactly as sent.
 
-Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
-Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+Input: PutCityPhotoInput.
+
+Returns: PutCityPhotoOutput.
+
+Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+
+This operation is safe to retry under the configured retry policy.
 
 status
-Calls Status.
+Call Status.
 
-Input: StatusInput. Output: StatusOutput.
-Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+Input: StatusInput.
+
+Returns: StatusOutput.
+
+Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+
+This operation is safe to retry under the configured retry policy.
 
 }
 

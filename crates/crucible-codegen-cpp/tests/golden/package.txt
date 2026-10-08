@@ -60,56 +60,91 @@ public:
     /** Closes the shared runtime; finish active calls first. */
     void close() { runtime_->close(); }
     /**
-     * Calls CreateCity.
+     * Call CreateCity.
      *
-     * Input: CreateCityInput. Output: CreateCityOutput.
-     * Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-     * An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
+     * Input: CreateCityInput.
+     *
+     * Returns: CreateCityOutput.
+     *
+     * Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+     *
+     * An omitted clientToken idempotency token is generated once per call and reused for retries.
      */
     [[nodiscard]] ::example::weather::models::CreateCityOutput create_city(const ::example::weather::models::CreateCityInput& input, std::stop_token stop = {}) const;
     /**
-     * Calls GetCity.
+     * Call GetCity.
      *
-     * Input: GetCityInput. Output: GetCityOutput.
-     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     * Input: GetCityInput.
+     *
+     * Returns: GetCityOutput.
+     *
+     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+     *
+     * This operation is safe to retry under the configured retry policy.
      */
     [[nodiscard]] ::example::weather::models::GetCityOutput get_city(const ::example::weather::models::GetCityInput& input, std::stop_token stop = {}) const;
     /**
-     * Calls GetCityPhoto.
+     * Call GetCityPhoto.
      *
-     * Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
-     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     * Input: GetCityPhotoInput.
+     *
+     * Returns: GetCityPhotoOutput.
+     *
+     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+     *
+     * This operation is safe to retry under the configured retry policy.
      */
     [[nodiscard]] ::example::weather::models::GetCityPhotoOutput get_city_photo(const ::example::weather::models::GetCityPhotoInput& input, std::stop_token stop = {}) const;
     /**
-     * Calls ListCities.
+     * Call ListCities.
      *
-     * Input: ListCitiesInput. Output: ListCitiesOutput.
-     * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-     * The pages helper fetches lazily until the continuation token is exhausted.
+     * Input: ListCitiesInput.
+     *
+     * Returns: ListCitiesOutput.
+     *
+     * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+     *
+     * This operation is safe to retry under the configured retry policy.
+     *
+     * Returns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens.
      */
     [[nodiscard]] ::example::weather::models::ListCitiesOutput list_cities(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop = {}) const;
     /** Creates a lazy iterator; next returns nullopt when exhausted. */
     [[nodiscard]] runtime::Pages<::example::weather::models::ListCitiesOutput> list_cities_pages(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop = {}) const;
     /**
-     * Calls Ping.
+     * Call Ping.
      *
-     * Input: none. Output: unit.
-     * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     * Input: no modeled input.
+     *
+     * Returns: no modeled output.
+     *
+     * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+     *
+     * This operation is safe to retry under the configured retry policy.
      */
     [[nodiscard]] runtime::Unit ping(std::stop_token stop = {}) const;
     /**
      * Stores a city's photo exactly as sent.
      *
-     * Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
-     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     * Input: PutCityPhotoInput.
+     *
+     * Returns: PutCityPhotoOutput.
+     *
+     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+     *
+     * This operation is safe to retry under the configured retry policy.
      */
     [[nodiscard]] ::example::weather::models::PutCityPhotoOutput put_city_photo(const ::example::weather::models::PutCityPhotoInput& input, std::stop_token stop = {}) const;
     /**
-     * Calls Status.
+     * Call Status.
      *
-     * Input: StatusInput. Output: StatusOutput.
-     * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     * Input: StatusInput.
+     *
+     * Returns: StatusOutput.
+     *
+     * Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+     *
+     * This operation is safe to retry under the configured retry policy.
      */
     [[nodiscard]] ::example::weather::models::StatusOutput status(const ::example::weather::models::StatusInput& input, std::stop_token stop = {}) const;
 };

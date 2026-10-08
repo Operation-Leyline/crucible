@@ -2221,11 +2221,15 @@ impl WeatherClient {
         }
     }
 
-    /// Calls CreateCity.
+    /// Call CreateCity.
     ///
-    /// Input: CreateCityInput. Output: CreateCityOutput.
-    /// Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-    /// An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
+    /// Input: CreateCityInput.
+    ///
+    /// Returns: CreateCityOutput.
+    ///
+    /// Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// An omitted clientToken idempotency token is generated once per call and reused for retries.
     pub async fn create_city(&self, mut input: CreateCityInput) -> ::std::result::Result<CreateCityOutput, ::crucible_client_runtime_rust::Error<CreateCityError>> {
         if input.client_token.value().is_none() {
             input.client_token = ::crucible_client_runtime_rust::Field::Value(::crucible_client_runtime_rust::idempotency_token());
@@ -2233,11 +2237,15 @@ impl WeatherClient {
         self.transport.send::<CreateCity, CreateCityError>(&input).await
     }
 
-    /// Calls CreateCity.
+    /// Call CreateCity.
     ///
-    /// Input: CreateCityInput. Output: CreateCityOutput.
-    /// Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-    /// An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
+    /// Input: CreateCityInput.
+    ///
+    /// Returns: CreateCityOutput.
+    ///
+    /// Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// An omitted clientToken idempotency token is generated once per call and reused for retries.
     pub async fn create_city_with_options(&self, mut input: CreateCityInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<CreateCityOutput, ::crucible_client_runtime_rust::Error<CreateCityError>> {
         if input.client_token.value().is_none() {
             input.client_token = ::crucible_client_runtime_rust::Field::Value(::crucible_client_runtime_rust::idempotency_token());
@@ -2245,52 +2253,84 @@ impl WeatherClient {
         self.transport.send_with_options::<CreateCity, CreateCityError>(&input, &options).await
     }
 
-    /// Calls GetCity.
+    /// Call GetCity.
     ///
-    /// Input: GetCityInput. Output: GetCityOutput.
-    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: GetCityInput.
+    ///
+    /// Returns: GetCityOutput.
+    ///
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn get_city(&self, input: GetCityInput) -> ::std::result::Result<GetCityOutput, ::crucible_client_runtime_rust::Error<GetCityError>> {
         self.transport.send::<GetCity, GetCityError>(&input).await
     }
 
-    /// Calls GetCity.
+    /// Call GetCity.
     ///
-    /// Input: GetCityInput. Output: GetCityOutput.
-    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: GetCityInput.
+    ///
+    /// Returns: GetCityOutput.
+    ///
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn get_city_with_options(&self, input: GetCityInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<GetCityOutput, ::crucible_client_runtime_rust::Error<GetCityError>> {
         self.transport.send_with_options::<GetCity, GetCityError>(&input, &options).await
     }
 
-    /// Calls GetCityPhoto.
+    /// Call GetCityPhoto.
     ///
-    /// Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
-    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: GetCityPhotoInput.
+    ///
+    /// Returns: GetCityPhotoOutput.
+    ///
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn get_city_photo(&self, input: GetCityPhotoInput) -> ::std::result::Result<GetCityPhotoOutput, ::crucible_client_runtime_rust::Error<GetCityPhotoError>> {
         self.transport.send::<GetCityPhoto, GetCityPhotoError>(&input).await
     }
 
-    /// Calls GetCityPhoto.
+    /// Call GetCityPhoto.
     ///
-    /// Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
-    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: GetCityPhotoInput.
+    ///
+    /// Returns: GetCityPhotoOutput.
+    ///
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn get_city_photo_with_options(&self, input: GetCityPhotoInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<GetCityPhotoOutput, ::crucible_client_runtime_rust::Error<GetCityPhotoError>> {
         self.transport.send_with_options::<GetCityPhoto, GetCityPhotoError>(&input, &options).await
     }
 
-    /// Calls ListCities.
+    /// Call ListCities.
     ///
-    /// Input: ListCitiesInput. Output: ListCitiesOutput.
-    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-    /// The pages helper fetches lazily until the continuation token is exhausted.
+    /// Input: ListCitiesInput.
+    ///
+    /// Returns: ListCitiesOutput.
+    ///
+    /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
+    ///
+    /// Returns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens.
     pub async fn list_cities(&self, input: ListCitiesInput) -> ::std::result::Result<ListCitiesOutput, ::crucible_client_runtime_rust::Error<ListCitiesError>> {
         self.transport.send::<ListCities, ListCitiesError>(&input).await
     }
 
-    /// Calls ListCities.
+    /// Call ListCities.
     ///
-    /// Input: ListCitiesInput. Output: ListCitiesOutput.
-    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
-    /// The pages helper fetches lazily until the continuation token is exhausted.
+    /// Input: ListCitiesInput.
+    ///
+    /// Returns: ListCitiesOutput.
+    ///
+    /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
+    ///
+    /// Returns one page. Pagination helpers follow nextToken until it is absent or empty, and reject repeated tokens.
     pub async fn list_cities_with_options(&self, input: ListCitiesInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<ListCitiesOutput, ::crucible_client_runtime_rust::Error<ListCitiesError>> {
         self.transport.send_with_options::<ListCities, ListCitiesError>(&input, &options).await
     }
@@ -2306,50 +2346,80 @@ impl WeatherClient {
         )
     }
 
-    /// Calls Ping.
+    /// Call Ping.
     ///
-    /// Input: none. Output: unit.
-    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: no modeled input.
+    ///
+    /// Returns: no modeled output.
+    ///
+    /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn ping(&self) -> ::std::result::Result<(), ::crucible_client_runtime_rust::Error<PingError>> {
         self.transport.send::<Ping, PingError>(&::crucible_client_runtime_rust::operation::Unit {}).await.map(|_| ())
     }
 
-    /// Calls Ping.
+    /// Call Ping.
     ///
-    /// Input: none. Output: unit.
-    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: no modeled input.
+    ///
+    /// Returns: no modeled output.
+    ///
+    /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn ping_with_options(&self, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<(), ::crucible_client_runtime_rust::Error<PingError>> {
         self.transport.send_with_options::<Ping, PingError>(&::crucible_client_runtime_rust::operation::Unit {}, &options).await.map(|_| ())
     }
 
     /// Stores a city's photo exactly as sent.
     ///
-    /// Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
-    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: PutCityPhotoInput.
+    ///
+    /// Returns: PutCityPhotoOutput.
+    ///
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn put_city_photo(&self, input: PutCityPhotoInput) -> ::std::result::Result<PutCityPhotoOutput, ::crucible_client_runtime_rust::Error<PutCityPhotoError>> {
         self.transport.send::<PutCityPhoto, PutCityPhotoError>(&input).await
     }
 
     /// Stores a city's photo exactly as sent.
     ///
-    /// Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
-    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: PutCityPhotoInput.
+    ///
+    /// Returns: PutCityPhotoOutput.
+    ///
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn put_city_photo_with_options(&self, input: PutCityPhotoInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<PutCityPhotoOutput, ::crucible_client_runtime_rust::Error<PutCityPhotoError>> {
         self.transport.send_with_options::<PutCityPhoto, PutCityPhotoError>(&input, &options).await
     }
 
-    /// Calls Status.
+    /// Call Status.
     ///
-    /// Input: StatusInput. Output: StatusOutput.
-    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: StatusInput.
+    ///
+    /// Returns: StatusOutput.
+    ///
+    /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn status(&self, input: StatusInput) -> ::std::result::Result<StatusOutput, ::crucible_client_runtime_rust::Error<StatusError>> {
         self.transport.send::<Status, StatusError>(&input).await
     }
 
-    /// Calls Status.
+    /// Call Status.
     ///
-    /// Input: StatusInput. Output: StatusOutput.
-    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// Input: StatusInput.
+    ///
+    /// Returns: StatusOutput.
+    ///
+    /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn status_with_options(&self, input: StatusInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<StatusOutput, ::crucible_client_runtime_rust::Error<StatusError>> {
         self.transport.send_with_options::<Status, StatusError>(&input, &options).await
     }

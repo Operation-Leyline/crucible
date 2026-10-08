@@ -365,18 +365,24 @@ impl ApiClient {
         }
     }
 
-    /// Calls Public.
+    /// Call Public.
     ///
-    /// Input: PublicInput. Output: PublicOutput.
-    /// Modeled errors: PublicFault. Transport and unknown service failures remain separate.
+    /// Input: PublicInput.
+    ///
+    /// Returns: PublicOutput.
+    ///
+    /// Modeled errors: PublicFault. Transport, timeout and decoding failures can also occur.
     pub async fn public(&self, input: PublicInput) -> ::std::result::Result<PublicOutput, ::crucible_client_runtime_rust::Error<PublicError>> {
         self.transport.send::<Public, PublicError>(&input).await
     }
 
-    /// Calls Public.
+    /// Call Public.
     ///
-    /// Input: PublicInput. Output: PublicOutput.
-    /// Modeled errors: PublicFault. Transport and unknown service failures remain separate.
+    /// Input: PublicInput.
+    ///
+    /// Returns: PublicOutput.
+    ///
+    /// Modeled errors: PublicFault. Transport, timeout and decoding failures can also occur.
     pub async fn public_with_options(&self, input: PublicInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<PublicOutput, ::crucible_client_runtime_rust::Error<PublicError>> {
         self.transport.send_with_options::<Public, PublicError>(&input, &options).await
     }

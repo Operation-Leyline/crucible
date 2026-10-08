@@ -309,7 +309,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
         let mut out = String::from("# Generated from the lowered Smithy model.\n");
         out.push_str(&roxygen(
-            crucible_codegen_common::shape_docs(shape)
+            crucible_codegen_common::documentation::shape(shape)
                 .unwrap_or("Constructs a native model value."),
         ));
         match shape {
@@ -397,7 +397,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
             _ => {}
         }
-        files.push(File { path: format!("man/{name}.Rd"), contents: format!("\\name{{{name}}}\n\\alias{{{name}}}\n\\title{{{name}}}\n\\description{{{}}}\n\\details{{{}}}\n", markdown::render(crucible_codegen_common::shape_docs(shape).unwrap_or("Native model constructor.")), markdown::render(&details)) });
+        files.push(File { path: format!("man/{name}.Rd"), contents: format!("\\name{{{name}}}\n\\alias{{{name}}}\n\\title{{{name}}}\n\\description{{{}}}\n\\details{{{}}}\n", markdown::render(crucible_codegen_common::documentation::shape(shape).unwrap_or("Native model constructor.")), markdown::render(&details)) });
         files.push(File {
             path: format!("R/model-{name}.R"),
             contents: out,
@@ -436,7 +436,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         if op.method == "HEAD" && (!op.request.body.is_empty() || op.request.payload.is_some()) {
             diagnostics.push(&op.id, "R HEAD operations cannot have a request body");
         }
-        let notes = crucible_codegen_common::operation_docs(service, op);
+        let notes = crucible_codegen_common::documentation::operation(service, op);
         operation_notes.push_str(&format!("{}\n{}\n\n", field(op.name()), notes));
         client.push_str(&roxygen(&notes));
         let name = field(op.name());
