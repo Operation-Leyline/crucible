@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 # Run against a gem generated from crates/crucible-smithy/tests/fixtures/client-docs.json
 # with module Vault: ruby -I <gem>/lib describe.rb
+require 'pp'
 require 'vault_client'
 
 MARKER = '*** Sensitive Data Redacted ***'
@@ -29,7 +30,7 @@ check(!text.include?('revision'), "absent members are omitted: #{text}")
 check(secret.inspect == text, 'inspect and to_s agree')
 
 # Every inspection path hides sensitive values, not just to_s.
-outputs = [text, secret.inspect, "#{secret}", [secret].inspect, { a: secret }.inspect]
+outputs = [text, secret.inspect, "#{secret}", [secret].inspect, { a: secret }.inspect, secret.pretty_inspect]
 outputs.each do |output|
   SECRETS.each { |leaked| check(!output.include?(leaked), "#{leaked} leaked in: #{output}") }
 end
@@ -50,5 +51,6 @@ described = error.inspect
 check(described.include?("reason=#{MARKER}") && !described.include?('secret-reason'), "error members redact: #{described}")
 check(described.include?('metadata=ErrorMetadata(name=AccessDenied, status=403, request_id=r-1)'), "error metadata: #{described}")
 check(!described.include?('authorization'), 'headers are omitted')
+check(!error.pretty_inspect.include?('authorization') && !error.pretty_inspect.include?('secret-reason'), 'pp hides headers and sensitive members')
 check(error.message == 'denied', 'an error keeps its message')
 puts 'Ruby string representations passed'

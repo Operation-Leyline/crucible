@@ -31,6 +31,9 @@ final class DescribeTests: XCTestCase {
         XCTAssertEqual(try Timestamp(seconds: -62_135_596_801, nanoseconds: 500_000_000).description, "-62135596801.5")
         XCTAssertEqual(try Timestamp(seconds: 253_402_300_799).description, "9999-12-31T23:59:59Z")
         XCTAssertEqual(try Timestamp(seconds: 0, nanoseconds: 1_000).description, "1970-01-01T00:00:00.000001Z")
+        XCTAssertEqual(try Timestamp(seconds: -62_135_596_800).description, "0001-01-01T00:00:00Z")
+        XCTAssertEqual(try Timestamp(seconds: 951_782_400).description, "2000-02-29T00:00:00Z")
+        XCTAssertEqual(try Timestamp(seconds: -1).description, "1969-12-31T23:59:59Z")
     }
 
     func testSensitiveMembersNeverPrintTheirValue() throws {

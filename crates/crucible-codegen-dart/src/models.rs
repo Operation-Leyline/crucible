@@ -9,12 +9,18 @@ fn doc(text: Option<&str>, indent: &str) -> String {
 
 /// `toString` for a generated model: thin, with formatting and the redaction
 /// marker living in `runtime/describe.dart`.
-fn to_string(service: &Service, name: &str, members: &[Member], trailer: &str) -> String {
+fn to_string(
+    service: &Service,
+    name: &str,
+    members: &[Member],
+    sensitive: bool,
+    trailer: &str,
+) -> String {
     let entries: Vec<String> = members
         .iter()
         .map(|member| {
             let field = field(&member.name);
-            if docs::is_redacted(service, member) {
+            if docs::is_redacted(service, sensitive, member) {
                 format!("{}: describe.redact({field})", literal(&member.name))
             } else {
                 format!("{}: {field}", literal(&member.name))
@@ -147,7 +153,7 @@ pub fn emit(service: &Service) -> String {
                 }
                 out.push_str("    return object;\n  }\n");
                 let trailer = if error { ", metadata: metadata" } else { "" };
-                out.push_str(&to_string(service, name, &structure.members, trailer));
+                out.push_str(&to_string(service, name, &structure.members, structure.sensitive(), trailer));
                 out.push_str("}\n");
                 decode.push_str(&format!("    case {target}: return {name}.fromWire(value, context);\n"));
                 if error {errors.push_str(&format!("    case {target}: return {name}.fromWire(value, context, metadata: metadata);\n"));}
@@ -163,7 +169,7 @@ pub fn emit(service: &Service) -> String {
                     let variant = variant(&member.name);
                     let wire_name = literal(&member.name);
                     out.push_str(&doc(member.docs.as_deref(), ""));
-                    let shown = if docs::is_redacted(service, member) { "describe.redact(value)" } else { "value" };
+                    let shown = if docs::is_redacted(service, union.sensitive(), member) { "describe.redact(value)" } else { "value" };
                     out.push_str(&format!("final class {name}{variant} extends {name} {{\n  /// The member's value; null when the union carries an explicit null.\n  final {}? value;\n  const {name}{variant}(this.value);\n  @core.override\n  core.Object toWire(wire.WireContext context) => <core.String, core.Object?>{{{wire_name}: value == null ? null : context.codec.encode(value, context.member({wire_name}))}};\n  @core.override\n  core.String toString() => describe.describe('{name}', <core.String, core.Object?>{{{wire_name}: {shown}}});\n}}\n", ty(service, &member.target)));
                 }
                 out.push_str(&format!("/// A member this client does not know, kept so it can be sent back unchanged.\nfinal class {name}UnknownVariant extends {name} {{\n  /// The member name received.\n  final core.String name;\n  /// The raw value received.\n  final json.JsonValue value;\n  const {name}UnknownVariant(this.name, this.value);\n  /// Omits the value: nothing says whether it is sensitive.\n  @core.override\n  core.String toString() => describe.describe('{name}', <core.String, core.Object?>{{'unknownVariant': name}});\n  @core.override\n  core.Object toWire(wire.WireContext context) {{\n    if (wire.wireObject(context.shape['members']).containsKey(name)) {{ throw const core.FormatException('Unknown variant name is declared'); }}\n    return <core.String, core.Object?>{{name: value.value}};\n  }}\n}}\n"));

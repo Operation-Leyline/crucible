@@ -20,6 +20,13 @@ final readonly class ErrorMetadata
         public array $headers = [], public bool $retryable = false, public bool $throttling = false,
     ) {}
 
+    /** Keeps var_dump() and print_r() from listing $message and $headers, which may carry sensitive data. */
+    public function __debugInfo(): array
+    {
+        return ['name' => $this->name, 'status' => $this->status, 'requestId' => $this->requestId,
+            'retryable' => $this->retryable, 'throttling' => $this->throttling];
+    }
+
     /** Omits $message and $headers: they may carry sensitive data. */
     public function __toString(): string
     {

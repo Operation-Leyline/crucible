@@ -20,6 +20,9 @@ module CrucibleGenerated
           (retryable ? ', retryable=true' : '') + (throttling ? ', throttling=true' : '') + ')'
       end
       alias to_s inspect
+
+      # pp prints a Data's members itself instead of calling `inspect`, which would list the headers.
+      def pretty_print(printer) = printer.text(inspect)
     end
   end
 end

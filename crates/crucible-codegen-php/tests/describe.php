@@ -48,11 +48,13 @@ check((string)new CredentialUnknownVariant('future', JsonValue::parse('"token-12
 check((string)new Secret(name: 'x') === 'Secret(name=x)', 'minimal model');
 
 $error = new AccessDenied(messageValue: 'denied', reason: 'secret-reason',
-    metadata: new ErrorMetadata('AccessDenied', 'denied', 403, 'r-1', ['authorization' => 'x']));
+    metadata: new ErrorMetadata('AccessDenied', 'denied', 403, 'r-1', ['authorization' => 'header-secret']));
 $described = $error->describe();
 check(str_contains($described, 'reason=' . MARKER) && !str_contains($described, 'secret-reason'), 'error members redact: ' . $described);
 check(str_contains($described, 'metadata=ErrorMetadata(name=AccessDenied, status=403, requestId=r-1)'), 'error metadata: ' . $described);
 check(!str_contains($described, 'authorization'), 'headers are omitted');
 ob_start(); var_dump($error); $dumped = ob_get_clean();
 check(!str_contains($dumped, 'secret-reason'), 'var_dump of an error redacts');
+check(!str_contains($dumped, 'authorization') && !str_contains($dumped, 'header-secret'), 'var_dump of an error omits metadata headers');
+ob_start(); print_r($error); check(!str_contains(ob_get_clean(), 'authorization'), 'print_r of an error omits metadata headers');
 echo "PHP string representations passed\n";

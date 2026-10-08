@@ -9,12 +9,18 @@ fn doc(text: Option<&str>, indent: &str) -> String {
 
 /// `description` for a generated model: thin, with formatting and the
 /// redaction marker living in `runtime/Describe.swift`.
-fn description(service: &Service, name: &str, members: &[Member], metadata: bool) -> String {
+fn description(
+    service: &Service,
+    name: &str,
+    members: &[Member],
+    sensitive: bool,
+    metadata: bool,
+) -> String {
     let mut entries: Vec<String> = members
         .iter()
         .map(|member| {
             let field = field(&member.name);
-            if docs::is_redacted(service, member) {
+            if docs::is_redacted(service, sensitive, member) {
                 format!("({}, Describe.redact(`{field}`))", literal(&member.name))
             } else {
                 format!("({}, `{field}`)", literal(&member.name))
@@ -126,6 +132,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                     service,
                     &name,
                     &structure.members,
+                    structure.sensitive(),
                     structure.error.is_some(),
                 ));
                 out.push_str(&format!(
@@ -202,7 +209,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                 out.push_str("        /// A member this client does not know, kept so it can be sent back unchanged.\n");
                 out.push_str("        case unknownVariant(name: Swift.String, value: JSONValue)\n        public var description: Swift.String {\n            switch self {\n");
                 for member in &union.members {
-                    let shown = if docs::is_redacted(service, member) {
+                    let shown = if docs::is_redacted(service, union.sensitive(), member) {
                         "Describe.redact(value)"
                     } else {
                         "value"

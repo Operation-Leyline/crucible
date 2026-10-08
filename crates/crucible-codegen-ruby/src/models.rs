@@ -45,12 +45,18 @@ fn yard_type(service: &Service, id: &ShapeId) -> String {
 /// `inspect` and, outside errors, `to_s`: thin, with formatting and the
 /// redaction marker living in `runtime/describe.rb`. Exceptions keep their
 /// message as `to_s`.
-fn inspect(service: &Service, name: &str, members: &[Member], error: bool) -> String {
+fn inspect(
+    service: &Service,
+    name: &str,
+    members: &[Member],
+    sensitive: bool,
+    error: bool,
+) -> String {
     let mut entries: Vec<String> = members
         .iter()
         .map(|member| {
             let field = field(&member.name);
-            if docs::is_redacted(service, member) {
+            if docs::is_redacted(service, sensitive, member) {
                 format!("{field}: Runtime::Describe.redact(@{field})")
             } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == SimpleKind::Blob && !s.streaming) {
                 format!("{field}: Runtime::Describe.bytes(@{field})")
@@ -182,7 +188,13 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                     ));
                 }
                 out.push_str("        object\n      end\n");
-                out.push_str(&inspect(service, name, &structure.members, error));
+                out.push_str(&inspect(
+                    service,
+                    name,
+                    &structure.members,
+                    structure.sensitive(),
+                    error,
+                ));
                 out.push_str("    end\n");
             }
             Shape::IntEnum(enumeration) => {
@@ -227,7 +239,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 for m in &union.members {
                     let wire = literal(&m.name);
                     out.push_str(&yard(m.docs.as_deref(), "      "));
-                    let shown = if docs::is_redacted(service, m) {
+                    let shown = if docs::is_redacted(service, union.sensitive(), m) {
                         "Runtime::Describe.redact(@value)"
                     } else {
                         "@value"

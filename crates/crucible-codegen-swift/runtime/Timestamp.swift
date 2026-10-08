@@ -8,17 +8,30 @@ public struct Timestamp: Sendable, Equatable, CustomStringConvertible {
     public let nanoseconds: UInt32
     /// RFC 3339 in UTC, with the fraction only when it is not zero.
     public var description: String {
-        // ISO8601DateFormatter is only RFC 3339 for years 1-9999; other instants show as raw epoch text.
+        // RFC 3339 only covers years 1-9999; other instants show as raw epoch text.
         guard (-62_135_596_800...253_402_300_799).contains(seconds) else {
             return nanoseconds == 0 ? "\(seconds)" : "\(seconds).\(Self.fractionDigits(nanoseconds))"
         }
-        var text = Self.formatter.string(from: Date(timeIntervalSince1970: Double(seconds)))
-        guard nanoseconds != 0 else { return text }
-        text.removeLast()
-        return text + "." + Self.fractionDigits(nanoseconds) + "Z"
+        // Civil-from-days arithmetic instead of a shared formatter: no allocation per call, no shared mutable state.
+        let days = seconds >= 0 ? seconds / 86_400 : -((-seconds + 86_399) / 86_400)
+        let remainder = Int(seconds - days * 86_400)
+        let shifted = days + 719_468
+        let era = (shifted >= 0 ? shifted : shifted - 146_096) / 146_097
+        let dayOfEra = shifted - era * 146_097
+        let yearOfEra = (dayOfEra - dayOfEra / 1_460 + dayOfEra / 36_524 - dayOfEra / 146_096) / 365
+        let dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)
+        let monthIndex = (5 * dayOfYear + 2) / 153
+        let day = dayOfYear - (153 * monthIndex + 2) / 5 + 1
+        let month = monthIndex < 10 ? monthIndex + 3 : monthIndex - 9
+        let year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0)
+        func pad(_ value: Int64, _ width: Int) -> String {
+            let digits = String(value)
+            return String(repeating: "0", count: max(0, width - digits.count)) + digits
+        }
+        var text = "\(pad(year, 4))-\(pad(month, 2))-\(pad(day, 2))T\(pad(Int64(remainder / 3_600), 2)):\(pad(Int64(remainder % 3_600 / 60), 2)):\(pad(Int64(remainder % 60), 2))"
+        if nanoseconds != 0 { text += "." + Self.fractionDigits(nanoseconds) }
+        return text + "Z"
     }
-    // Foundation documents ISO8601DateFormatter.string(from:) as thread-safe; it is only non-Sendable by declaration.
-    private nonisolated(unsafe) static let formatter = ISO8601DateFormatter()
     private static func fractionDigits(_ nanoseconds: UInt32) -> String {
         var fraction = String(nanoseconds)
         fraction = String(repeating: "0", count: 9 - fraction.count) + fraction

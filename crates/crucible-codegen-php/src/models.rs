@@ -13,12 +13,18 @@ fn docblock(text: Option<&str>, indent: &str) -> String {
 
 /// The members as `var_dump()` shows them, redacting sensitive ones. The
 /// formatting and the redaction marker live in `Runtime/Describe.php`.
-fn debug_info(service: &Service, runtime: &str, members: &[&Member], error: bool) -> String {
+fn debug_info(
+    service: &Service,
+    runtime: &str,
+    members: &[&Member],
+    sensitive: bool,
+    error: bool,
+) -> String {
     let mut entries: Vec<String> = members
         .iter()
         .map(|member| {
             let field = field(&member.name);
-            let value = if docs::is_redacted(service, member) {
+            let value = if docs::is_redacted(service, sensitive, member) {
                 format!("{runtime}\\Describe::redact($this->{field})")
             } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == crucible_smithy::ir::SimpleKind::Blob && !s.streaming) {
                 format!("{runtime}\\Describe::bytes($this->{field})")
@@ -42,11 +48,12 @@ fn describe(
     runtime: &str,
     name: &str,
     members: &[&Member],
+    sensitive: bool,
     error: bool,
 ) -> String {
     let mut out = format!(
         "    public function __debugInfo(): array\n    {{\n        return {runtime}\\Describe::debug({});\n    }}\n    public function describe(): string\n    {{\n        return {runtime}\\Describe::format({}, $this->__debugInfo());\n    }}\n",
-        debug_info(service, runtime, members, error),
+        debug_info(service, runtime, members, sensitive, error),
         literal(name)
     );
     if !error {
@@ -176,6 +183,7 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                     &runtime,
                     name,
                     &structure.members.iter().collect::<Vec<_>>(),
+                    structure.sensitive(),
                     error,
                 ));
                 out.push_str("}\n");
@@ -230,7 +238,7 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                     let wire_name = literal(&member.name);
                     let member_type = ty(service, &member.target, namespace, false);
                     let doc = ty(service, &member.target, namespace, true);
-                    let shown = if docs::is_redacted(service, member) {
+                    let shown = if docs::is_redacted(service, union.sensitive(), member) {
                         format!("{runtime}\\Describe::redact($this->value)")
                     } else {
                         "$this->value".to_string()

@@ -27,9 +27,12 @@ pub fn shape_docs(shape: &Shape) -> Option<&str> {
 /// Whether a string representation must hide this member's value. Beyond
 /// [`Service::sensitive`], a collection whose elements are sensitive is hidden
 /// whole: its elements are native strings or numbers that cannot redact
-/// themselves, and a structure element already redacts its own members.
-pub fn is_redacted(service: &Service, member: &Member) -> bool {
-    service.sensitive(member) || collection_redacted(service, &member.target, &mut Vec::new())
+/// themselves, and a structure element already redacts its own members. Every
+/// member of a `@sensitive` structure or union (`owner_sensitive`) is hidden too.
+pub fn is_redacted(service: &Service, owner_sensitive: bool, member: &Member) -> bool {
+    owner_sensitive
+        || service.sensitive(member)
+        || collection_redacted(service, &member.target, &mut Vec::new())
 }
 
 fn collection_redacted<'a>(
@@ -266,7 +269,8 @@ mod tests {
         let Some(Shape::Structure(secret)) = service.shape(&id) else {
             panic!("structure")
         };
-        let redacted = |name: &str| is_redacted(&service, secret.member(name).unwrap());
+        let redacted =
+            |name: &str| is_redacted(&service, secret.sensitive(), secret.member(name).unwrap());
         // Direct, through a sensitive target, and through list and map elements.
         for name in ["pin", "password", "history", "by_name"] {
             assert!(
@@ -284,5 +288,23 @@ mod tests {
         ] {
             assert!(!redacted(name), "{name}");
         }
+    }
+
+    #[test]
+    fn every_member_of_a_sensitive_owner_is_redacted() {
+        use crucible_smithy::{Capabilities, Feature, Model, ShapeId};
+        let service = Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/client-docs.json"
+        ))
+        .unwrap()
+        .lower_with_capabilities(None, &Capabilities::new([Feature::IntEnum]))
+        .unwrap();
+        let id: ShapeId = "example.vault#Secret".parse().unwrap();
+        let Some(Shape::Structure(secret)) = service.shape(&id) else {
+            panic!("structure")
+        };
+        let name = secret.member("name").unwrap();
+        assert!(!is_redacted(&service, false, name));
+        assert!(is_redacted(&service, true, name));
     }
 }
