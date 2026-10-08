@@ -110,6 +110,7 @@ pub mod legacy {
     pub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {
         id: "example.legacy#Legacy",
         version: "1",
+        cors: None,
         operations: &[
             &SET_COLOR_OPERATION,
         ],
