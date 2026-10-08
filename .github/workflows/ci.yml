@@ -25,11 +25,14 @@ env:
   CARGO_PROFILE_DEV_DEBUG: '0'
   CARGO_PROFILE_TEST_DEBUG: '0'
 
+# Linux jobs run on GitHub-hosted runners unless the repository variables
+# LINUX_RUNNER / LINUX_RUNNER_2204 (and LINUX_RUNNER_2404 in sdk-release.yml)
+# name another runner label, e.g. ubicloud-standard-2. Unset them to switch back.
 jobs:
   # PRs qualify affected Linux consumers; manual releases use the full matrix.
   plan:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       full: ${{ steps.select.outputs.full }}
@@ -66,7 +69,7 @@ jobs:
   qualification-tools:
     needs: plan
     if: needs.plan.outputs.rust == 'true' && needs.plan.outputs.full == 'true'
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -94,7 +97,7 @@ jobs:
   service-cli:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.service_cli == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && (vars.LINUX_RUNNER || 'ubuntu-latest') || matrix.os }}
     timeout-minutes: 30
     strategy:
       matrix:
@@ -117,7 +120,7 @@ jobs:
   cdk:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.cdk == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -143,7 +146,7 @@ jobs:
   terraform:
     needs: [plan, rust]
     if: needs.plan.outputs.terraform == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -173,7 +176,7 @@ jobs:
   c-linux:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.c == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -195,7 +198,7 @@ jobs:
   r:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.r == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}
     timeout-minutes: 40
     strategy:
       matrix:
@@ -222,7 +225,7 @@ jobs:
   cpp-linux:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.cpp == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-22.04
+    runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -318,7 +321,7 @@ jobs:
   ruby:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.ruby == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -339,7 +342,7 @@ jobs:
   php:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.php == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -364,7 +367,7 @@ jobs:
   dart:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.dart == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       matrix:
@@ -385,7 +388,7 @@ jobs:
   swift-linux:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.swift == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     container: swift:6.0.3-jammy
     steps:
@@ -421,7 +424,7 @@ jobs:
   kotlin:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.kotlin == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -443,7 +446,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.full == 'true' && '[{"os":"ubuntu-latest","flags":""},{"os":"macos-14","flags":"--native"},{"os":"windows-latest","flags":"--native"}]' || '[{"os":"ubuntu-latest","flags":""}]') }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && (vars.LINUX_RUNNER || 'ubuntu-latest') || matrix.os }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -497,6 +500,7 @@ jobs:
   kotlin-android:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.kotlin == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true') && needs.plan.outputs.full == 'true'
+    # The emulator needs KVM, which only GitHub-hosted runners are known to expose.
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -533,7 +537,7 @@ jobs:
   csharp:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.csharp == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -551,7 +555,7 @@ jobs:
   java:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.java == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -574,7 +578,7 @@ jobs:
   go:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.go == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -592,7 +596,7 @@ jobs:
   python:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.python == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -611,7 +615,7 @@ jobs:
   rust:
     needs: plan
     if: needs.plan.outputs.rust == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     env:
       CRUCIBLE_TEST_TARGET_DIR: ${{ github.workspace }}/target/consumer-tests
@@ -668,7 +672,7 @@ jobs:
   typescript:
     needs: [plan, rust, qualification-tools]
     if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.typescript == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -689,7 +693,7 @@ jobs:
   docs-site:
     needs: [plan, rust]
     if: needs.plan.outputs.docs_site == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -703,7 +707,7 @@ jobs:
   e2e:
     needs: [plan, rust]
     if: needs.plan.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -727,7 +731,7 @@ jobs:
   consumers:
     needs: [plan, rust]
     if: needs.plan.outputs.consumers == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -743,7 +747,7 @@ jobs:
   editor:
     needs: [plan, rust]
     if: needs.plan.outputs.editor == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -777,7 +781,7 @@ jobs:
   onboarding:
     needs: [plan, rust]
     if: needs.plan.outputs.onboarding == 'true'
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && (vars.LINUX_RUNNER || 'ubuntu-latest') || matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -804,7 +808,7 @@ jobs:
   ci:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, docs-site, e2e, consumers, onboarding, editor]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Check selected jobs
