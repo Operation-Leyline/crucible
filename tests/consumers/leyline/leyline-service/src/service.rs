@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crucible_auth::{Authenticator, AuthenticatorChain};
+use crucible_auth::{Authenticator, AuthenticatorChain, ScopeEnforcer};
 use crucible_server_runtime_rust::{Crucible, InvokeProtocol, JsonProtocol};
 
 use crate::leyline::{self, AccessDeniedException};
-use crate::{Audit, Leyline, RequestTag, RequireScopes, TenantGate};
+use crate::{Audit, Leyline, RequestTag, TenantGate};
 
 /// The service over a configured set of authenticators (JWT verification in
 /// production, a test issuer in tests) and an audit trail.
@@ -21,10 +21,7 @@ pub fn service(authenticators: Vec<Arc<dyn Authenticator>>, audit: Audit) -> Cru
         .middleware(RequestTag)
         .operation_middleware(TenantGate)
         .operation_middleware(chain)
-        .interceptor(RequireScopes::new([
-            ("GetGraph", "graphs:read"),
-            ("CreateGraph", "graphs:write"),
-        ]))
+        .interceptor(ScopeEnforcer::strict())
         .interceptor(audit)
         .protocol(JsonProtocol)
         // Direct Lambda invokes: `{"operation": .., "input": ..}`.

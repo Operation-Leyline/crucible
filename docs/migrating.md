@@ -16,6 +16,24 @@ tag.
 | 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
 | 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
 
+## 0.4.0 to the next release (unreleased)
+
+The [CHANGELOG](../CHANGELOG.md#unreleased) *Unreleased* section is the
+authority until the version is tagged.
+
+Operation registration: `OperationsBuilder::add` takes the implementation's
+async fn directly and boxes its future once. Generated code is updated; only
+hand-written registrations change.
+
+```rust
+// 0.4
+.add::<GetCity, _>(imp, |s, input| Box::pin(async move { s.get_city(input).await }))
+// next
+.add::<GetCity, _, _>(imp, |s, input| async move { s.get_city(input).await })
+```
+
+The `Call` alias is removed.
+
 ## 0.3.0 to 0.4.0
 
 Imports: generated Rust SDKs expose models and modeled exceptions beside the

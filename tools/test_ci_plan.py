@@ -123,6 +123,8 @@ class PlanTests(unittest.TestCase):
             "crates/crucible-build/src/lib.rs", "crates/crucible-server-runtime-rust/src/host.rs",
             "crates/crucible-wire/src/error.rs", "crates/crucible-codegen-rust/src/lib.rs",
             "crates/crucible-auth/src/principal.rs", "smithy/crucible.smithy",
+            # The Leyline SDK consumer pins this runtime through `runtime_path`.
+            "crates/crucible-client-runtime-rust/src/lib.rs",
             "tests/consumers/leyline/leyline-service/src/lib.rs", "tools/test-consumers.py",
         ):
             with self.subTest(path=path):
@@ -130,7 +132,7 @@ class PlanTests(unittest.TestCase):
         # Unrelated generators, docs and the TypeScript runtime stay out.
         for path in (
             "crates/crucible-codegen-python/src/lib.rs", "crates/crucible-codegen-ts/src/lib.rs",
-            "crates/crucible-smithy/src/ir.rs", "crates/crucible-client-runtime-rust/src/lib.rs",
+            "crates/crucible-smithy/src/ir.rs",
             "docs/releases.md", "CHANGELOG.md", "e2e/weather-service/src/main.rs",
         ):
             with self.subTest(path=path):
@@ -182,11 +184,11 @@ class PlanTests(unittest.TestCase):
 
     def test_rust_client_still_qualifies_generated_cli(self):
         self.assertEqual(affected_groups(["crates/crucible-client-runtime-rust/src/transport.rs"]),
-                         {"rust", "e2e", "service_cli"})
+                         {"rust", "e2e", "service_cli", "consumers"})
         self.assertEqual(affected_groups([
             "crates/crucible-client/src/transport.rs",
             "crates/crucible-client-runtime-rust/src/transport.rs",
-        ]), {"rust", "e2e", "service_cli"})
+        ]), {"rust", "e2e", "service_cli", "consumers"})
         self.assertEqual(affected_groups(["crates/crucible-cli-runtime/src/output.rs"]),
                          {"rust", "service_cli"})
 

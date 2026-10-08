@@ -27,7 +27,8 @@ On a shared machine, use your own `CARGO_TARGET_DIR` and a low
 
 Stability: the policy for 0.x is in `docs/releases.md`. A change to the
 documented stable surface needs a `CHANGELOG.md` entry (and a `Migration`
-entry plus a one-minor `#[deprecated]` shim for a breaking one); everything
+entry plus a one-minor `#[deprecated]` shim for a breaking one; a removal may
+skip the shim only when its `Migration` entry names it); everything
 under `__generated`/`__private` and per-language `Options` structs is exempt.
 `tests/consumers/` builds the surface the way real services use it: keep it
 compiling rather than editing it to pass, unless the policy allows the break.

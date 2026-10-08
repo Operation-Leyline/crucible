@@ -2,6 +2,7 @@ $version: "2"
 
 namespace example.leyline
 
+use crucible.auth#scopes
 use crucible.errors#InternalServerException
 use crucible.errors#UnknownOperationException
 use crucible.errors#ValidationException
@@ -26,6 +27,7 @@ operation Health {
 }
 
 /// Read a graph. Requires the `graphs:read` scope.
+@scopes(["graphs:read"])
 @http(method: "GET", uri: "/graphs/{graphId}", code: 200)
 operation GetGraph {
     input: GetGraphInput
@@ -34,6 +36,7 @@ operation GetGraph {
 }
 
 /// Create a graph. Requires the `graphs:write` scope.
+@scopes(["graphs:write"])
 @http(method: "POST", uri: "/graphs", code: 201)
 operation CreateGraph {
     input: CreateGraphInput

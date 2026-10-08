@@ -27,7 +27,7 @@ SDK_GROUPS = MODEL_GROUPS | {"java", "cdk", "terraform", "service_cli"}
 # whose public API or generated shape those consumers use, and always at release.
 CONSUMER_CRATES = frozenset({
     "crucible-build", "crucible-server-runtime-rust", "crucible-wire",
-    "crucible-codegen-rust", "crucible-auth",
+    "crucible-codegen-rust", "crucible-auth", "crucible-client-runtime-rust",
 })
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.

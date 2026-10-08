@@ -135,8 +135,9 @@ contains a model package, a service, and a Rust client tested over HTTP.
 Crucible is `0.x`; see the [CHANGELOG](CHANGELOG.md) and the
 [migration guide](docs/migrating.md) before updating a service's runtime and
 generator pins. A minor release may break the documented stable surface only
-with a Migration entry and a one-minor `#[deprecated]` shim; patch releases
-never do ([stability policy](docs/releases.md#stability-policy-for-0x)).
+with a Migration entry and a one-minor `#[deprecated]` shim (a removal may skip
+the shim only when its Migration entry names it); patch releases never break it
+([stability policy](docs/releases.md#stability-policy-for-0x)).
 
 See [design and protocol](docs/design.md) for the Smithy-to-IR pipeline and
 wire rules, and [agent instructions](AGENTS.md) for repository boundaries and

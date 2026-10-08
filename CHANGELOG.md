@@ -3,8 +3,9 @@
 All notable changes to Crucible are recorded here, following
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Crucible is `0.x`:
 a minor release may break the documented stable surface only with a
-**Migration** entry and a `#[deprecated]` shim kept for one minor; a patch
-release never breaks it. See the
+**Migration** entry and a `#[deprecated]` shim kept for one minor (a removal
+may skip the shim only when its Migration entry names it); a patch release
+never breaks it. See the
 [stability policy](docs/releases.md#stability-policy-for-0x). Step-by-step
 upgrade instructions live in [docs/migrating.md](docs/migrating.md).
 
@@ -19,6 +20,58 @@ version's section when it is prepared.
 - Stability policy for 0.x, this changelog, `docs/migrating.md`, the
   `consumers` CI job (starter, example service and a Leyline-shaped fixture)
   and a release gate that runs it before a tag is created.
+- Model Context Protocol: `.mcp()` generates static tool descriptors and
+  `Builder::mcp(McpProtocol::new(service::MCP_TOOLS))` serves stateless MCP
+  Streamable HTTP through the normal pipeline (#175).
+- Smithy `@examples` is validated and lowered into the IR, and OpenAPI output
+  emits native `examples` (#176). Invalid examples are now diagnostics.
+- `crucible.auth#scopes` model-declared OAuth scopes, `Operation::SCOPES`
+  metadata, the opt-in `crucible_auth::ScopeEnforcer` interceptor and
+  scope-aware bearer challenges (#178).
+- `@deprecated`, `@since`, `@unstable` and `@externalDocumentation` are lowered
+  into the IR and rendered by every native generator and OpenAPI (#179).
+- `crucible_build::model(source)`: one entry point for Smithy directories, JSON
+  ASTs and model dependencies, with `ServerOutput`, `ClientOutput`, publication
+  and named outputs hanging off it (#181).
+- A hidden `__generated` boundary for generated Rust and `check_abi!`, so a
+  `crucible-build` and runtime version mismatch fails with a named compile
+  error; the stable runtime surface is documented in `docs/stability.md`
+  (#182).
+
+### Changed
+
+- The server serves HTTP on hyper directly and dispatches with fewer
+  allocations; `Crucible` implements `tower::Service` and `http_on_until`
+  accepts a caller's shutdown signal (#177).
+- **Breaking:** `OperationsBuilder::add::<Op, S>(impl, |s, input| Box::pin(..))`
+  becomes `add::<Op, S, _>(impl, |s, input| async move { .. })`, and the `Call`
+  alias is removed. Generated code is updated; see *Migration* (#177).
+- **Breaking:** direct client bindings are written to `crucible_client.rs`;
+  `include_client!()` follows (#181).
+- Selected metadata enums, structs, logging records and `BuildError` are
+  `#[non_exhaustive]`; the traits package and model JAR take the workspace
+  version and `smithy/version.txt` is gone (#182).
+
+### Deprecated
+
+- `crucible_build::smithy`, `model_from_json`, `rust_service_from_smithy`,
+  `client`, `client_from_smithy`, `publish_model`, `RustCodegen`,
+  `ModelBuilder` and the `outputs` namespace, since 0.5.0; use
+  `crucible_build::model(..)` (#181).
+
+### Removed
+
+- The duplicate `crucible_build::clients` namespace; `Audience` is only
+  `crucible_build::Audience` (#181).
+
+### Migration
+
+- Hand-written operation registrations: pass the async fn directly to `add`
+  and drop `Box::pin` (#177).
+- Build scripts: replace the deprecated helpers with
+  `crucible_build::model(..).server()|client()|publish()` (#181).
+- Generated code is no longer compatible across Crucible versions: keep
+  `crucible-build` and both runtime crates on the same version (#182).
 
 ## [0.4.0] - 2026-10-08
 
