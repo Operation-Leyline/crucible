@@ -84,6 +84,28 @@ fn malformed_legacy_enums_are_diagnostics_instead_of_panics_or_plain_strings() {
 }
 
 #[test]
+fn duplicate_legacy_enum_names_and_values_collect_shape_diagnostics() {
+    let model = Model::from_json(include_str!("fixtures/legacy-enum-duplicates.json")).unwrap();
+    for result in [model.lower(None), model.lower_infrastructure(None)] {
+        let Error::Unsupported(diagnostics) = result.unwrap_err() else {
+            panic!("unsupported")
+        };
+        assert_eq!(diagnostics.len(), 4, "{diagnostics}");
+        for (index, field) in [(1, "name"), (2, "value"), (3, "name"), (3, "value")] {
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.shape == ShapeId::new("example.legacy", "Color")
+                        && diagnostic
+                            .message
+                            .contains(&format!("definition {index} duplicates {field}"))
+                }),
+                "missing duplicate {field} at definition {index}: {diagnostics}"
+            );
+        }
+    }
+}
+
+#[test]
 fn ignored_behavior_traits_collect_shape_diagnostics_for_sdk_and_infrastructure() {
     let model = Model::from_json(include_str!("fixtures/silent-traits.json")).unwrap();
     for result in [model.lower(None), model.lower_infrastructure(None)] {

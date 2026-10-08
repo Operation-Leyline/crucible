@@ -1495,6 +1495,8 @@ impl<'m> Lowerer<'m> {
             return Vec::new();
         };
         let mut values = Vec::new();
+        let mut names = BTreeSet::new();
+        let mut wire_values = BTreeSet::new();
         for (index, definition) in definitions.iter().enumerate() {
             let name = definition.get("name").and_then(Value::as_str);
             let value = definition.get("value").and_then(Value::as_str);
@@ -1508,6 +1510,18 @@ impl<'m> Lowerer<'m> {
                 );
             }
             if let (Some(name), Some(value)) = (name, value) {
+                if !names.insert(name) {
+                    self.diagnostics.push(
+                        id,
+                        format!("@smithy.api#enum definition {index} duplicates name {name:?}"),
+                    );
+                }
+                if !wire_values.insert(value) {
+                    self.diagnostics.push(
+                        id,
+                        format!("@smithy.api#enum definition {index} duplicates value {value:?}"),
+                    );
+                }
                 // The enum IR carries docs; deprecated and tags remain in the shape's raw trait.
                 values.push(EnumValue {
                     name: name.to_owned(),
