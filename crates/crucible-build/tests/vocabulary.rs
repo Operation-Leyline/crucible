@@ -171,7 +171,14 @@ fn vocabulary_probe() {
             m.rust_client("rust").generate();
             #[cfg(feature = "ts")]
             m.ts_client("ts").generate();
+            let index =
+                PathBuf::from(std::env::var_os("OUT_DIR").unwrap()).join("crucible-artifacts.json");
+            let artifacts = fs::read(&index).unwrap();
+            m.publish();
+            assert_eq!(artifacts, fs::read(&index).unwrap());
             let compiled = m.compile_with(|_, _| panic!("cached model must not compile twice"));
+            compiled.publish();
+            assert_eq!(artifacts, fs::read(&index).unwrap());
             assert_eq!(server, compiled.server().strict_inputs().render().unwrap());
             fs::write("smithy/hello.smithy", SOURCE).unwrap();
             assert_eq!(

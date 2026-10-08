@@ -19,7 +19,7 @@
 //! SDK and import its client and runtime API, without an inclusion macro.
 //! Java generation emits Gradle and Maven metadata. Build native exports with
 //! Cargo, Gradle or Maven; generation does not publish them to remote registries.
-//! A separate SDK producer can use [`model_dependency`] without recompiling
+//! A separate SDK producer can use `model("<links>")` without recompiling
 //! Smithy. `.generate()` keeps artifacts under OUT_DIR for explicit export with
 //! `crucible export-artifact`. `.generate_into()` also publishes a stable native
 //! package path and watches its generated files so deleted exports regenerate.
@@ -59,7 +59,7 @@
 //! fn main() { crucible_build::model("smithy").publish(); }
 //! ```
 //!
-//! For a precompiled AST, use `publish_model("model/model.json")` instead.
+//! For a precompiled AST, use `model("model/model.json").publish()`.
 //!
 //! A **service package** depends on the model package and generates the code
 //! that plugs it into crucible:
@@ -382,6 +382,11 @@ pub fn artifact(links: &str, name: &str) -> Artifact {
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).publish()")]
 pub fn publish_model(path: impl AsRef<Path>) {
     Model::from_json(path).publish();
+}
+
+fn publish_path(path: &Path) {
+    println!("cargo::rerun-if-changed={}", path.display());
+    println!("cargo::metadata=model={}", path.display());
 }
 
 /// From a service package's `build.rs`: generates the server side from the

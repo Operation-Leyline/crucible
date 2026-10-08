@@ -103,8 +103,18 @@ impl Model {
             self.package();
         }
         let path = self.path();
-        println!("cargo::rerun-if-changed={}", path.display());
-        println!("cargo::metadata=model={}", path.display());
+        if self.package.get().is_none()
+            && let Some(output) = std::env::var_os("OUT_DIR")
+        {
+            // Cargo reuses OUT_DIR: AST-only builds must retire previous SDK outputs.
+            // Keep outputs already produced by this handle without lowering just to publish.
+            crate::artifact_index::write(
+                &PathBuf::from(output).join("crucible-artifacts.json"),
+                &std::collections::BTreeMap::new(),
+            )
+            .unwrap_or_else(|error| panic!("crucible: {error}"));
+        }
+        crate::publish_path(path);
     }
 
     /// Generate Rust server bindings inside the consuming crate.

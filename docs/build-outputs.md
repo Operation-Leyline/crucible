@@ -116,6 +116,8 @@ fn main() {
 
 `compile()` assembles and lowers the model once. `publish()` exposes the compiled
 `model.json` through Cargo metadata. Generation writes artifacts under `OUT_DIR/outputs/<name>` and records them in `crucible-artifacts.json`.
+Publishing without named outputs clears registrations from earlier builds. Publishing
+after generation on the same model handle preserves its current registrations.
 `generate_into` also exports the artifact to a stable path relative to the build
 script's Cargo manifest. Cargo watches model inputs and exported generated files;
 edits to the model or deletion of an export trigger regeneration. Native build
@@ -132,8 +134,7 @@ To apply project conventions before publication and generation, use
 your policy file. `.named("example.weather#Weather")` selects a service;
 `.protocol("aws.protocols#restJson1")` selects a declared protocol. See
 [API policy and compatibility](api-policy.md) for policy and CI comparisons.
-For an already compiled AST, use `model_from_json("model.json")` instead of
-`smithy("model")`.
+For an already compiled AST, use `model("model.json")`.
 
 ### Selecting an API audience
 
@@ -384,8 +385,8 @@ model.output("rust-bindings", Server::Rust(RustServerOptions::default()).into())
 ```
 
 The artifact target is `rust-server`, containing `crucible_service.rs`. For a
-normal Rust service, prefer `rust_service` or `rust_service_from_smithy` in its
-own build script: those helpers connect directly to `include_service!()`.
+normal Rust service, use `model(..).server()` in its own build script to
+connect directly to `include_service!()`.
 
 ## Generating in a separate SDK package
 

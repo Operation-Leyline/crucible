@@ -81,7 +81,7 @@ fn package_probe() {
         return;
     }
     if mode == "empty" {
-        let package = crucible_build::model("model.json").compile();
+        let package = crucible_build::model("model.json");
         package.publish();
         let index: serde_json::Value =
             serde_json::from_slice(&fs::read(out.join("crucible-artifacts.json")).unwrap())

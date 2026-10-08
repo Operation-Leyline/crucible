@@ -82,7 +82,7 @@ impl ModelPackage {
 
     /// Publish the compiled AST through this package's Cargo `links` metadata.
     pub fn publish(&self) {
-        crate::model(&self.model).publish();
+        crate::publish_path(&self.model);
     }
 
     /// Generate server bindings from an explicitly compiled model.
