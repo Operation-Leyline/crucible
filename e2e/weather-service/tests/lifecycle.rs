@@ -62,7 +62,7 @@ impl Operation for Probe {
 }
 fn operations() -> crucible_server_runtime_rust::Operations {
     crucible_server_runtime_rust::Operations::builder(&SERVICE)
-        .add::<Probe, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Probe, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .build()
         .unwrap()
 }

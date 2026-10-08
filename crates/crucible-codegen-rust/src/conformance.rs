@@ -546,7 +546,7 @@ impl<'a> Generator<'a> {
             let marker = format!("{module}::{}", operation.name());
             writeln!(
                 out,
-                "        .add::<{marker}, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<{marker}>)"
+                "        .add::<{marker}, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<{marker}>)"
             )
             .unwrap();
         }

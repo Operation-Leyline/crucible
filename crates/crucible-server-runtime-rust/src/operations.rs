@@ -17,9 +17,6 @@ use crate::validate::{Rejection, Validator};
 
 pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
-/// How a registration calls an implementation: generated, one per operation.
-pub type Call<S, I, O> = fn(Arc<S>, I) -> BoxFuture<Result<O>>;
-
 pub(crate) type Invoke =
     Arc<dyn Fn(Box<dyn Input>) -> BoxFuture<Result<Box<dyn Output>>> + Send + Sync>;
 type Decode = fn(Value) -> std::result::Result<Box<dyn Input>, Rejection>;
@@ -110,20 +107,32 @@ pub struct OperationsBuilder {
 impl OperationsBuilder {
     /// Registers `O`, served by `call` on `implementation`. Generated code
     /// calls this; a service registers through the generated setters.
-    pub fn add<O, S>(mut self, implementation: Arc<S>, call: Call<S, O::Input, O::Output>) -> Self
+    ///
+    /// `call` returns the implementation's future as it is; the framework
+    /// boxes it once, together with turning its output into the response.
+    pub fn add<O, S, Fut>(
+        mut self,
+        implementation: Arc<S>,
+        call: impl Fn(Arc<S>, O::Input) -> Fut + Send + Sync + 'static,
+    ) -> Self
     where
         O: Operation,
         S: Send + Sync + 'static,
+        Fut: Future<Output = Result<O::Output>> + Send + 'static,
     {
         let invoke: Invoke = Arc::new(move |input: Box<dyn Input>| {
-            let implementation = implementation.clone();
-            Box::pin(async move {
-                let input = input.into_any().downcast::<O::Input>().map_err(|_| {
-                    Error::internal(format!("{}: input of the wrong type", O::INFO.name))
-                })?;
-                let output = call(implementation, *input).await?;
-                Ok(Box::new(StreamingOutput::<O>(output)) as Box<dyn Output>)
-            })
+            let input = match input.into_any().downcast::<O::Input>() {
+                Ok(input) => *input,
+                Err(_) => {
+                    let error =
+                        Error::internal(format!("{}: input of the wrong type", O::INFO.name));
+                    return Box::pin(std::future::ready(Err(error)));
+                }
+            };
+            let output = call(implementation.clone(), input);
+            Box::pin(
+                async move { Ok(Box::new(StreamingOutput::<O>(output.await?)) as Box<dyn Output>) },
+            )
         });
         self.operations.entries.insert(
             O::INFO.name,

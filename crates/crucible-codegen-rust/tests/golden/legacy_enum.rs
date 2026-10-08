@@ -129,7 +129,7 @@ pub mod legacy {
     impl OperationsBuilder {
         /// Serves SetColor with `implementation`.
         pub fn set_color<S: SetColorOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<SetColor, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.set_color(input).await })))
+            Self(self.0.add::<SetColor, S, _>(implementation, |implementation, input| async move { implementation.set_color(input).await }))
         }
 
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::Operations, ::crucible_server_runtime_rust::MissingOperations> {

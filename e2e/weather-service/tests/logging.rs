@@ -144,8 +144,8 @@ fn exact_query_values_outrank_any_value_matches() {
 
     // Echo sorts before Other, so a tie would incorrectly select Echo.
     let operations = crucible_server_runtime_rust::Operations::builder(&api::SERVICE)
-        .add::<AnyMode, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
-        .add::<api::Other, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<AnyMode, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<api::Other, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .build()
         .unwrap();
     for (uri, expected) in [
@@ -224,8 +224,8 @@ impl Operation for BrokenEcho {
 async fn serialization_faults_are_logged_after_writing_and_scopes_still_apply() {
     let records = Records::default();
     let operations = crucible_server_runtime_rust::Operations::builder(&api::SERVICE)
-        .add::<BrokenEcho, _>(Arc::new(()), |_, _| Box::pin(async { Ok(BrokenOutput) }))
-        .add::<api::Other, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<BrokenEcho, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(BrokenOutput) }))
+        .add::<api::Other, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .build()
         .unwrap();
     let service = Crucible::builder(operations)

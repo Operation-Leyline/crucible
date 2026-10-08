@@ -6,13 +6,13 @@ use ::crucible_server_runtime_rust::conformance::{ParamMember, ParamShape};
 #[allow(clippy::all)]
 fn __conformance_build(stub: ::std::sync::Arc<::crucible_server_runtime_rust::conformance::Stub>) -> ::crucible_server_runtime_rust::Crucible {
     let operations = ::crucible_server_runtime_rust::Operations::builder(&crate::weather::SERVICE)
-        .add::<crate::weather::CreateCity, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::CreateCity>)
-        .add::<crate::weather::GetCity, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::GetCity>)
-        .add::<crate::weather::GetCityPhoto, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::GetCityPhoto>)
-        .add::<crate::weather::ListCities, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::ListCities>)
-        .add::<crate::weather::Ping, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::Ping>)
-        .add::<crate::weather::PutCityPhoto, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::PutCityPhoto>)
-        .add::<crate::weather::Status, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::Status>)
+        .add::<crate::weather::CreateCity, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::CreateCity>)
+        .add::<crate::weather::GetCity, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::GetCity>)
+        .add::<crate::weather::GetCityPhoto, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::GetCityPhoto>)
+        .add::<crate::weather::ListCities, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::ListCities>)
+        .add::<crate::weather::Ping, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::Ping>)
+        .add::<crate::weather::PutCityPhoto, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::PutCityPhoto>)
+        .add::<crate::weather::Status, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::Status>)
         .build()
         .expect("every operation is registered");
     __conformance_configure(::crucible_server_runtime_rust::Crucible::builder(operations).defaults())

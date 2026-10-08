@@ -163,7 +163,7 @@ static SERVICE: ServiceInfo = ServiceInfo {
 
 fn service(calls: Arc<AtomicUsize>) -> Crucible {
     let operations = Operations::builder(&SERVICE)
-        .add::<Bindings, _>(calls, |calls, input| {
+        .add::<Bindings, _, _>(calls, |calls, input| {
             Box::pin(async move {
                 calls.fetch_add(1, Ordering::SeqCst);
                 Ok(json!({"observed": input}))
@@ -384,12 +384,12 @@ static ROUTES: ServiceInfo = ServiceInfo {
 
 fn route_operations() -> Operations {
     Operations::builder(&ROUTES)
-        .add::<Early, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<Late, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<Regular, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<Greedy, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<Flag, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<Exact, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Early, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Late, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Regular, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Greedy, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Flag, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Exact, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .build()
         .unwrap()
 }
@@ -465,8 +465,8 @@ fn explicit_head_routes_take_precedence_over_get_fallback() {
     route_operation!(Get, GET);
     route_operation!(Head, HEAD);
     let operations = Operations::builder(&SERVICE)
-        .add::<Get, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<Head, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Get, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Head, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .build()
         .unwrap();
     let (parts, _) = Request::head("/head").body(()).unwrap().into_parts();
@@ -905,9 +905,9 @@ fn malformed_literal_fallback_keeps_path_specificity_ahead_of_query_preference()
     route_operation!(Generic, GENERIC);
     route_operation!(UnconstrainedGreedy, UNCONSTRAINED_GREEDY);
     let operations = Operations::builder(&SERVICE)
-        .add::<Specific, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<Generic, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<UnconstrainedGreedy, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Specific, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Generic, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<UnconstrainedGreedy, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .build()
         .unwrap();
     for (uri, expected) in [

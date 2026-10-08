@@ -934,37 +934,37 @@ pub mod weather {
     impl OperationsBuilder {
         /// Serves CreateCity with `implementation`.
         pub fn create_city<S: CreateCityOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<CreateCity, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.create_city(input).await })))
+            Self(self.0.add::<CreateCity, S, _>(implementation, |implementation, input| async move { implementation.create_city(input).await }))
         }
 
         /// Serves GetCity with `implementation`.
         pub fn get_city<S: GetCityOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<GetCity, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.get_city(input).await })))
+            Self(self.0.add::<GetCity, S, _>(implementation, |implementation, input| async move { implementation.get_city(input).await }))
         }
 
         /// Serves GetCityPhoto with `implementation`.
         pub fn get_city_photo<S: GetCityPhotoOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<GetCityPhoto, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.get_city_photo(input).await })))
+            Self(self.0.add::<GetCityPhoto, S, _>(implementation, |implementation, input| async move { implementation.get_city_photo(input).await }))
         }
 
         /// Serves ListCities with `implementation`.
         pub fn list_cities<S: ListCitiesOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<ListCities, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.list_cities(input).await })))
+            Self(self.0.add::<ListCities, S, _>(implementation, |implementation, input| async move { implementation.list_cities(input).await }))
         }
 
         /// Serves Ping with `implementation`.
         pub fn ping<S: PingOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Ping, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.ping().await })))
+            Self(self.0.add::<Ping, S, _>(implementation, |implementation, _| async move { implementation.ping().await }))
         }
 
         /// Serves PutCityPhoto with `implementation`.
         pub fn put_city_photo<S: PutCityPhotoOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<PutCityPhoto, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.put_city_photo(input).await })))
+            Self(self.0.add::<PutCityPhoto, S, _>(implementation, |implementation, input| async move { implementation.put_city_photo(input).await }))
         }
 
         /// Serves Status with `implementation`.
         pub fn status<S: StatusOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Status, S>(implementation, |implementation, input| ::std::boxed::Box::pin(async move { implementation.status(input).await })))
+            Self(self.0.add::<Status, S, _>(implementation, |implementation, input| async move { implementation.status(input).await }))
         }
 
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::Operations, ::crucible_server_runtime_rust::MissingOperations> {

@@ -72,7 +72,7 @@ impl Operation for Probe {
 }
 fn operations(events: &Events) -> Operations {
     Operations::builder(&SERVICE)
-        .add::<Probe, _>(events.clone(), |events, input| {
+        .add::<Probe, _, _>(events.clone(), |events, input| {
             Box::pin(async move {
                 record(&events, "operation");
                 if input.value == 13 {

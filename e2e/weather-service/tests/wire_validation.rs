@@ -298,17 +298,17 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
         (header, prefix)
     };
     let operations = crucible_server_runtime_rust::Operations::builder(&SERVICE)
-        .add::<BodyOnly, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
-        .add::<Bound, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
-        .add::<Required, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<RequiredBound, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
-        .add::<Queries, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
-        .add::<Text, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
-        .add::<Document, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
-        .add::<Blob, _>(Arc::new(()), |_, input| {
+        .add::<BodyOnly, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<Bound, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<Required, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<RequiredBound, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Queries, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<Text, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<Document, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<Blob, _, _>(Arc::new(()), |_, input| {
             Box::pin(async move { Ok(json!({"body": input.body.as_ref()})) })
         })
-        .add::<Headers, _>(Arc::new((headers, mode)), |state, _| {
+        .add::<Headers, _, _>(Arc::new((headers, mode)), |state, _| {
             Box::pin(async move {
                 let (header, prefix) = (state.0)();
                 if crucible_server_runtime_rust::Context::current()
@@ -329,7 +329,7 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
                 })
             })
         })
-        .add::<Stream, _>(Arc::new(headers), |headers, _| {
+        .add::<Stream, _, _>(Arc::new(headers), |headers, _| {
             Box::pin(async move {
                 let (header, prefix) = headers();
                 Ok(StreamOutput {

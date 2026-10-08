@@ -143,7 +143,7 @@ const BYTES: &[u8] = &[0xff, 0, 1];
 fn builder(calls: Arc<Calls>) -> crucible_server_runtime_rust::Builder {
     let downloads = calls.clone();
     let operations = crucible_server_runtime_rust::Operations::builder(&SERVICE)
-        .add::<Upload, _>(calls, |calls, input| {
+        .add::<Upload, _, _>(calls, |calls, input| {
             Box::pin(async move {
                 calls.uploads.fetch_add(1, Ordering::SeqCst);
                 assert_eq!(input.tag, "ordinary field");
@@ -152,7 +152,7 @@ fn builder(calls: Arc<Calls>) -> crucible_server_runtime_rust::Builder {
                 Ok(())
             })
         })
-        .add::<Download, _>(downloads, |calls, _| {
+        .add::<Download, _, _>(downloads, |calls, _| {
             Box::pin(async move {
                 calls.downloads.fetch_add(1, Ordering::SeqCst);
                 Ok(StreamOutput {
@@ -160,8 +160,8 @@ fn builder(calls: Arc<Calls>) -> crucible_server_runtime_rust::Builder {
                 })
             })
         })
-        .add::<Broken, _>(Arc::new(()), |_, _| Box::pin(async { Ok(BrokenOutput) }))
-        .add::<Fault, _>(Arc::new(()), |_, _| {
+        .add::<Broken, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(BrokenOutput) }))
+        .add::<Fault, _, _>(Arc::new(()), |_, _| {
             Box::pin(async {
                 Err(weather::ConflictError {
                     message: "modelled conflict".into(),
