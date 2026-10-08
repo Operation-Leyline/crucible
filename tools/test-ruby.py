@@ -33,6 +33,14 @@ def qualify(output):
         run(RUBY, "-I", str(package / "lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/proxy.rb"),
             env=dict(os.environ, http_proxy=fixture_url, https_proxy=fixture_url, HTTP_PROXY=fixture_url,
                      HTTPS_PROXY=fixture_url, NO_PROXY="", no_proxy=""))
+    # String representations must hide sensitive members from every inspection path.
+    vault = output / "vault"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json"), "--out", str(vault),
+        "--package-name", "vault_client", "--module-name", "Vault")
+    for source in sorted(vault.rglob("*.rb")):
+        run(RUBY, "-c", str(source), stdout=subprocess.DEVNULL)
+    run(RUBY, "-I", str(vault / "lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/describe.rb"))
     gem("build", "weather_client.gemspec", cwd=package)
     consumer = output / "consumer"
     default_gems = subprocess.check_output([RUBY, "-r", "rubygems", "-e", "puts Gem.default_dir"], text=True).strip()
@@ -52,7 +60,7 @@ def qualify(output):
         "example.weather#CitySummary": "String", "example.weather#Location": "Array", "example.weather#Sky": "Time",
         "example.weather#Coordinates": "ArgumentError", "example.weather#PhotoSummary": "IOError",
     }
-    for member in ["self", "context", "object", "metadata", "class", "message", "toWire"]:
+    for member in ["self", "context", "object", "metadata", "class", "message", "toWire", "describe"]:
         renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}
     renamed_model = output / "renamed.json"
     renamed_model.write_text(json.dumps(renamed), encoding="utf-8")

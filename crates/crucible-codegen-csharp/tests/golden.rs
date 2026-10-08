@@ -161,7 +161,7 @@ fn service_exception_cannot_shadow_runtime_failures() {
 
 fn docs_files() -> Vec<crucible_codegen_csharp::File> {
     let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs.json"
+        "../../crucible-smithy/tests/fixtures/client-docs-jvm.json"
     ))
     .unwrap()
     .lower(None)

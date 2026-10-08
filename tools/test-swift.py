@@ -348,6 +348,18 @@ struct Fake: VoidSDK.HTTPTransport {
     tests.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/WireTests.swift", tests / "WireTests.swift")
     swift("test", wire, scratch)
+    # String representations hide sensitive members from description, debug
+    # description and reflection alike.
+    vault = output / "vault"
+    generate(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json", vault, "Vault")
+    manifest = vault / "Package.swift"
+    manifest.write_text(manifest.read_text().replace(
+        'resources: [.process("Resources")])]',
+        'resources: [.process("Resources")]), .testTarget(name: "DescribeTests", dependencies: ["Vault"])]'))
+    tests = vault / "Tests/DescribeTests"
+    tests.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/DescribeTests.swift", tests / "DescribeTests.swift")
+    swift("test", vault, scratch)
     qualify_features(output, scratch)
     print("Swift native package, fresh consumer, conformance, and weather HTTP passed")
 

@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-/* Endpoint rule parameters and built-ins supplied by the caller. Strings are copied by
+/** Endpoint rule parameters and built-ins supplied by the caller. Strings are copied by
  * client_new. A string array uses items/count. */
 typedef enum {
     crucible_generated_endpoint_string = 0,
@@ -24,11 +24,11 @@ typedef struct {
 typedef struct {
     crucible_generated_string url;
     crucible_generated_headers headers;
-    /* A JSON object; NULL when the rule declares no properties. */
+    /** A JSON object; NULL when the rule declares no properties. */
     const crucible_generated_json *properties;
 } crucible_generated_endpoint;
 
-/* Evaluate a lowered endpoint rule set (the schema's endpointRules) with per-parameter
+/** Evaluate a lowered endpoint rule set (the schema's endpointRules) with per-parameter
  * sources, the query-model input object, client parameters and built-ins (JSON objects,
  * each may be NULL). Results live in arena. A rule error is crucible_generated_invalid
  * with the rule's message. */
@@ -36,7 +36,7 @@ crucible_generated_status crucible_generated_endpoint_resolve(crucible_generated
     const crucible_generated_json *rules, const crucible_generated_json *sources, const crucible_generated_json *input,
     const crucible_generated_json *client, const crucible_generated_json *builtins,
     crucible_generated_endpoint *endpoint, crucible_generated_error *error);
-/* One standard rules function (isSet, not, booleanEquals, stringEquals, getAttr, substring,
+/** One standard rules function (isSet, not, booleanEquals, stringEquals, getAttr, substring,
  * isValidHostLabel, parseUrl, uriEncode) over a JSON argument array. A NULL output is an
  * absent value. */
 crucible_generated_status crucible_generated_endpoint_function(crucible_generated_arena *arena,

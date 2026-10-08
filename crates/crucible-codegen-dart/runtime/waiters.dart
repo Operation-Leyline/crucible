@@ -5,9 +5,16 @@ import 'query.dart';
 
 /// A waiter reached a failure state, or a matcher could not be evaluated.
 class WaiterException implements Exception {
+  /// The waiter's name.
   final String name;
+
+  /// How many times the operation was called.
   final int attempts;
+
+  /// The last output received, if any.
   final Object? response;
+
+  /// The last error received, if any.
   final Object? error;
 
   /// The acceptor's message: a String or a List<String>, when modeled.

@@ -1,3 +1,25 @@
+#' HTTP client settings
+#' @description Total call deadlines cover retries and response reads. The default transport uses curl; a custom function receives request, read_body, and scope.
+#' @param endpoint HTTP endpoint override; absent uses the generated endpoint or modeled endpoint rules.
+#' @param token Bearer token provider invoked for each authenticated attempt.
+#' @param transport Custom HTTP transport; callbacks must respect the supplied deadline and cancellation scope.
+#' @param timeout Total call budget in seconds, including credentials, retries, backoff, and response reads.
+#' @param max_attempts Maximum attempts including the first request (default 3).
+#' @param base_delay Initial full-jitter exponential backoff bound in seconds.
+#' @param max_delay Maximum backoff bound in seconds; Retry-After can override it.
+#' @param headers Default request headers applied to every attempt.
+#' @param middleware Request transformations applied on every attempt after authentication.
+#' @param basic_auth HTTP basic authentication provider; used only for a modeled basic-auth scheme.
+#' @param api_key API key provider for the modeled header or query location.
+#' @param credentials AWS credentials provider for modeled SigV4 authentication.
+#' @param region SigV4 region and AWS::Region endpoint built-in.
+#' @param endpoint_parameters Named inputs to modeled endpoint rules.
+#' @param endpoint_builtins Endpoint-rule built-in overrides.
+#' @param disable_host_prefix Disables modeled operation host-prefix injection.
+#' @param request_checksum_calculation Computes modeled request checksums when supported or only when required.
+#' @param response_checksum_validation Validates modeled response checksums when supported or only when required.
+#' @param checksum_validated Notification after a response checksum validates.
+#' @return A validated settings list consumed by the service client constructor.
 client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeout = 30, max_attempts = 3L, base_delay = .1, max_delay = 10, headers = list(), middleware = list(),
                           basic_auth = NULL, api_key = NULL, credentials = NULL, region = NULL, endpoint_parameters = list(), endpoint_builtins = list(), disable_host_prefix = FALSE,
                           request_checksum_calculation = 'WHEN_SUPPORTED', response_checksum_validation = 'WHEN_SUPPORTED', checksum_validated = NULL) {

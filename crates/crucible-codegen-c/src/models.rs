@@ -73,7 +73,7 @@ fn member(
         .map(|v| names::view(&serde_json::to_string(v).expect("default")))
         .unwrap_or_else(|| "{NULL, 0}".into());
     format!(
-        "    {{{}, &{}, {}, {}, {}, {prefix}_{}, {fallback}}},\n",
+        "    {{{}, &{}, {}, {}, {}, {prefix}_{}, {fallback}, {}}},\n",
         names::view(&value.name),
         descriptor(service, &value.target, prefix),
         if state.is_empty() {
@@ -87,7 +87,8 @@ fn member(
             format!("offsetof({owner}, {offset})")
         },
         value.optional_on_client(),
-        format_name(service.timestamp_format(value))
+        format_name(service.timestamp_format(value)),
+        service.sensitive(value)
     )
 }
 fn kind(shape: &Shape) -> &'static str {
@@ -128,6 +129,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
     );
     for (id, shape) in &service.shapes {
         let native = native_name(service, id, p);
+        if let Some(docs) = crucible_codegen_common::documentation::shape(shape) {
+            header.push_str(&crucible_codegen_common::doxygen(docs, ""));
+        }
         if complex(shape) {
             header.push_str(&format!("typedef struct {native} {native};\n"));
         }
@@ -151,6 +155,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                     header.push_str("    unsigned char unused;\n");
                 }
                 for m in &structure.members {
+                    if let Some(docs) = &m.docs {
+                        header.push_str(&crucible_codegen_common::doxygen(docs, "    "));
+                    }
                     header.push_str(&format!(
                         "    struct {{ {p}_presence state; {} value; }} {};\n",
                         slot_type(service, &m.target, p),
@@ -161,7 +168,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 for member in &structure.members {
                     let field = names::field(&member.name);
                     let value_type = slot_type(service, &member.target, p);
-                    header.push_str(&format!("static inline void {native}_set_{field}({native} *model, {value_type} value) {{ model->{field}.value = value; model->{field}.state = {p}_present; }}\nstatic inline {value_type} {native}_get_{field}(const {native} *model) {{ {value_type} empty = {{0}}; return model->{field}.state == {p}_present ? model->{field}.value : empty; }}\nstatic inline bool {native}_has_{field}(const {native} *model) {{ return model->{field}.state == {p}_present; }}\nstatic inline void {native}_clear_{field}({native} *model) {{ model->{field}.state = {p}_absent; }}\nstatic inline void {native}_null_{field}({native} *model) {{ model->{field}.state = {p}_null; }}\n"));
+                    header.push_str(&format!("/** Sets {field} present; referenced data is borrowed. */\nstatic inline void {native}_set_{field}({native} *model, {value_type} value) {{ model->{field}.value = value; model->{field}.state = {p}_present; }}\n/** Returns the value when present, or a zero value otherwise. */\nstatic inline {value_type} {native}_get_{field}(const {native} *model) {{ {value_type} empty = {{0}}; return model->{field}.state == {p}_present ? model->{field}.value : empty; }}\n/** Tests value presence; null and absent both return false. */\nstatic inline bool {native}_has_{field}(const {native} *model) {{ return model->{field}.state == {p}_present; }}\n/** Omits this member from serialization. */\nstatic inline void {native}_clear_{field}({native} *model) {{ model->{field}.state = {p}_absent; }}\n/** Sets explicit JSON null for this member. */\nstatic inline void {native}_null_{field}({native} *model) {{ model->{field}.state = {p}_null; }}\n"));
                 }
             }
             Shape::List(list) => {
@@ -183,6 +190,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             }
             Shape::IntEnum(enumeration) => {
                 for value in &enumeration.values {
+                    if let Some(docs) = &value.docs {
+                        header.push_str(&crucible_codegen_common::doxygen(docs, ""));
+                    }
                     header.push_str(&format!(
                         "static inline {native} {native}_known_{}(void) {{ return {}; }}\n",
                         names::field(&value.name),
@@ -192,6 +202,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             }
             Shape::Enum(enumeration) => {
                 for value in &enumeration.values {
+                    if let Some(docs) = &value.docs {
+                        header.push_str(&crucible_codegen_common::doxygen(docs, ""));
+                    }
                     header.push_str(&format!("static inline {native} {native}_known_{}(void) {{ {native} result = {}; return result; }}\n", names::field(&value.name), names::view(&value.value)));
                 }
             }
@@ -209,6 +222,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                     header.push_str("        unsigned char unused;\n");
                 }
                 for m in &union.members {
+                    if let Some(docs) = &m.docs {
+                        header.push_str(&crucible_codegen_common::doxygen(docs, "        "));
+                    }
                     header.push_str(&format!(
                         "        {} {};\n",
                         slot_type(service, &m.target, p),
@@ -221,7 +237,12 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
         }
         if complex(shape) || matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
             let desc = descriptor(service, id, p);
-            header.push_str(&format!("{p}_status {native}_encode({p}_arena *arena, const {native} *value, const {p}_json **output, {p}_error *error);\n{p}_status {native}_decode({p}_arena *arena, const {p}_json *value, const {native} **output, {p}_error *error);\n"));
+            header.push_str(&format!("/** Formats a diagnostic value in arena; sensitive data is redacted. Output is assigned only on success. */\n{p}_status {native}_debug({p}_arena *arena, {} const *value, {p}_string *output, {p}_error *error);\n", native_type(service, id, p)));
+            source.push_str(&format!("{p}_status {native}_debug({p}_arena *arena, {} const *value, {p}_string *output, {p}_error *error) {{ return {p}_model_debug(arena, &{desc}, value, output, error); }}\n", native_type(service, id, p)));
+        }
+        if complex(shape) || matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
+            let desc = descriptor(service, id, p);
+            header.push_str(&format!("/** Encodes into arena-owned JSON; leaves output unchanged on failure. */\n{p}_status {native}_encode({p}_arena *arena, const {native} *value, const {p}_json **output, {p}_error *error);\n/** Decodes into arena-owned native data; applies modeled defaults. */\n{p}_status {native}_decode({p}_arena *arena, const {p}_json *value, const {native} **output, {p}_error *error);\n"));
             source.push_str(&format!("{p}_status {native}_encode({p}_arena *arena, const {native} *value, const {p}_json **output, {p}_error *error) {{\n    return {p}_model_encode(arena, &{desc}, value, output, error);\n}}\n{p}_status {native}_decode({p}_arena *arena, const {p}_json *value, const {native} **output, {p}_error *error) {{\n    const void *native;\n    {p}_status status;\n    if (!output) return {p}_model_decode(arena, &{desc}, value, NULL, error);\n    status = {p}_model_decode(arena, &{desc}, value, &native, error);\n    if (status == {p}_ok) *output = (const {native} *)native;\n    return status;\n}}\n"));
         }
     }
@@ -299,6 +320,10 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             _ => TimestampFormat::DateTime,
         };
         source.push_str(&format!("const {p}_shape {desc} = {{\n    .id = {}, .kind = {p}_kind_{}, .size = sizeof({}), .format = {p}_{},\n", names::view(&id.to_string()), kind(shape), native_type(service, id, p), format_name(timestamp_format)));
+        source.push_str(&format!(
+            "    .name = {},\n",
+            names::view(service.name_of(id))
+        ));
         if count > 0 {
             source.push_str(&format!(
                 "    .members = {desc}_members, .member_count = {count},\n"
@@ -319,6 +344,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             Shape::Map(map) => source.push_str(&format!("    .sparse = {},\n", map.sparse)),
             _ => {}
         }
+        source.push_str(&format!("    .sensitive = {},\n", shape.sensitive()));
         source.push_str("};\n");
     }
     source.push_str(&format!(

@@ -219,6 +219,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("timestamp.hpp", include_str!("../runtime/timestamp.hpp")),
         ("timestamp.cpp", include_str!("../runtime/timestamp.cpp")),
         ("types.hpp", include_str!("../runtime/types.hpp")),
+        ("debug.hpp", include_str!("../runtime/debug.hpp")),
         ("codec.hpp", include_str!("../runtime/codec.hpp")),
         ("codec.cpp", include_str!("../runtime/codec.cpp")),
         ("call_scope.hpp", include_str!("../runtime/call_scope.hpp")),

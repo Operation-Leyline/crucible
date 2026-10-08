@@ -28,6 +28,15 @@ pub fn emit(service: &Service, options: &Options, schema: &str) -> Vec<File> {
     let mut header = format!(
         "#ifndef {guard}\n#define {guard}\n#include \"models.h\"\n#include \"runtime/client_runtime.h\"\n\n#ifdef __cplusplus\nextern \"C\" {{\n#endif\n\n{p}_status {p}_client_new(const {p}_client_config *config, {p}_client **output, {p}_error *error);\n"
     );
+    let constructor = format!("{p}_status {p}_client_new");
+    let docs = crucible_codegen_common::doxygen(
+        service.docs.as_deref().unwrap_or("HTTP service client."),
+        "",
+    ) + &crucible_codegen_common::doxygen(
+        "Construct with client_defaults; free after calls and iterators finish. Concurrent calls require thread-safe callbacks and borrowed user data.",
+        "",
+    );
+    header = header.replacen(&constructor, &(docs + &constructor), 1);
     let mut source = format!(
         "#include \"{}/client.h\"\n\nstatic const {p}_string schema_chunks[] = {{\n",
         options.package_name
@@ -52,10 +61,14 @@ pub fn emit(service: &Service, options: &Options, schema: &str) -> Vec<File> {
             .map(|id| format!("const {} *input, ", models::native_type(service, id, p)))
             .unwrap_or_default();
         let input_value = if op.input.is_some() { "input" } else { "NULL" };
-        header.push_str(&format!("\n/* Zero-initialize results. Free before reuse; value borrows base.arena. */\ntypedef struct {{ {p}_result base; const {output} *value; }} {name}_result;\n{p}_status {name}({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {name}_result *result, {p}_error *error);\nvoid {name}_result_free({name}_result *result);\n"));
+        let docs = crucible_codegen_common::doxygen(
+            &crucible_codegen_common::documentation::operation(service, op),
+            "",
+        );
+        header.push_str(&format!("\n/** Zero-initialize results. Free before reuse; value borrows base.arena. */\ntypedef struct {{ {p}_result base; const {output} *value; }} {name}_result;\n{docs}{p}_status {name}({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {name}_result *result, {p}_error *error);\nvoid {name}_result_free({name}_result *result);\n"));
         source.push_str(&format!("{p}_status {name}({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {name}_result *result, {p}_error *error) {{\n    const {p}_string operation = {};\n    {p}_status status;\n    if (!result) return {p}_client_call(client, operation, {input_value}, cancelled, cancel_user, NULL, error);\n    result->value = NULL;\n    status = {p}_client_call(client, operation, {input_value}, cancelled, cancel_user, &result->base, error);\n    if (status == {p}_ok) result->value = (const {output} *)result->base.output;\n    return status;\n}}\nvoid {name}_result_free({name}_result *result) {{\n    if (result) {{ {p}_result_free(&result->base); result->value = NULL; }}\n}}\n", names::view(op.name())));
         if op.paginated.is_some() {
-            header.push_str(&format!("{p}_status {name}_pages_new({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {p}_pages **pages, {p}_error *error);\n{p}_status {name}_pages_next({p}_pages *pages, bool *has_page, {name}_result *result, {p}_error *error);\n"));
+            header.push_str(&format!("/** Creates a lazy page iterator borrowing client; free with pages_free. */\n{p}_status {name}_pages_new({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {p}_pages **pages, {p}_error *error);\n/** Fetches one page; false has_page means exhaustion. Free each result. */\n{p}_status {name}_pages_next({p}_pages *pages, bool *has_page, {name}_result *result, {p}_error *error);\n"));
             source.push_str(&format!("{p}_status {name}_pages_new({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {p}_pages **pages, {p}_error *error) {{\n    const {p}_string operation = {};\n    return {p}_pages_new(client, operation, {input_value}, cancelled, cancel_user, pages, error);\n}}\n{p}_status {name}_pages_next({p}_pages *pages, bool *has_page, {name}_result *result, {p}_error *error) {{\n    {p}_status status;\n    if (!result) return {p}_pages_next(pages, has_page, NULL, error);\n    result->value = NULL;\n    status = {p}_pages_next(pages, has_page, &result->base, error);\n    if (status == {p}_ok && has_page && *has_page) result->value = (const {output} *)result->base.output;\n    return status;\n}}\n", names::view(op.name())));
         }
     }
@@ -78,7 +91,7 @@ pub fn emit(service: &Service, options: &Options, schema: &str) -> Vec<File> {
                 "{p}_status {function}({p}_client *client, {input}double timeout, const {p}_waiter_options *options, {p}_cancelled_fn cancelled, void *cancel_user, {name}_result *result, {p}_waiter_report *report, {p}_error *error)"
             );
             header.push_str(&format!(
-                "/* Waits for the modeled {waiter} state; see {p}_client_wait. */
+                "/** Waits for the modeled {waiter} state; see {p}_client_wait. */
 {signature};
 "
             ));

@@ -14,6 +14,7 @@ pub const JSON_RUNTIME: &str = include_str!("../runtime/json.dart");
 pub const TIMESTAMP_RUNTIME: &str = include_str!("../runtime/timestamp.dart");
 pub const CODEC_RUNTIME: &str = include_str!("../runtime/codec.dart");
 pub const ERROR_RUNTIME: &str = include_str!("../runtime/errors.dart");
+pub const DESCRIBE_RUNTIME: &str = include_str!("../runtime/describe.dart");
 
 pub struct Options {
     pub package_name: String,
@@ -136,6 +137,7 @@ fn field(value: &str) -> String {
         "json",
         "stamp",
         "wire",
+        "describe",
         "errors",
     ]
     .contains(&value)
@@ -193,6 +195,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             "json",
             "stamp",
             "wire",
+            "describe",
             "errors",
             "Unit",
             "decodeModel",
@@ -433,6 +436,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("timestamp", TIMESTAMP_RUNTIME),
         ("codec", CODEC_RUNTIME),
         ("errors", ERROR_RUNTIME),
+        ("describe", DESCRIBE_RUNTIME),
         ("cancellation", include_str!("../runtime/cancellation.dart")),
         ("config", include_str!("../runtime/config.dart")),
         ("transport", include_str!("../runtime/transport.dart")),

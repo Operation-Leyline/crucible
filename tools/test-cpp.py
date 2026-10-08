@@ -6,12 +6,13 @@ import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import shutil
 from pathlib import Path
 import tempfile
 import threading
 import time
 
-from sdk_conformance_model import qualification_model
+from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
 from sdk_test_support import ROOT, run, weather
 
@@ -309,6 +310,15 @@ def feature_cmake(output, tests):
     return "\n".join(lines) + "\n"
 
 
+def check_docs(package):
+    if not shutil.which("doxygen"):
+        print("Doxygen unavailable; documentation markup covered by generator regression tests")
+        return
+    config = package / "Doxyfile"
+    config.write_text('INPUT = include\nRECURSIVE = YES\nEXTRACT_ALL = YES\nQUIET = YES\nGENERATE_HTML = NO\nGENERATE_LATEX = NO\nWARN_IF_UNDOCUMENTED = NO\nWARN_AS_ERROR = YES\n', encoding="utf-8")
+    run("doxygen", str(config), cwd=package)
+
+
 def qualify(output):
     package = output / "sdk"
     for name, fixture_name, namespace in [("dynamic", "dynamic-bindings", "dynamic"), ("extended", "extended-types", "types"), ("wire", "error-payloads", "wire_sdk")]:
@@ -322,6 +332,7 @@ def qualify(output):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
         str(qualification_model(output)), "--out", str(package), "--package-name", "weather_client",
         "--namespace", "crucible_generated", "--content-sha256")
+    check_docs(package)
     sdk_build = output / "sdk-build"
     install = output / "installed"
     configure(package, sdk_build, "-DCMAKE_INSTALL_PREFIX=" + install.as_posix())

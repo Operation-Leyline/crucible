@@ -7,21 +7,28 @@ use std::time::Duration;
 
 use http::{HeaderMap, HeaderName, HeaderValue};
 
+/// An owned, thread-safe future returned by an identity provider.
 pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 /// A bearer token: fixed, or asked for on every attempt so a refreshed one
 /// is picked up.
 #[derive(Clone)]
 pub enum Identity<T> {
+    /// Reuses one identity for every attempt.
     Fixed(T),
+    /// Invokes an asynchronous provider for each attempt.
     Provider(Arc<dyn Fn() -> BoxFuture<Option<T>> + Send + Sync>),
 }
 
+/// A bearer token or API key, fixed or refreshed by a provider.
 pub type Token = Identity<String>;
 
 #[derive(Clone)]
+/// HTTP basic credentials. Values are sent only for a modeled basic-auth scheme.
 pub struct BasicCredentials {
+    /// The basic-auth username.
     pub username: String,
+    /// The basic-auth password; keep it out of diagnostic output.
     pub password: String,
 }
 
@@ -35,10 +42,12 @@ impl BasicCredentials {
 }
 
 impl<T: Clone> Identity<T> {
+    /// Uses a fixed identity for every request attempt.
     pub fn fixed(token: impl Into<T>) -> Self {
         Self::Fixed(token.into())
     }
 
+    /// Refreshes the identity on every attempt; returning None declines this scheme.
     pub fn provider<F, Fut>(provider: F) -> Self
     where
         F: Fn() -> Fut + Send + Sync + 'static,
@@ -61,7 +70,9 @@ impl<T: Clone> Identity<T> {
 pub struct Retry {
     /// Attempts in all, the first included.
     pub max_attempts: u32,
+    /// Initial full-jitter exponential backoff bound.
     pub base_delay: Duration,
+    /// Maximum exponential backoff bound; Retry-After can override the delay.
     pub max_delay: Duration,
 }
 
@@ -76,6 +87,7 @@ impl Default for Retry {
 }
 
 impl Retry {
+    /// Disables retries by allowing only the first attempt.
     pub fn none() -> Self {
         Self {
             max_attempts: 1,
@@ -119,6 +131,7 @@ pub type ChecksumValidated =
     Arc<dyn Fn(&'static str, crucible_wire::operation::ChecksumAlgorithm) + Send + Sync>;
 
 impl Config {
+    /// Creates settings with three attempts, a reqwest connection pool, and no total call deadline.
     pub fn new(endpoint: impl Into<String>) -> Self {
         // reqwest needs a process-wide TLS crypto provider. Install ring
         // unless the application already chose one; that choice stands.
@@ -146,10 +159,12 @@ impl Config {
         }
     }
 
+    /// Sets the SigV4 region and AWS::Region endpoint built-in.
     pub fn region(mut self, region: impl Into<String>) -> Self {
         self.region = Some(region.into());
         self
     }
+    /// Sets a named client input for modeled endpoint rules.
     pub fn endpoint_parameter(
         mut self,
         name: impl Into<String>,
@@ -158,6 +173,7 @@ impl Config {
         self.endpoint_parameters.insert(name.into(), value.into());
         self
     }
+    /// Sets an endpoint-rule built-in value.
     pub fn endpoint_builtin(
         mut self,
         name: impl Into<String>,
@@ -166,6 +182,7 @@ impl Config {
         self.endpoint_builtins.insert(name.into(), value.into());
         self
     }
+    /// Disables modeled operation host-prefix injection when true.
     pub fn disable_host_prefix(mut self, disabled: bool) -> Self {
         self.disable_host_prefix = disabled;
         self
@@ -213,30 +230,36 @@ impl Config {
         self
     }
 
+    /// Supplies bearer credentials for operations that model bearer authentication.
     pub fn token(mut self, token: Token) -> Self {
         self.token = Some(token);
         self
     }
 
+    /// Supplies credentials for modeled HTTP basic authentication.
     pub fn basic_credentials(mut self, credentials: Identity<BasicCredentials>) -> Self {
         self.basic_credentials = Some(credentials);
         self
     }
 
+    /// Supplies an API key for the modeled header or query location.
     pub fn api_key(mut self, key: Token) -> Self {
         self.api_key = Some(key);
         self
     }
 
+    /// Supplies credentials for modeled SigV4 request signing.
     pub fn aws_credentials(mut self, credentials: Identity<crate::AwsCredentials>) -> Self {
         self.aws_credentials = Some(credentials);
         self
     }
+    /// Overrides the SigV4 signing service name.
     pub fn signing_name(mut self, name: impl Into<String>) -> Self {
         self.signing_name = Some(name.into());
         self
     }
 
+    /// Sets attempt limits and exponential backoff bounds.
     pub fn retry(mut self, retry: Retry) -> Self {
         self.retry = retry;
         self
@@ -271,6 +294,8 @@ impl Default for Config {
 /// Per-call settings; an explicit timeout overrides the client default.
 #[derive(Clone, Debug, Default)]
 pub struct CallOptions {
+    /// Total call budget; None uses the client default.
     pub timeout: Option<Duration>,
+    /// Optional cancellation shared with the caller.
     pub cancellation: Option<crate::CancellationToken>,
 }

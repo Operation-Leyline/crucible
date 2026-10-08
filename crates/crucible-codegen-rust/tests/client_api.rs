@@ -85,3 +85,38 @@ fn flat_exports_are_deterministic() {
         .unwrap();
     assert_eq!(expected, generate_client(&service).unwrap());
 }
+
+#[test]
+fn sensitive_enum_debug_does_not_rewrite_documentation() {
+    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+    for (name, kind, value) in [
+        ("SecretEnum", "enum", json!("known")),
+        ("SecretIntEnum", "intEnum", json!(1)),
+    ] {
+        let id = format!("example.weather#{name}");
+        model["shapes"][&id] = json!({
+            "type": kind,
+            "traits": {"smithy.api#sensitive": {}, "smithy.api#documentation": "Debug, for example #[derive(Debug, Clone)]"},
+            "members": {"Known": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": value, "smithy.api#documentation": "Debug, member documentation"}}}
+        });
+        model["shapes"]["example.weather#CreateCityInput"]["members"][name] = json!({"target": id});
+    }
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
+        .unwrap();
+    let code = generate_client(&service).unwrap();
+    assert_eq!(
+        code.matches("/// Debug, for example #[derive(Debug, Clone)]")
+            .count(),
+        2
+    );
+    assert_eq!(code.matches("/// Debug, member documentation").count(), 2);
+    for name in ["SecretEnum", "SecretIntEnum"] {
+        let declaration = format!("pub enum {name} {{");
+        let lines: Vec<_> = code.lines().map(str::trim).collect();
+        let index = lines.iter().position(|line| *line == declaration).unwrap();
+        assert!(lines[index - 1].starts_with("#[derive(Clone,"));
+        assert!(code.contains(&format!("impl ::std::fmt::Debug for {name}")));
+    }
+}

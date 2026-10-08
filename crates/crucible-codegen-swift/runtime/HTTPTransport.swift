@@ -7,6 +7,7 @@ import FoundationNetworking
 public final class URLSessionTransport: HTTPTransport, Sendable {
     private let session: URLSession
     private let delegate: SessionDelegate
+    /// `timeout` is the per-request and per-resource limit, in seconds.
     public init(timeout: TimeInterval = 30) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = timeout
@@ -21,6 +22,7 @@ public final class URLSessionTransport: HTTPTransport, Sendable {
         self.delegate = delegate
         session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: queue)
     }
+    /// Cancels in-flight requests and releases the session.
     public func close() { session.invalidateAndCancel() }
     deinit { session.invalidateAndCancel() }
     public func send(_ request: HTTPRequest, readBody: Bool) async throws -> HTTPResponse {

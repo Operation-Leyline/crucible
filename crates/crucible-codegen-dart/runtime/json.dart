@@ -96,6 +96,8 @@ final class JsonValue {
   JsonValue(Object? value) : value = _freeze(value, 0);
   JsonValue.parse(String text) : value = _freeze(exactJsonDecode(text), 0);
   String encode() => exactJsonEncode(value);
+  @override
+  String toString() => encode();
   static Object? _freeze(Object? value, int depth) {
     if (depth > 255)
       throw const FormatException('JSON nesting exceeds 255 levels');

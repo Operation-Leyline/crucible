@@ -1,0 +1,69 @@
+// Run against a package generated from crates/crucible-smithy/tests/fixtures/client-docs.json.
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:vault_client/src/models.dart';
+import 'package:vault_client/src/runtime/errors.dart';
+import 'package:vault_client/src/runtime/timestamp.dart';
+
+const marker = '*** Sensitive Data Redacted ***';
+
+void main() {
+  final secret = Secret(
+    name: 'db',
+    password: 'hunter2',
+    pin: '4321',
+    history: ['old-one', 'old-two'],
+    byName: {'k': 'map-secret'},
+    aliases: ['alias-a', 'alias-b'],
+    labels: {'env': 'prod'},
+    kind: Kind.login,
+    level: Level.high,
+    credential: CredentialPassword('union-secret'),
+    createdAt: Timestamp(BigInt.from(0)),
+    payload: Uint8List.fromList([1, 2, 3]),
+  );
+
+  test('prints members AWS-style and recurses into collections', () {
+    final text = secret.toString();
+    expect(text, startsWith('Secret(name=db, '));
+    expect(text, contains('aliases=[alias-a, alias-b]'));
+    expect(text, contains('labels={env=prod}'));
+    expect(text, contains('kind=Kind(login)'));
+    expect(text, contains('level=Level(2)'));
+    expect(text, contains('createdAt=1970-01-01T00:00:00.000Z'));
+    expect(text, contains('payload=<3 bytes>'));
+    expect(text, isNot(contains('revision')), reason: 'absent members are omitted');
+  });
+
+  test('sensitive members never print their value', () {
+    final text = secret.toString();
+    for (final leaked in ['hunter2', '4321', 'old-one', 'old-two', 'map-secret', 'union-secret']) {
+      expect(text, isNot(contains(leaked)), reason: leaked);
+    }
+    expect(text, contains('password=$marker'));
+    expect(text, contains('pin=$marker'));
+    expect(text, contains('history=$marker'));
+    expect(text, contains('byName=$marker'));
+    expect(text, contains('credential=Credential(password=$marker)'));
+  });
+
+  test('a sensitive union member and an absent one', () {
+    expect(CredentialPin('9999').toString(), 'Credential(pin=$marker)');
+    expect(CredentialUsername('bob').toString(), 'Credential(username=bob)');
+    expect(Secret(name: 'x').toString(), 'Secret(name=x)');
+  });
+
+  test('errors print members and transport metadata, not headers or message', () {
+    final error = AccessDenied(
+      message: 'denied',
+      reason: 'secret-reason',
+      metadata: const ErrorMetadata(name: 'AccessDenied', message: 'denied', status: 403, requestId: 'r-1', headers: {'authorization': 'x'}),
+    );
+    final text = error.toString();
+    expect(text, contains('message=denied'));
+    expect(text, contains('reason=$marker'));
+    expect(text, isNot(contains('secret-reason')));
+    expect(text, contains('metadata=ErrorMetadata(name=AccessDenied, status=403, requestId=r-1)'));
+    expect(text, isNot(contains('authorization')));
+  });
+}

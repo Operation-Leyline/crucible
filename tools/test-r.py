@@ -10,7 +10,7 @@ import tempfile
 import threading
 import zlib
 from sdk_test_support import ROOT, run, weather
-from sdk_conformance_model import qualification_model
+from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
 from r_http_fixture import edge_fixture
 
@@ -128,6 +128,7 @@ def qualify(output):
     model["shapes"]["example.weather#CreateCityInput"]["members"]["exactValues"] = {"target": "example.weather#ExactValues"}
     model_path.write_text(json.dumps(model), encoding="utf-8")
     generate(model_path, package)
+    run(RSCRIPT, "-e", "options(warn=2); for (p in list.files(commandArgs(TRUE)[1], pattern=\"[.]Rd$\", full.names=TRUE)) tools::parse_Rd(p)", str(package / "man"))
     library = output / "library"
     library.mkdir(exist_ok=True)
     run(R, "CMD", "build", "--no-manual", "--no-build-vignettes", str(package), cwd=output)

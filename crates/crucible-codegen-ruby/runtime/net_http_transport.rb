@@ -3,10 +3,15 @@ require 'net/http'
 require 'uri'
 module CrucibleGenerated
   module Runtime
+    # The default transport, built on `Net::HTTP`: keeps one connection open
+    # between calls, never follows redirects, and honors the call deadline and
+    # cancellation. Implement `send_request(request, read_body:, scope:, sink: nil)`
+    # and `close` to plug in a different HTTP stack.
     class NetHttpTransport
       def initialize
         @mutex, @http, @origin, @closed = ::Mutex.new, nil, nil, false
       end
+      # Closes the connection; later calls fail.
       def close
         @mutex.synchronize do
           @closed = true

@@ -3,12 +3,15 @@ import Crypto
 
 /// When the client computes request checksums or validates response checksums.
 public enum ChecksumPolicy: String, Sendable {
+    /// Whenever the operation and service support it.
     case whenSupported = "WHEN_SUPPORTED"
+    /// Only when the operation requires it.
     case whenRequired = "WHEN_REQUIRED"
 }
 
 /// A modeled response checksum differs from the received payload.
 public struct ChecksumMismatchError: Error, Sendable, CustomStringConvertible {
+    /// The mismatching algorithm, such as `CRC32`.
     public let algorithm: String
     public var description: String { "response \(algorithm) checksum mismatch" }
 }

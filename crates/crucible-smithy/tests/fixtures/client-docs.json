@@ -1,89 +1,127 @@
 {
   "smithy": "2.0",
   "shapes": {
-    "example.docs#Docs": {
+    "example.vault#Vault": {
       "type": "service",
-      "version": "1",
-      "traits": {
-        "crucible.protocols#json": {},
-        "smithy.api#documentation": "Service docs with a */ terminator."
-      },
+      "version": "2026-10-08",
       "operations": [
         {
-          "target": "example.docs#Greet"
+          "target": "example.vault#GetSecret"
+        },
+        {
+          "target": "example.vault#PutSecret"
+        },
+        {
+          "target": "example.vault#ListSecrets"
         }
       ],
       "errors": [
         {
-          "target": "example.docs#Denied"
-        }
-      ]
-    },
-    "example.docs#Greet": {
-      "type": "operation",
-      "input": {
-        "target": "example.docs#GreetInput"
-      },
-      "output": {
-        "target": "example.docs#GreetOutput"
-      },
-      "errors": [
-        {
-          "target": "example.docs#Unavailable"
+          "target": "example.vault#AccessDenied"
         }
       ],
       "traits": {
-        "smithy.api#http": {
-          "method": "POST",
-          "uri": "/greet",
-          "code": 200
-        },
-        "smithy.api#documentation": "Greets **someone**: see [docs](https://example.com/a_b).\n\n- first item `a */ b`\n- second <b>html</b> @param {@code x} & \"quotes\"\n\nTrailing */ terminator /* nested <T>"
+        "crucible.protocols#json": {},
+        "smithy.api#httpBearerAuth": {},
+        "smithy.api#title": "Vault",
+        "smithy.api#documentation": "Stores secrets.\n\nSee [the guide](https://example.com/guide) and [Secret] for `*/` details. @since 1"
       }
     },
-    "example.docs#Secret": {
+    "crucible.protocols#json": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#trait": {},
+        "smithy.api#protocolDefinition": {}
+      }
+    },
+    "example.vault#Password": {
       "type": "string",
       "traits": {
         "smithy.api#sensitive": {}
       }
     },
-    "example.docs#Secrets": {
-      "type": "list",
-      "member": {
-        "target": "example.docs#Secret"
-      }
-    },
-    "example.docs#Names": {
+    "example.vault#Names": {
       "type": "list",
       "member": {
         "target": "smithy.api#String"
       }
     },
-    "example.docs#Mode": {
+    "example.vault#Passwords": {
+      "type": "list",
+      "member": {
+        "target": "example.vault#Password"
+      }
+    },
+    "example.vault#Labels": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "smithy.api#String"
+      }
+    },
+    "example.vault#PasswordsByName": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "example.vault#Password"
+      }
+    },
+    "example.vault#Kind": {
       "type": "enum",
       "members": {
-        "Fast": {
+        "LOGIN": {
           "target": "smithy.api#Unit",
           "traits": {
-            "smithy.api#enumValue": "fast",
-            "smithy.api#documentation": "Quick `mode`."
+            "smithy.api#enumValue": "login",
+            "smithy.api#documentation": "A website login."
           }
         },
-        "Slow": {
+        "API_KEY": {
           "target": "smithy.api#Unit",
           "traits": {
-            "smithy.api#enumValue": "slow"
+            "smithy.api#enumValue": "api-key"
           }
         }
       },
       "traits": {
-        "smithy.api#documentation": "How fast."
+        "smithy.api#documentation": "What a secret unlocks."
       }
     },
-    "example.docs#Profile": {
-      "type": "structure",
+    "example.vault#Level": {
+      "type": "intEnum",
       "members": {
-        "nickname": {
+        "LOW": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 1,
+            "smithy.api#documentation": "Rarely rotated."
+          }
+        },
+        "HIGH": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 2
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#documentation": "How sensitive a secret is."
+      }
+    },
+    "example.vault#Credential": {
+      "type": "union",
+      "members": {
+        "password": {
+          "target": "example.vault#Password",
+          "traits": {
+            "smithy.api#documentation": "A password."
+          }
+        },
+        "username": {
           "target": "smithy.api#String"
         },
         "pin": {
@@ -92,112 +130,247 @@
             "smithy.api#sensitive": {}
           }
         }
-      }
-    },
-    "example.docs#Choice": {
-      "type": "union",
-      "members": {
-        "label": {
-          "target": "smithy.api#String"
-        },
-        "code": {
-          "target": "example.docs#Secret"
-        }
-      }
-    },
-    "example.docs#GreetInput": {
-      "type": "structure",
-      "traits": {
-        "smithy.api#input": {}
       },
+      "traits": {
+        "smithy.api#documentation": "A way to prove identity."
+      }
+    },
+    "example.vault#Secret": {
+      "type": "structure",
       "members": {
         "name": {
           "target": "smithy.api#String",
           "traits": {
             "smithy.api#required": {},
-            "smithy.api#documentation": "Greets **someone**: see [docs](https://example.com/a_b).\n\n- first item `a */ b`\n- second <b>html</b> @param {@code x} & \"quotes\"\n\nTrailing */ terminator /* nested <T>"
+            "smithy.api#documentation": "The <b>name</b> of the secret."
           }
         },
         "password": {
+          "target": "example.vault#Password",
+          "traits": {
+            "smithy.api#documentation": "Never printed."
+          }
+        },
+        "pin": {
           "target": "smithy.api#String",
           "traits": {
             "smithy.api#sensitive": {}
           }
         },
-        "token": {
-          "target": "example.docs#Secret"
+        "history": {
+          "target": "example.vault#Passwords"
         },
-        "secrets": {
-          "target": "example.docs#Secrets"
+        "byName": {
+          "target": "example.vault#PasswordsByName"
         },
-        "names": {
-          "target": "example.docs#Names"
+        "aliases": {
+          "target": "example.vault#Names"
         },
-        "profile": {
-          "target": "example.docs#Profile"
+        "labels": {
+          "target": "example.vault#Labels"
         },
-        "choice": {
-          "target": "example.docs#Choice"
+        "kind": {
+          "target": "example.vault#Kind"
         },
-        "mode": {
-          "target": "example.docs#Mode"
+        "level": {
+          "target": "example.vault#Level"
+        },
+        "credential": {
+          "target": "example.vault#Credential"
+        },
+        "createdAt": {
+          "target": "smithy.api#Timestamp"
+        },
+        "payload": {
+          "target": "smithy.api#Blob"
+        },
+        "revision": {
+          "target": "smithy.api#Integer"
         }
+      },
+      "traits": {
+        "smithy.api#documentation": "A stored secret."
       }
     },
-    "example.docs#GreetOutput": {
+    "example.vault#GetSecretInput": {
       "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {},
+            "smithy.api#httpLabel": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "example.vault#GetSecretOutput": {
+      "type": "structure",
+      "members": {
+        "secret": {
+          "target": "example.vault#Secret",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
       "traits": {
         "smithy.api#output": {}
-      },
-      "members": {
-        "message": {
-          "target": "smithy.api#String"
-        },
-        "profile": {
-          "target": "example.docs#Profile"
-        },
-        "classified": {
-          "target": "example.docs#Classified"
-        }
       }
     },
-    "example.docs#Unavailable": {
-      "type": "structure",
+    "example.vault#GetSecret": {
+      "type": "operation",
+      "input": {
+        "target": "example.vault#GetSecretInput"
+      },
+      "output": {
+        "target": "example.vault#GetSecretOutput"
+      },
       "traits": {
-        "smithy.api#error": "server",
-        "smithy.api#httpError": 503,
-        "smithy.api#documentation": "Raised when the service is down."
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/secrets/{name}"
+        },
+        "smithy.api#documentation": "Reads one secret.",
+        "smithy.api#readonly": {}
       },
+      "errors": [
+        {
+          "target": "example.vault#AccessDenied"
+        }
+      ]
+    },
+    "example.vault#PutSecretInput": {
+      "type": "structure",
+      "members": {
+        "secret": {
+          "target": "example.vault#Secret",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "clientToken": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#idempotencyToken": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "example.vault#PutSecretOutput": {
+      "type": "structure",
+      "members": {
+        "revision": {
+          "target": "smithy.api#Integer"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "example.vault#PutSecret": {
+      "type": "operation",
+      "input": {
+        "target": "example.vault#PutSecretInput"
+      },
+      "output": {
+        "target": "example.vault#PutSecretOutput"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/secrets"
+        },
+        "smithy.api#documentation": "Stores a secret.",
+        "smithy.api#idempotent": {}
+      }
+    },
+    "example.vault#ListSecretsInput": {
+      "type": "structure",
+      "members": {
+        "nextToken": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpQuery": "nextToken"
+          }
+        },
+        "maxResults": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpQuery": "maxResults"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "example.vault#ListSecretsOutput": {
+      "type": "structure",
+      "members": {
+        "nextToken": {
+          "target": "smithy.api#String"
+        },
+        "secrets": {
+          "target": "example.vault#Secrets"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "example.vault#Secrets": {
+      "type": "list",
+      "member": {
+        "target": "example.vault#Secret"
+      }
+    },
+    "example.vault#ListSecrets": {
+      "type": "operation",
+      "input": {
+        "target": "example.vault#ListSecretsInput"
+      },
+      "output": {
+        "target": "example.vault#ListSecretsOutput"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/secrets"
+        },
+        "smithy.api#documentation": "Lists secrets.",
+        "smithy.api#readonly": {},
+        "smithy.api#paginated": {
+          "inputToken": "nextToken",
+          "outputToken": "nextToken",
+          "items": "secrets",
+          "pageSize": "maxResults"
+        }
+      }
+    },
+    "example.vault#AccessDenied": {
+      "type": "structure",
       "members": {
         "message": {
           "target": "smithy.api#String"
         },
-        "retryToken": {
-          "target": "example.docs#Secret"
+        "reason": {
+          "target": "example.vault#Password",
+          "traits": {
+            "smithy.api#documentation": "Redacted."
+          }
         }
-      }
-    },
-    "example.docs#Denied": {
-      "type": "structure",
+      },
       "traits": {
         "smithy.api#error": "client",
-        "smithy.api#httpError": 403
-      },
-      "members": {
-        "reason": {
-          "target": "smithy.api#String"
-        }
-      }
-    },
-    "example.docs#Classified": {
-      "type": "structure",
-      "traits": {
-        "smithy.api#sensitive": {}
-      },
-      "members": {
-        "detail": {
-          "target": "smithy.api#String"
-        }
+        "smithy.api#httpError": 403,
+        "smithy.api#documentation": "The caller may not read this secret."
       }
     }
   }

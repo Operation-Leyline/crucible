@@ -286,3 +286,58 @@ fn yyjson_number_buffers_meet_the_documented_minimum() {
     }
     assert!(checked >= 2, "found {checked} number buffers");
 }
+
+#[test]
+fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
+    let mut model: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap();
+    let examples: serde_json::Value =
+        serde_json::from_str(include_str!("../../../tests/conformance/native-docs.json")).unwrap();
+    model["shapes"]
+        .as_object_mut()
+        .unwrap()
+        .extend(examples.as_object().unwrap().clone());
+    model["shapes"]["example.weather#CreateCityInput"]["members"]["debugModel"] =
+        serde_json::json!({"target": "example.weather#DebugModel"});
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let text = files
+        .iter()
+        .map(|file| file.contents.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(text.contains("A **documented** value."));
+    assert!(text.contains("A sensitive member."));
+    assert!(text.contains("Known secret value."));
+    assert!(text.contains("*&#47;") && text.contains("&#64;param"));
+    assert!(text.contains("weather_models_debug_model_debug"));
+    assert!(text.contains(".sensitive = true"));
+}
+
+#[test]
+fn debug_helper_collisions_use_the_existing_collected_symbol_diagnostic() {
+    let model = tiny(json!({
+        "test#Root": {"type":"structure","members":{"value":{"target":"test#RootDebug"}}},
+        "test#RootDebug": {"type":"structure","members":{}}
+    }));
+    let diagnostics = emit(&lower(&model), &options()).err().unwrap().to_string();
+    assert!(diagnostics.contains("C generated symbol collision"));
+}
+
+#[test]
+fn client_config_docs_attach_once_to_the_correct_fields() {
+    let header = include_str!("../runtime/client_runtime.h").replace("\r\n", "\n");
+    let config = header
+        .split("} crucible_generated_client_config;")
+        .next()
+        .unwrap();
+    assert!(!config.contains("*/\n    /**"));
+    assert!(config.contains("Retry-After can override it. */\n    double max_delay;"));
+    assert!(config.contains("/** Total call deadline in seconds. */\n    double timeout;"));
+    assert!(config.contains("only when required. */\n    crucible_generated_checksum_policy response_checksum_validation;"));
+}

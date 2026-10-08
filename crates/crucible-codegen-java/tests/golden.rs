@@ -201,7 +201,7 @@ fn reserved_names_are_diagnostics() {
 
 fn docs_files() -> Vec<crucible_codegen_java::File> {
     let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs.json"
+        "../../crucible-smithy/tests/fixtures/client-docs-jvm.json"
     ))
     .unwrap()
     .lower(None)

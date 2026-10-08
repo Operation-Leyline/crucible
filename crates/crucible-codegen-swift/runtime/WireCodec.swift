@@ -2,10 +2,15 @@ import Foundation
 
 /// Distinguishes an omitted member from JSON null and a supplied value.
 public indirect enum OptionalValue<Value: Sendable>: Sendable {
+    /// The member was omitted.
     case unset
+    /// The member was sent as an explicit null.
     case null
+    /// The member has a value.
     case value(Value)
+    /// Whether the member was omitted (false) or present, null or not (true).
     public var isSet: Bool { if case .unset = self { return false }; return true }
+    /// The value, or nil when omitted or null.
     public var value: Value? { if case .value(let value) = self { return value }; return nil }
 }
 extension OptionalValue: Equatable where Value: Equatable {}

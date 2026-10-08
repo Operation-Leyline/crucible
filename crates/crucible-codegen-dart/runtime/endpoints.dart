@@ -4,6 +4,7 @@ import 'query.dart';
 
 /// Endpoint rules rejected the call, or produced no usable endpoint.
 final class EndpointException implements Exception {
+  /// Why no endpoint was produced.
   final String message;
   const EndpointException(this.message);
   @override

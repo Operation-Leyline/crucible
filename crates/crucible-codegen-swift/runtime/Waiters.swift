@@ -2,7 +2,9 @@ import Foundation
 
 /// Overrides the modeled delays, in seconds, between waiter attempts.
 public struct WaiterOptions: Sendable {
+    /// The shortest delay between attempts; the modeled value when nil.
     public var minDelay: TimeInterval?
+    /// The longest delay between attempts; the modeled value when nil.
     public var maxDelay: TimeInterval?
     public init(minDelay: TimeInterval? = nil, maxDelay: TimeInterval? = nil) {
         self.minDelay = minDelay; self.maxDelay = maxDelay
@@ -11,7 +13,9 @@ public struct WaiterOptions: Sendable {
 
 /// A waiter reached a failure state or could not evaluate an acceptor.
 public struct WaiterError: Error, Sendable, CustomStringConvertible {
+    /// The waiter's name.
     public let name: String
+    /// How many times the operation was called.
     public let attempts: Int
     /// The operation error observed by the final attempt, if any.
     public let underlying: (any Error)?
@@ -24,8 +28,11 @@ public struct WaiterError: Error, Sendable, CustomStringConvertible {
 
 /// The waiter deadline passed before a success or failure state.
 public struct WaiterTimeoutError: Error, Sendable, CustomStringConvertible {
+    /// The waiter's name.
     public let name: String
+    /// How many times the operation was called.
     public let attempts: Int
+    /// The operation error observed by the final attempt, if any.
     public let underlying: (any Error)?
     public var description: String { "waiter \(name) timed out after \(attempts) attempts" }
 }

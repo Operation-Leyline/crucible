@@ -241,7 +241,7 @@ fn runtime_policy_model_generates_and_reserves_the_quota_accessor() {
 
 fn docs_files() -> Vec<crucible_codegen_kotlin::File> {
     let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs.json"
+        "../../crucible-smithy/tests/fixtures/client-docs-jvm.json"
     ))
     .unwrap()
     .lower(None)

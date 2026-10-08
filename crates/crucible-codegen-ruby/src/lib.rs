@@ -2,11 +2,83 @@
 mod models;
 mod names;
 
+use crucible_codegen_common::docs;
 use crucible_smithy::{
     Diagnostics,
     ir::{Service, Shape},
 };
 use names::{constant, field, literal};
+
+fn client_docs(service: &Service, client_name: &str) -> String {
+    let mut text = format!(
+        "Client for the {} service.\n\n",
+        service
+            .title
+            .as_deref()
+            .unwrap_or_else(|| service.id.name())
+    );
+    if let Some(service_docs) = &service.docs {
+        text.push_str(&docs::escape(service_docs));
+        text.push_str("\n\n");
+    }
+    text.push_str(&format!(
+        "Create one `{client_name}` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {{#close}} when finished. Every operation blocks until it completes and reports failure as a `ServiceException` for a service response, a {{Runtime::NetworkError}} when no response arrives, a {{Runtime::DeadlineError}} when the call outlasts {{Runtime::ClientConfig#timeout}}, or a {{Runtime::CancelledError}}."
+    ));
+    docs::line_comment(
+        "  ",
+        "#",
+        &text.replace(
+            "ServiceException",
+            &crucible_codegen_common::service_exception_name(service),
+        ),
+    )
+}
+
+fn operation_docs(
+    service: &Service,
+    op: &crucible_smithy::ir::Operation,
+    input: Option<&str>,
+    output: &str,
+    streaming: bool,
+    pages: bool,
+) -> String {
+    let token = op.idempotency_token.as_deref().map(field);
+    let mut text = String::new();
+    if let Some(summary) = &op.docs {
+        text.push_str(&docs::escape(summary));
+        text.push_str("\n\n");
+    }
+    text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
+    if pages {
+        text.push_str(
+            "\n\nThis operation is paginated: use the `_pages` variant to read every page.",
+        );
+    }
+    text.push('\n');
+    if let Some(input) = input {
+        text.push_str(&format!("\n@param input [{input}] the request to send"));
+    }
+    if streaming {
+        text.push_str("\n@param response_target [IO, nil] receives the streamed body; the body is yielded to the block when omitted");
+        text.push_str("\n@yieldparam chunk [String] a chunk of the streamed body");
+    }
+    text.push_str(
+        "\n@param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled",
+    );
+    text.push_str(&format!("\n@return [{output}] the service's response"));
+    for name in docs::operation_errors(service, op) {
+        text.push_str(&format!("\n@raise [{name}]"));
+    }
+    text.push_str("\n@raise [Runtime::ServiceException] for any other error response");
+    docs::line_comment(
+        "    ",
+        "#",
+        &text.replace(
+            "ServiceException",
+            &crucible_codegen_common::service_exception_name(service),
+        ),
+    )
+}
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
@@ -184,10 +256,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }))
         .expect("provenance"),
     });
-    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\n  spec.add_dependency 'zlib', '>= 3.0', '< 4'\n  spec.add_dependency 'ipaddr', '>= 1.2', '< 2'\n  spec.add_dependency 'stringio', '>= 3.0', '< 4'\n  spec.add_dependency 'rexml', '>= 3.2', '< 4'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
+    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json', '.yardopts']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\n  spec.add_dependency 'zlib', '>= 3.0', '< 4'\n  spec.add_dependency 'ipaddr', '>= 1.2', '< 2'\n  spec.add_dependency 'stringio', '>= 3.0', '< 4'\n  spec.add_dependency 'rexml', '>= 3.2', '< 4'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
+    // The doc comments are Markdown (Smithy's @documentation is CommonMark).
+    files.push(File {
+        path: ".yardopts".into(),
+        contents: "--markup markdown\n--no-private\nlib/**/*.rb\n".into(),
+    });
     let mut entry = String::from("# frozen_string_literal: true\n");
     for (name, source) in [
         ("unit", include_str!("../runtime/unit.rb")),
+        ("describe", include_str!("../runtime/describe.rb")),
         ("json_number", include_str!("../runtime/json_number.rb")),
         ("exact_json", include_str!("../runtime/exact_json.rb")),
         ("json_value", include_str!("../runtime/json_value.rb")),
@@ -261,7 +339,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     entry.push_str(&format!("module {module}\n  def self.codec\n    @codec ||= Runtime::WireCodec.new(Runtime::ExactJson.decode(::File.read(::File.join(__dir__, '{package}/schema.json'))), Registry::TYPES)\n  end\nend\n"));
     entry.push_str(&format!("require_relative '{package}/client'\n"));
     let mut client = format!(
-        "# frozen_string_literal: true\nmodule {module}\n  class {client_name}\n    def initialize(config = Runtime::ClientConfig.new)\n      @runtime = Runtime::ClientRuntime.new(config, ::{module}.codec, endpoint: {}, digest: {})\n    end\n    def close = @runtime.close\n",
+        "# frozen_string_literal: true\nmodule {module}\n{}  class {client_name}\n{}    def initialize(config = Runtime::ClientConfig.new)\n      @runtime = Runtime::ClientRuntime.new(config, ::{module}.codec, endpoint: {}, digest: {})\n    end\n    # Releases the HTTP connection this client created. A transport passed in the configuration is left open.\n    def close = @runtime.close\n",
+        client_docs(service, &client_name),
+        docs::line_comment(
+            "    ",
+            "#",
+            "Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see {Runtime::ClientConfig} for credentials, retries, timeouts and the transport.\n\n@param config [Runtime::ClientConfig]\n@raise [ArgumentError] when the endpoint or another setting is invalid"
+        ),
         literal(options.endpoint.as_deref().unwrap_or("")),
         options.content_sha256
     );
@@ -273,20 +357,55 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         } else {
             "Runtime::Unit.new"
         };
-        if op
+        let streaming = op
             .response
             .payload
             .as_ref()
-            .is_some_and(|payload| payload.streaming)
-        {
+            .is_some_and(|payload| payload.streaming);
+        let input_type = op.input.as_ref().map(|id| service.name_of(id).to_string());
+        let output_type = op.output.as_ref().map_or_else(
+            || "Runtime::Unit".to_string(),
+            |id| service.name_of(id).to_string(),
+        );
+        client.push_str(&operation_docs(
+            service,
+            op,
+            input_type.as_deref(),
+            &output_type,
+            streaming,
+            op.paginated.is_some(),
+        ));
+        if streaming {
             client.push_str(&format!("    def {name}({input}response_target: nil, cancellation: nil, &block)\n      @runtime.call({}, {value}, cancellation: cancellation, response_target: response_target, block: block)\n    end\n",literal(op.name())));
         } else {
             client.push_str(&format!("    def {name}({input}cancellation: nil)\n      @runtime.call({}, {value}, cancellation: cancellation)\n    end\n",literal(op.name())));
         }
         if op.paginated.is_some() {
+            client.push_str(&docs::line_comment("    ", "#", &format!("Every page of {{#{name}}}, following the pagination token until the service stops returning one. Returns an `Enumerator`; the call for each page is made as it is consumed, so each can fail.\n\n@param input [{}] the request for the first page\n@param cancellation [Runtime::CancellationToken, nil]\n@return [Enumerator<{output_type}>]", input_type.as_deref().unwrap_or("Runtime::Unit"))));
             client.push_str(&format!("    def {name}_pages(input, cancellation: nil)\n      @runtime.pages({}, input, cancellation: cancellation)\n    end\n",literal(op.name())));
         }
-        for waiter in op.waiters.keys() {
+        for (waiter, description) in &op.waiters {
+            let waiter_docs = description
+                .documentation
+                .as_deref()
+                .map(|text| {
+                    format!(
+                        "{}
+
+",
+                        docs::escape(text)
+                    )
+                })
+                .unwrap_or_default();
+            client.push_str(&docs::line_comment("    ", "#", &format!("{waiter_docs}Calls {{#{name}}} repeatedly until the modeled `{waiter}` waiter succeeds, with jittered backoff between `min_delay` and `max_delay`. Returns nil when an error acceptor succeeds.
+
+@param timeout [Numeric] the most time to wait, in seconds
+@param min_delay [Numeric, nil] the shortest delay between attempts; the modeled value when nil
+@param max_delay [Numeric, nil] the longest delay between attempts; the modeled value when nil
+@param cancellation [Runtime::CancellationToken, nil]
+@return [{output_type}, nil]
+@raise [Runtime::WaiterError] when a failure acceptor matches
+@raise [Runtime::WaiterTimeoutError] when `timeout` passes first")));
             client.push_str(&format!(
                 "    def {}({input}timeout:, min_delay: nil, max_delay: nil, cancellation: nil)\n      @runtime.wait({}, {}, {value}, timeout: timeout, min_delay: min_delay, max_delay: max_delay, cancellation: cancellation)\n    end\n",
                 waiter_method(waiter),

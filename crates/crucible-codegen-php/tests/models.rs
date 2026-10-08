@@ -228,3 +228,127 @@ fn rpc_v2_and_extended_auth_generate_packages() {
     );
     assert!(file("src/schema.json").contains(r#""kind":"sigV4a""#));
 }
+
+fn vault() -> (crucible_smithy::ir::Service, Options) {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-docs.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_php::capabilities())
+    .unwrap();
+    let options = Options {
+        package_name: "example/vault".into(),
+        namespace: "VaultSdk".into(),
+        package_version: "0.0.0".into(),
+        endpoint: None,
+        content_sha256: false,
+    };
+    (service, options)
+}
+
+fn vault_files() -> Vec<crucible_codegen_php::File> {
+    let (service, options) = vault();
+    emit(&service, &options).unwrap()
+}
+
+#[test]
+fn smithy_documentation_reaches_models_and_client() {
+    let files = vault_files();
+    let file = |path: &str| {
+        &files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+    };
+    let secret = file("src/Secret.php");
+    let client = file("src/VaultClient.php");
+    for (text, source) in [
+        (" * A stored secret.", secret),
+        (
+            " * @param string $name The <b>name</b> of the secret.",
+            secret,
+        ),
+        (" * What a secret unlocks.", file("src/Kind.php")),
+        (" * A website login.", file("src/Kind.php")),
+        (" * Rarely rotated.", file("src/Level.php")),
+        (" * A way to prove identity.", file("src/Credential.php")),
+        (" * A password.", file("src/CredentialPassword.php")),
+        (
+            " * The caller may not read this secret.",
+            file("src/AccessDenied.php"),
+        ),
+        (" * Reads one secret.", client),
+        (" * Stores secrets.", client),
+        (r" * @throws \VaultSdk\AccessDenied", client),
+        (" * Read-only: retried automatically", client),
+        (" * Idempotent: retried automatically", client),
+        ("`clientToken` is filled with a fresh token", client),
+        (" * Every page of `listSecrets()`", client),
+    ] {
+        assert!(source.contains(text), "{text}");
+    }
+    // `*/` in model text cannot end the docblock; `@since` and `[Secret]` cannot start a tag or link.
+    assert!(client.contains(r"`*\/`"));
+    assert!(client.contains(r"\[Secret]"));
+    assert!(!client.contains("`*/`"));
+}
+
+#[test]
+fn sensitive_members_are_redacted_in_string_representations() {
+    let files = vault_files();
+    let source = |path: &str| {
+        &files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+    };
+    let secret = source("src/Secret.php");
+    for member in ["password", "pin", "history", "byName"] {
+        assert!(
+            secret.contains(&format!(
+                r"'{member}' => \VaultSdk\Runtime\Describe::redact($this->{member})"
+            )),
+            "{member}"
+        );
+    }
+    for member in ["name", "aliases", "labels", "kind", "revision"] {
+        assert!(
+            !secret.contains(&format!(
+                r"'{member}' => \VaultSdk\Runtime\Describe::redact"
+            )),
+            "{member}"
+        );
+    }
+    assert!(secret.contains(r"'payload' => \VaultSdk\Runtime\Describe::bytes($this->payload)"));
+    assert!(
+        source("src/AccessDenied.php")
+            .contains(r"'reason' => \VaultSdk\Runtime\Describe::redact($this->reason)")
+    );
+    assert!(source("src/CredentialPassword.php").contains("Describe::redact($this->value)"));
+    assert!(source("src/CredentialPin.php").contains("Describe::redact($this->value)"));
+    assert!(!source("src/CredentialUsername.php").contains("Describe::redact"));
+    assert!(
+        source("src/CredentialUnknownVariant.php").contains("['unknownVariant' => $this->name]")
+    );
+}
+
+#[test]
+fn vault_package_matches_golden() {
+    let snapshot = vault_files()
+        .iter()
+        .filter(|f| !f.path.starts_with("src/Runtime/") && f.path.ends_with(".php"))
+        .map(|f| format!("=== {} ===\n{}\n", f.path, f.contents))
+        .collect::<String>();
+    let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/vault.txt");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&golden, &snapshot).unwrap();
+    }
+    assert_eq!(
+        snapshot.replace("\r\n", "\n"),
+        fs::read_to_string(golden)
+            .expect("golden")
+            .replace("\r\n", "\n")
+    );
+}

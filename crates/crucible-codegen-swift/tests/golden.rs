@@ -573,3 +573,124 @@ fn modeled_waiters_emit_async_methods_and_diagnose_collisions() {
             || d.message == "Swift operation name collision"
     }));
 }
+
+fn vault_model() -> Value {
+    serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-docs.json"
+    ))
+    .unwrap()
+}
+
+fn vault_service(model: &Value) -> Service {
+    Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_swift::capabilities())
+        .unwrap()
+}
+
+fn vault_golden(name: &str, source: &str) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/vault")
+        .join(name);
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, source).unwrap();
+    }
+    assert_eq!(
+        source,
+        fs::read_to_string(path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n"),
+        "{name}"
+    );
+}
+
+#[test]
+fn smithy_documentation_reaches_models_and_client() {
+    let files = emit(&vault_service(&vault_model()), &options()).unwrap();
+    let file = |suffix: &str| {
+        &files
+            .iter()
+            .find(|f| f.path.ends_with(suffix))
+            .unwrap_or_else(|| panic!("{suffix}"))
+            .contents
+    };
+    let models = file("/Models.swift");
+    let client = file("/VaultClient.swift");
+    for text in [
+        "/// A stored secret.",
+        "/// The <b>name</b> of the secret.",
+        "/// What a secret unlocks.",
+        "/// A website login.",
+        "/// Rarely rotated.",
+        "/// A way to prove identity.",
+        "/// The caller may not read this secret.",
+    ] {
+        assert!(models.contains(text), "{text}");
+    }
+    for text in [
+        "/// Reads one secret.",
+        "/// Stores secrets.",
+        "/// - Throws: ``AccessDenied``",
+        "/// Read-only: retried automatically",
+        "/// Idempotent: retried automatically",
+        "`clientToken` is filled with a fresh token",
+        "/// Every page of ``listSecrets(_:)``",
+        "/// See [the guide](https://example.com/guide) and ",
+    ] {
+        assert!(client.contains(text), "{text}");
+    }
+    assert!(client.contains(r"\[Secret]"), "bare references are escaped");
+    vault_golden("Models.swift", models);
+    vault_golden("VaultClient.swift", client);
+}
+
+#[test]
+fn sensitive_members_are_redacted_in_string_representations() {
+    let files = emit(&vault_service(&vault_model()), &options()).unwrap();
+    let models = &files
+        .iter()
+        .find(|f| f.path.ends_with("/Models.swift"))
+        .unwrap()
+        .contents;
+    for member in ["password", "pin", "history", "byName", "reason"] {
+        assert!(
+            models.contains(&format!("(\"{member}\", Describe.redact(`{member}`))")),
+            "{member}"
+        );
+    }
+    assert!(models.contains("(\"password\", Describe.redact(value))"));
+    assert!(models.contains("(\"pin\", Describe.redact(value))"));
+    for member in ["name", "aliases", "labels", "kind", "revision"] {
+        assert!(
+            !models.contains(&format!("(\"{member}\", Describe.redact")),
+            "{member}"
+        );
+    }
+}
+
+#[test]
+fn description_collisions_are_diagnosed() {
+    for name in ["description", "debugDescription", "customMirror"] {
+        let mut model = vault_model();
+        model["shapes"]["example.vault#Credential"]["members"][name] =
+            json!({"target": "smithy.api#String"});
+        let diagnostics = emit(&vault_service(&model), &options()).err().unwrap();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("Swift member name collision")),
+            "{name}"
+        );
+        let mut model = vault_model();
+        model["shapes"]["example.vault#Kind"]["members"][name] =
+            json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": name}});
+        let diagnostics = emit(&vault_service(&model), &options()).err().unwrap();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.message.contains("colliding Swift enum constant")),
+            "{name}"
+        );
+    }
+}

@@ -1,4 +1,5 @@
-﻿//! Compact runtime descriptions of already-lowered wire semantics.
+//! Compact runtime descriptions of already-lowered wire semantics.
+pub mod docs;
 pub mod documentation;
 use crucible_smithy::ir::{Bindings, Fault, Member, Service, Shape, SimpleKind, TimestampFormat};
 use serde_json::{Value, json};
@@ -607,5 +608,64 @@ mod tests {
         let member = &schema["shapes"]["example.hardening#Values"]["members"]["optionalDefault"];
         assert!(member["default"].is_null());
         assert_eq!(member["optional"], true);
+    }
+}
+
+/// CommonMark supported by Doxygen, with comment boundaries and commands escaped.
+pub fn doxygen(text: &str, indent: &str) -> String {
+    let text = text
+        .replace('\\', "&#92;")
+        .replace('@', "&#64;")
+        .replace("*/", "*&#47;")
+        .replace("/*", "/&#42;");
+    format!(
+        "{indent}/**\n{}{indent} */\n",
+        text.lines()
+            .map(|line| if line.trim().is_empty() {
+                format!("{indent} *\n")
+            } else {
+                format!("{indent} * {}\n", line.trim_end())
+            })
+            .collect::<String>()
+    )
+}
+
+/// Native collection aliases cannot customize element formatting. Conservatively
+/// redact a collection containing sensitive primitive elements as a whole.
+pub fn sensitive_collection(service: &Service, id: &crucible_smithy::ShapeId) -> bool {
+    fn visit(
+        service: &Service,
+        id: &crucible_smithy::ShapeId,
+        seen: &mut std::collections::BTreeSet<crucible_smithy::ShapeId>,
+    ) -> bool {
+        if !seen.insert(id.clone()) {
+            return false;
+        }
+        match service.shape(id) {
+            Some(Shape::List(s)) => {
+                service.sensitive(&s.member) || visit(service, &s.member.target, seen)
+            }
+            Some(Shape::Map(s)) => {
+                service.sensitive(&s.key)
+                    || service.sensitive(&s.value)
+                    || visit(service, &s.value.target, seen)
+            }
+            _ => false,
+        }
+    }
+    visit(service, id, &mut std::collections::BTreeSet::new())
+}
+
+#[cfg(test)]
+mod documentation_tests {
+    #[test]
+    fn doxygen_preserves_markdown_without_comment_or_command_injection() {
+        let text = super::doxygen(
+            "**bold** `code` [link](https://example.invalid)\n/* */ @param \\command",
+            "    ",
+        );
+        assert!(text.contains("**bold** `code` [link](https://example.invalid)"));
+        assert!(text.contains("/&#42; *&#47; &#64;param &#92;command"));
+        assert_eq!(text.matches("*/").count(), 1);
     }
 }
