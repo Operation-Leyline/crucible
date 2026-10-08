@@ -1,3 +1,6 @@
+#[path = "../../../tests/support/cargo_target.rs"]
+mod cargo_target;
+
 use std::{fs, path::Path, process::Command};
 
 use crucible_codegen_rust::{Options, generate, generate_client};
@@ -47,8 +50,10 @@ fn enum_wire_contract() {
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .args(["test", "--manifest-path"])
         .arg(directory.path().join("Cargo.toml"))
+        .env("CARGO_TARGET_DIR", cargo_target::target_dir())
         .output()
         .unwrap();
+    assert!(!directory.path().join("target").exists());
     assert!(
         output.status.success(),
         "{}\n{}",

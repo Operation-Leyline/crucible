@@ -1,5 +1,8 @@
 #![cfg(all(feature = "openapi", feature = "cli"))]
 
+#[path = "../../../tests/support/cargo_target.rs"]
+mod cargo_target;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -206,7 +209,7 @@ fn generated_cli_is_warning_free_as_an_independent_offline_cargo_package() {
     fs::write(root.join("model.json"), WEATHER).unwrap();
     probe(root, "cli-consumer");
     // Reuse verified registry versions while resolving the generated package's
-    // native path runtimes; the consumer still has its own Cargo target directory.
+    // native path runtimes; the consumer sources stay isolated while dependencies share a build cache.
     fs::copy(
         checkout().join("Cargo.lock"),
         root.join("exports/cli/Cargo.lock"),
@@ -261,7 +264,7 @@ fn generated_cli_is_warning_free_as_an_independent_offline_cargo_package() {
         .args(["clippy", "--offline", "--all-targets", "--manifest-path"])
         .arg(&manifest)
         .args(["--", "-D", "warnings"])
-        .env("CARGO_TARGET_DIR", root.join("cargo-target"))
+        .env("CARGO_TARGET_DIR", cargo_target::target_dir())
         .env("CARGO_BUILD_JOBS", "1")
         .output()
         .unwrap();

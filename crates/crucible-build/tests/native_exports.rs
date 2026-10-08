@@ -1,14 +1,17 @@
 #![cfg(feature = "rust")]
 
+#[path = "../../../tests/support/cargo_target.rs"]
+mod cargo_target;
+
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
 
-fn cargo(root: &Path, manifest: &Path, action: &str) -> Output {
+fn cargo(manifest: &Path, action: &str) -> Output {
     Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .args([action, "--verbose", "--manifest-path"])
         .arg(manifest)
-        .env("CARGO_TARGET_DIR", root.join("separate Cargo output"))
+        .env("CARGO_TARGET_DIR", cargo_target::target_dir())
         .env("CARGO_BUILD_JOBS", "1")
         .env("CARGO_NET_OFFLINE", "true")
         .output()
@@ -78,7 +81,7 @@ fn main() {{
     )
     .unwrap();
     let manifest = producer.join("Cargo.toml");
-    successful(cargo(root, &manifest, "build"));
+    successful(cargo(&manifest, "build"));
     let sdk = root.join("native/rust");
     let native_manifest = fs::read_to_string(sdk.join("Cargo.toml")).unwrap();
     assert!(native_manifest.contains("independent-weather-sdk"));
@@ -89,7 +92,7 @@ fn main() {{
         .unwrap()
         .modified()
         .unwrap();
-    let cached = cargo(root, &manifest, "build");
+    let cached = cargo(&manifest, "build");
     let cached_log = String::from_utf8_lossy(&cached.stderr).into_owned();
     successful(cached);
     assert_eq!(
@@ -106,13 +109,13 @@ fn main() {{
     );
     fs::create_dir(sdk.join("target")).unwrap();
     fs::write(sdk.join("target/native-output"), "keep").unwrap();
-    successful(cargo(root, &manifest, "build"));
+    successful(cargo(&manifest, "build"));
     assert_eq!(
         fs::read_to_string(producer.join("build-count")).unwrap(),
         "x"
     );
     fs::remove_file(sdk.join("src/lib.rs")).unwrap();
-    successful(cargo(root, &manifest, "build"));
+    successful(cargo(&manifest, "build"));
     assert!(sdk.join("src/lib.rs").is_file());
     assert_eq!(
         fs::read_to_string(producer.join("build-count")).unwrap(),
@@ -125,7 +128,7 @@ fn main() {{
     if cfg!(feature = "java") {
         assert!(root.join("native/java/pom.xml").is_file());
         fs::remove_dir_all(root.join("native/java")).unwrap();
-        successful(cargo(root, &manifest, "build"));
+        successful(cargo(&manifest, "build"));
         assert!(
             root.join("native/java/src/main/java/example/weather/WeatherClient.java")
                 .is_file()
@@ -137,9 +140,9 @@ fn main() {{
     }
     let consumer = root.join("consumer");
     fs::create_dir_all(consumer.join("src")).unwrap();
-    fs::write(consumer.join("Cargo.toml"), "[package]\nname = 'independent-sdk-consumer'\nversion = '0.1.0'\nedition = '2024'\n[workspace]\n[dependencies]\nindependent-weather-sdk = { path = '../native/rust' }\n").unwrap();
+    fs::write(consumer.join("Cargo.toml"), "[package]\nname = 'independent-native-sdk-consumer'\nversion = '0.1.0'\nedition = '2024'\n[workspace]\n[dependencies]\nindependent-weather-sdk = { path = '../native/rust' }\n").unwrap();
     fs::write(consumer.join("src/lib.rs"), "use independent_weather_sdk::{Config, WeatherClient, CitySummary as City, GetCityInput};\npub fn client() -> WeatherClient { WeatherClient::new(Config::new(\"http://127.0.0.1:3000\")) }\npub fn input() -> GetCityInput { GetCityInput::builder().city_id(\"oslo\").build() }\npub fn name(city: City) -> String { city.name }\n").unwrap();
-    successful(cargo(root, &consumer.join("Cargo.toml"), "check"));
+    successful(cargo(&consumer.join("Cargo.toml"), "check"));
     let mut model: serde_json::Value =
         serde_json::from_slice(&fs::read(producer.join("model.json")).unwrap()).unwrap();
     let city = model["shapes"]
@@ -164,8 +167,8 @@ fn main() {{
         serde_json::to_vec(&model).unwrap(),
     )
     .unwrap();
-    successful(cargo(root, &manifest, "build"));
-    let changed = cargo(root, &consumer.join("Cargo.toml"), "check");
+    successful(cargo(&manifest, "build"));
+    let changed = cargo(&consumer.join("Cargo.toml"), "check");
     assert!(
         !changed.status.success(),
         "native consumer reused stale SDK compilation"
@@ -179,5 +182,5 @@ fn main() {{
         .unwrap()
         .replace("city.name", "city.display_name");
     fs::write(consumer.join("src/lib.rs"), source).unwrap();
-    successful(cargo(root, &consumer.join("Cargo.toml"), "check"));
+    successful(cargo(&consumer.join("Cargo.toml"), "check"));
 }
