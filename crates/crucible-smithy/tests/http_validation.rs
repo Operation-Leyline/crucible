@@ -89,3 +89,83 @@ fn malformed_http_bindings_collect_all_diagnostics() {
         );
     }
 }
+
+#[test]
+fn ignored_http_bindings_use_body_timestamp_format() {
+    use crucible_smithy::ir::{Shape, TimestampFormat};
+    use crucible_smithy::{Capabilities, Feature, ShapeId};
+    let service = Model::from_json(include_str!("fixtures/ignored-timestamp-bindings.json"))
+        .unwrap()
+        .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
+        .unwrap();
+    for (structure, member, format, default) in [
+        (
+            "Input",
+            "time",
+            TimestampFormat::DateTime,
+            serde_json::json!("1970-01-01T00:00:00Z"),
+        ),
+        (
+            "Output",
+            "header",
+            TimestampFormat::HttpDate,
+            serde_json::json!("Thu, 01 Jan 1970 00:00:00 GMT"),
+        ),
+        (
+            "Output",
+            "query",
+            TimestampFormat::EpochSeconds,
+            serde_json::json!(0),
+        ),
+        (
+            "Output",
+            "label",
+            TimestampFormat::EpochSeconds,
+            serde_json::json!(0),
+        ),
+        (
+            "Result",
+            "header",
+            TimestampFormat::EpochSeconds,
+            serde_json::json!(0),
+        ),
+        (
+            "Result",
+            "query",
+            TimestampFormat::EpochSeconds,
+            serde_json::json!(0),
+        ),
+        (
+            "Result",
+            "label",
+            TimestampFormat::EpochSeconds,
+            serde_json::json!(0),
+        ),
+        (
+            "Result",
+            "explicit",
+            TimestampFormat::DateTime,
+            serde_json::json!("1970-01-01T00:00:00Z"),
+        ),
+    ] {
+        let Shape::Structure(shape) = service
+            .shape(&ShapeId::new("test.bindings", structure))
+            .unwrap()
+        else {
+            panic!("structure")
+        };
+        let member = shape.member(member).unwrap();
+        assert_eq!(
+            service.timestamp_format(member),
+            format,
+            "{structure}.{}",
+            member.name
+        );
+        assert_eq!(
+            member.wire_default,
+            Some(default),
+            "{structure}.{}",
+            member.name
+        );
+    }
+}

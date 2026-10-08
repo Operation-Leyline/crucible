@@ -1,0 +1,113 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "test.bindings#Service": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "aws.protocols#restJson1": {}
+      },
+      "operations": [
+        {
+          "target": "test.bindings#Read"
+        }
+      ]
+    },
+    "test.bindings#Read": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/read"
+        }
+      },
+      "input": {
+        "target": "test.bindings#Input"
+      },
+      "output": {
+        "target": "test.bindings#Output"
+      }
+    },
+    "test.bindings#Input": {
+      "type": "structure",
+      "members": {
+        "time": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#httpQuery": "time",
+            "smithy.api#default": 0
+          }
+        }
+      }
+    },
+    "test.bindings#Output": {
+      "type": "structure",
+      "members": {
+        "header": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#httpHeader": "x-time",
+            "smithy.api#default": 0
+          }
+        },
+        "query": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#httpQuery": "ignored",
+            "smithy.api#default": 0
+          }
+        },
+        "label": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#default": 0
+          }
+        },
+        "nested": {
+          "target": "test.bindings#Result"
+        }
+      }
+    },
+    "test.bindings#Result": {
+      "type": "structure",
+      "members": {
+        "header": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#httpHeader": "ignored",
+            "smithy.api#default": 0
+          }
+        },
+        "query": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#httpQuery": "ignored",
+            "smithy.api#default": 0
+          }
+        },
+        "label": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#default": 0
+          }
+        },
+        "explicit": {
+          "target": "smithy.api#Timestamp",
+          "traits": {
+            "smithy.api#httpHeader": "ignored",
+            "smithy.api#timestampFormat": "date-time",
+            "smithy.api#default": 0
+          }
+        }
+      }
+    },
+    "test.bindings#Items": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      }
+    }
+  }
+}

@@ -120,13 +120,19 @@ impl Protocol {
         matches!(self, Self::CrucibleJson | Self::AwsRestJson1)
     }
 
-    pub fn member_timestamp_format(self, traits: &crate::ir::Traits) -> TimestampFormat {
-        if self.uses_http_bindings() {
+    pub fn member_timestamp_format(
+        self,
+        traits: &crate::ir::Traits,
+        input: bool,
+        output: bool,
+    ) -> TimestampFormat {
+        if self.uses_http_bindings() && (input || output) {
             if traits.contains_key(&ShapeId::new("smithy.api", "httpHeader")) {
                 return self.timestamp_format(true);
             }
-            if traits.contains_key(&ShapeId::new("smithy.api", "httpQuery"))
-                || traits.contains_key(&ShapeId::new("smithy.api", "httpLabel"))
+            if input
+                && (traits.contains_key(&ShapeId::new("smithy.api", "httpQuery"))
+                    || traits.contains_key(&ShapeId::new("smithy.api", "httpLabel")))
             {
                 return TimestampFormat::DateTime;
             }

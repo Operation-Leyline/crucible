@@ -44,6 +44,8 @@ pub(crate) fn lower(
         visiting: BTreeSet::new(),
         capabilities,
         requirements: BTreeSet::new(),
+        http_inputs: BTreeSet::new(),
+        http_outputs: BTreeSet::new(),
     };
     let service = lowerer.service(service_id, infrastructure);
     if lowerer.diagnostics.is_empty() {
@@ -66,6 +68,8 @@ pub(crate) struct Lowerer<'m> {
     visiting: BTreeSet<ShapeId>,
     capabilities: &'m Capabilities,
     requirements: BTreeSet<FeatureUse>,
+    http_inputs: BTreeSet<ShapeId>,
+    http_outputs: BTreeSet<ShapeId>,
 }
 
 impl<'m> Lowerer<'m> {
@@ -114,6 +118,20 @@ impl<'m> Lowerer<'m> {
         let default_auth = self.effective_auth(id, &shape.traits, &auth);
         let service_errors: Vec<ShapeId> = shape.errors.iter().map(|r| r.target.clone()).collect();
         let default_pagination = shape.traits.get(&smithy("paginated"));
+        for (operation, _) in self.operation_ids(shape) {
+            if let Some(operation) = self.model.get(&operation) {
+                self.http_inputs
+                    .extend(operation.input.iter().map(|r| r.target.clone()));
+                self.http_outputs.extend(
+                    operation
+                        .output
+                        .iter()
+                        .chain(&operation.errors)
+                        .map(|r| r.target.clone()),
+                );
+            }
+        }
+        self.http_outputs.extend(service_errors.iter().cloned());
         let mut operations: Vec<Operation> = self
             .operation_ids(shape)
             .into_iter()
@@ -1644,7 +1662,13 @@ impl<'m> Lowerer<'m> {
         let format = self
             .explicit_timestamp_format(&member.traits)
             .or_else(|| target_traits.and_then(|t| self.explicit_timestamp_format(t)))
-            .unwrap_or_else(|| self.protocol.member_timestamp_format(&member.traits));
+            .unwrap_or_else(|| {
+                self.protocol.member_timestamp_format(
+                    &member.traits,
+                    self.http_inputs.contains(&member_id.root()),
+                    self.http_outputs.contains(&member_id.root()),
+                )
+            });
         let wire_default = if self
             .model
             .get(&member.target)
@@ -1678,6 +1702,7 @@ impl<'m> Lowerer<'m> {
             client_optional: in_input || member.traits.contains_key(&smithy("clientOptional")),
             constraints: effective,
             timestamp_format: self.explicit_timestamp_format(&member.traits),
+            wire_timestamp_format: format,
             docs: string_trait(&member.traits, "documentation"),
             traits: member.traits.clone(),
         }
