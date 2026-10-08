@@ -351,7 +351,12 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
 
 async fn answer(service: &Crucible, path: &str, bytes: &'static [u8]) -> (u16, Value) {
     let response = service
-        .handle(Request::get(path).body(Body::from(bytes)).unwrap())
+        .handle(
+            Request::get(path)
+                .header("content-type", "application/json")
+                .body(Body::from(bytes))
+                .unwrap(),
+        )
         .await;
     let status = response.status().as_u16();
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -397,6 +402,25 @@ async fn empty_json_and_required_members_are_consistent_across_http_bindings_and
             answer(&service, "/blob", bytes).await,
             (200, json!({"body":bytes}))
         );
+    }
+}
+
+#[tokio::test]
+async fn json_document_payloads_also_reject_incompatible_media_types() {
+    let service = service("valid", Records::default(), Records::default());
+    for path in ["/body", "/bound", "/document"] {
+        let response = service
+            .handle(
+                Request::get(path)
+                    .header("content-type", "text/plain")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), 415, "{path}");
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["__type"], "UnsupportedMediaTypeException");
     }
 }
 

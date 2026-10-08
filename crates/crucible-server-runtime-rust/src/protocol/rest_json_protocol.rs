@@ -30,7 +30,7 @@ impl Protocol for RestJsonProtocol {
         JsonProtocol.identify_scoped(job, operations, applies)
     }
     fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
-        JsonProtocol.decode(job)
+        super::json_protocol::decode_http(job, true)
     }
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
         super::json_response::write(job, answers, super::json_response::Format::RestJson)

@@ -298,6 +298,9 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
         match error {
             FrameworkError::UnknownOperation => "smithy.framework#UnknownOperationException",
             FrameworkError::MethodNotAllowed { .. } => "smithy.framework#MethodNotAllowedException",
+            FrameworkError::UnsupportedMediaType => {
+                "smithy.framework#UnsupportedMediaTypeException"
+            }
             FrameworkError::InternalFailure => "smithy.framework#InternalFailureException",
         }
     } else {

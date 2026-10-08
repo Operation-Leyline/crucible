@@ -84,7 +84,10 @@ fn operations(events: &Events) -> Operations {
         .unwrap()
 }
 fn request(body: impl Into<Body>) -> Request<Body> {
-    Request::post("/probe").body(body.into()).unwrap()
+    Request::post("/probe")
+        .header("content-type", "application/json")
+        .body(body.into())
+        .unwrap()
 }
 async fn text(response: Response) -> String {
     String::from_utf8(
@@ -452,7 +455,10 @@ fn rpc(parsed: &Arc<AtomicUsize>, decoded: &Arc<AtomicUsize>) -> Rpc {
     }
 }
 fn rpc_request(body: impl Into<Body>) -> Request<Body> {
-    Request::post("/rpc").body(body.into()).unwrap()
+    Request::post("/rpc")
+        .header("content-type", "application/json")
+        .body(body.into())
+        .unwrap()
 }
 
 #[tokio::test]
