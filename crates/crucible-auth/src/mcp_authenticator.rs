@@ -59,6 +59,7 @@ impl McpAuthenticator {
 impl EndpointGuard for McpAuthenticator {
     fn admit<'a>(&'a self, request: &'a Parts) -> Hook<'a, EndpointAdmission> {
         Hook::wait(async move {
+            let mut unavailable = false;
             for authenticator in &self.authenticators {
                 match authenticator
                     .authenticate(request, &AuthScheme::Bearer)
@@ -66,9 +67,8 @@ impl EndpointGuard for McpAuthenticator {
                 {
                     AuthenticateResult::Refused => continue,
                     AuthenticateResult::Unavailable(_) => {
-                        return EndpointAdmission::Respond(
-                            StatusCode::SERVICE_UNAVAILABLE.into_response(),
-                        );
+                        // An issuer outage must not prevent another issuer accepting its token.
+                        unavailable = true;
                     }
                     AuthenticateResult::Authenticated(principal) => {
                         let audience_matches = match principal.claims.get("aud") {
@@ -97,6 +97,9 @@ impl EndpointGuard for McpAuthenticator {
                         return EndpointAdmission::Admit;
                     }
                 }
+            }
+            if unavailable {
+                return EndpointAdmission::Respond(StatusCode::SERVICE_UNAVAILABLE.into_response());
             }
             let error = request
                 .headers

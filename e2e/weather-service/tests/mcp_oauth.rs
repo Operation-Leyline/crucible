@@ -410,6 +410,83 @@ async fn verifier_outage_is_not_an_invalid_token_and_discovery_remains_available
 }
 
 #[tokio::test]
+async fn issuer_outage_does_not_block_another_issuers_valid_token() {
+    let unavailable = TestTokenIssuer::es256("https://unavailable.example", "offline").unwrap();
+    let available = TestTokenIssuer::es256("https://available.example", "online").unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut config = unavailable.access_config(vec!["mcp-client".into()]);
+    config.jwks_url = format!("https://{}/jwks", listener.local_addr().unwrap());
+    drop(listener);
+    let service = Crucible::builder(operations())
+        .defaults()
+        .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
+        .mcp(
+            McpConfig::new().authorization(
+                McpAuthenticator::new(
+                    RESOURCE,
+                    vec![
+                        JwtAuthenticator::new(config).unwrap(),
+                        JwtAuthenticator::with_jwks(
+                            available.access_config(vec!["mcp-client".into()]),
+                            available.jwks(),
+                        )
+                        .unwrap(),
+                    ],
+                    SCOPE,
+                )
+                .unwrap(),
+            ),
+        )
+        .build()
+        .unwrap();
+    let mut claims = available.access_claims("person", "mcp-client");
+    claims["aud"] = json!(RESOURCE);
+    claims["scope"] = json!(SCOPE);
+    // The first attempt sees connection refusal; the next sees refresh cooldown.
+    for _ in 0..2 {
+        assert_eq!(
+            request(
+                &service,
+                "/mcp",
+                Some(&available.mint(&claims).unwrap()),
+                message("ping")
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+    }
+    claims["scope"] = json!("weather/read");
+    assert_eq!(
+        request(
+            &service,
+            "/mcp",
+            Some(&available.mint(&claims).unwrap()),
+            message("ping")
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    claims["aud"] = json!("https://other.example/mcp");
+    let (status, challenge, _) = request(
+        &service,
+        "/mcp",
+        Some(&available.mint(&claims).unwrap()),
+        message("ping"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(challenge.is_empty());
+    assert_eq!(
+        request(&service, "/mcp", Some("malformed"), message("ping"))
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[tokio::test]
 async fn authorization_is_opt_in_and_root_metadata_is_not_registered() {
     let ordinary = Crucible::builder(operations())
         .defaults()
