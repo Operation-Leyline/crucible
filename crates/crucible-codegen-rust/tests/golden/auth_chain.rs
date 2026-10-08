@@ -104,6 +104,7 @@ pub mod auth_weather {
         errors: &["AccessDeniedException"],
         readonly: false,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -140,6 +141,7 @@ pub mod auth_weather {
         errors: &["AccessDeniedException"],
         readonly: false,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -176,6 +178,7 @@ pub mod auth_weather {
         errors: &["AccessDeniedException"],
         readonly: false,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -212,6 +215,7 @@ pub mod auth_weather {
         errors: &["AccessDeniedException"],
         readonly: false,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -248,6 +252,7 @@ pub mod auth_weather {
         errors: &["AccessDeniedException"],
         readonly: false,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
