@@ -11,6 +11,7 @@ static INFO: OperationInfo = OperationInfo {
     id: "example.auth#Probe",
     name: "Probe",
     resource: None,
+    internal: false,
     method: "POST",
     path: &[Segment::Literal("refusal")],
     literal_query: &[],
