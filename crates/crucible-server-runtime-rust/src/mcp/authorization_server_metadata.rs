@@ -1,4 +1,5 @@
 use serde_json::{Value, json};
+use url::Url;
 
 /// An RFC 8414 authorization server metadata document the service serves for
 /// an identity provider whose own discovery document MCP clients reject.
@@ -75,10 +76,10 @@ impl AuthorizationServerMetadata {
             ("revocation_endpoint", self.revocation_endpoint.as_ref()),
         ] {
             let Some(url) = url else { continue };
-            let host = url
-                .strip_prefix("https://")
-                .and_then(|r| r.split('/').next());
-            if host.is_none_or(|h| h.is_empty() || h.contains(['?', '#'])) {
+            let parsed = Url::parse(url).map_err(|error| {
+                format!("authorization server metadata {name} must be a valid https URL: {error}")
+            })?;
+            if parsed.scheme() != "https" || parsed.host_str().is_none() {
                 return Err(format!(
                     "authorization server metadata {name} must be an https URL"
                 ));
