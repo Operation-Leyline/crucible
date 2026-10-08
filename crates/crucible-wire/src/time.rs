@@ -195,9 +195,14 @@ pub mod http_date {
     }
 
     pub fn parse(text: &str) -> Option<DateTime<Utc>> {
-        DateTime::parse_from_rfc2822(text)
-            .ok()
-            .map(|time| time.with_timezone(&Utc))
+        if text.len() != 29 || !text.is_ascii() {
+            return None;
+        }
+        let time = chrono::NaiveDateTime::parse_from_str(text, "%a, %d %b %Y %H:%M:%S GMT")
+            .ok()?
+            .and_utc();
+        // Chrono accepts alternate casing and padding; IMF-fixdate has one spelling.
+        (format(&time) == text).then_some(time)
     }
 
     pub fn serialize<S: Serializer>(
