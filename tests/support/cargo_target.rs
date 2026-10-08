@@ -1,6 +1,6 @@
 //! Shared build cache for independent consumer crates, never their sources.
-//! Cargo locks this directory during builds and fingerprints each temporary
-//! source path. Keep fixture package names distinct when their binaries differ.
+//! Cargo locks this directory during builds. Keep fixture package names distinct
+//! so their binaries and build-script output directories cannot overwrite each other.
 //! A separate directory avoids contending with the enclosing workspace build.
 use std::path::{Path, PathBuf};
 

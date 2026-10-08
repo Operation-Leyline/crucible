@@ -5,15 +5,31 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
 
+// Build-script OUT_DIR names can collide for same-name root packages even
+// though Cargo rebuilds when their source paths change. Unique names also keep
+// a previous run's artifact registry out of the missing-registry assertions.
+fn package_name(root: &Path, name: &str) -> String {
+    let suffix = root
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .replace('.', "-");
+    format!("{name}-fixture-{suffix}")
+}
+
 fn producer(root: &Path, name: &str, dependency: Option<&str>) {
     let package = root.join(name);
     fs::create_dir_all(package.join("src")).unwrap();
+    let unique_name = package_name(root, name);
     let dependencies = dependency.map_or(String::new(), |dependency| {
-        format!("[dependencies]\n{dependency} = {{ path = '../{dependency}' }}\n")
+        format!(
+            "[dependencies]\n{} = {{ path = '../{dependency}' }}\n",
+            package_name(root, dependency)
+        )
     });
     fs::write(
         package.join("Cargo.toml"),
-        format!("[package]\nname = '{name}'\nversion = '0.1.0'\nedition = '2024'\n{dependencies}",),
+        format!("[package]\nname = '{unique_name}'\nversion = '0.1.0'\nedition = '2024'\n{dependencies}",),
     )
     .unwrap();
     fs::write(package.join("src/lib.rs"), "pub fn ready() {}\n").unwrap();
@@ -25,7 +41,8 @@ fn main() {
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let sdk = out.join("java");
     fs::create_dir_all(&sdk).unwrap();
-    let name = env::var("CARGO_PKG_NAME").unwrap();
+    let package = env::var("CARGO_PKG_NAME").unwrap();
+    let name = package.split("-fixture-").next().unwrap();
     fs::write(sdk.join("pom.xml"), format!("<project>{name}</project>\n")).unwrap();
     fs::create_dir_all(sdk.join("src")).unwrap();
     fs::write(sdk.join("src/Client.java"), format!("// {name}\n")).unwrap();
@@ -57,7 +74,10 @@ fn workspace(root: &Path) {
     fs::create_dir_all(root.join("ordinary/src")).unwrap();
     fs::write(
         root.join("ordinary/Cargo.toml"),
-        "[package]\nname = 'ordinary'\nversion = '0.1.0'\nedition = '2024'\n",
+        format!(
+            "[package]\nname = '{}'\nversion = '0.1.0'\nedition = '2024'\n",
+            package_name(root, "ordinary")
+        ),
     )
     .unwrap();
     fs::write(root.join("ordinary/src/lib.rs"), "pub fn ready() {}\n").unwrap();
@@ -67,7 +87,9 @@ fn export(root: &Path, package: &str, artifact: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_crucible"))
         .args(["export-artifact", artifact, "--manifest-path"])
         .arg(root.join("Cargo.toml"))
-        .args(["--package", package, "--out"])
+        .arg("--package")
+        .arg(package_name(root, package))
+        .arg("--out")
         .arg(root.join("exported java"))
         .env("CARGO_TARGET_DIR", cargo_target::target_dir())
         .env("CARGO_BUILD_JOBS", "1")
