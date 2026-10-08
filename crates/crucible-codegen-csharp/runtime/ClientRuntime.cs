@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 internal sealed partial class ClientRuntime : IDisposable
 {
@@ -281,22 +282,34 @@ internal sealed partial class ClientRuntime : IDisposable
         if (Text(shape["kind"]) == "list") return new JsonArray(value.AsArray().Select(item => BoundMember(shape["member"]!, item, format)).ToArray());
         return value.DeepClone();
     }
+    private static readonly Regex HttpDateSeparator = new(@",\s*(?=(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),)", RegexOptions.Compiled);
     internal JsonNode? Header(JsonNode member, string value, string? format = null)
     {
         var shape = Shape(Text(member["target"])!); var kind = Text(shape["kind"]);
         if (kind == "list")
         {
             var result = new JsonArray(); if (string.IsNullOrWhiteSpace(value)) return result;
-            var parts = new List<string>(); int start = 0; bool quoted = false, escaped = false;
-            for (int i = 0; i < value.Length; i++)
+            var parts = new List<string>(); int start = 0;
+            var elementFormat = format ?? Text(shape["member"]!["format"]);
+            if (Text(Shape(Text(shape["member"]!["target"])!)["kind"]) == "timestamp" && elementFormat == "http-date" && !value.TrimStart().StartsWith('"'))
             {
-                var c = value[i];
-                if (escaped) escaped = false;
-                else if (c == '\\' && quoted) escaped = true;
-                else if (c == '"') quoted = !quoted;
-                else if (c == ',' && !quoted) { parts.Add(value[start..i].Trim()); start = i + 1; }
+                // Every IMF-fixdate holds a comma and the protocols write these lists unquoted, so only a comma
+                // that is followed by the next date's weekday separates two values.
+                foreach (Match found in HttpDateSeparator.Matches(value)) { parts.Add(value[start..found.Index].Trim()); start = found.Index + 1; }
             }
-            if (quoted) throw new JsonException("Unterminated quoted header");
+            else
+            {
+                bool quoted = false, escaped = false;
+                for (int i = 0; i < value.Length; i++)
+                {
+                    var c = value[i];
+                    if (escaped) escaped = false;
+                    else if (c == '\\' && quoted) escaped = true;
+                    else if (c == '"') quoted = !quoted;
+                    else if (c == ',' && !quoted) { parts.Add(value[start..i].Trim()); start = i + 1; }
+                }
+                if (quoted) throw new JsonException("Unterminated quoted header");
+            }
             parts.Add(value[start..].Trim());
             foreach (var part in parts) result.Add(Header(shape["member"]!, part.StartsWith('"') ? JsonSerializer.Deserialize<string>(part)! : part, format));
             return result;
@@ -306,6 +319,8 @@ internal sealed partial class ClientRuntime : IDisposable
             var raw = format == "epoch-seconds" ? JsonNode.Parse(value)! : JsonValue.Create(value)!;
             return WriteTime(ReadTime(raw, format), Text(member["format"]));
         }
+        // A non-finite float travels as the protocol's string, which Decode converts as it does for a body.
+        if (kind is "float" or "double" && ProtocolFlag("nonFiniteFloatStrings") && value.Trim() is "NaN" or "Infinity" or "-Infinity") return JsonValue.Create(value.Trim());
         if (kind is "byte" or "short" or "integer" or "long" or "float" or "double" or "boolean" or "intEnum" or "bigInteger" or "bigDecimal") return JsonNode.Parse(value);
         return JsonValue.Create(value);
     }

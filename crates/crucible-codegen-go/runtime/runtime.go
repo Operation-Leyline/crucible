@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -827,6 +828,7 @@ func boundMember(schema *schemaDescription, member memberDescription, value any,
 	}
 	return value, nil
 }
+var httpDateSeparator = regexp.MustCompile(`,\s*(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),`)
 func headerValue(schema *schemaDescription, member memberDescription, text string, formats ...string) (any, error) {
 	format := ""
 	if len(formats) > 0 { format = formats[0] }
@@ -837,24 +839,37 @@ func headerValue(schema *schemaDescription, member memberDescription, text strin
 			return []any{}, nil
 		}
 		parts := []string{}
-		start := 0
-		quoted, escaped := false, false
-		for i, c := range text {
-			if escaped {
-				escaped = false
-			} else if c == '\\' && quoted {
-				escaped = true
-			} else if c == '"' {
-				quoted = !quoted
-			} else if c == ',' && !quoted {
-				parts = append(parts, strings.TrimSpace(text[start:i]))
-				start = i + 1
+		elementFormat := format
+		if elementFormat == "" { elementFormat = shape.Member.Format }
+		if schema.Shapes[shape.Member.Target].Kind == "timestamp" && elementFormat == "http-date" && !strings.HasPrefix(strings.TrimSpace(text), "\"") {
+			// Every IMF-fixdate holds a comma and the protocols write these lists unquoted, so only a comma
+			// that is followed by the next date's weekday separates two values.
+			start := 0
+			for _, found := range httpDateSeparator.FindAllStringIndex(text, -1) {
+				parts = append(parts, strings.TrimSpace(text[start:found[0]]))
+				start = found[0] + 1
 			}
+			parts = append(parts, strings.TrimSpace(text[start:]))
+		} else {
+			start := 0
+			quoted, escaped := false, false
+			for i, c := range text {
+				if escaped {
+					escaped = false
+				} else if c == '\\' && quoted {
+					escaped = true
+				} else if c == '"' {
+					quoted = !quoted
+				} else if c == ',' && !quoted {
+					parts = append(parts, strings.TrimSpace(text[start:i]))
+					start = i + 1
+				}
+			}
+			if quoted {
+				return nil, errors.New("unterminated quoted header")
+			}
+			parts = append(parts, strings.TrimSpace(text[start:]))
 		}
-		if quoted {
-			return nil, errors.New("unterminated quoted header")
-		}
-		parts = append(parts, strings.TrimSpace(text[start:]))
 		values := make([]any, len(parts))
 		for i, p := range parts {
 			if strings.HasPrefix(p, "\"") {
@@ -872,6 +887,12 @@ func headerValue(schema *schemaDescription, member memberDescription, text strin
 		}
 		return values, nil
 	case "byte", "short", "integer", "long", "float", "double", "intEnum", "bigInteger", "bigDecimal":
+		// A non-finite float travels as the protocol's string, which decodeModel converts as it does for a body.
+		if schema.ProtocolSettings.NonFiniteFloatStrings && (shape.Kind == "float" || shape.Kind == "double") {
+			switch trimmed := strings.TrimSpace(text); trimmed {
+			case "NaN", "Infinity", "-Infinity": return trimmed, nil
+			}
+		}
 		return parseJSON([]byte(text))
 	case "boolean":
 		if text != "true" && text != "false" {

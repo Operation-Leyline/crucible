@@ -124,6 +124,9 @@ internal struct WireCodec: Sendable {
             let wire = format == "epoch-seconds" ? try JSONValue(data: Data(text.utf8)) : .string(text)
             return try Timestamp.fromWire(wire, context(target, format: format)).toWire(context(target, format: member["format"]?.text))
         }
+        // The protocol's string for a non-finite float, which decode converts as it does for a body.
+        let scalar = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if shape["kind"]?.text == "float" || shape["kind"]?.text == "double", nonFiniteFloats, nonFinite(scalar) != nil { return .string(scalar) }
         switch shape["kind"]?.text {
         case "list":
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .array([]) }
@@ -132,6 +135,22 @@ internal struct WireCodec: Sendable {
                 let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
                 let decoded = trimmed.hasPrefix("\"") ? try JSONValue(data: Data(trimmed.utf8)).string : trimmed
                 values.append(try header(shape["member"]!, decoded, format: format))
+            }
+            let element = shape["member"]!
+            if try self.shape(element["target"]!.string)["kind"]?.text == "timestamp", (format ?? element["format"]?.text) == "http-date",
+               !text.drop(while: \.isWhitespace).hasPrefix("\"") {
+                // Every IMF-fixdate holds a comma and the protocols write these lists unquoted, so only a comma
+                // that is followed by the next date's weekday separates two values.
+                let weekdays = ["Mon,", "Tue,", "Wed,", "Thu,", "Fri,", "Sat,", "Sun,"]
+                for index in text.indices {
+                    if text[index] == "," {
+                        let next = text[text.index(after: index)...].drop(while: \.isWhitespace)
+                        if weekdays.contains(where: { next.hasPrefix($0) }) { try append(part); part = ""; continue }
+                    }
+                    part.append(text[index])
+                }
+                try append(part)
+                return .array(values)
             }
             for character in text {
                 if character == "," && !quoted { try append(part); part = ""; continue }

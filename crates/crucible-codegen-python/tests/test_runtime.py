@@ -221,6 +221,18 @@ class RuntimeTests(unittest.TestCase):
                 encoded = codec.bound({"target": target}, value)
                 self.assertEqual(encoded, expected)
 
+    def test_unquoted_http_date_header_lists(self):
+        schema = {"shapes": {"example#Time": {"kind": "timestamp"},
+                             "example#Times": {"kind": "list", "member": {"target": "example#Time", "format": "http-date"}}}}
+        codec = _Codec(schema, {})
+        member = {"target": "example#Times"}
+        first = datetime(2019, 12, 16, 23, 48, 18, tzinfo=timezone.utc)
+        second = datetime(2019, 12, 17, 23, 48, 18, tzinfo=timezone.utc)
+        wire = "Mon, 16 Dec 2019 23:48:18 GMT, Tue, 17 Dec 2019 23:48:18 GMT"
+        self.assertEqual(codec.read_header(member, wire), [first, second])
+        self.assertEqual(codec.read_header(member, "Mon, 16 Dec 2019 23:48:18 GMT"), [first])
+        self.assertEqual(codec.read_header(member, codec.bound(member, [first, second], header=True)), [first, second])
+
     def test_cleartext_credentials_are_rejected_before_send(self):
         with httpx.Client(transport=httpx.MockTransport(lambda r: self.fail("credentials leaked"))) as http:
             with self.assertRaisesRegex(ValueError, "plaintext"):
