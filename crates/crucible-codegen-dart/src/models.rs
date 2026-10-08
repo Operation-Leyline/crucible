@@ -1,5 +1,31 @@
 use super::{enum_constant, field, literal, ty};
-use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use crucible_codegen_common::docs;
+use crucible_smithy::ir::{Member, Service, Shape, SimpleKind};
+
+fn doc(text: Option<&str>, indent: &str) -> String {
+    text.map(|text| docs::line_comment(indent, "///", &docs::escape(text)))
+        .unwrap_or_default()
+}
+
+/// `toString` for a generated model: thin, with formatting and the redaction
+/// marker living in `runtime/describe.dart`.
+fn to_string(service: &Service, name: &str, members: &[Member], trailer: &str) -> String {
+    let entries: Vec<String> = members
+        .iter()
+        .map(|member| {
+            let field = field(&member.name);
+            if docs::is_redacted(service, member) {
+                format!("{}: describe.redact({field})", literal(&member.name))
+            } else {
+                format!("{}: {field}", literal(&member.name))
+            }
+        })
+        .collect();
+    format!(
+        "  @core.override\n  core.String toString() => describe.describe('{name}', <core.String, core.Object?>{{{}}}{trailer});\n",
+        entries.join(", ")
+    )
+}
 
 pub fn emit(service: &Service) -> String {
     let exception = crucible_codegen_common::service_exception_name(service);
@@ -27,7 +53,7 @@ pub fn emit(service: &Service) -> String {
     }) {
         out.push_str("import 'runtime/json.dart' as json;\n");
     }
-    out.push_str("import 'runtime/codec.dart' as wire;\nimport 'runtime/errors.dart' as errors;\n\nfinal class Unit implements wire.WireModel {\n  const Unit();\n  @core.override\n  core.Object toWire(wire.WireContext context) => <core.String, core.Object?>{};\n}\n");
+    out.push_str("import 'runtime/codec.dart' as wire;\nimport 'runtime/describe.dart' as describe;\nimport 'runtime/errors.dart' as errors;\n\n/// The empty input or output of an operation that takes or returns nothing.\nfinal class Unit implements wire.WireModel {\n  const Unit();\n  @core.override\n  core.Object toWire(wire.WireContext context) => <core.String, core.Object?>{};\n  @core.override\n  core.String toString() => 'Unit()';\n}\n");
     let mut decode = String::from(
         "core.Object decodeModel(core.String target, core.Object? value, wire.WireContext context) {\n  switch (target) {\n",
     );
@@ -39,11 +65,13 @@ pub fn emit(service: &Service) -> String {
         let target = literal(&id.to_string());
         match shape {
             Shape::IntEnum(enumeration) => {
-                out.push_str(&format!("final class {name} implements wire.WireModel {{\n  final core.int value;\n  const {name}(this.value);\n"));
+                out.push_str(&doc(enumeration.docs.as_deref(), ""));
+                out.push_str(&format!("final class {name} implements wire.WireModel {{\n  /// The integer sent on the wire.\n  final core.int value;\n  const {name}(this.value);\n"));
                 for value in &enumeration.values {
+                    out.push_str(&doc(value.docs.as_deref(), "  "));
                     out.push_str(&format!("  static const {} = {name}({});\n", enum_constant(&value.name), value.value));
                 }
-                out.push_str(&format!("  @core.override\n  core.Object toWire(wire.WireContext context) {{ final number = json.JsonNumber(value.toString()); context.codec.intEnumValue(number); return number; }}\n  @core.override\n  core.bool operator ==(core.Object other) => other is {name} && value == other.value;\n  @core.override\n  core.int get hashCode => value.hashCode;\n}}\n"));
+                out.push_str(&format!("  @core.override\n  core.Object toWire(wire.WireContext context) {{ final number = json.JsonNumber(value.toString()); context.codec.intEnumValue(number); return number; }}\n  @core.override\n  core.bool operator ==(core.Object other) => other is {name} && value == other.value;\n  @core.override\n  core.int get hashCode => value.hashCode;\n  @core.override\n  core.String toString() => '{name}($value)';\n}}\n"));
                 decode.push_str(&format!("    case {target}: return {name}(context.codec.intEnumValue(value));\n"));
             },
             Shape::Unit { .. } => decode.push_str(&format!("    case {target}:\n      if (wire.wireObject(value).isNotEmpty) {{ throw const core.FormatException('Unit requires an empty object'); }}\n      return const Unit();\n")),
@@ -51,6 +79,7 @@ pub fn emit(service: &Service) -> String {
             Shape::List(list) => {
                 let item = format!("{}{}", ty(service, &list.member.target), if list.sparse { "?" } else { "" });
                 let decode_item = if list.sparse { "item == null ? null : " } else { "" };
+                out.push_str(&doc(list.docs.as_deref(), ""));
                 out.push_str(&format!("typedef {name} = core.List<{item}>;\n"));
                 decode.push_str(&format!("    case {target}: return context.codec.collection(value, context.shape).map((item) => {decode_item}context.codec.decode(item, context.child(context.shape['member'])) as {item}).toList();\n"));
             },
@@ -58,34 +87,39 @@ pub fn emit(service: &Service) -> String {
                 let key = ty(service, &map.key.target);
                 let item = format!("{}{}", ty(service, &map.value.target), if map.sparse { "?" } else { "" });
                 let decode_item = if map.sparse { "item == null ? null : " } else { "" };
+                out.push_str(&doc(map.docs.as_deref(), ""));
                 out.push_str(&format!("typedef {name} = core.Map<{key}, {item}>;\n"));
                 decode.push_str(&format!("    case {target}: return context.codec.mapping(value, context.shape).map((key, item) => core.MapEntry(context.codec.decode(key, context.child(context.shape['key'])) as {key}, {decode_item}context.codec.decode(item, context.child(context.shape['value'])) as {item}));\n"));
             },
             Shape::Enum(enumeration) => {
-                out.push_str(&format!("final class {name} implements wire.WireModel {{\n  final core.String value;\n  const {name}(this.value);\n"));
+                out.push_str(&doc(enumeration.docs.as_deref(), ""));
+                out.push_str(&format!("final class {name} implements wire.WireModel {{\n  /// The string sent on the wire; a value this client does not list is kept as is.\n  final core.String value;\n  const {name}(this.value);\n"));
                 for value in &enumeration.values {
+                    out.push_str(&doc(value.docs.as_deref(), "  "));
                     out.push_str(&format!("  static const {} = {name}({});\n", enum_constant(&value.name), literal(&value.value)));
                 }
-                out.push_str(&format!("  @core.override\n  core.Object toWire(wire.WireContext context) => value;\n  @core.override\n  core.bool operator ==(core.Object other) => other is {name} && value == other.value;\n  @core.override\n  core.int get hashCode => value.hashCode;\n}}\n"));
+                out.push_str(&format!("  @core.override\n  core.Object toWire(wire.WireContext context) => value;\n  @core.override\n  core.bool operator ==(core.Object other) => other is {name} && value == other.value;\n  @core.override\n  core.int get hashCode => value.hashCode;\n  @core.override\n  core.String toString() => '{name}($value)';\n}}\n"));
                 decode.push_str(&format!("    case {target}: return {name}(wire.wireString(value));\n"));
             },
             Shape::Structure(structure) => {
                 let error = structure.error.is_some();
                 let base = if error { format!(" extends errors.{exception}") } else { String::new() };
+                out.push_str(&doc(structure.docs.as_deref(), ""));
                 out.push_str(&format!("final class {name}{base} implements wire.WireModel {{\n"));
                 let mut params = Vec::new();
                 let mut initializers = Vec::new();
                 for member in &structure.members {
                     let field = field(&member.name);
                     let value = ty(service, &member.target);
+                    let member_docs = doc(member.docs.as_deref(), "  ");
                     if member.optional_on_client() {
-                        out.push_str(&format!("  final {value}? _{field};\n  final wire.Field<{value}>? _{field}Presence;\n  {value}? get {field} => _{field}Presence != null ? _{field}Presence.value : _{field};\n  wire.Field<{value}> get {field}Presence => _{field}Presence ?? (_{field} == null ? const wire.Field.unset() : wire.Field.value(_{field}));\n"));
+                        out.push_str(&format!("  final {value}? _{field};\n  final wire.Field<{value}>? _{field}Presence;\n{member_docs}  {value}? get {field} => _{field}Presence != null ? _{field}Presence.value : _{field};\n  /// Whether `{field}` was omitted, set to null, or given a value.\n  wire.Field<{value}> get {field}Presence => _{field}Presence ?? (_{field} == null ? const wire.Field.unset() : wire.Field.value(_{field}));\n"));
                         params.push(format!("{value}? {field}"));
                         params.push(format!("wire.Field<{value}>? {field}Presence"));
                         initializers.push(format!("_{field} = {field}"));
                         initializers.push(format!("_{field}Presence = {field}Presence"));
                     } else {
-                        out.push_str(&format!("  final {value} {field};\n"));
+                        out.push_str(&format!("{member_docs}  final {value} {field};\n"));
                         params.push(format!("required this.{field}"));
                     }
                 }
@@ -102,11 +136,15 @@ pub fn emit(service: &Service) -> String {
                 for member in &structure.members {
                     out.push_str(&format!("    context.put(object, {}, this.{}{});\n", literal(&member.name), field(&member.name), if member.optional_on_client() { "Presence" } else { "" }));
                 }
-                out.push_str("    return object;\n  }\n}\n");
+                out.push_str("    return object;\n  }\n");
+                let trailer = if error { ", metadata: metadata" } else { "" };
+                out.push_str(&to_string(service, name, &structure.members, trailer));
+                out.push_str("}\n");
                 decode.push_str(&format!("    case {target}: return {name}.fromWire(value, context);\n"));
                 if error {errors.push_str(&format!("    case {target}: return {name}.fromWire(value, context, metadata: metadata);\n"));}
             },
             Shape::Union(union) => {
+                out.push_str(&doc(union.docs.as_deref(), ""));
                 out.push_str(&format!("sealed class {name} implements wire.WireModel {{\n  const {name}();\n  factory {name}.fromWire(core.Object? value, wire.WireContext context) {{\n    final object = wire.wireObject(value);\n    if (object.length != 1) {{ throw const core.FormatException('Union requires one member'); }}\n    final entry = object.entries.single;\n    switch (entry.key) {{\n"));
                 for member in &union.members {
                     out.push_str(&format!("      case {}: return {name}{}(entry.value == null ? null : context.codec.decode(entry.value, context.member(entry.key)) as {});\n", literal(&member.name), variant(&member.name), ty(service, &member.target)));
@@ -115,9 +153,11 @@ pub fn emit(service: &Service) -> String {
                 for member in &union.members {
                     let variant = variant(&member.name);
                     let wire_name = literal(&member.name);
-                    out.push_str(&format!("final class {name}{variant} extends {name} {{\n  final {}? value;\n  const {name}{variant}(this.value);\n  @core.override\n  core.Object toWire(wire.WireContext context) => <core.String, core.Object?>{{{wire_name}: value == null ? null : context.codec.encode(value, context.member({wire_name}))}};\n}}\n", ty(service, &member.target)));
+                    out.push_str(&doc(member.docs.as_deref(), ""));
+                    let shown = if docs::is_redacted(service, member) { "describe.redact(value)" } else { "value" };
+                    out.push_str(&format!("final class {name}{variant} extends {name} {{\n  /// The member's value; null when the union carries an explicit null.\n  final {}? value;\n  const {name}{variant}(this.value);\n  @core.override\n  core.Object toWire(wire.WireContext context) => <core.String, core.Object?>{{{wire_name}: value == null ? null : context.codec.encode(value, context.member({wire_name}))}};\n  @core.override\n  core.String toString() => describe.describe('{name}', <core.String, core.Object?>{{{wire_name}: {shown}}});\n}}\n", ty(service, &member.target)));
                 }
-                out.push_str(&format!("final class {name}UnknownVariant extends {name} {{\n  final core.String name;\n  final json.JsonValue value;\n  const {name}UnknownVariant(this.name, this.value);\n  @core.override\n  core.Object toWire(wire.WireContext context) {{\n    if (wire.wireObject(context.shape['members']).containsKey(name)) {{ throw const core.FormatException('Unknown variant name is declared'); }}\n    return <core.String, core.Object?>{{name: value.value}};\n  }}\n}}\n"));
+                out.push_str(&format!("/// A member this client does not know, kept so it can be sent back unchanged.\nfinal class {name}UnknownVariant extends {name} {{\n  /// The member name received.\n  final core.String name;\n  /// The raw value received.\n  final json.JsonValue value;\n  const {name}UnknownVariant(this.name, this.value);\n  /// Omits the value: nothing says whether it is sensitive.\n  @core.override\n  core.String toString() => describe.describe('{name}', <core.String, core.Object?>{{'unknownVariant': name}});\n  @core.override\n  core.Object toWire(wire.WireContext context) {{\n    if (wire.wireObject(context.shape['members']).containsKey(name)) {{ throw const core.FormatException('Unknown variant name is declared'); }}\n    return <core.String, core.Object?>{{name: value.value}};\n  }}\n}}\n"));
                 decode.push_str(&format!("    case {target}: return {name}.fromWire(value, context);\n"));
             },
         }

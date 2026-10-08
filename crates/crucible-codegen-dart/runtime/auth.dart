@@ -10,8 +10,13 @@ import 'transport.dart';
 
 /// HTTP Basic credentials. The password never appears in [toString].
 final class BasicCredentials {
+  /// The user name; it may not contain a colon.
   final String username;
+
+  /// The password, sent only in the `Authorization` header over HTTPS or loopback HTTP.
   final String password;
+
+  /// Throws [ArgumentError] when [username] contains a colon.
   BasicCredentials(this.username, this.password) {
     if (username.contains(':')) throw ArgumentError('Basic username cannot contain a colon');
   }
@@ -21,10 +26,19 @@ final class BasicCredentials {
 
 /// AWS credentials for Signature Version 4. Secrets never appear in [toString].
 final class AwsCredentials {
+  /// The access key ID.
   final String accessKeyId;
+
+  /// The secret access key.
   final String secretAccessKey;
+
+  /// The session token of temporary credentials.
   final String? sessionToken;
+
+  /// When temporary credentials expire; signing with expired ones fails.
   final DateTime? expiresAt;
+
+  /// Throws [ArgumentError] when the key ID or secret is empty.
   AwsCredentials(this.accessKeyId, this.secretAccessKey, {this.sessionToken, this.expiresAt}) {
     if (accessKeyId.isEmpty || secretAccessKey.isEmpty) throw ArgumentError('AWS credentials must be nonempty');
   }
@@ -32,8 +46,13 @@ final class AwsCredentials {
   String toString() => 'AwsCredentials([redacted])';
 }
 
+/// Supplies HTTP Basic credentials per call; null means none are available.
 typedef BasicCredentialProvider = FutureOr<BasicCredentials?> Function();
+
+/// Supplies an API key per call; null means none is available.
 typedef ApiKeyProvider = FutureOr<String?> Function();
+
+/// Supplies AWS credentials per call; null means none are available.
 typedef AwsCredentialProvider = FutureOr<AwsCredentials?> Function();
 
 /// Tries providers in order. `null` means unavailable; errors remain errors.
@@ -87,8 +106,13 @@ AwsCredentials? _identity(String? access, String? secret, String? token) {
 /// Shares one provider across concurrent calls and refreshes expiring
 /// identities once, before they expire.
 final class CachedCredentials {
+  /// The wrapped source, called only when the cached value is missing or due.
   final AwsCredentialProvider provider;
+
+  /// How long before expiry to refresh, at most half the remaining lifetime.
   final Duration refreshBefore;
+
+  /// The time source, replaceable in tests.
   final DateTime Function() clock;
   AwsCredentials? _value;
   DateTime? _refreshAt;
@@ -98,6 +122,8 @@ final class CachedCredentials {
     if (refreshBefore.isNegative) throw ArgumentError('Invalid credential refresh interval');
   }
 
+  /// Returns the cached credentials, refreshing them first when due. Usable
+  /// directly as an [AwsCredentialProvider].
   Future<AwsCredentials?> call() {
     final value = _value;
     if (value != null && (_refreshAt == null || _refreshAt!.isAfter(clock()))) return Future.value(value);

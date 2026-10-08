@@ -3,10 +3,17 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 
 /// When a client computes request checksums or validates response checksums.
-enum ChecksumPolicy { whenSupported, whenRequired }
+enum ChecksumPolicy {
+  /// Whenever the operation and service support it.
+  whenSupported,
+
+  /// Only when the operation requires it.
+  whenRequired
+}
 
 /// A response checksum differs from the received payload.
 final class ChecksumException implements Exception {
+  /// The mismatching algorithm, such as `CRC32`.
   final String algorithm;
   const ChecksumException(this.algorithm);
   @override

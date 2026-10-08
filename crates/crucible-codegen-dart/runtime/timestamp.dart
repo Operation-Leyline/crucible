@@ -35,6 +35,16 @@ final class Timestamp {
     ).add(Duration(microseconds: nanoseconds ~/ 1000));
   }
 
+  /// ISO-8601 in UTC, or epoch seconds when [DateTime] cannot hold the instant.
+  @override
+  String toString() {
+    try {
+      return toDateTime().toIso8601String();
+    } on FormatException {
+      return '$seconds.${nanoseconds.toString().padLeft(9, '0')}';
+    }
+  }
+
   factory Timestamp.fromEpoch(JsonNumber value) {
     final total = value.scaled(9);
     final nanos = total.remainder(_billion);

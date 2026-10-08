@@ -2,7 +2,9 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
+import subprocess
 import tempfile
 
 from sdk_test_support import ROOT, run, weather
@@ -96,7 +98,7 @@ Future<void> main() async {
         "example.weather#CitySummary": "String", "example.weather#CitySummaries": "List",
         "example.weather#Location": "Object", "example.weather#Sky": "Future",
     }
-    for member in ["class", "object", "context", "core", "wire", "json", "typed", "stamp", "errors"]:
+    for member in ["class", "object", "context", "core", "wire", "json", "typed", "stamp", "errors", "describe"]:
         renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}
     renamed_path = output / "renamed.json"
     renamed_path.write_text(json.dumps(renamed))
@@ -123,10 +125,10 @@ void main() {
   final codec = WireCodec(wireObject(exactJsonDecode(schemaSource)), decodeModel);
   const input = sdk.CreateCityInput(object:'object', context:'context',
     coreValue:'core', wireValue:'wire', jsonValue:'json',
-    typedValue:'typed', stampValue:'stamp', errorsValue:'errors');
+    typedValue:'typed', stampValue:'stamp', errorsValue:'errors', describeValue:'describe');
   final context = codec.context('example.weather#CreateCityInput');
   final encoded = wireObject(codec.encode(input, context));
-  for (final field in ['object', 'context', 'core', 'wire', 'json', 'typed', 'stamp', 'errors']) {
+  for (final field in ['object', 'context', 'core', 'wire', 'json', 'typed', 'stamp', 'errors', 'describe']) {
     if (encoded[field] != field) throw StateError('Shadowed member: $field');
   }
   final copy = codec.decode(encoded, context) as sdk.CreateCityInput;
@@ -134,9 +136,9 @@ void main() {
 }
 """, encoding="utf-8")
             dart("run", "main.dart", cwd=generated)
-    for name, fixture_name in [("dynamic", "dynamic-bindings"), ("extended", "extended-types"), ("wire", "error-payloads")]:
+    for name, fixture_name in [("dynamic", "dynamic-bindings"), ("extended", "extended-types"), ("wire", "error-payloads"), ("describe", "client-docs")]:
         generated = output / name
-        package_name = {"dynamic": "dynamic_client", "extended": "types_client", "wire": "wire_client"}[name]
+        package_name = {"dynamic": "dynamic_client", "extended": "types_client", "wire": "wire_client", "describe": "vault_client"}[name]
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
             str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"),
             "--out", str(generated), "--package-name", package_name)
@@ -150,6 +152,11 @@ void main() {
         dart("analyze", cwd=generated)
         dart("test", cwd=generated)
         dart("test", "--platform", "chrome", cwd=generated)
+        if name == "describe":
+            # dartdoc must accept every generated and bundled doc comment.
+            docs = subprocess.run([DART, "doc", "."], cwd=generated, check=True, capture_output=True, text=True)
+            if re.search(r"\b(warning|error)\b", docs.stdout + docs.stderr, re.I) and "no issues found" not in docs.stdout:
+                raise RuntimeError("dart doc reported problems:\n" + docs.stdout + docs.stderr)
     print("Dart fresh consumer, native and JS compilation, empty and renamed packages passed")
     qualify_features(output)
 

@@ -2,12 +2,23 @@ import 'dart:async';
 import 'errors.dart';
 
 /// Caller-owned cancellation shared by any number of requests.
+///
+/// Pass it as `cancellation:` to an operation; cancelling it fails the call
+/// with the reason, [CancelledException] by default.
 final class CancellationToken {
   Object? _reason;
   final _listeners = <void Function()>{};
+
+  /// Whether [cancel] or [cancelWith] has been called.
   bool get isCancelled => _reason != null;
+
+  /// The error calls fail with, or null while not cancelled.
   Object? get reason => _reason;
+
+  /// Cancels with a [CancelledException].
   void cancel() => cancelWith(const CancelledException());
+
+  /// Cancels with [reason]. Only the first cancellation counts.
   void cancelWith(Object reason) {
     if (_reason != null) return;
     _reason = reason;
@@ -18,6 +29,7 @@ final class CancellationToken {
     }
   }
 
+  /// Throws [reason] if cancelled.
   void throwIfCancelled() {
     if (_reason case final reason?) throw reason;
   }

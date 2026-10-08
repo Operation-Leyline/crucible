@@ -3,10 +3,18 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'cancellation.dart';
 
+/// One outgoing HTTP request. Immutable: headers and body are copied.
 final class HttpRequest {
+  /// The absolute URL.
   final Uri url;
+
+  /// The HTTP method, upper case.
   final String method;
+
+  /// The request headers.
   final Map<String, String> headers;
+
+  /// The body bytes, or null for none.
   final Uint8List? body;
   HttpRequest(
       {required this.url,
@@ -15,6 +23,7 @@ final class HttpRequest {
       Uint8List? body})
       : headers = Map.unmodifiable(headers),
         body = body == null ? null : Uint8List.fromList(body);
+  /// A copy with the given parts replaced.
   HttpRequest copyWith(
           {Uri? url,
           String? method,
@@ -27,9 +36,15 @@ final class HttpRequest {
           body: body ?? this.body);
 }
 
+/// One HTTP response with lower-cased header names.
 final class HttpResponse {
+  /// The status code.
   final int status;
+
+  /// The response headers, names in lower case.
   final Map<String, String> headers;
+
+  /// The body bytes; empty when none was read.
   final Uint8List body;
   HttpResponse(
       {required this.status,
@@ -42,9 +57,16 @@ final class HttpResponse {
         body = body ?? Uint8List(0);
 }
 
+/// Sends HTTP requests for a client. Implement it to plug in a different HTTP
+/// stack or a test double through `ClientConfig.transport`.
 abstract interface class HttpTransport {
+  /// Sends [request] and completes with the response. Must not follow
+  /// redirects, and should abort when [cancellation] is cancelled. [readBody]
+  /// is false when the caller will ignore the body.
   Future<HttpResponse> send(HttpRequest request,
       {required bool readBody, required CancellationToken cancellation});
+
+  /// Releases the transport's resources.
   void close();
 }
 
@@ -53,6 +75,7 @@ abstract interface class HttpTransport {
 final class DefaultHttpTransport implements HttpTransport {
   final http.Client _client;
   final bool _owned;
+  /// Wraps [client], or creates a new one when it is omitted.
   DefaultHttpTransport({http.Client? client})
       : _client = client ?? http.Client(),
         _owned = client == null;

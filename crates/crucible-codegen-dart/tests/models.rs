@@ -1,5 +1,6 @@
 use crucible_codegen_dart::{
-    CODEC_RUNTIME, ERROR_RUNTIME, JSON_RUNTIME, Options, TIMESTAMP_RUNTIME, emit, emit_models,
+    CODEC_RUNTIME, DESCRIBE_RUNTIME, ERROR_RUNTIME, JSON_RUNTIME, Options, TIMESTAMP_RUNTIME,
+    emit, emit_models,
 };
 use crucible_smithy::{Model, ir::Service};
 use serde_json::{Value, json};
@@ -50,6 +51,7 @@ fn weather_models_are_deterministic() {
             ("timestamp", TIMESTAMP_RUNTIME),
             ("codec", CODEC_RUNTIME),
             ("errors", ERROR_RUNTIME),
+            ("describe", DESCRIBE_RUNTIME),
         ] {
             fs::write(output.join(format!("runtime/{name}.dart")), source).unwrap();
         }
@@ -360,4 +362,91 @@ fn service_exception_cannot_shadow_runtime_failures() {
             .to_string()
             .contains("Dart runtime export")
     );
+}
+
+fn vault() -> Service {
+    Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-docs.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_dart::capabilities())
+    .unwrap()
+}
+
+fn golden(name: &str, source: &str) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/vault")
+        .join(name);
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, source).unwrap();
+    }
+    assert_eq!(
+        source,
+        fs::read_to_string(path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n"),
+        "{name}"
+    );
+}
+
+#[test]
+fn smithy_documentation_reaches_models_and_client() {
+    let service = vault();
+    let files = emit(&service, &options()).unwrap();
+    let file = |path: &str| {
+        &files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+    };
+    let models = file("lib/src/models.dart");
+    let client = file("lib/src/client.dart");
+    for text in [
+        "/// A stored secret.",
+        "/// The <b>name</b> of the secret.",
+        "/// What a secret unlocks.",
+        "/// A website login.",
+        "/// Rarely rotated.",
+        "/// A way to prove identity.",
+        "/// The caller may not read this secret.",
+    ] {
+        assert!(models.contains(text), "{text}");
+    }
+    for text in [
+        "/// Reads one secret.",
+        "/// Stores secrets.",
+        "/// See [the guide](https://example.com/guide) and ",
+        "- [models.AccessDenied]",
+        "/// Read-only: retried automatically",
+        "/// Idempotent: retried automatically",
+        "`clientToken` is filled with a fresh token",
+        "Streams every page of [listSecrets]",
+    ] {
+        assert!(client.contains(text), "{text}");
+    }
+    // A bare `[Secret]` would be an unresolvable dartdoc reference.
+    assert!(client.contains(r"\[Secret]"));
+    golden("models.dart", models);
+    golden("client.dart", client);
+}
+
+#[test]
+fn sensitive_members_are_redacted_in_string_representations() {
+    let models = emit_models(&vault());
+    for member in ["password", "pin", "history", "byName", "reason"] {
+        assert!(
+            models.contains(&format!("\"{member}\": describe.redact({member})")),
+            "{member}"
+        );
+    }
+    assert!(models.contains("\"password\": describe.redact(value)"));
+    assert!(models.contains("\"pin\": describe.redact(value)"));
+    for member in ["name", "aliases", "labels", "kind", "revision", "username"] {
+        assert!(
+            !models.contains(&format!("\"{member}\": describe.redact")),
+            "{member}"
+        );
+    }
 }
