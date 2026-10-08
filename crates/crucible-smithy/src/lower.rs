@@ -627,6 +627,7 @@ impl<'m> Lowerer<'m> {
             };
         }
         let mut bindings = Bindings::default();
+        let mut seen_payload = false;
         for (name, member) in &self.model[input].members {
             let member_id = input.with_member(name);
             if member.traits.contains_key(&smithy("httpResponseCode")) {
@@ -634,7 +635,13 @@ impl<'m> Lowerer<'m> {
                     .push(&member_id, "@httpResponseCode cannot bind an input member");
             }
             if member.traits.contains_key(&smithy("httpPayload")) {
-                bindings.payload = self.payload(&member_id, member);
+                if seen_payload {
+                    self.diagnostics
+                        .push(&member_id, "only one member may bind @httpPayload");
+                } else {
+                    bindings.payload = self.payload(&member_id, member);
+                }
+                seen_payload = true;
             } else if member.traits.contains_key(&smithy("httpLabel")) {
                 if !member.traits.contains_key(&smithy("required")) {
                     self.diagnostics
@@ -718,6 +725,7 @@ impl<'m> Lowerer<'m> {
             };
         }
         let mut bindings = Bindings::default();
+        let mut seen_payload = false;
         for (name, member) in &self.model[output].members {
             if let Some(prefix) = string_trait(&member.traits, "httpPrefixHeaders") {
                 self.require(
@@ -759,7 +767,15 @@ impl<'m> Lowerer<'m> {
                 continue;
             }
             if member.traits.contains_key(&smithy("httpPayload")) {
-                bindings.payload = self.payload(&output.with_member(name), member);
+                if seen_payload {
+                    self.diagnostics.push(
+                        &output.with_member(name),
+                        "only one member may bind @httpPayload",
+                    );
+                } else {
+                    bindings.payload = self.payload(&output.with_member(name), member);
+                }
+                seen_payload = true;
                 continue;
             }
             match string_trait(&member.traits, "httpHeader") {
