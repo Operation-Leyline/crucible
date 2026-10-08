@@ -304,27 +304,27 @@ pub mod auth_weather {
     impl OperationsBuilder {
         /// Serves BearerOnly with `implementation`.
         pub fn bearer_only<S: BearerOnlyOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<BearerOnly, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.bearer_only().await })))
+            Self(self.0.add::<BearerOnly, S, _>(implementation, |implementation, _| async move { implementation.bearer_only().await }))
         }
 
         /// Serves KeyOnly with `implementation`.
         pub fn key_only<S: KeyOnlyOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<KeyOnly, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.key_only().await })))
+            Self(self.0.add::<KeyOnly, S, _>(implementation, |implementation, _| async move { implementation.key_only().await }))
         }
 
         /// Serves Optional with `implementation`.
         pub fn optional<S: OptionalOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Optional, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.optional().await })))
+            Self(self.0.add::<Optional, S, _>(implementation, |implementation, _| async move { implementation.optional().await }))
         }
 
         /// Serves Protected with `implementation`.
         pub fn protected<S: ProtectedOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Protected, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.protected().await })))
+            Self(self.0.add::<Protected, S, _>(implementation, |implementation, _| async move { implementation.protected().await }))
         }
 
         /// Serves Public with `implementation`.
         pub fn public<S: PublicOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
-            Self(self.0.add::<Public, S>(implementation, |implementation, _| ::std::boxed::Box::pin(async move { implementation.public().await })))
+            Self(self.0.add::<Public, S, _>(implementation, |implementation, _| async move { implementation.public().await }))
         }
 
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::Operations, ::crucible_server_runtime_rust::MissingOperations> {
