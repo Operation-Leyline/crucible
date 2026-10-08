@@ -36,7 +36,7 @@ service's entry points for registering implementations.
 | Operation-aware extensions | `operation_middleware`, `operation_middlewares` |
 | Decoded invocation extensions | `interceptor`, `interceptors` |
 | Wire protocol selection | `protocol`, `protocols`, `defaults` |
-| MCP serving | `mcp`; `McpConfig::authorization_server_metadata` with `mcp::AuthorizationServerMetadata` |
+| MCP serving | `mcp` |
 | Error normalization | `exception_translator`, `on_rejection` |
 | Hosting integration | `tower_layer`, `request_id` |
 | Request limits | `body_limit`, `operation_body_limit`, `body_limits` |
@@ -46,8 +46,9 @@ service's entry points for registering implementations.
 when matching it. `MissingOperations` reports incomplete registration.
 
 `mcp::McpConfig::{new, path, allowed_origins, allow_any_origin, endpoint_guard,
-authorization, server_info}` and the `EndpointGuard`/`McpAuthorization` interfaces
-are additive service configuration APIs. `authorization` derives discovery and
+authorization, authorization_server_metadata, server_info}`, `mcp::AuthorizationServerMetadata`
+and the `EndpointGuard`/`McpAuthorization` interfaces are additive service
+configuration APIs. `authorization` derives discovery and
 admission from one configuration; it leaves unauthenticated MCP behavior intact
 when omitted. `crucible_auth::McpAuthenticator::{new,
 allow_unbound_cognito_tokens}` composes configured access-token verifiers and a
