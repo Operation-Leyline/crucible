@@ -30,6 +30,13 @@ version's section when it is prepared.
   `McpConfig::authorization` and `crucible_auth::McpAuthenticator` require audience
   binding by default and offer explicit Cognito compatibility for unbound tokens.
 
+- `McpConfig::authorization_server_metadata(AuthorizationServerMetadata)`: an
+  opt-in, public RFC 8414 document that advertises `S256` and points at an
+  identity provider's endpoints (`AuthorizationServerMetadata::cognito`), for
+  MCP clients that refuse Cognito's own discovery metadata. Derived
+  protected-resource metadata then names the service as the authorization
+  server. Cognito client setup is in `docs/mcp.md`.
+
 - Stability policy for 0.x, this changelog, `docs/migrating.md`, the
   `consumers` CI job (starter, example service and a Leyline-shaped fixture)
   and a release gate that runs it before a tag is created (#180). The job

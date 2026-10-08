@@ -46,8 +46,9 @@ service's entry points for registering implementations.
 when matching it. `MissingOperations` reports incomplete registration.
 
 `mcp::McpConfig::{new, path, allowed_origins, allow_any_origin, endpoint_guard,
-authorization, server_info}` and the `EndpointGuard`/`McpAuthorization` interfaces
-are additive service configuration APIs. `authorization` derives discovery and
+authorization, authorization_server_metadata, server_info}`, `mcp::AuthorizationServerMetadata`
+and the `EndpointGuard`/`McpAuthorization` interfaces are additive service
+configuration APIs. `authorization` derives discovery and
 admission from one configuration; it leaves unauthenticated MCP behavior intact
 when omitted. `crucible_auth::McpAuthenticator::{new,
 allow_unbound_cognito_tokens}` composes configured access-token verifiers and a

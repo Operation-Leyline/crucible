@@ -135,7 +135,9 @@ This discovery and challenge behavior follows the fetched
 and its [authorization server discovery requirements](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery),
 also present in [2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization).
 The supported JSON-RPC transport versions remain those listed below. Crucible
-does not implement an authorization server or client registration. Clients
+does not implement an authorization server or client registration; for an
+identity provider without either, see
+[Identity providers without dynamic client registration](#identity-providers-without-dynamic-client-registration-cognito). Clients
 obtain tokens from the advertised issuer and send them in `Authorization` on
 each request. Query tokens are ignored; duplicate credential headers are refused.
 Tokens must be access tokens, with an allowed `client_id`, and by default their
@@ -198,6 +200,99 @@ API's ID-token or other policy independently, and exclude MCP calls from an
 ID-only `AuthenticatorChain` so it does not replace or refuse the MCP principal.
 Never pass an MCP bearer token to an upstream service. Obtain a separate token
 for that upstream; discovery and admission do not implement token passthrough.
+
+## Identity providers without dynamic client registration (Cognito)
+
+The MCP authorization spec makes the client choose how it gets a client id:
+pre-registered credentials first, then Client ID Metadata Documents if the
+authorization server advertises `client_id_metadata_document_supported`, then
+Dynamic Client Registration if it advertises a `registration_endpoint`
+([Client Registration](https://modelcontextprotocol.io/specification/draft/basic/authorization/client-registration)).
+Cognito supports neither CIMD nor DCR, so each client uses the pre-registered
+route. Crucible deliberately adds no registration endpoint: every target client
+below accepts a configured client id, and a registration endpoint that returned
+one shared Cognito client could not give a client a redirect URI Cognito has not
+already registered.
+
+One thing does need code. Claude Code and claude.ai refuse an authorization
+server whose metadata does not list `S256` in `code_challenge_methods_supported`,
+and Cognito's `openid-configuration` is reported to omit it ([AWS re:Post](https://repost.aws/questions/QUWgnfYNLDS6WIHsXxEDyFdg/missing-code-challenge-methods-supported-field-in-amazon-cognito-openid-connect-configuration),
+[claude-code#13275](https://github.com/anthropics/claude-code/issues/13275):
+`does not support S256 code challenge method required by MCP specification`).
+Check your pool, and skip the next step if it now lists `S256`:
+
+```sh
+curl -s https://cognito-idp.REGION.amazonaws.com/POOL_ID/.well-known/openid-configuration \
+  | jq .code_challenge_methods_supported
+```
+
+### Serving RFC 8414 metadata for Cognito
+
+`AuthorizationServerMetadata` is a static RFC 8414 document the service serves
+itself. It names the service as the authorization server, advertises `S256`, and
+points `authorization_endpoint`, `token_endpoint` and `revocation_endpoint` at
+the Cognito user pool domain. Cognito still authenticates users and issues
+tokens; nothing is fetched or proxied at request time.
+
+```rust
+use crucible_server_runtime_rust::mcp::{AuthorizationServerMetadata, McpConfig};
+
+// `authorization` is the McpAuthenticator from "Configuring Cognito" above.
+let config = McpConfig::new()
+    .authorization(authorization)
+    .authorization_server_metadata(
+        // The service's public origin, then the user pool domain (host name only).
+        AuthorizationServerMetadata::cognito("https://api.example.com", "auth.example.com"),
+    );
+```
+
+The document is served on `GET` at `/.well-known/oauth-authorization-server`
+followed by the issuer's path, if any (`https://api.example.com/tenant` is served
+at `/.well-known/oauth-authorization-server/tenant`). It is public: neither
+`allowed_origins` nor `endpoint_guard` applies, because clients read it before
+they hold a token. Construction fails if a URL is not `https` or the path
+collides with the MCP path. Use `AuthorizationServerMetadata::new` for another
+provider with the same gap.
+
+When `McpConfig::authorization` derives protected-resource metadata, a configured
+metadata issuer replaces the token issuers in its `authorization_servers`, so
+clients discover this document instead of Cognito's. Without `authorization`,
+publish protected resource metadata that lists this issuer first (Claude uses
+only the first entry). Clients validate that the metadata `issuer` equals the URL
+they discovered it from and do not compare it with the `iss` of the token
+Cognito issues, which the verifier still checks.
+
+### Cognito app client settings and client setup
+
+[Configuring Cognito](#configuring-cognito) creates the resource server, scopes
+and verifier. For the app client these clients use, set:
+
+| Setting | Value |
+|---|---|
+| Application type / client secret | Public client, no secret. Claude treats a blank secret as a public client; Cursor and VS Code accept a client id alone. Use a secret only if you want a confidential client. |
+| OAuth grant types | Authorization code grant only. Do not enable implicit or client credentials. |
+| OpenID Connect and custom scopes | The service-owned `weather/mcp` and model scopes from "Configuring Cognito"; add `openid` only if clients need it. |
+| Allowed callback URLs | Exactly the URLs below. Cognito matches them exactly, requires HTTPS except `http://localhost`, and has no wildcard or port-agnostic match. |
+
+PKCE needs no setting: Cognito accepts `code_challenge_method=S256` only, which is
+what these clients send. Resource binding (`resource`, RFC 8707) needs the
+Essentials or Plus feature plan.
+
+| Client | Callback URL to register | Pass the client id with |
+|---|---|---|
+| claude.ai, Claude Desktop, mobile | `https://claude.ai/api/mcp/auth_callback` | Add custom connector, then Advanced settings: use your own OAuth client, client id, secret blank ([Claude connector authentication](https://claude.com/docs/connectors/building/authentication)). |
+| Claude Code | `http://localhost:PORT/callback`, one port you choose | `claude mcp add --transport http --client-id CLIENT_ID --callback-port PORT NAME URL` ([Claude Code MCP](https://code.claude.com/docs/en/mcp)). Claude Code 2.1.229 sent `127.0.0.1`, which Cognito rejects over HTTP; use 2.1.231 or later. |
+| Cursor | `http://localhost:8787/callback` (desktop), `https://www.cursor.com/agents/mcp/oauth/callback` (web and cloud agents) | `"auth": {"CLIENT_ID": "...", "scopes": ["..."]}` in the server's `mcp.json` entry ([Cursor MCP](https://cursor.com/docs/context/mcp)). |
+| VS Code | Not verified; see below | `"oauth": {"clientId": "..."}` in the server's `mcp.json` entry ([VS Code MCP configuration](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)). |
+
+Claude Code and claude.ai first try CIMD, then DCR, and use the id you supply
+when you give one; Cognito advertises neither. A client that cannot fix its
+callback to a registered URL (random-port loopback) cannot work with Cognito.
+VS Code's documentation does not list its redirect URIs, and it may use
+`http://127.0.0.1`, which Cognito cannot register; test it against your pool
+before promising VS Code support. Claude connections originate from Anthropic's
+published address range, so the service and the Cognito domain must be reachable
+from it.
 
 ## Audience and schemas
 
