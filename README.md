@@ -137,7 +137,7 @@ Crucible is `0.x`; see the [CHANGELOG](CHANGELOG.md) and the
 generator pins. A minor release may break the documented stable surface only
 with a Migration entry and a one-minor `#[deprecated]` shim (a removal may skip
 the shim only when its Migration entry names it); patch releases never break it
-([stability policy](docs/releases.md#stability-policy-for-0x)).
+([stability policy](docs/releases.md#stability-policy-for-0x), [runtime surface](docs/stability.md)).
 
 See [design and protocol](docs/design.md) for the Smithy-to-IR pipeline and
 wire rules, and [agent instructions](AGENTS.md) for repository boundaries and

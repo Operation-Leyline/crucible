@@ -17,64 +17,125 @@ version's section when it is prepared.
 
 ### Added
 
-- Generated service CLIs include a local `mcp` stdio server using shared MCP
-  schemas and registry, client audience, profiles, authentication and SDK calls.
-
 - Stability policy for 0.x, this changelog, `docs/migrating.md`, the
   `consumers` CI job (starter, example service and a Leyline-shaped fixture)
-  and a release gate that runs it before a tag is created.
-- Model Context Protocol: `.mcp()` generates static tool descriptors and
+  and a release gate that runs it before a tag is created (#180). The job
+  builds with `-D deprecated`, so in-repo consumers stay on the current API.
+- Model Context Protocol: `.mcp()` on the server output generates static,
+  sorted tool descriptors from the External audience projection, and
   `Builder::mcp(McpProtocol::new(service::MCP_TOOLS))` serves stateless MCP
-  Streamable HTTP through the normal pipeline (#175).
-- Smithy `@examples` is validated and lowered into the IR, and OpenAPI output
-  emits native `examples` (#176). Invalid examples are now diagnostics.
-- `crucible.auth#scopes` model-declared OAuth scopes, `Operation::SCOPES`
-  metadata, the opt-in `crucible_auth::ScopeEnforcer` interceptor and
-  scope-aware bearer challenges (#178).
+  Streamable HTTP (`/mcp`, protocol versions 2025-03-26, 2025-06-18 and
+  2025-11-25) through the normal pipeline, with endpoint admission so
+  authentication can protect discovery. Streaming operations are excluded with
+  an explicit `MCP_EXCLUSIONS` note, and tool names over 128 characters are a
+  collected diagnostic (#175).
+- Smithy `@examples` is validated against the operation's shapes and lowered
+  into the IR, and OpenAPI output emits native `examples` (#176). Invalid
+  examples are now diagnostics.
+- `crucible.auth#scopes` (`smithy/auth.smithy`, also in the traits package and
+  model JAR) declares OAuth scopes on a service or operation. Server
+  operations carry `Operation::SCOPES` and `SERVICE_SCOPES` (also on
+  `OperationMetadata`); `crucible_auth::ScopeEnforcer` is an opt-in
+  interceptor that enforces them with RFC 6750 bearer challenges (#178).
 - `@deprecated`, `@since`, `@unstable` and `@externalDocumentation` are lowered
   into the IR and rendered by every native generator and OpenAPI (#179).
+  Generated Rust marks deprecated shapes `#[deprecated]` and silences the
+  warnings inside the generated module only, so code that uses a deprecated
+  shape now sees the warning.
 - `crucible_build::model(source)`: one entry point for Smithy directories, JSON
-  ASTs and model dependencies, with `ServerOutput`, `ClientOutput`, publication
-  and named outputs hanging off it (#181).
-- A hidden `__generated` boundary for generated Rust and `check_abi!`, so a
-  `crucible-build` and runtime version mismatch fails with a named compile
-  error; the stable runtime surface is documented in `docs/stability.md`
-  (#182).
+  ASTs and model dependencies (`links` names). `.server()`, `.client()` and
+  `.publish()` hang off it beside the named outputs, and compiling happens once
+  per handle. A missing model link is a typed `MissingModelDependency` with the
+  Cargo setup to add (#181).
+- A hidden `__generated` module in both Rust runtimes for everything generated
+  code needs, and `check_abi!`, emitted into every generated server binding
+  and Rust SDK, so a `crucible-build` and runtime version mismatch is a named
+  compile error. The stable runtime surface is documented in
+  `docs/stability.md`. `OpenEnum` (`from_string`, `as_str`) is the documented
+  way to build and read client string enums (#182).
+- Generated service CLIs include a local `mcp` stdio server using shared MCP
+  schemas and registry, client audience, profiles, authentication and SDK calls
+  (#185).
 
 ### Changed
 
 - The server serves HTTP on hyper directly and dispatches with fewer
-  allocations; `Crucible` implements `tower::Service` and `http_on_until`
-  accepts a caller's shutdown signal (#177).
+  allocations; `Crucible` implements `tower::Service`, `into_router()` still
+  returns an Axum `Router`, and `host::http_on_until` accepts a caller's
+  shutdown signal (#177).
 - **Breaking:** `OperationsBuilder::add::<Op, S>(impl, |s, input| Box::pin(..))`
   becomes `add::<Op, S, _>(impl, |s, input| async move { .. })`, and the `Call`
   alias is removed. Generated code is updated; see *Migration* (#177).
-- **Breaking:** direct client bindings are written to `crucible_client.rs`;
-  `include_client!()` follows (#181).
-- Selected metadata enums, structs, logging records and `BuildError` are
-  `#[non_exhaustive]`; the traits package and model JAR take the workspace
-  version and `smithy/version.txt` is gone (#182).
+- **Breaking:** the Rust binding builders are `ServerOutput` and `ClientOutput`
+  (`RustCodegen` is a deprecated alias of `ServerOutput`), and direct client
+  bindings are written to `crucible_client.rs` instead of
+  `crucible_client_runtime_rust.rs`; `include_client!()` follows (#181).
+- **Breaking:** generated Rust names the runtimes only through `__generated`
+  (the old `__private` module is gone) and no longer constructs
+  `OperationInfo`, `ServiceInfo`, `MemberInfo` or `ErrorInfo` literally.
+  Regenerate; hand-written code is unaffected unless it imported codecs or
+  error writers (`codec`, `cbor`, `open`, `field`) from a runtime root (#182).
+- **Breaking:** `OperationInfo`, `ServiceInfo`, `MemberInfo`, `ErrorInfo`,
+  `Location`, `Scalar`, `Segment`, `Fault`, `AuthScheme`, `operation::Protocol`,
+  `BuildError`, `LogRecord` and `RequestRecord` are `#[non_exhaustive]`:
+  exhaustive matches need a `_ =>` arm (#182).
+- The `crucible-traits` Cargo package and model JAR are published at the
+  workspace version (`crucible-traits-X.Y.Z.jar`, tag `traits-vX.Y.Z`) instead
+  of `smithy/version.txt` (`0.3.1`), which is removed (#182).
 
 ### Deprecated
 
-- `crucible_build::smithy`, `model_from_json`, `rust_service_from_smithy`,
-  `client`, `client_from_smithy`, `publish_model`, `RustCodegen`,
-  `ModelBuilder` and the `outputs` namespace, since 0.5.0; use
-  `crucible_build::model(..)` (#181).
+- `crucible_build::smithy`, `model_from_json`, `model_dependency`,
+  `compile_smithy*`, `publish_model*`, `rust_service*`, `service`, `client`,
+  `client_from_smithy*`, `RustCodegen`, `ModelBuilder` and the `outputs`
+  namespace, since 0.5.0; use `crucible_build::model(..)` (#181). They are
+  removed no earlier than the next minor.
 
 ### Removed
 
 - The duplicate `crucible_build::clients` namespace; `Audience` is only
   `crucible_build::Audience` (#181).
+- The `crucible_server_runtime_rust::{cbor, codec, open}` and
+  `crucible_client_runtime_rust::{cbor, codec, field, open}` root re-exports;
+  generated code reaches them through `__generated` (#182). `OpenEnum`,
+  `UnknownUnion`, `Field` and `ModelledError` stay public at the crate root.
 
 ### Migration
 
-- Hand-written operation registrations: pass the async fn directly to `add`
-  and drop `Box::pin` (#177).
-- Build scripts: replace the deprecated helpers with
-  `crucible_build::model(..).server()|client()|publish()` (#181).
-- Generated code is no longer compatible across Crucible versions: keep
-  `crucible-build` and both runtime crates on the same version (#182).
+From 0.4 to the next release. The same steps, with before and after code, are
+in [docs/migrating.md](docs/migrating.md#040-to-the-next-release-unreleased).
+
+- **Version everything together.** Pin `crucible-build`, `crucible-server-runtime-rust`,
+  `crucible-client-runtime-rust` and `crucible-auth` to one tag or revision.
+  `check_abi!` means exactly that: generated code records the version of
+  `crucible-build` that wrote it and fails to compile against a runtime of a
+  different version.
+- **`build.rs`.** Replace the deprecated helpers with
+  `crucible_build::model(..)` (the shims still build for one minor):
+
+  ```rust
+  // 0.4                                          // next
+  crucible_build::publish_model("m.json");        crucible_build::model("m.json").publish();
+  crucible_build::rust_service("m").generate();   crucible_build::model("m").server().generate();
+  crucible_build::client("m").generate();         crucible_build::model("m").client().generate();
+  crucible_build::smithy("smithy").compile();     crucible_build::model("smithy");
+  ```
+
+  A client include that named `crucible_client_runtime_rust.rs` by hand now
+  names `crucible_client.rs`; `include_client!()` needs no change.
+- **Regenerate.** Everything under `__generated` is generated-code-only API
+  with no compatibility promise: rebuild so bindings, SDKs and checked-in
+  generated packages are regenerated. Do not call it from hand-written code;
+  the supported replacements are `OpenEnum`, `UnknownUnion` and `Field`.
+- **`#[non_exhaustive]` matches.** Add a `_ =>` arm to any `match` on
+  `Location`, `Scalar`, `Segment`, `Fault`, `AuthScheme`, `operation::Protocol`
+  or `BuildError`, and read `OperationInfo`, `ServiceInfo`, `MemberInfo`,
+  `ErrorInfo`, `LogRecord` and `RequestRecord` by field rather than building them.
+- **Operation registration.** Pass the async fn directly to `add` and drop
+  `Box::pin` (#177).
+- **Traits JAR.** Resolve `crucible-traits` at the Crucible version you build
+  with (`crucible-traits-X.Y.Z.jar`), not `0.3.1`; a repository that read
+  `smithy/version.txt` should read `[workspace.package].version` (#182).
 
 ## [0.4.0] - 2026-10-08
 

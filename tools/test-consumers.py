@@ -10,6 +10,10 @@
 Everything shares one Cargo target directory (CARGO_TARGET_DIR if set,
 otherwise e2e/target, which the e2e job's cache already holds), so the
 dependencies compile once on one OS.
+
+Deprecated Crucible API is an error here (`-D deprecated`, which also covers
+build scripts): a consumer that still calls a shim has not moved to the current
+API, and the shims exist for downstream code, not for this repository.
 """
 
 import http.client
@@ -108,9 +112,19 @@ def leyline(env, work, target):
     print("leyline: service tests, generated SDK and independent consumer passed", flush=True)
 
 
+def deny_deprecated(env):
+    """Cargo prefers CARGO_ENCODED_RUSTFLAGS over RUSTFLAGS when both are set,
+    so `-D deprecated` goes into whichever one is effective."""
+    encoded = env.get("CARGO_ENCODED_RUSTFLAGS")
+    if encoded is not None:
+        return {"CARGO_ENCODED_RUSTFLAGS": (encoded + "\x1f" if encoded else "") + "-D\x1fdeprecated"}
+    return {"RUSTFLAGS": f"{env.get('RUSTFLAGS', '')} -D deprecated".strip()}
+
+
 def main():
     target = Path(os.environ.get("CARGO_TARGET_DIR") or ROOT / "e2e/target")
     env = {**os.environ, "CARGO_TARGET_DIR": str(target)}
+    env.update(deny_deprecated(env))
     with tempfile.TemporaryDirectory(prefix="crucible-consumers-") as directory:
         work = Path(directory)
         starter(env, work, target)

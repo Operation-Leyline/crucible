@@ -671,9 +671,11 @@ jobs:
 
   # The stable surface, built the way downstream services build it: the
   # `crucible new` starter, e2e/weather-*, and a Leyline-shaped fixture
-  # (tests/consumers/leyline). One OS; the e2e job's cache namespace is shared
-  # because they compile the same dependencies. Always runs at release
-  # qualification, so a tag is never created for a commit that breaks them.
+  # (tests/consumers/leyline). One OS. The script builds with `-D deprecated`,
+  # so the in-repo consumers stay on the current API; those flags change every
+  # fingerprint, so this job keeps a cache of its own instead of sharing e2e's.
+  # Always runs at release qualification, so a tag is never created for a
+  # commit that breaks them.
   consumers:
     needs: [plan, rust]
     if: needs.plan.outputs.consumers == 'true'
@@ -684,7 +686,7 @@ jobs:
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with: { shared-key: e2e, workspaces: ". -> target\ne2e -> target", save-if: "${{ github.ref == 'refs/heads/main' }}" }
+        with: { shared-key: consumers, workspaces: ". -> target\ne2e -> target", save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: python3 tools/test-consumers.py
         env:
           CARGO_BUILD_JOBS: '2'

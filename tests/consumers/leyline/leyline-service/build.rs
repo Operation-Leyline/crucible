@@ -1,3 +1,3 @@
 fn main() {
-    crucible_build::rust_service("leyline_model").generate();
+    crucible_build::model("leyline_model").server().generate();
 }
