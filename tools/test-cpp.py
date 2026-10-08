@@ -45,7 +45,13 @@ def edge_packages(output):
     model["shapes"]["example.weather#Weather"]["rename"] = {
         "example.weather#CitySummary": "String", "example.weather#Location": "Array", "example.weather#Sky": "Time",
     }
-    model["shapes"]["example.weather#Sky"]["members"]["CLEAR"]["traits"]["smithy.api#enumValue"] = "literal\\u0001\0é"
+    sky_value = "literal\\u0001\0é"
+    model["shapes"]["example.weather#Sky"]["members"]["CLEAR"]["traits"]["smithy.api#enumValue"] = sky_value
+    # Examples must stay valid when this fixture changes the enum's wire value.
+    for example in model["shapes"]["example.weather#GetCity"]["traits"]["smithy.api#examples"]:
+        forecast = example.get("output", {}).get("forecast", {})
+        if "clear" in forecast:
+            forecast[sky_value] = forecast.pop("clear")
     model["shapes"]["example.weather#Recursive"] = {"type": "structure", "members": {
         "children": {"target": "example.weather#RecursiveList"},
         "parent": {"target": "example.weather#Recursive"},
