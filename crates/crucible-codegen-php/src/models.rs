@@ -3,12 +3,20 @@ use crate::{
     names::{field, literal, ty, variant},
 };
 use crucible_codegen_common::docs;
-use crucible_smithy::ir::{Member, Service, Shape};
+use crucible_smithy::ir::{DocNotes, Member, Service, Shape};
 
 /// A `/** */` docblock for model text; empty when the model has none.
-fn docblock(text: Option<&str>, indent: &str) -> String {
-    text.map(|text| docs::block_comment(indent, &docs::escape(text), &[]))
-        .unwrap_or_default()
+fn docblock(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+    let tags: Vec<String> = notes
+        .deprecated
+        .iter()
+        .map(|d| format!("@deprecated {}", docs::escape(&d.note())))
+        .collect();
+    docs::block_comment(
+        indent,
+        &docs::annotated(text, notes).unwrap_or_default(),
+        &tags,
+    )
 }
 
 /// The members as `var_dump()` shows them, redacting sensitive ones. The
@@ -85,7 +93,7 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                 } else {
                     String::new()
                 };
-                out.push_str(&docblock(structure.docs.as_deref(), ""));
+                out.push_str(&docblock(structure.docs.as_deref(), &structure.notes, ""));
                 out.push_str(&format!(
                     "final class {name}{base} implements {runtime}\\WireModel\n{{\n    /**\n"
                 ));
@@ -103,9 +111,9 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                         value
                     };
                     let mut tag = format!("@param {value} ${}", field(&member.name));
-                    if let Some(text) = &member.docs {
+                    if let Some(text) = docs::annotated(member.docs.as_deref(), &member.notes) {
                         tag.push(' ');
-                        tag.push_str(&docs::escape(text));
+                        tag.push_str(&text);
                     }
                     for (index, line) in tag.lines().enumerate() {
                         let text = if line.is_empty() {
@@ -197,10 +205,14 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                 }
             }
             Shape::IntEnum(enumeration) => {
-                out.push_str(&docblock(enumeration.docs.as_deref(), ""));
+                out.push_str(&docblock(
+                    enumeration.docs.as_deref(),
+                    &enumeration.notes,
+                    "",
+                ));
                 out.push_str(&format!("final readonly class {name} implements {runtime}\\WireModel\n{{\n    public function __construct(public int $value) {{ if ($value < -2147483648 || $value > 2147483647) throw new \\UnexpectedValueException('Integer enum overflow'); }}\n"));
                 for value in &enumeration.values {
-                    out.push_str(&docblock(value.docs.as_deref(), "    "));
+                    out.push_str(&docblock(value.docs.as_deref(), &value.notes, "    "));
                     out.push_str(&format!(
                         "    public const {} = {};\n",
                         crate::names::constant(&value.name),
@@ -211,10 +223,14 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                 decode.push_str(&format!("            {target} => new {name}($value instanceof {runtime}\\JsonNumber ? $value->integer(-2147483648, 2147483647) : throw new \\UnexpectedValueException('Expected integer enum')),\n"));
             }
             Shape::Enum(enumeration) => {
-                out.push_str(&docblock(enumeration.docs.as_deref(), ""));
+                out.push_str(&docblock(
+                    enumeration.docs.as_deref(),
+                    &enumeration.notes,
+                    "",
+                ));
                 out.push_str(&format!("final readonly class {name} implements {runtime}\\WireModel\n{{\n    public function __construct(public string $value) {{}}\n"));
                 for value in &enumeration.values {
-                    out.push_str(&docblock(value.docs.as_deref(), "    "));
+                    out.push_str(&docblock(value.docs.as_deref(), &value.notes, "    "));
                     out.push_str(&format!(
                         "    public const {} = {};\n",
                         crate::names::constant(&value.name),
@@ -227,7 +243,7 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                 ));
             }
             Shape::Union(union) => {
-                out.push_str(&docblock(union.docs.as_deref(), ""));
+                out.push_str(&docblock(union.docs.as_deref(), &union.notes, ""));
                 out.push_str(&format!("abstract class {name} implements {runtime}\\WireModel\n{{\n    public static function fromWire(mixed $value, {runtime}\\WireContext $context): self\n    {{\n        $object = {runtime}\\WireCodec::object($value);\n        if (count($object->members) !== 1) throw new \\UnexpectedValueException('Union requires one member');\n        $key = (string)array_key_first($object->members);\n        $value = $object->get($key);\n        return match ($key) {{\n"));
                 for member in &union.members {
                     out.push_str(&format!("            {} => new {name}{}($value === null ? null : $context->codec->decode($value, $context->member($key))),\n", literal(&member.name), variant(&member.name)));
@@ -243,7 +259,7 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                     } else {
                         "$this->value".to_string()
                     };
-                    let variant_docs = docblock(member.docs.as_deref(), "");
+                    let variant_docs = docblock(member.docs.as_deref(), &member.notes, "");
                     let describe = format!(
                         "    public function __debugInfo(): array {{ return {runtime}\\Describe::debug([{wire_name} => {shown}]); }}\n    public function __toString(): string {{ return {runtime}\\Describe::format({}, $this->__debugInfo()); }}\n",
                         literal(name)

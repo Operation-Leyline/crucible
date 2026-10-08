@@ -3,6 +3,62 @@ use crucible_smithy::ir::{
 };
 use serde_json::{Map, Value, json};
 
+use crucible_smithy::ir::DocNotes;
+
+/// Where a documentation note lands. OpenAPI spells `deprecated` and
+/// `externalDocs` only on some objects; elsewhere only the `x-smithy-*`
+/// extensions can carry them.
+#[derive(Clone, Copy)]
+pub enum Slot {
+    /// Operation or schema: `deprecated` and `externalDocs` are both native.
+    Native,
+    /// Parameter or header: `deprecated` is native, `externalDocs` is not.
+    Parameter,
+    /// The document root: neither is native.
+    Root,
+}
+
+/// Project `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
+/// The first external link (by name) is `externalDocs`; the others stay in
+/// `x-smithy-external-docs` so nothing the model said is dropped.
+pub fn annotate(value: &mut Value, notes: &DocNotes, slot: Slot) {
+    if let Some(deprecated) = &notes.deprecated {
+        if matches!(slot, Slot::Root) {
+            value["x-smithy-deprecated"] = json!(true);
+        } else {
+            value["deprecated"] = json!(true);
+        }
+        let mut detail = Map::new();
+        if let Some(message) = &deprecated.message {
+            detail.insert("message".into(), json!(message));
+        }
+        if let Some(since) = &deprecated.since {
+            detail.insert("since".into(), json!(since));
+        }
+        if !detail.is_empty() {
+            value["x-smithy-deprecation"] = Value::Object(detail);
+        }
+    }
+    if let Some(since) = &notes.since {
+        value["x-smithy-since"] = json!(since);
+    }
+    if notes.unstable {
+        value["x-smithy-unstable"] = json!(true);
+    }
+    let mut links = notes.external_docs.iter();
+    if matches!(slot, Slot::Native | Slot::Root)
+        && let Some((name, url)) = links.next()
+    {
+        value["externalDocs"] = json!({"url": url, "description": name});
+    }
+    let rest: Map<String, Value> = links
+        .map(|(name, url)| (name.clone(), json!(url)))
+        .collect();
+    if !rest.is_empty() {
+        value["x-smithy-external-docs"] = Value::Object(rest);
+    }
+}
+
 use crucible_smithy::{ShapeId, ir::Traits};
 
 pub fn shape(service: &Service, shape: &Shape) -> Value {
@@ -102,6 +158,9 @@ fn base(service: &Service, shape: &Shape) -> Value {
         }
     };
     description(&mut value, docs.as_deref());
+    if let Some(notes) = shape.notes() {
+        annotate(&mut value, notes, Slot::Native);
+    }
     if !annotations.is_empty() {
         value["x-smithy-traits"] = traits(annotations);
     }
@@ -150,6 +209,7 @@ pub fn member(
         value = json!({"anyOf": [value, {"type": "null"}]});
     }
     description(&mut value, member.docs.as_deref());
+    annotate(&mut value, &member.notes, Slot::Native);
     if !member.traits.is_empty() {
         value["x-smithy-traits"] = traits(&member.traits);
     }

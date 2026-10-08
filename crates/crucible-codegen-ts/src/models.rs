@@ -4,7 +4,7 @@
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, SimpleKind, Structure};
 
-use crate::names::{doc, literal, optional, property, ts_type};
+use crate::names::{doc, documented, literal, optional, property, ts_type};
 
 pub(crate) fn emit(service: &Service) -> String {
     let mut out = String::new();
@@ -13,10 +13,10 @@ pub(crate) fn emit(service: &Service) -> String {
         let name = service.name_of(id);
         match shape {
             Shape::IntEnum(values) => {
-                doc(&mut out, "", values.docs.as_deref());
+                documented(&mut out, "", values.docs.as_deref(), &values.notes);
                 out.push_str(&format!("export const {name} = {{\n"));
                 for value in &values.values {
-                    doc(&mut out, "  ", value.docs.as_deref());
+                    documented(&mut out, "  ", value.docs.as_deref(), &value.notes);
                     out.push_str(&format!("  {}: {},\n", property(&value.name), value.value));
                 }
                 out.push_str("} as const;\n");
@@ -33,7 +33,7 @@ pub(crate) fn emit(service: &Service) -> String {
             }
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
-                doc(&mut out, "", simple.docs.as_deref());
+                documented(&mut out, "", simple.docs.as_deref(), &simple.notes);
                 let ts = match simple.kind {
                     SimpleKind::Boolean => "boolean",
                     SimpleKind::String => "string",
@@ -48,10 +48,10 @@ pub(crate) fn emit(service: &Service) -> String {
                 out.push_str(&format!("export type {name} = {ts};\n"));
             }
             Shape::Enum(values) => {
-                doc(&mut out, "", values.docs.as_deref());
+                documented(&mut out, "", values.docs.as_deref(), &values.notes);
                 out.push_str(&format!("export const {name} = {{\n"));
                 for value in &values.values {
-                    doc(&mut out, "  ", value.docs.as_deref());
+                    documented(&mut out, "  ", value.docs.as_deref(), &value.notes);
                     out.push_str(&format!(
                         "  {}: {},\n",
                         property(&value.name),
@@ -59,16 +59,17 @@ pub(crate) fn emit(service: &Service) -> String {
                     ));
                 }
                 out.push_str("} as const;\n");
-                doc(&mut out, "", values.docs.as_deref());
+                documented(&mut out, "", values.docs.as_deref(), &values.notes);
                 out.push_str(&format!(
                     "export type {name} = (typeof {name})[keyof typeof {name}];\n"
                 ));
             }
             Shape::List(list) => {
-                doc(
+                documented(
                     &mut out,
                     "",
                     crucible_codegen_common::documentation::model(shape).as_deref(),
+                    &list.notes,
                 );
                 let item = ts_type(service, &list.member.target, "");
                 let item = if list.sparse {
@@ -79,10 +80,11 @@ pub(crate) fn emit(service: &Service) -> String {
                 out.push_str(&format!("export type {name} = {item}[];\n"));
             }
             Shape::Map(map) => {
-                doc(
+                documented(
                     &mut out,
                     "",
                     crucible_codegen_common::documentation::model(shape).as_deref(),
+                    &map.notes,
                 );
                 let value = ts_type(service, &map.value.target, "");
                 let value = if map.sparse {
@@ -100,13 +102,13 @@ pub(crate) fn emit(service: &Service) -> String {
                 out.push_str(&format!("export type {name} = {record};\n"));
             }
             Shape::Structure(structure) => {
-                doc(&mut out, "", structure.docs.as_deref());
+                documented(&mut out, "", structure.docs.as_deref(), &structure.notes);
                 out.push_str(&format!("export interface {name} {{\n"));
                 fields(&mut out, service, structure, "");
                 out.push_str("}\n");
             }
             Shape::Union(union) => {
-                doc(&mut out, "", union.docs.as_deref());
+                documented(&mut out, "", union.docs.as_deref(), &union.notes);
                 out.push_str(&format!("export type {name} =\n"));
                 union_arms(&mut out, service, union);
             }
@@ -133,7 +135,7 @@ pub(crate) fn model_shapes(service: &Service) -> Vec<(&ShapeId, &Shape)> {
 /// Interface members, one per line, each with its docs.
 pub(crate) fn fields(out: &mut String, service: &Service, structure: &Structure, prefix: &str) {
     for member in &structure.members {
-        doc(out, "  ", member.docs.as_deref());
+        documented(out, "  ", member.docs.as_deref(), &member.notes);
         let marker = if optional(structure, member) { "?" } else { "" };
         out.push_str(&format!(
             "  {}{marker}: {};\n",
@@ -163,7 +165,7 @@ fn union_arms(out: &mut String, service: &Service, union: &Structure) {
             .map(|other| format!(" {}?: never;", property(&other.name)))
             .collect();
         out.push_str("  | {\n");
-        doc(out, "      ", member.docs.as_deref());
+        documented(out, "      ", member.docs.as_deref(), &member.notes);
         out.push_str(&format!(
             "      {}: {};{others} $unknown?: never;\n    }}\n",
             property(&member.name),

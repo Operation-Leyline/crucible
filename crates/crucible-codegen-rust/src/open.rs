@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Enum, Service, Structure};
 
-use crate::names::{doc, literal, variant};
+use crate::names::{documented, literal, variant};
 use crate::types::rust_type;
 
 pub(crate) fn unknown_variant<'a>(names: impl Iterator<Item = &'a str>) -> String {
@@ -26,13 +26,13 @@ fn serde_impls(out: &mut String, name: &str, kind: &str) {
 
 pub(crate) fn enumeration(out: &mut String, name: &str, values: &Enum, debug: bool) {
     let unknown = unknown_variant(values.values.iter().map(|value| value.name.as_str()));
-    doc(out, "", values.docs.as_deref());
+    documented(out, "", values.docs.as_deref(), &values.notes);
     let debug = if debug { "Debug, " } else { "" };
     out.push_str(&format!(
         "#[derive({debug}Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum {name} {{\n"
     ));
     for value in &values.values {
-        doc(out, "    ", value.docs.as_deref());
+        documented(out, "    ", value.docs.as_deref(), &value.notes);
         out.push_str(&format!("    {},\n", variant(&value.name)));
     }
     out.push_str(&format!("    /// A value introduced by a newer service.\n    {unknown}(::std::string::String),\n}}\nimpl {name} {{\n    pub fn as_str(&self) -> &str {{\n        match self {{\n"));
@@ -67,7 +67,7 @@ pub(crate) fn union(
     client: bool,
 ) {
     let unknown = unknown_variant(union.members.iter().map(|member| member.name.as_str()));
-    doc(out, "", union.docs.as_deref());
+    documented(out, "", union.docs.as_deref(), &union.notes);
     out.push_str(&format!(
         "{}\npub enum {name} {{\n",
         if client {
@@ -77,7 +77,7 @@ pub(crate) fn union(
         }
     ));
     for member in &union.members {
-        doc(out, "    ", member.docs.as_deref());
+        documented(out, "    ", member.docs.as_deref(), &member.notes);
         let mut ty = rust_type(service, &member.target, "");
         // An event stream's modeled errors live with the other errors.
         if matches!(service.shape(&member.target), Some(crucible_smithy::ir::Shape::Structure(s)) if s.error.is_some())
@@ -166,13 +166,13 @@ pub(crate) fn int_enumeration(
     debug: bool,
 ) {
     let unknown = unknown_variant(values.values.iter().map(|v| v.name.as_str()));
-    doc(out, "", values.docs.as_deref());
+    documented(out, "", values.docs.as_deref(), &values.notes);
     let debug = if debug { "Debug, " } else { "" };
     out.push_str(&format!(
         "#[derive({debug}Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum {name} {{\n"
     ));
     for value in &values.values {
-        doc(out, "    ", value.docs.as_deref());
+        documented(out, "    ", value.docs.as_deref(), &value.notes);
         out.push_str(&format!("    {},\n", variant(&value.name)));
     }
     if client {

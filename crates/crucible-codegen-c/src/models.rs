@@ -129,9 +129,11 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
     );
     for (id, shape) in &service.shapes {
         let native = native_name(service, id, p);
-        if let Some(docs) = crucible_codegen_common::documentation::shape(shape) {
-            header.push_str(&crucible_codegen_common::doxygen(docs, ""));
-        }
+        header.push_str(&crucible_codegen_common::doxygen_for(
+            crucible_codegen_common::documentation::shape(shape),
+            shape.notes().unwrap_or(&Default::default()),
+            "",
+        ));
         if complex(shape) {
             header.push_str(&format!("typedef struct {native} {native};\n"));
         }
@@ -155,9 +157,11 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                     header.push_str("    unsigned char unused;\n");
                 }
                 for m in &structure.members {
-                    if let Some(docs) = &m.docs {
-                        header.push_str(&crucible_codegen_common::doxygen(docs, "    "));
-                    }
+                    header.push_str(&crucible_codegen_common::doxygen_for(
+                        m.docs.as_deref(),
+                        &m.notes,
+                        "    ",
+                    ));
                     header.push_str(&format!(
                         "    struct {{ {p}_presence state; {} value; }} {};\n",
                         slot_type(service, &m.target, p),
@@ -190,9 +194,11 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             }
             Shape::IntEnum(enumeration) => {
                 for value in &enumeration.values {
-                    if let Some(docs) = &value.docs {
-                        header.push_str(&crucible_codegen_common::doxygen(docs, ""));
-                    }
+                    header.push_str(&crucible_codegen_common::doxygen_for(
+                        value.docs.as_deref(),
+                        &value.notes,
+                        "",
+                    ));
                     header.push_str(&format!(
                         "static inline {native} {native}_known_{}(void) {{ return {}; }}\n",
                         names::field(&value.name),
@@ -202,9 +208,11 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             }
             Shape::Enum(enumeration) => {
                 for value in &enumeration.values {
-                    if let Some(docs) = &value.docs {
-                        header.push_str(&crucible_codegen_common::doxygen(docs, ""));
-                    }
+                    header.push_str(&crucible_codegen_common::doxygen_for(
+                        value.docs.as_deref(),
+                        &value.notes,
+                        "",
+                    ));
                     header.push_str(&format!("static inline {native} {native}_known_{}(void) {{ {native} result = {}; return result; }}\n", names::field(&value.name), names::view(&value.value)));
                 }
             }
@@ -222,9 +230,11 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                     header.push_str("        unsigned char unused;\n");
                 }
                 for m in &union.members {
-                    if let Some(docs) = &m.docs {
-                        header.push_str(&crucible_codegen_common::doxygen(docs, "        "));
-                    }
+                    header.push_str(&crucible_codegen_common::doxygen_for(
+                        m.docs.as_deref(),
+                        &m.notes,
+                        "        ",
+                    ));
                     header.push_str(&format!(
                         "        {} {};\n",
                         slot_type(service, &m.target, p),

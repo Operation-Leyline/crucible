@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, Structure};
 
-use crate::names::{doc, field, literal};
+use crate::names::{doc, documented, field, literal};
 use crate::types::rust_type;
 
 pub(crate) fn names(service: &Service) -> BTreeMap<ShapeId, String> {
@@ -93,7 +93,7 @@ pub(crate) fn emit(
         if boxed.contains(&id.with_member(&member.name)) {
             ty = format!("::std::boxed::Box<{ty}>");
         }
-        doc(out, "    ", member.docs.as_deref());
+        documented(out, "    ", member.docs.as_deref(), &member.notes);
         if member.optional_on_client() {
             out.push_str(&format!("    /// The value when present; inspect the public field to distinguish absent and null.\n    pub fn {getter}(&self) -> ::std::option::Option<&{ty}> {{ self.{native}.value() }}\n"));
         } else {
@@ -140,13 +140,14 @@ pub(crate) fn emit(
         } else {
             "Some"
         };
-        doc(
+        documented(
             out,
             "    ",
             member
                 .docs
                 .as_deref()
                 .or(Some("Sets this member to a value.")),
+            &member.notes,
         );
         out.push_str(&format!("    pub fn {setter}(mut self, value: impl ::std::convert::Into<{ty}>) -> Self {{ self.{native} = {constructor}(value.into()); self }}\n"));
     }

@@ -12,6 +12,7 @@ mod capabilities;
 mod cors;
 mod diagnostics;
 mod discovery;
+mod doc_notes;
 mod extensions;
 pub mod ir;
 mod jmespath_ir;

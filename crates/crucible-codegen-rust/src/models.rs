@@ -7,7 +7,7 @@ use crucible_smithy::ir::{Constraints, Member, Service, Shape, SimpleKind, Struc
 use crucible_smithy::{Diagnostics, ShapeId};
 use serde_json::Value;
 
-use crate::names::{check_distinct, doc, field, function, literal, variant};
+use crate::names::{check_distinct, documented, field, function, literal, variant};
 use crate::types::{boxed_members, builtin, field_type, rust_type};
 
 /// The body of `pub mod model { ... }`.
@@ -85,7 +85,7 @@ pub(crate) fn emit(
             ),
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
-                doc(&mut out, "", simple.docs.as_deref());
+                documented(&mut out, "", simple.docs.as_deref(), &simple.notes);
                 out.push_str(&format!(
                     "pub type {name} = {};\n",
                     if simple.streaming {
@@ -96,7 +96,7 @@ pub(crate) fn emit(
                 ));
             }
             Shape::List(list) => {
-                doc(&mut out, "", list.docs.as_deref());
+                documented(&mut out, "", list.docs.as_deref(), &list.notes);
                 let item = rust_type(service, &list.member.target, "");
                 let item = if list.sparse {
                     format!("::std::option::Option<{item}>")
@@ -106,7 +106,7 @@ pub(crate) fn emit(
                 out.push_str(&format!("pub type {name} = ::std::vec::Vec<{item}>;\n"));
             }
             Shape::Map(map) => {
-                doc(&mut out, "", map.docs.as_deref());
+                documented(&mut out, "", map.docs.as_deref(), &map.notes);
                 let key = rust_type(service, &map.key.target, "");
                 let value = rust_type(service, &map.value.target, "");
                 let value = if map.sparse {
@@ -128,7 +128,7 @@ pub(crate) fn emit(
                 diagnostics,
             ),
             Shape::Structure(structure) => {
-                doc(&mut out, "", structure.docs.as_deref());
+                documented(&mut out, "", structure.docs.as_deref(), &structure.notes);
                 out.push_str(&if client {
                     crate::DERIVE.replace("Debug, ", "")
                 } else {
@@ -174,11 +174,11 @@ pub(crate) fn emit(
                 crate::open::union(&mut out, service, id, name, union, &boxed, client)
             }
             Shape::Union(union) => {
-                doc(&mut out, "", union.docs.as_deref());
+                documented(&mut out, "", union.docs.as_deref(), &union.notes);
                 out.push_str(crate::DERIVE);
                 out.push_str(&format!("pub enum {name} {{\n"));
                 for member in &union.members {
-                    doc(&mut out, "    ", member.docs.as_deref());
+                    documented(&mut out, "    ", member.docs.as_deref(), &member.notes);
                     let mut ty = rust_type(service, &member.target, "");
                     if boxed.contains(&id.with_member(&member.name)) {
                         ty = format!("::std::boxed::Box<{ty}>");
@@ -269,11 +269,11 @@ fn enumeration(
         crate::open::enumeration(out, name, values, debug);
         return;
     }
-    doc(out, "", values.docs.as_deref());
+    documented(out, "", values.docs.as_deref(), &values.notes);
     out.push_str(crate::DERIVE_ENUM);
     out.push_str(&format!("pub enum {name} {{\n"));
     for value in &values.values {
-        doc(out, "    ", value.docs.as_deref());
+        documented(out, "    ", value.docs.as_deref(), &value.notes);
         out.push_str(&format!(
             "    #[serde(rename = {})]\n    {},\n",
             literal(&value.value),
@@ -309,7 +309,7 @@ pub(crate) fn member_field(
     client: bool,
     diagnostics: &mut Diagnostics,
 ) {
-    doc(out, "    ", member.docs.as_deref());
+    documented(out, "    ", member.docs.as_deref(), &member.notes);
     let mut serde = vec![format!("rename = {}", literal(&member.wire_name))];
     let optional = if client {
         member.optional_on_client()

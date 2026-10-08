@@ -42,6 +42,10 @@ fn operation_docs(
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
+    for note in docs::note_paragraphs(&op.notes) {
+        text.push_str("\n\n");
+        text.push_str(&note);
+    }
     if pages {
         text.push_str(
             "\n\nThis operation is paginated: use the `Pages` variant to read every page.",
@@ -60,14 +64,21 @@ fn operation_docs(
         let names: Vec<String> = errors.iter().map(|name| format!("``{name}``")).collect();
         text.push_str(&format!("\n- Throws: {}, or another ``ServiceException`` when the service responds with an error.", names.join(", ")));
     }
-    docs::line_comment(
+    let mut out = docs::line_comment(
         "    ",
         "///",
         &text.replace(
             "ServiceException",
             &crucible_codegen_common::service_exception_name(service),
         ),
-    )
+    );
+    if let Some(deprecated) = &op.notes.deprecated {
+        out.push_str(&format!(
+            "    @available(*, deprecated, message: {})\n",
+            super::literal(&deprecated.note())
+        ));
+    }
+    out
 }
 
 pub fn emit(service: &Service, options: &Options) -> String {

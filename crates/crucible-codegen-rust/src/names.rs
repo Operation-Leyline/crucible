@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use crucible_smithy::ir::DocNotes;
 use crucible_smithy::{Diagnostics, ShapeId};
 
 /// `nextToken` → `next_token`, `HTTPStatus` → `http_status`, keywords escaped.
@@ -140,6 +141,32 @@ pub(crate) fn doc(out: &mut String, indent: &str, docs: Option<&str>) {
         } else {
             out.push_str(&format!("{indent}/// {line}\n"));
         }
+    }
+}
+
+/// `///` docs followed by the model's documentation-only notes ("Unstable.",
+/// "Since X.") and a `#[deprecated]` attribute, so callers see it at the use
+/// site. The generated modules `allow(deprecated)`: only code outside them is
+/// warned.
+pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, notes: &DocNotes) {
+    let mut text = docs.map(str::trim).unwrap_or_default().to_owned();
+    for line in notes.lines() {
+        if !text.is_empty() {
+            text.push_str("\n\n");
+        }
+        text.push_str(&line);
+    }
+    doc(out, indent, Some(&text));
+    if let Some(deprecated) = &notes.deprecated {
+        let since = deprecated
+            .since
+            .as_ref()
+            .map(|since| format!("since = {}, ", literal(since)))
+            .unwrap_or_default();
+        out.push_str(&format!(
+            "{indent}#[deprecated({since}note = {})]\n",
+            literal(deprecated.message.as_deref().unwrap_or("Deprecated."))
+        ));
     }
 }
 

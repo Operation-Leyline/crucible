@@ -68,7 +68,7 @@ pub(crate) fn exports(service: &Service, diagnostics: &mut Diagnostics) -> Strin
         exports.sort();
         if !exports.is_empty() {
             out.push_str(&format!(
-                "#[doc(inline)]\n#[allow(unused_imports)]\npub use {module}::{{{}}};\n",
+                "#[doc(inline)]\n#[allow(unused_imports, deprecated)]\npub use {module}::{{{}}};\n",
                 exports.join(", ")
             ));
         }

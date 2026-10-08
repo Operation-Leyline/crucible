@@ -6,7 +6,7 @@ use crucible_smithy::ir::{Member, Operation, Service, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::errors::info_static;
-use crate::names::{doc, field, function, literal, variant};
+use crate::names::{doc, documented, field, function, literal, variant};
 use crate::operations::{input_type, marker, output_type, structure};
 use crate::types::simple_kind;
 
@@ -52,7 +52,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         out.push_str(&marker(service, op, &output, true));
         out.push_str(&error_enum(service, op));
         if metadata_needed(service, op) {
-            out.push_str(&format!("\n#[allow(non_upper_case_globals)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible_server_runtime_rust::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
+            out.push_str(&format!("\n#[allow(non_upper_case_globals, deprecated)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible_server_runtime_rust::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
         }
         methods.push_str(&method(service, op, None));
         let derived = method_names.next().expect("a method set per operation");
@@ -74,9 +74,9 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             );
         }
     }
-    doc(&mut out, "", service.docs.as_deref());
+    documented(&mut out, "", service.docs.as_deref(), &service.notes);
     out.push_str(&format!(
-        "\n/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::Transport,\n}}\n\n#[allow(dead_code)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
+        "\n/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::Transport,\n}}\n\n#[allow(dead_code, deprecated)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
         service.id.name()
     ));
     out
@@ -171,10 +171,11 @@ fn service_exception(service: &Service, diagnostics: &mut Diagnostics) -> String
     );
     for (id, shape) in &errors {
         let error = service.name_of(id);
-        doc(
+        documented(
             &mut out,
             "    ",
             shape.docs.as_deref().or(Some("A modeled service error.")),
+            &shape.notes,
         );
         out.push_str(&format!("    {error}(errors::{error}),\n"));
     }
@@ -386,12 +387,13 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     let name = op.name();
     let errors = error_type(op);
     let mut out = String::from("\n");
-    doc(
+    documented(
         &mut out,
         "    ",
         Some(&crucible_codegen_common::documentation::operation(
             service, op,
         )),
+        &op.notes,
     );
     let output = if op.output.is_some() {
         output_type(service, op).replace("model::", "")

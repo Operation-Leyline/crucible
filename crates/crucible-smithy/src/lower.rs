@@ -13,9 +13,10 @@ use serde_json::Value;
 use crate::ast::{self, Kind, Traits};
 use crate::diagnostics::Diagnostics;
 use crate::ir::{
-    Binding, Bindings, Bounds, Constraints, Enum, EnumValue, ErrorInfo, Fault, HeaderEncoding,
-    IntEnum, IntEnumValue, List, Map, Member, Operation, Paginated, Payload, PayloadKind,
-    Retryable, Segment, Service, Shape, Simple, SimpleKind, Structure, TimestampFormat, Uri,
+    Binding, Bindings, Bounds, Constraints, DocNotes, Enum, EnumValue, ErrorInfo, Fault,
+    HeaderEncoding, IntEnum, IntEnumValue, List, Map, Member, Operation, Paginated, Payload,
+    PayloadKind, Retryable, Segment, Service, Shape, Simple, SimpleKind, Structure,
+    TimestampFormat, Uri,
 };
 use crate::shape_id::ShapeId;
 use crate::{Capabilities, Feature, FeatureUse, Protocol};
@@ -295,6 +296,7 @@ impl<'m> Lowerer<'m> {
             version: shape.version.clone().unwrap_or_default(),
             title: string_trait(&shape.traits, "title"),
             docs: string_trait(&shape.traits, "documentation"),
+            notes: DocNotes::lower(id, &shape.traits, &mut self.diagnostics),
             auth,
             auth_schemes,
             endpoint_rules,
@@ -639,6 +641,7 @@ impl<'m> Lowerer<'m> {
             waiters: self.waiters(id, &shape.traits, output.is_some()),
             resource,
             docs: string_trait(&shape.traits, "documentation"),
+            notes: DocNotes::lower(id, &shape.traits, &mut self.diagnostics),
             method,
             uri,
             status: u16::try_from(status).unwrap_or(200),
@@ -1560,6 +1563,7 @@ impl<'m> Lowerer<'m> {
                         .get("documentation")
                         .and_then(Value::as_str)
                         .map(str::to_owned),
+                    notes: DocNotes::lower_legacy_enum_value(id, definition, &mut self.diagnostics),
                 });
             }
         }
@@ -1568,6 +1572,7 @@ impl<'m> Lowerer<'m> {
 
     fn shape(&mut self, id: &ShapeId, shape: &'m ast::Shape) -> Option<Shape> {
         let docs = string_trait(&shape.traits, "documentation");
+        let notes = DocNotes::lower(id, &shape.traits, &mut self.diagnostics);
         let traits = shape.traits.clone();
         let explicit_format = self.explicit_timestamp_format(&shape.traits);
         let simple = |kind| {
@@ -1579,6 +1584,7 @@ impl<'m> Lowerer<'m> {
                 constraints: constraints(&shape.traits),
                 timestamp_format: explicit_format,
                 docs: docs.clone(),
+                notes: notes.clone(),
                 traits: traits.clone(),
             })
         };
@@ -1588,6 +1594,7 @@ impl<'m> Lowerer<'m> {
                 internal: shape.traits.contains_key(&smithy("internal")),
                 values: self.legacy_enum(id, &shape.traits[&smithy("enum")]),
                 docs,
+                notes,
                 traits,
             }),
             Kind::String => simple(SimpleKind::String),
@@ -1636,9 +1643,15 @@ impl<'m> Lowerer<'m> {
                         value: string_trait(&member.traits, "enumValue")
                             .unwrap_or_else(|| name.clone()),
                         docs: string_trait(&member.traits, "documentation"),
+                        notes: DocNotes::lower(
+                            &id.with_member(name),
+                            &member.traits,
+                            &mut self.diagnostics,
+                        ),
                     })
                     .collect(),
                 docs,
+                notes,
                 traits,
             }),
             Kind::IntEnum => {
@@ -1660,6 +1673,11 @@ impl<'m> Lowerer<'m> {
                                 internal: member.traits.contains_key(&smithy("internal")),
                                 name: name.clone(), value,
                                 docs: string_trait(&member.traits, "documentation"),
+                                notes: DocNotes::lower(
+                                    &id.with_member(name),
+                                    &member.traits,
+                                    &mut self.diagnostics,
+                                ),
                             });
                         }
                         None => self.diagnostics.push(&id.with_member(name), "intEnum member must have an integer @enumValue within signed 32-bit range"),
@@ -1669,6 +1687,7 @@ impl<'m> Lowerer<'m> {
                     internal: shape.traits.contains_key(&smithy("internal")),
                     values,
                     docs,
+                    notes,
                     traits,
                 })
             }
@@ -1692,6 +1711,7 @@ impl<'m> Lowerer<'m> {
                     member,
                     constraints,
                     docs,
+                    notes,
                     traits,
                 })
             }
@@ -1707,6 +1727,7 @@ impl<'m> Lowerer<'m> {
                     value,
                     constraints: constraints(&shape.traits),
                     docs,
+                    notes,
                     traits,
                 })
             }
@@ -1719,6 +1740,7 @@ impl<'m> Lowerer<'m> {
                 members: self.members(id, shape),
                 error: self.error_info(id, shape),
                 docs,
+                notes,
                 traits,
             }),
             Kind::Union => Shape::Union(Structure {
@@ -1727,6 +1749,7 @@ impl<'m> Lowerer<'m> {
                 members: self.members(id, shape),
                 error: None,
                 docs,
+                notes,
                 traits,
             }),
             Kind::Service | Kind::Operation | Kind::Resource | Kind::Apply => {
@@ -1874,6 +1897,7 @@ impl<'m> Lowerer<'m> {
             timestamp_format: self.explicit_timestamp_format(&member.traits),
             wire_timestamp_format: format,
             docs: string_trait(&member.traits, "documentation"),
+            notes: DocNotes::lower(member_id, &member.traits, &mut self.diagnostics),
             traits: member.traits.clone(),
         }
     }

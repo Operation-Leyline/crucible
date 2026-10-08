@@ -62,7 +62,7 @@ pub(crate) fn emit(service: &Service, options: &Options, diagnostics: &mut Diagn
         operations.push(json!({
             "name": command,
             "operation": operation.name(),
-            "description": operation.docs.as_deref().unwrap_or(""),
+            "description": operation.notes.prose(operation.docs.as_deref()).unwrap_or_default(),
             "input": operation.input.as_ref().map(ToString::to_string),
             "paginated": operation.paginated.is_some(),
         }));
@@ -121,7 +121,7 @@ fn describe_member(service: &Service, member: &Member) -> Value {
         "wire_name": member.wire_name,
         "flag": names::kebab(&member.name),
         "target": member.target.to_string(),
-        "description": member.docs.as_deref().unwrap_or(""),
+        "description": member.notes.prose(member.docs.as_deref()).unwrap_or_default(),
         "required": !member.optional_on_client() && member.client_default().is_none()
             && !member.traits.contains_key(&ShapeId::new("smithy.api", "idempotencyToken")),
         "sensitive": service.sensitive(member),

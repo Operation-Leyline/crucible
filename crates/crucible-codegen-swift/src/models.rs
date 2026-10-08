@@ -1,10 +1,20 @@
 use super::{enum_constant, field, literal, method, model_name, ty};
 use crucible_codegen_common::docs;
-use crucible_smithy::ir::{Member, Service, Shape};
+use crucible_smithy::ir::{DocNotes, Member, Service, Shape};
 
-fn doc(text: Option<&str>, indent: &str) -> String {
-    text.map(|text| docs::line_comment(indent, "///", &docs::escape(text)))
-        .unwrap_or_default()
+/// Doc comment with the model's notes, then the native deprecation attribute
+/// so the compiler flags use sites.
+fn doc(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+    let mut out = docs::annotated(text, notes)
+        .map(|text| docs::line_comment(indent, "///", &text))
+        .unwrap_or_default();
+    if let Some(deprecated) = &notes.deprecated {
+        out.push_str(&format!(
+            "{indent}@available(*, deprecated, message: {})\n",
+            literal(&deprecated.note())
+        ));
+    }
+    out
 }
 
 /// `description` for a generated model: thin, with formatting and the
@@ -53,22 +63,26 @@ pub fn emit(service: &Service, module: &str) -> String {
         match shape {
             Shape::List(list) => out.push_str(&format!(
                 "{}    public typealias `{name}` = Swift.Array<{}{}>\n",
-                doc(list.docs.as_deref(), "    "),
+                doc(list.docs.as_deref(), &list.notes, "    "),
                 ty(service, &list.member.target, module),
                 if list.sparse { "?" } else { "" }
             )),
             Shape::Map(map) => out.push_str(&format!(
                 "{}    public typealias `{name}` = Swift.Dictionary<{}, {}{}>\n",
-                doc(map.docs.as_deref(), "    "),
+                doc(map.docs.as_deref(), &map.notes, "    "),
                 ty(service, &map.key.target, module),
                 ty(service, &map.value.target, module),
                 if map.sparse { "?" } else { "" }
             )),
             Shape::IntEnum(enumeration) => {
-                out.push_str(&doc(enumeration.docs.as_deref(), "    "));
+                out.push_str(&doc(
+                    enumeration.docs.as_deref(),
+                    &enumeration.notes,
+                    "    ",
+                ));
                 out.push_str(&format!("    public struct `{name}`: Swift.RawRepresentable, Swift.Hashable, Swift.Sendable, WireCodable, ModelDescription {{\n        /// The integer sent on the wire.\n        public let rawValue: Swift.Int32\n        public init(rawValue: Swift.Int32) {{ self.rawValue = rawValue }}\n"));
                 for value in &enumeration.values {
-                    out.push_str(&doc(value.docs.as_deref(), "        "));
+                    out.push_str(&doc(value.docs.as_deref(), &value.notes, "        "));
                     out.push_str(&format!(
                         "        public static let `{}` = Self(rawValue: {})\n",
                         enum_constant(&value.name),
@@ -81,10 +95,14 @@ pub fn emit(service: &Service, module: &str) -> String {
                 out.push_str("        static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self { Self(rawValue: try Swift.Int32.fromWire(value, context)) }\n        func toWire(_ context: WireContext) throws -> JSONValue { .number(Swift.String(rawValue)) }\n    }\n");
             }
             Shape::Enum(enumeration) => {
-                out.push_str(&doc(enumeration.docs.as_deref(), "    "));
+                out.push_str(&doc(
+                    enumeration.docs.as_deref(),
+                    &enumeration.notes,
+                    "    ",
+                ));
                 out.push_str(&format!("    public struct `{name}`: Swift.RawRepresentable, Swift.Hashable, Swift.Sendable, WireCodable, ModelDescription {{\n        /// The string sent on the wire; a value this client does not list is kept as is.\n        public let rawValue: Swift.String\n        public init(rawValue: Swift.String) {{ self.rawValue = rawValue }}\n"));
                 for value in &enumeration.values {
-                    out.push_str(&doc(value.docs.as_deref(), "        "));
+                    out.push_str(&doc(value.docs.as_deref(), &value.notes, "        "));
                     out.push_str(&format!(
                         "        public static let `{}` = Self(rawValue: {})\n",
                         enum_constant(&value.name),
@@ -102,7 +120,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                 } else {
                     String::new()
                 };
-                out.push_str(&doc(structure.docs.as_deref(), "    "));
+                out.push_str(&doc(structure.docs.as_deref(), &structure.notes, "    "));
                 out.push_str(&format!(
                     "    public struct `{name}`: Swift.Sendable, WireCodable, ModelDescription{error} {{\n"
                 ));
@@ -110,7 +128,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                 for member in &structure.members {
                     let field = field(&member.name);
                     let value_type = ty(service, &member.target, module);
-                    let member_docs = doc(member.docs.as_deref(), "        ");
+                    let member_docs = doc(member.docs.as_deref(), &member.notes, "        ");
                     if member.optional_on_client() {
                         out.push_str(&format!("        /// Whether `{field}` was omitted, set to null, or given a value.\n        public var `{field}Presence`: OptionalValue<{value_type}>\n{member_docs}        public var `{field}`: {value_type}? {{\n            get {{ `{field}Presence`.value }}\n            set {{ `{field}Presence` = newValue.map {{ .value($0) }} ?? .null }}\n        }}\n"));
                         parameters.push(format!("`{field}`: {value_type}? = nil"));
@@ -194,12 +212,12 @@ pub fn emit(service: &Service, module: &str) -> String {
                 }
             }
             Shape::Union(union) => {
-                out.push_str(&doc(union.docs.as_deref(), "    "));
+                out.push_str(&doc(union.docs.as_deref(), &union.notes, "    "));
                 out.push_str(&format!(
                     "    public indirect enum `{name}`: Swift.Sendable, WireCodable, ModelDescription {{\n"
                 ));
                 for member in &union.members {
-                    out.push_str(&doc(member.docs.as_deref(), "        "));
+                    out.push_str(&doc(member.docs.as_deref(), &member.notes, "        "));
                     out.push_str(&format!(
                         "        case `{}`({}?)\n",
                         method(&member.name),

@@ -178,9 +178,11 @@ impl<'a> Layout<'a> {
             let name = self.service.name_of(&id);
             let qualified = format!("::{ns}::models::{name}");
             let shape = self.service.shape(&id).expect("shape");
-            if let Some(docs) = crucible_codegen_common::documentation::shape(shape) {
-                header.push_str(&crucible_codegen_common::doxygen(docs, ""));
-            }
+            header.push_str(&crucible_codegen_common::doxygen_for(
+                crucible_codegen_common::documentation::shape(shape),
+                shape.notes().unwrap_or(&Default::default()),
+                "",
+            ));
             match shape {
                 Shape::Structure(structure) => {
                     let error = structure.error.is_some();
@@ -199,9 +201,11 @@ impl<'a> Layout<'a> {
                         } else {
                             native
                         };
-                        if let Some(docs) = &member.docs {
-                            header.push_str(&crucible_codegen_common::doxygen(docs, "    "));
-                        }
+                        header.push_str(&crucible_codegen_common::doxygen_for(
+                            member.docs.as_deref(),
+                            &member.notes,
+                            "    ",
+                        ));
                         header.push_str(&format!("    {native} {};\n", field(&member.name)));
                     }
                     let members: Vec<_> = structure
@@ -296,9 +300,11 @@ impl<'a> Layout<'a> {
                 Shape::IntEnum(enumeration) => {
                     header.push_str(&format!("\nstruct {name} {{\n    std::int32_t value;\n    explicit {name}(std::int32_t value = 0) : value(value) {{}}\n    auto operator<=>(const {name}&) const = default;\n"));
                     for item in &enumeration.values {
-                        if let Some(docs) = &item.docs {
-                            header.push_str(&crucible_codegen_common::doxygen(docs, "    "));
-                        }
+                        header.push_str(&crucible_codegen_common::doxygen_for(
+                            item.docs.as_deref(),
+                            &item.notes,
+                            "    ",
+                        ));
                         header.push_str(&format!(
                             "    static {name} known_{}() {{ return {name}{{{}}}; }}\n",
                             field(&item.name),
@@ -311,9 +317,11 @@ impl<'a> Layout<'a> {
                 Shape::Enum(enumeration) => {
                     header.push_str(&format!("\nstruct {name} {{\n    std::string value;\n    explicit {name}(std::string value = {{}}) : value(std::move(value)) {{}}\n    auto operator<=>(const {name}&) const = default;\n"));
                     for item in &enumeration.values {
-                        if let Some(docs) = &item.docs {
-                            header.push_str(&crucible_codegen_common::doxygen(docs, "    "));
-                        }
+                        header.push_str(&crucible_codegen_common::doxygen_for(
+                            item.docs.as_deref(),
+                            &item.notes,
+                            "    ",
+                        ));
                         header.push_str(&format!(
                             "    static {name} known_{}() {{ return {name}{{{}}}; }}\n",
                             field(&item.name),
@@ -327,9 +335,11 @@ impl<'a> Layout<'a> {
                     let mut variants = Vec::new();
                     for m in &union.members {
                         let variant = variant(name, &m.name);
-                        if let Some(docs) = &m.docs {
-                            header.push_str(&crucible_codegen_common::doxygen(docs, ""));
-                        }
+                        header.push_str(&crucible_codegen_common::doxygen_for(
+                            m.docs.as_deref(),
+                            &m.notes,
+                            "",
+                        ));
                         let sensitive = shape.sensitive()
                             || self.service.sensitive(m)
                             || crucible_codegen_common::sensitive_collection(

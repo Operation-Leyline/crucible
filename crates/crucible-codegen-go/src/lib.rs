@@ -1,6 +1,6 @@
 //! Native Go models, context-aware clients, and a standard-library runtime.
 use crucible_codegen_common::documentation::{model as shape_docs, operation as operation_docs};
-use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use crucible_smithy::ir::{DocNotes, Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -370,18 +370,25 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
         let name = exported(service.name_of(id));
-        go_doc(&mut models, "", &name, shape_docs(shape).as_deref());
+        go_doc_for(
+            &mut models,
+            "",
+            &name,
+            shape_docs(shape).as_deref(),
+            shape.notes().unwrap_or(&DocNotes::default()),
+        );
         match shape {
             Shape::IntEnum(e) => {
                 models.push_str(&format!(
                     "// {name} preserves unrecognized integer values.\ntype {name} int32\nconst (\n"
                 ));
                 for v in &e.values {
-                    go_doc(
+                    go_doc_for(
                         &mut models,
                         "    ",
                         &format!("{name}{}", exported(&v.name)),
                         v.docs.as_deref(),
+                        &v.notes,
                     );
                     models.push_str(&format!(
                         "    {name}{} {name} = {}\n",
@@ -409,11 +416,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     "// {name} preserves unrecognized string values.\ntype {name} string\nconst (\n"
                 ));
                 for v in &e.values {
-                    go_doc(
+                    go_doc_for(
                         &mut models,
                         "    ",
                         &format!("{name}{}", exported(&v.name)),
                         v.docs.as_deref(),
+                        &v.notes,
                     );
                     models.push_str(&format!(
                         "    {name}{} {name} = {}\n",
@@ -426,7 +434,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             Shape::Structure(s) | Shape::Union(s) => {
                 models.push_str(&format!("type {name} struct {{\n"));
                 for m in &s.members {
-                    go_doc(&mut models, "    ", &exported(&m.name), m.docs.as_deref());
+                    go_doc_for(
+                        &mut models,
+                        "    ",
+                        &exported(&m.name),
+                        m.docs.as_deref(),
+                        &m.notes,
+                    );
                     let t = member_ty(service, &m.target, &outputs, id);
                     // A stream is never null: a nil input reader sends an empty body.
                     let t = if is_stream(service, &m.target) {
@@ -588,7 +602,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         } else {
             ""
         };
-        go_doc(&mut client, "", &name, Some(&operation_docs(service, op)));
+        go_doc_for(
+            &mut client,
+            "",
+            &name,
+            Some(&operation_docs(service, op)),
+            &op.notes,
+        );
         client.push_str(&format!("func (c *{client_name}) {name}(ctx context.Context, input {input}) ({output}, error) {{\n var output {output}\n values, err := c.call(ctx, {}, input)\n if err != nil {{ return output, err }}\n err = decodeModel(c.schema, {}, values, &output){release}\n return output, err\n}}\n\n",literal(op.name()),literal(&target)));
         for (waiter, description) in &op.waiters {
             go_doc(
@@ -745,8 +765,31 @@ fn wire_path(service: &Service, root: &crucible_smithy::ShapeId, path: &str) -> 
 }
 
 fn go_doc(out: &mut String, indent: &str, name: &str, docs: Option<&str>) {
+    go_doc_for(out, indent, name, docs, &DocNotes::default());
+}
+
+/// The same, plus "Unstable."/"Since X." lines and, last, a `Deprecated:`
+/// paragraph: the form `go doc`, gopls and staticcheck recognise.
+fn go_doc_for(out: &mut String, indent: &str, name: &str, docs: Option<&str>, notes: &DocNotes) {
+    let mut docs = docs.map(crucible_codegen_common::documentation::text);
+    for line in notes.lines() {
+        let text = docs.get_or_insert_with(String::new);
+        if !text.is_empty() {
+            text.push_str("\n\n");
+        }
+        text.push_str(&line);
+    }
+    if let Some(deprecated) = &notes.deprecated {
+        let text = docs.get_or_insert_with(String::new);
+        // The header line is a paragraph of its own, so `Deprecated:` begins one.
+        text.push_str("\n\n");
+        // A model message may span lines; each stays inside the paragraph.
+        text.push_str(&format!(
+            "Deprecated: {}",
+            crucible_codegen_common::documentation::text(&deprecated.note())
+        ));
+    }
     if let Some(docs) = docs {
-        let docs = crucible_codegen_common::documentation::text(docs);
         out.push_str(&format!("{indent}// {name}:\n"));
         for line in docs.lines() {
             if line.is_empty() {

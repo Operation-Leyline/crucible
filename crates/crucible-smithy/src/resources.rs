@@ -114,6 +114,7 @@ fn visit(
             .get(&smithy("documentation"))
             .and_then(Value::as_str)
             .map(str::to_owned),
+        notes: crate::ir::DocNotes::lower(id, &shape.traits, diagnostics),
     };
     let instance: BTreeSet<ShapeId> = [
         &shape.create,

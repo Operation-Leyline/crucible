@@ -58,7 +58,7 @@ pub fn source_revision() -> Option<&'static str> {
 pub(crate) const DERIVE: &str = "#[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__private::serde\")]\n";
 pub(crate) const DERIVE_ENUM: &str = "#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_server_runtime_rust::__private::serde::Serialize, ::crucible_server_runtime_rust::__private::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__private::serde\")]\n";
 
-const ALLOW: &str = "#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]\n";
+const ALLOW: &str = "#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]\n";
 
 /// Which errors the generated code fills in itself. These are optional:
 /// without a validation error crucible can fill, the service gives the

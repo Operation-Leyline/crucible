@@ -309,8 +309,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
         let mut out = String::from("# Generated from the lowered Smithy model.\n");
         out.push_str(&roxygen(
-            crucible_codegen_common::documentation::shape(shape)
-                .unwrap_or("Constructs a native model value."),
+            &crucible_codegen_common::documentation::with_notes(
+                Some(
+                    crucible_codegen_common::documentation::shape(shape)
+                        .unwrap_or("Constructs a native model value."),
+                ),
+                shape.notes().unwrap_or(&Default::default()),
+            )
+            .unwrap_or_default(),
         ));
         match shape {
             Shape::Enum(e) => {
@@ -319,7 +325,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         "{} = {}: {}",
                         value.name,
                         value.value,
-                        value.docs.as_deref().unwrap_or("Known enum value.")
+                        crucible_codegen_common::documentation::with_notes(
+                            Some(value.docs.as_deref().unwrap_or("Known enum value.")),
+                            &value.notes
+                        )
+                        .unwrap_or_default()
                     )));
                 }
             }
@@ -329,7 +339,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         "{} = {}: {}",
                         value.name,
                         value.value,
-                        value.docs.as_deref().unwrap_or("Known enum value.")
+                        crucible_codegen_common::documentation::with_notes(
+                            Some(value.docs.as_deref().unwrap_or("Known enum value.")),
+                            &value.notes
+                        )
+                        .unwrap_or_default()
                     )));
                 }
             }
@@ -338,7 +352,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     out.push_str(&roxygen_details(&format!(
                         "{}: {}",
                         m.name,
-                        m.docs.as_deref().unwrap_or("Union arm.")
+                        crucible_codegen_common::documentation::with_notes(
+                            Some(m.docs.as_deref().unwrap_or("Union arm.")),
+                            &m.notes
+                        )
+                        .unwrap_or_default()
                     )));
                 }
             }
@@ -356,7 +374,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     values.push(format!("{} = {}",literal(&f),function(&f)));
                     schema["shapes"][id.to_string()]["members"][&m.name]["optional"] = json!(m.optional_on_client());
                 }
-                for m in &s.members { out.push_str(&format!("#' @param {} {}\n", field(&m.name), m.docs.as_deref().unwrap_or("Model member; UNSET omits an optional member and NULL sends null.").replace('@', "@@").replace('\n', "\n#' "))); }
+                for m in &s.members { out.push_str(&format!("#' @param {} {}\n", field(&m.name), crucible_codegen_common::documentation::with_notes(Some(m.docs.as_deref().unwrap_or("Model member; UNSET omits an optional member and NULL sends null.")), &m.notes).unwrap_or_default().replace('@', "@@").replace('\n', "\n#' "))); }
                 out.push_str(&format!("{} <- function({}) .crucible_model({}, list({}))\n", function(name),args.join(", "),literal(&id.to_string()),values.join(", ")));
             }
             Shape::Enum(_) => out.push_str(&format!("{} <- function(value) structure(.crucible_string(value), class = c({}, 'crucible_enum', 'character'), crucible_target = {} )\n",function(name),literal(name),literal(&id.to_string()))),
@@ -371,7 +389,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     details.push_str(&format!(
                         "{}: {}\n",
                         field(&m.name),
-                        m.docs.as_deref().unwrap_or("Model member.")
+                        crucible_codegen_common::documentation::with_notes(
+                            Some(m.docs.as_deref().unwrap_or("Model member.")),
+                            &m.notes
+                        )
+                        .unwrap_or_default()
                     ));
                 }
             }
@@ -381,7 +403,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         "{} = {}: {}\n",
                         v.name,
                         v.value,
-                        v.docs.as_deref().unwrap_or("Known enum value.")
+                        crucible_codegen_common::documentation::with_notes(
+                            Some(v.docs.as_deref().unwrap_or("Known enum value.")),
+                            &v.notes
+                        )
+                        .unwrap_or_default()
                     ));
                 }
             }
@@ -391,7 +417,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         "{} = {}: {}\n",
                         v.name,
                         v.value,
-                        v.docs.as_deref().unwrap_or("Known enum value.")
+                        crucible_codegen_common::documentation::with_notes(
+                            Some(v.docs.as_deref().unwrap_or("Known enum value.")),
+                            &v.notes
+                        )
+                        .unwrap_or_default()
                     ));
                 }
             }
@@ -412,7 +442,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let mut operation_notes = String::new();
     let mut client = roxygen(&format!(
         "{}\nConstruct with client_config(). Call client$close() after use. Clients and page functions are mutable; use them from one R execution thread.",
-        service.docs.as_deref().unwrap_or("HTTP service client.")
+        crucible_codegen_common::documentation::with_notes(
+            Some(service.docs.as_deref().unwrap_or("HTTP service client.")),
+            &service.notes
+        )
+        .unwrap_or_default()
     )) + &format!(
         "# Generated native operation methods.\n{} <- function(config = client_config()) {{\n  client <- .crucible_client(config, {}, {})\n",
         function(&client_name),
@@ -436,7 +470,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         if op.method == "HEAD" && (!op.request.body.is_empty() || op.request.payload.is_some()) {
             diagnostics.push(&op.id, "R HEAD operations cannot have a request body");
         }
-        let notes = crucible_codegen_common::documentation::operation(service, op);
+        let notes = crucible_codegen_common::documentation::operation_with_notes(service, op);
         operation_notes.push_str(&format!("{}\n{}\n\n", field(op.name()), notes));
         client.push_str(&roxygen(&notes));
         let name = field(op.name());

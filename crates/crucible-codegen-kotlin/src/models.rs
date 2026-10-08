@@ -1,4 +1,4 @@
-use super::{code, field, kdoc, literal, ty};
+use super::{code, field, kdoc, kdoc_for, literal, ty};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
 use serde_json::Value;
@@ -53,7 +53,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     "ArrayList"
                 };
                 let conversion = if l.is_set { ".toSet()" } else { "" };
-                models.push_str(&kdoc(
+                models.push_str(&kdoc_for(
                     "",
                     l.docs.as_deref(),
                     &[format!(
@@ -62,6 +62,8 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         code(&l.member.target.to_string())
                     )],
                     &[],
+                    &l.notes,
+                    "",
                 ));
                 if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
                     models.push_str(&format!(
@@ -85,11 +87,13 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     ty(service, &m.value.target, package),
                     if m.sparse { "?" } else { "" }
                 );
-                models.push_str(&kdoc(
+                models.push_str(&kdoc_for(
                     "",
                     m.docs.as_deref(),
                     &["A map shape.".to_string()],
                     &[],
+                    &m.notes,
+                    "",
                 ));
                 if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
                     models.push_str(&format!(
@@ -107,14 +111,16 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 }
             }
             Shape::Enum(e) => {
-                models.push_str(&kdoc("    ", e.docs.as_deref(), &["An open enum: a value this client does not know is kept as is, so compare with the constants or `value`.".to_string()], &["@property value the wire value".to_string()]));
+                models.push_str(&kdoc_for("    ", e.docs.as_deref(), &["An open enum: a value this client does not know is kept as is, so compare with the constants or `value`.".to_string()], &["@property value the wire value".to_string()], &e.notes, ""));
                 models.push_str(&format!("    data class `{name}`(val value: kotlin.String) {{\n        override fun toString(): kotlin.String = value\n        companion object {{\n"));
                 for v in &e.values {
-                    models.push_str(&kdoc(
+                    models.push_str(&kdoc_for(
                         "            ",
                         v.docs.as_deref(),
                         &[format!("The {} value.", code(&v.value))],
                         &[],
+                        &v.notes,
+                        "",
                     ));
                     models.push_str(&format!(
                         "            @kotlin.jvm.JvmField val `{}` = `{name}`({})\n",
@@ -131,14 +137,16 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 ));
             }
             Shape::IntEnum(e) => {
-                models.push_str(&kdoc("", e.docs.as_deref(), &["An open integer enum: a value this client does not know is kept as is, so compare with the constants or `value`.".to_string()], &["@property value the wire value".to_string()]));
+                models.push_str(&kdoc_for("", e.docs.as_deref(), &["An open integer enum: a value this client does not know is kept as is, so compare with the constants or `value`.".to_string()], &["@property value the wire value".to_string()], &e.notes, ""));
                 models.push_str(&format!("data class `{name}`(val value: kotlin.Int) {{\n    override fun toString(): kotlin.String = value.toString()\n    companion object {{\n"));
                 for v in &e.values {
-                    models.push_str(&kdoc(
+                    models.push_str(&kdoc_for(
                         "        ",
                         v.docs.as_deref(),
                         &[format!("The {} value.", code(&v.value.to_string()))],
                         &[],
+                        &v.notes,
+                        "",
                     ));
                     models.push_str(&format!(
                         "        @kotlin.jvm.JvmField val `{}` = `{name}`({})\n",
@@ -165,7 +173,14 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 } else {
                     class_notes.push(format!("Build one with `{name} {{ ... }}` or `copy {{ ... }}`; it is immutable. Smithy shape {}.", code(&id.to_string())));
                 }
-                models.push_str(&kdoc("", s.docs.as_deref(), &class_notes, &[]));
+                models.push_str(&kdoc_for(
+                    "",
+                    s.docs.as_deref(),
+                    &class_notes,
+                    &[],
+                    &s.notes,
+                    "",
+                ));
                 models.push_str(&format!("class `{name}` internal constructor(\n"));
                 let mut format_pairs = String::new();
                 if s.error.is_some() && !s.members.iter().any(|m| m.name == "message") {
@@ -188,7 +203,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         let cast = format!("{package}.OptionalValue<{t}>");
                         models.push_str(&format!("    internal val {storage}: {cast},\n"));
                         let member_doc = |indent: &str| {
-                            kdoc(indent, m.docs.as_deref().or(Some(&format!("The `{}` member.", m.name))), &["Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.".to_string()], &[])
+                            kdoc_for(indent, m.docs.as_deref().or(Some(&format!("The `{}` member.", m.name))), &["Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.".to_string()], &[], &m.notes, "")
                         };
                         properties.push_str(&member_doc("    "));
                         properties
@@ -223,7 +238,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         copy.push_str(&format!("        builder.{storage} = {storage}\n"));
                         (storage, cast)
                     } else {
-                        models.push_str(&kdoc(
+                        models.push_str(&kdoc_for(
                             "    ",
                             m.docs
                                 .as_deref()
@@ -234,6 +249,8 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                                 "Required.".to_string()
                             }],
                             &[],
+                            &m.notes,
+                            "property:",
                         ));
                         models.push_str(&format!("    val `{f}`: {t},\n"));
                         let required = format!(
@@ -313,7 +330,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 decode.push_str("        )\n");
             }
             Shape::Union(s) => {
-                models.push_str(&kdoc("    ", s.docs.as_deref(), &["A union: exactly one variant is set. A variant this client does not know arrives as `UnknownVariant`.".to_string()], &[]));
+                models.push_str(&kdoc_for("    ", s.docs.as_deref(), &["A union: exactly one variant is set. A variant this client does not know arrives as `UnknownVariant`.".to_string()], &[], &s.notes, ""));
                 models.push_str(&format!("    sealed interface `{name}` {{\n"));
                 encode.push_str(&format!(
                     "        {target} -> when (val model = value as {native}) {{\n"
@@ -325,13 +342,15 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     let v = variant(&m.name);
                     let t = ty(service, &m.target, package);
                     let n = literal(&m.name);
-                    models.push_str(&kdoc(
+                    models.push_str(&kdoc_for(
                         "        ",
                         m.docs
                             .as_deref()
                             .or(Some(&format!("The `{}` variant.", m.name))),
                         &[],
                         &["@property value the variant's value".to_string()],
+                        &m.notes,
+                        "",
                     ));
                     let shown = if s.sensitive() || crucible_codegen_common::redacted(service, m) {
                         format!("{package}.ModelFormat.redact(value)")

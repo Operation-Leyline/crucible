@@ -3,7 +3,9 @@ pub mod docs;
 pub mod documentation;
 pub mod json_schema;
 
-use crucible_smithy::ir::{Bindings, Fault, Member, Service, Shape, SimpleKind, TimestampFormat};
+use crucible_smithy::ir::{
+    Bindings, DocNotes, Fault, Member, Service, Shape, SimpleKind, TimestampFormat,
+};
 use serde_json::{Value, json};
 
 /// Public service identity shared by exception classes, protocols and interfaces.
@@ -630,6 +632,39 @@ pub fn doxygen(text: &str, indent: &str) -> String {
             })
             .collect::<String>()
     )
+}
+
+/// [`doxygen`] for model text plus its notes: "Unstable."/"Since X." lines and
+/// a `@deprecated` command, which Doxygen renders and IDEs strike through.
+/// Empty when there is nothing to say. C has no deprecation attribute in C17,
+/// so the command is the whole rendering there.
+pub fn doxygen_for(docs: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+    let mut paragraphs: Vec<String> = docs.map(str::to_owned).into_iter().collect();
+    paragraphs.extend(notes.lines());
+    let text = paragraphs.join("\n\n");
+    if text.is_empty() && notes.deprecated.is_none() {
+        return String::new();
+    }
+    let mut out = doxygen(&text, indent);
+    if let Some(deprecated) = &notes.deprecated {
+        let note = deprecated
+            .note()
+            .replace('\\', "&#92;")
+            .replace('@', "&#64;")
+            .replace("*/", "*&#47;")
+            .replace("/*", "/&#42;");
+        let close = format!("{indent} */\n");
+        out.truncate(out.len() - close.len());
+        if !text.is_empty() {
+            out.push_str(&format!("{indent} *\n"));
+        }
+        for (index, line) in note.lines().enumerate() {
+            let lead = if index == 0 { "@deprecated " } else { "" };
+            out.push_str(&format!("{indent} * {lead}{}\n", line.trim_end()));
+        }
+        out.push_str(&close);
+    }
+    out
 }
 
 /// Native collection aliases cannot customize element formatting. Conservatively

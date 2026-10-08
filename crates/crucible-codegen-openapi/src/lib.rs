@@ -5,6 +5,8 @@ mod examples;
 mod operations;
 mod schemas;
 
+pub(crate) use crucible_codegen_common::json_schema::{Slot, annotate};
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_smithy::ir::{AuthScheme, Binding, Segment, Service, Shape, Traits};
@@ -182,6 +184,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
         "x-smithy-protocol": service.protocol.trait_id().to_string(),
         "x-smithy-traits": traits(&service.traits),
     });
+    annotate(&mut document, &service.notes, Slot::Root);
     if let Some(endpoint) = &options.endpoint {
         document["servers"] = json!([{"url": endpoint}]);
     }
