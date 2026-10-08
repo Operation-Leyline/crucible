@@ -341,8 +341,8 @@ browsers do not interpret partial wildcards such as `x-meta-*`.
 Preflight `OPTIONS` with an allowed origin and modeled requested method receives
 an empty 204 response before routing or application authentication, including
 paths that would otherwise return an unknown-operation or method rejection.
-Other requests follow the ordinary pipeline. Allowed cross-origin responses
-carry the origin and exposed headers, including modeled errors, validation and
+Other requests follow the ordinary pipeline. Every HTTP response
+carries the configured origin and exposed headers, including modeled errors, validation and
 transport rejections, recovered panics, and outer Tower rejection responses.
 Direct JSON invocations do not run HTTP CORS behavior.
 

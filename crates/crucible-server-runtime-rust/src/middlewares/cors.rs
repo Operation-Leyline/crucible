@@ -40,20 +40,8 @@ impl Cors {
             .is_some_and(|origin| self.info.origin == "*" || origin == self.origin)
     }
 
-    pub(crate) fn decorate(&self, response: &mut Response, permitted: bool) {
+    pub(crate) fn decorate(&self, response: &mut Response) {
         let headers = response.headers_mut();
-        if !headers
-            .get_all("vary")
-            .iter()
-            .filter_map(|value| value.to_str().ok())
-            .flat_map(|value| value.split(','))
-            .any(|value| value.trim().eq_ignore_ascii_case("origin"))
-        {
-            headers.append("vary", HeaderValue::from_static("Origin"));
-        }
-        if !permitted {
-            return;
-        }
         headers.insert("access-control-allow-origin", self.origin.clone());
         headers.insert("access-control-expose-headers", self.exposed.clone());
         if self.info.allow_credentials {
@@ -133,7 +121,7 @@ impl Middleware for Cors {
 
     fn after<'a>(&'a self, job: &'a mut Job, response: &'a mut Response) -> Hook<'a, ()> {
         if job.request().extensions.get::<Invocation>().is_none() {
-            self.decorate(response, self.permits(&job.request().headers));
+            self.decorate(response);
         }
         Hook::Ready(())
     }

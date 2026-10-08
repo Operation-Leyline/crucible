@@ -169,7 +169,6 @@ impl Crucible {
     pub async fn handle(&self, request: Request<Body>) -> Response {
         let cors = self.inner.cors.as_ref();
         let http = request.extensions().get::<Invocation>().is_none();
-        let permitted = http && cors.is_some_and(|cors| cors.permits(request.headers()));
         let mut response = match &self.endpoint {
             Some(endpoint) => match endpoint.clone().oneshot(request).await {
                 Ok(response) => response,
@@ -179,7 +178,7 @@ impl Crucible {
         };
         // Completion recovery and outer Tower rejections can replace an encoded response.
         if http && let Some(cors) = cors {
-            cors.decorate(&mut response, permitted);
+            cors.decorate(&mut response);
         }
         response
     }
