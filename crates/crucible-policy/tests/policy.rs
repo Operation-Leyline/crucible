@@ -110,6 +110,23 @@ fn no_op_and_documentation_changes_pass_with_recursive_shapes() {
 }
 
 #[test]
+fn removing_readonly_is_a_breaking_retry_contract_change() {
+    let mut old = model();
+    old["shapes"]["example.api#GetItem"]["traits"]["smithy.api#readonly"] = json!({});
+    let mut new = old.clone();
+    new["shapes"]["example.api#GetItem"]["traits"]
+        .as_object_mut()
+        .unwrap()
+        .remove("smithy.api#readonly");
+    let findings = diff(&lower(&old), &lower(&new), &Config::default()).findings;
+    assert!(findings.iter().any(|finding| {
+        finding.rule == "compatibility.operation"
+            && finding.shape == "example.api#GetItem"
+            && finding.message.contains("readonly")
+    }));
+}
+
+#[test]
 fn optional_inputs_pass_but_new_required_inputs_and_lost_output_guarantees_fail() {
     let old = model();
     let mut new = old.clone();
