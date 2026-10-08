@@ -4,6 +4,38 @@ use crucible_smithy::{Audience, Capabilities, Feature, Model, ShapeId, project};
 const INTERNAL: &str = include_str!("fixtures/internal.json");
 
 #[test]
+fn legacy_enum_visibility_follows_the_shape_and_preserves_public_values() {
+    let source = include_str!("fixtures/legacy-enum.json");
+    let full = lower(source, false);
+    let color_id = ShapeId::new("example.legacy", "Color");
+    let Shape::Enum(color) = full.shape(&color_id).unwrap() else {
+        panic!("legacy enum")
+    };
+    assert!(!color.internal);
+    assert!(color.values.iter().all(|value| !value.internal));
+    let external = project(&full, Audience::External).unwrap();
+    let Shape::Enum(visible) = external.shape(&color_id).unwrap() else {
+        panic!("legacy enum")
+    };
+    assert_eq!(visible.values.len(), 2);
+
+    let mut model: serde_json::Value = serde_json::from_str(source).unwrap();
+    model["shapes"]["example.legacy#Color"]["traits"]["smithy.api#internal"] =
+        serde_json::json!({});
+    let internal = lower(&model.to_string(), false);
+    assert!(internal.shape(&color_id).unwrap().internal());
+    assert!(project(&internal, Audience::Internal).is_ok());
+    let diagnostics = project(&internal, Audience::External).unwrap_err();
+    assert_eq!(diagnostics.len(), 2, "{diagnostics}");
+    assert!(
+        diagnostics
+            .iter()
+            .all(|d| d.message.starts_with("audience.internal_target:")),
+        "{diagnostics}"
+    );
+}
+
+#[test]
 fn projected_request_vectors_check_the_payload_contract() {
     for (target, body, retained) in [
         ("smithy.api#String", "raw public payload", true),

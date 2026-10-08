@@ -1545,6 +1545,8 @@ impl<'m> Lowerer<'m> {
                 }
                 // The enum IR carries docs; deprecated and tags remain in the shape's raw trait.
                 values.push(EnumValue {
+                    // Legacy definitions have no member traits or per-value visibility.
+                    internal: false,
                     name: name.to_owned(),
                     value: value.to_owned(),
                     docs: definition
@@ -1576,6 +1578,7 @@ impl<'m> Lowerer<'m> {
         Some(match shape.kind {
             Kind::Boolean => simple(SimpleKind::Boolean),
             Kind::String if shape.traits.contains_key(&smithy("enum")) => Shape::Enum(Enum {
+                internal: shape.traits.contains_key(&smithy("internal")),
                 values: self.legacy_enum(id, &shape.traits[&smithy("enum")]),
                 docs,
                 traits,
