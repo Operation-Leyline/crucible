@@ -26,7 +26,7 @@
 //!
 //! Defaults enable `smithy` and `rust`. Select `java` or other native client
 //! features explicitly. Each native target has a matching fluent helper such as
-//! `swift_client`, `python_client`, or `ts_client`. Select `openapi`, `cdk`,
+//! `swift_client`, `python_client`, or `ts_client`. Select `openapi`, `docs`, `cdk`,
 //! `terraform`, or `cli` for named non-client outputs. With defaults disabled,
 //! AST publication and model compilation remain usable without any Rust emitter
 //! dependency. The `cli` target generates a Rust executable and uses the Rust emitter.
@@ -107,6 +107,8 @@ mod cpp_sdk;
 mod csharp_sdk;
 #[cfg(feature = "dart")]
 mod dart_sdk;
+#[cfg(feature = "docs")]
+mod docs_output;
 #[cfg(feature = "go")]
 mod go_sdk;
 #[cfg(feature = "java")]
@@ -133,6 +135,7 @@ mod output;
     feature = "c",
     feature = "r",
     feature = "openapi",
+    feature = "docs",
     feature = "cdk",
     feature = "terraform",
     feature = "cli"
@@ -287,6 +290,8 @@ pub use kotlin_sdk::KotlinSdk;
 pub use model::Model;
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
 pub type ModelBuilder = Model;
+#[cfg(feature = "docs")]
+pub use docs_output::DocsOutput;
 pub use model_package::ModelPackage;
 #[cfg(feature = "openapi")]
 pub use openapi_output::OpenApiOutput;

@@ -26,6 +26,7 @@ crucible-traits = { path = "smithy" }
 smithy-tooling = { path = "vendor/smithy-tooling" }
 crucible-codegen-ts = { path = "crates/crucible-codegen-ts" }
 crucible-codegen-openapi = { path = "crates/crucible-codegen-openapi" }
+crucible-codegen-docs = { path = "crates/crucible-codegen-docs" }
 crucible-codegen-infra = { path = "crates/crucible-codegen-infra" }
 crucible-codegen-cdk = { path = "crates/crucible-codegen-cdk" }
 crucible-codegen-terraform = { path = "crates/crucible-codegen-terraform" }

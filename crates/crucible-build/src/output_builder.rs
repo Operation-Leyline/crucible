@@ -96,6 +96,7 @@ pub(crate) fn native_pascal(name: &str) -> String {
 
 #[cfg(any(
     feature = "openapi",
+    feature = "docs",
     feature = "cdk",
     feature = "terraform",
     feature = "cli"
@@ -140,6 +141,7 @@ macro_rules! output_generation_methods {
 }
 #[cfg(any(
     feature = "openapi",
+    feature = "docs",
     feature = "cdk",
     feature = "terraform",
     feature = "cli"

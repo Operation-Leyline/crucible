@@ -112,11 +112,21 @@ impl ModelConfig {
             !self.json,
             service,
             output,
-            #[cfg(any(feature = "cdk", feature = "terraform"))]
+            #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
             model,
-            #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
+            #[cfg(any(
+                feature = "rust",
+                feature = "docs",
+                feature = "cdk",
+                feature = "terraform"
+            ))]
             self.protocol,
-            #[cfg(any(feature = "rust", feature = "cdk", feature = "terraform"))]
+            #[cfg(any(
+                feature = "rust",
+                feature = "docs",
+                feature = "cdk",
+                feature = "terraform"
+            ))]
             self.policy,
         )
     }

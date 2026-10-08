@@ -203,6 +203,14 @@ impl ClientLanguage {
 
 #[derive(Subcommand)]
 enum Target {
+    /// A Markdown API reference in mdBook layout, with describe.json.
+    Docs {
+        #[command(flatten)]
+        source: Source,
+        /// Output directory; only previously generated files are replaced.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// An OpenAPI 3.1 JSON document for a REST JSON service.
     Openapi {
         #[command(flatten)]
@@ -719,6 +727,34 @@ fn load_model(source: &Source) -> Result<Model, String> {
 
 fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), String> {
     match target {
+        Target::Docs { source, out } => {
+            let protocol = source
+                .protocol
+                .as_ref()
+                .map(|id| {
+                    crucible_smithy::Protocol::ALL
+                        .iter()
+                        .copied()
+                        .find(|p| p.trait_id() == *id)
+                        .ok_or_else(|| format!("unsupported protocol {id}"))
+                })
+                .transpose()?;
+            let full = load_model(&source)?
+                .lower_documentation(source.service.as_ref(), protocol)
+                .map_err(|e| e.to_string())?;
+            let service = crucible_smithy::project(&full, audience).map_err(|e| e.to_string())?;
+            let files = crucible_codegen_docs::generate(&service).map_err(|e| e.to_string())?;
+            let files = files
+                .into_iter()
+                .map(|file| crucible_codegen::File {
+                    path: file.path,
+                    contents: file.contents,
+                })
+                .collect::<Vec<_>>();
+            crucible_codegen::write(&out, &files).map_err(|e| e.to_string())?;
+            println!("wrote API reference to {}", out.display());
+            Ok(())
+        }
         Target::Openapi {
             source,
             out,

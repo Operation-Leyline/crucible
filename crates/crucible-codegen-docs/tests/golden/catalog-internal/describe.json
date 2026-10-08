@@ -1,0 +1,1731 @@
+{
+  "format": "crucible.describe/1",
+  "operations": {
+    "example.docs#ListItems": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>Read a page of <strong>items</strong>.</p>\n",
+        "markdown": "Read a page of **items**.",
+        "text": "Read a page of items."
+      },
+      "errors": [
+        "example.docs#Unavailable"
+      ],
+      "examples": [
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "error": null,
+          "input": {
+            "body": {
+              "pageSize": 2
+            },
+            "headers": {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "Smithy-Protocol": "rpc-v2-json"
+            },
+            "labels": {},
+            "method": "POST",
+            "payload": null,
+            "query": [],
+            "responseCode": null,
+            "uri": "/service/Catalog/operation/ListItems"
+          },
+          "output": {
+            "body": {
+              "items": [
+                {
+                  "text": "hello"
+                }
+              ],
+              "nextToken": "page-2"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "Smithy-Protocol": "rpc-v2-json"
+            },
+            "labels": {},
+            "payload": null,
+            "query": [],
+            "responseCode": null
+          },
+          "title": "Read items"
+        }
+      ],
+      "id": "example.docs#ListItems",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.docs#ListInput",
+      "inputSchema": {
+        "$defs": {
+          "example.docs.ListInput": {
+            "properties": {
+              "nextToken": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "pageSize": {
+                "format": "int32",
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer",
+                "x-smithy-default": 10,
+                "x-smithy-traits": {
+                  "smithy.api#default": 10,
+                  "smithy.api#range": {
+                    "max": 100,
+                    "min": 1
+                  }
+                }
+              }
+            },
+            "type": "object",
+            "x-smithy-traits": {
+              "smithy.api#input": {}
+            }
+          },
+          "smithy.api.Integer": {
+            "format": "int32",
+            "maximum": 2147483647,
+            "minimum": -2147483648,
+            "type": "integer"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "nextToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pageSize": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer",
+            "x-smithy-default": 10,
+            "x-smithy-traits": {
+              "smithy.api#default": 10,
+              "smithy.api#range": {
+                "max": 100,
+                "min": 1
+              }
+            }
+          }
+        },
+        "type": "object",
+        "x-smithy-traits": {
+          "smithy.api#input": {}
+        }
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "ListItems",
+      "notes": {
+        "deprecated": {
+          "message": "Use the next revision.",
+          "since": "2026-09"
+        },
+        "externalDocs": {
+          "Guide": "https://example.com/guide"
+        },
+        "since": "2026-01",
+        "unstable": true
+      },
+      "optionalAuth": false,
+      "output": "example.docs#ListOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.docs.Content": {
+            "deprecated": true,
+            "externalDocs": {
+              "description": "Guide",
+              "url": "https://example.com/guide"
+            },
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "__type": {},
+                  "text": {
+                    "deprecated": true,
+                    "description": "Item text.",
+                    "externalDocs": {
+                      "description": "Guide",
+                      "url": "https://example.com/guide"
+                    },
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string",
+                    "x-smithy-deprecation": {
+                      "message": "Use the next revision.",
+                      "since": "2026-09"
+                    },
+                    "x-smithy-since": "2026-01",
+                    "x-smithy-traits": {
+                      "smithy.api#deprecated": {
+                        "message": "Use the next revision.",
+                        "since": "2026-09"
+                      },
+                      "smithy.api#documentation": "Item text.",
+                      "smithy.api#externalDocumentation": {
+                        "Guide": "https://example.com/guide"
+                      },
+                      "smithy.api#length": {
+                        "max": 100,
+                        "min": 1
+                      },
+                      "smithy.api#since": "2026-01",
+                      "smithy.api#unstable": {}
+                    },
+                    "x-smithy-unstable": true
+                  }
+                },
+                "required": [
+                  "text"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "__type": {},
+                  "amount": {
+                    "$ref": "#/$defs/smithy.api.BigInteger"
+                  }
+                },
+                "required": [
+                  "amount"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "__type": {},
+                  "secret": {
+                    "$ref": "#/$defs/smithy.api.String",
+                    "x-smithy-traits": {
+                      "smithy.api#internal": {},
+                      "smithy.api#sensitive": {}
+                    }
+                  }
+                },
+                "required": [
+                  "secret"
+                ],
+                "type": "object"
+              }
+            ],
+            "x-smithy-deprecation": {
+              "message": "Use the next revision.",
+              "since": "2026-09"
+            },
+            "x-smithy-since": "2026-01",
+            "x-smithy-traits": {
+              "smithy.api#deprecated": {
+                "message": "Use the next revision.",
+                "since": "2026-09"
+              },
+              "smithy.api#externalDocumentation": {
+                "Guide": "https://example.com/guide"
+              },
+              "smithy.api#since": "2026-01",
+              "smithy.api#unstable": {}
+            },
+            "x-smithy-unstable": true
+          },
+          "example.docs.Items": {
+            "items": {
+              "$ref": "#/$defs/example.docs.Content"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.docs.ListOutput": {
+            "properties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.docs.Items"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nextToken": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object",
+            "x-smithy-traits": {
+              "smithy.api#output": {}
+            }
+          },
+          "smithy.api.BigInteger": {
+            "pattern": "^-?[0-9]+$",
+            "type": "string",
+            "x-smithy-type": "bigInteger"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.docs.Items"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "x-smithy-traits": {
+          "smithy.api#output": {}
+        }
+      },
+      "pagination": {
+        "inputToken": "nextToken",
+        "items": "items",
+        "outputToken": "nextToken",
+        "pageSize": "pageSize"
+      },
+      "protocol": "rpcv2Json",
+      "protocolHeaders": {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Smithy-Protocol": "rpc-v2-json"
+      },
+      "readonly": true,
+      "request": {
+        "body": [
+          "nextToken",
+          "pageSize"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.docs#Item"
+      ],
+      "response": {
+        "body": [
+          "items",
+          "nextToken"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json",
+        "Smithy-Protocol": "rpc-v2-json"
+      },
+      "scopes": [],
+      "status": 200,
+      "uri": "/service/Catalog/operation/ListItems"
+    },
+    "example.docs#WriteItem": {
+      "auth": [],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.docs#Unavailable"
+      ],
+      "examples": [
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "error": null,
+          "input": {
+            "body": {
+              "item": {
+                "amount": "1234567890123456789"
+              }
+            },
+            "headers": {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "Smithy-Protocol": "rpc-v2-json"
+            },
+            "labels": {},
+            "method": "POST",
+            "payload": null,
+            "query": [],
+            "responseCode": null,
+            "uri": "/service/Catalog/operation/WriteItem"
+          },
+          "output": {
+            "body": {
+              "at": 1767323045,
+              "state": "READY"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "Smithy-Protocol": "rpc-v2-json"
+            },
+            "labels": {},
+            "payload": null,
+            "query": [],
+            "responseCode": null
+          },
+          "title": "Write an item"
+        },
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "error": {
+            "message": {
+              "body": {
+                "__type": "example.docs#Unavailable",
+                "message": "Try later"
+              },
+              "headers": {
+                "Content-Type": "application/json",
+                "Smithy-Protocol": "rpc-v2-json"
+              },
+              "labels": {},
+              "payload": null,
+              "query": [],
+              "responseCode": null
+            },
+            "shape": "example.docs#Unavailable",
+            "status": 503,
+            "wireCode": "example.docs#Unavailable"
+          },
+          "input": {
+            "body": {
+              "item": {
+                "text": "retry"
+              }
+            },
+            "headers": {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "Smithy-Protocol": "rpc-v2-json"
+            },
+            "labels": {},
+            "method": "POST",
+            "payload": null,
+            "query": [],
+            "responseCode": null,
+            "uri": "/service/Catalog/operation/WriteItem"
+          },
+          "output": null,
+          "title": "Service unavailable"
+        }
+      ],
+      "id": "example.docs#WriteItem",
+      "idempotencyToken": "clientToken",
+      "idempotent": true,
+      "input": "example.docs#WriteInput",
+      "inputSchema": {
+        "$defs": {
+          "example.docs.Content": {
+            "deprecated": true,
+            "externalDocs": {
+              "description": "Guide",
+              "url": "https://example.com/guide"
+            },
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "__type": {},
+                  "text": {
+                    "deprecated": true,
+                    "description": "Item text.",
+                    "externalDocs": {
+                      "description": "Guide",
+                      "url": "https://example.com/guide"
+                    },
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string",
+                    "x-smithy-deprecation": {
+                      "message": "Use the next revision.",
+                      "since": "2026-09"
+                    },
+                    "x-smithy-since": "2026-01",
+                    "x-smithy-traits": {
+                      "smithy.api#deprecated": {
+                        "message": "Use the next revision.",
+                        "since": "2026-09"
+                      },
+                      "smithy.api#documentation": "Item text.",
+                      "smithy.api#externalDocumentation": {
+                        "Guide": "https://example.com/guide"
+                      },
+                      "smithy.api#length": {
+                        "max": 100,
+                        "min": 1
+                      },
+                      "smithy.api#since": "2026-01",
+                      "smithy.api#unstable": {}
+                    },
+                    "x-smithy-unstable": true
+                  }
+                },
+                "required": [
+                  "text"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "__type": {},
+                  "amount": {
+                    "$ref": "#/$defs/smithy.api.BigInteger"
+                  }
+                },
+                "required": [
+                  "amount"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "__type": {},
+                  "secret": {
+                    "$ref": "#/$defs/smithy.api.String",
+                    "x-smithy-traits": {
+                      "smithy.api#internal": {},
+                      "smithy.api#sensitive": {}
+                    }
+                  }
+                },
+                "required": [
+                  "secret"
+                ],
+                "type": "object"
+              }
+            ],
+            "x-smithy-deprecation": {
+              "message": "Use the next revision.",
+              "since": "2026-09"
+            },
+            "x-smithy-since": "2026-01",
+            "x-smithy-traits": {
+              "smithy.api#deprecated": {
+                "message": "Use the next revision.",
+                "since": "2026-09"
+              },
+              "smithy.api#externalDocumentation": {
+                "Guide": "https://example.com/guide"
+              },
+              "smithy.api#since": "2026-01",
+              "smithy.api#unstable": {}
+            },
+            "x-smithy-unstable": true
+          },
+          "example.docs.WriteInput": {
+            "properties": {
+              "clientToken": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "x-smithy-traits": {
+                  "smithy.api#idempotencyToken": {}
+                }
+              },
+              "item": {
+                "$ref": "#/$defs/example.docs.Content",
+                "x-smithy-traits": {
+                  "smithy.api#required": {}
+                }
+              }
+            },
+            "required": [
+              "item"
+            ],
+            "type": "object",
+            "x-smithy-traits": {
+              "smithy.api#input": {}
+            }
+          },
+          "smithy.api.BigInteger": {
+            "pattern": "^-?[0-9]+$",
+            "type": "string",
+            "x-smithy-type": "bigInteger"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "clientToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "x-smithy-traits": {
+              "smithy.api#idempotencyToken": {}
+            }
+          },
+          "item": {
+            "$ref": "#/$defs/example.docs.Content",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "item"
+        ],
+        "type": "object",
+        "x-smithy-traits": {
+          "smithy.api#input": {}
+        }
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "WriteItem",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": "example.docs#WriteOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.docs.State": {
+            "enum": [
+              "READY",
+              "HIDDEN"
+            ],
+            "type": "string"
+          },
+          "example.docs.WriteOutput": {
+            "properties": {
+              "at": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "x-smithy-timestamp-format": "epoch-seconds"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.docs.State"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "total": {
+                "$ref": "#/$defs/smithy.api.BigInteger",
+                "default": "1234567890123456789",
+                "x-smithy-default": 1234567890123456789,
+                "x-smithy-traits": {
+                  "smithy.api#default": 1234567890123456789
+                }
+              }
+            },
+            "type": "object"
+          },
+          "smithy.api.BigInteger": {
+            "pattern": "^-?[0-9]+$",
+            "type": "string",
+            "x-smithy-type": "bigInteger"
+          },
+          "smithy.api.Timestamp": {
+            "type": "number",
+            "x-smithy-timestamp-format": "epoch-seconds"
+          }
+        },
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "type": "number",
+                "x-smithy-timestamp-format": "epoch-seconds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.docs.State"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total": {
+            "$ref": "#/$defs/smithy.api.BigInteger",
+            "default": "1234567890123456789",
+            "x-smithy-default": 1234567890123456789,
+            "x-smithy-traits": {
+              "smithy.api#default": 1234567890123456789
+            }
+          }
+        },
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "rpcv2Json",
+      "protocolHeaders": {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Smithy-Protocol": "rpc-v2-json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "item",
+          "clientToken"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.docs#Item"
+      ],
+      "response": {
+        "body": [
+          "state",
+          "at",
+          "total"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json",
+        "Smithy-Protocol": "rpc-v2-json"
+      },
+      "scopes": [],
+      "status": 200,
+      "uri": "/service/Catalog/operation/WriteItem"
+    }
+  },
+  "resources": {
+    "example.docs#Item": {
+      "documentation": {
+        "html": "<p>Catalog items.</p>\n",
+        "markdown": "Catalog items.",
+        "text": "Catalog items."
+      },
+      "id": "example.docs#Item",
+      "identifiers": {
+        "itemId": "smithy.api#String"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": "example.docs#ListItems",
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Item",
+      "notes": {
+        "deprecated": {
+          "message": "Use the next revision.",
+          "since": "2026-09"
+        },
+        "externalDocs": {
+          "Guide": "https://example.com/guide"
+        },
+        "since": "2026-01",
+        "unstable": true
+      },
+      "operations": [
+        "example.docs#ListItems",
+        "example.docs#WriteItem"
+      ],
+      "properties": {},
+      "resources": []
+    }
+  },
+  "service": {
+    "auth": [],
+    "authSchemes": {},
+    "documentation": {
+      "html": "<p>Browse <strong>items</strong>. &lt;script&gt;alert(1)&lt;/script&gt;</p>\n",
+      "markdown": "Browse **items**. <script>alert(1)</script>",
+      "text": "Browse items. <script>alert(1)</script>"
+    },
+    "errors": [
+      "example.docs#Unavailable"
+    ],
+    "id": "example.docs#Catalog",
+    "internal": false,
+    "name": "Catalog",
+    "notes": {
+      "deprecated": {
+        "message": "Use the next revision.",
+        "since": "2026-09"
+      },
+      "externalDocs": {
+        "Guide": "https://example.com/guide"
+      },
+      "since": "2026-01",
+      "unstable": true
+    },
+    "protocol": "rpcv2Json",
+    "protocolSettings": {
+      "arbitraryPrecisionStrings": true,
+      "eventStreamHttp": [
+        "http/1.1"
+      ],
+      "http": [
+        "http/1.1"
+      ],
+      "ignoreUnknownUnionType": true,
+      "noErrorWrapping": false,
+      "nonFiniteFloatStrings": true,
+      "omitNullStructureMembers": true
+    },
+    "protocols": [
+      "smithy.protocols#rpcv2Json"
+    ],
+    "resourceRoots": [
+      "example.docs#Item"
+    ],
+    "scopes": [],
+    "title": "Catalog API",
+    "version": "2026-10"
+  },
+  "shapes": {
+    "example.docs#Content": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.docs#Content",
+      "internal": false,
+      "kind": "union",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 100,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>Item text.</p>\n",
+            "markdown": "Item text.",
+            "text": "Item text."
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "text",
+          "notes": {
+            "deprecated": {
+              "message": "Use the next revision.",
+              "since": "2026-09"
+            },
+            "externalDocs": {
+              "Guide": "https://example.com/guide"
+            },
+            "since": "2026-01",
+            "unstable": true
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "text"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "amount",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#BigInteger",
+          "targetName": "BigInteger",
+          "targetType": "bigInteger",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "amount"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": true,
+          "name": "secret",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": true,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "secret"
+        }
+      ],
+      "name": "Content",
+      "notes": {
+        "deprecated": {
+          "message": "Use the next revision.",
+          "since": "2026-09"
+        },
+        "externalDocs": {
+          "Guide": "https://example.com/guide"
+        },
+        "since": "2026-01",
+        "unstable": true
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.docs#Items": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.docs#Items",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.docs#Content",
+          "targetName": "Content",
+          "targetType": "union",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Items",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.docs#ListInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.docs#ListInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": true,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "nextToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "nextToken"
+        },
+        {
+          "clientOptional": true,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": 100,
+              "min": 1
+            },
+            "uniqueItems": false
+          },
+          "default": 10,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "pageSize",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": 10,
+          "wireName": "pageSize"
+        }
+      ],
+      "name": "ListInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.docs#ListOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.docs#ListOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "items",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.docs#Items",
+          "targetName": "Items",
+          "targetType": "list",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "items"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "nextToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "nextToken"
+        }
+      ],
+      "name": "ListOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.docs#State": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.docs#State",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "State",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "<p>Ready.</p>\n",
+            "markdown": "Ready.",
+            "text": "Ready."
+          },
+          "internal": false,
+          "name": "READY",
+          "notes": {
+            "deprecated": {
+              "message": "Use the next revision.",
+              "since": "2026-09"
+            },
+            "externalDocs": {
+              "Guide": "https://example.com/guide"
+            },
+            "since": "2026-01",
+            "unstable": true
+          },
+          "value": "READY"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": true,
+          "name": "HIDDEN",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "HIDDEN"
+        }
+      ]
+    },
+    "example.docs#Unavailable": {
+      "documentation": {
+        "html": "<p>Temporarily unavailable.</p>\n",
+        "markdown": "Temporarily unavailable.",
+        "text": "Temporarily unavailable."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "eventStream": null,
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "prefixHeaders": [],
+          "query": [],
+          "queryParams": null,
+          "responseCode": null,
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "example.docs#Unavailable",
+        "discriminatorHeader": null,
+        "fault": "server",
+        "protocolHeaders": {
+          "Content-Type": "application/json",
+          "Smithy-Protocol": "rpc-v2-json"
+        },
+        "retryable": {
+          "throttling": false
+        },
+        "shape": "example.docs#Unavailable",
+        "status": 503,
+        "wireCode": "example.docs#Unavailable"
+      },
+      "id": "example.docs#Unavailable",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "Unavailable",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.docs#WriteInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.docs#WriteInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": true,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "item",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.docs#Content",
+          "targetName": "Content",
+          "targetType": "union",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "item"
+        },
+        {
+          "clientOptional": true,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "clientToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "clientToken"
+        }
+      ],
+      "name": "WriteInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.docs#WriteOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.docs#WriteOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "state",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.docs#State",
+          "targetName": "State",
+          "targetType": "enum",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "state"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "at",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "at"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": 1234567890123456789,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "total",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#BigInteger",
+          "targetName": "BigInteger",
+          "targetType": "bigInteger",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": "1234567890123456789",
+          "wireName": "total"
+        }
+      ],
+      "name": "WriteOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "smithy.api#BigInteger": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#BigInteger",
+      "internal": false,
+      "kind": "bigInteger",
+      "members": [],
+      "name": "BigInteger",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "requiresLength": false,
+      "sensitive": false,
+      "streaming": false
+    },
+    "smithy.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "requiresLength": false,
+      "sensitive": false,
+      "streaming": false
+    },
+    "smithy.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "requiresLength": false,
+      "sensitive": false,
+      "streaming": false
+    },
+    "smithy.api#Timestamp": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Timestamp",
+      "internal": false,
+      "kind": "timestamp",
+      "members": [],
+      "name": "Timestamp",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "requiresLength": false,
+      "sensitive": false,
+      "streaming": false
+    }
+  }
+}

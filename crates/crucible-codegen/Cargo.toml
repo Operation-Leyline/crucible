@@ -11,7 +11,8 @@ repository.workspace = true
 default = ["rust"]
 rust = ["dep:crucible-codegen-rust"]
 all-clients = ["rust", "ts", "python", "go", "java", "csharp", "kotlin", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
-all-outputs = ["all-clients", "openapi", "cdk", "terraform", "cli"]
+all-outputs = ["all-clients", "openapi", "docs", "cdk", "terraform", "cli"]
+docs = ["dep:crucible-codegen-docs"]
 openapi = ["dep:crucible-codegen-openapi"]
 cdk = ["dep:crucible-codegen-infra", "dep:crucible-codegen-cdk"]
 terraform = ["dep:crucible-codegen-infra", "dep:crucible-codegen-terraform"]
@@ -33,6 +34,7 @@ r = ["dep:crucible-codegen-r"]
 [dependencies]
 crucible-smithy.workspace = true
 crucible-codegen-openapi = { workspace = true, optional = true }
+crucible-codegen-docs = { workspace = true, optional = true }
 crucible-codegen-infra = { workspace = true, optional = true }
 crucible-codegen-cdk = { workspace = true, optional = true }
 crucible-codegen-terraform = { workspace = true, optional = true }
