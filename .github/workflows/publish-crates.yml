@@ -1,0 +1,105 @@
+name: Publish crates
+
+# Publishes every workspace crate to crates.io in dependency order with
+# `cargo publish --workspace` (Cargo 1.90+). Manual only; a run is a dry run
+# unless `dry_run` is switched off, and a real publish must start from the
+# release tag `v<version>` that release.yml created for the qualified commit.
+#
+# Authentication is crates.io Trusted Publishing (GitHub OIDC): no long-lived
+# token is stored. crates.io cannot yet configure a trusted publisher for a
+# crate that does not exist, so the very first publish of each new crate uses
+# the `bootstrap-token` mode; see docs/open-source.md before the first run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Workspace version to publish (for example 0.4.0)
+        required: true
+        type: string
+      dry_run:
+        description: Package and verify every crate without uploading anything
+        type: boolean
+        default: true
+      auth:
+        description: trusted-publishing for existing crates; bootstrap-token for each crate's first release
+        type: choice
+        options: [trusted-publishing, bootstrap-token]
+        default: trusted-publishing
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-crates
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # `cargo publish --workspace` was stabilised in Cargo 1.90.
+  MIN_CARGO: '1.90'
+
+jobs:
+  verify:
+    name: Verify and dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        with: { toolchain: stable }
+      - name: Check the requested release
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          python3 tools/crucible_release.py check "$RELEASE_VERSION"
+          if [[ "$DRY_RUN" != true && "$GITHUB_REF" != "refs/tags/v$RELEASE_VERSION" ]]; then
+            echo "A real publish must be dispatched from the tag v$RELEASE_VERSION." >&2
+            exit 1
+          fi
+          have="$(cargo --version | awk '{print $2}')"
+          if [[ "$(printf '%s\n%s\n' "$MIN_CARGO" "$have" | sort -V | head -n1)" != "$MIN_CARGO" ]]; then
+            echo "cargo $have is older than $MIN_CARGO; --workspace publishing needs $MIN_CARGO+." >&2
+            exit 1
+          fi
+      - name: Report crates.io metadata and publish order
+        # Reports every crate still missing metadata; fails the run until none are.
+        run: python3 tools/check_publish_metadata.py --order
+      - name: Dry-run the whole workspace
+        run: cargo publish --workspace --dry-run --locked
+        env:
+          CARGO_BUILD_JOBS: '2'
+
+  publish:
+    name: Publish to crates.io
+    needs: verify
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    # Configure required reviewers on this environment; it is also the
+    # environment named in each crate's trusted-publisher settings.
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write # exchanged for a short-lived crates.io token
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d # stable branch
+        with: { toolchain: stable }
+      - name: Exchange the GitHub OIDC token for a crates.io token
+        id: auth
+        if: ${{ inputs.auth == 'trusted-publishing' }}
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+      - name: Publish the workspace in dependency order
+        env:
+          # Only one of the two is non-empty, depending on `auth`.
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token || secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [[ -z "$CARGO_REGISTRY_TOKEN" ]]; then
+            echo 'No crates.io credential: configure trusted publishing or the bootstrap token.' >&2
+            exit 1
+          fi
+          cargo publish --workspace --locked
