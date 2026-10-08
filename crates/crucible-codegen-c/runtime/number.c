@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 crucible_generated_status crucible_generated_number_scaled(const yyjson_val *value, unsigned places, char output[64], crucible_generated_error *error) {
-    char native[32];
+    char native[40];
     const char *text;
     size_t length, at = 0, mantissa, end, digits = 0, before = 0, first = SIZE_MAX, written = 0;
     bool negative, fraction = false, exponent_negative = false;
@@ -102,7 +102,7 @@ crucible_generated_status crucible_generated_json_double(const crucible_generate
 
 /* Canonical coefficient/exponent text never expands a large exponent into zeroes. */
 crucible_generated_status crucible_generated_number_canonical(const yyjson_val *value, char **output, bool *integral, crucible_generated_error *error) {
-    char native[32]; const char *text; size_t length;
+    char native[40]; const char *text; size_t length;
     if (yyjson_is_raw(value)) { text = yyjson_get_raw(value); length = yyjson_get_len(value); }
     else if (yyjson_is_num(value)) { char *end = yyjson_write_number(value, native); if (!end) return crucible_generated_fail(error, crucible_generated_invalid, "Nonfinite number"); text = native; length = (size_t)(end - native); }
     else return crucible_generated_fail(error, crucible_generated_invalid, "Expected exact number");

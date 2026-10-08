@@ -79,7 +79,7 @@ int main() {
     check(!input.name && !input.name.is_set() && input.name.value_or("fallback") == "fallback", "Field reset and fallback");
     input.name = Field<std::string>::null();
     check(Codec<CreateCityInput>::encode(input, context).at("name").is_null(), "Explicit null input");
-    const Schema simple(Json::parse(R"({"shapes":{"doc":{"kind":"document"},"long":{"kind":"long"},"str":{"kind":"string"},"list":{"kind":"list","member":{"target":"str"}},"parent":{"kind":"structure","members":{"doc":{"target":"doc","default":null},"count":{"target":"long","default":9223372036854775807},"optional":{"target":"long","default":2}}}}})"));
+    const Schema simple(Json::parse(R"({"shapes":{"doc":{"kind":"document"},"long":{"kind":"long"},"float":{"kind":"float"},"double":{"kind":"double"},"str":{"kind":"string"},"list":{"kind":"list","member":{"target":"str"}},"parent":{"kind":"structure","members":{"doc":{"target":"doc","default":null},"count":{"target":"long","default":9223372036854775807},"optional":{"target":"long","default":2}}}}})"));
     const auto parent = simple.context("parent");
     check(read<Json>(Json::parse(R"({"doc":null})"), parent, "doc").is_null(), "Required document null");
     (void)rejects([&] { (void)read<Json>(Json(Json::Object{}), parent, "doc"); });
@@ -92,6 +92,11 @@ int main() {
         const auto descriptor = Json::parse(R"({"target":"list"})");
         check(header(simple, descriptor, row.at("wire").string()).dump() == row.at("values").dump(), "Shared header fixture");
         check(header(simple, descriptor, bound(row.at("values"))).dump() == row.at("values").dump(), "Header round trip");
+    }
+    for (const auto* target : {"float", "double"}) {
+        const auto descriptor = Json::parse(std::string(R"({"target":")") + target + R"("})");
+        for (const auto* text : {"NaN", "Infinity", "-Infinity"}) check(header(simple, descriptor, text).string() == text, std::string("Non-finite ") + target + " header " + text);
+        check(header(simple, descriptor, "1.5").dump() == "1.5", "Finite float header");
     }
     const auto retry_cases = fixture("RETRY_CASES");
     for (const auto& row : retry_cases.array()) {

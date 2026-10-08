@@ -195,6 +195,45 @@ static status document(yyjson_mut_doc *doc, const yyjson_val *schema, const yyjs
     if (!result) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
     *out = result; return OK;
 }
+/* HTTP bindings may use another timestamp format than the document encoding; timestampFormats lists only the members that differ. */
+static string binding_format(const yyjson_val *bindings, string member) {
+    return text(yyjson_obj_getn((yyjson_val *)get(bindings, "timestampFormats"), member.data, member.length));
+}
+static status timestamp_render(crucible_generated_timestamp time, string format, yyjson_mut_doc *doc, yyjson_mut_val **out, error *issue) {
+    char rendered[40];
+    if (crucible_generated_string_equal(format, VIEW("http-date"))) { TRY(crucible_generated_timestamp_http_text(time, rendered, issue)); }
+    else if (crucible_generated_string_equal(format, VIEW("epoch-seconds"))) { TRY(crucible_generated_timestamp_epoch_text(time, rendered, issue)); }
+    else { TRY(crucible_generated_timestamp_text(time, rendered, issue)); }
+    *out = yyjson_mut_strcpy(doc, rendered);
+    return *out ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed");
+}
+/* The document form is epoch seconds or text; either is accepted so an already converted scalar stays valid. */
+static status retime(yyjson_mut_doc *doc, const yyjson_val *value, string format, yyjson_mut_val **out, error *issue) {
+    if (yyjson_is_arr(value)) {
+        yyjson_mut_val *result = yyjson_mut_arr(doc); size_t index, count; yyjson_val *item;
+        if (!result) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
+        yyjson_arr_foreach((yyjson_val *)value, index, count, item) {
+            yyjson_mut_val *converted; TRY(retime(doc, item, format, &converted, issue));
+            if (!yyjson_mut_arr_add_val(result, converted)) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
+        }
+        *out = result; return OK;
+    }
+    crucible_generated_timestamp time;
+    if (yyjson_is_num(value) || yyjson_is_raw(value)) { TRY(crucible_generated_timestamp_epoch(value, &time, issue)); }
+    else if (yyjson_is_str(value)) {
+        error ignored = {0};
+        if (crucible_generated_timestamp_parse(text(value), &time, &ignored)) { TRY(crucible_generated_timestamp_http_parse(text(value), &time, issue)); }
+    } else { *out = yyjson_val_mut_copy(doc, value); return *out ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed"); }
+    return timestamp_render(time, format, doc, out, issue);
+}
+static status binding_value(arena *storage, const yyjson_val *bindings, string member, const yyjson_val *value, const yyjson_val **out, error *issue) {
+    string format = binding_format(bindings, member);
+    *out = value;
+    if (!format.length || yyjson_is_null(value)) return OK;
+    yyjson_mut_doc *doc; TRY(mutable(storage, &doc, issue));
+    yyjson_mut_val *converted; TRY(retime(doc, value, format, &converted, issue));
+    return crucible_generated_json_own(storage, converted, out, issue);
+}
 static bool explicit_header(const yyjson_val *bindings, string name) {
     size_t index, count; yyjson_val *pair;
     yyjson_arr_foreach((yyjson_val *)get(bindings, "headers"), index, count, pair) {
@@ -225,6 +264,7 @@ static status media(arena *storage, yyjson_mut_doc *doc, const yyjson_val *bindi
     return *out ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed");
 }
 static status media_bound(arena *storage, const yyjson_val *bindings, string member, const yyjson_val *value, string *out, error *issue) {
+    TRY(binding_value(storage, bindings, member, value, &value, issue));
     yyjson_mut_doc *doc; TRY(mutable(storage, &doc, issue)); yyjson_mut_val *converted;
     TRY(media(storage, doc, bindings, member, value, true, &converted, issue)); const yyjson_val *owned;
     TRY(crucible_generated_json_own(storage, converted, &owned, issue)); return bound(storage, owned, out, issue);
@@ -281,8 +321,10 @@ static status prepare_path(arena *storage, const yyjson_val *op, const yyjson_va
         if (end == uri.length) { code = fail(issue, "Invalid operation URI"); break; }
         bool greedy = end > i + 1 && uri.data[end - 1] == '+';
         const yyjson_val *value = yyjson_obj_getn((yyjson_val *)input, uri.data + i + 1, end - i - 1 - (greedy ? 1 : 0));
-        string encoded;
-        code = scalar(storage, value, &encoded, issue);
+        string encoded = {0};
+        string label = {uri.data + i + 1, end - i - 1 - (greedy ? 1 : 0)};
+        code = binding_value(storage, get(op, "request"), label, value, &value, issue);
+        if (!code) code = scalar(storage, value, &encoded, issue);
         if (!code && !encoded.length) code = fail(issue, "Empty HTTP label");
         if (!code && ((encoded.length == 1 && encoded.data[0] == '.') || (encoded.length == 2 && memcmp(encoded.data, "..", 2) == 0))) code = fail(issue, "Dot-segment HTTP label");
         if (!code && greedy) {
@@ -305,6 +347,8 @@ static status prepare_path(arena *storage, const yyjson_val *op, const yyjson_va
         string member = text(yyjson_arr_get(pair, 0)), name = text(yyjson_arr_get(pair, 1));
         const yyjson_val *value = yyjson_obj_getn((yyjson_val *)input, member.data, member.length);
         if (!value || yyjson_is_null(value)) continue;
+        code = binding_value(storage, get(op, "request"), member, value, &value, issue);
+        if (code) break;
         size_t length = yyjson_is_arr(value) ? yyjson_arr_size((yyjson_val *)value) : 1;
         for (size_t n = 0; !code && n < length; ++n) {
             string part;
@@ -423,7 +467,7 @@ static const yyjson_val *shape(const yyjson_val *schema, const yyjson_val *id) {
     string name = text(id);
     return yyjson_obj_getn((yyjson_val *)get(schema, "shapes"), name.data, name.length);
 }
-static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val *schema, const yyjson_val *member, string value, yyjson_mut_val **out, unsigned depth, error *issue) {
+static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val *schema, const yyjson_val *member, string value, string format, yyjson_mut_val **out, unsigned depth, error *issue) {
     if (depth > 255) return fail(issue, "Header nesting limit exceeded");
     const yyjson_val *type = shape(schema, get(member, "target"));
     const yyjson_val *kind = get(type, "kind");
@@ -433,8 +477,13 @@ static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val 
         if (!trim(value).length) { *out = array; return OK; }
         bool quoted = false, escaped = false;
         size_t start = 0;
+        /* An unquoted HTTP date holds one comma after its weekday, so only every second comma separates items. */
+        bool bare_dates = crucible_generated_string_equal(format, VIEW("http-date")) && named(get(shape(schema, get(get(type, "member"), "target")), "kind"), "timestamp");
+        for (size_t i = 0; bare_dates && i < value.length; ++i) if (value.data[i] == '"') bare_dates = false;
+        bool inside_date = false;
         for (size_t i = 0; i <= value.length; ++i) {
             const char c = i == value.length ? ',' : value.data[i];
+            if (c == ',' && !quoted && bare_dates && i < value.length && (inside_date = !inside_date)) continue;
             if (c == ',' && !quoted) {
                 string part = trim((string){value.data + start, i - start});
                 if (part.length && *part.data == '"') {
@@ -444,7 +493,7 @@ static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val 
                     part = text(parsed);
                 }
                 yyjson_mut_val *item;
-                TRY(read_header(storage, doc, schema, get(type, "member"), part, &item, depth + 1, issue));
+                TRY(read_header(storage, doc, schema, get(type, "member"), part, format, &item, depth + 1, issue));
                 if (!yyjson_mut_arr_append(array, item)) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
                 start = i + 1;
             } else if (escaped) escaped = false;
@@ -454,7 +503,25 @@ static status read_header(arena *storage, yyjson_mut_doc *doc, const yyjson_val 
         if (quoted) return fail(issue, "Unterminated quoted header");
         *out = array; return OK;
     }
-    if (named(kind, "byte") || named(kind, "short") || named(kind, "integer") || named(kind, "long") || named(kind, "float") || named(kind, "double") || named(kind, "bigInteger") || named(kind, "bigDecimal") || named(kind, "intEnum") || named(kind, "boolean") || (named(kind, "timestamp") && named(get(member, "format"), "epoch-seconds"))) {
+    if (named(kind, "timestamp") && format.length) {
+        crucible_generated_timestamp time;
+        if (crucible_generated_string_equal(format, VIEW("http-date"))) { TRY(crucible_generated_timestamp_http_parse(value, &time, issue)); }
+        else if (crucible_generated_string_equal(format, VIEW("epoch-seconds"))) { const yyjson_val *number; TRY(crucible_generated_json_parse(storage, value, &number, issue)); TRY(crucible_generated_timestamp_epoch(number, &time, issue)); }
+        else { TRY(crucible_generated_timestamp_parse(value, &time, issue)); }
+        /* The codec reads a bound scalar in its binding format but a list item in the list member's format. */
+        const bool epoch = depth ? named(get(member, "format"), "epoch-seconds") : crucible_generated_string_equal(format, VIEW("epoch-seconds"));
+        if (epoch) {
+            char rendered[40]; const yyjson_val *parsed;
+            TRY(crucible_generated_timestamp_epoch_text(time, rendered, issue));
+            TRY(crucible_generated_json_parse(storage, VIEW(rendered), &parsed, issue));
+            *out = yyjson_val_mut_copy(doc, parsed); return *out ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed");
+        }
+        return timestamp_render(time, depth ? (named(get(member, "format"), "http-date") ? VIEW("http-date") : VIEW("date-time")) : format, doc, out, issue);
+    }
+    if ((named(kind, "float") || named(kind, "double")) && (crucible_generated_string_equal(value, VIEW("NaN")) || crucible_generated_string_equal(value, VIEW("Infinity")) || crucible_generated_string_equal(value, VIEW("-Infinity")))) {
+        /* JSON has no non-finite numbers; the codec reads these strings back as floats. */
+        *out = yyjson_mut_strncpy(doc, value.data, value.length);
+    } else if (named(kind, "byte") || named(kind, "short") || named(kind, "integer") || named(kind, "long") || named(kind, "float") || named(kind, "double") || named(kind, "bigInteger") || named(kind, "bigDecimal") || named(kind, "intEnum") || named(kind, "boolean") || (named(kind, "timestamp") && named(get(member, "format"), "epoch-seconds"))) {
         const yyjson_val *parsed;
         TRY(crucible_generated_json_parse(storage, value, &parsed, issue));
         *out = yyjson_val_mut_copy(doc, parsed);
@@ -469,7 +536,7 @@ static status apply_headers(arena *storage, yyjson_mut_doc *doc, yyjson_mut_val 
         string name = text(yyjson_arr_get(pair, 0)), value;
         if (crucible_generated_header_get(headers, text(yyjson_arr_get(pair, 1)), &value)) {
             yyjson_mut_val *converted;
-            TRY(read_header(storage, doc, schema, yyjson_obj_getn((yyjson_val *)members, name.data, name.length), value, &converted, 0, issue));
+            TRY(read_header(storage, doc, schema, yyjson_obj_getn((yyjson_val *)members, name.data, name.length), value, binding_format(bindings, name), &converted, 0, issue));
             const yyjson_val *owned; TRY(crucible_generated_json_own(storage, converted, &owned, issue));
             TRY(media(storage, doc, bindings, name, owned, false, &converted, issue));
             TRY(set(doc, body, name, converted, issue));
