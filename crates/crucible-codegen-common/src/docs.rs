@@ -61,7 +61,16 @@ pub fn xmldoc_text(text: &str) -> String {
 fn render(markdown: &str, dialect: Dialect) -> Vec<String> {
     parse_blocks(markdown)
         .iter()
-        .map(|block| render_block(block, dialect))
+        .map(|block| {
+            let text = render_block(block, dialect);
+            // Emphasis delimiters can sit next to a slash (`*/x/*`), so the
+            // comment delimiters are broken up after rendering as well.
+            if dialect == Dialect::Kdoc {
+                text.replace("*/", "*\\/").replace("/*", "/\\*")
+            } else {
+                text
+            }
+        })
         .collect()
 }
 
@@ -471,6 +480,15 @@ mod tests {
         assert!(out.contains("<see href=\"https://x.example/a_b\">docs</see>"));
         assert!(out.contains("&lt;b&gt;raw&lt;/b&gt;"));
         assert!(out.contains("<code>let x = 1; /* c */</code>"));
+    }
+
+    #[test]
+    fn kdoc_emphasis_cannot_assemble_a_comment_delimiter() {
+        let out = kdoc("Trailing */ terminator /* nested").join(
+            "
+",
+        );
+        assert!(!out.contains("*/") && !out.contains("/*"), "{out}");
     }
 
     #[test]

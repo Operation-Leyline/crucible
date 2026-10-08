@@ -45,6 +45,7 @@ def qualify(output):
     members = {name: {"target": target, "traits": {"smithy.api#default": value}}
                for name, (target, value) in defaults.items()}
     members["requiredValue"] = {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
+    members["secretToken"] = {"target": "smithy.api#String", "traits": {"smithy.api#sensitive": {}}}
     members["epoch"]["traits"]["smithy.api#timestampFormat"] = "epoch-seconds"
     members["optionalDefault"] = {"target": "smithy.api#Integer", "traits": {"smithy.api#default": 19, "smithy.api#clientOptional": {}}}
     model["shapes"]["example.weather#BuilderDefaults"] = {"type": "structure", "members": members}

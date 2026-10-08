@@ -238,3 +238,63 @@ fn runtime_policy_model_generates_and_reserves_the_quota_accessor() {
         assert_eq!(emit(&service, &config).err().unwrap().len(), 1, "{name}");
     }
 }
+
+fn docs_files() -> Vec<crucible_codegen_kotlin::File> {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-docs.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    emit(&service, &options()).unwrap()
+}
+
+#[test]
+fn smithy_documentation_cannot_break_out_of_kdoc() {
+    for file in docs_files().iter().filter(|f| f.path.ends_with(".kt")) {
+        // Kotlin comments nest, so a stray `/*` is as fatal as a stray `*/`.
+        assert_eq!(
+            file.contents.matches("/*").count(),
+            file.contents.matches("*/").count(),
+            "{} has a stray comment delimiter",
+            file.path
+        );
+    }
+    let client = docs_files()
+        .into_iter()
+        .find(|f| f.path.ends_with("/DocsClient.kt"))
+        .unwrap()
+        .contents;
+    assert!(client.contains("**someone**"));
+    assert!(client.contains(r"\<b\>html\</b\> \@param"));
+    assert!(client.contains("@throws example.weather.model.Unavailable"));
+}
+
+#[test]
+fn sensitive_members_are_redacted_in_to_string() {
+    let files = docs_files();
+    let source = |name: &str| {
+        &files
+            .iter()
+            .find(|f| f.path.ends_with(name))
+            .unwrap()
+            .contents
+    };
+    let input = source("/model/GreetInput.kt");
+    // Direct, via a sensitive target shape, and via a collection of one.
+    for member in ["password", "token", "secrets"] {
+        assert!(
+            input.contains(&format!(
+                "\"{member}\" to example.weather.ModelFormat.redact("
+            )),
+            "{member} must be redacted"
+        );
+    }
+    assert!(input.contains("\"names\" to __crucibleField"));
+    assert!(source("/model/Profile.kt").contains("\"pin\" to example.weather.ModelFormat.redact("));
+    assert!(source("/model/Choice.kt").contains("ModelFormat.redact(value)"));
+    assert!(
+        source("/model/Unavailable.kt")
+            .contains("\"retryToken\" to example.weather.ModelFormat.redact(")
+    );
+}
