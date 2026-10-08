@@ -73,7 +73,7 @@ pub(crate) fn create(
     let runtime_features = if client {
         ""
     } else {
-        ", default-features = false, features = [\"http\"]"
+        ", default-features = false, features = [\"http\", \"explorer\"]"
     };
     let mut manifest = format!(
         "[package]\nname = {}\nversion = \"0.1.0\"\nedition = \"2024\"\n\n\
@@ -91,17 +91,18 @@ pub(crate) fn create(
         }
     );
     let helper = if client { "client" } else { "server" };
+    let explorer = if client { "" } else { "        .explorer()\n" };
     let build = if let Some(version) = smithy_version {
         manifest.push_str(&format!(
             "smithy-tooling = {{ git = \"https://github.com/Operation-Leyline/smithy-tooling\", tag = {} }}\n",
             quoted(&format!("smithy-{version}-wrapper-0.3.0"))
         ));
         format!(
-            "fn main() {{\n    crucible_build::model(\"smithy\")\n        .compile_with(|config, out| smithy_tooling::build(config, out))\n        .{helper}()\n        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
+            "fn main() {{\n    crucible_build::model(\"smithy\")\n        .compile_with(|config, out| smithy_tooling::build(config, out))\n        .{helper}()\n{explorer}        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
         )
     } else {
         format!(
-            "fn main() {{\n    crucible_build::model(\"smithy\")\n        .{helper}()\n        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
+            "fn main() {{\n    crucible_build::model(\"smithy\")\n        .{helper}()\n{explorer}        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
         )
     };
     let mut files = vec![
@@ -155,6 +156,26 @@ fn quoted(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::create;
+
+    #[test]
+    fn service_starter_enables_explorer_only_in_debug_service_construction() {
+        let root = tempfile::tempdir().unwrap();
+        create("hello", root.path(), Some("revision"), None, None, false).unwrap();
+        let read = |path| std::fs::read_to_string(root.path().join(path)).unwrap();
+        assert!(read("build.rs").contains(".server()\n        .explorer()"));
+        assert!(
+            read("src/main.rs")
+                .contains("if cfg!(debug_assertions) {\n        builder = builder.explorer")
+        );
+        assert!(read("Cargo.toml").contains("\"http\", \"explorer\""));
+        let root = tempfile::tempdir().unwrap();
+        create("hello", root.path(), Some("revision"), None, None, true).unwrap();
+        assert!(
+            !std::fs::read_to_string(root.path().join("build.rs"))
+                .unwrap()
+                .contains("explorer")
+        );
+    }
 
     #[test]
     fn default_starters_pin_the_emitters_source_revision() {

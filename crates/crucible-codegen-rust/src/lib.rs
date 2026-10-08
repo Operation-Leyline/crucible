@@ -68,6 +68,8 @@ const ALLOW: &str = "#[allow(clippy::all, unused_imports, unused_variables, dead
 pub struct Options {
     /// Generate External-audience MCP tool descriptors. Serving remains opt-in.
     pub mcp: bool,
+    /// Generate an embedded Explorer description for this audience.
+    pub explorer: Option<crucible_smithy::Audience>,
     /// The error a rejected request becomes. Unset, the service's one error
     /// named `*Validation*`, if it has exactly one. Set, it must be an error
     /// crucible can fill (`message`, and a `fieldList` of `path`/`name` +
@@ -221,11 +223,28 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     } else {
         String::new()
     };
+    let explorer = match options.explorer {
+        Some(audience) => {
+            let projected = crucible_smithy::project(service, audience)?;
+            let description =
+                crucible_codegen_common::describe::describe_for_explorer(&projected)?.to_json();
+            // Parse JSON as data, preserving keys such as __proto__ rather than
+            // giving them JavaScript object-literal semantics.
+            let script = format!("globalThis.CRUCIBLE_DESCRIPTION = JSON.parse({});\n",
+                serde_json::to_string(&description).expect("JSON text"));
+            format!(
+                "\n/// Embedded Explorer contract, generated at build time.\npub static DESCRIPTION: &::crucible_server_runtime_rust::explorer::Description = &::crucible_server_runtime_rust::__generated::explorer_description({}, {});\n",
+                names::literal(&description),
+                names::literal(&script)
+            )
+        }
+        None => String::new(),
+    };
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
     let body = format!(
-        "{ALLOW}mod model {{\n{}}}\n\n{ALLOW}mod errors {{\n{}}}\n\n{exports}\n{operations}{mcp}",
+        "{ALLOW}mod model {{\n{}}}\n\n{ALLOW}mod errors {{\n{}}}\n\n{exports}\n{operations}{mcp}{explorer}",
         indent(&model),
         indent(&errors),
     );

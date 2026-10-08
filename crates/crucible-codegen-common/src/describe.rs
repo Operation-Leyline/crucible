@@ -197,11 +197,37 @@ fn shape(service: &Service, id: &ShapeId, shape: &Shape) -> Value {
 /// Build from an already projected IR. Refusals are collected before any output
 /// can be published; the caller owns audience selection.
 pub fn describe(service: &Service) -> Result<Description, Diagnostics> {
+    describe_inner(service, false)
+}
+
+/// Explorer retains documentation for non-JSON and streaming operations, but
+/// never advertises them as callable by its buffered JSON request builder.
+pub fn describe_for_explorer(service: &Service) -> Result<Description, Diagnostics> {
+    describe_inner(service, true)
+}
+
+fn json_protocol(protocol: Protocol) -> bool {
+    matches!(
+        protocol,
+        Protocol::CrucibleJson
+            | Protocol::AwsRestJson1
+            | Protocol::AwsJson10
+            | Protocol::AwsJson11
+            | Protocol::SmithyRpcV2Json
+    )
+}
+
+fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
-    if matches!(
-        service.protocol,
-        Protocol::AwsRestXml | Protocol::AwsQuery | Protocol::Ec2Query | Protocol::SmithyRpcV2Cbor
-    ) {
+    if !explorer
+        && matches!(
+            service.protocol,
+            Protocol::AwsRestXml
+                | Protocol::AwsQuery
+                | Protocol::Ec2Query
+                | Protocol::SmithyRpcV2Cbor
+        )
+    {
         diagnostics.push(&service.id, "describe.protocol: API reference wire rendering currently supports JSON protocols only");
     }
     for (id, shape) in &service.shapes {
@@ -236,7 +262,8 @@ pub fn describe(service: &Service) -> Result<Description, Diagnostics> {
                 diagnostics.push(&op.id, format!("describe.target: missing shape {id}"));
             }
         }
-        if !op.examples.is_empty()
+        if !explorer
+            && !op.examples.is_empty()
             && (op.request.event_stream.is_some()
                 || op.response.event_stream.is_some()
                 || op.request.payload.as_ref().is_some_and(|p| p.streaming)
@@ -267,7 +294,19 @@ pub fn describe(service: &Service) -> Result<Description, Diagnostics> {
     let operations = service
         .operations
         .iter()
-        .map(|op| (op.id.to_string(), operation(service, op)))
+        .map(|op| {
+            let mut value = operation(service, op, explorer);
+            if explorer {
+                value["callable"] = json!(
+                    json_protocol(service.protocol)
+                        && op.request.event_stream.is_none()
+                        && op.response.event_stream.is_none()
+                        && !op.request.payload.as_ref().is_some_and(|p| p.streaming)
+                        && !op.response.payload.as_ref().is_some_and(|p| p.streaming)
+                );
+            }
+            (op.id.to_string(), value)
+        })
         .collect();
     let shapes = service
         .shapes
@@ -301,7 +340,7 @@ pub fn describe(service: &Service) -> Result<Description, Diagnostics> {
     Ok(description)
 }
 
-fn operation(service: &Service, op: &Operation) -> Value {
+fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
     let resources: Vec<_> = service
         .resources
         .iter()
@@ -322,7 +361,7 @@ fn operation(service: &Service, op: &Operation) -> Value {
         })
         .map(|(id, _)| id.to_string())
         .collect();
-    json!({"id":op.id.to_string(),"name":service.name_of(&op.id),"internal":op.internal,
+    let mut value = json!({"id":op.id.to_string(),"name":service.name_of(&op.id),"internal":op.internal,
         "resources":resources,"documentation":documentation(op.docs.as_deref()),"notes":notes(&op.notes),
         "protocol":service.protocol,"method":op.method,"uri":op.uri.to_string(),"status":op.status,
         "protocolHeaders":op.protocol_headers,"responseProtocolHeaders":op.response_protocol_headers,"request":bindings(&op.request),"response":bindings(&op.response),
@@ -334,13 +373,13 @@ fn operation(service: &Service, op: &Operation) -> Value {
         "pagination":op.paginated.as_ref().map(|p|json!({"inputToken":p.input_token,"outputToken":p.output_token,"items":p.items,"pageSize":p.page_size})),
         "examples":op.examples.iter().map(|e|json!({"title":e.title,"documentation":documentation(e.docs.as_deref()),
             "allowConstraintErrors":e.allow_constraint_errors,
-            "input":e.input.as_ref().map(|v|request_example(service,op,v)),
-            "output":e.output.as_ref().map(|v| {
+        "input":e.input.as_ref().filter(|_| json_protocol(service.protocol) && op.request.event_stream.is_none() && !op.request.payload.as_ref().is_some_and(|p|p.streaming)).map(|v|request_example(service,op,v)),
+        "output":e.output.as_ref().filter(|_|json_protocol(service.protocol) && op.response.event_stream.is_none() && !op.response.payload.as_ref().is_some_and(|p|p.streaming)).map(|v| {
                 let mut message=wire_message(service,op.output.as_ref(),&op.response,v);
                 merge_headers(&mut message,&op.response_protocol_headers);
                 message
             }),
-            "error":e.error.as_ref().map(|e| {
+        "error":e.error.as_ref().filter(|_|json_protocol(service.protocol)).map(|e| {
                 let Shape::Structure(s)=service.shape(&e.shape).expect("example error") else { unreachable!("lowered error") };
                 let info=s.error.as_ref().expect("error info");
                 let mut message=wire_message(service,Some(&e.shape),&error_bindings(service,&e.shape,info),&e.content);
@@ -354,7 +393,39 @@ fn operation(service: &Service, op: &Operation) -> Value {
                 }
                 json!({"shape":e.shape.to_string(),"status":info.status,"wireCode":info.body_discriminator.as_ref().unwrap_or(&info.wire_code),
                     "message":message})
-            })})).collect::<Vec<_>>()})
+            })})).collect::<Vec<_>>()});
+    if explorer {
+        for (example, source) in value["examples"]
+            .as_array_mut()
+            .expect("examples")
+            .iter_mut()
+            .zip(&op.examples)
+        {
+            example["inputValues"] = source.input.as_ref().map_or(Value::Null, |input| {
+                Value::Object(
+                    op.input
+                        .as_ref()
+                        .and_then(|id| service.shape(id))
+                        .into_iter()
+                        .flat_map(Shape::members)
+                        .filter_map(|m| {
+                            input.get(&m.name).map(|v| {
+                                (
+                                    m.wire_name.clone(),
+                                    service.wire_example(
+                                        m,
+                                        v,
+                                        op.request.timestamp_formats.get(&m.name).copied(),
+                                    ),
+                                )
+                            })
+                        })
+                        .collect(),
+                )
+            });
+        }
+    }
+    value
 }
 
 fn text(value: &Value) -> String {
