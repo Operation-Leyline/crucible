@@ -400,6 +400,12 @@ impl Service {
             return value.clone();
         };
         match (shape, value) {
+            (Shape::Simple(simple), Value::Number(number))
+                if self.protocol_settings.arbitrary_precision_strings
+                    && matches!(simple.kind, SimpleKind::BigInteger | SimpleKind::BigDecimal) =>
+            {
+                Value::String(number.to_string())
+            }
             (Shape::Simple(simple), _) if simple.kind == SimpleKind::Timestamp => {
                 let format = format.unwrap_or_else(|| self.document_timestamp_format(member));
                 crate::timestamp_default::wire_value(value, format).unwrap_or_else(|| value.clone())
@@ -420,6 +426,11 @@ impl Service {
                 Value::Object(
                     members
                         .iter()
+                        .filter(|(_, value)| {
+                            !(matches!(shape, Shape::Structure(_))
+                                && value.is_null()
+                                && self.protocol_settings.omit_null_structure_members)
+                        })
                         .map(|(name, value)| match structure.member(name) {
                             Some(member) => (
                                 member.wire_name.clone(),

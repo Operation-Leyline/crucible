@@ -34,6 +34,7 @@ pub(crate) fn lower(
     capabilities: &Capabilities,
     selected_protocol: Option<Protocol>,
     infrastructure: bool,
+    documentation: bool,
 ) -> Result<Service, Diagnostics> {
     let mut lowerer = Lowerer {
         model: shapes,
@@ -49,7 +50,7 @@ pub(crate) fn lower(
         http_inputs: BTreeSet::new(),
         http_outputs: BTreeSet::new(),
     };
-    let service = lowerer.service(service_id, infrastructure);
+    let service = lowerer.service(service_id, infrastructure, documentation);
     if lowerer.diagnostics.is_empty() {
         Ok(service)
     } else {
@@ -94,7 +95,7 @@ impl<'m> Lowerer<'m> {
             None
         }
     }
-    fn service(&mut self, id: &ShapeId, infrastructure: bool) -> Service {
+    fn service(&mut self, id: &ShapeId, infrastructure: bool, documentation: bool) -> Service {
         let shape = &self.model[id];
         self.check_protocol(id, shape);
         if self.protocol.is_rpc_v2() {
@@ -215,6 +216,8 @@ impl<'m> Lowerer<'m> {
         }
         let resources = if infrastructure {
             crate::resources::lower(self.model, shape, &mut self.diagnostics)
+        } else if documentation {
+            crate::resources::lower_for_output(self.model, shape, &mut self.diagnostics, false)
         } else {
             BTreeMap::new()
         };
@@ -227,10 +230,18 @@ impl<'m> Lowerer<'m> {
                 self.visit(target);
             }
         }
-        let (resource_roots, resource_references) = if infrastructure {
+        let (resource_roots, resource_references) = if infrastructure || documentation {
             (
                 crate::resources::sorted_refs(&shape.resources),
-                crate::resources::references(self.model, self.shapes.keys(), &mut self.diagnostics),
+                if infrastructure {
+                    crate::resources::references(
+                        self.model,
+                        self.shapes.keys(),
+                        &mut self.diagnostics,
+                    )
+                } else {
+                    BTreeMap::new()
+                },
             )
         } else {
             (Vec::new(), BTreeMap::new())
@@ -301,6 +312,16 @@ impl<'m> Lowerer<'m> {
             xml_namespace,
             xml_shapes,
             protocol: self.protocol,
+            protocols: {
+                let mut protocols: Vec<_> = Protocol::ALL
+                    .iter()
+                    .copied()
+                    .filter(|p| shape.traits.contains_key(&p.trait_id()))
+                    .collect();
+                protocols.sort_by_key(|p| p.trait_id());
+                protocols
+            },
+            errors: service_errors,
             protocol_settings: self.protocol_settings(id, shape),
             requirements: std::mem::take(&mut self.requirements).into_iter().collect(),
             id: id.clone(),
@@ -599,6 +620,31 @@ impl<'m> Lowerer<'m> {
         if let Some(output) = &output {
             self.event_stream_binding(output, &mut response);
         }
+        let mut protocol_headers = self.protocol.request_headers(&self.service_name, id.name());
+        if let Some(payload) = &request.payload {
+            protocol_headers.insert("Content-Type".into(), payload.media_type.clone());
+        } else if request.event_stream.is_some() {
+            protocol_headers.insert(
+                "Content-Type".into(),
+                "application/vnd.amazon.eventstream".into(),
+            );
+        } else if self.protocol.uses_http_bindings() && !request.body.is_empty() {
+            protocol_headers.insert(
+                "Content-Type".into(),
+                if self.protocol == Protocol::AwsRestXml {
+                    "application/xml".into()
+                } else {
+                    "application/json".into()
+                },
+            );
+        }
+        if request
+            .headers
+            .iter()
+            .any(|h| h.name.eq_ignore_ascii_case("Content-Type"))
+        {
+            protocol_headers.remove("Content-Type");
+        }
         if input.is_none() && uri.labels().next().is_some() {
             self.diagnostics
                 .push(id, "the URI has labels but the operation has no input");
@@ -656,6 +702,15 @@ impl<'m> Lowerer<'m> {
             );
         }
         Some(Operation {
+            protocol_headers,
+            response_protocol_headers: self.protocol.response_headers(
+                &response,
+                output.is_some()
+                    && (!self.protocol.uses_http_bindings()
+                        || !response.body.is_empty()
+                        || response.payload.is_some()
+                        || response.event_stream.is_some()),
+            ),
             internal: shape.traits.contains_key(&smithy("internal")),
             unwrapped_xml_output,
             unsigned_payload,
@@ -1906,7 +1961,17 @@ impl<'m> Lowerer<'m> {
                 converted
             })
         } else {
-            default.clone()
+            if self.protocol == Protocol::SmithyRpcV2Json
+                && self.model.get(&member.target).is_some_and(|target| {
+                    matches!(target.kind, Kind::BigInteger | Kind::BigDecimal)
+                })
+            {
+                default
+                    .as_ref()
+                    .map(|value| Value::String(value.to_string()))
+            } else {
+                default.clone()
+            }
         };
         Member {
             internal: member.traits.contains_key(&smithy("internal")),
@@ -2011,6 +2076,15 @@ impl<'m> Lowerer<'m> {
         }
         let bindings = self.response_bindings(id);
         Some(ErrorInfo {
+            protocol_headers: self.protocol.response_headers(&bindings, true),
+            body_discriminator: match self.protocol {
+                Protocol::CrucibleJson | Protocol::AwsJson11 => Some(wire_code.clone()),
+                Protocol::AwsJson10 | Protocol::SmithyRpcV2Json | Protocol::SmithyRpcV2Cbor => {
+                    Some(id.to_string())
+                }
+                _ => None,
+            },
+            discriminator_header: self.protocol.error_header().map(str::to_owned),
             timestamp_formats: bindings.timestamp_formats,
             wire_code,
             payload: bindings.payload,

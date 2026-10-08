@@ -37,6 +37,10 @@ pub struct Service {
     pub xml_namespace: Option<XmlNamespace>,
     pub xml_shapes: BTreeMap<ShapeId, XmlShape>,
     pub protocol: Protocol,
+    /// Declared supported protocols, sorted by trait ID; bindings use `protocol`.
+    pub protocols: Vec<Protocol>,
+    /// Errors declared on the service, independently of operation inheritance.
+    pub errors: Vec<ShapeId>,
     pub protocol_settings: ProtocolSettings,
     pub requirements: Vec<crate::FeatureUse>,
     pub id: ShapeId,
@@ -56,7 +60,8 @@ pub struct Service {
     /// Sorted by name, so output does not depend on model file order.
     pub operations: Vec<Operation>,
     /// Resources bound to this service, including nested resources. Populated
-    /// only by `Model::lower_infrastructure`, as are roots and references.
+    /// by `Model::lower_infrastructure` and `Model::lower_documentation`.
+    /// Only infrastructure lowering populates design-time references/bindings.
     pub resources: BTreeMap<ShapeId, Resource>,
     /// Direct service bindings, sorted by shape ID.
     pub resource_roots: Vec<ShapeId>,
@@ -184,7 +189,7 @@ impl Service {
         ) {
             crate::timestamp_default::wire_value(value, self.document_timestamp_format(member))
         } else {
-            Some(value.clone())
+            Some(self.wire_example(member, value, None))
         }
     }
 
@@ -479,6 +484,10 @@ pub struct Bounds<T> {
 
 #[derive(Debug, Clone)]
 pub struct ErrorInfo {
+    pub protocol_headers: BTreeMap<String, String>,
+    /// Selected protocol's body discriminator; REST JSON uses its header instead.
+    pub body_discriminator: Option<String>,
+    pub discriminator_header: Option<String>,
     pub timestamp_formats: BTreeMap<String, TimestampFormat>,
     pub wire_code: String,
     pub payload: Option<Payload>,
@@ -505,6 +514,9 @@ pub struct Retryable {
 
 #[derive(Debug, Clone)]
 pub struct Operation {
+    /// Fixed request headers required by the selected protocol.
+    pub protocol_headers: BTreeMap<String, String>,
+    pub response_protocol_headers: BTreeMap<String, String>,
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
     /// The sole output member is the restXml root rather than its child.

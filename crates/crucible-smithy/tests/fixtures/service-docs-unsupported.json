@@ -1,0 +1,12 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.docs#Binary": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "smithy.protocols#rpcv2Cbor": {}
+      }
+    }
+  }
+}

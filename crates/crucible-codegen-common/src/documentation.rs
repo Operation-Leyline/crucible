@@ -6,6 +6,56 @@
 use crucible_smithy::ir::{DocNotes, Operation, Service, Shape};
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 
+/// Build-time HTML rendering for API references. Raw HTML remains text, just as
+/// in the native doc dialects; active URL schemes never become links or images.
+pub fn html(markdown: &str) -> String {
+    let events = Parser::new(markdown).map(|event| match event {
+        Event::Html(value) | Event::InlineHtml(value) => Event::Text(value),
+        Event::Start(Tag::Link {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) => Event::Start(Tag::Link {
+            link_type,
+            dest_url: safe_url(dest_url),
+            title,
+            id,
+        }),
+        Event::Start(Tag::Image {
+            link_type,
+            dest_url,
+            title,
+            id,
+        }) => Event::Start(Tag::Image {
+            link_type,
+            dest_url: safe_url(dest_url),
+            title,
+            id,
+        }),
+        other => other,
+    });
+    let mut out = String::new();
+    pulldown_cmark::html::push_html(&mut out, events);
+    out
+}
+
+fn safe_url(url: pulldown_cmark::CowStr<'_>) -> pulldown_cmark::CowStr<'_> {
+    let compact: String = url
+        .chars()
+        .filter(|c| !c.is_ascii_control() && !c.is_whitespace())
+        .collect();
+    if let Some((scheme, _)) = compact.split_once(':')
+        && !matches!(
+            scheme.to_ascii_lowercase().as_str(),
+            "http" | "https" | "mailto"
+        )
+    {
+        return "".into();
+    }
+    url
+}
+
 /// Documentation already preserved by Smithy lowering.
 pub fn shape(shape: &Shape) -> Option<&str> {
     match shape {

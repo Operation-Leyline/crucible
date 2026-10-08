@@ -32,10 +32,26 @@ pub(crate) fn lower(
     service: &ast::Shape,
     diagnostics: &mut Diagnostics,
 ) -> BTreeMap<ShapeId, Resource> {
+    lower_for_output(model, service, diagnostics, true)
+}
+
+pub(crate) fn lower_for_output(
+    model: &Shapes,
+    service: &ast::Shape,
+    diagnostics: &mut Diagnostics,
+    bindings: bool,
+) -> BTreeMap<ShapeId, Resource> {
     let mut resources = BTreeMap::new();
     let mut visiting = BTreeSet::new();
     for id in sorted_refs(&service.resources) {
-        visit(model, &id, &mut resources, &mut visiting, diagnostics);
+        visit(
+            model,
+            &id,
+            &mut resources,
+            &mut visiting,
+            diagnostics,
+            bindings,
+        );
     }
     resources
 }
@@ -46,6 +62,7 @@ fn visit(
     resources: &mut BTreeMap<ShapeId, Resource>,
     visiting: &mut BTreeSet<ShapeId>,
     diagnostics: &mut Diagnostics,
+    bindings_enabled: bool,
 ) {
     if visiting.contains(id) {
         diagnostics.push(id, "resource containment cycle is not supported");
@@ -134,7 +151,7 @@ fn visit(
         .chain(shape.list.iter().map(|r| r.target.clone()))
         .chain(resource.collection_operations.iter().cloned())
         .collect();
-    for operation_id in bound {
+    for operation_id in bound.into_iter().filter(|_| bindings_enabled) {
         let Some(operation) = model
             .get(&operation_id)
             .filter(|shape| shape.kind == Kind::Operation)
@@ -199,7 +216,14 @@ fn visit(
                 }
             }
         }
-        visit(model, child_id, resources, visiting, diagnostics);
+        visit(
+            model,
+            child_id,
+            resources,
+            visiting,
+            diagnostics,
+            bindings_enabled,
+        );
     }
     visiting.remove(id);
     resources.insert(id.clone(), resource);

@@ -56,6 +56,99 @@ pub enum Protocol {
 }
 
 impl Protocol {
+    /// Fixed response headers. Modeled header bindings can override Content-Type.
+    pub fn response_headers(
+        self,
+        bindings: &crate::ir::Bindings,
+        has_value: bool,
+    ) -> std::collections::BTreeMap<String, String> {
+        let mut headers = std::collections::BTreeMap::new();
+        if self.is_rpc_v2() {
+            headers.insert(
+                "Smithy-Protocol".into(),
+                if self == Self::SmithyRpcV2Json {
+                    "rpc-v2-json"
+                } else {
+                    "rpc-v2-cbor"
+                }
+                .into(),
+            );
+        }
+        if has_value || matches!(self, Self::AwsRestJson1 | Self::AwsJson10 | Self::AwsJson11) {
+            let media_type = if bindings.event_stream.is_some() {
+                "application/vnd.amazon.eventstream"
+            } else if let Some(payload) = &bindings.payload {
+                &payload.media_type
+            } else {
+                match self {
+                    Self::AwsJson10 => "application/x-amz-json-1.0",
+                    Self::AwsJson11 => "application/x-amz-json-1.1",
+                    Self::SmithyRpcV2Cbor => "application/cbor",
+                    Self::AwsRestXml | Self::AwsQuery | Self::Ec2Query => "application/xml",
+                    _ => "application/json",
+                }
+            };
+            if !bindings
+                .headers
+                .iter()
+                .any(|h| h.name.eq_ignore_ascii_case("Content-Type"))
+            {
+                headers.insert("Content-Type".into(), media_type.to_owned());
+            }
+        }
+        headers
+    }
+    /// The error discriminator header, where the protocol defines one.
+    pub fn error_header(self) -> Option<&'static str> {
+        match self {
+            Self::CrucibleJson => Some("X-Crucible-Error"),
+            Self::AwsRestJson1 | Self::AwsJson10 | Self::AwsJson11 => Some("X-Amzn-Errortype"),
+            _ => None,
+        }
+    }
+    /// Required request headers, resolved with protocol identity rather than
+    /// reconstructed independently by documentation or client emitters.
+    pub fn request_headers(
+        self,
+        service: &str,
+        operation: &str,
+    ) -> std::collections::BTreeMap<String, String> {
+        let mut headers = std::collections::BTreeMap::new();
+        match self {
+            Self::AwsJson10 | Self::AwsJson11 => {
+                headers.insert("X-Amz-Target".into(), format!("{service}.{operation}"));
+                headers.insert(
+                    "Content-Type".into(),
+                    if self == Self::AwsJson10 {
+                        "application/x-amz-json-1.0".into()
+                    } else {
+                        "application/x-amz-json-1.1".into()
+                    },
+                );
+            }
+            Self::SmithyRpcV2Json | Self::SmithyRpcV2Cbor => {
+                headers.insert(
+                    "Smithy-Protocol".into(),
+                    if self == Self::SmithyRpcV2Json {
+                        "rpc-v2-json".into()
+                    } else {
+                        "rpc-v2-cbor".into()
+                    },
+                );
+                headers.insert(
+                    "Content-Type".into(),
+                    if self == Self::SmithyRpcV2Json {
+                        "application/json".into()
+                    } else {
+                        "application/cbor".into()
+                    },
+                );
+                headers.insert("Accept".into(), headers["Content-Type"].clone());
+            }
+            _ => {}
+        }
+        headers
+    }
     pub const ALL: &[Self] = &[
         Self::CrucibleJson,
         Self::AwsRestJson1,
