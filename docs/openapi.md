@@ -67,6 +67,20 @@ These extensions document behavior; generic OpenAPI tools need their own support
 to implement automatic tokens, pagination, byte-length checks, and API key prefixes.
 The export does not create a client, host a documentation page, or add runtime routes.
 
+## Examples
+
+`@examples` lowers into `Operation.examples` and is validated against the
+operation's input, output and error shapes (members, types, enums, unions,
+length, range, pattern, uniqueness; `allowConstraintErrors` waives the
+constraint checks only). A malformed example is a diagnostic on the operation.
+The exporter places each value where its member travels, as native OpenAPI
+`examples` maps keyed by title (repeated titles get ` (2)`, ` (3)`): on
+parameters and response headers for bound members, on the request and response
+bodies, and on the error response whose shape the example names. Bodies use JSON
+names and each member's timestamp format. Members whose bytes are re-encoded
+(media-type headers) and raw blob payloads have no faithful rendering and are
+omitted. The raw `smithy.api#examples` trait is not repeated in `x-smithy-traits`.
+
 ## Diagnostics and limits
 
 Unsupported capabilities produce diagnostics against their Smithy shapes.

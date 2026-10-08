@@ -307,6 +307,12 @@ fn service_client_name_cannot_collide_with_a_model() {
 fn edited(edit: impl FnOnce(&mut Value)) -> crucible_smithy::ir::Service {
     let mut model: Value = serde_json::from_str(WEATHER).unwrap();
     edit(&mut model);
+    // These tests reshape weather's shapes; its examples describe the original ones.
+    for shape in model["shapes"].as_object_mut().unwrap().values_mut() {
+        if let Some(traits) = shape.get_mut("traits").and_then(|t| t.as_object_mut()) {
+            traits.remove("smithy.api#examples");
+        }
+    }
     Model::from_json(&model.to_string())
         .unwrap()
         .lower(None)

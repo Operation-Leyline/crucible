@@ -62,7 +62,7 @@ pub(crate) struct Lowerer<'m> {
     selected_protocol: Option<Protocol>,
     pub(crate) model: &'m BTreeMap<ShapeId, ast::Shape>,
     pub(crate) diagnostics: Diagnostics,
-    shapes: BTreeMap<ShapeId, Shape>,
+    pub(crate) shapes: BTreeMap<ShapeId, Shape>,
     /// Shapes being lowered further up the stack: a recursive reference to
     /// one is complete once the outer call returns.
     visiting: BTreeSet<ShapeId>,
@@ -602,6 +602,7 @@ impl<'m> Lowerer<'m> {
                 .map(|(name, _)| name.clone())
         });
         let paginated = self.paginated(id, shape, default_pagination);
+        let examples = self.examples(id, shape, input.as_ref(), output.as_ref(), &errors);
 
         let unsigned_payload = auth
             .iter()
@@ -648,6 +649,7 @@ impl<'m> Lowerer<'m> {
             idempotent: shape.traits.contains_key(&smithy("idempotent")),
             idempotency_token,
             paginated,
+            examples,
             request,
             response,
             traits: shape.traits.clone(),

@@ -207,6 +207,109 @@ fn errors_on_the_success_status_do_not_overwrite_success() {
 }
 
 #[test]
+fn examples_land_on_the_request_response_and_error_that_carry_them() {
+    let doc = document(&service(|_| {}));
+    let create = &doc["paths"]["/cities"]["post"];
+    // Body members only: the header-bound revision is a parameter example.
+    let body = &create["requestBody"]["content"]["application/json"]["examples"];
+    assert_eq!(body["Create a city"]["summary"], "Create a city");
+    assert_eq!(
+        body["Create a city"]["description"],
+        "Creates Lisbon with coordinates."
+    );
+    assert!(
+        body["Create a city"]["value"]
+            .get("expectedRevision")
+            .is_none()
+    );
+    assert_eq!(
+        create["parameters"][0]["examples"]["Create a city"]["value"],
+        7
+    );
+    // Timestamps follow each member's own format, not the model's spelling.
+    let city = &create["responses"]["201"]["content"]["application/json"]["examples"]["Create a city"]
+        ["value"]["city"];
+    assert_eq!(city["createdAt"], 1767323045);
+    assert_eq!(city["updatedAt"], "2026-01-02T03:04:05Z");
+    // An error example appears only on its own error, with the wire discriminator
+    // the schema requires.
+    let conflict = &create["responses"]["409"]["content"]["application/json"]["examples"];
+    assert_eq!(
+        conflict["Create a duplicate city"]["value"],
+        json!({"message": "Lisbon already exists", "__type": "ConflictError"})
+    );
+    assert!(
+        doc["paths"]["/cities/{cityId}"]["get"]["responses"]["404"]["content"]["application/json"]
+            ["examples"]
+            .get("Create a duplicate city")
+            .is_none()
+    );
+    let get = &doc["paths"]["/cities/{cityId}"]["get"];
+    assert_eq!(
+        get["responses"]["200"]["headers"]["X-Request-Id"]["examples"]["Read a city"]["value"],
+        "req-1"
+    );
+    // The raw trait is not repeated beside the native examples.
+    assert!(get["x-smithy-traits"].get("smithy.api#examples").is_none());
+}
+
+#[test]
+fn operations_without_examples_emit_no_example_keys() {
+    let doc = document(&service(|_| {}));
+    let ping = serde_json::to_string(&doc["paths"]["/ping"]).unwrap();
+    assert!(!ping.contains("examples"), "{ping}");
+}
+
+#[test]
+fn repeated_titles_get_distinct_keys_in_model_order() {
+    let doc = document(&service(|model| {
+        let examples =
+            &mut model["shapes"]["example.weather#GetCity"]["traits"]["smithy.api#examples"];
+        let first = examples[0].clone();
+        examples.as_array_mut().unwrap().insert(1, first);
+    }));
+    let keys: Vec<_> = doc["paths"]["/cities/{cityId}"]["get"]["parameters"][0]["examples"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect();
+    assert_eq!(
+        keys,
+        ["Read a city", "Read a city (2)", "Read a missing city"]
+    );
+}
+
+#[test]
+fn examples_survive_responses_that_share_a_status() {
+    let doc = document(&service(|model| {
+        model["shapes"]["example.weather#ConflictError"]["traits"]["smithy.api#httpError"] =
+            json!(201);
+    }));
+    let examples = &doc["paths"]["/cities"]["post"]["responses"]["201"]["content"]["application/json"]
+        ["examples"];
+    assert!(examples.get("Create a city").is_some());
+    assert!(examples.get("Create a duplicate city").is_some());
+}
+
+#[test]
+fn an_invalid_example_stops_generation_at_lowering() {
+    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+    model["shapes"]["example.weather#GetCity"]["traits"]["smithy.api#examples"][0]["input"]["cityId"] =
+        json!("not-a-city");
+    let error = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &capabilities())
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("input.cityId does not match the pattern"),
+        "{error}"
+    );
+}
+
+#[test]
 fn auth_overrides_and_optional_auth_are_resolved_per_operation() {
     let doc = document(&service(|model| {
         model["shapes"]["example.weather#Ping"]["traits"]["smithy.api#auth"] = json!([]);

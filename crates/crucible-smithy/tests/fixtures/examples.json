@@ -1,0 +1,315 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "test.examples#Service": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "test.examples#Good"
+        },
+        {
+          "target": "test.examples#Nothing"
+        }
+      ]
+    },
+    "test.examples#Problem": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client"
+      }
+    },
+    "test.examples#Other": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#error": "server"
+      }
+    },
+    "test.examples#Code": {
+      "type": "string",
+      "traits": {
+        "smithy.api#pattern": "^[A-Z]{3}$",
+        "smithy.api#length": {
+          "min": 3,
+          "max": 3
+        }
+      }
+    },
+    "test.examples#Color": {
+      "type": "enum",
+      "members": {
+        "RED": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "red"
+          }
+        }
+      }
+    },
+    "test.examples#Level": {
+      "type": "intEnum",
+      "members": {
+        "LOW": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 1
+          }
+        }
+      }
+    },
+    "test.examples#Tags": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      },
+      "traits": {
+        "smithy.api#uniqueItems": {}
+      }
+    },
+    "test.examples#Sparse": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      },
+      "traits": {
+        "smithy.api#sparse": {}
+      }
+    },
+    "test.examples#Scores": {
+      "type": "map",
+      "key": {
+        "target": "test.examples#Code"
+      },
+      "value": {
+        "target": "smithy.api#Integer"
+      }
+    },
+    "test.examples#Choice": {
+      "type": "union",
+      "members": {
+        "a": {
+          "target": "smithy.api#String"
+        },
+        "b": {
+          "target": "smithy.api#Integer"
+        }
+      }
+    },
+    "test.examples#Inner": {
+      "type": "structure",
+      "members": {
+        "flag": {
+          "target": "smithy.api#Boolean",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "test.examples#Good": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/good"
+        },
+        "smithy.api#examples": [
+          {
+            "title": "Everything",
+            "documentation": "All kinds of values.",
+            "input": {
+              "code": "ABC",
+              "color": "red",
+              "level": 1,
+              "tags": [
+                "a",
+                "b"
+              ],
+              "sparse": [
+                "x",
+                null
+              ],
+              "scores": {
+                "AAA": 1
+              },
+              "choice": {
+                "b": 2
+              },
+              "inner": {
+                "flag": true
+              },
+              "count": 10,
+              "byte": -128,
+              "ratio": "NaN",
+              "big": 12345678901234567890123,
+              "when": "2026-01-02T03:04:05Z",
+              "data": "AAECAw==",
+              "doc": {
+                "any": [
+                  1,
+                  "two",
+                  null
+                ]
+              }
+            },
+            "output": {
+              "code": "ABC"
+            }
+          },
+          {
+            "title": "Constraint violations permitted",
+            "allowConstraintErrors": true,
+            "input": {
+              "code": "abcd",
+              "tags": [
+                "a",
+                "a"
+              ],
+              "count": 11,
+              "data": "AAECAwQ="
+            }
+          },
+          {
+            "title": "Epoch timestamp",
+            "input": {
+              "code": "ABC",
+              "when": 1767323045.5
+            }
+          },
+          {
+            "title": "Modelled error",
+            "input": {
+              "code": "ABC"
+            },
+            "error": {
+              "shapeId": "test.examples#Problem",
+              "content": {
+                "message": "no"
+              }
+            }
+          }
+        ]
+      },
+      "input": {
+        "target": "test.examples#GoodInput"
+      },
+      "output": {
+        "target": "test.examples#GoodOutput"
+      },
+      "errors": [
+        {
+          "target": "test.examples#Problem"
+        }
+      ]
+    },
+    "test.examples#GoodInput": {
+      "type": "structure",
+      "members": {
+        "code": {
+          "target": "test.examples#Code",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "color": {
+          "target": "test.examples#Color"
+        },
+        "level": {
+          "target": "test.examples#Level"
+        },
+        "tags": {
+          "target": "test.examples#Tags"
+        },
+        "sparse": {
+          "target": "test.examples#Sparse"
+        },
+        "scores": {
+          "target": "test.examples#Scores"
+        },
+        "choice": {
+          "target": "test.examples#Choice"
+        },
+        "inner": {
+          "target": "test.examples#Inner"
+        },
+        "count": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#range": {
+              "min": 1,
+              "max": 10
+            }
+          }
+        },
+        "byte": {
+          "target": "smithy.api#Byte"
+        },
+        "ratio": {
+          "target": "smithy.api#Double"
+        },
+        "big": {
+          "target": "smithy.api#BigInteger"
+        },
+        "when": {
+          "target": "smithy.api#Timestamp"
+        },
+        "data": {
+          "target": "smithy.api#Blob",
+          "traits": {
+            "smithy.api#length": {
+              "max": 4
+            }
+          }
+        },
+        "doc": {
+          "target": "smithy.api#Document"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "test.examples#GoodOutput": {
+      "type": "structure",
+      "members": {
+        "code": {
+          "target": "test.examples#Code"
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "test.examples#Nothing": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/nothing"
+        },
+        "smithy.api#examples": [
+          {
+            "title": "No input or output",
+            "input": {},
+            "output": {}
+          },
+          {
+            "title": "Omitted"
+          }
+        ]
+      }
+    }
+  }
+}

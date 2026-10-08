@@ -18,6 +18,7 @@ mod jmespath_ir;
 mod lower;
 mod lower_checksums;
 mod lower_endpoints;
+mod lower_examples;
 mod lower_extensions;
 mod lower_streams;
 mod names;

@@ -26,6 +26,21 @@
                   "required": [
                     "city"
                   ]
+                },
+                "examples": {
+                  "Create a city": {
+                    "summary": "Create a city",
+                    "value": {
+                      "city": {
+                        "id": "c-0a1b2c3d",
+                        "name": "Lisbon",
+                        "population": 545000,
+                        "updatedAt": "2026-01-02T03:04:05Z",
+                        "createdAt": 1767323045
+                      }
+                    },
+                    "description": "Creates Lisbon with coordinates."
+                  }
                 }
               }
             }
@@ -116,6 +131,15 @@
                     "message",
                     "__type"
                   ]
+                },
+                "examples": {
+                  "Create a duplicate city": {
+                    "summary": "Create a duplicate city",
+                    "value": {
+                      "message": "Lisbon already exists",
+                      "__type": "ConflictError"
+                    }
+                  }
                 }
               }
             },
@@ -190,12 +214,12 @@
         "x-smithy-shape": "example.weather#CreateCity",
         "x-smithy-traits": {
           "example.weather#tier": "write",
+          "smithy.api#idempotent": {},
           "smithy.api#http": {
             "method": "POST",
             "uri": "/cities",
             "code": 201
-          },
-          "smithy.api#idempotent": {}
+          }
         },
         "tags": [
           "City"
@@ -247,6 +271,27 @@
                   "name"
                 ],
                 "additionalProperties": false
+              },
+              "examples": {
+                "Create a city": {
+                  "summary": "Create a city",
+                  "value": {
+                    "name": "Lisbon",
+                    "location": {
+                      "coordinates": {
+                        "latitude": 38.72,
+                        "longitude": -9.14
+                      }
+                    }
+                  },
+                  "description": "Creates Lisbon with coordinates."
+                },
+                "Create a duplicate city": {
+                  "summary": "Create a duplicate city",
+                  "value": {
+                    "name": "Lisbon"
+                  }
+                }
               }
             }
           },
@@ -264,7 +309,14 @@
               }
             },
             "style": "simple",
-            "explode": false
+            "explode": false,
+            "examples": {
+              "Create a city": {
+                "summary": "Create a city",
+                "value": 7,
+                "description": "Creates Lisbon with coordinates."
+              }
+            }
           }
         ]
       },
@@ -298,6 +350,20 @@
                   "required": [
                     "cities"
                   ]
+                },
+                "examples": {
+                  "List the first page": {
+                    "summary": "List the first page",
+                    "value": {
+                      "cities": [
+                        {
+                          "id": "c-0a1b2c3d",
+                          "name": "Lisbon"
+                        }
+                      ],
+                      "nextToken": "page-2"
+                    }
+                  }
                 }
               }
             }
@@ -424,6 +490,7 @@
         ],
         "x-smithy-shape": "example.weather#ListCities",
         "x-smithy-traits": {
+          "smithy.api#readonly": {},
           "smithy.api#http": {
             "method": "GET",
             "uri": "/cities"
@@ -431,8 +498,7 @@
           "smithy.api#paginated": {
             "items": "cities",
             "pageSize": "maxResults"
-          },
-          "smithy.api#readonly": {}
+          }
         },
         "tags": [
           "City"
@@ -476,7 +542,13 @@
               }
             },
             "style": "form",
-            "explode": true
+            "explode": true,
+            "examples": {
+              "List the first page": {
+                "summary": "List the first page",
+                "value": 2
+              }
+            }
           },
           {
             "name": "tag",
@@ -494,7 +566,16 @@
               "maxItems": 5
             },
             "style": "form",
-            "explode": true
+            "explode": true,
+            "examples": {
+              "List the first page": {
+                "summary": "List the first page",
+                "value": [
+                  "coastal",
+                  "capital"
+                ]
+              }
+            }
           }
         ]
       }
@@ -530,6 +611,22 @@
                   "required": [
                     "city"
                   ]
+                },
+                "examples": {
+                  "Read a city": {
+                    "summary": "Read a city",
+                    "value": {
+                      "city": {
+                        "id": "c-0a1b2c3d",
+                        "name": "Lisbon"
+                      },
+                      "forecast": {
+                        "clear": {
+                          "highC": 21
+                        }
+                      }
+                    }
+                  }
                 }
               }
             },
@@ -542,7 +639,13 @@
                   }
                 },
                 "style": "simple",
-                "explode": false
+                "explode": false,
+                "examples": {
+                  "Read a city": {
+                    "summary": "Read a city",
+                    "value": "req-1"
+                  }
+                }
               }
             }
           },
@@ -642,6 +745,16 @@
                     "message",
                     "__type"
                   ]
+                },
+                "examples": {
+                  "Read a missing city": {
+                    "summary": "Read a missing city",
+                    "value": {
+                      "message": "No such city",
+                      "resourceId": "c-ffffffff",
+                      "__type": "NotFoundError"
+                    }
+                  }
                 }
               }
             },
@@ -715,11 +828,11 @@
         ],
         "x-smithy-shape": "example.weather#GetCity",
         "x-smithy-traits": {
+          "smithy.api#readonly": {},
           "smithy.api#http": {
             "method": "GET",
             "uri": "/cities/{cityId}"
-          },
-          "smithy.api#readonly": {}
+          }
         },
         "tags": [
           "City"
@@ -739,7 +852,17 @@
               "pattern": "^c-[a-z0-9]{8}$"
             },
             "style": "simple",
-            "explode": false
+            "explode": false,
+            "examples": {
+              "Read a city": {
+                "summary": "Read a city",
+                "value": "c-0a1b2c3d"
+              },
+              "Read a missing city": {
+                "summary": "Read a missing city",
+                "value": "c-ffffffff"
+              }
+            }
           },
           {
             "name": "at",
@@ -753,7 +876,13 @@
               }
             },
             "style": "form",
-            "explode": true
+            "explode": true,
+            "examples": {
+              "Read a city": {
+                "summary": "Read a city",
+                "value": "2026-01-02T03:04:05Z"
+              }
+            }
           }
         ]
       }
