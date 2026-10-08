@@ -61,8 +61,8 @@ impl<const P: u8> Operation for Probe<P> {
 async fn check<const P: u8>(invoke: bool) {
     for error in [FrameworkError::Unauthenticated, FrameworkError::Forbidden] {
         let operations = Operations::builder(&SERVICE)
-            .add::<Probe<P>, _>(Arc::new(error.clone()), |error, _| {
-                Box::pin(async move { Err((*error).clone().into()) })
+            .add::<Probe<P>, _, _>(Arc::new(error.clone()), |error, _| async move {
+                Err((*error).clone().into())
             })
             .build()
             .unwrap();
