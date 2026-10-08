@@ -22,6 +22,7 @@ mod model {
         pub population: i64,
         #[serde(rename = "updatedAt", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub updated_at: ::crucible_client_runtime_rust::__generated::Field<::crucible_client_runtime_rust::__generated::time::Timestamp>,
+        #[allow(clippy::deprecated_semver)]
         #[deprecated(since = "2026-08", note = "Use updatedAt.")]
         #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent", with = "::crucible_client_runtime_rust::__generated::codec::Adapter::<::crucible_client_runtime_rust::__generated::codec::Field<::crucible_client_runtime_rust::__generated::codec::EpochSeconds>>")]
         pub created_at: ::crucible_client_runtime_rust::__generated::Field<::crucible_client_runtime_rust::__generated::time::Timestamp>,
@@ -45,6 +46,7 @@ mod model {
         pub fn population(&self) -> &i64 { &self.population }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn updated_at(&self) -> ::std::option::Option<&::crucible_client_runtime_rust::__generated::time::Timestamp> { self.updated_at.value() }
+        #[allow(clippy::deprecated_semver)]
         #[deprecated(since = "2026-08", note = "Use updatedAt.")]
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn created_at(&self) -> ::std::option::Option<&::crucible_client_runtime_rust::__generated::time::Timestamp> { self.created_at.value() }
@@ -79,6 +81,7 @@ mod model {
         /// Sets this member to a value.
         pub fn updated_at(mut self, value: impl ::std::convert::Into<::crucible_client_runtime_rust::__generated::time::Timestamp>) -> Self { self.updated_at = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
         /// Sets this member to a value.
+        #[allow(clippy::deprecated_semver)]
         #[deprecated(since = "2026-08", note = "Use updatedAt.")]
         pub fn created_at(mut self, value: impl ::std::convert::Into<::crucible_client_runtime_rust::__generated::time::Timestamp>) -> Self { self.created_at = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
         /// Builds the model; fails when a required member without a default is unset.
@@ -1975,6 +1978,7 @@ impl ::std::fmt::Display for ListCitiesError {
 
 impl ::std::error::Error for ListCitiesError {}
 
+#[allow(clippy::deprecated_semver)]
 #[deprecated(since = "2026-09", note = "Use Status instead.")]
 pub struct Ping;
 
@@ -2366,6 +2370,7 @@ impl WeatherClient {
     /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
     ///
     /// This operation is safe to retry under the configured retry policy.
+    #[allow(clippy::deprecated_semver)]
     #[deprecated(since = "2026-09", note = "Use Status instead.")]
     pub async fn ping(&self) -> ::std::result::Result<(), ::crucible_client_runtime_rust::__generated::Error<PingError>> {
         self.transport.send::<Ping, PingError>(&::crucible_client_runtime_rust::__generated::operation::Unit {}).await.map(|_| ())
@@ -2380,6 +2385,7 @@ impl WeatherClient {
     /// Modeled errors: ThrottlingError, ValidationError. Transport, timeout and decoding failures can also occur.
     ///
     /// This operation is safe to retry under the configured retry policy.
+    #[allow(clippy::deprecated_semver)]
     #[deprecated(since = "2026-09", note = "Use Status instead.")]
     pub async fn ping_with_options(&self, options: ::crucible_client_runtime_rust::__generated::CallOptions) -> ::std::result::Result<(), ::crucible_client_runtime_rust::__generated::Error<PingError>> {
         self.transport.send_with_options::<Ping, PingError>(&::crucible_client_runtime_rust::__generated::operation::Unit {}, &options).await.map(|_| ())

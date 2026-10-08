@@ -24,6 +24,7 @@ pub mod weather {
             pub population: i64,
             #[serde(rename = "updatedAt", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub updated_at: ::std::option::Option<::crucible_server_runtime_rust::__generated::time::Timestamp>,
+            #[allow(clippy::deprecated_semver)]
             #[deprecated(since = "2026-08", note = "Use updatedAt.")]
             #[serde(rename = "createdAt", default, skip_serializing_if = "::std::option::Option::is_none", with = "::crucible_server_runtime_rust::__generated::codec::Adapter::<::crucible_server_runtime_rust::__generated::codec::Optional<::crucible_server_runtime_rust::__generated::codec::EpochSeconds>>")]
             pub created_at: ::std::option::Option<::crucible_server_runtime_rust::__generated::time::Timestamp>,
@@ -770,6 +771,7 @@ pub mod weather {
         fn list_cities(&self, input: ListCitiesInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<ListCitiesOutput>> + Send;
     }
 
+    #[allow(clippy::deprecated_semver)]
     #[deprecated(since = "2026-09", note = "Use Status instead.")]
     pub struct Ping;
 
