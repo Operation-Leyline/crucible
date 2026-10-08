@@ -514,9 +514,19 @@ impl Patterns {
         let mut entries: Vec<(&String, &String)> = self.names.iter().collect();
         entries.sort_by_key(|(_, name)| (name.len(), *name));
         for (pattern, name) in entries {
+            let translated = Constraints {
+                pattern: Some(pattern.clone()),
+                ..Constraints::default()
+            }
+            .rust_pattern();
+            // Generation collects all diagnostics after constructing draft text.
+            // check_patterns rejects these entries before any source is returned.
+            let Ok(Some(translated)) = translated else {
+                continue;
+            };
             out.push_str(&format!(
                 "\nstatic {name}: ::std::sync::LazyLock<::crucible_server_runtime_rust::__private::regex::Regex> =\n    ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__private::regex::Regex::new({}).expect(\"checked by crucible\"));\n",
-                literal(pattern)
+                literal(&translated)
             ));
         }
         out

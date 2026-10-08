@@ -362,6 +362,17 @@ pub struct Constraints {
     pub unique_items: bool,
 }
 
+impl Constraints {
+    /// Translate the ECMA-262 pattern for Rust's Unicode scalar regex engine.
+    /// The original pattern remains available for other targets and diagnostics.
+    pub fn rust_pattern(&self) -> Result<Option<String>, String> {
+        self.pattern
+            .as_deref()
+            .map(crate::pattern::rust)
+            .transpose()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Bounds<T> {
     pub min: Option<T>,
