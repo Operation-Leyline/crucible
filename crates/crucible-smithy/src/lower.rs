@@ -1038,20 +1038,100 @@ impl<'m> Lowerer<'m> {
                 .and_then(Value::as_str)
                 .map(str::to_owned)
         };
-        let (Some(input_token), Some(output_token)) = (field("inputToken"), field("outputToken"))
-        else {
-            self.diagnostics.push(
-                id,
-                "@paginated needs inputToken and outputToken (here or on the service)",
-            );
-            return None;
-        };
+        let input_token = field("inputToken");
+        let output_token = field("outputToken");
+        let items = field("items");
+        let page_size = field("pageSize");
+        for (name, path, root, nested) in [
+            (
+                "inputToken",
+                input_token.as_deref(),
+                shape.input.as_ref(),
+                false,
+            ),
+            (
+                "outputToken",
+                output_token.as_deref(),
+                shape.output.as_ref(),
+                true,
+            ),
+            ("items", items.as_deref(), shape.output.as_ref(), true),
+            (
+                "pageSize",
+                page_size.as_deref(),
+                shape.input.as_ref(),
+                false,
+            ),
+        ] {
+            let Some(path) = path else {
+                if own
+                    .get(name)
+                    .or_else(|| default.and_then(|d| d.get(name)))
+                    .is_some()
+                    || matches!(name, "inputToken" | "outputToken")
+                {
+                    self.diagnostics.push(
+                        id,
+                        format!("@paginated {name} must be a member name or path"),
+                    );
+                }
+                continue;
+            };
+            let member = root.and_then(|root| self.pagination_member(&root.target, path, nested));
+            let Some(member) = member else {
+                self.diagnostics.push(
+                    id,
+                    format!(
+                        "@paginated {name} path {path:?} does not resolve to a structure member"
+                    ),
+                );
+                continue;
+            };
+            let kind = self.model.get(&member.target).map(|target| target.kind);
+            let required = member.traits.contains_key(&smithy("required"));
+            let valid = match name {
+                "items" => matches!(kind, Some(Kind::List | Kind::Map)),
+                "pageSize" => matches!(
+                    kind,
+                    Some(Kind::Byte | Kind::Short | Kind::Integer | Kind::Long)
+                ),
+                _ => matches!(kind, Some(Kind::String | Kind::Map)),
+            };
+            if !valid {
+                self.diagnostics.push(
+                    id,
+                    format!("@paginated {name} path {path:?} has an invalid target type"),
+                );
+            }
+            if name == "inputToken" && required {
+                self.diagnostics
+                    .push(id, "@paginated inputToken must not be @required");
+            }
+        }
         Some(Paginated {
-            input_token,
-            output_token,
-            items: field("items"),
-            page_size: field("pageSize"),
+            input_token: input_token?,
+            output_token: output_token?,
+            items,
+            page_size,
         })
+    }
+
+    fn pagination_member(&self, root: &ShapeId, path: &str, nested: bool) -> Option<&ast::Member> {
+        if !nested && path.contains('.') {
+            return None;
+        }
+        let mut target = root;
+        let mut result = None;
+        for name in path.split('.') {
+            let structure = self.model.get(target)?;
+            if structure.kind != Kind::Structure {
+                return None;
+            }
+            let member = structure.members.get(name)?;
+            target = &member.target;
+            result = Some(member);
+        }
+        result
     }
 
     /// XML has no null element, so a sparse entry could not round-trip.
