@@ -110,7 +110,7 @@ workspace manifest and publishes `traits-vX.Y.Z` with
 `crucible-traits-X.Y.Z.jar`; existing published versions are never replaced. It
 preserves registry dependency versions and example-service package versions.
 It does not update checked-in generator golden files. Generated package
-metadata and the Rust generated-code ABI checks also record the Crucible
+metadata and ABI checks for generated Rust code also record the Crucible
 version: refresh those goldens before
 committing a version bump, and review the diff to confirm that only intended
 output changed. Build dependencies and runtimes must use the same version;
