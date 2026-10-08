@@ -512,10 +512,29 @@ fn main() -> ExitCode {
 
 // Keep parsing separate from dispatch: their debug-build stack frames together
 // can exceed Windows' main-thread stack as the CLI's target portfolio grows.
+/// Server-only cases are not client contract, and a native runner may parse `kind` first.
+fn client_tests(
+    service: &crucible_smithy::ir::Service,
+) -> Vec<&crucible_smithy::ir::HttpProtocolTest> {
+    let server = Some(crucible_smithy::ir::TestAppliesTo::Server);
+    service
+        .protocol_tests
+        .iter()
+        .filter(|test| test.applies_to != server)
+        .collect()
+}
+
 fn run(command: Command) -> ExitCode {
     let result = match command {
         Command::ExportArtifact(args) => export_artifact::run(&args),
-        Command::New { name, client, out, crucible_rev, runtime_path, smithy_version } => {
+        Command::New {
+            name,
+            client,
+            out,
+            crucible_rev,
+            runtime_path,
+            smithy_version,
+        } => {
             let out = out.unwrap_or_else(|| PathBuf::from(&name));
             starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), smithy_version.as_deref(), client)
                 .map(|()| {
@@ -525,30 +544,66 @@ fn run(command: Command) -> ExitCode {
                         println!("Created {}. Open {} in RustRover and Run, or: cd {} && cargo run", name, out.display(), out.display());
                     }
                 })
-        },
-        Command::Check { source, target, config } => lower_with_capabilities(
-            &source, &target.map(ClientLanguage::capabilities).unwrap_or_default(),
-        ).and_then(|service| {
-            if let Some(path) = config { policy::check(&service, &path)?; }
+        }
+        Command::Check {
+            source,
+            target,
+            config,
+        } => lower_with_capabilities(
+            &source,
+            &target.map(ClientLanguage::capabilities).unwrap_or_default(),
+        )
+        .and_then(|service| {
+            if let Some(path) = config {
+                policy::check(&service, &path)?;
+            }
             print!("{}", summary(&service));
             Ok(())
         }),
-        Command::Diff { old, new, service, config, json } => policy::diff(&old, &new, service.as_ref(), config.as_deref(), json),
+        Command::Diff {
+            old,
+            new,
+            service,
+            config,
+            json,
+        } => policy::diff(&old, &new, service.as_ref(), config.as_deref(), json),
         Command::AssembleModel { source, out } => smithy_input::assemble(&source, &out),
         Command::Capabilities => {
-            let capabilities: BTreeMap<_, _> = ClientLanguage::ALL.into_iter().map(|target| (
-                target.to_possible_value().expect("every language has a CLI name").get_name().to_owned(),
-                target.capabilities().iter().map(|feature| feature.name()).collect::<Vec<_>>(),
-            )).collect();
-            println!("{}", serde_json::to_string_pretty(&capabilities).expect("capabilities are JSON strings"));
+            let capabilities: BTreeMap<_, _> = ClientLanguage::ALL
+                .into_iter()
+                .map(|target| {
+                    (
+                        target
+                            .to_possible_value()
+                            .expect("every language has a CLI name")
+                            .get_name()
+                            .to_owned(),
+                        target
+                            .capabilities()
+                            .iter()
+                            .map(|feature| feature.name())
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .collect();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&capabilities).expect("capabilities are JSON strings")
+            );
             Ok(())
         }
-        Command::Conformance { source, target, out } => lower_with_capabilities(&source, &target.capabilities()).and_then(|service| {
-            let value = serde_json::json!({"schemaVersion":1, "service":service.id, "tests":service.protocol_tests});
-            let json = serde_json::to_string_pretty(&value).expect("protocol tests are JSON values");
+        Command::Conformance {
+            source,
+            target,
+            out,
+        } => lower_with_capabilities(&source, &target.capabilities()).and_then(|service| {
+            let tests = client_tests(&service);
+            let value = serde_json::json!({"schemaVersion":1, "service":service.id, "tests":tests});
+            let json =
+                serde_json::to_string_pretty(&value).expect("protocol tests are JSON values");
             output::write(&out, [("protocol-tests.json", json.as_str())])
                 .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
-            println!("wrote {} protocol tests to {}", service.protocol_tests.len(), out.display());
+            println!("wrote {} protocol tests to {}", tests.len(), out.display());
             Ok(())
         }),
         Command::Generate { target } => generate(*target),
@@ -1201,7 +1256,9 @@ fn summary(service: &Service) -> String {
 
 /// Traits from the model's own namespaces, which only a project plugin reads.
 fn custom_traits(service: &Service) -> BTreeMap<&ShapeId, usize> {
-    let standard = |id: &ShapeId| id.is_prelude() || id.namespace().starts_with("aws.");
+    let standard = |id: &ShapeId| {
+        id.is_prelude() || id.namespace().starts_with("aws.") || id.namespace() == "smithy.test"
+    };
     let mut maps: Vec<&Traits> = service.operations.iter().map(|op| &op.traits).collect();
     for shape in service.shapes.values() {
         if let Shape::Structure(structure) | Shape::Union(structure) = shape {

@@ -25,5 +25,7 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
-    crucible_build::rust_service("weather_model").generate();
+    crucible_build::rust_service("weather_model")
+        .conformance()
+        .generate();
 }

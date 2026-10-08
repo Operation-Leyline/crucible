@@ -16,6 +16,10 @@ http = ["tokio/net", "tokio/signal"]
 # AWS Lambda: HTTP events (Function URLs, API Gateway, ALB) and direct JSON invokes.
 lambda = ["dep:lambda_http", "dep:lambda_runtime"]
 logging = ["dep:tracing-subscriber"]
+# The conformance harness that generated `smithy.test` vector tests call. Enable it
+# from [dev-dependencies]: nothing in a production build needs it. (This crate's
+# own tests always include it.)
+test-support = []
 
 [dependencies]
 crucible-wire.workspace = true

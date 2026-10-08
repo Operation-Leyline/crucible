@@ -29,6 +29,8 @@
 mod async_interceptor;
 mod async_middleware;
 mod async_operation_middleware;
+#[cfg(any(test, feature = "test-support"))]
+pub mod conformance;
 pub mod context;
 mod decoded_job;
 mod exception_translator;
@@ -109,6 +111,29 @@ pub mod __private {
 macro_rules! include_service {
     () => {
         include!(concat!(env!("OUT_DIR"), "/crucible_service.rs"));
+    };
+}
+
+/// Includes the `smithy.test` conformance tests generated for this crate's model
+/// by `crucible_build::rust_service(..).conformance()`. Declare it inside a
+/// `#[cfg(test)]` module of the crate that called `include_service!()`, with
+/// `crucible-server-runtime-rust/test-support` enabled for tests. The optional
+/// argument configures the service the tests build, as the production builder
+/// does (a `fn(Builder) -> Builder`, closures that capture nothing included); by default only
+/// the framework defaults apply.
+#[cfg(feature = "test-support")]
+#[macro_export]
+macro_rules! include_conformance {
+    () => {
+        $crate::include_conformance!(|builder: $crate::Builder| builder);
+    };
+    ($configure:expr) => {
+        fn __conformance_configure(builder: $crate::Builder) -> $crate::Builder {
+            // A function pointer, so a closure's parameter type is known.
+            let configure: fn($crate::Builder) -> $crate::Builder = $configure;
+            configure(builder)
+        }
+        include!(concat!(env!("OUT_DIR"), "/crucible_conformance.rs"));
     };
 }
 

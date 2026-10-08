@@ -1600,6 +1600,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcv2-json-service"
+version = "0.0.0"
+dependencies = [
+ "crucible-build",
+ "crucible-server-runtime-rust",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2509,6 +2517,7 @@ name = "weather-model"
 version = "0.0.0"
 dependencies = [
  "crucible-build",
+ "serde_json",
 ]
 
 [[package]]

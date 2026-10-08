@@ -1,0 +1,17 @@
+# Smithy's own RPC v2 JSON protocol tests, run against the Rust server. A
+# service over the official model; its operations are stubs, so every test
+# exercises the framework's protocol, not an implementation.
+[package]
+name = "rpcv2-json-service"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+crucible-server-runtime-rust = { path = "../../crates/crucible-server-runtime-rust" }
+
+[build-dependencies]
+crucible-build = { path = "../../crates/crucible-build" }
+
+[dev-dependencies]
+crucible-server-runtime-rust = { path = "../../crates/crucible-server-runtime-rust", features = ["test-support"] }

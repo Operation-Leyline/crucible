@@ -14,7 +14,8 @@ pub use crate::discovery::{DiscoveredEndpoint, EndpointDiscovery};
 pub use crate::extensions::*;
 pub use crate::jmespath_ir::{JmesComparator, JmesEntry, JmesExpression, JmesFunction};
 pub use crate::protocol_tests::{
-    HttpMessageExpectation, HttpProtocolTest, HttpTestCase, TestAppliesTo,
+    HttpMessageExpectation, HttpProtocolTest, HttpTestCase, MalformedBodyAssertion,
+    MalformedRequestDefinition, MalformedResponseBody, MalformedResponseDefinition, TestAppliesTo,
 };
 pub use crate::recursion::RecursiveGroup;
 pub use crate::xml::{XmlMember, XmlNamespace, XmlShape};
