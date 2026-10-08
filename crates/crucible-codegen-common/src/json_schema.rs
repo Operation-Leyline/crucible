@@ -181,12 +181,12 @@ pub fn object<'a>(
             member(
                 service,
                 m,
-                m.optional_on_client(),
+                m.optional_on_server(),
                 formats.get(&m.name).copied(),
                 None,
             ),
         );
-        if !m.optional_on_client() && m.client_default().is_none() {
+        if !m.optional_on_server() && m.default.is_none() {
             required.push(m.wire_name.clone());
         }
     }

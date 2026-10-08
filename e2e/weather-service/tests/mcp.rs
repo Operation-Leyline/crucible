@@ -356,6 +356,45 @@ impl OperationAwareMiddleware for FrameworkOperationAuth {
     }
 }
 
+struct TransportRefusal;
+impl crucible_server_runtime_rust::Middleware for TransportRefusal {
+    fn before<'a>(
+        &'a self,
+        _job: &'a mut crucible_server_runtime_rust::Job,
+    ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
+        Hook::Ready(Err(weather::ConflictError {
+            message: "transport refused".into(),
+        }
+        .into()))
+    }
+}
+
+#[tokio::test]
+async fn pre_dispatch_failures_preserve_http_errors() {
+    let limited = weather_service::builder(Arc::new(MemoryCities::default()))
+        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .body_limit(1)
+        .build()
+        .unwrap();
+    let refused = weather_service::builder(Arc::new(MemoryCities::default()))
+        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .middleware(TransportRefusal)
+        .build()
+        .unwrap();
+    for (service, status, error) in [
+        (limited, StatusCode::BAD_REQUEST, "ValidationError"),
+        (refused, StatusCode::CONFLICT, "ConflictError"),
+    ] {
+        let (actual, headers, body) =
+            request(&service, "POST", &rpc("ping", json!({})).to_string(), &[]).await;
+        assert_eq!(actual, status);
+        assert!(headers.contains_key("x-request-id"));
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(body["__type"], error);
+        assert!(body.get("jsonrpc").is_none());
+    }
+}
+
 #[tokio::test]
 async fn framework_auth_refusals_keep_http_status_in_mcp() {
     let service = weather_service::builder(Arc::new(MemoryCities::default()))

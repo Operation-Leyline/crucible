@@ -325,7 +325,8 @@ impl Protocol for McpProtocol {
             return crate::protocol::JsonProtocol.write(job, answers);
         }
         let Some(call) = job.context().attribute::<Call>() else {
-            return rpc_error(Value::Null, -32603, "Internal error");
+            // Failures before tool routing retain their HTTP status and type.
+            return crate::protocol::JsonProtocol.write(job, answers);
         };
         match job.resolution() {
             Some(Resolution::Success(output)) => {

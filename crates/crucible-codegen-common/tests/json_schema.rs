@@ -40,8 +40,27 @@ fn standalone_schemas_are_identical_to_openapi_definitions_except_reference_root
             .input
             .as_ref(),
     );
-    assert!(input.get("required").is_none());
-    assert!(input["properties"]["name"]["anyOf"].is_array());
+    assert_eq!(input["required"], serde_json::json!(["name"]));
+    assert!(input["properties"]["name"].get("anyOf").is_none());
+    for (operation, required) in [
+        ("GetCity", serde_json::json!(["cityId"])),
+        ("PutCityPhoto", serde_json::json!(["cityId", "photo"])),
+    ] {
+        let op = service
+            .operations
+            .iter()
+            .find(|op| op.name() == operation)
+            .unwrap();
+        let schema = standalone(&service, op.input.as_ref());
+        assert_eq!(schema["required"], required);
+        for name in required.as_array().unwrap() {
+            assert!(
+                schema["properties"][name.as_str().unwrap()]
+                    .get("anyOf")
+                    .is_none()
+            );
+        }
+    }
     let unit = standalone(&service, None);
     assert_eq!(unit["type"], "object");
     assert_eq!(unit["maxProperties"], 0);

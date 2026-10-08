@@ -81,21 +81,8 @@
                 ]
               },
               "name": {
-                "anyOf": [
-                  {
-                    "maxLength": 40,
-                    "type": "string",
-                    "x-smithy-traits": {
-                      "smithy.api#length": {
-                        "max": 100,
-                        "min": 1
-                      }
-                    }
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
+                "maxLength": 40,
+                "type": "string",
                 "x-smithy-traits": {
                   "example.weather#audited": {},
                   "smithy.api#length": {
@@ -105,6 +92,9 @@
                 }
               }
             },
+            "required": [
+              "name"
+            ],
             "type": "object",
             "x-smithy-traits": {
               "crucible.protocols#strict": {},
@@ -196,21 +186,8 @@
             ]
           },
           "name": {
-            "anyOf": [
-              {
-                "maxLength": 40,
-                "type": "string",
-                "x-smithy-traits": {
-                  "smithy.api#length": {
-                    "max": 100,
-                    "min": 1
-                  }
-                }
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "maxLength": 40,
+            "type": "string",
             "x-smithy-traits": {
               "example.weather#audited": {},
               "smithy.api#length": {
@@ -220,6 +197,9 @@
             }
           }
         },
+        "required": [
+          "name"
+        ],
         "type": "object",
         "x-smithy-traits": {
           "crucible.protocols#strict": {},
@@ -389,24 +369,17 @@
                 }
               },
               "cityId": {
-                "anyOf": [
-                  {
-                    "pattern": "^c-[a-z0-9]{8}$",
-                    "type": "string",
-                    "x-smithy-traits": {
-                      "smithy.api#pattern": "^c-[a-z0-9]{8}$"
-                    }
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
+                "pattern": "^c-[a-z0-9]{8}$",
+                "type": "string",
                 "x-smithy-traits": {
                   "smithy.api#httpLabel": {},
                   "smithy.api#required": {}
                 }
               }
             },
+            "required": [
+              "cityId"
+            ],
             "type": "object",
             "x-smithy-traits": {
               "smithy.api#input": {}
@@ -429,24 +402,17 @@
             }
           },
           "cityId": {
-            "anyOf": [
-              {
-                "pattern": "^c-[a-z0-9]{8}$",
-                "type": "string",
-                "x-smithy-traits": {
-                  "smithy.api#pattern": "^c-[a-z0-9]{8}$"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "pattern": "^c-[a-z0-9]{8}$",
+            "type": "string",
             "x-smithy-traits": {
               "smithy.api#httpLabel": {},
               "smithy.api#required": {}
             }
           }
         },
+        "required": [
+          "cityId"
+        ],
         "type": "object",
         "x-smithy-traits": {
           "smithy.api#input": {}
@@ -660,24 +626,17 @@
           "example.weather.GetCityPhotoInput": {
             "properties": {
               "cityId": {
-                "anyOf": [
-                  {
-                    "pattern": "^c-[a-z0-9]{8}$",
-                    "type": "string",
-                    "x-smithy-traits": {
-                      "smithy.api#pattern": "^c-[a-z0-9]{8}$"
-                    }
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
+                "pattern": "^c-[a-z0-9]{8}$",
+                "type": "string",
                 "x-smithy-traits": {
                   "smithy.api#httpLabel": {},
                   "smithy.api#required": {}
                 }
               }
             },
+            "required": [
+              "cityId"
+            ],
             "type": "object",
             "x-smithy-traits": {
               "smithy.api#input": {}
@@ -686,24 +645,17 @@
         },
         "properties": {
           "cityId": {
-            "anyOf": [
-              {
-                "pattern": "^c-[a-z0-9]{8}$",
-                "type": "string",
-                "x-smithy-traits": {
-                  "smithy.api#pattern": "^c-[a-z0-9]{8}$"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "pattern": "^c-[a-z0-9]{8}$",
+            "type": "string",
             "x-smithy-traits": {
               "smithy.api#httpLabel": {},
               "smithy.api#required": {}
             }
           }
         },
+        "required": [
+          "cityId"
+        ],
         "type": "object",
         "x-smithy-traits": {
           "smithy.api#input": {}
@@ -1213,53 +1165,32 @@
                 }
               },
               "cityId": {
-                "anyOf": [
-                  {
-                    "pattern": "^c-[a-z0-9]{8}$",
-                    "type": "string",
-                    "x-smithy-traits": {
-                      "smithy.api#pattern": "^c-[a-z0-9]{8}$"
-                    }
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
+                "pattern": "^c-[a-z0-9]{8}$",
+                "type": "string",
                 "x-smithy-traits": {
                   "smithy.api#httpLabel": {},
                   "smithy.api#required": {}
                 }
               },
               "photo": {
-                "anyOf": [
-                  {
-                    "contentEncoding": "base64",
-                    "description": "A photo, carried unparsed.",
-                    "type": "string",
-                    "x-smithy-length": {
-                      "max": 4096,
-                      "min": 1,
-                      "unit": "bytes"
-                    },
-                    "x-smithy-traits": {
-                      "smithy.api#documentation": "A photo, carried unparsed.",
-                      "smithy.api#length": {
-                        "max": 4096,
-                        "min": 1
-                      },
-                      "smithy.api#mediaType": "image/jpeg"
-                    }
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
+                "contentEncoding": "base64",
+                "description": "A photo, carried unparsed.",
+                "type": "string",
+                "x-smithy-length": {
+                  "max": 4096,
+                  "min": 1,
+                  "unit": "bytes"
+                },
                 "x-smithy-traits": {
                   "smithy.api#httpPayload": {},
                   "smithy.api#required": {}
                 }
               }
             },
+            "required": [
+              "cityId",
+              "photo"
+            ],
             "type": "object",
             "x-smithy-traits": {
               "smithy.api#input": {}
@@ -1284,53 +1215,32 @@
             }
           },
           "cityId": {
-            "anyOf": [
-              {
-                "pattern": "^c-[a-z0-9]{8}$",
-                "type": "string",
-                "x-smithy-traits": {
-                  "smithy.api#pattern": "^c-[a-z0-9]{8}$"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "pattern": "^c-[a-z0-9]{8}$",
+            "type": "string",
             "x-smithy-traits": {
               "smithy.api#httpLabel": {},
               "smithy.api#required": {}
             }
           },
           "photo": {
-            "anyOf": [
-              {
-                "contentEncoding": "base64",
-                "description": "A photo, carried unparsed.",
-                "type": "string",
-                "x-smithy-length": {
-                  "max": 4096,
-                  "min": 1,
-                  "unit": "bytes"
-                },
-                "x-smithy-traits": {
-                  "smithy.api#documentation": "A photo, carried unparsed.",
-                  "smithy.api#length": {
-                    "max": 4096,
-                    "min": 1
-                  },
-                  "smithy.api#mediaType": "image/jpeg"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "contentEncoding": "base64",
+            "description": "A photo, carried unparsed.",
+            "type": "string",
+            "x-smithy-length": {
+              "max": 4096,
+              "min": 1,
+              "unit": "bytes"
+            },
             "x-smithy-traits": {
               "smithy.api#httpPayload": {},
               "smithy.api#required": {}
             }
           }
         },
+        "required": [
+          "cityId",
+          "photo"
+        ],
         "type": "object",
         "x-smithy-traits": {
           "smithy.api#input": {}
