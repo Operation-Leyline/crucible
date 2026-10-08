@@ -198,9 +198,7 @@ pub(crate) fn emit(
         }
     }
 
-    let mut code =
-        String::from("use ::crucible_server_runtime_rust::validate::{Validate, Validator};\n");
-    code.push_str(&out);
+    let mut code = out;
     if !defaults.is_empty() {
         code.push_str("\nmod defaults {\n");
         code.push_str(&defaults);
@@ -590,7 +588,7 @@ fn validate_impl(
         body.push_str("        let _ = validator;\n");
     }
     format!(
-        "\nimpl Validate for {name} {{\n    fn validate(&self, validator: &mut Validator) {{\n{body}    }}\n}}\n"
+        "\nimpl ::crucible_server_runtime_rust::validate::Validate for {name} {{\n    fn validate(&self, validator: &mut ::crucible_server_runtime_rust::validate::Validator) {{\n{body}    }}\n}}\n"
     )
 }
 

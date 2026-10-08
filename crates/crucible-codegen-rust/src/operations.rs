@@ -208,7 +208,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
             )
         };
         streaming.push_str(&format!(
-            "    fn output_status(value: &Self::Output) -> Option<u16> {{ {get} }}\n"
+            "    fn output_status(value: &Self::Output) -> ::std::option::Option<u16> {{ {get} }}\n"
         ));
     }
     for (direction, id, bindings) in [
@@ -239,7 +239,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
             } else {
                 (format!("Some(value.{rust}.clone())"), "stream")
             };
-            streaming.push_str(&format!("    fn {direction}_stream(value: &Self::{ty}) -> Option<::crucible_server_runtime_rust::ByteStream> {{ {get} }}\n    fn set_{direction}_stream(value: &mut Self::{ty}, stream: ::crucible_server_runtime_rust::ByteStream) {{ value.{rust} = {set}; }}\n"));
+            streaming.push_str(&format!("    fn {direction}_stream(value: &Self::{ty}) -> ::std::option::Option<::crucible_server_runtime_rust::ByteStream> {{ {get} }}\n    fn set_{direction}_stream(value: &mut Self::{ty}, stream: ::crucible_server_runtime_rust::ByteStream) {{ value.{rust} = {set}; }}\n"));
         }
     }
     let auth = op
@@ -279,7 +279,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         .collect::<Vec<_>>()
         .join(", ");
     let mut auth = format!(
-        "    const AUTH_SCHEMES: Option<&'static [::crucible_server_runtime_rust::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
+        "    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
         op.optional_auth
     );
     auth.push_str(&wire(service, op));
@@ -373,7 +373,7 @@ fn wire(service: &Service, op: &Operation) -> String {
         }
     };
     out.push_str(&format!(
-        "    const CHECKSUM: Option<::crucible_server_runtime_rust::operation::Checksum> = Some(::crucible_server_runtime_rust::operation::Checksum::{checksum});\n"
+        "    const CHECKSUM: ::std::option::Option<::crucible_server_runtime_rust::operation::Checksum> = Some(::crucible_server_runtime_rust::operation::Checksum::{checksum});\n"
     ));
     out
 }
