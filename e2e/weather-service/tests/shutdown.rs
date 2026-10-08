@@ -10,6 +10,7 @@ use axum::http::Request;
 use crucible_server_runtime_rust::host;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Notify;
 use tower::ServiceExt;
 use weather_service::MemoryCities;
 
@@ -18,12 +19,17 @@ const HANDLER_DELAY: Duration = Duration::from_millis(400);
 
 #[tokio::test]
 async fn shutdown_finishes_the_request_in_flight_then_returns() {
+    let entered = Arc::new(Notify::new());
+    let layer_entered = entered.clone();
     let service = weather_service::builder(Arc::new(MemoryCities::default()))
         .tower_layer(tower::layer::layer_fn(
-            |inner: crucible_server_runtime_rust::Endpoint| {
+            move |inner: crucible_server_runtime_rust::Endpoint| {
+                let entered = layer_entered.clone();
                 tower::service_fn(move |request: Request<Body>| {
                     let inner = inner.clone();
+                    let entered = entered.clone();
                     async move {
+                        entered.notify_one();
                         tokio::time::sleep(HANDLER_DELAY).await;
                         inner.oneshot(request).await
                     }
@@ -44,7 +50,10 @@ async fn shutdown_finishes_the_request_in_flight_then_returns() {
     busy.write_all(b"GET /ping HTTP/1.1\r\nhost: test\r\n\r\n")
         .await
         .unwrap();
-    tokio::time::sleep(HANDLER_DELAY / 4).await;
+    // Signal only once the request is inside the handler.
+    tokio::time::timeout(Duration::from_secs(5), entered.notified())
+        .await
+        .expect("the request reaches the handler");
     signal.send(()).unwrap();
 
     // The request in flight is answered, then its connection closes.
