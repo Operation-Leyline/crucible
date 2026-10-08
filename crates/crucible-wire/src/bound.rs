@@ -62,6 +62,11 @@ impl<'a> BoundValue<'a> {
                     .map(Self::Number)
                     .map_err(|error: serde_json::Error| error.to_string())
             }
+            // Keep protocol non-finite spellings as text for NonFinite; JSON's
+            // value deserializer cannot represent them as numeric values.
+            Scalar::Float if matches!(&*text, "NaN" | "Infinity" | "-Infinity") => {
+                Ok(Self::Text(text))
+            }
             Scalar::Float => text
                 .parse::<f64>()
                 .ok()
@@ -439,6 +444,36 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
+
+    #[test]
+    fn bound_non_finite_floats_decode_for_both_widths() {
+        #[derive(Deserialize)]
+        struct Floats {
+            #[serde(with = "crate::codec::Adapter::<crate::codec::NonFinite>")]
+            single: f32,
+            #[serde(with = "crate::codec::Adapter::<crate::codec::NonFinite>")]
+            double: f64,
+        }
+        for (text, expected) in [
+            ("NaN", f64::NAN),
+            ("Infinity", f64::INFINITY),
+            ("-Infinity", f64::NEG_INFINITY),
+        ] {
+            let value = BoundValue::parse(text.into(), Scalar::Float).unwrap();
+            let decoded: Floats =
+                read(b"", vec![("single", value.clone()), ("double", value)]).unwrap();
+            assert!(
+                decoded.single as f64 == expected || (decoded.single.is_nan() && expected.is_nan())
+            );
+            assert!(decoded.double == expected || (decoded.double.is_nan() && expected.is_nan()));
+        }
+        for text in ["nan", "inf", "+Infinity", "1e400", "not-a-number"] {
+            assert!(
+                BoundValue::parse(text.into(), Scalar::Float).is_err(),
+                "{text}"
+            );
+        }
+    }
 
     #[derive(Debug, Deserialize, PartialEq)]
     #[serde(rename_all = "camelCase")]
