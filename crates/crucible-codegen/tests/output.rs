@@ -145,3 +145,53 @@ fn rejects_symlink_outputs_and_stale_file_parents() {
     assert!(write(&linked, &[file("new", "bad")]).is_err());
     assert!(!external.path().join("new").exists());
 }
+
+#[test]
+fn failed_write_leaves_the_directory_regenerable() {
+    let root = tempfile::tempdir().unwrap();
+    let out = root.path().join("sdk");
+    write(&out, &[file("z.txt", "old")]).unwrap();
+    let locked = out.join("z.txt");
+    let mut permissions = fs::metadata(&locked).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&locked, permissions.clone()).unwrap();
+    // A superuser writes through read-only files, so no failure to provoke.
+    if fs::OpenOptions::new().append(true).open(&locked).is_ok() {
+        return;
+    }
+    let files = [file("new.txt", "new"), file("z.txt", "changed")];
+    assert!(write(&out, &files).is_err());
+    #[allow(clippy::permissions_set_readonly_false)]
+    permissions.set_readonly(false);
+    fs::set_permissions(&locked, permissions).unwrap();
+    write(&out, &files).unwrap();
+    assert_eq!(fs::read_to_string(out.join("new.txt")).unwrap(), "new");
+    assert_eq!(fs::read_to_string(out.join("z.txt")).unwrap(), "changed");
+}
+
+#[test]
+fn case_only_rename_regenerates() {
+    let root = tempfile::tempdir().unwrap();
+    let out = root.path().join("sdk");
+    write(&out, &[file("src/Foo.txt", "old"), file("Dir/a.txt", "a")]).unwrap();
+    write(&out, &[file("src/foo.txt", "new"), file("dir/a.txt", "a")]).unwrap();
+    let names: Vec<_> = fs::read_dir(out.join("src"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    assert_eq!(names, ["foo.txt"]);
+    assert_eq!(fs::read_to_string(out.join("src/foo.txt")).unwrap(), "new");
+    assert_eq!(fs::read_to_string(out.join("dir/a.txt")).unwrap(), "a");
+}
+
+#[test]
+fn case_variant_of_a_consumer_file_is_not_adopted() {
+    let root = tempfile::tempdir().unwrap();
+    let out = root.path().join("sdk");
+    write(&out, &[file("generated", "source")]).unwrap();
+    fs::write(out.join("Bar.txt"), "mine").unwrap();
+    // Either the filesystem keeps the two names apart or it refuses; the
+    // consumer's file survives in both cases.
+    let _ = write(&out, &[file("generated", "source"), file("bar.txt", "gen")]);
+    assert_eq!(fs::read_to_string(out.join("Bar.txt")).unwrap(), "mine");
+}

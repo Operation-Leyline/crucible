@@ -52,7 +52,11 @@ pub fn write(out: &Path, files: &[File]) -> io::Result<()> {
                 path.display()
             )));
         }
-        if current.contains(relative) && path.exists() && !previous.contains(relative) && !legacy {
+        if current.contains(relative)
+            && path.exists()
+            && !legacy
+            && !previous_owns(out, relative, &previous)?
+        {
             return Err(io::Error::other(format!(
                 "{} holds a file crucible did not write; refusing to replace it",
                 path.display()
@@ -73,13 +77,16 @@ pub fn write(out: &Path, files: &[File]) -> io::Result<()> {
         }
     }
     fs::create_dir_all(out)?;
-    for file in files {
-        let path = out.join(&file.path);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        write_changed(&path, file.contents.as_bytes())?;
-    }
+    // An I/O error below must not strand files the old manifest doesn't list:
+    // the next run would take them for consumer files and refuse forever. So
+    // the manifest first claims the union of old and new paths.
+    let union: BTreeSet<&String> = previous.union(&current).collect();
+    write_changed(
+        &marker,
+        &serde_json::to_vec_pretty(&union).map_err(io::Error::other)?,
+    )?;
+    // Removed before writing: on a case-insensitive filesystem an obsolete
+    // `Foo.txt` is the very file a new `foo.txt` is written to.
     for relative in previous.difference(&current) {
         let path = out.join(relative);
         match fs::remove_file(&path) {
@@ -88,8 +95,49 @@ pub fn write(out: &Path, files: &[File]) -> io::Result<()> {
             Err(error) => return Err(error),
         }
     }
-    let manifest = serde_json::to_vec_pretty(&current).map_err(io::Error::other)?;
-    write_changed(&marker, &manifest)
+    for file in files {
+        let path = out.join(&file.path);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        write_changed(&path, file.contents.as_bytes())?;
+    }
+    write_changed(
+        &marker,
+        &serde_json::to_vec_pretty(&current).map_err(io::Error::other)?,
+    )
+}
+
+/// Whether the file already at `out/relative` is one the previous manifest
+/// lists. Names are compared exactly, except that a case-insensitive
+/// filesystem resolves `foo.txt` to an existing `Foo.txt`: that file is owned
+/// only if its on-disk name is listed. Unclear resolution is not ownership.
+fn previous_owns(out: &Path, relative: &str, previous: &BTreeSet<String>) -> io::Result<bool> {
+    if previous.contains(relative) {
+        return Ok(true);
+    }
+    let mut dir = out.to_path_buf();
+    let mut resolved = Vec::new();
+    for segment in relative.split('/') {
+        let mut matches = Vec::new();
+        for entry in fs::read_dir(&dir)? {
+            let name = entry?.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if name == segment {
+                matches = vec![name.to_owned()];
+                break;
+            }
+            if name.eq_ignore_ascii_case(segment) {
+                matches.push(name.to_owned());
+            }
+        }
+        let [name] = matches.as_slice() else {
+            return Ok(false);
+        };
+        dir.push(name);
+        resolved.push(name.clone());
+    }
+    Ok(previous.contains(&resolved.join("/")))
 }
 
 fn validate(relative: &str) -> io::Result<()> {
