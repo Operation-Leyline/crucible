@@ -9,6 +9,38 @@ use crucible_codegen_ts::{Middleware, Options, emit};
 use crucible_smithy::Model;
 
 #[test]
+fn legacy_enum_models_match_golden() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/legacy-enum.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let options = Options {
+        package_name: "@example/legacy".into(),
+        package_version: "0.0.0-dev".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+    };
+    let models = emit(&service, &options)
+        .unwrap()
+        .into_iter()
+        .find(|file| file.path == "src/models.ts")
+        .unwrap()
+        .contents;
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/legacy_enum_models.ts");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &models).unwrap();
+    }
+    assert_eq!(
+        fs::read_to_string(path).unwrap().replace("\r\n", "\n"),
+        models
+    );
+}
+
+#[test]
 fn weather_client_matches_golden_files() {
     let model = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
     let service = Model::from_json(model).unwrap().lower(None).unwrap();

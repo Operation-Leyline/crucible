@@ -23,6 +23,21 @@ fn cors_server_description_matches_golden() {
 }
 
 #[test]
+fn legacy_enum_server_and_client_match_goldens() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/legacy-enum.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    matches_golden(
+        &generate(&service, &Options::default()).unwrap(),
+        "legacy_enum.rs",
+    );
+    matches_golden(&generate_client(&service).unwrap(), "legacy_enum_client.rs");
+}
+
+#[test]
 fn generated_patterns_use_ecma_classes_and_line_terminators() {
     for (pattern, accepted, rejected) in [
         (r"^\d+$", "12", vec!["١٢", "１"]),

@@ -1,0 +1,116 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.legacy#Legacy": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.rules#endpointTests": {
+          "testCases": []
+        }
+      },
+      "operations": [
+        {
+          "target": "example.legacy#SetColor"
+        }
+      ]
+    },
+    "example.legacy#SetColor": {
+      "type": "operation",
+      "input": {
+        "target": "example.legacy#Input"
+      },
+      "output": {
+        "target": "example.legacy#Output"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/color"
+        },
+        "smithy.api#idempotent": {
+          "exists": [],
+          "notFound": []
+        },
+        "smithy.api#longPoll": { "timeoutMillis": 1000 },
+        "smithy.test#smokeTests": [],
+        "smithy.api#createsResources": [
+          {
+            "resource": "example.legacy#Paint"
+          }
+        ],
+        "smithy.api#putsResources": [
+          {
+            "resource": "example.legacy#Paint"
+          }
+        ],
+        "smithy.api#readsResources": [
+          {
+            "resource": "example.legacy#Paint"
+          }
+        ],
+        "smithy.api#updatesResources": [
+          {
+            "resource": "example.legacy#Paint"
+          }
+        ],
+        "smithy.api#deletesResources": [
+          {
+            "resource": "example.legacy#Paint"
+          }
+        ]
+      }
+    },
+    "example.legacy#Input": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "color": {
+          "target": "example.legacy#Color",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.legacy#Output": {
+      "type": "structure",
+      "members": {
+        "color": {
+          "target": "example.legacy#Color",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      }
+    },
+    "example.legacy#Color": {
+      "type": "string",
+      "traits": {
+        "smithy.api#documentation": "A legacy color enum.",
+        "smithy.api#enum": [
+          {
+            "name": "RED",
+            "value": "red-wire",
+            "documentation": "Warm red.",
+            "deprecated": true,
+            "tags": [
+              "warm"
+            ]
+          },
+          {
+            "name": "BLUE",
+            "value": "blue-wire",
+            "documentation": "Cool blue."
+          }
+        ]
+      }
+    },
+    "example.legacy#Paint": {
+      "type": "resource"
+    }
+  }
+}
