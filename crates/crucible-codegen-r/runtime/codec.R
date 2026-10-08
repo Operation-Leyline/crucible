@@ -214,10 +214,14 @@ big_decimal <- function(value) {
   shape <- .crucible_shape(description$target)
   if (shape$kind == 'list') {
     if (trimws(text) == '') return(list())
+    item <- .crucible_shape(shape$member$target)
+    item_format <- if (!is.null(format)) format else if (!is.null(shape$member$format)) shape$member$format else item$format
+    http_date <- item$kind == 'timestamp' && identical(item_format, 'http-date')
     parts <- list(); part <- ''; quoted <- FALSE; escaped <- FALSE
     append <- function() { value <- trimws(part); if (startsWith(value, '"')) value <- json_parse(value); parts[[length(parts) + 1L]] <<- .crucible_header(shape$member, value, format); part <<- '' }
     for (char in strsplit(text, '', fixed = TRUE)[[1L]]) {
-      if (char == ',' && !quoted) { append(); next }
+      # The comma after an HTTP-date weekday belongs to the date, not the list.
+      if (char == ',' && !quoted && !(http_date && grepl('^[A-Za-z]{3}$', trimws(part)))) { append(); next }
       part <- paste0(part, char)
       if (escaped) escaped <- FALSE else if (char == '\\' && quoted) escaped <- TRUE else if (char == '"') quoted <- !quoted
     }

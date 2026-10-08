@@ -15,6 +15,7 @@ void main() {
       "bool": {"kind":"boolean"}, "doc": {"kind":"document"},
       "time": {"kind":"timestamp", "format":"epoch-seconds"},
       "list": {"kind":"list", "member":{"target":"str"}},
+      "dates": {"kind":"list", "member":{"target":"time", "format":"http-date"}},
       "structure": {"kind":"structure", "members": {
         "missing":{"target":"str", "default":null},
         "defaulted":{"target":"long", "default":9223372036854775807},
@@ -29,6 +30,15 @@ void main() {
         throw StateError('Unexpected generated model $target'),
   );
   final max = BigInt.parse('9223372036854775807');
+  final dates = [
+    'Wed, 31 Dec 1969 23:59:59 GMT',
+    'Thu, 01 Jan 1970 00:00:00 GMT'
+  ];
+  for (final wire in [dates.join(', '), codec.bound(dates)]) {
+    final parsed = codec.header({'target': 'dates'}, wire) as List;
+    check(parsed.length == 2 && parsed[0] == dates[0] && parsed[1] == dates[1],
+        'Explicit list member HTTP-date header format preserves date commas');
+  }
   check(
     codec.decode(JsonNumber(max.toString()), codec.context('long')) == max,
     'Exact long decode',
