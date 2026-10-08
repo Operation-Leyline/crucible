@@ -415,6 +415,128 @@ fn routing_compares_path_segments_before_query_and_greedy_labels() {
     }
 }
 
+#[test]
+fn routing_normalizes_trailing_slashes_and_encoded_literals() {
+    let operations = route_operations();
+    for uri in ["/abc/bcd/value/", "/%61bc/bcd/value", "/abc/bcd/value///"] {
+        let (parts, _) = Request::post(uri).body(()).unwrap().into_parts();
+        let route = JsonProtocol.route(&parts, &operations).expect(uri);
+        assert_eq!(route.operation, "ZEarly");
+        assert_eq!(route.labels, vec![("x", "value".to_owned())]);
+    }
+    let (parts, _) = Request::post("/greedy/a/b/tail/")
+        .body(())
+        .unwrap()
+        .into_parts();
+    assert_eq!(
+        JsonProtocol.route(&parts, &operations).unwrap().labels,
+        vec![("x", "a/b".to_owned())]
+    );
+    for uri in ["/abc//value", "/%2Fabc/bcd/value", "/%zzbc/bcd/value"] {
+        let (parts, _) = Request::post(uri).body(()).unwrap().into_parts();
+        assert!(JsonProtocol.route(&parts, &operations).is_none(), "{uri}");
+    }
+}
+
+#[test]
+fn explicit_head_routes_take_precedence_over_get_fallback() {
+    static GET: OperationInfo = OperationInfo {
+        method: "GET",
+        ..operation("Get", &[Segment::Literal("head")], &[])
+    };
+    static HEAD: OperationInfo = OperationInfo {
+        method: "HEAD",
+        ..operation("Head", &[Segment::Literal("head")], &[])
+    };
+    static SERVICE: ServiceInfo = ServiceInfo {
+        operations: &[&GET, &HEAD],
+        ..ROUTES
+    };
+    route_operation!(Get, GET);
+    route_operation!(Head, HEAD);
+    let operations = Operations::builder(&SERVICE)
+        .add::<Get, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .add::<Head, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
+        .build()
+        .unwrap();
+    let (parts, _) = Request::head("/head").body(()).unwrap().into_parts();
+    assert_eq!(
+        JsonProtocol.route(&parts, &operations).unwrap().operation,
+        "Head"
+    );
+    assert_eq!(
+        JsonProtocol
+            .route_scoped(&parts, &operations, &|op| op.name == "Get")
+            .unwrap()
+            .operation,
+        "Get"
+    );
+}
+
+#[tokio::test]
+async fn known_targets_return_405_with_allow_and_head_uses_get_without_a_body() {
+    for rest in [false, true] {
+        let operations = weather_service::weather::operations(Arc::new(
+            weather_service::Weather::new(Arc::new(weather_service::MemoryCities::default())),
+        ));
+        let builder = Crucible::builder(operations);
+        let service = if rest {
+            builder.protocol(crucible_server_runtime_rust::RestJsonProtocol)
+        } else {
+            builder.protocol(JsonProtocol)
+        }
+        .build()
+        .unwrap();
+        let response = service
+            .handle(Request::delete("/cities/").body(Body::empty()).unwrap())
+            .await;
+        assert_eq!(response.status(), 405);
+        assert_eq!(response.headers()["allow"], "GET, HEAD, POST");
+        for uri in ["/cities", "/%63ities/"] {
+            let get = service
+                .handle(Request::get(uri).body(Body::empty()).unwrap())
+                .await;
+            let head = service
+                .handle(Request::head(uri).body(Body::empty()).unwrap())
+                .await;
+            assert_eq!(get.status(), 200);
+            assert_eq!(head.status(), get.status());
+            assert_eq!(
+                head.headers()["content-type"],
+                get.headers()["content-type"]
+            );
+            let bytes = to_bytes(get.into_body(), usize::MAX).await.unwrap();
+            assert!(!bytes.is_empty());
+            assert_eq!(head.headers()["content-length"], bytes.len().to_string());
+            assert!(
+                to_bytes(head.into_body(), usize::MAX)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        let response = service
+            .handle(
+                Request::delete("/no-such-path")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), 400);
+        assert!(!response.headers().contains_key("allow"));
+        let response = service
+            .handle(Request::head("/no-such-path").body(Body::empty()).unwrap())
+            .await;
+        assert!(
+            to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+
 struct CountInvocations(Arc<AtomicUsize>);
 
 impl crucible_server_runtime_rust::Interceptor for CountInvocations {

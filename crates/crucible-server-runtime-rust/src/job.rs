@@ -320,7 +320,9 @@ impl Job {
         }
         if let Some(framework) = error.downcast_ref::<FrameworkError>() {
             return match framework {
-                FrameworkError::UnknownOperation => Resolution::Framework(framework.clone()),
+                FrameworkError::UnknownOperation | FrameworkError::MethodNotAllowed { .. } => {
+                    Resolution::Framework(framework.clone())
+                }
                 FrameworkError::InternalFailure => Resolution::Internal(error),
             };
         }

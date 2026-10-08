@@ -8,7 +8,7 @@ use std::borrow::Cow;
 
 use serde_json::Value;
 
-use super::{Answers, BoundValue, Invocation, Protocol, Route};
+use super::{Answers, BoundValue, Invocation, Protocol, ProtocolMatch, Route};
 use crate::error::{FrameworkError, Result};
 use crate::operation::{Location, MemberInfo, OperationInfo, Scalar, Segment};
 use crate::operations::Operations;
@@ -30,86 +30,23 @@ impl Protocol for JsonProtocol {
         operations: &Operations,
         applies: &dyn Fn(&OperationInfo) -> bool,
     ) -> Option<Route> {
-        if request.extensions.get::<Invocation>().is_some() {
-            return None;
-        }
-        let rest = request.uri.path().strip_prefix('/')?;
-        let path: Vec<&str> = if rest.is_empty() {
-            Vec::new()
-        } else {
-            rest.split('/').collect()
+        route_candidates(request, operations, applies).0
+    }
+
+    fn identify_scoped<'a>(
+        &'a self,
+        job: &'a mut Job,
+        operations: &'a Operations,
+        applies: &'a (dyn Fn(&OperationInfo) -> bool + Send + Sync),
+    ) -> Hook<'a, Result<ProtocolMatch>> {
+        let (route, allowed) = route_candidates(job.request(), operations, applies);
+        let matched = match route {
+            Some(route) => Ok(ProtocolMatch::Claimed(Some(route))),
+            None if self.route(job.request(), operations).is_some() => Ok(ProtocolMatch::Declined),
+            None if !allowed.is_empty() => Err(FrameworkError::MethodNotAllowed { allowed }.into()),
+            None => Ok(ProtocolMatch::Declined),
         };
-        let query = request.uri.query().unwrap_or("");
-        let query_violations = query_violations(query);
-        let mut best: Option<(&OperationInfo, Route, bool)> = None;
-        for &op in operations
-            .routes(path.len())
-            .iter()
-            .chain(operations.greedy_routes())
-        {
-            if !applies(op) || op.method != request.method.as_str() {
-                continue;
-            }
-            let query_matches = match literal_queries_match(query, op) {
-                Some(true) => true,
-                Some(false) => continue,
-                None => false,
-            };
-            let mut labels = Vec::new();
-            let mut violations = query_violations.clone();
-            if path.len() < op.path.len() {
-                continue;
-            }
-            let mut cursor = 0;
-            let matched = op.path.iter().all(|segment| {
-                let Some(part) = path.get(cursor) else {
-                    return false;
-                };
-                cursor += 1;
-                match segment {
-                    Segment::Literal(text) => text == part,
-                    Segment::Label(name) => {
-                        if part.is_empty() {
-                            return false;
-                        }
-                        match percent_decode(part, false) {
-                            Ok(value) => labels.push((*name, value.into_owned())),
-                            Err(message) => violations.push(malformed(name, &message)),
-                        }
-                        true
-                    }
-                    Segment::GreedyLabel(name) => {
-                        let width = path.len() - op.path.len() + 1;
-                        let joined = path[cursor - 1..cursor - 1 + width].join("/");
-                        cursor += width - 1;
-                        if joined.is_empty() {
-                            return false;
-                        }
-                        match percent_decode(&joined, false) {
-                            Ok(value) => labels.push((*name, value.into_owned())),
-                            Err(message) => violations.push(malformed(name, &message)),
-                        }
-                        true
-                    }
-                }
-            }) && cursor == path.len();
-            if matched
-                && best.as_ref().is_none_or(|(most, _, most_query_matches)| {
-                    more_specific(op, most, query_matches, *most_query_matches)
-                })
-            {
-                best = Some((
-                    op,
-                    Route {
-                        operation: op.name,
-                        labels,
-                        rejection: (!violations.is_empty()).then_some(Rejection { violations }),
-                    },
-                    query_matches,
-                ));
-            }
-        }
-        best.map(|(_, route, _)| route)
+        Hook::Ready(matched)
     }
 
     fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
@@ -121,6 +58,124 @@ impl Protocol for JsonProtocol {
 
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
         super::json_response::write(job, answers, super::json_response::Format::Crucible)
+    }
+}
+
+fn route_candidates(
+    request: &Parts,
+    operations: &Operations,
+    applies: &dyn Fn(&OperationInfo) -> bool,
+) -> (Option<Route>, Vec<&'static str>) {
+    if request.extensions.get::<Invocation>().is_some() {
+        return (None, Vec::new());
+    }
+    let Some(rest) = request.uri.path().strip_prefix('/') else {
+        return (None, Vec::new());
+    };
+    let rest = rest.trim_end_matches('/');
+    let path: Vec<&str> = if rest.is_empty() {
+        Vec::new()
+    } else {
+        rest.split('/').collect()
+    };
+    let query = request.uri.query().unwrap_or("");
+    let query_violations = query_violations(query);
+    let mut allowed = Vec::new();
+    let mut best: Option<(&OperationInfo, Route, bool)> = None;
+    for &op in operations
+        .routes(path.len())
+        .iter()
+        .chain(operations.greedy_routes())
+    {
+        if !applies(op) {
+            continue;
+        }
+        let query_matches = match literal_queries_match(query, op) {
+            Some(true) => true,
+            Some(false) => continue,
+            None => false,
+        };
+        let mut labels = Vec::new();
+        let mut violations = query_violations.clone();
+        if path.len() < op.path.len() {
+            continue;
+        }
+        let mut cursor = 0;
+        let matched = op.path.iter().all(|segment| {
+            let Some(part) = path.get(cursor) else {
+                return false;
+            };
+            cursor += 1;
+            match segment {
+                Segment::Literal(text) => literal_segment_matches(text, part),
+                Segment::Label(name) => {
+                    if part.is_empty() {
+                        return false;
+                    }
+                    match percent_decode(part, false) {
+                        Ok(value) => labels.push((*name, value.into_owned())),
+                        Err(message) => violations.push(malformed(name, &message)),
+                    }
+                    true
+                }
+                Segment::GreedyLabel(name) => {
+                    let width = path.len() - op.path.len() + 1;
+                    let joined = path[cursor - 1..cursor - 1 + width].join("/");
+                    cursor += width - 1;
+                    if joined.is_empty() {
+                        return false;
+                    }
+                    match percent_decode(&joined, false) {
+                        Ok(value) => labels.push((*name, value.into_owned())),
+                        Err(message) => violations.push(malformed(name, &message)),
+                    }
+                    true
+                }
+            }
+        }) && cursor == path.len();
+        if !matched {
+            continue;
+        }
+        if query_matches {
+            allowed.push(op.method);
+            if op.method == "GET" {
+                allowed.push("HEAD");
+            }
+        }
+        let exact_method = op.method == request.method.as_str();
+        if !(exact_method || request.method == "HEAD" && op.method == "GET") {
+            continue;
+        }
+        if best.as_ref().is_none_or(|(most, _, most_query_matches)| {
+            let previous_exact = most.method == request.method.as_str();
+            (exact_method && !previous_exact)
+                || (exact_method == previous_exact
+                    && more_specific(op, most, query_matches, *most_query_matches))
+        }) {
+            best = Some((
+                op,
+                Route {
+                    operation: op.name,
+                    labels,
+                    rejection: (!violations.is_empty()).then_some(Rejection { violations }),
+                },
+                query_matches,
+            ));
+        }
+    }
+    allowed.sort_unstable();
+    allowed.dedup();
+    (best.map(|(_, route, _)| route), allowed)
+}
+
+// Decode within a segment so an encoded separator never changes path structure.
+fn literal_segment_matches(literal: &str, segment: &str) -> bool {
+    match (
+        percent_decode(literal, false),
+        percent_decode(segment, false),
+    ) {
+        (Ok(literal), Ok(segment)) => literal == segment,
+        _ => false,
     }
 }
 

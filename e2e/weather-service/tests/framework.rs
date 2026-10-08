@@ -71,20 +71,20 @@ async fn an_unknown_route_is_the_standard_validation_error() {
 }
 
 #[tokio::test]
-async fn only_a_canonical_path_names_an_operation() {
+async fn trailing_slashes_match_but_empty_interior_segments_do_not() {
     let service = service();
-    for uri in [
-        "//cities",
-        "/cities/",
-        "/cities//c-00000001",
-        "/cities/c-00000001/",
-    ] {
+    for uri in ["//cities", "/cities//c-00000001"] {
         let (status, body) = get(&service, uri).await;
         assert_eq!(status, 400, "{uri}: {body}");
         assert_eq!(body["reason"], "unknownOperation", "{uri}: {body}");
     }
-    let (status, _) = get(&service, "/cities").await;
-    assert_eq!(status, 200);
+    for uri in ["/cities", "/cities/", "/%63ities/"] {
+        let (status, _) = get(&service, uri).await;
+        assert_eq!(status, 200, "{uri}");
+    }
+    let (status, body) = get(&service, "/cities/c-00000001/").await;
+    assert_eq!(status, 404);
+    assert_eq!(body["__type"], "NotFoundError");
 }
 
 #[tokio::test]

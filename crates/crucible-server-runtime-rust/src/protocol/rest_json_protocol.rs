@@ -1,7 +1,7 @@
 use axum::http::request::Parts;
 use axum::response::Response;
 
-use super::{Answers, JsonProtocol, Protocol, Route};
+use super::{Answers, JsonProtocol, Protocol, ProtocolMatch, Route};
 use crate::operation::OperationInfo;
 use crate::{Hook, Job, Operations, Result};
 
@@ -20,6 +20,14 @@ impl Protocol for RestJsonProtocol {
         applies: &dyn Fn(&OperationInfo) -> bool,
     ) -> Option<Route> {
         JsonProtocol.route_scoped(request, operations, applies)
+    }
+    fn identify_scoped<'a>(
+        &'a self,
+        job: &'a mut Job,
+        operations: &'a Operations,
+        applies: &'a (dyn Fn(&OperationInfo) -> bool + Send + Sync),
+    ) -> Hook<'a, Result<ProtocolMatch>> {
+        JsonProtocol.identify_scoped(job, operations, applies)
     }
     fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         JsonProtocol.decode(job)
