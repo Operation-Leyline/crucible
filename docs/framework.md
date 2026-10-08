@@ -347,7 +347,10 @@ An empty trait uses origin `*` and a preflight cache age of 600 seconds. Set
 Lowering computes sorted, case-insensitively deduplicated request and response
 header lists across all operations and errors, including authentication headers,
 `content-type`, `x-request-id`, and `X-Crucible-Error`. The generated service
-carries only a static description; the runtime prepares header values once.
+uses the full server contract, including internal operations and headers;
+client audience projection does not narrow its CORS policy. CORS permission
+does not replace application caller authorization. The generated service carries
+only a static description; the runtime prepares header values once.
 Input `@httpPrefixHeaders` bindings retain their prefixes separately: preflight
 adds matching concrete names from `Access-Control-Request-Headers`, since
 browsers do not interpret partial wildcards such as `x-meta-*`.

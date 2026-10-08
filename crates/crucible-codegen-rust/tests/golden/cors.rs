@@ -129,6 +129,7 @@ pub mod cors_service {
         errors: &["CorsError"],
         readonly: false,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };

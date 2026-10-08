@@ -25,7 +25,8 @@ impl api::PublicOperation for Handlers {
     }
 }
 impl api::SecretOperation for Handlers {
-    async fn secret(&self, _: api::SecretInput) -> crucible_server_runtime_rust::Result<()> {
+    async fn secret(&self, input: api::SecretInput) -> crucible_server_runtime_rust::Result<()> {
+        assert_eq!(input.secret.as_deref(), Some("secret header"));
         Ok(())
     }
 }
@@ -59,6 +60,12 @@ async fn middleware_uses_generated_visibility_and_server_retains_every_operation
     assert!(api::Secret::INFO.internal);
     assert!(!api::Public::INFO.internal);
     assert_eq!(api::SERVICE.operations.len(), 2);
+    let cors = api::SERVICE.cors.unwrap();
+    assert!(cors.allowed_headers.contains(&"x-private"));
+    assert!(cors.allowed_headers.contains(&"x-secret"));
+    assert!(cors.exposed_headers.contains(&"x-private-output"));
+    assert!(cors.exposed_headers.contains(&"x-private-error"));
+    assert!(cors.methods.contains(&"DELETE"));
     let service = Crucible::builder(api::operations(Arc::new(Handlers)))
         .on_rejection(|rejection| {
             Box::new(api::PublicFault {
@@ -69,17 +76,64 @@ async fn middleware_uses_generated_visibility_and_server_retains_every_operation
         .operation_middleware(InternalCallers)
         .build()
         .unwrap();
-    for (path, caller, status) in [
-        ("/public", "external", 200),
-        ("/secret", "external", 400),
-        ("/secret", "internal", 200),
+    let preflight = Request::builder()
+        .method("OPTIONS")
+        .uri("/secret")
+        .header("origin", "https://example.com")
+        .header("access-control-request-method", "DELETE")
+        .header("access-control-request-headers", "x-secret,x-private")
+        .body(Body::empty())
+        .unwrap();
+    let response = service.handle(preflight).await;
+    assert_eq!(response.status().as_u16(), 204);
+    let allowed = response.headers()["access-control-allow-headers"]
+        .to_str()
+        .unwrap();
+    assert!(
+        allowed
+            .split(',')
+            .map(str::trim)
+            .any(|name| name == "x-secret")
+    );
+    assert!(
+        allowed
+            .split(',')
+            .map(str::trim)
+            .any(|name| name == "x-private")
+    );
+    for (method, path, caller, status) in [
+        ("POST", "/public", "external", 200),
+        ("DELETE", "/secret", "external", 400),
+        ("DELETE", "/secret", "internal", 200),
     ] {
-        let request = Request::post(path)
+        let request = Request::builder()
+            .method(method)
+            .uri(path)
             .header("content-type", "application/json")
             .header("x-example-caller", caller)
-            .body(Body::from("{}"))
+            .header("x-secret", "secret header")
+            .body(Body::from(r#"{"privateValue":"private output"}"#))
             .unwrap();
         let response = service.handle(request).await;
         assert_eq!(response.status().as_u16(), status, "{path} for {caller}");
+        assert_eq!(response.headers()["access-control-allow-origin"], "*");
+        if path == "/public" {
+            assert_eq!(response.headers()["x-private-output"], "private output");
+        }
+        let exposed = response.headers()["access-control-expose-headers"]
+            .to_str()
+            .unwrap();
+        assert!(
+            exposed
+                .split(',')
+                .map(str::trim)
+                .any(|name| name == "x-private-output")
+        );
+        assert!(
+            exposed
+                .split(',')
+                .map(str::trim)
+                .any(|name| name == "x-private-error")
+        );
     }
 }

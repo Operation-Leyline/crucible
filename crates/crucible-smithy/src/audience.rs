@@ -2,8 +2,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::ir::{
-    Bindings, EndpointParameterSource, HostPrefixPart, JmesExpression, Operation, Service, Shape,
-    WaiterMatcher,
+    Bindings, EndpointParameterSource, HostPrefixPart, JmesExpression, Member, Operation, Service,
+    Shape, WaiterMatcher,
 };
 use crate::{Diagnostics, ShapeId};
 
@@ -22,6 +22,8 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
         return Ok(service.clone());
     }
     let mut result = service.clone();
+    // CORS describes the deployed server contract, which audience selection
+    // never projects. Keep its full header and method lists on client views too.
     result
         .operations
         .retain(|op| !service.internal && !op.internal);
@@ -159,6 +161,9 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
                 }
             } else {
                 check_target(service, &member_id, &member.target, &mut diagnostics);
+                if removed_enum_default(service, member) {
+                    diagnostics.push(&member_id, "audience.default_reference: external default names a removed internal enum value");
+                }
                 pending.push(member.target.clone());
             }
         }
@@ -256,6 +261,22 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
         .renames
         .retain(|id, _| reached.contains(id) || operations.contains(id) || resources.contains(id));
     Ok(result)
+}
+
+fn removed_enum_default(service: &Service, member: &Member) -> bool {
+    // Input/client-optional defaults are ignored by clients, so they do not
+    // reference a generated enum variant in the projected contract.
+    match (service.shape(&member.target), member.client_default()) {
+        (Some(Shape::Enum(shape)), Some(crate::ir::Value::String(value))) => shape
+            .values
+            .iter()
+            .any(|variant| variant.internal && variant.value == *value),
+        (Some(Shape::IntEnum(shape)), Some(crate::ir::Value::Number(value))) => shape
+            .values
+            .iter()
+            .any(|variant| variant.internal && Some(i64::from(variant.value)) == value.as_i64()),
+        _ => false,
+    }
 }
 
 fn check_target(

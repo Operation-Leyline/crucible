@@ -25,7 +25,7 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
-    let model = "../../crates/crucible-smithy/tests/fixtures/internal.json";
+    let model = "../../crates/crucible-smithy/tests/fixtures/internal-cors.json";
     println!("cargo::rerun-if-changed={model}");
     std::fs::write(
         out.join("audience_server.rs"),

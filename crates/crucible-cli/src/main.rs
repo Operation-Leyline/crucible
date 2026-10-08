@@ -787,11 +787,8 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
             runtime_path,
         } => {
-            let service = lower_for_audience(
-                &source,
-                audience,
-                &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
-            )?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_smithy::Capabilities::default())?;
             let runtime_path = runtime_path.canonicalize().map_err(|error| {
                 format!(
                     "cannot resolve runtime path {}: {error}",

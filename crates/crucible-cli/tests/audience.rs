@@ -94,3 +94,65 @@ fn projection_failure_preserves_existing_document_and_collects_refusals() {
         "{errors}"
     );
 }
+
+#[test]
+fn service_cli_checks_capabilities_after_audience_projection_without_panicking() {
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    for (kind, feature) in [("BigInteger", "big-integer"), ("BigDecimal", "big-decimal")] {
+        for (hidden, audience, succeeds) in [
+            (false, "external", false),
+            (true, "internal", false),
+            (true, "external", true),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let model = root.path().join("model.json");
+            let out = root.path().join("cli");
+            fs::create_dir(&out).unwrap();
+            let previous = out.join("schema.json");
+            if !succeeds {
+                fs::write(&previous, "previous publication").unwrap();
+            }
+            let mut value: serde_json::Value = serde_json::from_str(MODEL).unwrap();
+            let mut member = serde_json::json!({"target": format!("smithy.api#{kind}")});
+            if hidden {
+                member["traits"] = serde_json::json!({"smithy.api#internal": {}});
+            }
+            value["shapes"]["example.audience#PublicInput"]["members"]["big"] = member;
+            fs::write(&model, value.to_string()).unwrap();
+            let result = run(&[
+                "generate",
+                "cli",
+                model.to_str().unwrap(),
+                "--out",
+                out.to_str().unwrap(),
+                "--bin-name",
+                "audience",
+                "--runtime-path",
+                runtime.to_str().unwrap(),
+                "--audience",
+                audience,
+            ]);
+            let errors = String::from_utf8(result.stderr).unwrap();
+            assert_eq!(
+                result.status.success(),
+                succeeds,
+                "{kind}, {hidden}, {audience}: {errors}"
+            );
+            assert!(!errors.contains("panicked"), "{errors}");
+            if !succeeds {
+                assert!(
+                    errors.contains(&format!("unsupported target capability {feature}")),
+                    "{errors}"
+                );
+                assert_eq!(
+                    fs::read_to_string(previous).unwrap(),
+                    "previous publication"
+                );
+            }
+        }
+    }
+}

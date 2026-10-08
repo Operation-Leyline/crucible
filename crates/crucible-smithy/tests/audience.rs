@@ -3,8 +3,84 @@ use crucible_smithy::{Audience, Capabilities, Feature, Model, ShapeId, project};
 
 const INTERNAL: &str = include_str!("fixtures/internal.json");
 
+#[test]
+fn cors_keeps_the_full_server_contract_when_client_bindings_are_projected() {
+    let full = lower(include_str!("fixtures/internal-cors.json"), false);
+    let cors = full.cors.as_ref().unwrap();
+    assert_eq!(
+        cors.allowed_headers,
+        ["content-type", "x-private", "x-secret"]
+    );
+    assert_eq!(cors.methods, ["DELETE", "POST"]);
+    assert_eq!(
+        cors.exposed_headers,
+        [
+            "content-type",
+            "x-crucible-error",
+            "x-private-error",
+            "x-private-output",
+            "x-request-id"
+        ]
+    );
+    let external = project(&full, Audience::External).unwrap();
+    assert_eq!(external.operations.len(), 1);
+    assert!(external.operations[0].request.headers.is_empty());
+    assert!(external.operations[0].response.headers.is_empty());
+    assert_eq!(external.operations[0].errors, [id("PublicFault")]);
+    assert_eq!(external.cors, full.cors);
+    assert_eq!(project(&full, Audience::Internal).unwrap().cors, full.cors);
+}
+
 fn id(name: &str) -> ShapeId {
     ShapeId::new("example.audience", name)
+}
+
+#[test]
+fn refuses_effective_client_defaults_that_name_removed_enum_values() {
+    let full = lower(
+        include_str!("fixtures/internal-default-reference.json"),
+        false,
+    );
+    let errors = project(&full, Audience::External).unwrap_err();
+    assert_eq!(errors.len(), 2, "{errors}");
+    for name in ["VisibleEnum", "VisibleIntEnum"] {
+        assert!(
+            errors.iter().any(|error| {
+                error.shape == id("PublicOutput").with_member(name)
+                    && error.message.starts_with("audience.default_reference:")
+            }),
+            "{errors}"
+        );
+    }
+    assert!(project(&full, Audience::Internal).is_ok());
+}
+
+#[test]
+fn public_enum_defaults_and_ignored_client_optional_defaults_remain_valid() {
+    let mut model: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/internal-default-reference.json")).unwrap();
+    for (name, value) in [
+        ("VisibleEnum", serde_json::json!("PUBLIC")),
+        ("VisibleIntEnum", serde_json::json!(1)),
+    ] {
+        model["shapes"]["example.audience#PublicOutput"]["members"][name]["traits"]["smithy.api#default"] =
+            value;
+    }
+    // The @input defaults still name private values, but clients ignore them.
+    assert!(project(&lower(&model.to_string(), false), Audience::External).is_ok());
+    let mut full = lower(
+        include_str!("fixtures/internal-default-reference.json"),
+        false,
+    );
+    let Shape::Structure(output) = full.shapes.get_mut(&id("PublicOutput")).unwrap() else {
+        panic!("output structure")
+    };
+    for member in &mut output.members {
+        if matches!(member.name.as_str(), "VisibleEnum" | "VisibleIntEnum") {
+            member.client_optional = true;
+        }
+    }
+    assert!(project(&full, Audience::External).is_ok());
 }
 
 fn lower(json: &str, infrastructure: bool) -> Service {

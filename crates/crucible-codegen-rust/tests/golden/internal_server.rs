@@ -296,6 +296,7 @@ pub mod api {
     pub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {
         id: "example.audience#Api",
         version: "1",
+        cors: None,
         operations: &[
             &PUBLIC_OPERATION,
             &SECRET_OPERATION,
