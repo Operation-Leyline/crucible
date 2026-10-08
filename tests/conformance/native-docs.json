@@ -1,0 +1,104 @@
+{
+  "example.weather#DebugSecret": {
+    "type": "string",
+    "traits": {
+      "smithy.api#sensitive": {},
+      "smithy.api#documentation": "A **documented** value.\n\nUse `code`, [a link](https://example.invalid), and literal */ or @param safely."
+    }
+  },
+  "example.weather#DebugModel": {
+    "type": "structure",
+    "traits": {
+      "smithy.api#documentation": "A **documented** value.\n\nUse `code`, [a link](https://example.invalid), and literal */ or @param safely."
+    },
+    "members": {
+      "label": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#documentation": "A public label."
+        }
+      },
+      "secret": {
+        "target": "smithy.api#String",
+        "traits": {
+          "smithy.api#sensitive": {},
+          "smithy.api#documentation": "A sensitive member."
+        }
+      },
+      "ticket": {
+        "target": "example.weather#DebugSecret"
+      },
+      "nested": {
+        "target": "example.weather#DebugNested"
+      },
+      "items": {
+        "target": "example.weather#DebugItems"
+      },
+      "values": {
+        "target": "example.weather#DebugValues"
+      },
+      "choice": {
+        "target": "example.weather#DebugChoice"
+      },
+      "enumeration": {
+        "target": "example.weather#DebugEnum"
+      }
+    }
+  },
+  "example.weather#DebugNested": {
+    "type": "structure",
+    "members": {
+      "label": {
+        "target": "smithy.api#String"
+      },
+      "secret": {
+        "target": "example.weather#DebugSecret"
+      }
+    }
+  },
+  "example.weather#DebugItems": {
+    "type": "list",
+    "member": {
+      "target": "example.weather#DebugNested"
+    }
+  },
+  "example.weather#DebugValues": {
+    "type": "list",
+    "member": {
+      "target": "example.weather#DebugSecret"
+    }
+  },
+  "example.weather#DebugChoice": {
+    "type": "union",
+    "traits": {
+      "smithy.api#documentation": "A documented union."
+    },
+    "members": {
+      "secret": {
+        "target": "example.weather#DebugSecret",
+        "traits": {
+          "smithy.api#documentation": "The sensitive arm."
+        }
+      },
+      "label": {
+        "target": "smithy.api#String"
+      }
+    }
+  },
+  "example.weather#DebugEnum": {
+    "type": "enum",
+    "traits": {
+      "smithy.api#sensitive": {},
+      "smithy.api#documentation": "Sensitive enum."
+    },
+    "members": {
+      "KNOWN": {
+        "target": "smithy.api#Unit",
+        "traits": {
+          "smithy.api#enumValue": "SECRET-ENUM",
+          "smithy.api#documentation": "Known secret value."
+        }
+      }
+    }
+  }
+}

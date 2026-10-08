@@ -25,7 +25,7 @@ typedef struct {
     crucible_generated_headers headers;
     crucible_generated_blob body;
 } crucible_generated_response;
-/* The callback owns its transport. Allocate returned views in the supplied arena. */
+/** The callback owns its transport. Allocate returned views in the supplied arena. */
 typedef crucible_generated_status (*crucible_generated_send_fn)(void *user,
     const crucible_generated_request *request, bool read_body,
     const crucible_generated_scope *scope, crucible_generated_arena *arena,
@@ -43,7 +43,7 @@ crucible_generated_status crucible_generated_header_set(crucible_generated_arena
     crucible_generated_string name, crucible_generated_string value, crucible_generated_error *error);
 crucible_generated_status crucible_generated_validate_url(crucible_generated_string url, bool endpoint, bool credentials, crucible_generated_error *error);
 crucible_generated_status crucible_generated_validate_request(const crucible_generated_request *request, crucible_generated_error *error);
-/* Base64 of an HTTP checksum: CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256 or SHA512. */
+/** Base64 of an HTTP checksum: CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256 or SHA512. */
 crucible_generated_status crucible_generated_checksum(crucible_generated_string algorithm, crucible_generated_blob data,
     char output[89], crucible_generated_error *error);
 crucible_generated_status crucible_generated_curl_new(crucible_generated_curl **transport, crucible_generated_error *error);

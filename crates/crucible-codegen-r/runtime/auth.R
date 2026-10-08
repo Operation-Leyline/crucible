@@ -1,9 +1,11 @@
 # Identities, credential providers, and HTTP authentication schemes.
+#' Constructs HTTP basic credentials; print and format redact secrets.
 basic_credentials <- function(username, password) {
   username <- .crucible_string(username); password <- .crucible_string(password)
   if (grepl(':', username, fixed = TRUE)) stop('Basic authentication username cannot contain a colon', call. = FALSE)
   structure(list(username = username, password = password), class = 'crucible_basic_credentials')
 }
+#' Constructs SigV4 credentials; print and format redact secrets.
 aws_credentials <- function(access_key_id, secret_access_key, session_token = NULL, expires_at = NULL) {
   access_key_id <- .crucible_string(access_key_id); secret_access_key <- .crucible_string(secret_access_key)
   if (access_key_id == '' || secret_access_key == '') stop('AWS access key and secret key must be nonempty', call. = FALSE)
@@ -17,6 +19,7 @@ format.crucible_basic_credentials <- function(x, ...) 'BasicCredentials(<redacte
 print.crucible_aws_credentials <- function(x, ...) { cat(format(x), '\n', sep = ''); invisible(x) }
 print.crucible_basic_credentials <- function(x, ...) { cat(format(x), '\n', sep = ''); invisible(x) }
 # Providers are tried in order; NULL means unavailable, and an error stops the chain.
+#' Tries credential providers in order until one supplies credentials.
 credential_chain <- function(...) {
   providers <- list(...)
   if (any(!vapply(providers, is.function, TRUE))) stop('Credential providers must be functions', call. = FALSE)
@@ -30,8 +33,10 @@ credential_chain <- function(...) {
   if (access == '' || secret == '') stop('AWS credentials are incomplete', call. = FALSE)
   aws_credentials(access, secret, if (is.null(token) || token == '') NULL else token)
 }
+#' Reads AWS credentials from standard environment variables.
 environment_credentials <- function() .crucible_static_credentials(Sys.getenv('AWS_ACCESS_KEY_ID'), Sys.getenv('AWS_SECRET_ACCESS_KEY'), Sys.getenv('AWS_SESSION_TOKEN'))
 # Reads static shared-file credentials; credential_process is never executed.
+#' Reads AWS credentials from a named shared credentials profile.
 profile_credentials <- function(profile = NULL, path = NULL) {
   if (is.null(profile)) profile <- Sys.getenv('AWS_PROFILE', 'default')
   if (profile == '') profile <- 'default'
@@ -52,6 +57,7 @@ profile_credentials <- function(profile = NULL, path = NULL) {
 }
 # Reuses an identity until shortly before it expires. R evaluates one call at a
 # time per session, so a refresh cannot race another caller in that session.
+#' Caches provider credentials, refreshing when expired.
 cached_credentials <- function(provider, refresh_before = 60, clock = Sys.time) {
   if (!is.function(provider) || !is.function(clock)) stop('Provider and clock must be functions', call. = FALSE)
   if (!is.numeric(refresh_before) || length(refresh_before) != 1L || !is.finite(refresh_before) || refresh_before < 0) stop('refresh_before must be finite and nonnegative', call. = FALSE)

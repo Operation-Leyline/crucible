@@ -74,8 +74,9 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             );
         }
     }
+    doc(&mut out, "", service.docs.as_deref());
     out.push_str(&format!(
-        "\n/// A client for {}. Cheap to clone: clones share connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::Transport,\n}}\n\n#[allow(dead_code)]\nimpl {client} {{\n    pub fn new(config: ::crucible_server_runtime_rust::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
+        "\n/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::Transport,\n}}\n\n#[allow(dead_code)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
         service.id.name()
     ));
     out
@@ -168,8 +169,13 @@ fn service_exception(service: &Service, diagnostics: &mut Diagnostics) -> String
         "\n/// All modeled errors from {}. Unknown and transport failures remain in `crucible_client_runtime_rust::Error`.\n#[allow(dead_code)]\n#[derive(Debug, Clone, PartialEq)]\n#[non_exhaustive]\npub enum {name} {{\n",
         service.id.name()
     );
-    for (id, _) in &errors {
+    for (id, shape) in &errors {
         let error = service.name_of(id);
+        doc(
+            &mut out,
+            "    ",
+            shape.docs.as_deref().or(Some("A modeled service error.")),
+        );
         out.push_str(&format!("    {error}(errors::{error}),\n"));
     }
     out.push_str("}\n");
@@ -272,6 +278,17 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         op.name()
     );
     for error in &errors {
+        let docs = op
+            .errors
+            .iter()
+            .find(|id| service.name_of(id) == *error)
+            .and_then(|id| service.shape(id))
+            .and_then(crucible_codegen_common::documentation::shape);
+        doc(
+            &mut out,
+            "    ",
+            docs.or(Some("A modeled error returned by this operation.")),
+        );
         out.push_str(&format!("    {error}(errors::{error}),\n"));
     }
     out.push_str("}\n\n");
@@ -369,7 +386,13 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     let name = op.name();
     let errors = error_type(op);
     let mut out = String::from("\n");
-    doc(&mut out, "    ", op.docs.as_deref());
+    doc(
+        &mut out,
+        "    ",
+        Some(&crucible_codegen_common::documentation::operation(
+            service, op,
+        )),
+    );
     let output = if op.output.is_some() {
         output_type(service, op).replace("model::", "")
     } else {

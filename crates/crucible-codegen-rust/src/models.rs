@@ -76,7 +76,13 @@ pub(crate) fn emit(
         }
         out.push('\n');
         match shape {
-            Shape::IntEnum(values) => crate::open::int_enumeration(&mut out, name, values, client),
+            Shape::IntEnum(values) => crate::open::int_enumeration(
+                &mut out,
+                name,
+                values,
+                client,
+                !(client && shape.sensitive()),
+            ),
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
                 doc(&mut out, "", simple.docs.as_deref());
@@ -112,10 +118,22 @@ pub(crate) fn emit(
                     "pub type {name} = ::std::collections::BTreeMap<{key}, {value}>;\n"
                 ));
             }
-            Shape::Enum(values) => enumeration(&mut out, id, name, values, client, diagnostics),
+            Shape::Enum(values) => enumeration(
+                &mut out,
+                id,
+                name,
+                values,
+                client,
+                !shape.sensitive(),
+                diagnostics,
+            ),
             Shape::Structure(structure) => {
                 doc(&mut out, "", structure.docs.as_deref());
-                out.push_str(crate::DERIVE);
+                out.push_str(&if client {
+                    crate::DERIVE.replace("Debug, ", "")
+                } else {
+                    crate::DERIVE.to_owned()
+                });
                 if strict.contains(id) {
                     out.push_str("#[serde(deny_unknown_fields)]\n");
                 }
@@ -136,6 +154,7 @@ pub(crate) fn emit(
                 }
                 out.push_str("}\n");
                 if client {
+                    crate::debug::structure(&mut out, service, name, structure);
                     crate::builders::emit(
                         &mut out,
                         service,
@@ -184,6 +203,9 @@ pub(crate) fn emit(
                 out.push_str("}\n");
             }
         }
+        if client && shape.sensitive() && matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
+            out.push_str(&format!("impl ::std::fmt::Debug for {name} {{ fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{ f.write_str(\"{name}(*** Sensitive Data Redacted ***)\") }} }}\n"));
+        }
         if validated.contains(id) {
             if let Shape::Structure(structure) | Shape::Union(structure) = shape {
                 validations.push_str(&validate_impl(
@@ -228,6 +250,7 @@ fn enumeration(
     name: &str,
     values: &crucible_smithy::ir::Enum,
     client: bool,
+    debug: bool,
     diagnostics: &mut Diagnostics,
 ) {
     let mut seen = BTreeSet::new();
@@ -243,7 +266,7 @@ fn enumeration(
         }
     }
     if client {
-        crate::open::enumeration(out, name, values);
+        crate::open::enumeration(out, name, values, debug);
         return;
     }
     doc(out, "", values.docs.as_deref());

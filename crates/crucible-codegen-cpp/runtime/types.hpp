@@ -9,8 +9,11 @@
 #include <utility>
 
 namespace crucible_generated::runtime {
+/** An owning sequence of bytes. */
 using Blob = std::vector<std::byte>;
+/** An operation with no modeled input or output. */
 struct Unit {};
+/** Orders header names case-insensitively using ASCII HTTP semantics. */
 struct HeaderNameLess {
     bool operator()(std::string_view left, std::string_view right) const noexcept {
         const auto fold = [](unsigned char c) { return c >= 'A' && c <= 'Z' ? static_cast<unsigned char>(c + ('a' - 'A')) : c; };
@@ -30,12 +33,13 @@ template<class T> inline constexpr bool is_field = false;
 template<class T> inline constexpr bool is_field<Field<T>> = true;
 }
 
+/** An optional member distinguishing absent, null, and value. Inspect is_set and is_null; dereferencing requires a value. */
 template<class T> class Field {
     bool set_ = false;
     std::optional<T> value_;
 public:
     Field() = default;
-    // A Field's explicit bool conversion describes presence, not its contained value.
+    /// A Field's explicit bool conversion describes presence, not its contained value.
     template<class U> requires (!detail::is_field<std::remove_cvref_t<U>> && std::constructible_from<T, U&&>)
     Field(U&& value) : set_(true), value_(std::in_place, std::forward<U>(value)) {}
     template<class U> requires (!detail::is_field<std::remove_cvref_t<U>> && std::constructible_from<T, U&&>)
@@ -55,7 +59,8 @@ public:
     [[nodiscard]] T& value() { return value_.value(); }
 };
 
-// Recursive model edges own their value; copies never alias a caller's graph.
+/// Recursive model edges own their value; copies never alias a caller's graph.
+/** An owning recursive model edge. Copies deep-copy the target; dereferencing an empty box throws. */
 template<class T> class Box {
     std::unique_ptr<T> value_;
 public:
@@ -73,22 +78,33 @@ public:
     [[nodiscard]] T& value() { if (!value_) throw std::invalid_argument("Empty recursive model box"); return *value_; }
 };
 
+/** HTTP service failure metadata, retained independently of the modeled error. */
 struct ErrorMetadata {
+    /// Service error discriminator, including unrecognized newer names.
     std::string name = "UnknownError";
+    /// Service-provided error message.
     std::string message;
+    /// Actual HTTP response status.
     int status = 0;
+    /// Optional server request identifier.
     std::optional<std::string> request_id;
+    /// HTTP response headers.
     Headers headers;
+    /// Modeled transient retry classification.
     bool retryable = false;
+    /// Modeled throttling classification.
     bool throttling = false;
 };
+/** Base for HTTP service failures; metadata retains status, request ID, and retry classification. */
 class ServiceError : public std::runtime_error {
     ErrorMetadata metadata_;
 public:
     explicit ServiceError(ErrorMetadata metadata = {}) : std::runtime_error(metadata.message), metadata_(std::move(metadata)) {}
+    /** Returns response metadata; no network work is performed. */
     [[nodiscard]] const ErrorMetadata& metadata() const noexcept { return metadata_; }
 };
 
+/** Service-wide base for modeled and unknown HTTP response failures. */
 class ServiceException : public ServiceError {
 public:
     using ServiceError::ServiceError;

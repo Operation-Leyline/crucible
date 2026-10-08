@@ -75,6 +75,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             native.clone(),
             format!("{native}_encode"),
             format!("{native}_decode"),
+            format!("{native}_debug"),
         ];
         match shape {
             Shape::Structure(s) | Shape::Union(s) => {

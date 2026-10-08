@@ -21,6 +21,7 @@ mod client_api;
 mod client_options;
 mod client_package;
 mod conformance;
+mod debug;
 mod errors;
 mod events;
 mod file;

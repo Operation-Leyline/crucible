@@ -43,23 +43,41 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct Input {
         #[serde(rename = "color", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub color: ::crucible_client_runtime_rust::Field<Color>,
     }
+    impl ::std::fmt::Debug for Input {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("Input");
+            debug.field("color", &self.color);
+            debug.finish()
+        }
+    }
     impl Input {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> InputBuilder { InputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn color(&self) -> ::std::option::Option<&Color> { self.color.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds Input; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct InputBuilder {
         color: ::crucible_client_runtime_rust::Field<Color>,
     }
+    impl ::std::fmt::Debug for InputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("InputBuilder");
+            debug.field("color", &self.color);
+            debug.finish()
+        }
+    }
     impl InputBuilder {
+        /// Sets this member to a value.
         pub fn color(mut self, value: impl ::std::convert::Into<Color>) -> Self { self.color = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> Input {
             Input {
                 color: self.color,
@@ -67,22 +85,40 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct Output {
         #[serde(rename = "color")]
         pub color: Color,
     }
+    impl ::std::fmt::Debug for Output {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("Output");
+            debug.field("color", &self.color);
+            debug.finish()
+        }
+    }
     impl Output {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> OutputBuilder { OutputBuilder::default() }
         pub fn color(&self) -> &Color { &self.color }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds Output; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct OutputBuilder {
         color: ::std::option::Option<Color>,
     }
+    impl ::std::fmt::Debug for OutputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("OutputBuilder");
+            debug.field("color", &self.color);
+            debug.finish()
+        }
+    }
     impl OutputBuilder {
+        /// Sets this member to a value.
         pub fn color(mut self, value: impl ::std::convert::Into<Color>) -> Self { self.color = Some(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<Output, ::crucible_client_runtime_rust::BuildError> {
             Ok(Output {
                 color: self.color.ok_or(::crucible_client_runtime_rust::BuildError { shape: "Output", member: "color" })?,
@@ -195,7 +231,8 @@ impl ::std::fmt::Display for SetColorError {
 
 impl ::std::error::Error for SetColorError {}
 
-/// A client for Legacy. Cheap to clone: clones share connections.
+/// A client for Legacy. Construct with `new(Config)`. Cheap to clone: clones share connections.
+/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.
 #[derive(Clone)]
 pub struct LegacyClient {
     transport: ::crucible_client_runtime_rust::Transport,
@@ -203,16 +240,31 @@ pub struct LegacyClient {
 
 #[allow(dead_code)]
 impl LegacyClient {
+    /// Constructs the shared HTTP transport from configuration.
     pub fn new(config: ::crucible_client_runtime_rust::Config) -> Self {
         Self {
             transport: ::crucible_client_runtime_rust::Transport::new(config),
         }
     }
 
+    /// Call SetColor.
+    ///
+    /// Input: Input.
+    ///
+    /// Returns: Output.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn set_color(&self, input: Input) -> ::std::result::Result<Output, ::crucible_client_runtime_rust::Error<SetColorError>> {
         self.transport.send::<SetColor, SetColorError>(&input).await
     }
 
+    /// Call SetColor.
+    ///
+    /// Input: Input.
+    ///
+    /// Returns: Output.
+    ///
+    /// This operation is safe to retry under the configured retry policy.
     pub async fn set_color_with_options(&self, input: Input, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<Output, ::crucible_client_runtime_rust::Error<SetColorError>> {
         self.transport.send_with_options::<SetColor, SetColorError>(&input, &options).await
     }

@@ -3,7 +3,7 @@
 #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types)]
 mod model {
 
-    #[derive(Debug, Clone, PartialEq)]
+    #[derive(Clone, PartialEq)]
     pub enum Choice {
         Public(::std::string::String),
         /// An arm introduced by a newer service.
@@ -33,24 +33,50 @@ mod model {
             ::crucible_client_runtime_rust::open::deserialize_union(deserializer)
         }
     }
+    impl ::std::fmt::Debug for Choice {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            match self {
+                Self::Public(value) => f.debug_tuple("Choice::Public").field(value).finish(),
+                Self::UnknownValue(_) => f.write_str("Choice::Unknown(*** Sensitive Data Redacted ***)"),
+            }
+        }
+    }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PublicInput {
         #[serde(rename = "value", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub value: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for PublicInput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PublicInput");
+            debug.field("value", &self.value);
+            debug.finish()
+        }
+    }
     impl PublicInput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> PublicInputBuilder { PublicInputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn value(&self) -> ::std::option::Option<&::std::string::String> { self.value.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds PublicInput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct PublicInputBuilder {
         value: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for PublicInputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PublicInputBuilder");
+            debug.field("value", &self.value);
+            debug.finish()
+        }
+    }
     impl PublicInputBuilder {
+        /// Sets this member to a value.
         pub fn value(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.value = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> PublicInput {
             PublicInput {
                 value: self.value,
@@ -58,7 +84,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PublicOutput {
         #[serde(rename = "value", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
@@ -66,21 +92,42 @@ mod model {
         #[serde(rename = "choice", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub choice: ::crucible_client_runtime_rust::Field<Choice>,
     }
+    impl ::std::fmt::Debug for PublicOutput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PublicOutput");
+            debug.field("value", &self.value);
+            debug.field("choice", &self.choice);
+            debug.finish()
+        }
+    }
     impl PublicOutput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> PublicOutputBuilder { PublicOutputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn value(&self) -> ::std::option::Option<&::std::string::String> { self.value.value() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn choice(&self) -> ::std::option::Option<&Choice> { self.choice.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds PublicOutput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct PublicOutputBuilder {
         value: ::crucible_client_runtime_rust::Field<::std::string::String>,
         choice: ::crucible_client_runtime_rust::Field<Choice>,
     }
+    impl ::std::fmt::Debug for PublicOutputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PublicOutputBuilder");
+            debug.field("value", &self.value);
+            debug.field("choice", &self.choice);
+            debug.finish()
+        }
+    }
     impl PublicOutputBuilder {
+        /// Sets this member to a value.
         pub fn value(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.value = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn choice(mut self, value: impl ::std::convert::Into<Choice>) -> Self { self.choice = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> PublicOutput {
             PublicOutput {
                 value: self.value,
@@ -100,24 +147,42 @@ mod model {
 mod errors {
     use super::__redaction;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PublicFault {
         #[serde(rename = "message", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub message: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
 
+    impl ::std::fmt::Debug for PublicFault {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PublicFault");
+            debug.field("message", &self.message);
+            debug.finish()
+        }
+    }
     impl PublicFault {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> PublicFaultBuilder { PublicFaultBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn message(&self) -> ::std::option::Option<&::std::string::String> { self.message.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds PublicFault; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct PublicFaultBuilder {
         message: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for PublicFaultBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PublicFaultBuilder");
+            debug.field("message", &self.message);
+            debug.finish()
+        }
+    }
     impl PublicFaultBuilder {
+        /// Sets this member to a value.
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> PublicFault {
             PublicFault {
                 message: self.message,
@@ -191,6 +256,7 @@ mod __redaction {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ApiException {
+    /// A modeled service error.
     PublicFault(errors::PublicFault),
 }
 impl From<errors::PublicFault> for ApiException {
@@ -246,6 +312,7 @@ impl ::crucible_client_runtime_rust::Operation for Public {
 /// The errors Public declares.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PublicError {
+    /// A modeled error returned by this operation.
     PublicFault(errors::PublicFault),
 }
 
@@ -282,7 +349,8 @@ impl ::std::fmt::Display for PublicError {
 
 impl ::std::error::Error for PublicError {}
 
-/// A client for Api. Cheap to clone: clones share connections.
+/// A client for Api. Construct with `new(Config)`. Cheap to clone: clones share connections.
+/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.
 #[derive(Clone)]
 pub struct ApiClient {
     transport: ::crucible_client_runtime_rust::Transport,
@@ -290,16 +358,31 @@ pub struct ApiClient {
 
 #[allow(dead_code)]
 impl ApiClient {
+    /// Constructs the shared HTTP transport from configuration.
     pub fn new(config: ::crucible_client_runtime_rust::Config) -> Self {
         Self {
             transport: ::crucible_client_runtime_rust::Transport::new(config),
         }
     }
 
+    /// Call Public.
+    ///
+    /// Input: PublicInput.
+    ///
+    /// Returns: PublicOutput.
+    ///
+    /// Modeled errors: PublicFault. Transport, timeout and decoding failures can also occur.
     pub async fn public(&self, input: PublicInput) -> ::std::result::Result<PublicOutput, ::crucible_client_runtime_rust::Error<PublicError>> {
         self.transport.send::<Public, PublicError>(&input).await
     }
 
+    /// Call Public.
+    ///
+    /// Input: PublicInput.
+    ///
+    /// Returns: PublicOutput.
+    ///
+    /// Modeled errors: PublicFault. Transport, timeout and decoding failures can also occur.
     pub async fn public_with_options(&self, input: PublicInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<PublicOutput, ::crucible_client_runtime_rust::Error<PublicError>> {
         self.transport.send_with_options::<Public, PublicError>(&input, &options).await
     }

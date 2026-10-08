@@ -1,4 +1,6 @@
+#' Sentinel omitting an optional model member; NULL represents explicit JSON null.
 UNSET <- structure(list(), class = 'crucible_unset')
+#' Constructs an exact signed 64-bit integer from a decimal string; numeric inputs beyond exact double precision are rejected.
 long <- function(value) {
   if (inherits(value, 'crucible_number') || inherits(value, 'crucible_long')) value <- as.character(value)
   if (is.numeric(value)) {
@@ -11,6 +13,7 @@ long <- function(value) {
   if (nchar(digits) > 19L || (nchar(digits) == 19L && digits > limit)) stop('Signed 64-bit integer out of range', call. = FALSE)
   structure(value, class = c('crucible_long', 'character'))
 }
+#' Constructs an exact seconds and nanoseconds timestamp; nanoseconds must be in [0, 1000000000).
 timestamp <- function(seconds, nanoseconds = 0L) {
   seconds <- long(seconds)
   if (!is.numeric(nanoseconds) || length(nanoseconds) != 1L || !is.finite(nanoseconds) || nanoseconds < 0 || nanoseconds >= 1e9 || nanoseconds != trunc(nanoseconds)) stop('Nanoseconds must be an integer in [0, 1000000000)', call. = FALSE)
@@ -83,6 +86,7 @@ timestamp <- function(seconds, nanoseconds = 0L) {
   paste0(sprintf('%04d-%02d-%02dT%02d:%02d:%02d', p$year,p$month,p$day,p$hour,p$minute,p$second), if (value$nanoseconds) paste0('.',sub('0+$','',sprintf('%09d',value$nanoseconds))) else '', 'Z')
 }
 .crucible_condition <- function(class, message, ...) structure(c(list(message = message, call = NULL), list(...)), class = c(class, 'crucible_error', 'error', 'condition'))
+#' Constructs a cancellation environment with cancel and check methods; an optional predicate is polled by check.
 cancellation_token <- function(predicate = NULL) {
   if (!is.null(predicate) && !is.function(predicate)) stop('Cancellation predicate must be a function', call. = FALSE)
   token <- new.env(parent = emptyenv()); cancelled <- FALSE

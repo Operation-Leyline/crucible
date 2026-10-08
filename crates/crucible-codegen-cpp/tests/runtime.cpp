@@ -25,6 +25,13 @@ ClientConfig config(const std::shared_ptr<Transport>& transport = {}) { ClientCo
 std::string bytes(const Blob& value) { std::string result; for (const auto byte : value) result += static_cast<char>(byte); return result; }
 int main() {
     {
+        const auto model = Codec<models::DebugModel>::decode(Json::parse(R"({"label":"visible","secret":"SECRET-MEMBER","ticket":"SECRET-TARGET","nested":{"label":"nested-visible","secret":"SECRET-NESTED"},"items":[{"secret":"SECRET-LIST"}],"values":["SECRET-ELEMENT"],"choice":{"secret":"SECRET-UNION"},"enumeration":"SECRET-ENUM"})"), schema().context("example.weather#DebugModel"));
+        const auto text = debug_string(model);
+        check(text.starts_with("DebugModel(") && text.find("DebugNested(") != std::string::npos && text.find("visible") != std::string::npos, "Recursive debug formatting");
+        check(text.find("Sensitive Data Redacted") != std::string::npos && text.find("SECRET-") == std::string::npos, "Sensitive debug redaction");
+        check(Codec<models::DebugModel>::encode(model, schema().context("example.weather#DebugModel")).dump().find("SECRET-MEMBER") != std::string::npos, "Debug does not alter serialization");
+    }
+    {
         auto fake = std::make_shared<Fake>([](unsigned, const HttpRequest& request) {
             check(!request.headers.contains("authorization"), "Public operation has no bearer header");
             return HttpResponse{204, {}, ""};

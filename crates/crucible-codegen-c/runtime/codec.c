@@ -233,7 +233,7 @@ static status decode_into(arena *storage, const shape *type, format timestamp_fo
     return OK;
 }
 
-static status encode_value(yyjson_mut_doc *, const shape *, format, const void *, bool, yyjson_mut_val **, unsigned, error *);
+static status encode_value(yyjson_mut_doc *, const shape *, format, const void *, bool, yyjson_mut_val **, unsigned, bool, error *);
 static status add_member(yyjson_mut_doc *document, yyjson_mut_val *object, string name, yyjson_mut_val *value, error *issue) {
     yyjson_mut_val *key;
     if (!crucible_generated_utf8(name)) return FAIL("Invalid member name UTF-8");
@@ -241,11 +241,15 @@ static status add_member(yyjson_mut_doc *document, yyjson_mut_val *object, strin
     if (!key || !value || !yyjson_mut_obj_add(object, key, value)) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
     return OK;
 }
-static status encode_value(yyjson_mut_doc *document, const shape *type, format timestamp_format, const void *input, bool slot, yyjson_mut_val **output, unsigned depth, error *issue) {
+static status encode_value(yyjson_mut_doc *document, const shape *type, format timestamp_format, const void *input, bool slot, yyjson_mut_val **output, unsigned depth, bool debug, error *issue) {
     const unsigned char *native = input;
     yyjson_mut_val *result = NULL;
     size_t at;
     if (depth > 255) return FAIL("Model nesting limit");
+    if (debug && (type->sensitive || (type->kind == crucible_generated_kind_map && (type->members[0].sensitive || type->members[0].target->sensitive)))) {
+        *output = yyjson_mut_strcpy(document, "*** Sensitive Data Redacted ***");
+        return *output ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed");
+    }
     if (slot && indirect(type)) memcpy(&native, input, sizeof(native));
     if (!native) return FAIL("Missing native model value");
     switch (type->kind) {
@@ -308,9 +312,10 @@ static status encode_value(yyjson_mut_doc *document, const shape *type, format t
             presence state;
             yyjson_mut_val *value;
             memcpy(&state, native + field->state_offset, sizeof(state));
-            if (state == crucible_generated_absent) { if (!field->optional) return FAIL("Missing required member"); continue; }
-            if (state == crucible_generated_null) { if (!field->optional && field->target->kind != crucible_generated_kind_document) return FAIL("Null required member"); value = yyjson_mut_null(document); }
-            else if (state == crucible_generated_present) { TRY(encode_value(document, field->target, field->format, native + field->value_offset, true, &value, depth + 1, issue)); }
+            if (state == crucible_generated_absent) { if (!debug && !field->optional) return FAIL("Missing required member"); continue; }
+            if (debug && (field->sensitive || (type->kind == crucible_generated_kind_map && (type->members[0].sensitive || type->members[0].target->sensitive)))) value = yyjson_mut_strcpy(document, "*** Sensitive Data Redacted ***");
+            else if (state == crucible_generated_null) { if (!field->optional && field->target->kind != crucible_generated_kind_document) return FAIL("Null required member"); value = yyjson_mut_null(document); }
+            else if (state == crucible_generated_present) { TRY(encode_value(document, field->target, field->format, native + field->value_offset, true, &value, depth + 1, debug, issue)); }
             else return FAIL("Invalid member presence");
             TRY(add_member(document, result, field->name, value, issue));
         }
@@ -329,15 +334,16 @@ static status encode_value(yyjson_mut_doc *document, const shape *type, format t
             const member *field = &type->members[map ? 1 : 0];
             presence state = crucible_generated_present;
             if (type->sparse) memcpy(&state, entry + field->state_offset, sizeof(state));
-            if (state == crucible_generated_null) value = yyjson_mut_null(document);
-            else if (state == crucible_generated_present) { TRY(encode_value(document, field->target, field->format, entry + field->value_offset, true, &value, depth + 1, issue)); }
+            if (debug && (field->sensitive || (type->kind == crucible_generated_kind_map && (type->members[0].sensitive || type->members[0].target->sensitive)))) value = yyjson_mut_strcpy(document, "*** Sensitive Data Redacted ***");
+            else if (state == crucible_generated_null) value = yyjson_mut_null(document);
+            else if (state == crucible_generated_present) { TRY(encode_value(document, field->target, field->format, entry + field->value_offset, true, &value, depth + 1, debug, issue)); }
             else return FAIL("Sparse collection values must be present or null");
             if (!type->sparse && yyjson_mut_is_null(value)) return FAIL("Dense collection cannot contain null");
             if (map) {
                 yyjson_mut_val *key;
                 string name;
                 field = &type->members[0];
-                TRY(encode_value(document, field->target, field->format, entry + field->value_offset, true, &key, depth + 1, issue));
+                TRY(encode_value(document, field->target, field->format, entry + field->value_offset, true, &key, depth + 1, debug, issue));
                 if (!yyjson_mut_is_str(key)) return FAIL("Expected string map key");
                 name.data = yyjson_mut_get_str(key); name.length = yyjson_mut_get_len(key);
                 if (yyjson_mut_obj_getn(result, name.data, name.length)) return FAIL("Duplicate map key");
@@ -359,13 +365,14 @@ static status encode_value(yyjson_mut_doc *document, const shape *type, format t
             memcpy(&name, native + type->unknown_name_offset, sizeof(name)); memcpy(&unknown, native + type->unknown_value_offset, sizeof(unknown));
             if (state != crucible_generated_present || !unknown || find_member(type, name, NULL)) return FAIL("Invalid unknown union variant");
             TRY(crucible_generated_json_depth(unknown, depth + 1, issue));
-            value = yyjson_val_mut_copy(document, unknown);
+            value = debug ? yyjson_mut_strcpy(document, "*** Sensitive Data Redacted ***") : yyjson_val_mut_copy(document, unknown);
         } else {
             const member *field;
             if (tag > type->member_count) return FAIL("Invalid union tag");
             field = &type->members[tag - 1]; name = field->name;
-            if (state == crucible_generated_null) value = yyjson_mut_null(document);
-            else if (state == crucible_generated_present) { TRY(encode_value(document, field->target, field->format, native + field->value_offset, true, &value, depth + 1, issue)); }
+            if (debug && (field->sensitive || (type->kind == crucible_generated_kind_map && (type->members[0].sensitive || type->members[0].target->sensitive)))) value = yyjson_mut_strcpy(document, "*** Sensitive Data Redacted ***");
+            else if (state == crucible_generated_null) value = yyjson_mut_null(document);
+            else if (state == crucible_generated_present) { TRY(encode_value(document, field->target, field->format, native + field->value_offset, true, &value, depth + 1, debug, issue)); }
             else return FAIL("Union value must be present or null");
         }
         TRY(add_member(document, result, name, value, issue));
@@ -373,7 +380,7 @@ static status encode_value(yyjson_mut_doc *document, const shape *type, format t
     }
     }
     if (!result) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
-    if (type->unique) {
+    if (!debug && type->unique) {
         yyjson_doc *copy = yyjson_mut_val_imut_copy(result, NULL);
         if (!copy) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
         status code = crucible_generated_json_unique(yyjson_doc_get_root(copy), issue); yyjson_doc_free(copy); if (code) return code;
@@ -388,7 +395,7 @@ crucible_generated_status crucible_generated_model_encode(arena *storage, const 
     if (!storage || !type || !native || !output) return FAIL("Invalid model encode arguments");
     document = yyjson_mut_doc_new(NULL);
     if (!document) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
-    code = encode_value(document, type, type->format, native, false, &value, 0, issue);
+    code = encode_value(document, type, type->format, native, false, &value, 0, false, issue);
     if (code == OK) code = own_value(storage, value, output, issue);
     yyjson_mut_doc_free(document);
     return code;
@@ -403,4 +410,73 @@ crucible_generated_status crucible_generated_model_decode(arena *storage, const 
     TRY(decode_into(storage, type, type->format, owned, native, 0, issue));
     *output = native;
     return OK;
+}
+
+/* Formatting runs only on the already-redacted diagnostic tree. */
+typedef struct { char *data; size_t size, capacity; } debug_buffer;
+static status debug_append(debug_buffer *out, const char *text, size_t length, error *issue) {
+    if (length > SIZE_MAX - out->size - 1) return crucible_generated_fail(issue, OOM, "Debug output too large");
+    size_t needed = out->size + length + 1;
+    if (needed > out->capacity) {
+        size_t capacity = out->capacity ? out->capacity : 128;
+        while (capacity < needed) { if (capacity > SIZE_MAX / 2) { capacity = needed; break; } capacity *= 2; }
+        char *next = realloc(out->data, capacity);
+        if (!next) return crucible_generated_fail(issue, OOM, "Debug allocation failed");
+        out->data = next; out->capacity = capacity;
+    }
+    memcpy(out->data + out->size, text, length); out->size += length; out->data[out->size] = 0;
+    return OK;
+}
+#define TEXT(text) TRY(debug_append(out, text, strlen(text), issue))
+static status debug_render(debug_buffer *out, const shape *type, const yyjson_val *value, error *issue) {
+    size_t index, count; yyjson_val *key, *item;
+    if (type && (type->kind == crucible_generated_kind_structure || type->kind == crucible_generated_kind_union) && yyjson_is_obj(value)) {
+        TRY(debug_append(out, type->name.data, type->name.length, issue)); TEXT("(");
+        yyjson_obj_foreach((yyjson_val *)value, index, count, key, item) {
+            if (index) TEXT(", ");
+            string name = {yyjson_get_str(key), yyjson_get_len(key)};
+            TRY(debug_append(out, name.data, name.length, issue)); TEXT("=");
+            const member *field = find_member(type, name, NULL);
+            TRY(debug_render(out, field ? field->target : NULL, item, issue));
+        }
+        TEXT(")");
+    } else if (type && type->kind == crucible_generated_kind_list && yyjson_is_arr(value)) {
+        TEXT("["); yyjson_arr_foreach((yyjson_val *)value, index, count, item) {
+            if (index) { TEXT(", "); }
+            TRY(debug_render(out, type->members[0].target, item, issue));
+        } TEXT("]");
+    } else if (type && type->kind == crucible_generated_kind_map && yyjson_is_obj(value)) {
+        TEXT("{"); yyjson_obj_foreach((yyjson_val *)value, index, count, key, item) {
+            if (index) { TEXT(", "); }
+            TRY(debug_append(out, yyjson_get_str(key), yyjson_get_len(key), issue)); TEXT(": ");
+            TRY(debug_render(out, type->members[1].target, item, issue));
+        } TEXT("}");
+    } else {
+        bool enumeration = type && (type->kind == crucible_generated_kind_enum || type->kind == crucible_generated_kind_int_enum);
+        if (enumeration) {
+            TRY(debug_append(out, type->name.data, type->name.length, issue)); TEXT("(value=");
+        }
+        size_t length; char *text = yyjson_val_write(value, YYJSON_WRITE_ALLOW_INF_AND_NAN, &length);
+        if (!text) return crucible_generated_fail(issue, OOM, "Debug JSON allocation failed");
+        status code = debug_append(out, text, length, issue); free(text); if (code != OK) return code;
+        if (enumeration) TEXT(")");
+    }
+    return OK;
+}
+#undef TEXT
+crucible_generated_status crucible_generated_model_debug(arena *storage, const shape *type, const void *native, string *output, error *issue) {
+    if (!storage || !type || !native || !output) return FAIL("Invalid model debug arguments");
+    yyjson_mut_doc *document = yyjson_mut_doc_new(NULL); yyjson_mut_val *value; debug_buffer buffer = {0};
+    if (!document) return crucible_generated_fail(issue, OOM, "Debug JSON allocation failed");
+    status code = encode_value(document, type, type->format, native, false, &value, 0, true, issue);
+    yyjson_doc *copy = NULL;
+    if (code == OK) {
+        copy = yyjson_mut_val_imut_copy(value, NULL);
+        if (!copy) code = crucible_generated_fail(issue, OOM, "Debug JSON allocation failed");
+        else code = debug_render(&buffer, type, yyjson_doc_get_root(copy), issue);
+    }
+    yyjson_doc_free(copy); yyjson_mut_doc_free(document);
+    if (code == OK) code = crucible_generated_arena_own(storage, buffer.data, free, issue);
+    if (code == OK) { output->data = buffer.data; output->length = buffer.size; } else free(buffer.data);
+    return code;
 }

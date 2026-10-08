@@ -164,7 +164,7 @@ impl<'a> Layout<'a> {
         let ns = &self.options.namespace;
         let runtime = format!("::{ns}::runtime");
         let mut header = format!(
-            "#pragma once\n#include \"runtime/codec.hpp\"\n#include <compare>\n#include <exception>\n#include <variant>\n\nnamespace {ns} {{ using {exception} = runtime::{exception}; }}\nnamespace {ns}::models {{\n"
+            "#pragma once\n#include \"runtime/codec.hpp\"\n#include \"runtime/debug.hpp\"\n#include <compare>\n#include <exception>\n#include <variant>\n\nnamespace {ns} {{ using {exception} = runtime::{exception}; }}\nnamespace {ns}::models {{\n"
         );
         let mut source = format!(
             "#include \"{}/models.hpp\"\n\nnamespace {ns}::runtime {{\n",
@@ -177,7 +177,11 @@ impl<'a> Layout<'a> {
         for id in self.ordered() {
             let name = self.service.name_of(&id);
             let qualified = format!("::{ns}::models::{name}");
-            match self.service.shape(&id).expect("shape") {
+            let shape = self.service.shape(&id).expect("shape");
+            if let Some(docs) = crucible_codegen_common::documentation::shape(shape) {
+                header.push_str(&crucible_codegen_common::doxygen(docs, ""));
+            }
+            match shape {
                 Shape::Structure(structure) => {
                     let error = structure.error.is_some();
                     header.push_str(&format!(
@@ -195,6 +199,9 @@ impl<'a> Layout<'a> {
                         } else {
                             native
                         };
+                        if let Some(docs) = &member.docs {
+                            header.push_str(&crucible_codegen_common::doxygen(docs, "    "));
+                        }
                         header.push_str(&format!("    {native} {};\n", field(&member.name)));
                     }
                     let members: Vec<_> = structure
@@ -228,7 +235,7 @@ impl<'a> Layout<'a> {
                             .map(|m| format!("{}(std::move({}))", field(&m.name), field(&m.name))),
                     );
                     header.push_str(&format!(
-                        "    explicit {name}({}){} {{}}\n}};\n",
+                        "    /** Constructs this value from its required and optional members. */\n    explicit {name}({}){} {{}}\n",
                         args.join(", "),
                         if initializers.is_empty() {
                             String::new()
@@ -236,6 +243,21 @@ impl<'a> Layout<'a> {
                             format!(" : {}", initializers.join(", "))
                         }
                     ));
+                    header.push_str(&format!("    /** Diagnostic representation with sensitive data redacted. */\n    friend std::string debug_string([[maybe_unused]] const {name}& model) {{ {runtime}::Debug debug({});\n", literal(name)));
+                    for m in &structure.members {
+                        let sensitive = shape.sensitive()
+                            || self.service.sensitive(m)
+                            || crucible_codegen_common::sensitive_collection(
+                                self.service,
+                                &m.target,
+                            );
+                        header.push_str(&format!(
+                            "        debug.field({}, model.{}, {sensitive});\n",
+                            literal(&m.name),
+                            field(&m.name)
+                        ));
+                    }
+                    header.push_str("        return debug.finish();\n    }\n};\n");
                     let metadata = if error {
                         ", ErrorMetadata metadata = {}"
                     } else {
@@ -274,44 +296,59 @@ impl<'a> Layout<'a> {
                 Shape::IntEnum(enumeration) => {
                     header.push_str(&format!("\nstruct {name} {{\n    std::int32_t value;\n    explicit {name}(std::int32_t value = 0) : value(value) {{}}\n    auto operator<=>(const {name}&) const = default;\n"));
                     for item in &enumeration.values {
+                        if let Some(docs) = &item.docs {
+                            header.push_str(&crucible_codegen_common::doxygen(docs, "    "));
+                        }
                         header.push_str(&format!(
                             "    static {name} known_{}() {{ return {name}{{{}}}; }}\n",
                             field(&item.name),
                             item.value
                         ));
                     }
-                    header.push_str("};\n");
+                    header.push_str(&format!("    /** Diagnostic representation. */\n    friend std::string debug_string([[maybe_unused]] const {name}& model) {{ return {runtime}::Debug({}).field(\"value\", model.value, {}).finish(); }}\n}};\n", literal(name), shape.sensitive()));
                     codecs.push_str(&format!("template<> struct Codec<{qualified}> {{\n    static {qualified} decode(const Json& value, const Context& context) {{ return {qualified}{{Codec<std::int32_t>::decode(value, context)}}; }}\n    static Json encode(const {qualified}& value, const Context& context) {{ return Codec<std::int32_t>::encode(value.value, context); }}\n}};\n"));
                 }
                 Shape::Enum(enumeration) => {
                     header.push_str(&format!("\nstruct {name} {{\n    std::string value;\n    explicit {name}(std::string value = {{}}) : value(std::move(value)) {{}}\n    auto operator<=>(const {name}&) const = default;\n"));
                     for item in &enumeration.values {
+                        if let Some(docs) = &item.docs {
+                            header.push_str(&crucible_codegen_common::doxygen(docs, "    "));
+                        }
                         header.push_str(&format!(
                             "    static {name} known_{}() {{ return {name}{{{}}}; }}\n",
                             field(&item.name),
                             literal(&item.value)
                         ));
                     }
-                    header.push_str("};\n");
+                    header.push_str(&format!("    /** Diagnostic representation. */\n    friend std::string debug_string([[maybe_unused]] const {name}& model) {{ return {runtime}::Debug({}).field(\"value\", model.value, {}).finish(); }}\n}};\n", literal(name), shape.sensitive()));
                     codecs.push_str(&format!("template<> struct Codec<{qualified}> {{\n    static {qualified} decode(const Json& value, const Context& context) {{ return {qualified}{{Codec<std::string>::decode(value, context)}}; }}\n    static Json encode(const {qualified}& value, const Context& context) {{ return Codec<std::string>::encode(value.value, context); }}\n}};\n"));
                 }
                 Shape::Union(union) => {
                     let mut variants = Vec::new();
                     for m in &union.members {
                         let variant = variant(name, &m.name);
+                        if let Some(docs) = &m.docs {
+                            header.push_str(&crucible_codegen_common::doxygen(docs, ""));
+                        }
+                        let sensitive = shape.sensitive()
+                            || self.service.sensitive(m)
+                            || crucible_codegen_common::sensitive_collection(
+                                self.service,
+                                &m.target,
+                            );
                         header.push_str(&format!(
-                            "struct {variant} {{ std::optional<{}> value; }};\n",
-                            self.ty(&id, &m.target)
+                            "struct {variant} {{ std::optional<{}> value; friend std::string debug_string(const {variant}& model) {{ return {runtime}::Debug({}).field({}, model.value, {sensitive}).finish(); }} }};\n",
+                            self.ty(&id, &m.target), literal(name), literal(&m.name)
                         ));
                         variants.push(variant);
                     }
                     let unknown = format!("{name}Unknown");
                     header.push_str(&format!(
-                        "struct {unknown} {{ std::string name; {runtime}::Json value; }};\n"
+                        "struct {unknown} {{ std::string name; {runtime}::Json value; friend std::string debug_string(const {unknown}&) {{ return {runtime}::Debug({}).field(\"unknown\", {runtime}::redacted, true).finish(); }} }};\n", literal(name)
                     ));
                     variants.push(unknown.clone());
                     header.push_str(&format!(
-                        "struct {name} {{ std::variant<{}> value; }};\n",
+                        "struct {name} {{ std::variant<{}> value; friend std::string debug_string([[maybe_unused]] const {name}& model) {{ return std::visit([](const auto& arm) {{ return debug_string(arm); }}, model.value); }} }};\n",
                         variants.join(", ")
                     ));
                     codecs.push_str(&format!("template<> struct Codec<{qualified}> {{\n    static {qualified} decode(const Json& value, const Context& context);\n    static Json encode(const {qualified}& value, const Context& context);\n}};\n"));

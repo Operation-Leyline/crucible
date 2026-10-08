@@ -318,7 +318,22 @@ fn an_independent_cargo_application_depends_only_on_the_generated_sdk() {
         .unwrap();
     let mut options = explicit();
     options.runtime = RuntimeDependency::Path(runtime);
-    save(&sdk, &emit_client_package(&service(), &options).unwrap());
+    let mut documented_ast: serde_json::Value = serde_json::from_str(WEATHER).unwrap();
+    let examples: serde_json::Value =
+        serde_json::from_str(include_str!("../../../tests/conformance/native-docs.json")).unwrap();
+    documented_ast["shapes"]
+        .as_object_mut()
+        .unwrap()
+        .extend(examples.as_object().unwrap().clone());
+    documented_ast["shapes"]["example.weather#CreateCityInput"]["members"]["debugModel"] =
+        serde_json::json!({"target": "example.weather#DebugModel"});
+    documented_ast["shapes"]["example.weather#NotFoundError"]["members"]["message"]["traits"]["smithy.api#sensitive"] =
+        serde_json::json!({});
+    let documented = Model::from_json(&documented_ast.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    save(&sdk, &emit_client_package(&documented, &options).unwrap());
     let mut ast: serde_json::Value = serde_json::from_str(WEATHER).unwrap();
     ast["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({
         "example.weather#CityId": "Config",
@@ -341,6 +356,18 @@ fn an_independent_cargo_application_depends_only_on_the_generated_sdk() {
     fs::write(consumer.join("src/main.rs"), r#"
 use weather_sdk::{CallOptions, Config, Error, GetCityError, Token, WeatherClient, GetCityInput, runtime};
 fn main() {
+    let nested = weather_sdk::DebugNested::builder().label("visible").secret("SECRET-NESTED").build();
+    let builder = weather_sdk::DebugModel::builder().label("visible").secret("SECRET-MEMBER").ticket("SECRET-TARGET")
+        .nested(nested.clone()).items(vec![nested]).values(vec!["SECRET-ELEMENT".to_owned()])
+        .choice(weather_sdk::DebugChoice::Secret("SECRET-UNION".to_owned())).enumeration(weather_sdk::DebugEnum::Known);
+    let text = format!("{builder:?}");
+    assert!(text.contains("visible") && text.contains("Sensitive Data Redacted") && !text.contains("SECRET-"));
+    let model = builder.build();
+    let text = format!("{model:?}");
+    assert!(text.contains("DebugNested") && !text.contains("SECRET-"));
+    assert!(!format!("{:?}", weather_sdk::DebugEnum::UnknownValue("SECRET-ENUM".to_owned())).contains("SECRET-"));
+    let error = weather_sdk::NotFoundError::builder().message("SECRET-ERROR").build().unwrap();
+    assert!(!format!("{error:?} {error}").contains("SECRET-"));
     let client = WeatherClient::new(Config::new("http://localhost:8080").token(Token::fixed("secret")));
     let future = client.get_city(GetCityInput::builder().city_id("seattle").build());
     drop(future);
@@ -419,6 +446,15 @@ fn main() {
             .arg(consumer.join("Cargo.toml"))
             .env("CARGO_TARGET_DIR", &target)
             .env("CARGO_BUILD_JOBS", "1")
+            .output()
+            .unwrap(),
+    );
+    successful(
+        Command::new(&cargo)
+            .args(["doc", "--no-deps", "--manifest-path"])
+            .arg(sdk.join("Cargo.toml"))
+            .env("CARGO_TARGET_DIR", &target)
+            .env("RUSTDOCFLAGS", "-D warnings")
             .output()
             .unwrap(),
     );

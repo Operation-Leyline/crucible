@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, Structure};
 
-use crate::names::{field, literal};
+use crate::names::{doc, field, literal};
 use crate::types::rust_type;
 
 pub(crate) fn names(service: &Service) -> BTreeMap<ShapeId, String> {
@@ -84,7 +84,7 @@ pub(crate) fn emit(
     );
     let setters = method_names(structure, &["build", "default", "clone"]);
     out.push_str(&format!(
-        "impl {name} {{\n    pub fn builder() -> {builder} {{ {builder}::default() }}\n"
+        "impl {name} {{\n    /// Starts a builder with all optional members absent.\n    pub fn builder() -> {builder} {{ {builder}::default() }}\n"
     ));
     for member in &structure.members {
         let native = field(&member.name);
@@ -93,6 +93,7 @@ pub(crate) fn emit(
         if boxed.contains(&id.with_member(&member.name)) {
             ty = format!("::std::boxed::Box<{ty}>");
         }
+        doc(out, "    ", member.docs.as_deref());
         if member.optional_on_client() {
             out.push_str(&format!("    /// The value when present; inspect the public field to distinguish absent and null.\n    pub fn {getter}(&self) -> ::std::option::Option<&{ty}> {{ self.{native}.value() }}\n"));
         } else {
@@ -102,8 +103,15 @@ pub(crate) fn emit(
         }
     }
     out.push_str("}\n");
+    doc(
+        out,
+        "",
+        Some(&format!(
+            "Builds {name}; build checks required members and applies modeled defaults."
+        )),
+    );
     out.push_str(&format!(
-        "#[derive(Debug, Clone, Default)]\npub struct {builder} {{\n"
+        "#[derive(Clone, Default)]\npub struct {builder} {{\n"
     ));
     for member in &structure.members {
         let mut ty = rust_type(service, &member.target, prefix);
@@ -117,7 +125,9 @@ pub(crate) fn emit(
         };
         out.push_str(&format!("    {}: {wrapper}<{ty}>,\n", field(&member.name)));
     }
-    out.push_str(&format!("}}\nimpl {builder} {{\n"));
+    out.push_str("}\n");
+    crate::debug::structure(out, service, builder, structure);
+    out.push_str(&format!("impl {builder} {{\n"));
     for member in &structure.members {
         let native = field(&member.name);
         let setter = &setters[&member.name];
@@ -130,6 +140,14 @@ pub(crate) fn emit(
         } else {
             "Some"
         };
+        doc(
+            out,
+            "    ",
+            member
+                .docs
+                .as_deref()
+                .or(Some("Sets this member to a value.")),
+        );
         out.push_str(&format!("    pub fn {setter}(mut self, value: impl ::std::convert::Into<{ty}>) -> Self {{ self.{native} = {constructor}(value.into()); self }}\n"));
     }
     let fallible = structure
@@ -141,6 +159,15 @@ pub(crate) fn emit(
     } else {
         name.to_owned()
     };
+    doc(
+        out,
+        "    ",
+        Some(if fallible {
+            "Builds the model; fails when a required member without a default is unset."
+        } else {
+            "Builds the model and applies modeled defaults."
+        }),
+    );
     out.push_str(&format!(
         "    pub fn build(self) -> {result} {{\n        {}{name} {{\n",
         if fallible { "Ok(" } else { "" }
