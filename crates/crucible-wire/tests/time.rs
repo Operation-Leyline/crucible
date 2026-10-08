@@ -1,6 +1,7 @@
+use crucible_wire::__generated as generated;
 use crucible_wire::{
     bound::BoundValue,
-    operation::{Location, MemberInfo, Redaction, Scalar, TimestampFormat},
+    operation::{Location, Redaction, Scalar, TimestampFormat},
     time,
 };
 use serde::{Deserialize, Serialize};
@@ -89,16 +90,16 @@ fn response_headers_reject_out_of_range_timestamp_text() {
             time: time::epoch_seconds::parse(text).unwrap(),
         };
         for format in [TimestampFormat::DateTime, TimestampFormat::HttpDate] {
-            let members = [MemberInfo {
-                name: "time",
-                location: Location::Header("x-time"),
-                scalar: Scalar::Timestamp {
+            let members = [generated::member_info(
+                "time",
+                Location::Header("x-time"),
+                Scalar::Timestamp {
                     text: format,
                     json: TimestampFormat::EpochSeconds,
                 },
-                redaction: &Redaction::Public,
-                traits: &[],
-            }];
+                &Redaction::Public,
+                &[],
+            )];
             assert!(crucible_wire::split::write(&output, &members, &mut Vec::new()).is_err());
             assert!(
                 crucible_wire::split::write_http(&output, &members, None, &mut Vec::new()).is_err()

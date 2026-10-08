@@ -8,6 +8,7 @@ use crucible_auth::{
     AuthenticateResult, Authenticator, AuthenticatorChain, IssuerConfig, JwtAuthenticator,
     Principal, TokenKind, test_support::TestTokenIssuer,
 };
+use crucible_server_runtime_rust::__generated as generated;
 use crucible_server_runtime_rust::{
     Context, Crucible, DecodedJob, FrameworkError, Hook, Interceptor, Operation,
     OperationMiddlewareExt, Operations,
@@ -601,18 +602,18 @@ impl Operation for LegacyProbe {
     type Input = crucible_server_runtime_rust::operation::Unit;
     type Output = Identity;
 }
-static LEGACY_SERVICE: ServiceInfo = ServiceInfo {
-    mcp_tools: None,
-    cors: None,
-    id: "example.auth#Legacy",
-    version: "1",
-    operations: &[Protected::INFO],
-    errors: &[],
-    classify: |_| None,
-    reject: None,
-    internal: None,
-    unknown: None,
-};
+static LEGACY_SERVICE: ServiceInfo = generated::service_info(
+    "example.auth#Legacy",
+    "1",
+    None,
+    None,
+    &[Protected::INFO],
+    &[],
+    |_| None,
+    None,
+    None,
+    None,
+);
 
 #[test]
 fn legacy_authentication_metadata_fails_closed_at_startup() {

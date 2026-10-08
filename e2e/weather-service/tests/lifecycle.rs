@@ -1,4 +1,5 @@
 //! Admission, protocol ownership, and cleanup through the public middleware and protocol APIs.
+use crucible_server_runtime_rust::__generated as generated;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -26,35 +27,35 @@ fn job_remains_send() {
     assert_send::<Job>();
 }
 
-static INFO: OperationInfo = OperationInfo {
-    id: "lifecycle#Probe",
-    name: "Probe",
-    resource: None,
-    method: "POST",
-    path: &[Segment::Literal("probe")],
-    literal_query: &[],
-    status: 200,
-    input: &[],
-    output: &[],
-    errors: &[],
-    readonly: false,
-    idempotent: false,
-    internal: false,
-    idempotency_token: None,
-    traits: &[],
-};
-static SERVICE: ServiceInfo = ServiceInfo {
-    mcp_tools: None,
-    cors: None,
-    id: "lifecycle#Service",
-    version: "1",
-    operations: &[&INFO],
-    errors: &[],
-    classify: |_| None,
-    reject: weather::SERVICE.reject,
-    internal: weather::SERVICE.internal,
-    unknown: weather::SERVICE.unknown,
-};
+static INFO: OperationInfo = generated::operation_info(
+    "lifecycle#Probe",
+    "Probe",
+    None,
+    "POST",
+    &[Segment::Literal("probe")],
+    &[],
+    200,
+    &[],
+    &[],
+    &[],
+    false,
+    false,
+    false,
+    None,
+    &[],
+);
+static SERVICE: ServiceInfo = generated::service_info(
+    "lifecycle#Service",
+    "1",
+    None,
+    None,
+    &[&INFO],
+    &[],
+    |_| None,
+    weather::SERVICE.reject,
+    weather::SERVICE.internal,
+    weather::SERVICE.unknown,
+);
 struct Probe;
 impl Operation for Probe {
     const INFO: &'static OperationInfo = &INFO;

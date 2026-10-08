@@ -15,6 +15,7 @@ pub async fn run(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<(
 
 /// Execute a parsed invocation. Customize its Config before dispatch for
 /// token providers, interceptors and other service-specific integrations.
+#[allow(deprecated)]
 pub async fn dispatch(invocation: Invocation) -> Result<(), Error> {
     let client = client::WeatherClient::new(invocation.config);
     match invocation.operation.as_str() {

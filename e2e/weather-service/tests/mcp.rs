@@ -1,3 +1,6 @@
+// The fixture deprecates Ping; this test still checks its MCP body limits.
+#![allow(deprecated)]
+use crucible_server_runtime_rust::__generated as generated;
 use std::sync::Arc;
 
 use axum::body::{Body, to_bytes};
@@ -21,10 +24,20 @@ fn service(config: McpConfig) -> Crucible {
 fn runtime_mcp_requires_generated_service_descriptors() {
     use crucible_server_runtime_rust::{BuildError, Operations, ServiceInfo};
 
-    static WITHOUT_MCP: ServiceInfo = ServiceInfo {
-        mcp_tools: None,
-        operations: &[],
-        ..weather::SERVICE
+    static WITHOUT_MCP: ServiceInfo = {
+        let base = &(weather::SERVICE);
+        generated::service_info(
+            base.id,
+            base.version,
+            base.cors,
+            None,
+            &[],
+            base.errors,
+            base.classify,
+            base.reject,
+            base.internal,
+            base.unknown,
+        )
     };
     let operations = Operations::builder(&WITHOUT_MCP).build().unwrap();
     let result = Crucible::builder(operations)

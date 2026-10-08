@@ -111,7 +111,16 @@ fn cli_defaults_external_and_explicit_internal_preserves_full_api() {
         );
         let contents = fs::read_to_string(out).unwrap();
         assert!(contents.contains("SecretInput"));
-        assert!(contents.contains("internal: true"));
+        // The generated constructor retains readonly, idempotent, internal in
+        // that order; inspect the Secret operation rather than struct field text.
+        let secret = contents
+            .split_once("static SECRET_OPERATION:")
+            .unwrap()
+            .1
+            .split_once("\n    );")
+            .unwrap()
+            .0;
+        assert!(secret.contains("\n        false,\n        false,\n        true,\n"));
     }
 }
 

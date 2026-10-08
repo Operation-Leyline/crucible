@@ -111,6 +111,7 @@ impl LogPolicy {
 /// One request after protocol serialization. Payload fields are already redacted.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct LogRecord<'a> {
     pub request_id: &'a str,
     pub operation: &'static str,

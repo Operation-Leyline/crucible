@@ -89,7 +89,7 @@ pub(crate) fn emit(
                 out.push_str(&format!(
                     "pub type {name} = {};\n",
                     if simple.streaming {
-                        "::crucible_server_runtime_rust::ByteStream"
+                        "::crucible_server_runtime_rust::__generated::ByteStream"
                     } else {
                         builtin(simple.kind)
                     }
@@ -185,11 +185,12 @@ pub(crate) fn emit(
                     }
                     let adapter = if let Some(mut codec) = crate::types::codec(service, member) {
                         if boxed.contains(&id.with_member(&member.name)) {
-                            codec =
-                                format!("::crucible_server_runtime_rust::codec::Boxed<{codec}>");
+                            codec = format!(
+                                "::crucible_server_runtime_rust::__generated::codec::Boxed<{codec}>"
+                            );
                         }
                         format!(
-                            "#[serde(with = \"::crucible_server_runtime_rust::codec::Adapter::<{codec}>\")] "
+                            "#[serde(with = \"::crucible_server_runtime_rust::__generated::codec::Adapter::<{codec}>\")] "
                         )
                     } else {
                         String::new()
@@ -333,9 +334,9 @@ pub(crate) fn member_field(
         }
         serde.push(
             if omit_null {
-                "skip_serializing_if = \"::crucible_server_runtime_rust::Field::is_unset\""
+                "skip_serializing_if = \"::crucible_server_runtime_rust::__generated::Field::is_unset\""
             } else if client {
-                "skip_serializing_if = \"::crucible_server_runtime_rust::Field::is_absent\""
+                "skip_serializing_if = \"::crucible_server_runtime_rust::__generated::Field::is_absent\""
             } else {
                 "skip_serializing_if = \"::std::option::Option::is_none\""
             }
@@ -353,7 +354,7 @@ pub(crate) fn member_field(
         match default_expr(service, member, value, &inner) {
             Some(expr) => {
                 let expr = if client && optional {
-                    format!("::crucible_server_runtime_rust::Field::Value({expr})")
+                    format!("::crucible_server_runtime_rust::__generated::Field::Value({expr})")
                 } else {
                     expr
                 };
@@ -379,7 +380,8 @@ pub(crate) fn member_field(
         && crate::types::simple_kind(service, &member.target) == Some(SimpleKind::Document)
     {
         serde.push(
-            "deserialize_with = \"::crucible_server_runtime_rust::field::required\"".to_owned(),
+            "deserialize_with = \"::crucible_server_runtime_rust::__generated::field::required\""
+                .to_owned(),
         );
     }
     if !client
@@ -388,16 +390,16 @@ pub(crate) fn member_field(
         && crate::types::simple_kind(service, &member.target) == Some(SimpleKind::Document)
     {
         serde.push(
-            "with = \"::crucible_server_runtime_rust::codec::Adapter::<::crucible_server_runtime_rust::codec::OptionalDocument>\""
+            "with = \"::crucible_server_runtime_rust::__generated::codec::Adapter::<::crucible_server_runtime_rust::__generated::codec::OptionalDocument>\""
                 .to_owned(),
         );
     } else if let Some(mut codec) = crate::types::codec(service, member) {
         if boxed {
-            codec = format!("::crucible_server_runtime_rust::codec::Boxed<{codec}>");
+            codec = format!("::crucible_server_runtime_rust::__generated::codec::Boxed<{codec}>");
         }
         if optional {
             codec = format!(
-                "::crucible_server_runtime_rust::codec::{}<{codec}>",
+                "::crucible_server_runtime_rust::__generated::codec::{}<{codec}>",
                 if omit_null {
                     "NullAbsent"
                 } else if client {
@@ -408,11 +410,11 @@ pub(crate) fn member_field(
             );
         }
         serde.push(format!(
-            "with = \"::crucible_server_runtime_rust::codec::Adapter::<{codec}>\""
+            "with = \"::crucible_server_runtime_rust::__generated::codec::Adapter::<{codec}>\""
         ));
     } else if omit_null {
         serde.push(
-            "with = \"::crucible_server_runtime_rust::codec::Adapter::<::crucible_server_runtime_rust::codec::NullAbsent<::crucible_server_runtime_rust::codec::Identity>>\""
+            "with = \"::crucible_server_runtime_rust::__generated::codec::Adapter::<::crucible_server_runtime_rust::__generated::codec::NullAbsent<::crucible_server_runtime_rust::__generated::codec::Identity>>\""
                 .to_owned(),
         );
     }
@@ -451,7 +453,7 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
             (SimpleKind::Boolean, Value::Bool(b)) => Some(b.to_string()),
             (SimpleKind::String, Value::String(s)) => Some(format!("{}.to_owned()", literal(s))),
             (SimpleKind::Blob, Value::String(s)) => Some(format!(
-                "::crucible_server_runtime_rust::Blob::from_base64({}).expect(\"validated blob default\")",
+                "::crucible_server_runtime_rust::__generated::Blob::from_base64({}).expect(\"validated blob default\")",
                 literal(s)
             )),
             (SimpleKind::Float | SimpleKind::Double, Value::Number(n)) => {
@@ -473,15 +475,15 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
                 ))
             }
             (SimpleKind::Timestamp, Value::Number(number)) => Some(format!(
-                "::crucible_server_runtime_rust::time::epoch_seconds::parse({}).expect(\"validated timestamp default\")",
+                "::crucible_server_runtime_rust::__generated::time::epoch_seconds::parse({}).expect(\"validated timestamp default\")",
                 literal(&number.to_string())
             )),
             (SimpleKind::Timestamp, Value::String(text)) => Some(format!(
-                "::crucible_server_runtime_rust::time::parse_date_time({}).expect(\"validated timestamp default\")",
+                "::crucible_server_runtime_rust::__generated::time::parse_date_time({}).expect(\"validated timestamp default\")",
                 literal(text)
             )),
             (SimpleKind::Document, value) => Some(format!(
-                "::crucible_server_runtime_rust::__private::serde_json::json!({value})"
+                "::crucible_server_runtime_rust::__generated::serde_json::json!({value})"
             )),
             _ => None,
         },
@@ -548,7 +550,7 @@ impl Patterns {
                 continue;
             };
             out.push_str(&format!(
-                "\nstatic {name}: ::std::sync::LazyLock<::crucible_server_runtime_rust::__private::regex::Regex> =\n    ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__private::regex::Regex::new({}).expect(\"checked by crucible\"));\n",
+                "\nstatic {name}: ::std::sync::LazyLock<::crucible_server_runtime_rust::__generated::regex::Regex> =\n    ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__generated::regex::Regex::new({}).expect(\"checked by crucible\"));\n",
                 literal(&translated)
             ));
         }
@@ -599,7 +601,7 @@ fn validate_impl(
                 }
                 let access = if client && member.optional_on_client() {
                     format!(
-                        "if let ::crucible_server_runtime_rust::Field::Value(value) = &self.{} {{\n",
+                        "if let ::crucible_server_runtime_rust::__generated::Field::Value(value) = &self.{} {{\n",
                         field(&member.name)
                     )
                 } else if !client && member.optional_on_server() {
@@ -621,7 +623,7 @@ fn validate_impl(
         body.push_str("        let _ = validator;\n");
     }
     format!(
-        "\nimpl ::crucible_server_runtime_rust::validate::Validate for {name} {{\n    fn validate(&self, validator: &mut ::crucible_server_runtime_rust::validate::Validator) {{\n{body}    }}\n}}\n"
+        "\nimpl ::crucible_server_runtime_rust::__generated::validate::Validate for {name} {{\n    fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {{\n{body}    }}\n}}\n"
     )
 }
 
@@ -751,7 +753,7 @@ fn range_check(
                 },
             )
         };
-        let statics = [("MIN", &range.min), ("MAX", &range.max)].into_iter().filter(|(_, value)| value.is_some()).map(|(name, _)| format!("{pad}    static {name}: ::std::sync::OnceLock<::crucible_server_runtime_rust::number::DecimalValue> = ::std::sync::OnceLock::new();\n")).collect::<String>();
+        let statics = [("MIN", &range.min), ("MAX", &range.max)].into_iter().filter(|(_, value)| value.is_some()).map(|(name, _)| format!("{pad}    static {name}: ::std::sync::OnceLock<::crucible_server_runtime_rust::__generated::number::DecimalValue> = ::std::sync::OnceLock::new();\n")).collect::<String>();
         return format!(
             "{pad}{{\n{statics}{pad}    validator.range_decimal(&{value}.as_decimal(), {}, {});\n{pad}}}\n",
             bound("MIN", &range.min),

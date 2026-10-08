@@ -1,5 +1,8 @@
 # The Crucible framework
 
+The documented service-author API and generated-code version boundary are
+described in [Rust runtime stability](stability.md).
+
 Crucible is two products:
 
 1. **The framework** (`crucible-server-runtime-rust` crate): everything a service does that is not

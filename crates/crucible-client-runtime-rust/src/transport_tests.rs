@@ -3,13 +3,13 @@ use crucible_wire::operation::Fault;
 use crucible_wire::operation::{OperationInfo, Unit};
 
 const fn response_header(scalar: Scalar) -> MemberInfo {
-    MemberInfo {
-        name: "names",
-        location: Location::Header("x-names"),
+    crate::__generated::member_info(
+        "names",
+        Location::Header("x-names"),
         scalar,
-        redaction: &crucible_wire::operation::Redaction::Public,
-        traits: &[],
-    }
+        &crucible_wire::operation::Redaction::Public,
+        &[],
+    )
 }
 
 #[test]
@@ -63,14 +63,8 @@ fn absent_response_headers_and_scalar_first_line_are_preserved() {
 
 #[derive(Debug)]
 struct Known;
-static ERROR: ErrorInfo = ErrorInfo {
-    name: "Known",
-    status: 429,
-    fault: Fault::Client,
-    retryable: true,
-    throttling: true,
-    members: &[],
-};
+static ERROR: ErrorInfo =
+    crate::__generated::error_info("Known", 429, Fault::Client, true, true, &[]);
 impl OperationErrors for Known {
     fn decode(_: u16, name: Option<&str>, _: &HeaderMap, _: &[u8]) -> Option<Self> {
         (name == Some("Known")).then_some(Self)
@@ -82,23 +76,23 @@ impl OperationErrors for Known {
 struct Probe;
 impl Operation for Probe {
     const AUTH_BEARER: bool = true;
-    const INFO: &'static OperationInfo = &OperationInfo {
-        id: "test#Probe",
-        name: "Probe",
-        resource: None,
-        method: "POST",
-        path: &[],
-        literal_query: &[],
-        status: 200,
-        input: &[],
-        output: &[],
-        errors: &[],
-        readonly: true,
-        idempotent: false,
-        internal: false,
-        idempotency_token: None,
-        traits: &[],
-    };
+    const INFO: &'static OperationInfo = &crate::__generated::operation_info(
+        "test#Probe",
+        "Probe",
+        None,
+        "POST",
+        &[],
+        &[],
+        200,
+        &[],
+        &[],
+        &[],
+        true,
+        false,
+        false,
+        None,
+        &[],
+    );
     type Input = Unit;
     type Output = Unit;
 }
@@ -325,10 +319,23 @@ impl Operation for RpcCborProbe {
 struct UnsafeRpcProbe;
 impl Operation for UnsafeRpcProbe {
     const PROTOCOL: Protocol = Protocol::SmithyRpcV2Json;
-    const INFO: &'static OperationInfo = &OperationInfo {
-        readonly: false,
-        ..*Probe::INFO
-    };
+    const INFO: &'static OperationInfo = &crate::__generated::operation_info(
+        Probe::INFO.id,
+        Probe::INFO.name,
+        Probe::INFO.resource,
+        Probe::INFO.method,
+        Probe::INFO.path,
+        Probe::INFO.literal_query,
+        Probe::INFO.status,
+        Probe::INFO.input,
+        Probe::INFO.output,
+        Probe::INFO.errors,
+        false,
+        Probe::INFO.idempotent,
+        Probe::INFO.internal,
+        Probe::INFO.idempotency_token,
+        Probe::INFO.traits,
+    );
     type Input = Unit;
     type Output = Unit;
 }

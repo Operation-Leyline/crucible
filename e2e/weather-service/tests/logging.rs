@@ -1,3 +1,4 @@
+use crucible_server_runtime_rust::__generated as generated;
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
@@ -133,11 +134,26 @@ fn exact_query_values_outrank_any_value_matches() {
 
     struct AnyMode;
     impl Operation for AnyMode {
-        const INFO: &'static crucible_server_runtime_rust::OperationInfo =
-            &crucible_server_runtime_rust::OperationInfo {
-                literal_query: &[("mode", None)],
-                ..*api::Echo::INFO
-            };
+        const INFO: &'static crucible_server_runtime_rust::OperationInfo = &{
+            let base = api::Echo::INFO;
+            generated::operation_info(
+                base.id,
+                base.name,
+                base.resource,
+                base.method,
+                base.path,
+                &[("mode", None)],
+                base.status,
+                base.input,
+                base.output,
+                base.errors,
+                base.readonly,
+                base.idempotent,
+                base.internal,
+                base.idempotency_token,
+                base.traits,
+            )
+        };
         type Input = api::Payload;
         type Output = api::Payload;
     }

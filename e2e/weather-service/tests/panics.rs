@@ -1,5 +1,6 @@
 // The fixture deprecates `Ping`; these tests still drive it.
 #![allow(deprecated)]
+use crucible_server_runtime_rust::__generated as generated;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -21,11 +22,20 @@ use serde_json::{Value, json};
 use weather_service::weather;
 
 const SECRET: &str = "panic secret must stay in logs";
-static SERVICE: ServiceInfo = ServiceInfo {
-    mcp_tools: None,
-    cors: None,
-    operations: &[weather::Ping::INFO],
-    ..weather::SERVICE
+static SERVICE: ServiceInfo = {
+    let base = &(weather::SERVICE);
+    generated::service_info(
+        base.id,
+        base.version,
+        None,
+        None,
+        &[weather::Ping::INFO],
+        base.errors,
+        base.classify,
+        base.reject,
+        base.internal,
+        base.unknown,
+    )
 };
 
 #[derive(Clone, Default)]

@@ -119,7 +119,7 @@ pub(crate) fn emit(
             ty = format!("::std::boxed::Box<{ty}>");
         }
         let wrapper = if member.optional_on_client() {
-            "::crucible_server_runtime_rust::Field"
+            "::crucible_server_runtime_rust::__generated::Field"
         } else {
             "::std::option::Option"
         };
@@ -136,7 +136,7 @@ pub(crate) fn emit(
             ty = format!("::std::boxed::Box<{ty}>");
         }
         let constructor = if member.optional_on_client() {
-            "::crucible_server_runtime_rust::Field::Value"
+            "::crucible_server_runtime_rust::__generated::Field::Value"
         } else {
             "Some"
         };
@@ -156,7 +156,9 @@ pub(crate) fn emit(
         .iter()
         .any(|m| !m.optional_on_client() && m.default.is_none());
     let result = if fallible {
-        format!("::std::result::Result<{name}, ::crucible_server_runtime_rust::BuildError>")
+        format!(
+            "::std::result::Result<{name}, ::crucible_server_runtime_rust::__generated::BuildError>"
+        )
     } else {
         name.to_owned()
     };
@@ -186,7 +188,7 @@ pub(crate) fn emit(
             format!("self.{native}.unwrap_or_else(defaults::{function})")
         } else {
             format!(
-                "self.{native}.ok_or(::crucible_server_runtime_rust::BuildError {{ shape: {}, member: {} }})?",
+                "self.{native}.ok_or(::crucible_server_runtime_rust::__generated::build_error({}, {}))?",
                 literal(name),
                 literal(&member.name)
             )

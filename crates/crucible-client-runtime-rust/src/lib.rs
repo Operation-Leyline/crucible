@@ -18,6 +18,8 @@
 //! only when the operation is safe to repeat (`@readonly`, `@idempotent`,
 //! or carrying an idempotency token, which the client fills when absent).
 
+include!(concat!(env!("OUT_DIR"), "/check_abi.rs"));
+
 mod auth;
 mod build_error;
 mod cancellation;
@@ -25,6 +27,7 @@ pub mod checksum;
 mod config;
 mod credentials;
 mod endpoint;
+pub mod error;
 mod events;
 mod metadata;
 mod paginate;
@@ -44,20 +47,20 @@ pub use credentials::AwsCredentials;
 pub use crucible_wire::blob::Blob;
 pub use crucible_wire::error::ModelledError;
 pub use crucible_wire::field::Field;
-pub use crucible_wire::open::UnknownUnion;
+pub use crucible_wire::open::{Enum as OpenEnum, UnknownUnion};
 pub use crucible_wire::operation::{Checksum, ChecksumAlgorithm, Protocol};
 pub use crucible_wire::operation::{Operation, OperationInfo};
-pub use crucible_wire::{blob, cbor, codec, error, number, operation, time, validate};
-pub use crucible_wire::{field, open};
+pub use crucible_wire::{blob, number, operation, time, validate};
+#[doc(hidden)]
 pub use metadata::{OperationMetadata, ServiceMetadata};
 pub use paginate::Paginator;
-pub use transport::{
-    Error, OperationErrors, ResponseMetadata, ServiceError, Transport, UnknownError, by_status,
-    decode_modelled, decode_modelled_at,
-};
+pub use transport::{Error, ResponseMetadata, ServiceError, Transport, UnknownError};
+#[doc(hidden)]
+pub use transport::{OperationErrors, by_status, decode_modelled, decode_modelled_at};
 pub use waiter::{WaiterError, WaiterFailure, WaiterOptions, WaiterResult};
 
 /// A fresh idempotency token, for an input member that carries one.
+#[doc(hidden)]
 pub fn idempotency_token() -> String {
     uuid::Uuid::new_v4().to_string()
 }
@@ -72,7 +75,25 @@ macro_rules! include_client {
 
 /// For generated code only.
 #[doc(hidden)]
-pub mod __private {
+pub mod __generated {
+    pub use crate::{
+        BuildError, CallOptions, Config, Error, Field, ModelledError, Operation, OperationErrors,
+        OperationInfo, OperationMetadata, Paginator, ServiceMetadata, Transport, UnknownUnion,
+        WaiterError, WaiterOptions, WaiterResult, by_status, decode_modelled_at, idempotency_token,
+    };
+    pub use __crucible_check_abi as check_abi;
+    pub use crucible_wire::__generated::{error_info, member_info, operation_info, service_info};
+    pub use crucible_wire::blob::Blob;
+    pub use crucible_wire::event_stream::EventStream;
+    pub use crucible_wire::number::{BigDecimal, BigInteger};
+    pub use crucible_wire::stream::ByteStream;
+    pub use crucible_wire::{
+        cbor, codec, error, event_stream, field, number, open, operation, time, validate,
+    };
+
+    pub const fn build_error(shape: &'static str, member: &'static str) -> crate::BuildError {
+        crate::BuildError { shape, member }
+    }
     pub use chrono;
     pub use http;
     pub use regex;

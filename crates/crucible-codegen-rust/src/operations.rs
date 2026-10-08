@@ -57,7 +57,7 @@ fn operation_static(operation: &Operation) -> String {
 
 pub(crate) fn input_type(service: &Service, operation: &Operation) -> String {
     operation.input.as_ref().map_or(
-        "::crucible_server_runtime_rust::operation::Unit".to_owned(),
+        "::crucible_server_runtime_rust::__generated::operation::Unit".to_owned(),
         |id| format!("model::{}", service.name_of(id)),
     )
 }
@@ -98,7 +98,7 @@ fn operation_items(service: &Service, op: &Operation) -> String {
         String::new()
     };
     out.push_str(&format!(
-        "pub trait {name}Operation: ::crucible_server_runtime_rust::WithContext + Send + Sync + 'static {{\n    fn {}(&self{parameter}) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::Result<{}>> + Send;\n}}\n",
+        "pub trait {name}Operation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {{\n    fn {}(&self{parameter}) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<{}>> + Send;\n}}\n",
         function(name),
         output_type(service, op).trim_start_matches("model::"),
     ));
@@ -120,7 +120,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         .map(|segment| match segment {
             Segment::Literal(text) => {
                 format!(
-                    "::crucible_server_runtime_rust::operation::Segment::Literal({})",
+                    "::crucible_server_runtime_rust::__generated::operation::Segment::Literal({})",
                     literal(text)
                 )
             }
@@ -134,7 +134,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
                     .and_then(|s| s.members.iter().find(|m| &m.name == label))
                     .map_or(label.as_str(), |m| m.wire_name.as_str());
                 format!(
-                    "::crucible_server_runtime_rust::operation::Segment::{kind}({})",
+                    "::crucible_server_runtime_rust::__generated::operation::Segment::{kind}({})",
                     literal(wire)
                 )
             }
@@ -182,7 +182,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
             format!("Some({})", literal(token))
         });
     out.push_str(&format!(
-        "static {}: ::crucible_server_runtime_rust::OperationInfo = ::crucible_server_runtime_rust::OperationInfo {{\n    id: {},\n    name: {},\n    resource: {resource},\n    method: {},\n    path: &[{}],\n    literal_query: &[{query}],\n    status: {},\n    input: {input},\n    output: {output},\n    errors: &[{}],\n    readonly: {},\n    idempotent: {},\n    internal: {},\n    idempotency_token: {token},\n    traits: {},\n}};\n\n",
+        "static {}: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(\n    {},\n    {},\n    {resource},\n    {},\n    &[{}],\n    &[{query}],\n    {},\n    {input},\n    {output},\n    &[{}],\n    {},\n    {},\n    {},\n    {token},\n    {},\n);\n\n",
         operation_static(op),
         literal(&op.id.to_string()),
         literal(name),
@@ -205,15 +205,15 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         let rust = crate::names::field(&member.name);
         let get = if client && member.optional_on_client() {
             format!(
-                "value.{rust}.value().map(|value| ::crucible_server_runtime_rust::operation::response_status(i64::from(*value)))"
+                "value.{rust}.value().map(|value| ::crucible_server_runtime_rust::__generated::operation::response_status(i64::from(*value)))"
             )
         } else if !client && member.optional_on_server() {
             format!(
-                "value.{rust}.as_ref().map(|value| ::crucible_server_runtime_rust::operation::response_status(i64::from(*value)))"
+                "value.{rust}.as_ref().map(|value| ::crucible_server_runtime_rust::__generated::operation::response_status(i64::from(*value)))"
             )
         } else {
             format!(
-                "Some(::crucible_server_runtime_rust::operation::response_status(i64::from(value.{rust})))"
+                "Some(::crucible_server_runtime_rust::__generated::operation::response_status(i64::from(value.{rust})))"
             )
         };
         streaming.push_str(&format!(
@@ -241,14 +241,14 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
             let (get, set) = if client && member.optional_on_client() {
                 (
                     format!("value.{rust}.value().cloned()"),
-                    "::crucible_server_runtime_rust::Field::Value(stream)",
+                    "::crucible_server_runtime_rust::__generated::Field::Value(stream)",
                 )
             } else if !client && member.optional_on_server() {
                 (format!("value.{rust}.clone()"), "Some(stream)")
             } else {
                 (format!("Some(value.{rust}.clone())"), "stream")
             };
-            streaming.push_str(&format!("    fn {direction}_stream(value: &Self::{ty}) -> ::std::option::Option<::crucible_server_runtime_rust::ByteStream> {{ {get} }}\n    fn set_{direction}_stream(value: &mut Self::{ty}, stream: ::crucible_server_runtime_rust::ByteStream) {{ value.{rust} = {set}; }}\n"));
+            streaming.push_str(&format!("    fn {direction}_stream(value: &Self::{ty}) -> ::std::option::Option<::crucible_server_runtime_rust::__generated::ByteStream> {{ {get} }}\n    fn set_{direction}_stream(value: &mut Self::{ty}, stream: ::crucible_server_runtime_rust::__generated::ByteStream) {{ value.{rust} = {set}; }}\n"));
         }
     }
     let auth = op
@@ -283,12 +283,12 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
                     unreachable!("undeclared Rust auth capability")
                 }
             };
-            format!("::crucible_server_runtime_rust::operation::AuthScheme::{value}")
+            format!("::crucible_server_runtime_rust::__generated::operation::AuthScheme::{value}")
         })
         .collect::<Vec<_>>()
         .join(", ");
     let mut auth = format!(
-        "    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
+        "    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
         op.optional_auth
     );
     if !client {
@@ -313,7 +313,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         ""
     };
     out.push_str(&format!(
-        "{allow}impl ::crucible_server_runtime_rust::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible_server_runtime_rust::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
+        "{allow}impl ::crucible_server_runtime_rust::__generated::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
         op.auth.iter().any(|id| id.to_string() == "smithy.api#httpBearerAuth"),
         operation_static(op),
         input_type(service, op),
@@ -344,7 +344,7 @@ fn wire(service: &Service, op: &Operation) -> String {
     };
     if let Some(protocol) = protocol {
         out.push_str(&format!(
-            "    const PROTOCOL: ::crucible_server_runtime_rust::operation::Protocol = ::crucible_server_runtime_rust::operation::Protocol::{protocol};\n"
+            "    const PROTOCOL: ::crucible_server_runtime_rust::__generated::operation::Protocol = ::crucible_server_runtime_rust::__generated::operation::Protocol::{protocol};\n"
         ));
     }
     let wire = |name: &Option<String>| {
@@ -380,7 +380,7 @@ fn wire(service: &Service, op: &Operation) -> String {
                         ChecksumAlgorithm::Xxhash3 => "Xxhash3",
                         ChecksumAlgorithm::Xxhash128 => "Xxhash128",
                     };
-                    format!("::crucible_server_runtime_rust::operation::ChecksumAlgorithm::{name}")
+                    format!("::crucible_server_runtime_rust::__generated::operation::ChecksumAlgorithm::{name}")
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -392,7 +392,7 @@ fn wire(service: &Service, op: &Operation) -> String {
         }
     };
     out.push_str(&format!(
-        "    const CHECKSUM: ::std::option::Option<::crucible_server_runtime_rust::operation::Checksum> = Some(::crucible_server_runtime_rust::operation::Checksum::{checksum});\n"
+        "    const CHECKSUM: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Checksum> = Some(::crucible_server_runtime_rust::__generated::operation::Checksum::{checksum});\n"
     ));
     out
 }
@@ -400,7 +400,7 @@ fn wire(service: &Service, op: &Operation) -> String {
 fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
     let cors = service.cors.as_ref().map_or_else(|| "None".to_owned(), |cors| {
         let list = |values: &[String]| values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ");
-        format!("Some(&::crucible_server_runtime_rust::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})", literal(&cors.origin), cors.max_age, cors.allow_credentials, list(&cors.allowed_headers), list(&cors.allowed_header_prefixes), list(&cors.exposed_headers), list(&cors.methods))
+        format!("Some(&::crucible_server_runtime_rust::__generated::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})", literal(&cors.origin), cors.max_age, cors.allow_credentials, list(&cors.allowed_headers), list(&cors.allowed_header_prefixes), list(&cors.exposed_headers), list(&cors.methods))
     });
     let operations: Vec<String> = service
         .operations
@@ -420,7 +420,7 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
     };
     let mcp_tools = if mcp { "Some(MCP_TOOLS)" } else { "None" };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {{\n    id: {},\n    version: {},\n    cors: {cors},\n    mcp_tools: {mcp_tools},\n    operations: &[\n        {}{}\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {cors},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n);\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),
@@ -434,7 +434,7 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
 
 fn registration(service: &Service) -> String {
     let mut out = String::from(
-        "\n/// Registers implementations one operation at a time, for a service split\n/// across several types. `build` names any operation left out.\npub struct OperationsBuilder(::crucible_server_runtime_rust::operations::OperationsBuilder);\n\nimpl OperationsBuilder {\n",
+        "\n/// Registers implementations one operation at a time, for a service split\n/// across several types. `build` names any operation left out.\npub struct OperationsBuilder(::crucible_server_runtime_rust::__generated::OperationsBuilder);\n\nimpl OperationsBuilder {\n",
     );
     for op in &service.operations {
         let method = function(op.name());
@@ -454,9 +454,9 @@ fn registration(service: &Service) -> String {
         ));
     }
     out.push_str(
-        "    pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::Operations, ::crucible_server_runtime_rust::MissingOperations> {\n        self.0.build()\n    }\n}\n\n",
+        "    pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::Operations, ::crucible_server_runtime_rust::__generated::MissingOperations> {\n        self.0.build()\n    }\n}\n\n",
     );
-    out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible_server_runtime_rust::Operations::builder(&SERVICE))\n}\n\n");
+    out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))\n}\n\n");
     let bounds: Vec<String> = service
         .operations
         .iter()
@@ -473,7 +473,7 @@ fn registration(service: &Service) -> String {
         "implementation"
     };
     out.push_str(&format!(
-        "/// Every operation, served by one type: checked at compile time.\npub fn operations<T>({implementation}: ::std::sync::Arc<T>) -> ::crucible_server_runtime_rust::Operations\nwhere\n    T: {},\n{{\n    builder(){calls}\n        .build()\n        .expect(\"every operation is registered\")\n}}\n",
+        "/// Every operation, served by one type: checked at compile time.\npub fn operations<T>({implementation}: ::std::sync::Arc<T>) -> ::crucible_server_runtime_rust::__generated::Operations\nwhere\n    T: {},\n{{\n    builder(){calls}\n        .build()\n        .expect(\"every operation is registered\")\n}}\n",
         bounds.join(" + ")
     ));
     out

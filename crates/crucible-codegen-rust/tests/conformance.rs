@@ -89,7 +89,7 @@ fn every_kind_of_vector_calls_its_harness_function() {
     // The registration is generic: no operation's behaviour is written here.
     assert!(
         code.contains(
-            ".add::<crate::weather::GetCity, _, _>(stub.clone(), ::crucible_server_runtime_rust::conformance::Stub::call::<crate::weather::GetCity>)"
+            ".add::<crate::weather::GetCity, _, _>(stub.clone(), ::crucible_server_runtime_rust::__generated::conformance::Stub::call::<crate::weather::GetCity>)"
         ),
         "{code}"
     );
@@ -305,7 +305,7 @@ fn rpc_v2_json_vectors_are_generated_with_the_requests_they_carry() {
     assert_eq!(code.matches("\n#[test]\n").count(), applicable, "{code}");
     assert!(!code.contains("#[ignore"), "{code}");
     assert!(
-        code.contains("seed: ::crucible_server_runtime_rust::conformance::HttpRequest { method: \"POST\", uri: \"/service/RpcV2JsonProtocol/operation/GreetingWithErrors\", host: None, query: &[], headers: &[(\"smithy-protocol\", \"rpc-v2-json\")]"),
+        code.contains("seed: ::crucible_server_runtime_rust::__generated::conformance::HttpRequest { method: \"POST\", uri: \"/service/RpcV2JsonProtocol/operation/GreetingWithErrors\", host: None, query: &[], headers: &[(\"smithy-protocol\", \"rpc-v2-json\")]"),
         "{code}"
     );
     // A seed for an operation the service does not have is a mistake.

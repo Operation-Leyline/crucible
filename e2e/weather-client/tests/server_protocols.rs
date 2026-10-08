@@ -341,7 +341,7 @@ async fn cbor_trailing_or_truncated_documents_are_rejected() {
         assert_eq!(response.headers()["content-type"], "application/cbor");
         let body = response.bytes().await.unwrap();
         assert_eq!(
-            crucible_server_runtime_rust::cbor::error_envelope(&body).unwrap()["__type"],
+            crucible_server_runtime_rust::__generated::cbor::error_envelope(&body).unwrap()["__type"],
             "example.json#Problem"
         );
     }

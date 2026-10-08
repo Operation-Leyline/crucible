@@ -1,5 +1,6 @@
 /// A nonoptional member was not supplied to a generated model builder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct BuildError {
     pub shape: &'static str,
     pub member: &'static str,

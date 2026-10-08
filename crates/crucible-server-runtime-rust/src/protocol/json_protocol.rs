@@ -252,6 +252,7 @@ fn best_route(
                     }
                     true
                 }
+                _ => false,
             }
         }) && parts.next().is_none();
         if !matched {
@@ -309,6 +310,7 @@ fn more_specific(
         Segment::Literal(_) => 2,
         Segment::Label(_) => 1,
         Segment::GreedyLabel(_) => 0,
+        _ => -1,
     };
     candidate
         .path
@@ -521,6 +523,7 @@ pub(super) fn bound_members<'a>(
                 };
                 BoundValue::parse(Cow::Borrowed(text), scalar)
             }
+            _ => Err("unsupported member binding".to_owned()),
         };
         match value {
             Ok(value) => bound.push((member.name, value)),
@@ -548,6 +551,7 @@ fn wire_name(member: &MemberInfo) -> &'static str {
         | Location::ResponseCode
         | Location::StreamingPayload { .. }
         | Location::EventStream => member.name,
+        _ => member.name,
     }
 }
 

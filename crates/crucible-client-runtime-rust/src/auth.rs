@@ -109,6 +109,7 @@ pub(crate) async fn authenticate<E>(
                 }
             }
             AuthScheme::SigV4 { .. } => authorization.starts_with("AWS4-HMAC-SHA256 "),
+            _ => return Err(Error::Invalid("unsupported authentication scheme".into())),
         };
         if explicit {
             return Ok(None);
@@ -204,6 +205,7 @@ pub(crate) async fn authenticate<E>(
                 },
                 None => None,
             },
+            _ => return Err(Error::Invalid("unsupported authentication scheme".into())),
         };
         if let Some(value) = value {
             request.headers_mut().insert(

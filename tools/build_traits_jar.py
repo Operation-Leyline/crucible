@@ -7,19 +7,20 @@ takes crucible's protocol as a dependency rather than a copied file:
     python tools/build_traits_jar.py [out_dir]
 
 writes out_dir/crucible-traits-<version>.jar (default out_dir: dist), the
-version read from smithy/version.txt.
+version read from [workspace.package].version in Cargo.toml.
 """
 
 import pathlib
 import sys
 import zipfile
+import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MODELS = ["crucible.smithy", "errors.smithy", "auth.smithy"]
 
 
-def version() -> str:
-    return (ROOT / "smithy" / "version.txt").read_text(encoding="utf-8").strip()
+def version(root: pathlib.Path = ROOT) -> str:
+    return tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
 
 
 def build(out_dir: pathlib.Path) -> pathlib.Path:

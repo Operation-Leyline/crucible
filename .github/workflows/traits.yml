@@ -3,12 +3,12 @@ name: Traits
 # Publishes smithy/crucible.smithy as a Smithy model jar, attached to a GitHub
 # release `traits-v<version>`. Models depend on it like any trait package; a
 # public release asset needs no credentials to download. A version is
-# released once: bump smithy/version.txt to publish a change.
+# released once: bump [workspace.package].version to publish a change.
 
 on:
   push:
     branches: [main]
-    paths: [smithy/**, tools/build_traits_jar.py, .github/workflows/traits.yml]
+    paths: [Cargo.toml, smithy/**, tools/build_traits_jar.py, .github/workflows/traits.yml]
   workflow_dispatch:
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="$(cat smithy/version.txt)"
+          version="$(python -c 'import sys; sys.path.insert(0, "tools"); from build_traits_jar import version; print(version())')"
           tag="traits-v$version"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "$tag is already released"

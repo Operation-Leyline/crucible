@@ -158,6 +158,11 @@ pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, not
     }
     doc(out, indent, Some(&text));
     if let Some(deprecated) = &notes.deprecated {
+        if deprecated.since.is_some() {
+            // Smithy's since is free-form text, including dates, not a Rust
+            // package version. Preserve it without imposing Clippy's semver rule.
+            out.push_str(&format!("{indent}#[allow(clippy::deprecated_semver)]\n"));
+        }
         let since = deprecated
             .since
             .as_ref()

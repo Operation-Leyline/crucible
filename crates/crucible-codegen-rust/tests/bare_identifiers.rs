@@ -41,9 +41,13 @@ fn check(manifest: &Path, target: &str) {
         .arg(manifest)
         .env(
             "CARGO_TARGET_DIR",
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../target")
-                .join(target),
+            std::env::var_os("CARGO_TARGET_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../target")
+                        .join(target)
+                }),
         )
         .output()
         .unwrap();

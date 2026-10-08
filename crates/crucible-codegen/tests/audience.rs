@@ -27,7 +27,16 @@ fn shared_selection_filters_clients_and_never_filters_server_outputs() {
     let server = Generator::Server(Server::Rust(Default::default()));
     let files = server.emit(&full).unwrap();
     let code = &files[0].contents;
-    assert!(code.contains("internal: true"));
+    // The generated constructor retains readonly, idempotent, internal in
+    // that order; inspect the Secret operation rather than struct field text.
+    let secret = code
+        .split_once("static SECRET_OPERATION:")
+        .unwrap()
+        .1
+        .split_once("\n    );")
+        .unwrap()
+        .0;
+    assert!(secret.contains("\n        false,\n        false,\n        true,\n"));
     assert!(code.contains("CorsInfo"));
     for header in [
         "x-private",

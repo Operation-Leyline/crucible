@@ -20,7 +20,7 @@ fn static_descriptors_match_golden() {
         "../../crucible-smithy/tests/fixtures/weather.json"
     ))
     .unwrap();
-    assert!(code.contains("mcp_tools: Some(MCP_TOOLS)"));
+    assert!(code.contains("Some(MCP_TOOLS),"));
     let descriptors = code.split("    /// External MCP tools;").nth(1).unwrap();
     let metadata = code
         .split("    /// The service, as the framework sees it.")

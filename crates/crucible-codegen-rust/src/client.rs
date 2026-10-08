@@ -10,7 +10,7 @@ use crate::names::{doc, documented, field, function, literal, variant};
 use crate::operations::{input_type, marker, output_type, structure};
 use crate::types::simple_kind;
 
-const UNIT: &str = "::crucible_server_runtime_rust::operation::Unit";
+const UNIT: &str = "::crucible_server_runtime_rust::__generated::operation::Unit";
 
 pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
     let client = format!("{}Client", variant(service.id.name()));
@@ -38,7 +38,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                     .iter()
                     .any(|op| op.name() == name && metadata_needed(service, op))
             });
-        out.push_str(&format!("\nstatic __CRUCIBLE_CLIENT_METADATA: ::std::sync::LazyLock<::crucible_server_runtime_rust::ServiceMetadata> = ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::ServiceMetadata::from_json({}).expect(\"compiler validated client metadata\"));\n", literal(&schema.to_string())));
+        out.push_str(&format!("\nstatic __CRUCIBLE_CLIENT_METADATA: ::std::sync::LazyLock<::crucible_server_runtime_rust::__generated::ServiceMetadata> = ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__generated::ServiceMetadata::from_json({}).expect(\"compiler validated client metadata\"));\n", literal(&schema.to_string())));
     }
     out.push_str(&crate::events::statics(service, diagnostics, true));
     let mut methods = String::new();
@@ -52,7 +52,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         out.push_str(&marker(service, op, &output, true));
         out.push_str(&error_enum(service, op));
         if metadata_needed(service, op) {
-            out.push_str(&format!("\n#[allow(non_upper_case_globals, deprecated)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible_server_runtime_rust::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
+            out.push_str(&format!("\n#[allow(non_upper_case_globals, deprecated)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible_server_runtime_rust::__generated::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
         }
         methods.push_str(&method(service, op, None));
         let derived = method_names.next().expect("a method set per operation");
@@ -76,7 +76,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
     }
     documented(&mut out, "", service.docs.as_deref(), &service.notes);
     out.push_str(&format!(
-        "\n/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::Transport,\n}}\n\n#[allow(dead_code, deprecated)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
+        "\n/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::__generated::Transport,\n}}\n\n#[allow(dead_code, deprecated)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::__generated::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::__generated::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
         service.id.name()
     ));
     out
@@ -225,7 +225,7 @@ fn waiter_method(service: &Service, op: &Operation, waiter: &str, method: &str) 
         UNIT.to_owned()
     };
     let (parameter, input, token) = if op.input.is_some() {
-        let token = token_member(service,op).map(|member|format!("        if input.{}.value().is_none() {{ input.{} = ::crucible_server_runtime_rust::Field::Value(::crucible_server_runtime_rust::idempotency_token()); }}\n",field(&member.name),field(&member.name))).unwrap_or_default();
+        let token = token_member(service,op).map(|member|format!("        if input.{}.value().is_none() {{ input.{} = ::crucible_server_runtime_rust::__generated::Field::Value(::crucible_server_runtime_rust::__generated::idempotency_token()); }}\n",field(&member.name),field(&member.name))).unwrap_or_default();
         (
             format!(
                 "{}input: {}, ",
@@ -239,7 +239,7 @@ fn waiter_method(service: &Service, op: &Operation, waiter: &str, method: &str) 
         (String::new(), format!("{UNIT} {{}}"), String::new())
     };
     format!(
-        "\n    pub async fn {method}(&self, {parameter}options: ::crucible_server_runtime_rust::WaiterOptions) -> ::std::result::Result<::crucible_server_runtime_rust::WaiterResult<{output}, {errors}>, ::crucible_server_runtime_rust::WaiterError<{output}, {errors}>> {{\n{token}        self.transport.wait::<{name}, {errors}>(&{input}, &__crucible_metadata_{name}, {}, &options).await\n    }}\n",
+        "\n    pub async fn {method}(&self, {parameter}options: ::crucible_server_runtime_rust::__generated::WaiterOptions) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::WaiterResult<{output}, {errors}>, ::crucible_server_runtime_rust::__generated::WaiterError<{output}, {errors}>> {{\n{token}        self.transport.wait::<{name}, {errors}>(&{input}, &__crucible_metadata_{name}, {}, &options).await\n    }}\n",
         literal(waiter)
     )
 }
@@ -301,9 +301,9 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         .iter()
         .map(|error| {
             if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor {
-                format!("            {} => ::crucible_server_runtime_rust::cbor::read(body).ok().map(Self::{error}),\n", literal(&wire_error(service, op, error)))
+                format!("            {} => ::crucible_server_runtime_rust::__generated::cbor::read(body).ok().map(Self::{error}),\n", literal(&wire_error(service, op, error)))
             } else { format!(
-                "            {} => ::crucible_server_runtime_rust::decode_modelled_at(status, &errors::{}, headers, body).map(Self::{error}),\n",
+                "            {} => ::crucible_server_runtime_rust::__generated::decode_modelled_at(status, &errors::{}, headers, body).map(Self::{error}),\n",
                 literal(&wire_error(service,op,error)),
                 info_static(error)
             ) }
@@ -319,7 +319,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             .iter()
             .map(|error| {
                 format!(
-                    "            Self::{error}(error) => ::crucible_server_runtime_rust::ModelledError::info(error),\n"
+                    "            Self::{error}(error) => ::crucible_server_runtime_rust::__generated::ModelledError::info(error),\n"
                 )
             })
             .collect();
@@ -338,7 +338,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         "type_name?".to_owned()
     } else {
         format!(
-            "type_name.or_else(|| ::crucible_server_runtime_rust::by_status(status, &[{}]))?",
+            "type_name.or_else(|| ::crucible_server_runtime_rust::__generated::by_status(status, &[{}]))?",
             infos.join(", ")
         )
     };
@@ -350,7 +350,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         )
     } else {
         format!(
-            "        let name = match type_name {{\n            Some(name) => name,\n            None => ::crucible_server_runtime_rust::by_status(status, &[{}])?,\n        }};\n        match name {{\n{arms}            _ => None,\n        }}\n",
+            "        let name = match type_name {{\n            Some(name) => name,\n            None => ::crucible_server_runtime_rust::__generated::by_status(status, &[{}])?,\n        }};\n        match name {{\n{arms}            _ => None,\n        }}\n",
             infos.join(", ")
         )
     };
@@ -375,7 +375,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         }
     };
     out.push_str(&format!(
-        "impl ::crucible_server_runtime_rust::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_server_runtime_rust::__private::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible_server_runtime_rust::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_server_runtime_rust::operation::ErrorInfo> {{\n        {classify}\n    }}\n}}\n\n"
+        "impl ::crucible_server_runtime_rust::__generated::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_server_runtime_rust::__generated::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo> {{\n        {classify}\n    }}\n}}\n\n"
     ));
     out.push_str(&format!(
         "impl ::std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        {display_body}\n    }}\n}}\n\nimpl ::std::error::Error for {name} {{}}\n"
@@ -400,8 +400,9 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     } else {
         "()".to_owned()
     };
-    let result =
-        format!("::std::result::Result<{output}, ::crucible_server_runtime_rust::Error<{errors}>>");
+    let result = format!(
+        "::std::result::Result<{output}, ::crucible_server_runtime_rust::__generated::Error<{errors}>>"
+    );
     let method_name = options_name
         .map(str::to_owned)
         .unwrap_or_else(|| function(name));
@@ -413,7 +414,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
         "send"
     };
     let options_parameter = if options_name.is_some() {
-        ", options: ::crucible_server_runtime_rust::CallOptions"
+        ", options: ::crucible_server_runtime_rust::__generated::CallOptions"
     } else {
         ""
     };
@@ -423,7 +424,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
             if options_name.is_some() {
                 "&options"
             } else {
-                "&::crucible_server_runtime_rust::CallOptions::default()"
+                "&::crucible_server_runtime_rust::__generated::CallOptions::default()"
             }
         )
     } else if options_name.is_some() {
@@ -447,7 +448,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     let token = token_member(service, op).map(|member| {
         let rust = field(&member.name);
         format!(
-            "        if input.{rust}.value().is_none() {{\n            input.{rust} = ::crucible_server_runtime_rust::Field::Value(::crucible_server_runtime_rust::idempotency_token());\n        }}\n"
+            "        if input.{rust}.value().is_none() {{\n            input.{rust} = ::crucible_server_runtime_rust::__generated::Field::Value(::crucible_server_runtime_rust::__generated::idempotency_token());\n        }}\n"
         )
     });
     let binding = if token.is_some() {
@@ -503,7 +504,7 @@ fn pages(
     };
     let set = if input.optional_on_client() {
         format!(
-            "|input, token| input.{} = ::crucible_server_runtime_rust::Field::Value(token)",
+            "|input, token| input.{} = ::crucible_server_runtime_rust::__generated::Field::Value(token)",
             field(&input.name)
         )
     } else {
@@ -519,7 +520,7 @@ fn pages(
             (
                 format!("let fresh = input.{rust}.value().is_none();\n        let pages = "),
                 format!(
-                    ";\n        if fresh {{\n            pages.fresh_token(|input| input.{rust} = ::crucible_server_runtime_rust::Field::Value(::crucible_server_runtime_rust::idempotency_token()))\n        }} else {{\n            pages\n        }}"
+                    ";\n        if fresh {{\n            pages.fresh_token(|input| input.{rust} = ::crucible_server_runtime_rust::__generated::Field::Value(::crucible_server_runtime_rust::__generated::idempotency_token()))\n        }} else {{\n            pages\n        }}"
                 ),
             )
         }
@@ -531,7 +532,7 @@ fn pages(
         String::new()
     };
     format!(
-        "\n    /// Every page of {name}, one request each.\n    pub fn {method}(&self, input: {}) -> ::crucible_server_runtime_rust::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){metadata}{finish}\n    }}\n",
+        "\n    /// Every page of {name}, one request each.\n    pub fn {method}(&self, input: {}) -> ::crucible_server_runtime_rust::__generated::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::__generated::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){metadata}{finish}\n    }}\n",
         input_type(service, op).replace("model::", ""),
         output,
         get(input, "input"),

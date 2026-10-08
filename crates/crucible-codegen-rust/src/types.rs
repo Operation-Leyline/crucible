@@ -6,7 +6,7 @@ use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, TimestampFormat};
 
 pub(crate) const STRING: &str = "::std::string::String";
-pub(crate) const DATE_TIME: &str = "::crucible_server_runtime_rust::time::Timestamp";
+pub(crate) const DATE_TIME: &str = "::crucible_server_runtime_rust::__generated::time::Timestamp";
 
 /// The Rust type of a target. Named shapes are qualified with `prefix`
 /// (`super::model::` outside the model module).
@@ -14,7 +14,7 @@ pub(crate) fn rust_type(service: &Service, target: &ShapeId, prefix: &str) -> St
     if target.is_prelude() {
         match service.shape(target) {
             Some(Shape::Unit { .. }) => {
-                return "::crucible_server_runtime_rust::operation::Unit".to_owned();
+                return "::crucible_server_runtime_rust::__generated::operation::Unit".to_owned();
             }
             Some(Shape::Simple(simple)) => return builtin(simple.kind).to_owned(),
             _ => {}
@@ -22,7 +22,7 @@ pub(crate) fn rust_type(service: &Service, target: &ShapeId, prefix: &str) -> St
     }
     if crate::events::is_event_stream(service, target) {
         return format!(
-            "::crucible_server_runtime_rust::EventStream<{prefix}{}>",
+            "::crucible_server_runtime_rust::__generated::EventStream<{prefix}{}>",
             service.name_of(target)
         );
     }
@@ -31,8 +31,8 @@ pub(crate) fn rust_type(service: &Service, target: &ShapeId, prefix: &str) -> St
 
 pub(crate) fn builtin(kind: SimpleKind) -> &'static str {
     match kind {
-        SimpleKind::BigInteger => "::crucible_server_runtime_rust::BigInteger",
-        SimpleKind::BigDecimal => "::crucible_server_runtime_rust::BigDecimal",
+        SimpleKind::BigInteger => "::crucible_server_runtime_rust::__generated::BigInteger",
+        SimpleKind::BigDecimal => "::crucible_server_runtime_rust::__generated::BigDecimal",
         SimpleKind::Boolean => "bool",
         SimpleKind::String => STRING,
         SimpleKind::Byte => "i8",
@@ -42,8 +42,8 @@ pub(crate) fn builtin(kind: SimpleKind) -> &'static str {
         SimpleKind::Float => "f32",
         SimpleKind::Double => "f64",
         SimpleKind::Timestamp => DATE_TIME,
-        SimpleKind::Document => "::crucible_server_runtime_rust::__private::serde_json::Value",
-        SimpleKind::Blob => "::crucible_server_runtime_rust::Blob",
+        SimpleKind::Document => "::crucible_server_runtime_rust::__generated::serde_json::Value",
+        SimpleKind::Blob => "::crucible_server_runtime_rust::__generated::Blob",
     }
 }
 
@@ -60,7 +60,7 @@ pub(crate) fn field_type(
         ty = format!("::std::boxed::Box<{ty}>");
     }
     if client && member.optional_on_client() {
-        ty = format!("::crucible_server_runtime_rust::Field<{ty}>");
+        ty = format!("::crucible_server_runtime_rust::__generated::Field<{ty}>");
     } else if !client && member.optional_on_server() {
         ty = format!("::std::option::Option<{ty}>");
     }
@@ -110,7 +110,7 @@ fn reaches(service: &Service, from: &ShapeId, to: &ShapeId, seen: &mut BTreeSet<
 
 /// Recursive adapters keep collection aliases native while enforcing their wire semantics.
 pub(crate) fn codec(service: &Service, member: &Member) -> Option<String> {
-    let base = "::crucible_server_runtime_rust::codec::";
+    let base = "::crucible_server_runtime_rust::__generated::codec::";
     match service.shape(&member.target)? {
         Shape::List(list) => {
             let inner = if !list.sparse
@@ -155,7 +155,9 @@ pub(crate) fn codec(service: &Service, member: &Member) -> Option<String> {
         }
         Shape::Simple(simple) if simple.kind == SimpleKind::Timestamp => {
             if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor {
-                return Some("::crucible_server_runtime_rust::cbor::Timestamp".to_owned());
+                return Some(
+                    "::crucible_server_runtime_rust::__generated::cbor::Timestamp".to_owned(),
+                );
             }
             match service.document_timestamp_format(member) {
                 TimestampFormat::EpochSeconds => Some(format!("{base}EpochSeconds")),
@@ -167,10 +169,10 @@ pub(crate) fn codec(service: &Service, member: &Member) -> Option<String> {
             if matches!(simple.kind, SimpleKind::BigInteger | SimpleKind::BigDecimal) =>
         {
             if service.protocol_settings.arbitrary_precision_strings {
-                Some("::crucible_server_runtime_rust::cbor::StringNumber".to_owned())
+                Some("::crucible_server_runtime_rust::__generated::cbor::StringNumber".to_owned())
             } else if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor {
                 Some(format!(
-                    "::crucible_server_runtime_rust::cbor::{}",
+                    "::crucible_server_runtime_rust::__generated::cbor::{}",
                     if simple.kind == SimpleKind::BigInteger {
                         "Integer"
                     } else {

@@ -200,7 +200,7 @@ fn documents_and_cli_packages_share_native_defaults_exports_and_diagnostics() {
 }
 
 #[test]
-fn generated_cli_checks_as_an_independent_offline_cargo_package() {
+fn generated_cli_is_warning_free_as_an_independent_offline_cargo_package() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
     fs::write(root.join("model.json"), WEATHER).unwrap();
@@ -258,8 +258,9 @@ fn generated_cli_checks_as_an_independent_offline_cargo_package() {
     }
     assert_eq!(config, fs::read(config_path).unwrap());
     let output = Command::new(cargo)
-        .args(["check", "--offline", "--manifest-path"])
+        .args(["clippy", "--offline", "--all-targets", "--manifest-path"])
         .arg(&manifest)
+        .args(["--", "-D", "warnings"])
         .env("CARGO_TARGET_DIR", root.join("cargo-target"))
         .env("CARGO_BUILD_JOBS", "1")
         .output()
