@@ -576,31 +576,66 @@ async fn json_bodies_require_a_compatible_content_type_before_invocation() {
                 );
             }
         }
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
         let response = service
             .handle(
                 Request::post("/cities")
-                    .header("content-type", "Application/JSON; charset=utf-8")
+                    .header("content-type", "application/json")
+                    .header("content-type", "application/json")
                     .body(Body::from(r#"{"name":"Oslo"}"#))
                     .unwrap(),
             )
             .await;
-        assert_eq!(response.status(), 201);
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            response.status(),
+            415,
+            "duplicate content-type, rest={rest}"
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        for (index, content_type) in [
+            "application/json",
+            "Application/JSON; charset=utf-8",
+            " APPLICATION/JSON ; charset=\"UTF-8\"; custom=parameter",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let response = service
+                .handle(
+                    Request::post("/cities")
+                        .header("content-type", content_type)
+                        .body(Body::from(format!(r#"{{"name":"Oslo{index}"}}"#)))
+                        .unwrap(),
+                )
+                .await;
+            assert_eq!(response.status(), 201, "{content_type}, rest={rest}");
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
         let response = service
             .handle(
                 Request::get("/cities")
-                    .header("content-type", "text/plain")
-                    .body(Body::empty())
+                    .header("content-type", "Application/JSON; charset=utf-8")
+                    .body(Body::from("{}"))
                     .unwrap(),
             )
             .await;
-        assert_eq!(response.status(), 200);
+        assert_eq!(response.status(), 200, "HTTP-bound input, rest={rest}");
+        for content_type in [None, Some("application/json"), Some("text/plain")] {
+            let mut request = Request::get("/cities");
+            if let Some(value) = content_type {
+                request = request.header("content-type", value);
+            }
+            let response = service.handle(request.body(Body::empty()).unwrap()).await;
+            assert_eq!(
+                response.status(),
+                200,
+                "empty body, {content_type:?}, rest={rest}"
+            );
+        }
     }
 }
 
 #[tokio::test]
-async fn rest_json_checks_payload_media_types_and_rejects_unmodeled_bodies() {
+async fn rest_json_checks_payload_media_types_and_accepts_empty_json_objects() {
     let service = Crucible::builder(route_operations())
         .on_rejection(|rejection| Box::new(Invalid(rejection.summary())))
         .protocol(crucible_server_runtime_rust::RestJsonProtocol)
@@ -614,7 +649,8 @@ async fn rest_json_checks_payload_media_types_and_rejects_unmodeled_bodies() {
                 .unwrap(),
         )
         .await;
-    assert_eq!(response.status(), 415);
+    // REST JSON derives application/json even when there are no body members.
+    assert_eq!(response.status(), 200);
 
     let operations = weather_service::weather::operations(Arc::new(weather_service::Weather::new(
         Arc::new(weather_service::MemoryCities::default()),

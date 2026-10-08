@@ -83,21 +83,11 @@ fn check_content_type(job: &Job, rest_json: bool) -> Result<()> {
     {
         return Ok(());
     }
-    let expected = match payload {
-        Some((_, media_type)) => Some(media_type),
-        None if !rest_json
-            || op
-                .input
-                .iter()
-                .any(|member| member.location == Location::Body) =>
-        {
-            Some("application/json")
-        }
-        None => None,
-    };
+    // The document media type also applies to inputs whose members are all
+    // HTTP-bound: clients may still send an empty JSON object for those inputs.
+    let expected = payload.map_or("application/json", |(_, media_type)| media_type);
     if job.request().headers.get_all("content-type").iter().count() != 1
-        || !expected
-            .is_some_and(|expected| super::rpc_routing::content_type(job.request(), expected))
+        || !super::rpc_routing::content_type(job.request(), expected)
     {
         return Err(FrameworkError::UnsupportedMediaType.into());
     }

@@ -487,6 +487,11 @@ error's `unknownOperation` reason. A custom routing error can be selected with
 `generate rust --unknown-operation-error namespace#Error` in the CLI; it must
 be a reachable client error with HTTP status 404 and fillable required members
 (`message` and `requestId`). Other 404 errors are never selected implicitly.
+When the path and literal query constraints match an operation but its method
+does not, REST JSON protocols return HTTP 405 `MethodNotAllowed` with an `Allow`
+header listing the supported methods. For example, a starter models
+`POST /hello`: `GET /hello` returns 405 with `Allow: POST`, while `/missing`
+follows the unknown-operation rules. GET operations also accept HEAD.
 Without a dedicated routing error, when that enum also has `unknownOperation`, a request no
 operation serves gets the validation error with that reason (400), as the
 standard asks; without it, the protocol answers its own `UnknownOperation`

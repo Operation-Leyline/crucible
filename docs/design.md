@@ -178,6 +178,16 @@ types when the language cannot express recursive aliases.
 
 ## Wire rules to get right
 
+For Crucible JSON and AWS REST JSON, nonempty JSON request bodies use
+`application/json`. Media type matching ignores case and accepts parameters
+such as `charset=utf-8`; another JSON media type such as `application/hal+json`
+does not replace the modeled type. Empty bodies may omit Content-Type.
+Nonempty requests with missing, duplicate or incompatible Content-Type headers
+receive HTTP 415. Payloads use their derived media type under REST JSON, unless
+an explicit modeled Content-Type header overrides it; Crucible raw blob and
+string payloads accept any media type. See the
+[REST JSON Content-Type rules](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html#content-type).
+
 Protocol details owned here, with round-trip tests from the first emitter:
 timestamp formats by location, list encoding in query strings (repeated
 keys) and headers (comma-separated, quoted when needed), percent-encoding of

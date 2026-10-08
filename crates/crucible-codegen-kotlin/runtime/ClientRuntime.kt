@@ -6,6 +6,7 @@ import io.ktor.client.request.prepareRequest
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpMethod
+import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import io.ktor.http.content.OutgoingContent
 import kotlin.io.encoding.Base64
@@ -463,7 +464,13 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
     private suspend fun exchange(request: Request, headers: Map<String, String>, bytes: ByteArray?, hasBody: Boolean, prepared: Prepared, consume: suspend (Any) -> Any, state: AttemptState): WireResponse =
         http.prepareRequest(request.uri) {
             method = HttpMethod.parse(request.method)
-            headers.forEach { (name, value) -> this.headers.append(name, value) }
+            // Ktor's engine header merge compares these names case-sensitively;
+            // lowercase names would be emitted again as content headers.
+            headers.forEach { (name, value) -> this.headers.append(when (name) {
+                "content-type" -> HttpHeaders.ContentType
+                "content-length" -> HttpHeaders.ContentLength
+                else -> name
+            }, value) }
             val payload = bytes ?: if (request.method in setOf("POST", "PUT", "PATCH")) byteArrayOf() else null
             val stream=request.stream
             if(stream!=null) setBody(object : OutgoingContent.WriteChannelContent() {

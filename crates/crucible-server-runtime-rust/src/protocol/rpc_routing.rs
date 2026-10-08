@@ -97,3 +97,36 @@ pub(super) fn identify(
         rejection,
     })))
 }
+
+#[cfg(test)]
+mod tests {
+    use axum::http::Request;
+
+    #[test]
+    fn media_type_matching_ignores_case_and_parameters_but_not_other_types() {
+        for (value, matches) in [
+            ("application/json", true),
+            ("Application/JSON; charset=utf-8", true),
+            (
+                " application/json ; charset=\"UTF-8\"; custom=parameter",
+                true,
+            ),
+            ("application/hal+json", false),
+            ("application/json, application/json", false),
+            ("text/plain", false),
+        ] {
+            let (parts, _) = Request::post("/")
+                .header("content-type", value)
+                .body(())
+                .unwrap()
+                .into_parts();
+            assert_eq!(
+                super::content_type(&parts, "application/json"),
+                matches,
+                "{value}"
+            );
+        }
+        let (parts, _) = Request::post("/").body(()).unwrap().into_parts();
+        assert!(!super::content_type(&parts, "application/json"));
+    }
+}

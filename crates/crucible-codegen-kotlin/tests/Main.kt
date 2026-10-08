@@ -239,6 +239,8 @@ private suspend fun httpBehavior() {
     val sent = mutableListOf<ByteArray>(); val credentials = AtomicInteger()
     Server { exchange ->
         val bytes = exchange.requestBody.readBytes(); sent.add(bytes)
+        check(exchange.requestHeaders["content-type"] == listOf("Application/JSON; charset=utf-8")) { "one content-type on the wire" }
+        check(exchange.requestHeaders["content-length"] == listOf(bytes.size.toString())) { "one content-length on the wire" }
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
         check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash)
         check(exchange.requestHeaders.getFirst("authorization") == "Bearer ${sent.size}")
@@ -247,7 +249,11 @@ private suspend fun httpBehavior() {
             if (sent.size == 1) """{"__type":"FutureError"}""" else """{"city":{"id":"c","name":"x"}}""")
     }.use { server ->
         WeatherClient(server.config().copy(token = { delay(1); credentials.incrementAndGet().toString() },
-            middleware = listOf({ request -> delay(1); request.body = request.body!! + byteArrayOf(32) }))).use { client ->
+            middleware = listOf({ request ->
+                delay(1); request.body = request.body!! + byteArrayOf(32)
+                request.headers["content-type"] = "Application/JSON; charset=utf-8"
+                request.headers["content-length"] = request.body!!.size.toString()
+            }))).use { client ->
             val input = CreateCityInput { this.name = "x"; this.expectedRevision = 7L }
             client.createCity(input)
             check(!input.hasClientToken() && sent.size == 2 && sent[0].contentEquals(sent[1]))

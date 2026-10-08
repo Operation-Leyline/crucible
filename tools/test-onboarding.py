@@ -63,11 +63,20 @@ def serve(binary, env, log, field="message", empty=False, internal=False, client
                     raise AssertionError(f"starter exited before listening:\n{text}")
                 time.sleep(0.05)
             assert endpoint, log.read_text()
-            for path, method in [("/", "GET"), ("/hello", "GET"), ("/missing", "POST")]:
+            for path, method in [("/", "GET"), ("/missing", "POST")]:
                 status, response, headers = request(endpoint, b"{", path, method)
                 assert status == 404 and response["__type"] == "UnknownOperationException", (status, response)
                 assert headers["x-crucible-error"] == "UnknownOperationException", headers
                 assert headers["x-request-id"], headers
+            status, response, headers = request(endpoint, b"{", "/hello", "GET")
+            if empty:
+                assert status == 404 and response["__type"] == "UnknownOperationException", (status, response)
+                assert headers["x-crucible-error"] == "UnknownOperationException", headers
+                assert "allow" not in headers, headers
+            else:
+                assert status == 405 and response["__type"] == "MethodNotAllowed", (status, response)
+                assert headers["allow"] == "POST", headers
+            assert headers["x-request-id"], headers
             if empty:
                 status, response, headers = request(endpoint, b"{}")
                 assert status == 404 and response["__type"] == "UnknownOperationException", (status, response)

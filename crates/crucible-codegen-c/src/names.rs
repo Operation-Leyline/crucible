@@ -157,7 +157,16 @@ pub fn field(value: &str) -> String {
 mod tests {
     #[test]
     fn escapes_cpp_keywords_in_public_headers() {
-        for name in ["class", "new", "this", "protected", "and", "or", "typeid"] {
+        for name in [
+            "class",
+            "new",
+            "this",
+            "public",
+            "protected",
+            "and",
+            "or",
+            "typeid",
+        ] {
             assert_eq!(super::field(name), format!("{name}_value"));
         }
     }
