@@ -40,6 +40,7 @@ service's entry points for registering implementations.
 | Decoded invocation extensions | `interceptor`, `interceptors` |
 | Wire protocol selection | `protocol`, `protocols`, `defaults` |
 | MCP serving | `mcp` |
+| Local API explorer (optional `explorer` feature) | `explorer` |
 | Error normalization | `exception_translator`, `on_rejection` |
 | Hosting integration | `tower_layer`, `request_id` |
 | Request limits | `body_limit`, `operation_body_limit`, `body_limits` |
@@ -109,6 +110,19 @@ handling. These consumer types are re-exported directly by the client runtime;
 their serialization machinery belongs to `__generated`.
 
 ## Reading generated metadata
+
+`explorer::{Explorer, Description}` is an additive service-author API behind the
+optional `explorer` feature. `Explorer::{new, path, title, allow_remote,
+endpoint_guard, read_only}` configure the local-development endpoint. Generated
+bindings own `Description` construction through `__generated::explorer_description`;
+the public struct is non-exhaustive. The build API's `ServerOutput::explorer`
+emits `DESCRIPTION`, defaults to Internal audience, and honors `audience` without
+changing server operations.
+
+`endpoint::{EndpointGuard, EndpointAdmission}` is shared by dedicated endpoints.
+The original `mcp::{EndpointGuard, EndpointAdmission}` paths remain available.
+`crucible_auth::EndpointAuthenticator::new` adapts an `Authenticator` with an
+explicit scheme and rejects unsupported schemes at construction.
 
 `OperationInfo` and `ServiceInfo` are static descriptions exposed by operation
 markers, request views, and preparation. Read their public fields and use

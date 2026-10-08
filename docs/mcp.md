@@ -76,7 +76,8 @@ authenticated principal with `Context::current().set_attribute(principal)`.
 ```rust
 use axum::http::{StatusCode, header, request::Parts};
 use axum::response::IntoResponse;
-use crucible_server_runtime_rust::mcp::{EndpointAdmission, McpConfig};
+use crucible_server_runtime_rust::endpoint::EndpointAdmission;
+use crucible_server_runtime_rust::mcp::McpConfig;
 
 let config = McpConfig::new()
     .endpoint_guard(|parts: &Parts| {
@@ -293,6 +294,11 @@ VS Code's documentation does not list its redirect URIs, and it may use
 before promising VS Code support. Claude connections originate from Anthropic's
 published address range, so the service and the Cognito domain must be reachable
 from it.
+`EndpointGuard` and `EndpointAdmission` live in the shared `endpoint` module;
+their original MCP re-exports remain available. Use
+`crucible_auth::EndpointAuthenticator::new(authenticator, scheme)` to adapt an
+existing authenticator for initialization and discovery as well as tool calls.
+
 
 ## Audience and schemas
 

@@ -9,6 +9,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+node --test crates/crucible-server-runtime-rust/tests/explorer/*.test.mjs
+
 cargo run -q -p crucible-cli -- generate ts crates/crucible-smithy/tests/fixtures/weather.json \
   --out e2e/generated/weather-ts --package-name @example/weather >/dev/null
 cargo test -q --locked --manifest-path e2e/Cargo.toml

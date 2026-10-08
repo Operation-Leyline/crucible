@@ -45,6 +45,42 @@ impl api::SecretOperation for Handlers {
 // An application decides how callers become internal. The framework only
 // exposes the lowered annotation; it has no built-in caller authorization.
 struct InternalCallers;
+
+#[tokio::test]
+async fn explorer_description_defaults_to_internal_audience() {
+    use crucible_server_runtime_rust::explorer::Explorer;
+    let service = Crucible::builder(api::operations(Arc::new(Handlers)))
+        .on_rejection(|rejection| {
+            Box::new(api::PublicFault {
+                message: Some(rejection.summary()),
+            })
+        })
+        .protocol(JsonProtocol)
+        .explorer(Explorer::new(api::DESCRIPTION).allow_remote())
+        .build()
+        .unwrap();
+    let response = service
+        .handle(
+            Request::get("/explorer/describe.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        body["operations"]
+            .as_object()
+            .unwrap()
+            .values()
+            .any(|op| op["name"] == "Secret" && op["internal"] == true)
+    );
+}
 impl OperationAwareMiddleware for InternalCallers {
     fn before<'a>(
         &'a self,
