@@ -101,6 +101,8 @@ fn reserved_module(text: &str) -> bool {
         "WaiterError",
         "WaiterTimeoutError",
         "WaiterProgress",
+        "ModelDescription",
+        "Describe",
         // Imported types used by generated sources. This is a maintained set,
         // not an exhaustive catalogue of every symbol Foundation exposes.
         "String",
@@ -331,6 +333,8 @@ fn field(text: &str) -> String {
     if [
         "metadata",
         "description",
+        "debugDescription",
+        "customMirror",
         "fromWire",
         "toWire",
         "self",
@@ -475,7 +479,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         && member.optional_on_client()
                         && !members.insert(format!("{name}Presence")))
                     || matches!(shape, Shape::Union(_))
-                        && ["unknownVariant", "fromWire", "toWire"].contains(&name.as_str())
+                        && [
+                            "unknownVariant",
+                            "fromWire",
+                            "toWire",
+                            "description",
+                            "debugDescription",
+                            "customMirror",
+                        ]
+                        .contains(&name.as_str())
                 {
                     diagnostics.push(&id.with_member(&member.name), "Swift member name collision");
                 }
@@ -483,7 +495,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
         if matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
             let mut values = BTreeSet::from_iter(
-                ["rawValue", "fromWire", "toWire", "init", "self"].map(str::to_string),
+                [
+                    "rawValue",
+                    "fromWire",
+                    "toWire",
+                    "init",
+                    "self",
+                    "description",
+                    "debugDescription",
+                    "customMirror",
+                ]
+                .map(str::to_string),
             );
             let constants = match shape {
                 Shape::Enum(e) => e.values.iter().map(|value| &value.name).collect::<Vec<_>>(),
@@ -552,6 +574,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("WireCodec", include_str!("../runtime/WireCodec.swift")),
         ("BigNumbers", include_str!("../runtime/BigNumbers.swift")),
         ("Timestamp", include_str!("../runtime/Timestamp.swift")),
+        ("Describe", include_str!("../runtime/Describe.swift")),
         (
             "ClientConfig",
             include_str!("../runtime/ClientConfig.swift"),

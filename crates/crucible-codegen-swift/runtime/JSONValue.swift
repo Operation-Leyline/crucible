@@ -1,7 +1,7 @@
 import Foundation
 
 /// A JSON document retaining the original spelling of every numeric token.
-public indirect enum JSONValue: Sendable, Equatable {
+public indirect enum JSONValue: Sendable, Equatable, CustomStringConvertible {
     case null
     case bool(Bool)
     case string(String)
@@ -9,12 +9,18 @@ public indirect enum JSONValue: Sendable, Equatable {
     case array([JSONValue])
     case object([String: JSONValue])
 
+    /// The document as JSON text.
+    public var description: String {
+        (try? data()).flatMap { String(data: $0, encoding: .utf8) } ?? "<invalid JSON>"
+    }
+    /// Parses `data`, keeping every numeric token exactly. Throws ``WireError`` for invalid or trailing input.
     public init(data: Data) throws {
         var reader = JSONReader(bytes: Array(data))
         self = try reader.value(depth: 0)
         reader.whitespace()
         guard reader.offset == reader.bytes.count else { throw WireError("Trailing JSON data") }
     }
+    /// Encodes the document as UTF-8 JSON.
     public func data() throws -> Data {
         Data(try rendered().utf8)
     }
@@ -57,6 +63,7 @@ public indirect enum JSONValue: Sendable, Equatable {
     internal var flag: Bool { if case .bool(let value) = self { return value }; return false }
 }
 
+/// A value could not be encoded or decoded, or a setting was invalid.
 public struct WireError: Error, Sendable, CustomStringConvertible {
     public let description: String
     public init(_ message: String) { description = message }

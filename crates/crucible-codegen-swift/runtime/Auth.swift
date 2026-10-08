@@ -3,8 +3,11 @@ import Crypto
 
 /// HTTP Basic credentials. Formatting and reflection never reveal the password.
 public struct BasicCredentials: Sendable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
+    /// The user name; it may not contain a colon.
     public let username: String
+    /// The password, sent only in the `Authorization` header over HTTPS or loopback HTTP.
     public let password: String
+    /// Throws ``WireError`` when `username` contains a colon.
     public init(username: String, password: String) throws {
         guard !username.contains(":") else { throw WireError("Basic authentication username cannot contain a colon") }
         self.username = username; self.password = password
@@ -16,10 +19,15 @@ public struct BasicCredentials: Sendable, CustomStringConvertible, CustomDebugSt
 
 /// AWS credentials. Formatting and reflection never reveal the key material.
 public struct AWSCredentials: Sendable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
+    /// The access key ID.
     public let accessKeyID: String
+    /// The secret access key.
     public let secretAccessKey: String
+    /// The session token of temporary credentials.
     public let sessionToken: String?
+    /// When temporary credentials expire; signing with expired ones fails.
     public let expiration: Date?
+    /// Throws ``WireError`` when the key ID or secret is empty.
     public init(accessKeyID: String, secretAccessKey: String, sessionToken: String? = nil, expiration: Date? = nil) throws {
         guard !accessKeyID.isEmpty, !secretAccessKey.isEmpty else { throw WireError("AWS access key and secret key must be nonempty") }
         self.accessKeyID = accessKeyID; self.secretAccessKey = secretAccessKey
@@ -32,15 +40,18 @@ public struct AWSCredentials: Sendable, CustomStringConvertible, CustomDebugStri
 
 /// Resolves AWS credentials. `nil` means unavailable here; thrown errors stop a chain.
 public protocol CredentialsProvider: Sendable {
+    /// The credentials for the next call, or nil when this provider has none.
     func credentials() async throws -> AWSCredentials?
 }
 
+/// Always supplies the same credentials.
 public struct StaticCredentialsProvider: CredentialsProvider {
     private let value: AWSCredentials
     public init(_ credentials: AWSCredentials) { value = credentials }
     public func credentials() async throws -> AWSCredentials? { value }
 }
 
+/// Supplies credentials from a closure, called for every request.
 public struct ClosureCredentialsProvider: CredentialsProvider {
     private let closure: @Sendable () async throws -> AWSCredentials?
     public init(_ closure: @escaping @Sendable () async throws -> AWSCredentials?) { self.closure = closure }
@@ -69,6 +80,7 @@ private func staticCredentials(_ access: String?, _ secret: String?, _ token: St
 }
 
 /// Reads AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN.
+/// Reads `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN`.
 public struct EnvironmentCredentialsProvider: CredentialsProvider {
     public init() {}
     public func credentials() async throws -> AWSCredentials? {
@@ -78,6 +90,7 @@ public struct EnvironmentCredentialsProvider: CredentialsProvider {
 }
 
 /// Reads static shared-file credentials. It never executes `credential_process`.
+/// Reads static keys from a shared credentials file; never runs `credential_process`.
 public struct ProfileCredentialsProvider: CredentialsProvider {
     private let profile: String?
     private let path: String?
@@ -175,13 +188,19 @@ public actor CachedCredentials: CredentialsProvider {
     }
 }
 
+/// Scope and behavior of one Signature Version 4 signature.
 public struct SigningOptions: Sendable {
+    /// The signing region.
     public var region: String
+    /// The signing name of the service.
     public var service: String
+    /// The signing time; the current time when nil.
     public var date: Date?
+    /// Signs with `UNSIGNED-PAYLOAD` instead of the body digest.
     public var unsignedPayload: Bool
     /// Defaults to true for S3 and false for other services when nil.
     public var disableDoubleEncoding: Bool?
+    /// Whether to leave the canonical path unnormalized.
     public var disableNormalizePath: Bool?
     public init(region: String, service: String, date: Date? = nil, unsignedPayload: Bool = false,
                 disableDoubleEncoding: Bool? = nil, disableNormalizePath: Bool? = nil) {
@@ -195,6 +214,9 @@ public enum SigV4Signer {
     private static let excluded: Set<String> = ["authorization", "connection", "expect", "transfer-encoding", "user-agent",
                                                 "x-amzn-trace-id", "accept-encoding", "content-length", "host"]
 
+    /// Adds the `Authorization`, `X-Amz-Date` and, for session credentials,
+    /// `X-Amz-Security-Token` headers to `request`. Throws ``WireError`` when
+    /// the credentials have expired.
     public static func sign(_ request: inout HTTPRequest, credentials: AWSCredentials, options: SigningOptions) throws {
         let now = options.date ?? Date()
         if let expiration = credentials.expiration, expiration <= now { throw WireError("AWS credentials have expired") }

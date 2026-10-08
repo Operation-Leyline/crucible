@@ -1,18 +1,33 @@
 import Foundation
 
 /// Whole epoch seconds and nanoseconds; Date conversion has Date's floating-point precision.
-public struct Timestamp: Sendable, Equatable {
+public struct Timestamp: Sendable, Equatable, CustomStringConvertible {
+    /// Whole seconds since the Unix epoch.
     public let seconds: Int64
+    /// The fraction of a second, below one billion.
     public let nanoseconds: UInt32
+    /// RFC 3339 in UTC, with the fraction only when it is not zero.
+    public var description: String {
+        var text = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: Double(seconds)))
+        guard nanoseconds != 0 else { return text }
+        text.removeLast()
+        var fraction = String(nanoseconds)
+        fraction = String(repeating: "0", count: 9 - fraction.count) + fraction
+        while fraction.hasSuffix("0") { fraction.removeLast() }
+        return text + "." + fraction + "Z"
+    }
+    /// Throws ``WireError`` when `nanoseconds` is a second or more.
     public init(seconds: Int64, nanoseconds: UInt32 = 0) throws {
         guard nanoseconds < 1_000_000_000 else { throw WireError("Nanoseconds must be below one second") }
         self.seconds = seconds; self.nanoseconds = nanoseconds
     }
+    /// Throws ``WireError`` when `date` is not finite or outside the timestamp range.
     public init(date: Date) throws {
         let value = date.timeIntervalSince1970
         guard value.isFinite, let seconds = Int64(exactly: floor(value)) else { throw WireError("Date outside timestamp range") }
         try self.init(seconds: seconds, nanoseconds: UInt32((value - floor(value)) * 1_000_000_000))
     }
+    /// The instant as a `Date`, with its floating-point precision.
     public var date: Date { Date(timeIntervalSince1970: Double(seconds) + Double(nanoseconds) / 1_000_000_000) }
     private static func httpFormatter() -> DateFormatter {
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
