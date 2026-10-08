@@ -244,6 +244,8 @@ impl Validator {
         }
     }
 
+    /// Check a regex compiled from the shared IR's `Constraints::rust_pattern`.
+    /// Keep the modeled ECMA pattern in the error; translation is build-time work.
     pub fn pattern(&mut self, text: &str, regex: &regex::Regex, pattern: &str) {
         if !regex.is_match(text) {
             self.fail(format!("must match the pattern {pattern}"));
@@ -273,6 +275,34 @@ fn range_message(min: Option<String>, max: Option<String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::Validator;
+
+    #[test]
+    fn pattern_reports_ecma_violations_with_the_original_pattern() {
+        for (pattern, accepted, rejected) in [
+            (r"^\d+$", "12", "١٢"),
+            (r"^\w+$", "a_2", "é"),
+            (r"^a.b$", "aéb", "a\rb"),
+            (r"^a.b$", "aéb", "a\u{2028}b"),
+            (r"^\s$", "\u{feff}", "\u{85}"),
+            (r"\ba\b", "éaé", "bab"),
+        ] {
+            let constraints = crucible_smithy::ir::Constraints {
+                pattern: Some(pattern.into()),
+                ..Default::default()
+            };
+            let regex = regex::Regex::new(&constraints.rust_pattern().unwrap().unwrap()).unwrap();
+            let mut validator = Validator::default();
+            validator.at("value", |v| v.pattern(accepted, &regex, pattern));
+            assert!(validator.violations.is_empty());
+            validator.at("value", |v| v.pattern(rejected, &regex, pattern));
+            assert_eq!(validator.violations.len(), 1);
+            assert_eq!(validator.violations[0].path, "value");
+            assert_eq!(
+                validator.violations[0].message,
+                format!("must match the pattern {pattern}")
+            );
+        }
+    }
 
     #[test]
     fn f32_range_accepts_rounded_bounds_and_rejects_adjacent_values() {

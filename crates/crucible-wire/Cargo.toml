@@ -21,3 +21,6 @@ serde_json = { workspace = true, features = ["arbitrary_precision"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+crucible-smithy.workspace = true

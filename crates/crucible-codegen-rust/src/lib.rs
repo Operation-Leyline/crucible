@@ -291,11 +291,15 @@ fn check_patterns(service: &Service, diagnostics: &mut Diagnostics) {
     }
     for (id, member) in members {
         if let Some(pattern) = &member.constraints.pattern {
-            if let Err(error) = regex::Regex::new(pattern) {
+            let checked = member.constraints.rust_pattern().and_then(|translated| {
+                regex::Regex::new(&translated.expect("pattern is present"))
+                    .map_err(|error| error.to_string())
+            });
+            if let Err(error) = checked {
                 diagnostics.push(
                     &id,
                     format!(
-                        "@pattern {pattern:?} does not compile for the Rust regex crate: {error}"
+                        "@pattern {pattern:?} does not compile faithfully for the Rust regex crate: {error}"
                     ),
                 );
             }

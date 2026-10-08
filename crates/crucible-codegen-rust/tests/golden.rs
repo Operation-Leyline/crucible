@@ -11,6 +11,140 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
+fn generated_patterns_use_ecma_classes_and_line_terminators() {
+    for (pattern, accepted, rejected) in [
+        (r"^\d+$", "12", vec!["١٢", "１"]),
+        (r"^\w+$", "a_2", vec!["é"]),
+        (
+            r"^a.b$",
+            "aéb",
+            vec!["a\rb", "a\u{2028}b", "a\u{2029}b", "a\nb"],
+        ),
+        (r"^\s$", "\u{feff}", vec!["\u{85}"]),
+        (r"\ba\b", "éaé", vec!["bab"]),
+        (r"^\Bé\B$", "é", vec!["aé"]),
+        (r"^[\d\w]+$", "a_12", vec!["é", "١"]),
+        (r"^\D+$", "é١", vec!["12"]),
+        (r"^\W+$", "é", vec!["a"]),
+        (r"^\S+$", "\u{85}", vec!["\u{feff}"]),
+        (r"^\\d\.$", r"\d.", vec!["12x"]),
+        (r"^[\b.]$", "\u{8}", vec!["a"]),
+        (r"^\u00e9$", "é", vec!["e"]),
+        (r"^[a&&b]$", "&", vec!["c"]),
+        (r"\d+", "!12!", vec!["!é!"]),
+    ] {
+        let service = edited(|model| {
+            model["shapes"]["example.weather#CityId"]["traits"]["smithy.api#pattern"] =
+                json!(pattern);
+        });
+        let code = generate(&service, &Options::default()).unwrap();
+        let literal = code
+            .split("::regex::Regex::new(")
+            .nth(1)
+            .unwrap()
+            .split(").expect(")
+            .next()
+            .unwrap();
+        let translated: String = serde_json::from_str(literal).unwrap();
+        let regex = regex::Regex::new(&translated).unwrap();
+        assert!(
+            regex.is_match(accepted),
+            "{pattern:?} rejected {accepted:?}"
+        );
+        for text in rejected {
+            assert!(!regex.is_match(text), "{pattern:?} accepted {text:?}");
+        }
+    }
+}
+
+#[test]
+fn generated_empty_ecma_classes_preserve_matching_and_following_tokens() {
+    for (pattern, accepted, rejected) in [
+        ("^[]$", vec![], vec!["", "a", "]", "\n", "🦀"]),
+        ("^[]x]$", vec![], vec!["x]", "ax]", "]x]"]),
+        ("^[]*$", vec![""], vec!["a", "]"]),
+        ("^(?:[]|x)$", vec!["x"], vec!["", "]", "a"]),
+        (
+            "^[^]$",
+            vec!["a", "]", "\n", "\r", "\u{2028}", "\u{2029}", "é"],
+            vec!["", "ab"],
+        ),
+        ("^[^]x]$", vec!["ax]", "\nx]", "éx]"], vec!["a", "x]", "ax"]),
+        (r"^[\]]$", vec!["]"], vec!["", "a"]),
+    ] {
+        let service = edited(|model| {
+            model["shapes"]["example.weather#CityId"]["traits"]["smithy.api#pattern"] =
+                json!(pattern);
+        });
+        for code in [
+            generate(&service, &Options::default()).unwrap(),
+            generate_client(&service).unwrap(),
+        ] {
+            let literal = code
+                .split("::regex::Regex::new(")
+                .nth(1)
+                .unwrap()
+                .split(").expect(")
+                .next()
+                .unwrap();
+            let translated: String = serde_json::from_str(literal).unwrap();
+            let regex = regex::Regex::new(&translated).unwrap();
+            for text in &accepted {
+                assert!(regex.is_match(text), "{pattern:?} rejected {text:?}");
+            }
+            for text in &rejected {
+                assert!(!regex.is_match(text), "{pattern:?} accepted {text:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn ecma_pattern_statics_match_the_golden_file() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/patterns.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let code = generate(&service, &Options::default()).unwrap();
+    let statics = code
+        .split("static PATTERN_")
+        .skip(1)
+        .map(|part| format!("static PATTERN_{}));\n", part.split("));").next().unwrap()))
+        .collect::<String>();
+    matches_golden(&statics, "patterns.rs");
+}
+
+#[test]
+fn unsupported_ecma_patterns_collect_shape_diagnostics() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/patterns-unsupported.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let diagnostics = generate(&service, &Options::default()).unwrap_err();
+    for member in [
+        "flags",
+        "anchor",
+        "property",
+        "surrogate",
+        "lookahead",
+        "backreference",
+        "wordstart",
+        "wordend",
+    ] {
+        assert!(
+            diagnostics.iter().any(|d| d.shape.to_string()
+                == format!("example.patterns#Input${member}")
+                && d.message.contains("does not compile faithfully")),
+            "{diagnostics}"
+        );
+    }
+}
+
+#[test]
 fn service_exception_uses_rust_type_spelling() {
     let mut service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
     service.id = crucible_smithy::ShapeId::new("example.weather", "weather_api");

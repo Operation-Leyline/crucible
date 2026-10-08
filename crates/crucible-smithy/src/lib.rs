@@ -18,6 +18,7 @@ mod lower_endpoints;
 mod lower_extensions;
 mod lower_streams;
 mod names;
+mod pattern;
 mod protocol;
 mod protocol_tests;
 mod recursion;
