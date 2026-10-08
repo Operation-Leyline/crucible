@@ -303,3 +303,28 @@ fn sensitive_members_are_redacted_in_to_string() {
             .contains("\"retryToken\" to example.weather.ModelFormat.redact(")
     );
 }
+
+#[test]
+fn enum_wire_values_cannot_break_out_of_kdoc() {
+    let fixture = include_str!("../../crucible-smithy/tests/fixtures/client-docs-jvm.json")
+        .replace(
+            r#""smithy.api#enumValue": "fast""#,
+            r#""smithy.api#enumValue": "a*/ b/* c`d""#,
+        );
+    let service = Model::from_json(&fixture).unwrap().lower(None).unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let mode = &files
+        .iter()
+        .find(|f| f.path.ends_with("/model/Mode.kt"))
+        .unwrap()
+        .contents;
+    assert!(mode.contains("a*\u{200b}/ b/\u{200b}* c"), "{mode}");
+    for file in files.iter().filter(|f| f.path.ends_with(".kt")) {
+        assert_eq!(
+            file.contents.matches("/*").count(),
+            file.contents.matches("*/").count(),
+            "{} has a stray comment delimiter",
+            file.path
+        );
+    }
+}

@@ -257,3 +257,31 @@ fn sensitive_members_are_redacted_in_to_string() {
     assert!(source("/model/Choice.java").contains("ModelFormat.redact(code)"));
     assert!(source("/model/Unavailable.java").contains("ModelFormat.redact(retryToken)"));
 }
+
+#[test]
+fn backslash_u_in_documentation_cannot_reach_javacs_unicode_pass() {
+    // javac decodes backslash-u everywhere in a source file, comments included.
+    let fixture = include_str!("../../crucible-smithy/tests/fixtures/client-docs-jvm.json")
+        .replace(
+            r#""smithy.api#documentation": "How fast.""#,
+            r#""smithy.api#documentation": "C:\\users\\x \\u002a/ `\\u002a/`""#,
+        );
+    let service = Model::from_json(&fixture).unwrap().lower(None).unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let mode = &files
+        .iter()
+        .find(|f| f.path.ends_with("/model/Mode.java"))
+        .unwrap()
+        .contents;
+    assert!(
+        mode.contains("C:&#92;users&#92;x &#92;u002a/ <code>&#92;u002a/</code>"),
+        "{mode}"
+    );
+    for file in files.iter().filter(|f| f.path.ends_with(".java")) {
+        assert!(
+            !file.contents.contains(r"\u002a"),
+            "{} keeps a backslash-u escape",
+            file.path
+        );
+    }
+}

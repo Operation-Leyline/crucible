@@ -174,6 +174,25 @@ pub fn kdoc_text(text: &str) -> String {
     kdoc_escape(text)
 }
 
+/// An inline KDoc code span for plain text such as a wire value: fenced to
+/// survive backticks inside it, and unable to close or open a comment.
+pub fn kdoc_code(text: &str) -> String {
+    let c = defuse(text);
+    let fence = "`".repeat(longest_run(&c, '`') + 1);
+    let pad = if c.starts_with('`') || c.ends_with('`') {
+        " "
+    } else {
+        ""
+    };
+    format!("{fence}{pad}{c}{pad}{fence}")
+}
+
+/// Breaks up `*/` and `/*` in KDoc text that is already Markdown, a last guard
+/// for Crucible's own notes and tags that interpolate model strings.
+pub fn kdoc_guard(text: &str) -> String {
+    defuse(text)
+}
+
 /// Escapes plain prose for C# XML documentation.
 pub fn xmldoc_text(text: &str) -> String {
     xml_escape(text)
@@ -276,16 +295,7 @@ fn inline(item: &Inline, d: Dialect) -> String {
         (Inline::Text(t), Dialect::Kdoc) => kdoc_escape(t),
         (Inline::Text(t), Dialect::Xml) => xml_escape(t),
         (Inline::Code(c), Dialect::Html) => format!("<code>{}</code>", html_escape(c)),
-        (Inline::Code(c), Dialect::Kdoc) => {
-            let c = defuse(c);
-            let fence = "`".repeat(longest_run(&c, '`') + 1);
-            let pad = if c.starts_with('`') || c.ends_with('`') {
-                " "
-            } else {
-                ""
-            };
-            format!("{fence}{pad}{c}{pad}{fence}")
-        }
+        (Inline::Code(c), Dialect::Kdoc) => kdoc_code(c),
         (Inline::Code(c), Dialect::Xml) => format!("<c>{}</c>", xml_escape(c)),
         (Inline::Strong(i), Dialect::Html) => format!("<b>{}</b>", inlines(i, d)),
         (Inline::Strong(i), Dialect::Kdoc) => format!("**{}**", inlines(i, d)),
@@ -333,12 +343,16 @@ fn defuse(text: &str) -> String {
 }
 
 // `@` starts a block tag and `{` an inline tag; `*/` would end the comment.
+// javac decodes backslash-u escapes everywhere, comments included, before it
+// lexes: `*/` closes the comment and a bare `\u` is a compile error. The
+// numeric reference renders as the same backslash and leaves none in the source.
 fn html_escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut previous = '\0';
     for c in text.chars() {
         match c {
             '&' => out.push_str("&amp;"),
+            '\\' => out.push_str("&#92;"),
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
             '@' => out.push_str("&#64;"),
@@ -542,5 +556,35 @@ mod tests {
         let text = "a */ b";
         assert_eq!(super::javadoc(text), ["<p>a *&#47; b</p>"]);
         assert!(!super::kdoc(text)[0].contains("*/"));
+    }
+
+    #[test]
+    fn javadoc_leaves_no_backslash_for_javacs_unicode_pass() {
+        // javac decodes backslash-u before lexing: `\u002a/` would close the
+        // comment and `C:\users` is an illegal escape.
+        for source in [
+            r"C:\users\x",
+            r"a \u002a/ b",
+            r"`\u002a/`",
+            "```\n\\u002a/\n```",
+            r"[x](https://e.example/\u002a/)",
+        ] {
+            let out = javadoc(source).join("\n");
+            assert!(!out.contains('\\'), "{source}: {out}");
+        }
+        assert!(!javadoc_text(r"\u002a/").contains('\\'));
+        assert_eq!(javadoc(r"C:\\x"), ["<p>C:&#92;x</p>"]);
+    }
+
+    #[test]
+    fn kdoc_code_spans_and_guard_cannot_touch_comment_delimiters() {
+        assert_eq!(kdoc_code("a`b"), "``a`b``");
+        let code = kdoc_code("*/ and /*");
+        assert!(!code.contains("*/") && !code.contains("/*"), "{code}");
+        let guarded = kdoc_guard("x */ y /* z");
+        assert!(
+            !guarded.contains("*/") && !guarded.contains("/*"),
+            "{guarded}"
+        );
     }
 }

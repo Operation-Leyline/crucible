@@ -127,11 +127,12 @@ fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     }
 }
 /// One KDoc comment: the model's documentation, then Crucible's notes (already
-/// Markdown), then block tags. Every dynamic string is escaped by `docs`, so
-/// nothing can close the comment or open a nested one.
+/// Markdown), then block tags. Model prose is escaped by `docs`; notes and tags
+/// interpolate model strings through [`code`], and a final guard keeps any of
+/// them from closing the comment or opening a nested one.
 pub(crate) fn kdoc(indent: &str, model: Option<&str>, notes: &[String], tags: &[String]) -> String {
     let mut blocks = model.map(docs::kdoc).unwrap_or_default();
-    blocks.extend(notes.iter().cloned());
+    blocks.extend(notes.iter().map(|note| docs::kdoc_guard(note)));
     // A comment that only tags a value still needs a summary line.
     if blocks.is_empty()
         && let Some(tag) = tags.first()
@@ -152,7 +153,7 @@ pub(crate) fn kdoc(indent: &str, model: Option<&str>, notes: &[String], tags: &[
         out.push_str(&format!("{indent} *\n"));
     }
     for tag in tags {
-        out.push_str(&format!("{indent} * {tag}\n"));
+        out.push_str(&format!("{indent} * {}\n", docs::kdoc_guard(tag)));
     }
     out.push_str(&format!("{indent} */\n"));
     out
@@ -160,7 +161,7 @@ pub(crate) fn kdoc(indent: &str, model: Option<&str>, notes: &[String], tags: &[
 
 /// Inline code for KDoc notes.
 pub(crate) fn code(text: &str) -> String {
-    format!("`{}`", text.replace('`', "'"))
+    docs::kdoc_code(text)
 }
 
 fn operation_kdoc(
