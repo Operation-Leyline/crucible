@@ -17,8 +17,8 @@ def qualification_model(output):
             traits["smithy.api#retryable"] = {"throttling": name == "Throttled"}
         shapes["example.weather#" + name] = {"type": "structure", "traits": traits,
             "members": {"message": {"target": "smithy.api#String"}}}
-    for name in ["RetrySafe", "RetryUnsafe"]:
-        traits = {"smithy.api#http": {"method": "POST", "uri": "/retry"}}
+    for name, uri in [("RetrySafe", "/retry/safe"), ("RetryUnsafe", "/retry/unsafe")]:
+        traits = {"smithy.api#http": {"method": "POST", "uri": uri}}
         if name == "RetrySafe":
             traits["smithy.api#idempotent"] = {}
         shapes["example.weather#" + name] = {"type": "operation", "traits": traits,
