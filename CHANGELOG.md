@@ -17,9 +17,6 @@ version's section when it is prepared.
 
 ### Added
 
-- Generated service CLIs include a local `mcp` stdio server using shared MCP
-  schemas and registry, client audience, profiles, authentication and SDK calls.
-
 - Stability policy for 0.x, this changelog, `docs/migrating.md`, the
   `consumers` CI job (starter, example service and a Leyline-shaped fixture)
   and a release gate that runs it before a tag is created (#180). The job
@@ -56,6 +53,9 @@ version's section when it is prepared.
   compile error. The stable runtime surface is documented in
   `docs/stability.md`. `OpenEnum` (`from_string`, `as_str`) is the documented
   way to build and read client string enums (#182).
+- Generated service CLIs include a local `mcp` stdio server using shared MCP
+  schemas and registry, client audience, profiles, authentication and SDK calls
+  (#185).
 
 ### Changed
 

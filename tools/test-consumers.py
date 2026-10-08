@@ -112,10 +112,19 @@ def leyline(env, work, target):
     print("leyline: service tests, generated SDK and independent consumer passed", flush=True)
 
 
+def deny_deprecated(env):
+    """Cargo prefers CARGO_ENCODED_RUSTFLAGS over RUSTFLAGS when both are set,
+    so `-D deprecated` goes into whichever one is effective."""
+    encoded = env.get("CARGO_ENCODED_RUSTFLAGS")
+    if encoded is not None:
+        return {"CARGO_ENCODED_RUSTFLAGS": (encoded + "\x1f" if encoded else "") + "-D\x1fdeprecated"}
+    return {"RUSTFLAGS": f"{env.get('RUSTFLAGS', '')} -D deprecated".strip()}
+
+
 def main():
     target = Path(os.environ.get("CARGO_TARGET_DIR") or ROOT / "e2e/target")
-    flags = f"{os.environ.get('RUSTFLAGS', '')} -D deprecated".strip()
-    env = {**os.environ, "CARGO_TARGET_DIR": str(target), "RUSTFLAGS": flags}
+    env = {**os.environ, "CARGO_TARGET_DIR": str(target)}
+    env.update(deny_deprecated(env))
     with tempfile.TemporaryDirectory(prefix="crucible-consumers-") as directory:
         work = Path(directory)
         starter(env, work, target)
