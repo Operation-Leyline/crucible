@@ -26,6 +26,18 @@ pub struct JwtAuthenticator {
 }
 
 impl JwtAuthenticator {
+    pub(crate) fn issuer(&self) -> &str {
+        &self.config.issuer
+    }
+
+    pub(crate) fn mcp_access_policy(&self) -> bool {
+        self.credential_header == header::AUTHORIZATION
+            && self
+                .config
+                .token_rules
+                .iter()
+                .all(|rule| rule.kind == crate::TokenKind::Access)
+    }
     pub fn new(config: IssuerConfig) -> std::result::Result<Self, AuthError> {
         validate_url(&config, &config.issuer)?;
         validate_url(&config, &config.jwks_url)?;

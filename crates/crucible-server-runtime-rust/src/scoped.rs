@@ -143,6 +143,9 @@ impl<T: Protocol> Protocol for Scoped<T> {
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
         self.inner.write(job, answers)
     }
+    fn decorate_response(&self, response: &mut Response) {
+        self.inner.decorate_response(response);
+    }
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         self.inner.prepare(&prepare.within(&*self.applies))
     }

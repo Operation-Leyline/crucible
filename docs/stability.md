@@ -45,6 +45,15 @@ service's entry points for registering implementations.
 `BuildError` is non-exhaustive. Handle known variants and include a fallback
 when matching it. `MissingOperations` reports incomplete registration.
 
+`mcp::McpConfig::{new, path, allowed_origins, allow_any_origin, endpoint_guard,
+authorization, server_info}` and the `EndpointGuard`/`McpAuthorization` interfaces
+are additive service configuration APIs. `authorization` derives discovery and
+admission from one configuration; it leaves unauthenticated MCP behavior intact
+when omitted. `crucible_auth::McpAuthenticator::{new,
+allow_unbound_cognito_tokens}` composes configured access-token verifiers and a
+service-owned endpoint scope. Audience binding is the default; unbound Cognito
+tokens require explicit compatibility opt-in. See [MCP authentication](mcp.md#oauth-discovery-and-access-tokens).
+
 ## Extension interfaces and request views
 
 Services extend the pipeline through `Middleware`, `OperationAwareMiddleware`,

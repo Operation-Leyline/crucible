@@ -583,8 +583,11 @@ dependencies = [
 name = "crucible-codegen-common"
 version = "0.4.0"
 dependencies = [
+ "base64 0.22.1",
  "crucible-smithy",
+ "crucible-wire",
  "pulldown-cmark",
+ "serde",
  "serde_json",
 ]
 
@@ -631,6 +634,7 @@ dependencies = [
  "tokio",
  "tower",
  "tracing",
+ "url",
  "uuid",
 ]
 
@@ -1886,8 +1890,15 @@ checksum = "e9f068eba8e7071c5f9511831b44f32c740d5adf574e990f946ddb53db2f314e"
 dependencies = [
  "bitflags",
  "memchr",
+ "pulldown-cmark-escape",
  "unicase",
 ]
+
+[[package]]
+name = "pulldown-cmark-escape"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "query_map"

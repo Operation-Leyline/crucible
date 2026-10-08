@@ -97,9 +97,107 @@ Modeled operation errors produce `isError: true` with their name and message in
 a text block. Invalid arguments produce JSON-RPC `-32602`. Internal failures and
 outputs that violate the advertised schema produce `-32603` without output data.
 
-This feature does not publish OAuth Protected Resource Metadata, add discovery
-challenges, or implement an authorization server. Applications supply credential
-verification and client credential configuration.
+### OAuth discovery and access tokens
+
+Install `crucible_auth::McpAuthenticator` through `McpConfig::authorization` to
+derive discovery and authenticate every MCP request, including initialization.
+The JWT verifiers supply the trusted issuers; the configured resource supplies
+the public HTTPS MCP URL. The URL path must match `McpConfig::path` (default
+`/mcp`). Neither `Host` nor forwarded headers select a resource or issuer.
+
+Crucible serves unauthenticated GET/HEAD at
+`/.well-known/oauth-protected-resource/mcp`, following
+[RFC 9728 section 3.1](https://www.rfc-editor.org/rfc/rfc9728.html#section-3.1).
+For `/agents/mcp`, the location is
+`/.well-known/oauth-protected-resource/agents/mcp`. Only this path-suffixed
+document is registered, so other resources can publish their own metadata.
+It contains `resource`, sorted and deduplicated `authorization_servers`,
+`scopes_supported` from the external tools' effective model scopes plus the
+endpoint's required scope, and `bearer_methods_supported: ["header"]`.
+Metadata is prepared once at construction, without reading raw model traits.
+
+An unauthenticated request gets HTTP 401 before body parsing, with:
+
+```http
+WWW-Authenticate: Bearer scope="weather/mcp", resource_metadata="https://api.example.com/.well-known/oauth-protected-resource/mcp"
+```
+
+Invalid tokens get 401 with `error="invalid_token"`; missing scopes get 403
+with `error="insufficient_scope"`. Tool scope refusals retain their operation
+scopes and include the same metadata URL. Install `ScopeEnforcer::strict()` to
+enforce the model scopes on calls; the endpoint guard always checks its own
+required scope and stores the verified `Principal` in `Context`.
+Provider outages return 503, rather than labeling credentials invalid.
+`endpoint_guard` and `authorization` cannot be combined on one MCP endpoint.
+
+This discovery and challenge behavior follows the fetched
+[MCP authorization specification, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+and its [authorization server discovery requirements](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery),
+also present in [2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization).
+The supported JSON-RPC transport versions remain those listed below. Crucible
+does not implement an authorization server or client registration. Clients
+obtain tokens from the advertised issuer and send them in `Authorization` on
+each request. Query tokens are ignored; duplicate credential headers are refused.
+Tokens must be access tokens, with an allowed `client_id`, and by default their
+`aud` string must exactly equal the configured resource URL.
+
+### Configuring Cognito
+
+Use a Cognito user pool with a domain, permission to create its resource server
+and app client, and an MCP client that supports pre-registered OAuth clients.
+The following walkthrough uses `https://api.example.com/mcp` as the public MCP
+resource and `weather` as this service's unique resource-server identifier.
+
+1. Create a resource server in the user pool, with identifier `weather` and a
+   scope named `mcp`. This produces `weather/mcp`; only this service should
+   define and accept it. Add scopes for the model's operation policies, such as
+   `weather/read`, `weather/write`, and `weather/admin`. See
+   [Cognito resource servers and scopes](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-define-resource-servers.html).
+2. Create a dedicated app client. Enable authorization code grant and the
+   custom scopes it needs, configure the MCP client's exact callback URL, and
+   use PKCE with S256. For a public client, create the app client without a
+   secret. Pre-register its client ID with the MCP client; Cognito discovery
+   does not provide arbitrary dynamic registration for MCP clients.
+3. Request `weather/mcp` and the needed model scopes. Include
+   `resource=https://api.example.com/mcp` in the authorization request and the
+   token request as required by MCP. Cognito now documents resource binding in
+   its [authorization endpoint](https://docs.aws.amazon.com/cognito/latest/developerguide/authorization-endpoint.html);
+   a bound [access token](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-the-access-token.html)
+   carries that resource in `aud`. Verify the issued token has the expected
+   `aud` before using the default policy. Send the access token, not the ID token.
+4. Configure the service's verifier with the user pool's issuer and the dedicated
+   app-client allowlist. Keep it local to the MCP endpoint:
+
+```rust
+use crucible_auth::{IssuerConfig, JwtAuthenticator, McpAuthenticator, ScopeEnforcer};
+use crucible_server_runtime_rust::{Crucible, mcp::McpConfig};
+
+let verifier = JwtAuthenticator::new(IssuerConfig::cognito_access(
+    "us-east-1", "us-east-1_EXAMPLE", vec!["YOUR_MCP_APP_CLIENT_ID".into()],
+))?;
+let authorization = McpAuthenticator::new(
+    "https://api.example.com/mcp", vec![verifier], "weather/mcp",
+)?;
+let service = Crucible::builder(weather::operations(implementation))
+    .defaults()
+    .mcp(McpConfig::new().authorization(authorization))
+    .interceptor(ScopeEnforcer::strict())
+    .build()?;
+```
+
+For pools or token flows without resource binding, explicitly opt into
+`authorization.allow_unbound_cognito_tokens()`. This compatibility mode accepts
+absent `aud` only with all three substitute controls: access-token verification
+on the MCP endpoint, an allowed `client_id`, and the required service-owned
+resource-server scope. A present `aud` must still equal the MCP URL. This mode
+is not RFC 8707 audience binding and does not claim full MCP authorization
+conformance. Prefer bound tokens where the deployment supports them.
+
+The MCP guard does not install an ordinary API authenticator. Configure the
+API's ID-token or other policy independently, and exclude MCP calls from an
+ID-only `AuthenticatorChain` so it does not replace or refuse the MCP principal.
+Never pass an MCP bearer token to an upstream service. Obtain a separate token
+for that upstream; discovery and admission do not implement token passthrough.
 
 ## Audience and schemas
 
