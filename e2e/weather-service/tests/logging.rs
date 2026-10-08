@@ -135,7 +135,7 @@ fn exact_query_values_outrank_any_value_matches() {
     struct AnyMode;
     impl Operation for AnyMode {
         const INFO: &'static crucible_server_runtime_rust::OperationInfo = &{
-            let base = &(*api::Echo::INFO);
+            let base = api::Echo::INFO;
             generated::operation_info(
                 base.id,
                 base.name,

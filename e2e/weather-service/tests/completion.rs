@@ -44,7 +44,7 @@ const TAG: MemberInfo = generated::member_info(
     &[],
 );
 static UPLOAD: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         "test.completion#Upload",
         "Upload",
@@ -64,7 +64,7 @@ static UPLOAD: OperationInfo = {
     )
 };
 static DOWNLOAD: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         "test.completion#Download",
         "Download",
@@ -84,7 +84,7 @@ static DOWNLOAD: OperationInfo = {
     )
 };
 static BROKEN: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         "test.completion#Broken",
         "Broken",
@@ -110,7 +110,7 @@ static BROKEN: OperationInfo = {
     )
 };
 static FAULT: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         "test.completion#Fault",
         "Fault",

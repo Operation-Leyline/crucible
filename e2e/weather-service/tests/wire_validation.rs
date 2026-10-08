@@ -29,7 +29,7 @@ const BODY: MemberInfo = member("body", Location::Body);
 const HEADER: MemberInfo = member("header", Location::Header("x-header"));
 const PREFIX: MemberInfo = member("prefix", Location::PrefixHeaders("x-prefix-"));
 static BODY_ONLY: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "BodyOnly",
@@ -49,7 +49,7 @@ static BODY_ONLY: OperationInfo = {
     )
 };
 static BOUND: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "Bound",
@@ -69,7 +69,7 @@ static BOUND: OperationInfo = {
     )
 };
 static REQUIRED: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "Required",
@@ -89,7 +89,7 @@ static REQUIRED: OperationInfo = {
     )
 };
 static REQUIRED_BOUND: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "RequiredBound",
@@ -109,7 +109,7 @@ static REQUIRED_BOUND: OperationInfo = {
     )
 };
 static QUERIES: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "Queries",
@@ -143,7 +143,7 @@ static QUERIES: OperationInfo = {
     )
 };
 static HEADERS: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "Headers",
@@ -163,7 +163,7 @@ static HEADERS: OperationInfo = {
     )
 };
 static STREAM: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "Stream",
@@ -195,7 +195,7 @@ static STREAM: OperationInfo = {
     )
 };
 static TEXT: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "Text",
@@ -215,7 +215,7 @@ static TEXT: OperationInfo = {
     )
 };
 static BLOB: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "Blob",
@@ -238,7 +238,7 @@ static BLOB: OperationInfo = {
     )
 };
 static DOCUMENT: OperationInfo = {
-    let base = &(*weather::Ping::INFO);
+    let base = weather::Ping::INFO;
     generated::operation_info(
         base.id,
         "Document",
