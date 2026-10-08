@@ -2,11 +2,40 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from crucible_release import check, prepare, version_tuple
+from crucible_release import changelog_entry, check, prepare, version_tuple
+
+
+CHANGELOG = """# Changelog
+
+## [Unreleased]
+
+## [0.2.1] - 2026-02-01
+
+### Fixed
+
+- A bug.
+
+## [0.2.0] - 2026-01-02
+
+### Added
+
+- A feature.
+
+### Migration
+
+- Rename the thing.
+
+## [0.1.0] - 2026-01-01
+
+### Added
+
+- The start.
+"""
 
 
 class ReleaseTests(unittest.TestCase):
     def fixture(self, root):
+        (root / "CHANGELOG.md").write_text(CHANGELOG)
         (root / "crates/crucible-server-runtime-rust").mkdir(parents=True)
         (root / "crates/crucible-server-runtime-rust/Cargo.toml").write_text('[package]\nname = "crucible-server-runtime-rust"\nversion.workspace = true\n')
         (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "smithy"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
@@ -82,6 +111,60 @@ version = "0.1.0"
             for version in ("0.1.0", "0.0.9"):
                 with self.assertRaisesRegex(ValueError, "greater than"):
                     prepare(root, version)
+
+    def test_release_without_a_changelog_entry_is_refused_and_leaves_files_alone(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            before = {path: path.read_bytes() for path in (root / "Cargo.toml", root / "Cargo.lock", root / "e2e/Cargo.lock")}
+            with self.assertRaisesRegex(ValueError, r"no '## \[0.3.0\]' entry"):
+                prepare(root, "0.3.0")
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+            # [Unreleased] holds no version, so it can never satisfy the gate.
+            with self.assertRaisesRegex(ValueError, r"no '## \[0.1.5\]' entry"):
+                changelog_entry(root, "0.1.5")
+            (root / "CHANGELOG.md").unlink()
+            with self.assertRaisesRegex(ValueError, "does not exist"):
+                check(root, "0.1.0")
+
+    def test_check_requires_the_entry_for_the_merged_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            check(root, "0.1.0")
+            (root / "CHANGELOG.md").write_text(CHANGELOG.replace("## [0.1.0] - 2026-01-01", "## [0.0.9] - 2026-01-01"))
+            with self.assertRaisesRegex(ValueError, r"no '## \[0.1.0\]' entry"):
+                check(root, "0.1.0")
+
+    def test_empty_entry_is_refused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            (root / "CHANGELOG.md").write_text("""## [0.2.0] - 2026-01-02
+
+### Added
+
+<!-- todo -->
+
+## [0.1.0]
+
+- Start
+""")
+            with self.assertRaisesRegex(ValueError, "entry for 0.2.0 is empty"):
+                prepare(root, "0.2.0")
+            # The heading may omit its date, and the version must match exactly.
+            changelog_entry(root, "0.1.0")
+            with self.assertRaises(ValueError):
+                changelog_entry(root, "0.1")
+
+    def test_patch_release_may_not_carry_a_migration_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            changelog_entry(root, "0.2.0")  # a minor may migrate
+            (root / "CHANGELOG.md").write_text(CHANGELOG.replace("### Fixed", "### Migration"))
+            with self.assertRaisesRegex(ValueError, "patch release 0.2.1 has a Migration"):
+                changelog_entry(root, "0.2.1")
 
     def test_stable_semantic_versions_only(self):
         self.assertEqual(version_tuple("1.12.3"), (1, 12, 3))

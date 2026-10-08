@@ -720,7 +720,7 @@ failure, including headers on modelled errors and streaming responses.
 
 ### Migrating existing services
 
-See [Migrating to Crucible 0.2](migrating-0.2.md) for the registration and import
+See [Migrating from 0.1 to 0.2](migrating.md#010-to-020) for the registration and import
 changes, protocol hooks, typed interceptors, validation checklist, and rollback.
 
 ## Metrics
