@@ -47,7 +47,7 @@ check((string)new CredentialUsername('bob') === 'Credential(username=bob)', 'pla
 check((string)new CredentialUnknownVariant('future', JsonValue::parse('"token-123"')) === 'Credential(unknownVariant=future)', 'unknown variant omits its value');
 check((string)new Secret(name: 'x') === 'Secret(name=x)', 'minimal model');
 
-$error = new AccessDenied(message: 'denied', reason: 'secret-reason',
+$error = new AccessDenied(messageValue: 'denied', reason: 'secret-reason',
     metadata: new ErrorMetadata('AccessDenied', 'denied', 403, 'r-1', ['authorization' => 'x']));
 $described = $error->describe();
 check(str_contains($described, 'reason=' . MARKER) && !str_contains($described, 'secret-reason'), 'error members redact: ' . $described);

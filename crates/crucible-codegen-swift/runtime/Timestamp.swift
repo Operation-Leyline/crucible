@@ -17,7 +17,8 @@ public struct Timestamp: Sendable, Equatable, CustomStringConvertible {
         text.removeLast()
         return text + "." + Self.fractionDigits(nanoseconds) + "Z"
     }
-    private static let formatter = ISO8601DateFormatter()
+    // Foundation documents ISO8601DateFormatter.string(from:) as thread-safe; it is only non-Sendable by declaration.
+    private nonisolated(unsafe) static let formatter = ISO8601DateFormatter()
     private static func fractionDigits(_ nanoseconds: UInt32) -> String {
         var fraction = String(nanoseconds)
         fraction = String(repeating: "0", count: 9 - fraction.count) + fraction
