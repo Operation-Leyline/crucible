@@ -1,9 +1,14 @@
-use crucible_build::{MissingModelDependency, try_model};
+use crucible_build::{MissingModelDependency, model};
 
 #[test]
 fn missing_dependency_names_the_cargo_setup() {
     let name = format!("missing_vocabulary_dependency_{}", std::process::id());
-    let error: MissingModelDependency = try_model(&name).err().expect("missing link");
+    let failure = std::panic::catch_unwind(|| model(&name))
+        .err()
+        .expect("missing link");
+    let error = failure
+        .downcast::<MissingModelDependency>()
+        .expect("named dependency error");
     assert_eq!(error.links, name);
     assert_eq!(
         error.variable,
@@ -22,13 +27,8 @@ fn missing_dependency_names_the_cargo_setup() {
 #[test]
 fn explicit_paths_do_not_require_dependency_metadata() {
     let dir = tempfile::tempdir().unwrap();
-    assert!(try_model(dir.path()).is_ok());
+    let _source = model(dir.path());
     let ast = dir.path().join("model.json");
     // Source discovery does not compile or read AST contents.
-    assert_eq!(
-        try_model(&ast)
-            .unwrap_or_else(|error| panic!("{error}"))
-            .model_path(),
-        ast
-    );
+    assert_eq!(model(&ast).model_path(), ast);
 }

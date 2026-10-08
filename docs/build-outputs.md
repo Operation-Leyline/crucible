@@ -34,8 +34,8 @@ selecting a binding or publishing. The deprecated `outputs` module
 retains generator/options imports during migration; import these directly from
 `crucible_build` in new code. It does not export `Audience`; the redundant `clients` namespace is removed.
 
-Missing model links return `MissingModelDependency` through `try_model(source)`.
-The build-script `model(source)` reports the same named error with the Cargo
+Missing model links fail with a typed `MissingModelDependency` and an actionable
+build-script diagnostic. `model(source)` reports the missing Cargo
 metadata variable and the required `[dependencies]`, `links`, and publication
 setup. Relative paths resolve from `CARGO_MANIFEST_DIR`. Existing paths take
 precedence over dependency names.

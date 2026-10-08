@@ -433,11 +433,6 @@ pub fn model(source: impl AsRef<Path>) -> Model {
     Model::new(source.as_ref())
 }
 
-/// Fallible source discovery with an actionable missing-dependency error.
-pub fn try_model(source: impl AsRef<Path>) -> Result<Model, MissingModelDependency> {
-    Model::try_new(source.as_ref())
-}
-
 /// Deprecated name for the Rust binding builder.
 #[cfg(feature = "rust")]
 #[deprecated(

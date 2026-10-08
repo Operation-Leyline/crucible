@@ -80,8 +80,12 @@ fn vocabulary_probe() {
                 m.client().render().unwrap()
             );
             assert!(!out.join("crucible_client_runtime_rust.rs").exists());
-            assert!(crucible_build::try_model("missing-model").is_err());
-            let error = crucible_build::try_model("missing-model").err().unwrap();
+            let failure = std::panic::catch_unwind(|| crucible_build::model("missing-model"))
+                .err()
+                .unwrap();
+            let error = failure
+                .downcast::<crucible_build::MissingModelDependency>()
+                .unwrap();
             assert_eq!(error.links, "missing-model");
             assert_eq!(error.variable, "DEP_MISSING_MODEL_MODEL");
             for text in [
