@@ -128,10 +128,7 @@ impl Explorer {
             Body::from(bytes).into_response()
         };
         let headers = response.headers_mut();
-        headers.insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static(mime),
-        );
+        headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
         headers.insert(header::CONTENT_LENGTH, length.into());
         headers.insert(
             header::CACHE_CONTROL,
@@ -258,7 +255,9 @@ impl Protocol for Explorer {
                     });
                 if !peer.is_some_and(|peer| match peer.ip() {
                     IpAddr::V4(ip) => ip.is_loopback(),
-                    IpAddr::V6(ip) => ip.is_loopback() || ip.to_ipv4_mapped().is_some_and(|ip|ip.is_loopback()),
+                    IpAddr::V6(ip) => {
+                        ip.is_loopback() || ip.to_ipv4_mapped().is_some_and(|ip| ip.is_loopback())
+                    }
                 }) {
                     job.respond(secure(StatusCode::FORBIDDEN.into_response()));
                     return Ok(());

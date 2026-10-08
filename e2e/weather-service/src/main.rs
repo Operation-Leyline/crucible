@@ -16,7 +16,9 @@ async fn main() {
     println!("listening on {}", listener.local_addr().expect("address"));
     let mut builder = weather_service::builder(Arc::new(MemoryCities::default()));
     if cfg!(debug_assertions) {
-        builder = builder.explorer(crucible_server_runtime_rust::explorer::Explorer::new(weather_service::weather::DESCRIPTION));
+        builder = builder.explorer(crucible_server_runtime_rust::explorer::Explorer::new(
+            weather_service::weather::DESCRIPTION,
+        ));
     }
     crucible_server_runtime_rust::host::http_on(
         builder.build().expect("weather service"),

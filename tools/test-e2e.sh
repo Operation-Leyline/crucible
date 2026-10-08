@@ -31,6 +31,8 @@ done
 address="$(sed -n 's/^listening on //p' "$log")"
 [[ -n "$address" ]] || { cat "$log"; echo "the server did not start"; exit 1; }
 
+EXPLORER_URL="http://$address" node --test crates/crucible-server-runtime-rust/tests/explorer/served.test.mjs
+
 rm -rf e2e/ts/dist
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p e2e/ts
 WEATHER_URL="http://$address" node --test e2e/ts/dist/ts/*.test.js

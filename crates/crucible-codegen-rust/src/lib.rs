@@ -230,8 +230,10 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
                 crucible_codegen_common::describe::describe_for_explorer(&projected)?.to_json();
             // Parse JSON as data, preserving keys such as __proto__ rather than
             // giving them JavaScript object-literal semantics.
-            let script = format!("globalThis.CRUCIBLE_DESCRIPTION = JSON.parse({});\n",
-                serde_json::to_string(&description).expect("JSON text"));
+            let script = format!(
+                "globalThis.CRUCIBLE_DESCRIPTION = JSON.parse({});\n",
+                serde_json::to_string(&description).expect("JSON text")
+            );
             format!(
                 "\n/// Embedded Explorer contract, generated at build time.\npub static DESCRIPTION: &::crucible_server_runtime_rust::explorer::Description = &::crucible_server_runtime_rust::__generated::explorer_description({}, {});\n",
                 names::literal(&description),
