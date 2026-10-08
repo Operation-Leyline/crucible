@@ -383,7 +383,12 @@ async fn selected_tool_uses_precomputed_operation_body_limit() {
     assert_eq!(status, StatusCode::OK);
     let body: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(body["error"]["code"], -32602);
-    assert!(body["error"]["message"].as_str().unwrap().contains("larger than 1 bytes"));
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("larger than 1 bytes")
+    );
 }
 
 #[tokio::test]
