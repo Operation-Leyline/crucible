@@ -4,11 +4,13 @@
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use axum::body::{Body, Bytes, HttpBody};
 use axum::http::{HeaderValue, Request};
 use axum::response::Response;
+use futures_util::FutureExt;
 use tower::util::BoxCloneSyncService;
 use tower::{Layer, Service, ServiceExt};
 
@@ -41,6 +43,26 @@ pub type RequestIdSource = fn(&axum::http::request::Parts) -> Option<HeaderValue
 
 /// The longest request id taken from outside; a longer one is replaced.
 const MAX_REQUEST_ID: usize = 128;
+
+fn panic_error(payload: Box<dyn std::any::Any + Send>) -> Error {
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or("non-string panic payload");
+    Error::internal(format!("request panicked: {message}"))
+}
+
+fn recover<T>(call: impl FnOnce() -> T) -> crate::Result<T> {
+    catch_unwind(AssertUnwindSafe(call)).map_err(panic_error)
+}
+
+async fn recover_async<T>(future: impl Future<Output = T>) -> crate::Result<T> {
+    AssertUnwindSafe(future)
+        .catch_unwind()
+        .await
+        .map_err(panic_error)
+}
 
 /// A random UUID (v4) as a header value, formatted once.
 fn request_id() -> HeaderValue {
@@ -195,30 +217,51 @@ impl Crucible {
             .scope(async move {
                 let mut entered = Entered::default();
                 // An early transport failure still uses its owner's error envelope.
-                let mut selected = inner
-                    .protocols
-                    .iter()
-                    .position(|p| p.owns(job.request()))
-                    .unwrap_or(0);
-                self.execute(&mut job, &mut entered, &mut selected).await;
-                // Decoded input is still present when an interceptor refuses or answers.
-                if entered.decoded && job.wants_snapshot && job.input_snapshot.is_none() {
-                    job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
+                let mut selected = 0;
+                // Keep the job and entered phases outside the unwind boundary so
+                // a panic follows the same return path as an internal error.
+                if let Err(error) = recover_async(async {
+                    selected = inner
+                        .protocols
+                        .iter()
+                        .position(|p| p.owns(job.request()))
+                        .unwrap_or(0);
+                    self.execute(&mut job, &mut entered, &mut selected).await;
+                    // Decoded input is still present when an interceptor refuses or answers.
+                    if entered.decoded && job.wants_snapshot && job.input_snapshot.is_none() {
+                        job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
+                    }
+                })
+                .await
+                {
+                    job.fail(error);
                 }
                 let mut translated = None;
                 self.translate(&mut job, &mut translated);
                 for interceptor in inner.interceptors[..entered.interceptors].iter().rev() {
-                    interceptor
-                        .after(&mut OperationJob::new(&mut job))
-                        .resolve()
-                        .await;
+                    if let Err(error) = recover_async(async {
+                        interceptor
+                            .after(&mut OperationJob::new(&mut job))
+                            .resolve()
+                            .await;
+                    })
+                    .await
+                    {
+                        job.fail(error);
+                    }
                     self.translate(&mut job, &mut translated);
                 }
                 for middleware in inner.operation_middleware[..entered.operation].iter().rev() {
-                    middleware
-                        .after(&mut OperationJob::new(&mut job))
-                        .resolve()
-                        .await;
+                    if let Err(error) = recover_async(async {
+                        middleware
+                            .after(&mut OperationJob::new(&mut job))
+                            .resolve()
+                            .await;
+                    })
+                    .await
+                    {
+                        job.fail(error);
+                    }
                     self.translate(&mut job, &mut translated);
                 }
                 self.translate(&mut job, &mut translated);
@@ -231,40 +274,93 @@ impl Crucible {
                     Some(Outcome::Answered(response)) => response,
                     outcome => {
                         job.outcome = outcome;
-                        inner.protocols[selected].write(&job, &answers)
+                        self.write(&mut job, selected, &answers)
                     }
                 };
-                response.headers_mut().extend(job.response_headers.drain());
-                if !response.headers().contains_key("x-request-id") {
-                    response
-                        .headers_mut()
-                        .insert("x-request-id", job.context.request_id_header().clone());
-                }
+                Self::response_headers(&mut job, &mut response);
                 for middleware in inner.middleware[..entered.transport].iter().rev() {
-                    middleware.after(&mut job, &mut response).resolve().await;
+                    if let Err(error) = recover_async(async {
+                        middleware.after(&mut job, &mut response).resolve().await;
+                    })
+                    .await
+                    {
+                        job.fail(error);
+                        response = self.write(&mut job, selected, &answers);
+                        Self::response_headers(&mut job, &mut response);
+                    }
                 }
                 if entered.operation > 0 || entered.interceptors > 0 {
-                    let operation = OperationJob::new(&mut job);
                     for interceptor in inner.interceptors[..entered.interceptors].iter().rev() {
-                        interceptor.complete(&operation, &response);
+                        if let Err(error) = recover(|| {
+                            interceptor.complete(&OperationJob::new(&mut job), &response);
+                        }) {
+                            job.fail(error);
+                            response = self.write(&mut job, selected, &answers);
+                            Self::response_headers(&mut job, &mut response);
+                        }
                     }
                     for middleware in inner.operation_middleware[..entered.operation].iter().rev() {
-                        middleware.complete(&operation, &response);
+                        if let Err(error) = recover(|| {
+                            middleware.complete(&OperationJob::new(&mut job), &response);
+                        }) {
+                            job.fail(error);
+                            response = self.write(&mut job, selected, &answers);
+                            Self::response_headers(&mut job, &mut response);
+                        }
                     }
                 }
                 for middleware in inner.middleware[..entered.transport].iter().rev() {
-                    middleware.complete(&job, &response);
+                    if let Err(error) = recover(|| middleware.complete(&job, &response)) {
+                        job.fail(error);
+                        response = self.write(&mut job, selected, &answers);
+                        Self::response_headers(&mut job, &mut response);
+                    }
                 }
                 response
             })
             .await
     }
 
+    fn response_headers(job: &mut Job, response: &mut Response) {
+        response.headers_mut().extend(job.response_headers.drain());
+        if !response.headers().contains_key("x-request-id") {
+            response
+                .headers_mut()
+                .insert("x-request-id", job.context.request_id_header().clone());
+        }
+    }
+
+    fn write(&self, job: &mut Job, selected: usize, answers: &Answers<'_>) -> Response {
+        let protocol = &self.inner.protocols[selected];
+        match recover(|| protocol.write(job, answers)) {
+            Ok(response) => response,
+            Err(error) => {
+                job.fail(error);
+                // Encoding an output may panic while encoding an internal error
+                // still works. A broken error writer must not escape recovery.
+                recover(|| protocol.write(job, answers)).unwrap_or_else(|_| {
+                    let fallback = Answers {
+                        internal: None,
+                        unknown: None,
+                        reject: answers.reject,
+                    };
+                    if job.request().extensions.get::<Invocation>().is_some() {
+                        InvokeProtocol.write(job, &fallback)
+                    } else {
+                        JsonProtocol.write(job, &fallback)
+                    }
+                })
+            }
+        }
+    }
+
     fn translate(&self, job: &mut Job, translated: &mut Option<u64>) {
         if matches!(job.outcome, Some(Outcome::Failed(_)))
             && *translated != Some(job.error_revision)
         {
-            self.inner.translator.apply(job);
+            if let Err(error) = recover(|| self.inner.translator.apply(job)) {
+                job.fail(error);
+            }
             *translated = Some(job.error_revision);
         }
     }
