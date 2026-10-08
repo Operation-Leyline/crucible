@@ -351,3 +351,68 @@ fn restjson1_query_timestamps_keep_the_document_kind_and_bound_format() {
     assert_eq!(member["timestamp_format"], "epoch-seconds");
     assert_eq!(member["bound_format"], "date-time");
 }
+
+#[test]
+fn mcp_command_is_reserved_with_a_shape_diagnostic() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/mcp-cli-reserved.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let diagnostics = emit(&service, &options()).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.shape.to_string() == "example.mcp#Mcp"
+                && d.message == "CLI command `mcp` is reserved")
+    );
+}
+
+#[test]
+fn tools_reuse_shared_emission_and_selected_audience() {
+    let service = edited(|model| {
+        model["shapes"]["example.weather#GetCity"]["traits"]["smithy.api#internal"] = json!({});
+    });
+    for audience in [
+        crucible_smithy::Audience::External,
+        crucible_smithy::Audience::Internal,
+    ] {
+        let selected = crucible_smithy::project(&service, audience).unwrap();
+        let files = emit(&selected, &options()).unwrap();
+        let tools = &files
+            .iter()
+            .find(|f| f.path == "src/mcp.rs")
+            .unwrap()
+            .contents;
+        let shared = crucible_codegen_common::mcp::emit(
+            &selected,
+            &Default::default(),
+            &mut Default::default(),
+            "::crucible_cli_runtime::__generated::mcp",
+        );
+        assert_eq!(tools, &shared);
+        assert_eq!(
+            tools.contains("name: \"GetCity\""),
+            audience == crucible_smithy::Audience::Internal
+        );
+    }
+}
+
+#[test]
+fn mcp_tool_name_diagnostics_reuse_the_shared_fixture() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/mcp-tool-names.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let diagnostics = emit(&service, &options()).unwrap_err();
+    assert_eq!(
+        diagnostics
+            .iter()
+            .filter(|d| d.message.starts_with("mcp.invalid_tool_name:"))
+            .count(),
+        2
+    );
+}

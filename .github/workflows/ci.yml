@@ -102,7 +102,8 @@ jobs:
         with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
-      - run: python tools/test-cli.py
+      - name: Qualify generated CLI and MCP stdio over fixture and Weather HTTP
+        run: python tools/test-cli.py
         env:
           CARGO_BUILD_JOBS: '2'
   cdk:

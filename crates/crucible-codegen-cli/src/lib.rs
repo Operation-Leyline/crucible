@@ -17,6 +17,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let mut diagnostics = Diagnostics::default();
     package::validate(service, options, &mut diagnostics);
     let schema = schema::emit(service, options, &mut diagnostics);
+    let tools = crucible_codegen_common::mcp::emit(
+        service,
+        &Default::default(),
+        &mut diagnostics,
+        "::crucible_cli_runtime::__generated::mcp",
+    );
     let client = match crucible_codegen_rust::generate_client(service) {
         Ok(client) => client,
         Err(errors) => {
@@ -37,6 +43,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         file("Cargo.toml", package::manifest(options)),
         file("schema.json", schema),
         file("src/client.rs", client),
+        file("src/mcp.rs", tools),
         file("src/lib.rs", package::library(service)),
         file("src/main.rs", package::MAIN.into()),
         // Cargo formatting visits this generated package and path dependencies.

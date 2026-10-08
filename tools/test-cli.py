@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import queue
 from pathlib import Path
 import subprocess
 import tempfile
@@ -274,6 +275,98 @@ def real_weather(cli, output):
         assert downloaded["caption"] == "binary roundtrip", downloaded
 
 
+def mcp_messages(cli, options, messages):
+    # communicate() closes stdin and enforces a deadline; notifications must not
+    # produce a line and EOF must end the process cleanly.
+    result = cli.call(*options, "mcp", stdin="\n".join(
+        item if isinstance(item, str) else json.dumps(item) for item in messages) + "\n")
+    responses = [json.loads(line) for line in result.stdout.splitlines()]
+    assert all(item["jsonrpc"] == "2.0" for item in responses), responses
+    return responses
+
+
+def rpc(identifier, method, **params):
+    value = {"jsonrpc": "2.0", "method": method, "params": params}
+    if identifier is not None:
+        value["id"] = identifier
+    return value
+
+
+def handshake():
+    return [rpc(1, "initialize", protocolVersion="2025-06-18", capabilities={},
+                clientInfo={"name": "independent-test", "version": "1"}),
+            rpc(None, "notifications/initialized")]
+
+
+def stdio_mcp(cli, output):
+    with fixture() as (endpoint, calls, _):
+        profiles = output / "mcp-profiles.json"
+        profiles.write_text(json.dumps({"profiles": {"agent": {
+            "endpoint_url": endpoint, "bearer_token": "agent-secret"}}}), encoding="utf-8")
+        options = ["--config", profiles, "--profile", "agent"]
+        messages = [rpc(0, "tools/list"), *handshake(), rpc(2, "ping"),
+                    rpc(3, "tools/list"), rpc(None, "unknown-notification"),
+                    rpc(4, "tools/call", name="Probe", arguments={"count": 12345, "text": "agent"}),
+                    rpc(5, "tools/call", name="Ping"),
+                    rpc(6, "tools/call", name="Probe", arguments={"count": "secret-value"}),
+                    rpc(7, "tools/call", name="Absent"),
+                    rpc(8, "tools/call", name="GetCity", arguments={"cityId": "c-missing0"}),
+                    "{", [], {"jsonrpc": "2.0", "id": True, "method": "ping"},
+                    rpc(9, "missing"), rpc(10, "tools/list", cursor="next"),
+                    rpc(11, "tools/call", name="Probe", arguments=[])]
+        responses = mcp_messages(cli, options, messages)
+        by_id = {item["id"]: item for item in responses if item["id"] is not None}
+        assert len(responses) == len(messages) - 2, responses
+        assert by_id[0]["error"]["code"] == -32600
+        assert by_id[1]["result"]["protocolVersion"] == "2025-06-18"
+        assert by_id[2]["result"] == {}
+        tools = by_id[3]["result"]["tools"]
+        assert [tool["name"] for tool in tools] == sorted(tool["name"] for tool in tools)
+        assert all(tool["inputSchema"]["type"] == "object" for tool in tools)
+        assert by_id[4]["result"]["structuredContent"]["observed"] == {"count": 12345, "text": "agent"}
+        assert by_id[5]["result"]["isError"] is False
+        for identifier in [6, 7, 10, 11]:
+            assert by_id[identifier]["error"]["code"] == -32602, by_id[identifier]
+        assert by_id[8]["result"]["isError"] is True
+        assert by_id[9]["error"]["code"] == -32601
+        assert "secret-value" not in json.dumps(responses) and "agent-secret" not in json.dumps(responses)
+        assert len(calls) == 3, calls
+        assert calls[0]["authorization"] == "Bearer agent-secret"
+        assert calls[1]["authorization"] is None, "@auth([]) leaked MCP credentials"
+        # Oversized frames are bounded and drained without losing the next line.
+        large = mcp_messages(cli, options, ["x" * (1024 * 1024 + 1), rpc(20, "ping")])
+        assert large[0]["error"]["code"] == -32700 and large[1]["id"] == 20
+    with weather() as endpoint:
+        # Prove responses are flushed while stdin stays open, as an agent needs.
+        process = subprocess.Popen([str(cli.binary), "--endpoint-url", endpoint, "mcp"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", env=cli.env,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+        lines = queue.Queue()
+        reader = threading.Thread(target=lambda: [lines.put(line) for line in process.stdout], daemon=True)
+        reader.start()
+        try:
+            for message in [*handshake(), rpc(2, "tools/list"),
+                    rpc(3, "tools/call", name="CreateCity", arguments={"name": "MCP city"})]:
+                process.stdin.write(json.dumps(message) + "\n")
+                process.stdin.flush()
+                if "id" in message:
+                    response = json.loads(lines.get(timeout=15))
+                    assert response["id"] == message["id"], response
+                    assert "result" in response, response
+            assert response["result"]["structuredContent"]["city"]["name"] == "MCP city", response
+            process.stdin.close()
+            assert process.wait(timeout=15) == 0
+            reader.join(timeout=5)
+            assert lines.empty() and not process.stderr.read()
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
+            process.stdout.close()
+            process.stderr.close()
+
+
 def qualify(output):
     binary = Path(os.environ["CLI_TEST_BINARY"]).resolve() if os.environ.get("CLI_TEST_BINARY") else build(output)
     cli = Consumer(binary, output)
@@ -283,6 +376,8 @@ def qualify(output):
     transport(cli, output)
     print("Checking CLI requests against the Weather service", flush=True)
     real_weather(cli, output)
+    print("Checking MCP stdio protocol, profiles, auth, and Weather HTTP", flush=True)
+    stdio_mcp(cli, output)
     print("Generated CLI independent consumer passed: offline input, real HTTP, profiles, presence, retry, pagination, binary")
 
 

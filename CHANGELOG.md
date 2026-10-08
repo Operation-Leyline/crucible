@@ -17,6 +17,9 @@ version's section when it is prepared.
 
 ### Added
 
+- Generated service CLIs include a local `mcp` stdio server using shared MCP
+  schemas and registry, client audience, profiles, authentication and SDK calls.
+
 - Stability policy for 0.x, this changelog, `docs/migrating.md`, the
   `consumers` CI job (starter, example service and a Leyline-shaped fixture)
   and a release gate that runs it before a tag is created.

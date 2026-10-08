@@ -2,6 +2,15 @@
 //! authentication overrides, and pagination remain in the generated SDK.
 
 mod command;
+mod mcp;
+
+#[doc(hidden)]
+pub mod __generated {
+    pub use crate::mcp::serve;
+    pub mod mcp {
+        pub use crucible_wire::mcp::{ToolDescriptor, ToolError};
+    }
+}
 mod error;
 mod input;
 mod invocation;
@@ -45,6 +54,15 @@ pub fn parse(
         command.print_help().map_err(Error::request)?;
         return Ok(None);
     };
+    if name == "mcp" {
+        return Ok(Some(Invocation {
+            operation: "mcp".into(),
+            input: serde_json::Value::Null,
+            config: profile::resolve(&spec, &matches)?,
+            paginate: false,
+            output: Output::Json,
+        }));
+    }
     let operation = spec
         .operations
         .iter()

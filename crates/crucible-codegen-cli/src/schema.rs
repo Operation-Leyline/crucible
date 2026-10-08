@@ -25,7 +25,7 @@ pub(crate) fn emit(service: &Service, options: &Options, diagnostics: &mut Diagn
     sorted.sort_by_key(|operation| operation.name());
     for operation in sorted {
         let command = names::kebab(operation.name());
-        if command.is_empty() || command == "help" {
+        if command.is_empty() || matches!(command.as_str(), "help" | "mcp") {
             diagnostics.push(
                 &operation.id,
                 format!("CLI command `{command}` is reserved"),
