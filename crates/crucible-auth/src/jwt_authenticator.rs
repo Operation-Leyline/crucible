@@ -112,11 +112,14 @@ impl JwtAuthenticator {
         self
     }
 
-    /// Validates and installs a public key set without network access, using the same cache lifetime.
-    /// Useful for a trusted local issuer; key material must come from configuration, never a token.
+    /// Validates and pins a public key set for this authenticator's lifetime, without fetching.
+    /// Cache TTL and stale limits do not apply; unknown keys are refused without network access.
+    /// Replace the authenticator to rotate or revoke keys. Key material must come from trusted
+    /// configuration, never a token. Token expiry and all claim checks still apply.
     pub fn with_jwks(config: IssuerConfig, jwks: Value) -> std::result::Result<Self, AuthError> {
         let authenticator = Self::new(config)?;
         authenticator.install(jwks)?;
+        authenticator.cache.write().expect("JWKS cache lock").pinned = true;
         Ok(authenticator)
     }
 
@@ -147,7 +150,7 @@ impl JwtAuthenticator {
         max_age: std::time::Duration,
     ) -> Option<Arc<DecodingKey>> {
         let cache = self.cache.read().expect("JWKS cache lock");
-        if !cache.fetched.is_some_and(|time| time.elapsed() < max_age) {
+        if !cache.pinned && !cache.fetched.is_some_and(|time| time.elapsed() < max_age) {
             return None;
         }
         cache
@@ -162,6 +165,17 @@ impl JwtAuthenticator {
         kid: &str,
         algorithm: Algorithm,
     ) -> std::result::Result<Arc<DecodingKey>, AuthError> {
+        {
+            let cache = self.cache.read().expect("JWKS cache lock");
+            if cache.pinned {
+                return cache
+                    .keys
+                    .get(kid)
+                    .filter(|key| key.algorithm == algorithm)
+                    .map(|key| key.decoding.clone())
+                    .ok_or(AuthError::Refused);
+            }
+        }
         if self
             .cache
             .read()
@@ -500,4 +514,56 @@ fn parse_keys(value: &Value) -> std::result::Result<BTreeMap<String, SigningKey>
         ));
     }
     Ok(keys)
+}
+
+#[cfg(all(test, feature = "test-support"))]
+mod tests {
+    use super::JwtAuthenticator;
+    use crate::{AuthError, test_support::TestTokenIssuer};
+    use std::time::{Duration, Instant};
+
+    #[tokio::test]
+    async fn pinned_keys_survive_cache_expiry_without_fetching() {
+        let issuer = TestTokenIssuer::es256("https://issuer.example", "known").unwrap();
+        let config = issuer.config(vec!["client".into()]);
+        let age = config.cache_ttl + config.max_stale + Duration::from_secs(1);
+        let auth = JwtAuthenticator::with_jwks(config, issuer.jwks()).unwrap();
+        auth.cache.write().unwrap().fetched = Some(Instant::now() - age);
+        let claims = issuer.id_claims("person", "client");
+        assert!(auth.verify(&issuer.mint(&claims).unwrap()).await.is_ok());
+
+        let mut unknown = TestTokenIssuer::es256("https://issuer.example", "unknown").unwrap();
+        assert!(matches!(
+            auth.verify(&unknown.mint(&claims).unwrap()).await,
+            Err(AuthError::Refused)
+        ));
+        unknown.kid = "known".into();
+        assert!(matches!(
+            auth.verify(&unknown.mint(&claims).unwrap()).await,
+            Err(AuthError::Refused)
+        ));
+        let mut expired = claims;
+        expired["exp"] = serde_json::json!(0);
+        assert!(matches!(
+            auth.verify(&issuer.mint(&expired).unwrap()).await,
+            Err(AuthError::Refused)
+        ));
+        assert!(auth.cache.read().unwrap().last_attempt.is_none());
+    }
+
+    #[test]
+    fn remotely_installed_keys_still_expire() {
+        let issuer = TestTokenIssuer::es256("https://issuer.example", "known").unwrap();
+        let config = issuer.config(vec!["client".into()]);
+        let ttl = config.cache_ttl;
+        let max_age = ttl + config.max_stale;
+        let auth = JwtAuthenticator::new(config).unwrap();
+        auth.install(issuer.jwks()).unwrap();
+        assert!(auth.cached_key("known", crate::Algorithm::ES256).is_some());
+        auth.cache.write().unwrap().fetched = Some(Instant::now() - ttl);
+        assert!(auth.cached_key("known", crate::Algorithm::ES256).is_none());
+        assert!(auth.stale_key("known", crate::Algorithm::ES256).is_some());
+        auth.cache.write().unwrap().fetched = Some(Instant::now() - max_age);
+        assert!(auth.stale_key("known", crate::Algorithm::ES256).is_none());
+    }
 }

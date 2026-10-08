@@ -175,6 +175,12 @@ RSA key pair; `TestTokenIssuer::es256` generates a P-256 key pair. `jwks()` expo
 only public material. Inject it with `JwtAuthenticator::with_jwks`, or serve it
 with a test HTTP server to exercise fetching and rotation.
 
+`with_jwks` pins the configured keys for the authenticator's lifetime. It never
+fetches `jwks_url`, even for an unknown key ID, and ignores cache TTL and stale
+limits. Replace the authenticator to rotate or revoke these keys. Token expiry
+and all claim checks still apply. Use `JwtAuthenticator::new` with a reachable
+JWKS endpoint when keys should refresh automatically.
+
 `id_claims`, `access_claims`, and `mint` create signed tokens with chosen
 claims. `config` and `access_config` supply the corresponding test policies.
 The feature allows explicitly opted-in HTTP loopback endpoints; production
