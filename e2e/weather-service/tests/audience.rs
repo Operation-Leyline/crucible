@@ -17,9 +17,20 @@ impl api::PublicOperation for Handlers {
         &self,
         input: api::PublicInput,
     ) -> crucible_server_runtime_rust::Result<api::PublicOutput> {
+        if input.value.as_deref() == Some("internal-error") {
+            return Err(api::InternalFault {
+                message: Some("internal detail".into()),
+            }
+            .into());
+        }
+        let private_value = if input.value.as_deref() == Some("force-private") {
+            Some("server secret".into())
+        } else {
+            input.private_value
+        };
         Ok(api::PublicOutput {
             value: input.value,
-            private_value: input.private_value,
+            private_value,
             choice: None,
         })
     }
@@ -53,6 +64,69 @@ impl OperationAwareMiddleware for InternalCallers {
             Hook::Ready(Ok(()))
         }
     }
+}
+
+#[tokio::test]
+async fn mcp_uses_external_projection_and_hides_internal_operations_and_members() {
+    use crucible_server_runtime_rust::mcp::McpProtocol;
+    use serde_json::{Value, json};
+    assert!(api::MCP_EXCLUSIONS.is_empty());
+    let service = Crucible::builder(api::operations(Arc::new(Handlers)))
+        .on_rejection(|rejection| {
+            Box::new(api::PublicFault {
+                message: Some(rejection.summary()),
+            })
+        })
+        .mcp(McpProtocol::new(api::MCP_TOOLS))
+        .protocol(JsonProtocol)
+        .build()
+        .unwrap();
+    for (method, params) in [
+        ("tools/list", json!({})),
+        ("tools/call", json!({"name":"Secret","arguments":{}})),
+        (
+            "tools/call",
+            json!({"name":"Public","arguments":{"value":"force-private","privateValue":"must not enter"}}),
+        ),
+        (
+            "tools/call",
+            json!({"name":"Public","arguments":{"value":"internal-error"}}),
+        ),
+    ] {
+        let request = Request::post("/mcp")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                json!({"jsonrpc":"2.0","id":1,"method":method,"params":params}).to_string(),
+            ))
+            .unwrap();
+        let response = service.handle(request).await;
+        assert_eq!(response.status().as_u16(), 200);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let response: Value = serde_json::from_slice(&bytes).unwrap();
+        if method == "tools/list" {
+            assert_eq!(response["result"]["tools"].as_array().unwrap().len(), 1);
+            assert_eq!(response["result"]["tools"][0]["name"], "Public");
+            assert!(!String::from_utf8_lossy(&bytes).contains("privateValue"));
+        } else if params["name"] == "Secret" {
+            assert_eq!(response["error"]["code"], -32602);
+        } else if params["arguments"]["value"] == "internal-error" {
+            assert_eq!(response["error"]["code"], -32603);
+            assert!(!String::from_utf8_lossy(&bytes).contains("internal detail"));
+        } else {
+            let output = &response["result"]["structuredContent"];
+            assert_eq!(output["value"], "force-private");
+            assert!(output.get("privateValue").is_none());
+        }
+    }
+    // CORS '*' is not an MCP Origin permission.
+    let request = Request::post("/mcp")
+        .header("origin", "https://evil.example")
+        .header("content-type", "application/json")
+        .body(Body::from("bad JSON"))
+        .unwrap();
+    assert_eq!(service.handle(request).await.status().as_u16(), 403);
 }
 
 #[tokio::test]

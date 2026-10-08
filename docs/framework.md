@@ -161,6 +161,21 @@ a JSON body, its byte count checked by `@length`. An `@httpPayload` blob is
 the request body itself, and its `Blob` shares the body's buffer rather than
 copying it.
 
+## Model Context Protocol
+
+Generate static public tool descriptions with `.mcp()` on the service build
+helper, then opt in at runtime with
+`.mcp(McpProtocol::new(weather::MCP_TOOLS))` on the service builder. MCP serves
+stateless JSON-RPC requests on `/mcp` alongside the modeled protocols. Tool calls
+enter the normal operation pipeline; endpoint guards also protect initialization
+and discovery. HTTP authentication refusals preserve their status and challenge.
+
+Descriptors use the External audience projection and share JSON Schema emission
+with OpenAPI. Streaming operations receive explicit build warnings. Outputs are
+checked against their advertised schemas before publication. See
+[serving MCP](mcp.md) for configuration, agent connections, Origin rules,
+authentication hooks, and transport limits.
+
 ## Internal operations
 
 Servers implement all operations regardless of client audience. Generated static
