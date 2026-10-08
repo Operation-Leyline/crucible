@@ -9,7 +9,7 @@ mod model {
 
     pub type CitySummaries = ::std::vec::Vec<CitySummary>;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct CitySummary {
         #[serde(rename = "id")]
@@ -23,7 +23,19 @@ mod model {
         #[serde(rename = "createdAt", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent", with = "::crucible_client_runtime_rust::codec::Adapter::<::crucible_client_runtime_rust::codec::Field<::crucible_client_runtime_rust::codec::EpochSeconds>>")]
         pub created_at: ::crucible_client_runtime_rust::Field<::crucible_client_runtime_rust::time::Timestamp>,
     }
+    impl ::std::fmt::Debug for CitySummary {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("CitySummary");
+            debug.field("id", &self.id);
+            debug.field("name", &self.name);
+            debug.field("population", &self.population);
+            debug.field("updatedAt", &self.updated_at);
+            debug.field("createdAt", &self.created_at);
+            debug.finish()
+        }
+    }
     impl CitySummary {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> CitySummaryBuilder { CitySummaryBuilder::default() }
         pub fn id(&self) -> &CityId { &self.id }
         pub fn name(&self) -> &CityName { &self.name }
@@ -33,7 +45,8 @@ mod model {
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn created_at(&self) -> ::std::option::Option<&::crucible_client_runtime_rust::time::Timestamp> { self.created_at.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds CitySummary; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct CitySummaryBuilder {
         id: ::std::option::Option<CityId>,
         name: ::std::option::Option<CityName>,
@@ -41,12 +54,29 @@ mod model {
         updated_at: ::crucible_client_runtime_rust::Field<::crucible_client_runtime_rust::time::Timestamp>,
         created_at: ::crucible_client_runtime_rust::Field<::crucible_client_runtime_rust::time::Timestamp>,
     }
+    impl ::std::fmt::Debug for CitySummaryBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("CitySummaryBuilder");
+            debug.field("id", &self.id);
+            debug.field("name", &self.name);
+            debug.field("population", &self.population);
+            debug.field("updatedAt", &self.updated_at);
+            debug.field("createdAt", &self.created_at);
+            debug.finish()
+        }
+    }
     impl CitySummaryBuilder {
+        /// Sets this member to a value.
         pub fn id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.id = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn population(mut self, value: impl ::std::convert::Into<i64>) -> Self { self.population = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn updated_at(mut self, value: impl ::std::convert::Into<::crucible_client_runtime_rust::time::Timestamp>) -> Self { self.updated_at = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn created_at(mut self, value: impl ::std::convert::Into<::crucible_client_runtime_rust::time::Timestamp>) -> Self { self.created_at = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<CitySummary, ::crucible_client_runtime_rust::BuildError> {
             Ok(CitySummary {
                 id: self.id.ok_or(::crucible_client_runtime_rust::BuildError { shape: "CitySummary", member: "id" })?,
@@ -58,7 +88,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct Coordinates {
         #[serde(rename = "latitude")]
@@ -66,19 +96,40 @@ mod model {
         #[serde(rename = "longitude")]
         pub longitude: f64,
     }
+    impl ::std::fmt::Debug for Coordinates {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("Coordinates");
+            debug.field("latitude", &self.latitude);
+            debug.field("longitude", &self.longitude);
+            debug.finish()
+        }
+    }
     impl Coordinates {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> CoordinatesBuilder { CoordinatesBuilder::default() }
         pub fn latitude(&self) -> &f64 { &self.latitude }
         pub fn longitude(&self) -> &f64 { &self.longitude }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds Coordinates; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct CoordinatesBuilder {
         latitude: ::std::option::Option<f64>,
         longitude: ::std::option::Option<f64>,
     }
+    impl ::std::fmt::Debug for CoordinatesBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("CoordinatesBuilder");
+            debug.field("latitude", &self.latitude);
+            debug.field("longitude", &self.longitude);
+            debug.finish()
+        }
+    }
     impl CoordinatesBuilder {
+        /// Sets this member to a value.
         pub fn latitude(mut self, value: impl ::std::convert::Into<f64>) -> Self { self.latitude = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn longitude(mut self, value: impl ::std::convert::Into<f64>) -> Self { self.longitude = Some(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<Coordinates, ::crucible_client_runtime_rust::BuildError> {
             Ok(Coordinates {
                 latitude: self.latitude.ok_or(::crucible_client_runtime_rust::BuildError { shape: "Coordinates", member: "latitude" })?,
@@ -87,7 +138,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct CreateCityInput {
         #[serde(rename = "name", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
@@ -99,7 +150,18 @@ mod model {
         #[serde(rename = "expectedRevision", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub expected_revision: ::crucible_client_runtime_rust::Field<i64>,
     }
+    impl ::std::fmt::Debug for CreateCityInput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("CreateCityInput");
+            debug.field("name", &self.name);
+            debug.field("location", &self.location);
+            debug.field("clientToken", &self.client_token);
+            debug.field("expectedRevision", &self.expected_revision);
+            debug.finish()
+        }
+    }
     impl CreateCityInput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> CreateCityInputBuilder { CreateCityInputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn name(&self) -> ::std::option::Option<&CityName> { self.name.value() }
@@ -110,18 +172,34 @@ mod model {
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn expected_revision(&self) -> ::std::option::Option<&i64> { self.expected_revision.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds CreateCityInput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct CreateCityInputBuilder {
         name: ::crucible_client_runtime_rust::Field<CityName>,
         location: ::crucible_client_runtime_rust::Field<Location>,
         client_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
         expected_revision: ::crucible_client_runtime_rust::Field<i64>,
     }
+    impl ::std::fmt::Debug for CreateCityInputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("CreateCityInputBuilder");
+            debug.field("name", &self.name);
+            debug.field("location", &self.location);
+            debug.field("clientToken", &self.client_token);
+            debug.field("expectedRevision", &self.expected_revision);
+            debug.finish()
+        }
+    }
     impl CreateCityInputBuilder {
+        /// Sets this member to a value.
         pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn location(mut self, value: impl ::std::convert::Into<Location>) -> Self { self.location = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn client_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.client_token = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn expected_revision(mut self, value: impl ::std::convert::Into<i64>) -> Self { self.expected_revision = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> CreateCityInput {
             CreateCityInput {
                 name: self.name,
@@ -132,22 +210,40 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct CreateCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
     }
+    impl ::std::fmt::Debug for CreateCityOutput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("CreateCityOutput");
+            debug.field("city", &self.city);
+            debug.finish()
+        }
+    }
     impl CreateCityOutput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> CreateCityOutputBuilder { CreateCityOutputBuilder::default() }
         pub fn city(&self) -> &CitySummary { &self.city }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds CreateCityOutput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct CreateCityOutputBuilder {
         city: ::std::option::Option<CitySummary>,
     }
+    impl ::std::fmt::Debug for CreateCityOutputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("CreateCityOutputBuilder");
+            debug.field("city", &self.city);
+            debug.finish()
+        }
+    }
     impl CreateCityOutputBuilder {
+        /// Sets this member to a value.
         pub fn city(mut self, value: impl ::std::convert::Into<CitySummary>) -> Self { self.city = Some(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<CreateCityOutput, ::crucible_client_runtime_rust::BuildError> {
             Ok(CreateCityOutput {
                 city: self.city.ok_or(::crucible_client_runtime_rust::BuildError { shape: "CreateCityOutput", member: "city" })?,
@@ -159,7 +255,7 @@ mod model {
 
     pub type Forecast = ::std::collections::BTreeMap<Sky, ::crucible_client_runtime_rust::__private::serde_json::Value>;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct GetCityInput {
         #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
@@ -167,21 +263,42 @@ mod model {
         #[serde(rename = "at", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub at: ::crucible_client_runtime_rust::Field<DateTime>,
     }
+    impl ::std::fmt::Debug for GetCityInput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("GetCityInput");
+            debug.field("cityId", &self.city_id);
+            debug.field("at", &self.at);
+            debug.finish()
+        }
+    }
     impl GetCityInput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> GetCityInputBuilder { GetCityInputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn at(&self) -> ::std::option::Option<&DateTime> { self.at.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds GetCityInput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct GetCityInputBuilder {
         city_id: ::crucible_client_runtime_rust::Field<CityId>,
         at: ::crucible_client_runtime_rust::Field<DateTime>,
     }
+    impl ::std::fmt::Debug for GetCityInputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("GetCityInputBuilder");
+            debug.field("cityId", &self.city_id);
+            debug.field("at", &self.at);
+            debug.finish()
+        }
+    }
     impl GetCityInputBuilder {
+        /// Sets this member to a value.
         pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn at(mut self, value: impl ::std::convert::Into<DateTime>) -> Self { self.at = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> GetCityInput {
             GetCityInput {
                 city_id: self.city_id,
@@ -190,7 +307,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct GetCityOutput {
         #[serde(rename = "city")]
@@ -200,7 +317,17 @@ mod model {
         #[serde(rename = "requestId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub request_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for GetCityOutput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("GetCityOutput");
+            debug.field("city", &self.city);
+            debug.field("forecast", &self.forecast);
+            debug.field("requestId", &self.request_id);
+            debug.finish()
+        }
+    }
     impl GetCityOutput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> GetCityOutputBuilder { GetCityOutputBuilder::default() }
         pub fn city(&self) -> &CitySummary { &self.city }
         /// The value when present; inspect the public field to distinguish absent and null.
@@ -208,16 +335,30 @@ mod model {
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn request_id(&self) -> ::std::option::Option<&::std::string::String> { self.request_id.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds GetCityOutput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct GetCityOutputBuilder {
         city: ::std::option::Option<CitySummary>,
         forecast: ::crucible_client_runtime_rust::Field<Forecast>,
         request_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for GetCityOutputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("GetCityOutputBuilder");
+            debug.field("city", &self.city);
+            debug.field("forecast", &self.forecast);
+            debug.field("requestId", &self.request_id);
+            debug.finish()
+        }
+    }
     impl GetCityOutputBuilder {
+        /// Sets this member to a value.
         pub fn city(mut self, value: impl ::std::convert::Into<CitySummary>) -> Self { self.city = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn forecast(mut self, value: impl ::std::convert::Into<Forecast>) -> Self { self.forecast = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn request_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.request_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<GetCityOutput, ::crucible_client_runtime_rust::BuildError> {
             Ok(GetCityOutput {
                 city: self.city.ok_or(::crucible_client_runtime_rust::BuildError { shape: "GetCityOutput", member: "city" })?,
@@ -227,23 +368,41 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct GetCityPhotoInput {
         #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub city_id: ::crucible_client_runtime_rust::Field<CityId>,
     }
+    impl ::std::fmt::Debug for GetCityPhotoInput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("GetCityPhotoInput");
+            debug.field("cityId", &self.city_id);
+            debug.finish()
+        }
+    }
     impl GetCityPhotoInput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> GetCityPhotoInputBuilder { GetCityPhotoInputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds GetCityPhotoInput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct GetCityPhotoInputBuilder {
         city_id: ::crucible_client_runtime_rust::Field<CityId>,
     }
+    impl ::std::fmt::Debug for GetCityPhotoInputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("GetCityPhotoInputBuilder");
+            debug.field("cityId", &self.city_id);
+            debug.finish()
+        }
+    }
     impl GetCityPhotoInputBuilder {
+        /// Sets this member to a value.
         pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> GetCityPhotoInput {
             GetCityPhotoInput {
                 city_id: self.city_id,
@@ -251,7 +410,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct GetCityPhotoOutput {
         #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
@@ -259,21 +418,42 @@ mod model {
         #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub photo: ::crucible_client_runtime_rust::Field<Photo>,
     }
+    impl ::std::fmt::Debug for GetCityPhotoOutput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("GetCityPhotoOutput");
+            debug.field("caption", &self.caption);
+            debug.field("photo", &self.photo);
+            debug.finish()
+        }
+    }
     impl GetCityPhotoOutput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> GetCityPhotoOutputBuilder { GetCityPhotoOutputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn caption(&self) -> ::std::option::Option<&::std::string::String> { self.caption.value() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn photo(&self) -> ::std::option::Option<&Photo> { self.photo.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds GetCityPhotoOutput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct GetCityPhotoOutputBuilder {
         caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
         photo: ::crucible_client_runtime_rust::Field<Photo>,
     }
+    impl ::std::fmt::Debug for GetCityPhotoOutputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("GetCityPhotoOutputBuilder");
+            debug.field("caption", &self.caption);
+            debug.field("photo", &self.photo);
+            debug.finish()
+        }
+    }
     impl GetCityPhotoOutputBuilder {
+        /// Sets this member to a value.
         pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> GetCityPhotoOutput {
             GetCityPhotoOutput {
                 caption: self.caption,
@@ -282,7 +462,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ListCitiesInput {
         #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
@@ -292,7 +472,17 @@ mod model {
         #[serde(rename = "tags", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub tags: ::crucible_client_runtime_rust::Field<Tags>,
     }
+    impl ::std::fmt::Debug for ListCitiesInput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ListCitiesInput");
+            debug.field("nextToken", &self.next_token);
+            debug.field("maxResults", &self.max_results);
+            debug.field("tags", &self.tags);
+            debug.finish()
+        }
+    }
     impl ListCitiesInput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> ListCitiesInputBuilder { ListCitiesInputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn next_token(&self) -> ::std::option::Option<&::std::string::String> { self.next_token.value() }
@@ -301,16 +491,30 @@ mod model {
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn tags(&self) -> ::std::option::Option<&Tags> { self.tags.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds ListCitiesInput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct ListCitiesInputBuilder {
         next_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
         max_results: ::crucible_client_runtime_rust::Field<i32>,
         tags: ::crucible_client_runtime_rust::Field<Tags>,
     }
+    impl ::std::fmt::Debug for ListCitiesInputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ListCitiesInputBuilder");
+            debug.field("nextToken", &self.next_token);
+            debug.field("maxResults", &self.max_results);
+            debug.field("tags", &self.tags);
+            debug.finish()
+        }
+    }
     impl ListCitiesInputBuilder {
+        /// Sets this member to a value.
         pub fn next_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.next_token = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn max_results(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.max_results = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn tags(mut self, value: impl ::std::convert::Into<Tags>) -> Self { self.tags = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> ListCitiesInput {
             ListCitiesInput {
                 next_token: self.next_token,
@@ -320,7 +524,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ListCitiesOutput {
         #[serde(rename = "cities")]
@@ -328,20 +532,41 @@ mod model {
         #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub next_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for ListCitiesOutput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ListCitiesOutput");
+            debug.field("cities", &self.cities);
+            debug.field("nextToken", &self.next_token);
+            debug.finish()
+        }
+    }
     impl ListCitiesOutput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> ListCitiesOutputBuilder { ListCitiesOutputBuilder::default() }
         pub fn cities(&self) -> &CitySummaries { &self.cities }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn next_token(&self) -> ::std::option::Option<&::std::string::String> { self.next_token.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds ListCitiesOutput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct ListCitiesOutputBuilder {
         cities: ::std::option::Option<CitySummaries>,
         next_token: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for ListCitiesOutputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ListCitiesOutputBuilder");
+            debug.field("cities", &self.cities);
+            debug.field("nextToken", &self.next_token);
+            debug.finish()
+        }
+    }
     impl ListCitiesOutputBuilder {
+        /// Sets this member to a value.
         pub fn cities(mut self, value: impl ::std::convert::Into<CitySummaries>) -> Self { self.cities = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn next_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.next_token = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<ListCitiesOutput, ::crucible_client_runtime_rust::BuildError> {
             Ok(ListCitiesOutput {
                 cities: self.cities.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ListCitiesOutput", member: "cities" })?,
@@ -350,7 +575,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq)]
+    #[derive(Clone, PartialEq)]
     pub enum Location {
         Coordinates(Coordinates),
         Unknown(::crucible_client_runtime_rust::operation::Unit),
@@ -383,11 +608,20 @@ mod model {
             ::crucible_client_runtime_rust::open::deserialize_union(deserializer)
         }
     }
+    impl ::std::fmt::Debug for Location {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            match self {
+                Self::Coordinates(value) => f.debug_tuple("Location::Coordinates").field(value).finish(),
+                Self::Unknown(value) => f.debug_tuple("Location::Unknown").field(value).finish(),
+                Self::UnknownValue(_) => f.write_str("Location::Unknown(*** Sensitive Data Redacted ***)"),
+            }
+        }
+    }
 
     /// A photo, carried unparsed.
     pub type Photo = ::crucible_client_runtime_rust::Blob;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PhotoSummary {
         #[serde(rename = "size")]
@@ -397,23 +631,47 @@ mod model {
         #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for PhotoSummary {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PhotoSummary");
+            debug.field("size", &self.size);
+            debug.field("thumbnail", &self.thumbnail);
+            debug.field("caption", &self.caption);
+            debug.finish()
+        }
+    }
     impl PhotoSummary {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> PhotoSummaryBuilder { PhotoSummaryBuilder::default() }
         pub fn size(&self) -> &i32 { &self.size }
         pub fn thumbnail(&self) -> &Thumbnail { &self.thumbnail }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn caption(&self) -> ::std::option::Option<&::std::string::String> { self.caption.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds PhotoSummary; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct PhotoSummaryBuilder {
         size: ::std::option::Option<i32>,
         thumbnail: ::std::option::Option<Thumbnail>,
         caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for PhotoSummaryBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PhotoSummaryBuilder");
+            debug.field("size", &self.size);
+            debug.field("thumbnail", &self.thumbnail);
+            debug.field("caption", &self.caption);
+            debug.finish()
+        }
+    }
     impl PhotoSummaryBuilder {
+        /// Sets this member to a value.
         pub fn size(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.size = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn thumbnail(mut self, value: impl ::std::convert::Into<Thumbnail>) -> Self { self.thumbnail = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<PhotoSummary, ::crucible_client_runtime_rust::BuildError> {
             Ok(PhotoSummary {
                 size: self.size.ok_or(::crucible_client_runtime_rust::BuildError { shape: "PhotoSummary", member: "size" })?,
@@ -423,7 +681,7 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PutCityPhotoInput {
         #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
@@ -433,7 +691,17 @@ mod model {
         #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client_runtime_rust::Field::is_absent")]
         pub photo: ::crucible_client_runtime_rust::Field<Photo>,
     }
+    impl ::std::fmt::Debug for PutCityPhotoInput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PutCityPhotoInput");
+            debug.field("cityId", &self.city_id);
+            debug.field("caption", &self.caption);
+            debug.field("photo", &self.photo);
+            debug.finish()
+        }
+    }
     impl PutCityPhotoInput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> PutCityPhotoInputBuilder { PutCityPhotoInputBuilder::default() }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
@@ -442,16 +710,30 @@ mod model {
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn photo(&self) -> ::std::option::Option<&Photo> { self.photo.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds PutCityPhotoInput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct PutCityPhotoInputBuilder {
         city_id: ::crucible_client_runtime_rust::Field<CityId>,
         caption: ::crucible_client_runtime_rust::Field<::std::string::String>,
         photo: ::crucible_client_runtime_rust::Field<Photo>,
     }
+    impl ::std::fmt::Debug for PutCityPhotoInputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PutCityPhotoInputBuilder");
+            debug.field("cityId", &self.city_id);
+            debug.field("caption", &self.caption);
+            debug.field("photo", &self.photo);
+            debug.finish()
+        }
+    }
     impl PutCityPhotoInputBuilder {
+        /// Sets this member to a value.
         pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> PutCityPhotoInput {
             PutCityPhotoInput {
                 city_id: self.city_id,
@@ -461,22 +743,40 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct PutCityPhotoOutput {
         #[serde(rename = "photo")]
         pub photo: PhotoSummary,
     }
+    impl ::std::fmt::Debug for PutCityPhotoOutput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PutCityPhotoOutput");
+            debug.field("photo", &self.photo);
+            debug.finish()
+        }
+    }
     impl PutCityPhotoOutput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> PutCityPhotoOutputBuilder { PutCityPhotoOutputBuilder::default() }
         pub fn photo(&self) -> &PhotoSummary { &self.photo }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds PutCityPhotoOutput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct PutCityPhotoOutputBuilder {
         photo: ::std::option::Option<PhotoSummary>,
     }
+    impl ::std::fmt::Debug for PutCityPhotoOutputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("PutCityPhotoOutputBuilder");
+            debug.field("photo", &self.photo);
+            debug.finish()
+        }
+    }
     impl PutCityPhotoOutputBuilder {
+        /// Sets this member to a value.
         pub fn photo(mut self, value: impl ::std::convert::Into<PhotoSummary>) -> Self { self.photo = Some(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<PutCityPhotoOutput, ::crucible_client_runtime_rust::BuildError> {
             Ok(PutCityPhotoOutput {
                 photo: self.photo.ok_or(::crucible_client_runtime_rust::BuildError { shape: "PutCityPhotoOutput", member: "photo" })?,
@@ -521,34 +821,64 @@ mod model {
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct StatusInput {
     }
+    impl ::std::fmt::Debug for StatusInput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("StatusInput");
+            debug.finish()
+        }
+    }
     impl StatusInput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> StatusInputBuilder { StatusInputBuilder::default() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds StatusInput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct StatusInputBuilder {
     }
+    impl ::std::fmt::Debug for StatusInputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("StatusInputBuilder");
+            debug.finish()
+        }
+    }
     impl StatusInputBuilder {
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> StatusInput {
             StatusInput {
             }
         }
     }
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct StatusOutput {
     }
+    impl ::std::fmt::Debug for StatusOutput {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("StatusOutput");
+            debug.finish()
+        }
+    }
     impl StatusOutput {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> StatusOutputBuilder { StatusOutputBuilder::default() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds StatusOutput; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct StatusOutputBuilder {
     }
+    impl ::std::fmt::Debug for StatusOutputBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("StatusOutputBuilder");
+            debug.finish()
+        }
+    }
     impl StatusOutputBuilder {
+        /// Builds the model and applies modeled defaults.
         pub fn build(self) -> StatusOutput {
             StatusOutput {
             }
@@ -560,7 +890,7 @@ mod model {
     /// The photo's first bytes: base64 in JSON.
     pub type Thumbnail = ::crucible_client_runtime_rust::Blob;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ValidationField {
         #[serde(rename = "path")]
@@ -568,19 +898,40 @@ mod model {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
     }
+    impl ::std::fmt::Debug for ValidationField {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ValidationField");
+            debug.field("path", &self.path);
+            debug.field("message", &self.message);
+            debug.finish()
+        }
+    }
     impl ValidationField {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> ValidationFieldBuilder { ValidationFieldBuilder::default() }
         pub fn path(&self) -> &::std::string::String { &self.path }
         pub fn message(&self) -> &::std::string::String { &self.message }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds ValidationField; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct ValidationFieldBuilder {
         path: ::std::option::Option<::std::string::String>,
         message: ::std::option::Option<::std::string::String>,
     }
+    impl ::std::fmt::Debug for ValidationFieldBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ValidationFieldBuilder");
+            debug.field("path", &self.path);
+            debug.field("message", &self.message);
+            debug.finish()
+        }
+    }
     impl ValidationFieldBuilder {
+        /// Sets this member to a value.
         pub fn path(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.path = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<ValidationField, ::crucible_client_runtime_rust::BuildError> {
             Ok(ValidationField {
                 path: self.path.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ValidationField", member: "path" })?,
@@ -740,23 +1091,41 @@ mod model {
 mod errors {
     use super::__redaction;
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ConflictError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
     }
 
+    impl ::std::fmt::Debug for ConflictError {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ConflictError");
+            debug.field("message", &self.message);
+            debug.finish()
+        }
+    }
     impl ConflictError {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> ConflictErrorBuilder { ConflictErrorBuilder::default() }
         pub fn message(&self) -> &::std::string::String { &self.message }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds ConflictError; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct ConflictErrorBuilder {
         message: ::std::option::Option<::std::string::String>,
     }
+    impl ::std::fmt::Debug for ConflictErrorBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ConflictErrorBuilder");
+            debug.field("message", &self.message);
+            debug.finish()
+        }
+    }
     impl ConflictErrorBuilder {
+        /// Sets this member to a value.
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<ConflictError, ::crucible_client_runtime_rust::BuildError> {
             Ok(ConflictError {
                 message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ConflictError", member: "message" })?,
@@ -806,7 +1175,7 @@ mod errors {
 
     impl ::std::error::Error for ConflictError {}
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct NotFoundError {
         #[serde(rename = "message")]
@@ -815,20 +1184,41 @@ mod errors {
         pub resource_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
 
+    impl ::std::fmt::Debug for NotFoundError {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("NotFoundError");
+            debug.field("message", &self.message);
+            debug.field("resourceId", &self.resource_id);
+            debug.finish()
+        }
+    }
     impl NotFoundError {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> NotFoundErrorBuilder { NotFoundErrorBuilder::default() }
         pub fn message(&self) -> &::std::string::String { &self.message }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn resource_id(&self) -> ::std::option::Option<&::std::string::String> { self.resource_id.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds NotFoundError; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct NotFoundErrorBuilder {
         message: ::std::option::Option<::std::string::String>,
         resource_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for NotFoundErrorBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("NotFoundErrorBuilder");
+            debug.field("message", &self.message);
+            debug.field("resourceId", &self.resource_id);
+            debug.finish()
+        }
+    }
     impl NotFoundErrorBuilder {
+        /// Sets this member to a value.
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn resource_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.resource_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<NotFoundError, ::crucible_client_runtime_rust::BuildError> {
             Ok(NotFoundError {
                 message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "NotFoundError", member: "message" })?,
@@ -880,7 +1270,7 @@ mod errors {
 
     impl ::std::error::Error for NotFoundError {}
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ThrottlingError {
         #[serde(rename = "message")]
@@ -889,20 +1279,41 @@ mod errors {
         pub retry_after: ::crucible_client_runtime_rust::Field<i32>,
     }
 
+    impl ::std::fmt::Debug for ThrottlingError {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ThrottlingError");
+            debug.field("message", &self.message);
+            debug.field("retryAfter", &self.retry_after);
+            debug.finish()
+        }
+    }
     impl ThrottlingError {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> ThrottlingErrorBuilder { ThrottlingErrorBuilder::default() }
         pub fn message(&self) -> &::std::string::String { &self.message }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn retry_after(&self) -> ::std::option::Option<&i32> { self.retry_after.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds ThrottlingError; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct ThrottlingErrorBuilder {
         message: ::std::option::Option<::std::string::String>,
         retry_after: ::crucible_client_runtime_rust::Field<i32>,
     }
+    impl ::std::fmt::Debug for ThrottlingErrorBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ThrottlingErrorBuilder");
+            debug.field("message", &self.message);
+            debug.field("retryAfter", &self.retry_after);
+            debug.finish()
+        }
+    }
     impl ThrottlingErrorBuilder {
+        /// Sets this member to a value.
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn retry_after(mut self, value: impl ::std::convert::Into<i32>) -> Self { self.retry_after = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<ThrottlingError, ::crucible_client_runtime_rust::BuildError> {
             Ok(ThrottlingError {
                 message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ThrottlingError", member: "message" })?,
@@ -954,7 +1365,7 @@ mod errors {
 
     impl ::std::error::Error for ThrottlingError {}
 
-    #[derive(Debug, Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
+    #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__private::serde::Serialize, ::crucible_client_runtime_rust::__private::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__private::serde")]
     pub struct ValidationError {
         #[serde(rename = "message")]
@@ -967,7 +1378,18 @@ mod errors {
         pub request_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
 
+    impl ::std::fmt::Debug for ValidationError {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ValidationError");
+            debug.field("message", &self.message);
+            debug.field("reason", &self.reason);
+            debug.field("fieldList", &self.field_list);
+            debug.field("requestId", &self.request_id);
+            debug.finish()
+        }
+    }
     impl ValidationError {
+        /// Starts a builder with all optional members absent.
         pub fn builder() -> ValidationErrorBuilder { ValidationErrorBuilder::default() }
         pub fn message(&self) -> &::std::string::String { &self.message }
         pub fn reason(&self) -> &super::model::ValidationReason { &self.reason }
@@ -976,18 +1398,34 @@ mod errors {
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn request_id(&self) -> ::std::option::Option<&::std::string::String> { self.request_id.value() }
     }
-    #[derive(Debug, Clone, Default)]
+    /// Builds ValidationError; build checks required members and applies modeled defaults.
+    #[derive(Clone, Default)]
     pub struct ValidationErrorBuilder {
         message: ::std::option::Option<::std::string::String>,
         reason: ::std::option::Option<super::model::ValidationReason>,
         field_list: ::crucible_client_runtime_rust::Field<super::model::ValidationFieldList>,
         request_id: ::crucible_client_runtime_rust::Field<::std::string::String>,
     }
+    impl ::std::fmt::Debug for ValidationErrorBuilder {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+            let mut debug = f.debug_struct("ValidationErrorBuilder");
+            debug.field("message", &self.message);
+            debug.field("reason", &self.reason);
+            debug.field("fieldList", &self.field_list);
+            debug.field("requestId", &self.request_id);
+            debug.finish()
+        }
+    }
     impl ValidationErrorBuilder {
+        /// Sets this member to a value.
         pub fn message(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.message = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn reason(mut self, value: impl ::std::convert::Into<super::model::ValidationReason>) -> Self { self.reason = Some(value.into()); self }
+        /// Sets this member to a value.
         pub fn field_list(mut self, value: impl ::std::convert::Into<super::model::ValidationFieldList>) -> Self { self.field_list = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Sets this member to a value.
         pub fn request_id(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.request_id = ::crucible_client_runtime_rust::Field::Value(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
         pub fn build(self) -> ::std::result::Result<ValidationError, ::crucible_client_runtime_rust::BuildError> {
             Ok(ValidationError {
                 message: self.message.ok_or(::crucible_client_runtime_rust::BuildError { shape: "ValidationError", member: "message" })?,
@@ -1101,9 +1539,13 @@ mod __redaction {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum WeatherException {
+    /// A modeled service error.
     ConflictError(errors::ConflictError),
+    /// A modeled service error.
     NotFoundError(errors::NotFoundError),
+    /// A modeled service error.
     ThrottlingError(errors::ThrottlingError),
+    /// A modeled service error.
     ValidationError(errors::ValidationError),
 }
 impl From<errors::ConflictError> for WeatherException {
@@ -1223,8 +1665,11 @@ impl ::crucible_client_runtime_rust::Operation for CreateCity {
 /// The errors CreateCity declares.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CreateCityError {
+    /// A modeled error returned by this operation.
     ConflictError(errors::ConflictError),
+    /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
+    /// A modeled error returned by this operation.
     ValidationError(errors::ValidationError),
 }
 
@@ -1307,8 +1752,11 @@ impl ::crucible_client_runtime_rust::Operation for GetCity {
 /// The errors GetCity declares.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GetCityError {
+    /// A modeled error returned by this operation.
     NotFoundError(errors::NotFoundError),
+    /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
+    /// A modeled error returned by this operation.
     ValidationError(errors::ValidationError),
 }
 
@@ -1389,8 +1837,11 @@ impl ::crucible_client_runtime_rust::Operation for GetCityPhoto {
 /// The errors GetCityPhoto declares.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GetCityPhotoError {
+    /// A modeled error returned by this operation.
     NotFoundError(errors::NotFoundError),
+    /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
+    /// A modeled error returned by this operation.
     ValidationError(errors::ValidationError),
 }
 
@@ -1473,7 +1924,9 @@ impl ::crucible_client_runtime_rust::Operation for ListCities {
 /// The errors ListCities declares.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ListCitiesError {
+    /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
+    /// A modeled error returned by this operation.
     ValidationError(errors::ValidationError),
 }
 
@@ -1548,7 +2001,9 @@ impl ::crucible_client_runtime_rust::Operation for Ping {
 /// The errors Ping declares.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PingError {
+    /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
+    /// A modeled error returned by this operation.
     ValidationError(errors::ValidationError),
 }
 
@@ -1628,8 +2083,11 @@ impl ::crucible_client_runtime_rust::Operation for PutCityPhoto {
 /// The errors PutCityPhoto declares.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PutCityPhotoError {
+    /// A modeled error returned by this operation.
     NotFoundError(errors::NotFoundError),
+    /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
+    /// A modeled error returned by this operation.
     ValidationError(errors::ValidationError),
 }
 
@@ -1705,7 +2163,9 @@ impl ::crucible_client_runtime_rust::Operation for Status {
 /// The errors Status declares.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatusError {
+    /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
+    /// A modeled error returned by this operation.
     ValidationError(errors::ValidationError),
 }
 
@@ -1745,7 +2205,8 @@ impl ::std::fmt::Display for StatusError {
 
 impl ::std::error::Error for StatusError {}
 
-/// A client for Weather. Cheap to clone: clones share connections.
+/// A client for Weather. Construct with `new(Config)`. Cheap to clone: clones share connections.
+/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.
 #[derive(Clone)]
 pub struct WeatherClient {
     transport: ::crucible_client_runtime_rust::Transport,
@@ -1753,12 +2214,18 @@ pub struct WeatherClient {
 
 #[allow(dead_code)]
 impl WeatherClient {
+    /// Constructs the shared HTTP transport from configuration.
     pub fn new(config: ::crucible_client_runtime_rust::Config) -> Self {
         Self {
             transport: ::crucible_client_runtime_rust::Transport::new(config),
         }
     }
 
+    /// Calls CreateCity.
+    ///
+    /// Input: CreateCityInput. Output: CreateCityOutput.
+    /// Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
     pub async fn create_city(&self, mut input: CreateCityInput) -> ::std::result::Result<CreateCityOutput, ::crucible_client_runtime_rust::Error<CreateCityError>> {
         if input.client_token.value().is_none() {
             input.client_token = ::crucible_client_runtime_rust::Field::Value(::crucible_client_runtime_rust::idempotency_token());
@@ -1766,6 +2233,11 @@ impl WeatherClient {
         self.transport.send::<CreateCity, CreateCityError>(&input).await
     }
 
+    /// Calls CreateCity.
+    ///
+    /// Input: CreateCityInput. Output: CreateCityOutput.
+    /// Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
     pub async fn create_city_with_options(&self, mut input: CreateCityInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<CreateCityOutput, ::crucible_client_runtime_rust::Error<CreateCityError>> {
         if input.client_token.value().is_none() {
             input.client_token = ::crucible_client_runtime_rust::Field::Value(::crucible_client_runtime_rust::idempotency_token());
@@ -1773,26 +2245,52 @@ impl WeatherClient {
         self.transport.send_with_options::<CreateCity, CreateCityError>(&input, &options).await
     }
 
+    /// Calls GetCity.
+    ///
+    /// Input: GetCityInput. Output: GetCityOutput.
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn get_city(&self, input: GetCityInput) -> ::std::result::Result<GetCityOutput, ::crucible_client_runtime_rust::Error<GetCityError>> {
         self.transport.send::<GetCity, GetCityError>(&input).await
     }
 
+    /// Calls GetCity.
+    ///
+    /// Input: GetCityInput. Output: GetCityOutput.
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn get_city_with_options(&self, input: GetCityInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<GetCityOutput, ::crucible_client_runtime_rust::Error<GetCityError>> {
         self.transport.send_with_options::<GetCity, GetCityError>(&input, &options).await
     }
 
+    /// Calls GetCityPhoto.
+    ///
+    /// Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn get_city_photo(&self, input: GetCityPhotoInput) -> ::std::result::Result<GetCityPhotoOutput, ::crucible_client_runtime_rust::Error<GetCityPhotoError>> {
         self.transport.send::<GetCityPhoto, GetCityPhotoError>(&input).await
     }
 
+    /// Calls GetCityPhoto.
+    ///
+    /// Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn get_city_photo_with_options(&self, input: GetCityPhotoInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<GetCityPhotoOutput, ::crucible_client_runtime_rust::Error<GetCityPhotoError>> {
         self.transport.send_with_options::<GetCityPhoto, GetCityPhotoError>(&input, &options).await
     }
 
+    /// Calls ListCities.
+    ///
+    /// Input: ListCitiesInput. Output: ListCitiesOutput.
+    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// The pages helper fetches lazily until the continuation token is exhausted.
     pub async fn list_cities(&self, input: ListCitiesInput) -> ::std::result::Result<ListCitiesOutput, ::crucible_client_runtime_rust::Error<ListCitiesError>> {
         self.transport.send::<ListCities, ListCitiesError>(&input).await
     }
 
+    /// Calls ListCities.
+    ///
+    /// Input: ListCitiesInput. Output: ListCitiesOutput.
+    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+    /// The pages helper fetches lazily until the continuation token is exhausted.
     pub async fn list_cities_with_options(&self, input: ListCitiesInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<ListCitiesOutput, ::crucible_client_runtime_rust::Error<ListCitiesError>> {
         self.transport.send_with_options::<ListCities, ListCitiesError>(&input, &options).await
     }
@@ -1808,28 +2306,50 @@ impl WeatherClient {
         )
     }
 
+    /// Calls Ping.
+    ///
+    /// Input: none. Output: unit.
+    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn ping(&self) -> ::std::result::Result<(), ::crucible_client_runtime_rust::Error<PingError>> {
         self.transport.send::<Ping, PingError>(&::crucible_client_runtime_rust::operation::Unit {}).await.map(|_| ())
     }
 
+    /// Calls Ping.
+    ///
+    /// Input: none. Output: unit.
+    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn ping_with_options(&self, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<(), ::crucible_client_runtime_rust::Error<PingError>> {
         self.transport.send_with_options::<Ping, PingError>(&::crucible_client_runtime_rust::operation::Unit {}, &options).await.map(|_| ())
     }
 
     /// Stores a city's photo exactly as sent.
+    ///
+    /// Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn put_city_photo(&self, input: PutCityPhotoInput) -> ::std::result::Result<PutCityPhotoOutput, ::crucible_client_runtime_rust::Error<PutCityPhotoError>> {
         self.transport.send::<PutCityPhoto, PutCityPhotoError>(&input).await
     }
 
     /// Stores a city's photo exactly as sent.
+    ///
+    /// Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
+    /// Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn put_city_photo_with_options(&self, input: PutCityPhotoInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<PutCityPhotoOutput, ::crucible_client_runtime_rust::Error<PutCityPhotoError>> {
         self.transport.send_with_options::<PutCityPhoto, PutCityPhotoError>(&input, &options).await
     }
 
+    /// Calls Status.
+    ///
+    /// Input: StatusInput. Output: StatusOutput.
+    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn status(&self, input: StatusInput) -> ::std::result::Result<StatusOutput, ::crucible_client_runtime_rust::Error<StatusError>> {
         self.transport.send::<Status, StatusError>(&input).await
     }
 
+    /// Calls Status.
+    ///
+    /// Input: StatusInput. Output: StatusOutput.
+    /// Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
     pub async fn status_with_options(&self, input: StatusInput, options: ::crucible_client_runtime_rust::CallOptions) -> ::std::result::Result<StatusOutput, ::crucible_client_runtime_rust::Error<StatusError>> {
         self.transport.send_with_options::<Status, StatusError>(&input, &options).await
     }

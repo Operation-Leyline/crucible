@@ -41,7 +41,11 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
         );
         out.push('\n');
         doc(&mut out, "", structure.docs.as_deref());
-        out.push_str(crate::DERIVE);
+        out.push_str(&if client {
+            crate::DERIVE.replace("Debug, ", "")
+        } else {
+            crate::DERIVE.to_owned()
+        });
         out.push_str(&format!("pub struct {name} {{\n"));
         for member in &structure.members {
             let is_boxed = boxed.contains(&id.with_member(&member.name));
@@ -59,6 +63,7 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
         }
         out.push_str("}\n\n");
         if client {
+            crate::debug::structure(&mut out, service, name, structure);
             crate::builders::emit(
                 &mut out,
                 service,
@@ -96,6 +101,9 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
             .member("message")
             .filter(|m| simple_kind(service, &m.target) == Some(SimpleKind::String));
         let display = match message {
+            Some(m) if client && (structure.sensitive() || service.sensitive(m)) => {
+                "\"*** Sensitive Data Redacted ***\"".to_owned()
+            }
             Some(m)
                 if if client {
                     m.optional_on_client()

@@ -68,7 +68,12 @@ pub(crate) fn union(
     let unknown = unknown_variant(union.members.iter().map(|member| member.name.as_str()));
     doc(out, "", union.docs.as_deref());
     out.push_str(&format!(
-        "#[derive(Debug, Clone, PartialEq)]\npub enum {name} {{\n"
+        "{}\npub enum {name} {{\n",
+        if client {
+            "#[derive(Clone, PartialEq)]"
+        } else {
+            "#[derive(Debug, Clone, PartialEq)]"
+        }
     ));
     for member in &union.members {
         doc(out, "    ", member.docs.as_deref());
@@ -147,6 +152,9 @@ pub(crate) fn union(
     }
     out.push_str("        }\n    }\n}\n");
     serde_impls(out, name, "union");
+    if client {
+        crate::debug::union(out, service, name, union, &unknown);
+    }
 }
 
 pub(crate) fn int_enumeration(

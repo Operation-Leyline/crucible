@@ -75,6 +75,7 @@ pub(crate) fn emit(
             _ => {}
         }
         out.push('\n');
+        let start = out.len();
         match shape {
             Shape::IntEnum(values) => crate::open::int_enumeration(&mut out, name, values, client),
             Shape::Unit { .. } => {}
@@ -115,7 +116,11 @@ pub(crate) fn emit(
             Shape::Enum(values) => enumeration(&mut out, id, name, values, client, diagnostics),
             Shape::Structure(structure) => {
                 doc(&mut out, "", structure.docs.as_deref());
-                out.push_str(crate::DERIVE);
+                out.push_str(&if client {
+                    crate::DERIVE.replace("Debug, ", "")
+                } else {
+                    crate::DERIVE.to_owned()
+                });
                 if strict.contains(id) {
                     out.push_str("#[serde(deny_unknown_fields)]\n");
                 }
@@ -136,6 +141,7 @@ pub(crate) fn emit(
                 }
                 out.push_str("}\n");
                 if client {
+                    crate::debug::structure(&mut out, service, name, structure);
                     crate::builders::emit(
                         &mut out,
                         service,
@@ -183,6 +189,12 @@ pub(crate) fn emit(
                 }
                 out.push_str("}\n");
             }
+        }
+        if client && shape.sensitive() && matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
+            let emitted = out[start..].replace("Debug, ", "");
+            out.truncate(start);
+            out.push_str(&emitted);
+            out.push_str(&format!("impl ::std::fmt::Debug for {name} {{ fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{ f.write_str(\"{name}(*** Sensitive Data Redacted ***)\") }} }}\n"));
         }
         if validated.contains(id) {
             if let Shape::Structure(structure) | Shape::Union(structure) = shape {

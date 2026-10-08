@@ -582,3 +582,107 @@ mod tests {
         assert_eq!(member["optional"], true);
     }
 }
+
+/// Documentation text already resolved by Smithy lowering.
+pub fn shape_docs(shape: &Shape) -> Option<&str> {
+    match shape {
+        Shape::Unit => None,
+        Shape::Simple(s) => s.docs.as_deref(),
+        Shape::Enum(s) => s.docs.as_deref(),
+        Shape::IntEnum(s) => s.docs.as_deref(),
+        Shape::List(s) => s.docs.as_deref(),
+        Shape::Map(s) => s.docs.as_deref(),
+        Shape::Structure(s) | Shape::Union(s) => s.docs.as_deref(),
+    }
+}
+
+/// CommonMark supported by Doxygen, with comment boundaries and commands escaped.
+pub fn doxygen(text: &str, indent: &str) -> String {
+    let text = text
+        .replace('\\', "&#92;")
+        .replace('@', "&#64;")
+        .replace("*/", "*&#47;")
+        .replace("/*", "/&#42;");
+    format!(
+        "{indent}/**\n{}{indent} */\n",
+        text.lines()
+            .map(|line| if line.trim().is_empty() {
+                format!("{indent} *\n")
+            } else {
+                format!("{indent} * {}\n", line.trim_end())
+            })
+            .collect::<String>()
+    )
+}
+
+/// Native collection aliases cannot customize element formatting. Conservatively
+/// redact a collection containing sensitive primitive elements as a whole.
+pub fn sensitive_collection(service: &Service, id: &crucible_smithy::ShapeId) -> bool {
+    fn visit(
+        service: &Service,
+        id: &crucible_smithy::ShapeId,
+        seen: &mut std::collections::BTreeSet<crucible_smithy::ShapeId>,
+    ) -> bool {
+        if !seen.insert(id.clone()) {
+            return false;
+        }
+        match service.shape(id) {
+            Some(Shape::List(s)) => {
+                service.sensitive(&s.member) || visit(service, &s.member.target, seen)
+            }
+            Some(Shape::Map(s)) => {
+                service.sensitive(&s.key)
+                    || service.sensitive(&s.value)
+                    || visit(service, &s.value.target, seen)
+            }
+            _ => false,
+        }
+    }
+    visit(service, id, &mut std::collections::BTreeSet::new())
+}
+
+/// Operation contract notes independent of the target's syntax.
+pub fn operation_docs(service: &Service, op: &crucible_smithy::ir::Operation) -> String {
+    let mut text = op
+        .docs
+        .clone()
+        .unwrap_or_else(|| format!("Calls {}.", op.name()));
+    text.push_str(&format!(
+        "\n\nInput: {}. Output: {}.",
+        op.input.as_ref().map_or("none", |id| service.name_of(id)),
+        op.output.as_ref().map_or("unit", |id| service.name_of(id))
+    ));
+    if !op.errors.is_empty() {
+        text.push_str(&format!(
+            "\nModeled errors: {}. Transport and unknown service failures remain separate.",
+            op.errors
+                .iter()
+                .map(|id| service.name_of(id))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if op.paginated.is_some() {
+        text.push_str(
+            "\nThe pages helper fetches lazily until the continuation token is exhausted.",
+        );
+    }
+    if op.idempotency_token.is_some() {
+        text.push_str("\nAn omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.");
+    }
+    text
+}
+
+#[cfg(test)]
+mod documentation_tests {
+    #[test]
+    fn doxygen_preserves_markdown_without_comment_or_command_injection() {
+        let text = super::doxygen(
+            "**bold** `code` [link](https://example.invalid)\n/* */ @param \\command",
+            "    ",
+        );
+        assert!(text.contains("**bold** `code` [link](https://example.invalid)"));
+        assert!(text.contains("/&#42; *&#47; &#64;param &#92;command"));
+        assert_eq!(text.matches("*/").count(), 1);
+    }
+}
