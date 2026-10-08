@@ -95,6 +95,7 @@ impl Operation for Probe {
         errors: &[],
         readonly: true,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };

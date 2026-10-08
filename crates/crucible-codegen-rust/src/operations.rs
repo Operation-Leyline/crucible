@@ -174,7 +174,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
             format!("Some({})", literal(token))
         });
     out.push_str(&format!(
-        "static {}: ::crucible_server_runtime_rust::OperationInfo = ::crucible_server_runtime_rust::OperationInfo {{\n    id: {},\n    name: {},\n    resource: {resource},\n    method: {},\n    path: &[{}],\n    literal_query: &[{query}],\n    status: {},\n    input: {input},\n    output: {output},\n    errors: &[{}],\n    readonly: {},\n    idempotent: {},\n    idempotency_token: {token},\n    traits: {},\n}};\n\n",
+        "static {}: ::crucible_server_runtime_rust::OperationInfo = ::crucible_server_runtime_rust::OperationInfo {{\n    id: {},\n    name: {},\n    resource: {resource},\n    method: {},\n    path: &[{}],\n    literal_query: &[{query}],\n    status: {},\n    input: {input},\n    output: {output},\n    errors: &[{}],\n    readonly: {},\n    idempotent: {},\n    internal: {},\n    idempotency_token: {token},\n    traits: {},\n}};\n\n",
         operation_static(op),
         literal(&op.id.to_string()),
         literal(name),
@@ -184,6 +184,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         errors.join(", "),
         op.readonly,
         op.idempotent,
+        op.internal,
         custom_traits(&op.traits),
     ));
     let mut streaming = String::new();

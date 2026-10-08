@@ -127,6 +127,21 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    let fixture = "../../crates/crucible-smithy/tests/fixtures/internal.json";
+    println!("cargo::rerun-if-changed={fixture}");
+    for (file, audience) in [
+        ("audience_external.rs", crucible_build::Audience::External),
+        ("audience_internal.rs", crucible_build::Audience::Internal),
+    ] {
+        std::fs::write(
+            out.join(file),
+            crucible_build::RustCodegen::client_from_model(fixture)
+                .audience(audience)
+                .render()
+                .unwrap(),
+        )
+        .unwrap();
+    }
     wire_extensions(&out);
     event_streams(&out);
 }

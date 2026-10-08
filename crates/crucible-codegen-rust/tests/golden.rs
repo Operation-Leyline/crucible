@@ -847,3 +847,23 @@ fn finite_only_float_members_use_checked_codec() {
         .collect::<String>();
     matches_golden(&adapters, "finite_float.rs");
 }
+
+#[test]
+fn internal_audience_server_and_projected_client_match_goldens() {
+    let full = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/internal.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let external = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    matches_golden(
+        &generate(&full, &Options::default()).unwrap(),
+        "internal_server.rs",
+    );
+    matches_golden(
+        &generate_client(&external).unwrap(),
+        "internal_external_client.rs",
+    );
+    matches_golden(&generate_client(&full).unwrap(), "internal_client.rs");
+}

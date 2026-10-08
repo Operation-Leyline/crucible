@@ -627,6 +627,7 @@ pub mod weather {
         errors: &["ConflictError", "ThrottlingError", "ValidationError"],
         readonly: false,
         idempotent: true,
+        internal: false,
         idempotency_token: Some("clientToken"),
         traits: &[("example.weather#tier", "\"write\"")],
     };
@@ -666,6 +667,7 @@ pub mod weather {
         errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
         readonly: true,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -703,6 +705,7 @@ pub mod weather {
         errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
         readonly: true,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -742,6 +745,7 @@ pub mod weather {
         errors: &["ThrottlingError", "ValidationError"],
         readonly: true,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -774,6 +778,7 @@ pub mod weather {
         errors: &["ThrottlingError", "ValidationError"],
         readonly: true,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -815,6 +820,7 @@ pub mod weather {
         errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
         readonly: false,
         idempotent: true,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };
@@ -848,6 +854,7 @@ pub mod weather {
         errors: &["ThrottlingError", "ValidationError"],
         readonly: true,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };

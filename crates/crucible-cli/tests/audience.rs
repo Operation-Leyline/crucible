@@ -33,12 +33,16 @@ fn cli_defaults_external_and_explicit_internal_preserves_full_api() {
                 String::from_utf8_lossy(&result.stderr)
             );
             let contents = if target == "ts" {
-                fs::read_to_string(format!("{out}/src/models.ts")).unwrap()
+                format!(
+                    "{}\n{}",
+                    fs::read_to_string(format!("{out}/src/models.ts")).unwrap(),
+                    fs::read_to_string(format!("{out}/src/errors.ts")).unwrap(),
+                )
             } else {
                 fs::read_to_string(out).unwrap()
             };
-            assert_eq!(contents.contains("SecretInput"), internal);
-            assert_eq!(contents.contains("InternalFault"), internal);
+            assert_eq!(contents.contains("SecretInput"), internal, "{target}");
+            assert_eq!(contents.contains("InternalFault"), internal, "{target}");
         }
     }
     for audience in ["external", "internal"] {

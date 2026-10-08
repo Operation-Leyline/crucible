@@ -25,6 +25,15 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    let model = "../../crates/crucible-smithy/tests/fixtures/internal.json";
+    println!("cargo::rerun-if-changed={model}");
+    std::fs::write(
+        out.join("audience_server.rs"),
+        crucible_build::RustCodegen::from_model(model)
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     crucible_build::rust_service("weather_model")
         .conformance()
         .generate();
