@@ -34,6 +34,9 @@ fn pagination_paths_are_validated_before_generation() {
         ("items", "result..items"),
         ("outputToken", ""),
         ("items", "result"),
+        ("inputToken", "size"),
+        ("outputToken", "result.items"),
+        ("pageSize", "token"),
     ] {
         let mut model: serde_json::Value = serde_json::from_str(source).unwrap();
         model["shapes"]["test.bindings#Read"]["traits"]["smithy.api#paginated"][field] =
@@ -168,4 +171,14 @@ fn ignored_http_bindings_use_body_timestamp_format() {
             member.name
         );
     }
+}
+
+#[test]
+fn pagination_paths_require_smithy_identifiers_even_in_handwritten_ast() {
+    let diagnostics = Model::from_json(include_str!("fixtures/pagination-invalid-identifier.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap_err()
+        .to_string();
+    assert!(diagnostics.contains("outputToken"), "{diagnostics}");
 }

@@ -1252,6 +1252,11 @@ impl<'m> Lowerer<'m> {
         let mut target = root;
         let mut result = None;
         for name in path.split('.') {
+            if !name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+                || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            {
+                return None;
+            }
             let structure = self.model.get(target)?;
             if structure.kind != Kind::Structure {
                 return None;
