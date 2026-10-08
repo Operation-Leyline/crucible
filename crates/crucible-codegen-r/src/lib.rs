@@ -1,4 +1,5 @@
 //! Native R package generation from the shared lowered Smithy IR.
+mod markdown;
 use crucible_smithy::{
     Diagnostics,
     ir::{Service, Shape},
@@ -47,6 +48,22 @@ fn literal(value: &str) -> String {
 }
 fn function(name: &str) -> String {
     format!("`{name}`")
+}
+fn roxygen(text: &str) -> String {
+    format!(
+        "#' @description\n{}#' @md\n",
+        text.replace('@', "@@")
+            .lines()
+            .map(|line| if line.trim().is_empty() {
+                "#'\n".to_owned()
+            } else {
+                format!("#' {}\n", line.trim_end())
+            })
+            .collect::<String>()
+    )
+}
+fn roxygen_details(text: &str) -> String {
+    roxygen(text).replacen("@description", "@details", 1)
 }
 fn contains_nul(value: &serde_json::Value) -> bool {
     match value {
@@ -169,6 +186,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "R strings cannot represent NUL in enum values or defaults",
             );
         }
+        schema["shapes"][id.to_string()]["sensitive"] = json!(shape.sensitive());
         let name = service.name_of(id);
         if !matches!(
             shape,
@@ -289,6 +307,42 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             diagnostics.push(id, "R model export name collision or invalid name");
         }
         let mut out = String::from("# Generated from the lowered Smithy model.\n");
+        out.push_str(&roxygen(
+            crucible_codegen_common::shape_docs(shape)
+                .unwrap_or("Constructs a native model value."),
+        ));
+        match shape {
+            Shape::Enum(e) => {
+                for value in &e.values {
+                    out.push_str(&roxygen_details(&format!(
+                        "{} = {}: {}",
+                        value.name,
+                        value.value,
+                        value.docs.as_deref().unwrap_or("Known enum value.")
+                    )));
+                }
+            }
+            Shape::IntEnum(e) => {
+                for value in &e.values {
+                    out.push_str(&roxygen_details(&format!(
+                        "{} = {}: {}",
+                        value.name,
+                        value.value,
+                        value.docs.as_deref().unwrap_or("Known enum value.")
+                    )));
+                }
+            }
+            Shape::Union(u) => {
+                for m in &u.members {
+                    out.push_str(&roxygen_details(&format!(
+                        "{}: {}",
+                        m.name,
+                        m.docs.as_deref().unwrap_or("Union arm.")
+                    )));
+                }
+            }
+            _ => {}
+        }
         match shape {
             Shape::Structure(s) => {
                 let mut members = BTreeSet::new();
@@ -301,13 +355,48 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     values.push(format!("{} = {}",literal(&f),function(&f)));
                     schema["shapes"][id.to_string()]["members"][&m.name]["optional"] = json!(m.optional_on_client());
                 }
+                for m in &s.members { out.push_str(&format!("#' @param {} {}\n", field(&m.name), m.docs.as_deref().unwrap_or("Model member; UNSET omits an optional member and NULL sends null.").replace('@', "@@").replace('\n', "\n#' "))); }
                 out.push_str(&format!("{} <- function({}) .crucible_model({}, list({}))\n", function(name),args.join(", "),literal(&id.to_string()),values.join(", ")));
             }
-            Shape::Enum(_) => out.push_str(&format!("{} <- function(value) structure(.crucible_string(value), class = c({}, 'crucible_enum', 'character'))\n",function(name),literal(name))),
-            Shape::IntEnum(_) => out.push_str(&format!("{} <- function(value) .crucible_int_enum(value, {})\n", function(name), literal(name))),
+            Shape::Enum(_) => out.push_str(&format!("{} <- function(value) structure(.crucible_string(value), class = c({}, 'crucible_enum', 'character'), crucible_target = {} )\n",function(name),literal(name),literal(&id.to_string()))),
+            Shape::IntEnum(_) => out.push_str(&format!("{} <- function(value) structure(.crucible_int_enum(value, {}), crucible_target = {})\n", function(name), literal(name), literal(&id.to_string()))),
             Shape::Union(_) => out.push_str(&format!("{} <- function(member, value = NULL) .crucible_union({}, member, value)\n",function(name),literal(&id.to_string()))),
             _ => unreachable!(),
         }
+        let mut details = String::new();
+        match shape {
+            Shape::Structure(s) | Shape::Union(s) => {
+                for m in &s.members {
+                    details.push_str(&format!(
+                        "{}: {}\n",
+                        field(&m.name),
+                        m.docs.as_deref().unwrap_or("Model member.")
+                    ));
+                }
+            }
+            Shape::Enum(s) => {
+                for v in &s.values {
+                    details.push_str(&format!(
+                        "{} = {}: {}\n",
+                        v.name,
+                        v.value,
+                        v.docs.as_deref().unwrap_or("Known enum value.")
+                    ));
+                }
+            }
+            Shape::IntEnum(s) => {
+                for v in &s.values {
+                    details.push_str(&format!(
+                        "{} = {}: {}\n",
+                        v.name,
+                        v.value,
+                        v.docs.as_deref().unwrap_or("Known enum value.")
+                    ));
+                }
+            }
+            _ => {}
+        }
+        files.push(File { path: format!("man/{name}.Rd"), contents: format!("\\name{{{name}}}\n\\alias{{{name}}}\n\\title{{{name}}}\n\\description{{{}}}\n\\details{{{}}}\n", markdown::render(crucible_codegen_common::shape_docs(shape).unwrap_or("Native model constructor.")), markdown::render(&details)) });
         files.push(File {
             path: format!("R/model-{name}.R"),
             contents: out,
@@ -319,7 +408,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "pages".to_owned(),
         "wait".to_owned(),
     ]);
-    let mut client = format!(
+    let mut operation_notes = String::new();
+    let mut client = roxygen(&format!(
+        "{}\nConstruct with client_config(). Call client$close() after use. Clients and page functions are mutable; use them from one R execution thread.",
+        service.docs.as_deref().unwrap_or("HTTP service client.")
+    )) + &format!(
         "# Generated native operation methods.\n{} <- function(config = client_config()) {{\n  client <- .crucible_client(config, {}, {})\n",
         function(&client_name),
         options
@@ -342,6 +435,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         if op.method == "HEAD" && (!op.request.body.is_empty() || op.request.payload.is_some()) {
             diagnostics.push(&op.id, "R HEAD operations cannot have a request body");
         }
+        let notes = crucible_codegen_common::operation_docs(service, op);
+        operation_notes.push_str(&format!("{}\n{}\n\n", field(op.name()), notes));
+        client.push_str(&roxygen(&notes));
         let name = field(op.name());
         for suffix in std::iter::once("").chain(op.paginated.is_some().then_some("_pages")) {
             let method = format!("{name}{suffix}");
@@ -375,6 +471,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         contents: client,
     });
     for (name, source) in [
+        ("debug", include_str!("../runtime/debug.R")),
         ("json", include_str!("../runtime/json.R")),
         ("types", include_str!("../runtime/types.R")),
         ("codec", include_str!("../runtime/codec.R")),
@@ -422,8 +519,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             + &["format", "print"]
                 .iter()
                 .flat_map(|generic| {
-                    ["crucible_aws_credentials", "crucible_basic_credentials"]
-                        .map(|class| format!("S3method({generic}, {class})\n"))
+                    [
+                        "crucible_aws_credentials",
+                        "crucible_basic_credentials",
+                        "crucible_model",
+                        "crucible_union",
+                        "crucible_enum",
+                        "crucible_int_enum",
+                        "crucible_error",
+                    ]
+                    .map(|class| format!("S3method({generic}, {class})\n"))
                 })
                 .collect::<String>(),
     });
@@ -432,9 +537,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     files.push(File{path:"inst/crucible.json".into(),contents:serde_json::to_string_pretty(&json!({"generator":"crucible-codegen-r","generatorVersion":env!("CARGO_PKG_VERSION"),"packageVersion":options.package_version,"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema_text.as_bytes())),"contentSha256":options.content_sha256})).expect("metadata")});
     let aliases = exported
         .iter()
+        .filter(|s| !model_files.contains(&s.to_ascii_lowercase()))
         .map(|s| format!("\\alias{{{s}}}\n"))
         .collect::<String>();
     files.push(File{path:"man/client.Rd".into(),contents:format!("\\name{{{package}-client}}\n{aliases}\\title{{Generated Smithy Client}}\n\\description{{Native model constructors and an HTTP client for the generated service.}}\n\\details{{Use {client_name}(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}}\n")});
+    files.push(File { path: "man/operations.Rd".into(), contents: format!("\\name{{operations}}\n\\alias{{operations}}\n\\title{{Operation contracts}}\n\\description{{{}}}\n", markdown::render(&operation_notes)) });
+    files.push(File { path: "man/runtime.Rd".into(), contents: format!("\\name{{runtime}}\n\\alias{{runtime}}\n\\title{{Runtime entry points}}\n\\description{{{}}}\n", markdown::render("UNSET: Sentinel omitting an optional model member; NULL represents explicit JSON null.\nlong: Constructs an exact signed 64-bit integer from a decimal string; numeric inputs beyond exact double precision are rejected.\nbig_integer: Constructs an exact arbitrary precision integer from a decimal string.\nbig_decimal: Constructs an exact arbitrary precision decimal from a decimal string.\njson_number: Preserves a JSON numeric token without double rounding.\njson_parse: Parses a UTF-8 JSON string, preserving exact numeric tokens.\njson_encode: Encodes a native JSON value into UTF-8 text.\njson_object: Constructs a JSON object distinct from an unnamed array.\ncancellation_token: Constructs a cancellation environment with cancel and check methods; an optional predicate is polled by check.\nbasic_credentials: Constructs HTTP basic credentials; print and format redact secrets.\naws_credentials: Constructs SigV4 credentials; print and format redact secrets.\ncredential_chain: Tries credential providers in order until one supplies credentials.\nenvironment_credentials: Reads AWS credentials from standard environment variables.\nprofile_credentials: Reads AWS credentials from a named shared credentials profile.\ncached_credentials: Caches provider credentials, refreshing when expired.\ntimestamp: Constructs an exact seconds and nanoseconds timestamp; nanoseconds must be in [0, 1000000000).\n\nclient_config settings:\nendpoint: HTTP endpoint override; absent uses the generated endpoint or modeled endpoint rules.\ntoken: Bearer token provider invoked for each authenticated attempt.\ntransport: Custom HTTP transport; callbacks must respect the supplied deadline and cancellation scope.\ntimeout: Total call budget in seconds, including credentials, retries, backoff, and response reads.\nmax_attempts: Maximum attempts including the first request (default 3).\nbase_delay: Initial full-jitter exponential backoff bound in seconds.\nmax_delay: Maximum backoff bound in seconds; Retry-After can override it.\nheaders: Default request headers applied to every attempt.\nmiddleware: Request transformations applied on every attempt after authentication.\nbasic_credentials: HTTP basic authentication provider; used only for a modeled basic-auth scheme.\napi_key: API key provider for the modeled header or query location.\ncredentials: AWS credentials provider for modeled SigV4 authentication.\nregion: SigV4 region and AWS::Region endpoint built-in.\nendpoint_parameters: Named inputs to modeled endpoint rules.\nendpoint_builtins: Endpoint-rule built-in overrides.\ndisable_host_prefix: Disables modeled operation host-prefix injection.\nrequest_checksum_calculation: Computes modeled request checksums when supported or only when required.\nresponse_checksum_validation: Validates modeled response checksums when supported or only when required.\nchecksum_validated: Notification after a response checksum validates.")) });
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
 }

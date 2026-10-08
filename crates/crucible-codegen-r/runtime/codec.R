@@ -64,11 +64,13 @@
   if (adjustment != 0L) for (ignored in seq_len(abs(adjustment))) exponent <- step(exponent, adjustment > 0L)
   c(coefficient, exponent)
 }
+#' Constructs an exact arbitrary precision integer from a decimal string.
 big_integer <- function(value) {
   number <- json_number(as.character(value)); canonical <- .crucible_canonical_number(number)
   if (startsWith(canonical[2L], '-')) stop('Expected integral arbitrary precision number', call. = FALSE)
   structure(as.character(number), class = c('crucible_big_integer', 'crucible_number', 'character'))
 }
+#' Constructs an exact arbitrary precision decimal from a decimal string.
 big_decimal <- function(value) {
   number <- json_number(as.character(value))
   structure(as.character(number), class = c('crucible_big_decimal', 'crucible_number', 'character'))
@@ -104,8 +106,8 @@ big_decimal <- function(value) {
   }
   if (kind == 'intEnum') {
     if (encode && !inherits(value, shape$name)) stop('Wrong intEnum type', call. = FALSE)
-    result <- .crucible_int_enum(value, shape$name)
-    return(if (encode) unclass(result) else result)
+    result <- structure(.crucible_int_enum(value, shape$name), crucible_target = target)
+    return(if (encode) as.numeric(result) else result)
   }
   if (kind %in% c('byte', 'short', 'integer', 'long')) {
     if (encode && kind == 'long' && !inherits(value, 'crucible_long') && (!is.numeric(value) || abs(value) > 9007199254740991)) stop('Expected long() or exactly representable integer', call. = FALSE)
@@ -141,7 +143,7 @@ big_decimal <- function(value) {
   if (kind == 'enum') {
     if (encode && !inherits(value, shape$name)) stop('Wrong enum type', call. = FALSE)
     result <- .crucible_string(value)
-    return(if (encode) unclass(result) else structure(result, class = c(shape$name, 'crucible_enum', 'character')))
+    return(if (encode) as.character(result) else structure(result, class = c(shape$name, 'crucible_enum', 'character'), crucible_target = target))
   }
   if (kind == 'list') {
     if (!is.list(value) || .crucible_is_object(value)) stop('Expected list array', call. = FALSE)

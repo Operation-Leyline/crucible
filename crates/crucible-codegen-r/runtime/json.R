@@ -2,11 +2,13 @@
   if (!is.character(value) || inherits(value, 'crucible_number') || inherits(value, 'crucible_long') || length(value) != 1L || is.na(value) || !validUTF8(value)) stop('Expected one valid UTF-8 string', call. = FALSE)
   enc2utf8(value)
 }
+#' Preserves a JSON numeric token without double rounding.
 json_number <- function(value) {
   value <- .crucible_string(value)
   if (!grepl('^-?(0|[1-9][0-9]*)([.][0-9]+)?([eE][+-]?[0-9]+)?$', value)) stop('Invalid JSON number', call. = FALSE)
   structure(value, class = c('crucible_number', 'character'))
 }
+#' Constructs a JSON object distinct from an unnamed array.
 json_object <- function(...) {
   value <- list(...)
   if (length(value) && (is.null(names(value)) || any(names(value) == '') || anyDuplicated(names(value)))) stop('JSON object members must have unique names', call. = FALSE)
@@ -17,6 +19,7 @@ json_object <- function(...) {
   structure(value, class = c('crucible_object', 'list'))
 }
 .crucible_is_object <- function(value) inherits(value, 'crucible_object') || (is.list(value) && !is.null(names(value)))
+#' Parses a UTF-8 JSON string, preserving exact numeric tokens.
 json_parse <- function(text) {
   if (is.raw(text)) text <- rawToChar(text)
   text <- .crucible_string(text)
@@ -91,6 +94,7 @@ json_parse <- function(text) {
   result <- value(); whitespace(); if (i <= size) fail()
   result
 }
+#' Encodes a native JSON value into UTF-8 text.
 json_encode <- function(value) {
   encode <- function(x, depth) {
     if (depth > 255L) stop('JSON nesting exceeds 255 levels', call. = FALSE)

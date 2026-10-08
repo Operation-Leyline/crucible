@@ -240,3 +240,35 @@ fn waiter_method_collisions_are_diagnosed() {
     let diagnostic = emit(&service, &options()).err().unwrap().to_string();
     assert!(diagnostic.contains("waiter method collision"));
 }
+
+#[test]
+fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
+    let mut model: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap();
+    let examples: serde_json::Value =
+        serde_json::from_str(include_str!("../../../tests/conformance/native-docs.json")).unwrap();
+    model["shapes"]
+        .as_object_mut()
+        .unwrap()
+        .extend(examples.as_object().unwrap().clone());
+    model["shapes"]["example.weather#CreateCityInput"]["members"]["debugModel"] =
+        serde_json::json!({"target": "example.weather#DebugModel"});
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let text = files
+        .iter()
+        .map(|file| file.contents.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(text.contains("A **documented** value."));
+    assert!(text.contains("A sensitive member."));
+    assert!(text.contains("Known secret value."));
+    assert!(text.contains("@@param"));
+    assert!(text.contains("S3method(format, crucible_model)"));
+    assert!(text.contains("Sensitive Data Redacted"));
+}

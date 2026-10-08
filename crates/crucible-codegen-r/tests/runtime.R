@@ -128,6 +128,18 @@ rejects(sdk(test)$ping(cancellation=cancel),'crucible_cancelled'); check(length(
 polls <- 0L; cancel <- cancellation_token(function(){polls<<-polls+1L;polls==1L})
 rejects(cancel$check(),'crucible_cancelled'); rejects(cancel$check(),'crucible_cancelled'); check(polls==1,'Latched cancellation')
 
+# Native print/format never expose sensitive members, target shapes or collections.
+model <- DebugModel(label = 'visible', secret = 'SECRET-MEMBER', ticket = 'SECRET-TARGET',
+                    nested = DebugNested(label = 'nested-visible', secret = 'SECRET-NESTED'),
+                    items = list(DebugNested(secret = 'SECRET-LIST')), values = list('SECRET-ELEMENT'),
+                    choice = DebugChoice('secret', 'SECRET-UNION'), enumeration = DebugEnum('SECRET-ENUM'))
+text <- format(model)
+check(grepl('DebugModel(', text, fixed = TRUE) && grepl('DebugNested(', text, fixed = TRUE) && grepl('visible', text), 'Recursive format')
+check(grepl('Sensitive Data Redacted', text) && !grepl('SECRET-', text), 'Recursive sensitivity')
+check(!grepl('SECRET-', paste(capture.output(print(model)), collapse = '')), 'Print sensitivity')
+check(!grepl('SECRET-ENUM', format(DebugEnum('SECRET-ENUM'))), 'Sensitive enum')
+check(!grepl('SECRET-', format(codec(json_parse('{"secret":"SECRET-DECODED"}'), 'example.weather#DebugModel', FALSE))), 'Decoded model sensitivity')
+
 if (Sys.getenv('R_OFFLINE_TESTS') == '1') { cat('R exact codecs, shared fixtures, and fake transport qualification passed\n'); quit(status=0) }
 
 client <- WeatherClient(client_config(endpoint=Sys.getenv('WEATHER_URL'),token=function()'weather-token'))
