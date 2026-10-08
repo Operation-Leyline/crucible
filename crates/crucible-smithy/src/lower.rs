@@ -143,6 +143,46 @@ impl<'m> Lowerer<'m> {
             }
         }
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
+        if self.protocol.uses_http_bindings() {
+            let mut routes = BTreeMap::new();
+            for operation in &operations {
+                // Label names do not distinguish routes; greediness and literal query values do.
+                let path: Vec<_> = operation
+                    .uri
+                    .segments
+                    .iter()
+                    .map(|segment| match segment {
+                        Segment::Literal(value) => format!("literal:{value}"),
+                        Segment::Label(name) if operation.uri.greedy_labels.contains(name) => {
+                            "greedy".to_owned()
+                        }
+                        Segment::Label(_) => "label".to_owned(),
+                    })
+                    .collect();
+                let mut query = operation.uri.query.clone();
+                query.sort();
+                let host = operation.endpoint.as_ref().map(|endpoint| {
+                    endpoint
+                        .parts
+                        .iter()
+                        .map(|part| match part {
+                            crate::ir::HostPrefixPart::Literal { value } => {
+                                format!("literal:{value}")
+                            }
+                            crate::ir::HostPrefixPart::Label { .. } => "label".to_owned(),
+                        })
+                        .collect::<Vec<_>>()
+                });
+                if let Some(previous) =
+                    routes.insert((&operation.method, host, path, query), &operation.id)
+                {
+                    self.diagnostics.push(
+                        &operation.id,
+                        format!("HTTP route conflicts with {previous}"),
+                    );
+                }
+            }
+        }
         let resources = if infrastructure {
             crate::resources::lower(self.model, shape, &mut self.diagnostics)
         } else {
@@ -445,6 +485,23 @@ impl<'m> Lowerer<'m> {
                 self.diagnostics.push(id, "operation has no @http trait");
                 return None;
             };
+            if http
+                .get("method")
+                .and_then(Value::as_str)
+                .is_none_or(str::is_empty)
+            {
+                self.diagnostics.push(id, "@http requires an HTTP method");
+            }
+            if let Some(code) = http.get("code")
+                && code
+                    .as_u64()
+                    .is_none_or(|code| !(100..=999).contains(&code))
+            {
+                self.diagnostics.push(
+                    id,
+                    "HTTP status code must be an integer between 100 and 999",
+                );
+            }
             (
                 http["method"].as_str().unwrap_or_default().to_owned(),
                 self.uri(id, http["uri"].as_str().unwrap_or_default()),
@@ -579,6 +636,17 @@ impl<'m> Lowerer<'m> {
 
     fn uri(&mut self, operation: &ShapeId, pattern: &str) -> Uri {
         let (path, query) = pattern.split_once('?').unwrap_or((pattern, ""));
+        if !path.starts_with('/') {
+            self.diagnostics.push(operation, "URI must start with /");
+        }
+        if path.contains("//") {
+            self.diagnostics
+                .push(operation, "URI must not contain empty path segments");
+        }
+        if query.contains(['{', '}']) {
+            self.diagnostics
+                .push(operation, "URI query string cannot contain labels");
+        }
         let mut segments = Vec::new();
         let mut greedy_labels = Vec::new();
         for part in path.split('/').filter(|part| !part.is_empty()) {
@@ -596,6 +664,15 @@ impl<'m> Lowerer<'m> {
                     );
                 }
                 None => segments.push(Segment::Literal(part.to_owned())),
+            }
+        }
+        let mut labels = BTreeSet::new();
+        for segment in &segments {
+            if let Segment::Label(name) = segment
+                && !labels.insert(name)
+            {
+                self.diagnostics
+                    .push(operation, format!("duplicate URI label {{{name}}}"));
             }
         }
         if greedy_labels.len() > 1 {
@@ -710,6 +787,18 @@ impl<'m> Lowerer<'m> {
                 "@httpLabel member does not appear in the operation's URI",
             );
         }
+        self.check_binding_names(input, &bindings);
+        for binding in &bindings.query {
+            if uri.query.iter().any(|(name, _)| name == &binding.name) {
+                self.diagnostics.push(
+                    &input.with_member(&binding.member),
+                    format!(
+                        "@httpQuery {:?} conflicts with a literal query parameter",
+                        binding.name
+                    ),
+                );
+            }
+        }
         self.check_alone(input, &bindings);
         self.check_prefix_headers(input, &bindings);
         self.header_encodings(input, &mut bindings);
@@ -794,11 +883,33 @@ impl<'m> Lowerer<'m> {
                 None => bindings.body.push(name.clone()),
             }
         }
+        self.check_binding_names(output, &bindings);
         self.check_alone(output, &bindings);
         self.check_prefix_headers(output, &bindings);
         self.header_encodings(output, &mut bindings);
         self.binding_timestamp_formats(output, &mut bindings);
         bindings
+    }
+
+    fn check_binding_names(&mut self, structure: &ShapeId, bindings: &Bindings) {
+        let mut headers = BTreeSet::new();
+        for binding in &bindings.headers {
+            if !headers.insert(binding.name.to_ascii_lowercase()) {
+                self.diagnostics.push(
+                    &structure.with_member(&binding.member),
+                    format!("duplicate HTTP header {:?}", binding.name),
+                );
+            }
+        }
+        let mut query = BTreeSet::new();
+        for binding in &bindings.query {
+            if !query.insert(&binding.name) {
+                self.diagnostics.push(
+                    &structure.with_member(&binding.member),
+                    format!("duplicate HTTP query parameter {:?}", binding.name),
+                );
+            }
+        }
     }
 
     /// Resolve the representation and content type of the complete HTTP body.

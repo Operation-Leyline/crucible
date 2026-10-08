@@ -63,3 +63,29 @@ fn pagination_collects_all_invalid_paths_and_checks_inherited_settings() {
         assert!(diagnostics.contains(field), "{diagnostics}");
     }
 }
+
+#[test]
+fn malformed_http_bindings_collect_all_diagnostics() {
+    let diagnostics = Model::from_json(include_str!("fixtures/malformed-http-bindings.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap_err()
+        .to_string();
+    for message in [
+        "duplicate URI label",
+        "duplicate HTTP header",
+        "duplicate HTTP query",
+        "conflicts with a literal query",
+        "HTTP route conflicts",
+        "HTTP method",
+        "HTTP status code",
+        "empty path segments",
+        "query string cannot contain labels",
+        "URI must start with /",
+    ] {
+        assert!(
+            diagnostics.contains(message),
+            "missing {message}: {diagnostics}"
+        );
+    }
+}
