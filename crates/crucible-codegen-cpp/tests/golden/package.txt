@@ -48,18 +48,69 @@ check_required_components(weather_client)
 #include "runtime/client_runtime.hpp"
 
 namespace example::weather {
+/**
+ * HTTP service client.
+ * Construct with ClientConfig. Concurrent calls require thread-safe callbacks and transport. Copies share connections and close state; close after calls finish.
+ */
 class WeatherClient {
     std::shared_ptr<runtime::ClientRuntime> runtime_;
 public:
+    /** Creates a client; copies share runtime and connections. */
     explicit WeatherClient(runtime::ClientConfig config = {});
+    /** Closes the shared runtime; finish active calls first. */
     void close() { runtime_->close(); }
+    /**
+     * Calls CreateCity.
+     *
+     * Input: CreateCityInput. Output: CreateCityOutput.
+     * Modeled errors: ConflictError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     * An omitted idempotency token is generated once per call and reused by retries. Supply a token to replay across calls.
+     */
     [[nodiscard]] ::example::weather::models::CreateCityOutput create_city(const ::example::weather::models::CreateCityInput& input, std::stop_token stop = {}) const;
+    /**
+     * Calls GetCity.
+     *
+     * Input: GetCityInput. Output: GetCityOutput.
+     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     */
     [[nodiscard]] ::example::weather::models::GetCityOutput get_city(const ::example::weather::models::GetCityInput& input, std::stop_token stop = {}) const;
+    /**
+     * Calls GetCityPhoto.
+     *
+     * Input: GetCityPhotoInput. Output: GetCityPhotoOutput.
+     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     */
     [[nodiscard]] ::example::weather::models::GetCityPhotoOutput get_city_photo(const ::example::weather::models::GetCityPhotoInput& input, std::stop_token stop = {}) const;
+    /**
+     * Calls ListCities.
+     *
+     * Input: ListCitiesInput. Output: ListCitiesOutput.
+     * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     * The pages helper fetches lazily until the continuation token is exhausted.
+     */
     [[nodiscard]] ::example::weather::models::ListCitiesOutput list_cities(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop = {}) const;
+    /** Creates a lazy iterator; next returns nullopt when exhausted. */
     [[nodiscard]] runtime::Pages<::example::weather::models::ListCitiesOutput> list_cities_pages(const ::example::weather::models::ListCitiesInput& input, std::stop_token stop = {}) const;
+    /**
+     * Calls Ping.
+     *
+     * Input: none. Output: unit.
+     * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     */
     [[nodiscard]] runtime::Unit ping(std::stop_token stop = {}) const;
+    /**
+     * Stores a city's photo exactly as sent.
+     *
+     * Input: PutCityPhotoInput. Output: PutCityPhotoOutput.
+     * Modeled errors: NotFoundError, ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     */
     [[nodiscard]] ::example::weather::models::PutCityPhotoOutput put_city_photo(const ::example::weather::models::PutCityPhotoInput& input, std::stop_token stop = {}) const;
+    /**
+     * Calls Status.
+     *
+     * Input: StatusInput. Output: StatusOutput.
+     * Modeled errors: ThrottlingError, ValidationError. Transport and unknown service failures remain separate.
+     */
     [[nodiscard]] ::example::weather::models::StatusOutput status(const ::example::weather::models::StatusInput& input, std::stop_token stop = {}) const;
 };
 }
@@ -67,6 +118,7 @@ public:
 === include/weather_client/models.hpp ===
 #pragma once
 #include "runtime/codec.hpp"
+#include "runtime/debug.hpp"
 #include <compare>
 #include <exception>
 #include <variant>
@@ -103,41 +155,86 @@ struct CitySummary {
     std::int64_t population;
     ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> updated_at;
     ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> created_at;
+    /** Constructs this value from its required and optional members. */
     explicit CitySummary(std::string id, std::string name, std::int64_t population, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> updated_at = {}, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> created_at = {}) : id(std::move(id)), name(std::move(name)), population(std::move(population)), updated_at(std::move(updated_at)), created_at(std::move(created_at)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const CitySummary& model) { ::example::weather::runtime::Debug debug("CitySummary");
+        debug.field("id", model.id, false);
+        debug.field("name", model.name, false);
+        debug.field("population", model.population, false);
+        debug.field("updatedAt", model.updated_at, false);
+        debug.field("createdAt", model.created_at, false);
+        return debug.finish();
+    }
 };
 
 struct ConflictError : ::example::weather::runtime::WeatherException {
     std::string message;
+    /** Constructs this value from its required and optional members. */
     explicit ConflictError(std::string message, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::WeatherException(std::move(metadata)), message(std::move(message)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const ConflictError& model) { ::example::weather::runtime::Debug debug("ConflictError");
+        debug.field("message", model.message, false);
+        return debug.finish();
+    }
 };
 
 struct Coordinates {
     double latitude;
     double longitude;
+    /** Constructs this value from its required and optional members. */
     explicit Coordinates(double latitude, double longitude) : latitude(std::move(latitude)), longitude(std::move(longitude)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const Coordinates& model) { ::example::weather::runtime::Debug debug("Coordinates");
+        debug.field("latitude", model.latitude, false);
+        debug.field("longitude", model.longitude, false);
+        return debug.finish();
+    }
 };
-struct LocationCoordinatesVariant { std::optional<::example::weather::models::Coordinates> value; };
-struct LocationUnknownVariant { std::optional<::example::weather::runtime::Unit> value; };
-struct LocationUnknown { std::string name; ::example::weather::runtime::Json value; };
-struct Location { std::variant<LocationCoordinatesVariant, LocationUnknownVariant, LocationUnknown> value; };
+struct LocationCoordinatesVariant { std::optional<::example::weather::models::Coordinates> value; friend std::string debug_string(const LocationCoordinatesVariant& model) { return ::example::weather::runtime::Debug("Location").field("coordinates", model.value, false).finish(); } };
+struct LocationUnknownVariant { std::optional<::example::weather::runtime::Unit> value; friend std::string debug_string(const LocationUnknownVariant& model) { return ::example::weather::runtime::Debug("Location").field("unknown", model.value, false).finish(); } };
+struct LocationUnknown { std::string name; ::example::weather::runtime::Json value; friend std::string debug_string(const LocationUnknown&) { return ::example::weather::runtime::Debug("Location").field("unknown", ::example::weather::runtime::redacted, true).finish(); } };
+struct Location { std::variant<LocationCoordinatesVariant, LocationUnknownVariant, LocationUnknown> value; friend std::string debug_string([[maybe_unused]] const Location& model) { return std::visit([](const auto& arm) { return debug_string(arm); }, model.value); } };
 
 struct CreateCityInput {
     ::example::weather::runtime::Field<std::string> name;
     ::example::weather::runtime::Field<::example::weather::models::Location> location;
     ::example::weather::runtime::Field<std::string> client_token;
     ::example::weather::runtime::Field<std::int64_t> expected_revision;
+    /** Constructs this value from its required and optional members. */
     explicit CreateCityInput(::example::weather::runtime::Field<std::string> name = {}, ::example::weather::runtime::Field<::example::weather::models::Location> location = {}, ::example::weather::runtime::Field<std::string> client_token = {}, ::example::weather::runtime::Field<std::int64_t> expected_revision = {}) : name(std::move(name)), location(std::move(location)), client_token(std::move(client_token)), expected_revision(std::move(expected_revision)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const CreateCityInput& model) { ::example::weather::runtime::Debug debug("CreateCityInput");
+        debug.field("name", model.name, false);
+        debug.field("location", model.location, false);
+        debug.field("clientToken", model.client_token, false);
+        debug.field("expectedRevision", model.expected_revision, false);
+        return debug.finish();
+    }
 };
 
 struct CreateCityOutput {
     ::example::weather::models::CitySummary city;
+    /** Constructs this value from its required and optional members. */
     explicit CreateCityOutput(::example::weather::models::CitySummary city) : city(std::move(city)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const CreateCityOutput& model) { ::example::weather::runtime::Debug debug("CreateCityOutput");
+        debug.field("city", model.city, false);
+        return debug.finish();
+    }
 };
 
 struct GetCityInput {
     ::example::weather::runtime::Field<std::string> city_id;
     ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> at;
+    /** Constructs this value from its required and optional members. */
     explicit GetCityInput(::example::weather::runtime::Field<std::string> city_id = {}, ::example::weather::runtime::Field<::example::weather::runtime::Timestamp> at = {}) : city_id(std::move(city_id)), at(std::move(at)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const GetCityInput& model) { ::example::weather::runtime::Debug debug("GetCityInput");
+        debug.field("cityId", model.city_id, false);
+        debug.field("at", model.at, false);
+        return debug.finish();
+    }
 };
 
 struct Sky {
@@ -146,82 +243,173 @@ struct Sky {
     auto operator<=>(const Sky&) const = default;
     static Sky known_clear() { return Sky{"clear"}; }
     static Sky known_cloudy() { return Sky{"cloudy"}; }
+    /** Diagnostic representation. */
+    friend std::string debug_string([[maybe_unused]] const Sky& model) { return ::example::weather::runtime::Debug("Sky").field("value", model.value, false).finish(); }
 };
 
 struct GetCityOutput {
     ::example::weather::models::CitySummary city;
     ::example::weather::runtime::Field<std::map<::example::weather::models::Sky, ::example::weather::runtime::Json>> forecast;
     ::example::weather::runtime::Field<std::string> request_id;
+    /** Constructs this value from its required and optional members. */
     explicit GetCityOutput(::example::weather::models::CitySummary city, ::example::weather::runtime::Field<std::map<::example::weather::models::Sky, ::example::weather::runtime::Json>> forecast = {}, ::example::weather::runtime::Field<std::string> request_id = {}) : city(std::move(city)), forecast(std::move(forecast)), request_id(std::move(request_id)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const GetCityOutput& model) { ::example::weather::runtime::Debug debug("GetCityOutput");
+        debug.field("city", model.city, false);
+        debug.field("forecast", model.forecast, false);
+        debug.field("requestId", model.request_id, false);
+        return debug.finish();
+    }
 };
 
 struct GetCityPhotoInput {
     ::example::weather::runtime::Field<std::string> city_id;
+    /** Constructs this value from its required and optional members. */
     explicit GetCityPhotoInput(::example::weather::runtime::Field<std::string> city_id = {}) : city_id(std::move(city_id)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const GetCityPhotoInput& model) { ::example::weather::runtime::Debug debug("GetCityPhotoInput");
+        debug.field("cityId", model.city_id, false);
+        return debug.finish();
+    }
 };
 
 struct GetCityPhotoOutput {
     ::example::weather::runtime::Field<std::string> caption;
     ::example::weather::runtime::Field<::example::weather::runtime::Blob> photo;
+    /** Constructs this value from its required and optional members. */
     explicit GetCityPhotoOutput(::example::weather::runtime::Field<std::string> caption = {}, ::example::weather::runtime::Field<::example::weather::runtime::Blob> photo = {}) : caption(std::move(caption)), photo(std::move(photo)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const GetCityPhotoOutput& model) { ::example::weather::runtime::Debug debug("GetCityPhotoOutput");
+        debug.field("caption", model.caption, false);
+        debug.field("photo", model.photo, false);
+        return debug.finish();
+    }
 };
 
 struct ListCitiesInput {
     ::example::weather::runtime::Field<std::string> next_token;
     ::example::weather::runtime::Field<std::int32_t> max_results;
     ::example::weather::runtime::Field<std::vector<std::string>> tags;
+    /** Constructs this value from its required and optional members. */
     explicit ListCitiesInput(::example::weather::runtime::Field<std::string> next_token = {}, ::example::weather::runtime::Field<std::int32_t> max_results = {}, ::example::weather::runtime::Field<std::vector<std::string>> tags = {}) : next_token(std::move(next_token)), max_results(std::move(max_results)), tags(std::move(tags)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const ListCitiesInput& model) { ::example::weather::runtime::Debug debug("ListCitiesInput");
+        debug.field("nextToken", model.next_token, false);
+        debug.field("maxResults", model.max_results, false);
+        debug.field("tags", model.tags, false);
+        return debug.finish();
+    }
 };
 
 struct ListCitiesOutput {
     std::vector<::example::weather::models::CitySummary> cities;
     ::example::weather::runtime::Field<std::string> next_token;
+    /** Constructs this value from its required and optional members. */
     explicit ListCitiesOutput(std::vector<::example::weather::models::CitySummary> cities, ::example::weather::runtime::Field<std::string> next_token = {}) : cities(std::move(cities)), next_token(std::move(next_token)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const ListCitiesOutput& model) { ::example::weather::runtime::Debug debug("ListCitiesOutput");
+        debug.field("cities", model.cities, false);
+        debug.field("nextToken", model.next_token, false);
+        return debug.finish();
+    }
 };
 
 struct NotFoundError : ::example::weather::runtime::WeatherException {
     std::string message;
     ::example::weather::runtime::Field<std::string> resource_id;
+    /** Constructs this value from its required and optional members. */
     explicit NotFoundError(std::string message, ::example::weather::runtime::Field<std::string> resource_id = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::WeatherException(std::move(metadata)), message(std::move(message)), resource_id(std::move(resource_id)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const NotFoundError& model) { ::example::weather::runtime::Debug debug("NotFoundError");
+        debug.field("message", model.message, false);
+        debug.field("resourceId", model.resource_id, false);
+        return debug.finish();
+    }
 };
 
 struct PhotoSummary {
     std::int32_t size;
     ::example::weather::runtime::Blob thumbnail;
     ::example::weather::runtime::Field<std::string> caption;
+    /** Constructs this value from its required and optional members. */
     explicit PhotoSummary(std::int32_t size, ::example::weather::runtime::Blob thumbnail, ::example::weather::runtime::Field<std::string> caption = {}) : size(std::move(size)), thumbnail(std::move(thumbnail)), caption(std::move(caption)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const PhotoSummary& model) { ::example::weather::runtime::Debug debug("PhotoSummary");
+        debug.field("size", model.size, false);
+        debug.field("thumbnail", model.thumbnail, false);
+        debug.field("caption", model.caption, false);
+        return debug.finish();
+    }
 };
 
 struct PutCityPhotoInput {
     ::example::weather::runtime::Field<std::string> city_id;
     ::example::weather::runtime::Field<std::string> caption;
     ::example::weather::runtime::Field<::example::weather::runtime::Blob> photo;
+    /** Constructs this value from its required and optional members. */
     explicit PutCityPhotoInput(::example::weather::runtime::Field<std::string> city_id = {}, ::example::weather::runtime::Field<std::string> caption = {}, ::example::weather::runtime::Field<::example::weather::runtime::Blob> photo = {}) : city_id(std::move(city_id)), caption(std::move(caption)), photo(std::move(photo)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const PutCityPhotoInput& model) { ::example::weather::runtime::Debug debug("PutCityPhotoInput");
+        debug.field("cityId", model.city_id, false);
+        debug.field("caption", model.caption, false);
+        debug.field("photo", model.photo, false);
+        return debug.finish();
+    }
 };
 
 struct PutCityPhotoOutput {
     ::example::weather::models::PhotoSummary photo;
+    /** Constructs this value from its required and optional members. */
     explicit PutCityPhotoOutput(::example::weather::models::PhotoSummary photo) : photo(std::move(photo)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const PutCityPhotoOutput& model) { ::example::weather::runtime::Debug debug("PutCityPhotoOutput");
+        debug.field("photo", model.photo, false);
+        return debug.finish();
+    }
 };
 
 struct StatusInput {
+    /** Constructs this value from its required and optional members. */
     explicit StatusInput() {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const StatusInput& model) { ::example::weather::runtime::Debug debug("StatusInput");
+        return debug.finish();
+    }
 };
 
 struct StatusOutput {
+    /** Constructs this value from its required and optional members. */
     explicit StatusOutput() {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const StatusOutput& model) { ::example::weather::runtime::Debug debug("StatusOutput");
+        return debug.finish();
+    }
 };
 
 struct ThrottlingError : ::example::weather::runtime::WeatherException {
     std::string message;
     ::example::weather::runtime::Field<std::int32_t> retry_after;
+    /** Constructs this value from its required and optional members. */
     explicit ThrottlingError(std::string message, ::example::weather::runtime::Field<std::int32_t> retry_after = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::WeatherException(std::move(metadata)), message(std::move(message)), retry_after(std::move(retry_after)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const ThrottlingError& model) { ::example::weather::runtime::Debug debug("ThrottlingError");
+        debug.field("message", model.message, false);
+        debug.field("retryAfter", model.retry_after, false);
+        return debug.finish();
+    }
 };
 
 struct ValidationField {
     std::string path;
     std::string message;
+    /** Constructs this value from its required and optional members. */
     explicit ValidationField(std::string path, std::string message) : path(std::move(path)), message(std::move(message)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const ValidationField& model) { ::example::weather::runtime::Debug debug("ValidationField");
+        debug.field("path", model.path, false);
+        debug.field("message", model.message, false);
+        return debug.finish();
+    }
 };
 
 struct ValidationReason {
@@ -232,6 +420,8 @@ struct ValidationReason {
     static ValidationReason known_cannot_parse() { return ValidationReason{"cannotParse"}; }
     static ValidationReason known_field_validation_failed() { return ValidationReason{"fieldValidationFailed"}; }
     static ValidationReason known_other() { return ValidationReason{"other"}; }
+    /** Diagnostic representation. */
+    friend std::string debug_string([[maybe_unused]] const ValidationReason& model) { return ::example::weather::runtime::Debug("ValidationReason").field("value", model.value, false).finish(); }
 };
 
 struct ValidationError : ::example::weather::runtime::WeatherException {
@@ -239,7 +429,16 @@ struct ValidationError : ::example::weather::runtime::WeatherException {
     ::example::weather::models::ValidationReason reason;
     ::example::weather::runtime::Field<std::vector<::example::weather::models::ValidationField>> field_list;
     ::example::weather::runtime::Field<std::string> request_id;
+    /** Constructs this value from its required and optional members. */
     explicit ValidationError(std::string message, ::example::weather::models::ValidationReason reason, ::example::weather::runtime::Field<std::vector<::example::weather::models::ValidationField>> field_list = {}, ::example::weather::runtime::Field<std::string> request_id = {}, ::example::weather::runtime::ErrorMetadata metadata = {}) : ::example::weather::runtime::WeatherException(std::move(metadata)), message(std::move(message)), reason(std::move(reason)), field_list(std::move(field_list)), request_id(std::move(request_id)) {}
+    /** Diagnostic representation with sensitive data redacted. */
+    friend std::string debug_string([[maybe_unused]] const ValidationError& model) { ::example::weather::runtime::Debug debug("ValidationError");
+        debug.field("message", model.message, false);
+        debug.field("reason", model.reason, false);
+        debug.field("fieldList", model.field_list, false);
+        debug.field("requestId", model.request_id, false);
+        return debug.finish();
+    }
 };
 }
 

@@ -23,6 +23,17 @@ int main(void) {
     const weather_models_photo_summary *photo_copy;
     const unsigned char bytes[] = {0, 128, 255};
     assert(source && decoded && encoded);
+    {
+        const weather_models_debug_model *model = NULL;
+        const weather_json *value = parse(source, "{\"label\":\"visible\",\"secret\":\"SECRET-MEMBER\",\"ticket\":\"SECRET-TARGET\",\"nested\":{\"label\":\"nested-visible\",\"secret\":\"SECRET-NESTED\"},\"items\":[{\"secret\":\"SECRET-LIST\"}],\"values\":[\"SECRET-ELEMENT\"],\"choice\":{\"secret\":\"SECRET-UNION\"},\"enumeration\":\"SECRET-ENUM\"}", &error);
+        good(weather_models_debug_model_decode(decoded, value, &model, &error), &error);
+        good(weather_models_debug_model_debug(encoded, model, &text, &error), &error);
+        assert(strstr(text.data, "DebugModel(") && strstr(text.data, "DebugNested(") && strstr(text.data, "visible"));
+        assert(strstr(text.data, "Sensitive Data Redacted") && !strstr(text.data, "SECRET-"));
+        good(weather_models_debug_model_encode(encoded, model, &wire, &error), &error);
+        good(weather_json_write(encoded, wire, &text, &error), &error);
+        assert(strstr(text.data, "SECRET-MEMBER"));
+    }
     json = parse(source, "{\"id\":\"x\",\"name\":\"city\",\"population\":9223372036854775807,\"createdAt\":-0.000000001}", &error);
     good(weather_models_city_summary_decode(decoded, json, &city, &error), &error);
     weather_arena_free(source); source = weather_arena_new();

@@ -24,7 +24,7 @@ class Schema {
     Json description_;
 public:
     explicit Schema(Json description) : description_(std::move(description)) {}
-    // Protocol encoding switches, such as AWS JSON's nonFiniteFloatStrings.
+    /// Protocol encoding switches, such as AWS JSON's nonFiniteFloatStrings.
     [[nodiscard]] bool setting(std::string_view name) const {
         const auto* settings = description_.find("protocolSettings");
         const auto* value = settings && !settings->is_null() ? settings->find(name) : nullptr;
@@ -94,7 +94,7 @@ template<> struct Codec<Unit> {
     static Unit decode(const Json& value, const Context&) { if (!value.object().empty()) throw std::invalid_argument("Expected unit"); return {}; }
     static Json encode(Unit, const Context&) { return Json(Json::Object{}); }
 };
-// A stream never travels in a document: calls carry it beside the encoded model.
+/// A stream never travels in a document: calls carry it beside the encoded model.
 template<> struct Codec<ByteStream> {
     static ByteStream decode(const Json&, const Context&) { return {}; }
     static Json encode(const ByteStream&, const Context&) { return Json(); }
@@ -170,7 +170,7 @@ template<class T> void put(Json::Object& object, const Context& context, const s
 template<class T> void put(Json::Object& object, const Context& context, const std::string& name, const Field<T>& value) {
     if (value.is_set()) object.emplace(name, value.is_null() ? Json() : Codec<T>::encode(value.value(), context.member(name)));
 }
-// Parses a bound header; format overrides a timestamp member's binding format.
+/// Parses a bound header; format overrides a timestamp member's binding format.
 [[nodiscard]] Json header(const Schema& schema, const Json& member, std::string_view text, std::string_view format = {});
 [[nodiscard]] std::string bound(const Json& value);
 }

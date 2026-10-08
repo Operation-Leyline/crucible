@@ -6,7 +6,14 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
     let package = &options.package_name;
     let ns = &options.namespace;
     let mut header = format!(
-        "#pragma once\n#include \"models.hpp\"\n#include \"runtime/client_runtime.hpp\"\n\nnamespace {ns} {{\nclass {client_name} {{\n    std::shared_ptr<runtime::ClientRuntime> runtime_;\npublic:\n    explicit {client_name}(runtime::ClientConfig config = {{}});\n    void close() {{ runtime_->close(); }}\n"
+        "#pragma once\n#include \"models.hpp\"\n#include \"runtime/client_runtime.hpp\"\n\nnamespace {ns} {{\n{}class {client_name} {{\n    std::shared_ptr<runtime::ClientRuntime> runtime_;\npublic:\n    /** Creates a client; copies share runtime and connections. */\n    explicit {client_name}(runtime::ClientConfig config = {{}});\n    /** Closes the shared runtime; finish active calls first. */\n    void close() {{ runtime_->close(); }}\n",
+        crucible_codegen_common::doxygen(
+            &format!(
+                "{}\nConstruct with ClientConfig. Concurrent calls require thread-safe callbacks and transport. Copies share connections and close state; close after calls finish.",
+                service.docs.as_deref().unwrap_or("HTTP service client.")
+            ),
+            ""
+        )
     );
     let mut source = format!(
         "#include \"{package}/client.hpp\"\n#include \"{package}/schema.hpp\"\n\nnamespace {ns} {{\nnamespace {{\nstd::exception_ptr decode_error([[maybe_unused]] const std::string& target, [[maybe_unused]] const runtime::Json& value, [[maybe_unused]] runtime::ErrorMetadata metadata) {{\n"
@@ -61,6 +68,10 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
             .as_ref()
             .filter(|payload| payload.streaming)
             .map(|payload| names::field(&payload.member));
+        header.push_str(&crucible_codegen_common::doxygen(
+            &crucible_codegen_common::operation_docs(service, operation),
+            "    ",
+        ));
         header.push_str(&format!(
             "    [[nodiscard]] {output} {name}({input}std::stop_token stop = {{}}) const;\n"
         ));
@@ -102,7 +113,7 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
         for waiter in operation.waiters.keys() {
             let method = format!("wait_until_{}", names::field(waiter));
             header.push_str(&format!(
-                "    // Polls {} until the {waiter} waiter's acceptors succeed or fail; throws runtime::WaiterTimeoutError after timeout seconds.\n    [[nodiscard]] std::optional<{output}> {method}({input}double timeout, runtime::WaiterOptions options = {{}}, std::stop_token stop = {{}}) const;\n",
+                "    /// Polls {} until the {waiter} waiter's acceptors succeed or fail; throws runtime::WaiterTimeoutError after timeout seconds.\n    [[nodiscard]] std::optional<{output}> {method}({input}double timeout, runtime::WaiterOptions options = {{}}, std::stop_token stop = {{}}) const;\n",
                 operation.name()
             ));
             let streams = if request_stream.is_some() || response_stream.is_some() {
@@ -123,7 +134,7 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
             ));
         }
         if operation.paginated.is_some() {
-            header.push_str(&format!("    [[nodiscard]] runtime::Pages<{output}> {name}_pages({input}std::stop_token stop = {{}}) const;\n"));
+            header.push_str(&format!("    /** Creates a lazy iterator; next returns nullopt when exhausted. */\n    [[nodiscard]] runtime::Pages<{output}> {name}_pages({input}std::stop_token stop = {{}}) const;\n"));
             source.push_str(&format!("runtime::Pages<{output}> {client_name}::{name}_pages({input}std::stop_token stop) const {{\n    return runtime::Pages<{output}>(runtime_, {wire_name}, {encoded}, stop);\n}}\n"));
         }
     }

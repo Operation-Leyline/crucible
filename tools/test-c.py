@@ -4,13 +4,14 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import shutil
 from pathlib import Path
 import tempfile
 import threading
 import time
 from urllib.parse import parse_qs, urlsplit
 
-from sdk_conformance_model import qualification_model
+from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
 from sdk_test_support import ROOT, run, weather
 
@@ -285,11 +286,21 @@ def qualify_features(output):
             run(str(executable(build_dir, name)), env=runtime_env)
 
 
+def check_docs(package):
+    if not shutil.which("doxygen"):
+        print("Doxygen unavailable; documentation markup covered by generator regression tests")
+        return
+    config = package / "Doxyfile"
+    config.write_text('INPUT = include\nRECURSIVE = YES\nEXTRACT_ALL = YES\nQUIET = YES\nGENERATE_HTML = NO\nGENERATE_LATEX = NO\nWARN_IF_UNDOCUMENTED = NO\nWARN_AS_ERROR = YES\n', encoding="utf-8")
+    run("doxygen", str(config), cwd=package)
+
+
 def qualify(output):
     if os.environ.get("C_FEATURES_ONLY"):
         qualify_features(output)
         return
     models(output)
+    check_docs(output / "sdk")
     sdk_build, install = output / "sdk-build", output / "installed"
     configure(output / "sdk", sdk_build, "-DCMAKE_INSTALL_PREFIX=" + install.as_posix())
     build(sdk_build)
