@@ -520,6 +520,61 @@ fn operations_named_like_schemas_imports_are_exported_under_an_alias() {
     assert!(file("src/client.ts").contains("spec.Schema"));
 }
 
+/// The private alias for `Schema` is `__op_Schema`; an operation that already
+/// has that name must not be redeclared by it.
+#[test]
+fn the_import_alias_avoids_another_operations_name() {
+    let mut model: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/globals.json")).unwrap();
+    let shapes = model["shapes"].as_object_mut().unwrap();
+    let service_id = shapes
+        .iter()
+        .find(|(_, shape)| shape["type"] == "service")
+        .map(|(id, _)| id.clone())
+        .unwrap();
+    shapes.insert(
+        "example.globals#__op_Schema".into(),
+        serde_json::json!({
+            "type": "operation",
+            "traits": { "smithy.api#http": { "method": "GET", "uri": "/op-schema" } }
+        }),
+    );
+    shapes.get_mut(&service_id).unwrap()["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({ "target": "example.globals#__op_Schema" }));
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let options = Options {
+        package_name: "globals".into(),
+        package_version: "0.0.0".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+    };
+    let files = emit(&service, &options).unwrap();
+    let schemas = &files
+        .iter()
+        .find(|file| file.path == "src/schemas.ts")
+        .unwrap()
+        .contents;
+    assert!(
+        schemas.contains("export const __op_Schema: OperationSpec = {"),
+        "{schemas}"
+    );
+    assert!(
+        schemas.contains("const ___op_Schema: OperationSpec = {"),
+        "{schemas}"
+    );
+    assert!(
+        schemas.contains("export { ___op_Schema as Schema };"),
+        "{schemas}"
+    );
+}
+
 #[test]
 fn an_operation_named_endpoint_rules_is_diagnosed_when_rules_are_exported() {
     let mut model: serde_json::Value =

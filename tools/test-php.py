@@ -60,7 +60,7 @@ echo "PHP archive consumer passed\\n";
     }}))
     renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
     renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "DateTime", "example.weather#Location": "Field", "example.weather#Sky": "NativeSky",
+        "example.weather#DateTime": "Instant", "example.weather#CitySummary": "DateTime", "example.weather#Location": "Field", "example.weather#Sky": "NativeSky",
     }
     for member in ["this", "context", "object", "metadata", "code", "message"]:
         renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}

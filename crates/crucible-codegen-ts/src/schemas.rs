@@ -650,7 +650,12 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     let body = format!("OperationSpec = {{\n  {},\n}};\n", fields.join(",\n  "));
     if IMPORTS.contains(&name) {
         // Exporting under the name needs no local binding of it, so the import keeps its own.
-        format!("const __op_{name}: {body}export {{ __op_{name} as {name} }};\n")
+        // The alias must not equal another operation's name, which is declared directly.
+        let mut alias = format!("__op_{name}");
+        while service.operations.iter().any(|other| other.name() == alias) {
+            alias.insert(0, '_');
+        }
+        format!("const {alias}: {body}export {{ {alias} as {name} }};\n")
     } else {
         format!("export const {name}: {body}")
     }
