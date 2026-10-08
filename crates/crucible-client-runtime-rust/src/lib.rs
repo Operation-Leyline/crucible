@@ -47,7 +47,7 @@ pub use credentials::AwsCredentials;
 pub use crucible_wire::blob::Blob;
 pub use crucible_wire::error::ModelledError;
 pub use crucible_wire::field::Field;
-pub use crucible_wire::open::UnknownUnion;
+pub use crucible_wire::open::{Enum as OpenEnum, UnknownUnion};
 pub use crucible_wire::operation::{Checksum, ChecksumAlgorithm, Protocol};
 pub use crucible_wire::operation::{Operation, OperationInfo};
 pub use crucible_wire::{blob, number, operation, time, validate};
@@ -88,7 +88,7 @@ pub mod __generated {
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        cbor, codec, error, event_stream, number, open, operation, time, validate,
+        cbor, codec, error, event_stream, field, number, open, operation, time, validate,
     };
 
     pub const fn build_error(shape: &'static str, member: &'static str) -> crate::BuildError {

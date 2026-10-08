@@ -7,6 +7,7 @@ use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serializer};
 use serde_json::Value;
 
+/// String enum values, including values added by a newer service.
 pub trait Enum: Sized {
     fn from_string(value: String) -> Self;
     fn as_str(&self) -> &str;

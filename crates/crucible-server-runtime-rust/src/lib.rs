@@ -121,7 +121,7 @@ pub mod __generated {
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        cbor, codec, error, event_stream, number, open, operation, time, validate,
+        cbor, codec, error, event_stream, field, number, open, operation, time, validate,
     };
 
     pub use chrono;

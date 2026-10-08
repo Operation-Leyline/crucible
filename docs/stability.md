@@ -80,6 +80,12 @@ support Lambda with the `lambda` feature. Model value types such as `Blob`,
 `ByteStream`, `EventStream`, `BigInteger`, and `BigDecimal` remain available
 through documented public paths.
 
+Rust client applications use `OpenEnum::{from_string, as_str}` to construct and
+inspect string enum values, including unknown values from a newer service.
+`Field` and `UnknownUnion` support advanced presence and forward-compatibility
+handling. These consumer types are re-exported directly by the client runtime;
+their serialization machinery belongs to `__generated`.
+
 ## Reading generated metadata
 
 `OperationInfo` and `ServiceInfo` are static descriptions exposed by operation

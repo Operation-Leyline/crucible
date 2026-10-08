@@ -118,16 +118,18 @@ static QUERIES: OperationInfo = {
         &[Segment::Literal("queries")],
         base.literal_query,
         base.status,
-        &[member("queries", Location::QueryParams), {
-            let base = &(member("tags", Location::Query("tag")));
-            generated::member_info(
-                base.name,
-                base.location,
-                Scalar::List(&Scalar::String),
-                base.redaction,
-                base.traits,
-            )
-        }],
+        &const {
+            [member("queries", Location::QueryParams), {
+                let base = &(member("tags", Location::Query("tag")));
+                generated::member_info(
+                    base.name,
+                    base.location,
+                    Scalar::List(&Scalar::String),
+                    base.redaction,
+                    base.traits,
+                )
+            }]
+        },
         &[
             member("queries", Location::Body),
             member("tags", Location::Body),

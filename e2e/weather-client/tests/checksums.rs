@@ -7,7 +7,7 @@ mod common;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use crucible_client_runtime_rust::open::Enum;
+use crucible_client_runtime_rust::OpenEnum;
 use crucible_client_runtime_rust::{
     Blob, ByteStream, ChecksumAlgorithm, ChecksumPolicy, Config, Error, Interceptor, Retry,
 };
