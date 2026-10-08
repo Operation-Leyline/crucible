@@ -10,6 +10,7 @@ import inspect
 import ipaddress
 import json
 import math
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -169,6 +170,9 @@ def _blob(value: Any, decode: bool) -> Any:
     return base64.b64encode(value).decode("ascii")
 
 
+_HTTP_DATE_SEPARATOR = re.compile(r",\s*(?=(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),)")
+
+
 class _Codec:
     def __init__(self, schema: dict[str, Any], classes: dict[str, Any]) -> None:
         self.schema = schema
@@ -300,22 +304,30 @@ class _Codec:
         if kind == "list":
             if not text.strip():
                 return []
-            # JSON quoting rules are also used for commas and quotes in header lists.
             parts: list[str] = []
             start = 0
-            quoted = escaped = False
-            for i, c in enumerate(text):
-                if escaped:
-                    escaped = False
-                elif c == "\\" and quoted:
-                    escaped = True
-                elif c == '"':
-                    quoted = not quoted
-                elif c == "," and not quoted:
-                    parts.append(text[start:i].strip())
-                    start = i + 1
-            if quoted:
-                raise ValueError("unterminated quoted header value")
+            member = shape["member"]
+            if self.shapes[member["target"]]["kind"] == "timestamp" and (fmt or member.get("format")) == "http-date" and not text.lstrip().startswith('"'):
+                # Every IMF-fixdate holds a comma and the protocols write these lists unquoted, so only a comma
+                # that is followed by the next date's weekday separates two values.
+                for found in _HTTP_DATE_SEPARATOR.finditer(text):
+                    parts.append(text[start:found.start()].strip())
+                    start = found.start() + 1
+            else:
+                # JSON quoting rules are also used for commas and quotes in header lists.
+                quoted = escaped = False
+                for i, c in enumerate(text):
+                    if escaped:
+                        escaped = False
+                    elif c == "\\" and quoted:
+                        escaped = True
+                    elif c == '"':
+                        quoted = not quoted
+                    elif c == "," and not quoted:
+                        parts.append(text[start:i].strip())
+                        start = i + 1
+                if quoted:
+                    raise ValueError("unterminated quoted header value")
             parts.append(text[start:].strip())
             return [self.read_header(shape["member"], json.loads(p) if p.startswith('"') else p, encoding, fmt) for p in parts]
         if encoding == "base64":

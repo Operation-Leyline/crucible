@@ -212,6 +212,41 @@ func TestHeaderLists(t *testing.T) {
 		}
 	}
 }
+func TestUnquotedHTTPDateHeaderLists(t *testing.T) {
+	schema := &schemaDescription{Shapes: map[string]shapeDescription{
+		"example#Time":  {Kind: "timestamp"},
+		"example#Times": {Kind: "list", Member: memberDescription{Target: "example#Time", Format: "http-date"}},
+	}}
+	member := memberDescription{Target: "example#Times"}
+	first, second := "Mon, 16 Dec 2019 23:48:18 GMT", "Tue, 17 Dec 2019 23:48:18 GMT"
+	for wire, want := range map[string][]any{
+		first + ", " + second: {first, second},
+		first:                 {first},
+		`"` + first + `"`:     {first},
+	} {
+		value, err := headerValue(schema, member, wire)
+		if err != nil || !reflect.DeepEqual(value, want) {
+			t.Fatalf("%q => %#v, %v", wire, value, err)
+		}
+	}
+}
+func TestNonFiniteFloatHeaders(t *testing.T) {
+	schema := &schemaDescription{Shapes: map[string]shapeDescription{"example#Ratio": {Kind: "float"}}}
+	schema.ProtocolSettings.NonFiniteFloatStrings = true
+	member := memberDescription{Target: "example#Ratio"}
+	for _, text := range []string{"NaN", "Infinity", "-Infinity"} {
+		if value, err := headerValue(schema, member, text); err != nil || value != text {
+			t.Fatalf("%q => %#v, %v", text, value, err)
+		}
+	}
+	if value, err := headerValue(schema, member, "1.5"); err != nil || value != json.Number("1.5") {
+		t.Fatalf("finite => %#v, %v", value, err)
+	}
+	schema.ProtocolSettings.NonFiniteFloatStrings = false
+	if _, err := headerValue(schema, member, "NaN"); err == nil {
+		t.Fatal("NaN accepted by a protocol without non-finite floats")
+	}
+}
 func TestMalformedErrorMetadataAndRetry(t *testing.T) {
 	data, err := os.ReadFile("malformed-errors.json")
 	if err != nil {
