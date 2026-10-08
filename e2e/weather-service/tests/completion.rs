@@ -76,6 +76,7 @@ static FAULT: OperationInfo = OperationInfo {
     ..*weather::Ping::INFO
 };
 static SERVICE: ServiceInfo = ServiceInfo {
+    cors: None,
     id: "test.completion#Service",
     operations: &[&UPLOAD, &DOWNLOAD, &BROKEN, &FAULT],
     ..weather::SERVICE

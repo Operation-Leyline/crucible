@@ -270,7 +270,19 @@ impl<'m> Lowerer<'m> {
         self.check_stream_references(&operations);
         let protocol_tests =
             crate::protocol_tests::lower(self.model, &operations, &mut self.diagnostics);
+        let cors = shape.traits.get(&smithy("cors")).and_then(|value| {
+            crate::cors::lower(
+                id,
+                value,
+                self.protocol,
+                &operations,
+                &self.shapes,
+                &auth_schemes,
+                &mut self.diagnostics,
+            )
+        });
         Service {
+            cors,
             endpoint_discovery,
             recursive_groups,
             xml_namespace,
@@ -1291,6 +1303,15 @@ impl<'m> Lowerer<'m> {
     }
 
     fn check_traits(&mut self, id: &ShapeId, traits: &Traits) {
+        if traits.contains_key(&smithy("cors"))
+            && !self
+                .model
+                .get(id)
+                .is_some_and(|shape| shape.kind == Kind::Service)
+        {
+            self.diagnostics
+                .push(id, "@cors can only apply to a service");
+        }
         for (name, feature) in [
             ("hostLabel", Feature::EndpointHostPrefix),
             ("optionalAuth", Feature::OptionalAuth),

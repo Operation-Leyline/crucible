@@ -2,6 +2,7 @@
 //! operations. All of it is `'static` data built at compile time, so routing,
 //! binding and logging read it without allocation.
 
+pub use crate::cors_info::CorsInfo;
 use std::any::Any;
 
 use serde::Serialize;
@@ -60,6 +61,7 @@ pub trait Operation: Send + Sync + 'static {
 
 #[derive(Debug)]
 pub struct ServiceInfo {
+    pub cors: Option<&'static CorsInfo>,
     /// The service's shape id, `namespace#Name`.
     pub id: &'static str,
     pub version: &'static str,

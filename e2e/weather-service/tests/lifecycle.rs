@@ -43,6 +43,7 @@ static INFO: OperationInfo = OperationInfo {
     traits: &[],
 };
 static SERVICE: ServiceInfo = ServiceInfo {
+    cors: None,
     id: "lifecycle#Service",
     version: "1",
     operations: &[&INFO],

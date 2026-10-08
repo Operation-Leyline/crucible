@@ -8,6 +8,7 @@ pub mod blob;
 pub mod bound;
 pub mod cbor;
 pub mod codec;
+mod cors_info;
 pub mod error;
 pub mod event_stream;
 pub mod field;

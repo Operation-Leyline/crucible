@@ -379,6 +379,10 @@ fn wire(service: &Service, op: &Operation) -> String {
 }
 
 fn service_info(service: &Service, functions: &Functions) -> String {
+    let cors = service.cors.as_ref().map_or_else(|| "None".to_owned(), |cors| {
+        let list = |values: &[String]| values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ");
+        format!("Some(&::crucible_server_runtime_rust::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})", literal(&cors.origin), cors.max_age, cors.allow_credentials, list(&cors.allowed_headers), list(&cors.allowed_header_prefixes), list(&cors.exposed_headers), list(&cors.methods))
+    });
     let operations: Vec<String> = service
         .operations
         .iter()
@@ -396,7 +400,7 @@ fn service_info(service: &Service, functions: &Functions) -> String {
         }
     };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {{\n    id: {},\n    version: {},\n    operations: &[\n        {}{}\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::ServiceInfo = ::crucible_server_runtime_rust::ServiceInfo {{\n    id: {},\n    version: {},\n    cors: {cors},\n    operations: &[\n        {}{}\n    ],\n    errors: &[{}],\n    classify,\n    reject: {},\n    internal: {},\n    unknown: {},\n}};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),

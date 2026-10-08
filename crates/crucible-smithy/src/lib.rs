@@ -7,6 +7,7 @@
 
 mod ast;
 mod capabilities;
+mod cors;
 mod diagnostics;
 mod discovery;
 mod extensions;

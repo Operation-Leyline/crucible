@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+pub use crate::cors::Cors;
 pub use crate::discovery::{DiscoveredEndpoint, EndpointDiscovery};
 pub use crate::extensions::*;
 pub use crate::jmespath_ir::{JmesComparator, JmesEntry, JmesExpression, JmesFunction};
@@ -26,6 +27,7 @@ pub type Traits = BTreeMap<ShapeId, Value>;
 
 #[derive(Debug, Clone)]
 pub struct Service {
+    pub cors: Option<Cors>,
     pub endpoint_discovery: Option<EndpointDiscovery>,
     pub recursive_groups: Vec<RecursiveGroup>,
     pub xml_namespace: Option<XmlNamespace>,

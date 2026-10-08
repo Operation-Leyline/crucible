@@ -322,8 +322,38 @@ Cancellation drops request work; hooks are not guaranteed to run when their
 future is dropped. Streaming failures after headers cannot replace the answer;
 body wrappers can observe end, error, and drop for delivery-specific metering.
 
+### Cross-origin requests
+
+Smithy `@cors` on a service automatically installs the built-in `middlewares::Cors`
+when `Builder::build` runs, including builders that do not call `defaults()`.
+An empty trait uses origin `*` and a preflight cache age of 600 seconds. Set
+`origin`, `maxAge` (including `-1` to disable caching),
+`additionalAllowedHeaders`, or `additionalExposedHeaders` in the model.
+
+Lowering computes sorted, case-insensitively deduplicated request and response
+header lists across all operations and errors, including authentication headers,
+`content-type`, `x-request-id`, and `X-Crucible-Error`. The generated service
+carries only a static description; the runtime prepares header values once.
+Input `@httpPrefixHeaders` bindings retain their prefixes separately: preflight
+adds matching concrete names from `Access-Control-Request-Headers`, since
+browsers do not interpret partial wildcards such as `x-meta-*`.
+
+Preflight `OPTIONS` with an allowed origin and modeled requested method receives
+an empty 204 response before routing or application authentication, including
+paths that would otherwise return an unknown-operation or method rejection.
+Other requests follow the ordinary pipeline. Every HTTP response
+carries the configured origin and exposed headers, including modeled errors, validation and
+transport rejections, recovered panics, and outer Tower rejection responses.
+Direct JSON invocations do not run HTTP CORS behavior.
+
+Support currently requires an HTTP-binding protocol (Crucible JSON, REST JSON,
+or REST XML; the selected generator must also support that protocol). Named
+`origins` require deployment selection and are diagnosed as unsupported.
+Browser-managed Basic or Digest credentials require an explicit origin; those
+policies also return `Access-Control-Allow-Credentials: true`.
+
 `Builder::tower_layer` is an explicit compatibility adapter for existing Tower
-middleware, outside the native pipeline and on every host. It can reuse CORS,
+middleware, outside the native pipeline and on every host. It can reuse custom CORS,
 compression, around-future task scopes, and similar transport machinery. The
 first adapter added is outermost. Its errors must be answered by that adapter,
 and its transformations/body delivery happen after native completion observers.
