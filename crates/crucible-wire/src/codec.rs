@@ -174,6 +174,9 @@ pub struct NonFinite;
 pub struct FiniteFloat;
 impl Codec<f32> for FiniteFloat {
     fn serialize<S: Serializer>(value: &f32, serializer: S) -> Result<S::Ok, S::Error> {
+        if !value.is_finite() {
+            return Err(serde::ser::Error::custom("number out of range"));
+        }
         value.serialize(serializer)
     }
 
@@ -430,6 +433,41 @@ mod tests {
             Adapter::<super::FiniteFloat>::deserialize::<f32, _>(BinaryFloat).unwrap(),
             1.5
         );
+    }
+
+    #[test]
+    fn finite_only_serialization_rejects_non_finite_in_json_and_cbor() {
+        #[derive(serde::Serialize)]
+        struct Single(#[serde(with = "Adapter::<super::FiniteFloat>")] f32);
+
+        for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let mut json = Vec::new();
+            let error = serde_json::to_writer(&mut json, &Single(value)).unwrap_err();
+            assert!(error.to_string().contains("number out of range"));
+            assert!(json.is_empty(), "{value}");
+
+            let mut cbor = Vec::new();
+            let error = crate::cbor::write(&Single(value), &mut cbor).unwrap_err();
+            assert!(error.contains("number out of range"));
+            assert!(cbor.is_empty(), "{value}");
+        }
+    }
+
+    #[test]
+    fn finite_only_serialization_round_trips_json_and_cbor() {
+        #[derive(serde::Serialize, serde::Deserialize)]
+        struct Single(#[serde(with = "Adapter::<super::FiniteFloat>")] f32);
+
+        for value in [f32::MAX, f32::MIN, f32::MIN_POSITIVE, 0.0, -0.0, 0.1, -1.5] {
+            let json = serde_json::to_string(&Single(value)).unwrap();
+            let decoded = serde_json::from_str::<Single>(&json).unwrap().0;
+            assert_eq!(decoded.to_bits(), value.to_bits());
+
+            let mut cbor = Vec::new();
+            crate::cbor::write(&Single(value), &mut cbor).unwrap();
+            let decoded = crate::cbor::read::<Single>(&cbor).unwrap().0;
+            assert_eq!(decoded.to_bits(), value.to_bits());
+        }
     }
 
     #[test]
