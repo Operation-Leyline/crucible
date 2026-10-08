@@ -225,20 +225,32 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     };
     let explorer = match options.explorer {
         Some(audience) => {
-            let projected = crucible_smithy::project(service, audience)?;
-            let description =
-                crucible_codegen_common::describe::describe_for_explorer(&projected)?.to_json();
-            // Parse JSON as data, preserving keys such as __proto__ rather than
-            // giving them JavaScript object-literal semantics.
-            let script = format!(
-                "globalThis.CRUCIBLE_DESCRIPTION = JSON.parse({});\n",
-                serde_json::to_string(&description).expect("JSON text")
-            );
-            format!(
-                "\n/// Embedded Explorer contract, generated at build time.\npub static DESCRIPTION: &::crucible_server_runtime_rust::explorer::Description = &::crucible_server_runtime_rust::__generated::explorer_description({}, {});\n",
-                names::literal(&description),
-                names::literal(&script)
-            )
+            let description = crucible_smithy::project(service, audience).and_then(|projected| {
+                crucible_codegen_common::describe::describe_for_explorer(&projected)
+            });
+            match description {
+                Ok(description) => {
+                    let description = description.to_json();
+                    // Parse JSON as data, preserving keys such as __proto__ rather than
+                    // giving them JavaScript object-literal semantics.
+                    let script = format!(
+                        "globalThis.CRUCIBLE_DESCRIPTION = JSON.parse({});\n",
+                        serde_json::to_string(&description).expect("JSON text")
+                    );
+                    format!(
+                        "\n/// Embedded Explorer contract, generated at build time.\npub static DESCRIPTION: &::crucible_server_runtime_rust::explorer::Description = &::crucible_server_runtime_rust::__generated::explorer_description({}, {});\n",
+                        names::literal(&description),
+                        names::literal(&script)
+                    )
+                }
+                Err(errors) => {
+                    // Description refusals must not hide ordinary server diagnostics.
+                    for error in errors.iter() {
+                        diagnostics.push(&error.shape, &error.message);
+                    }
+                    String::new()
+                }
+            }
         }
         None => String::new(),
     };

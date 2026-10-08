@@ -74,6 +74,7 @@ test("schema form and raw JSON mount through the existing renderer hook", () => 
   container.ownerDocument = win.document;
   const description = structuredClone(first.description);
   const operation = description.operations[first.operation];
+  operation.examples = [{ title: "Bound members and JSON body", inputValues: first.input }];
   const saved = {};
   const before = { location: globalThis.location, sessionStorage: globalThis.sessionStorage, CRUCIBLE_EXPLORER_CONFIG: globalThis.CRUCIBLE_EXPLORER_CONFIG };
   globalThis.location = { href: `${base}explorer/` };
@@ -84,5 +85,6 @@ test("schema form and raw JSON mount through the existing renderer hook", () => 
     assert.ok(container.querySelector("form"));
     assert.ok(container.querySelector("textarea"));
     assert.match(container.textContent, /Raw JSON/);
+    assert.deepEqual(JSON.parse(container.querySelector(".cx-try-json").value), first.input);
   } finally { Object.assign(globalThis, before); }
 });

@@ -1,6 +1,7 @@
 use axum::http::{StatusCode, header, request::Parts};
 use axum::response::IntoResponse;
-use crucible_server_runtime_rust::mcp::{EndpointAdmission, EndpointGuard, McpAuthorization};
+use crucible_server_runtime_rust::endpoint::{EndpointAdmission, EndpointGuard};
+use crucible_server_runtime_rust::mcp::McpAuthorization;
 use crucible_server_runtime_rust::{Context, Hook, operation::AuthScheme};
 
 use crate::{AuthError, AuthenticateResult, Authenticator, JwtAuthenticator, TokenKind};
