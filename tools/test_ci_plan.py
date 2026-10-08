@@ -307,7 +307,7 @@ class PlanTests(unittest.TestCase):
             if "uses: ./.github/actions/qualification-tools" in body:
                 with self.subTest(job=name):
                     self.assertIn("needs: [plan, rust, qualification-tools]", body)
-                    self.assertIn("always() && needs.rust.result == 'success'", body)
+                    self.assertIn("always() && !cancelled() && needs.rust.result == 'success'", body)
                     self.assertIn("needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true'", body)
                     self.assertIn("if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'", body)
         self.assertIn('results["plan"]["outputs"]["full"] == "true"', jobs["ci"])
