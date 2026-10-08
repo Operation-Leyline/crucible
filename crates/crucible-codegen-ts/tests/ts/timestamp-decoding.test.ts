@@ -11,3 +11,8 @@ test("epoch-seconds timestamps decode to the exact millisecond", () => {
     assert.equal((fromWire(schema, ms / 1000) as Date).getTime(), ms);
   }
 });
+
+test("sub-millisecond epoch-seconds fractions truncate like date-time text", () => {
+  const schema = timestamp("epoch-seconds");
+  assert.equal((fromWire(schema, parseJson("1791432419.889900")) as Date).getTime(), 1791432419889);
+});
