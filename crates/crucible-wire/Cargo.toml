@@ -7,7 +7,11 @@ rust-version.workspace = true
 publish.workspace = true
 repository.workspace = true
 
+[features]
+mcp = ["dep:jsonschema"]
+
 [dependencies]
+jsonschema = { version = "0.26.2", default-features = false, optional = true }
 base64 = "0.22"
 bytes = "1"
 ciborium = "0.2.2"

@@ -585,6 +585,7 @@ dependencies = [
  "crucible-wire",
  "serde",
  "serde_json",
+ "tokio",
  "url",
 ]
 
@@ -664,6 +665,7 @@ dependencies = [
 name = "crucible-codegen-cli"
 version = "0.4.0"
 dependencies = [
+ "crucible-codegen-common",
  "crucible-codegen-rust",
  "crucible-smithy",
  "semver",
@@ -866,7 +868,6 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "jsonschema",
  "lambda_http",
  "lambda_runtime",
  "regex",
@@ -909,6 +910,7 @@ dependencies = [
  "crucible-smithy",
  "futures-core",
  "futures-util",
+ "jsonschema",
  "regex",
  "serde",
  "serde_json",

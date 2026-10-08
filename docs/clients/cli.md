@@ -137,3 +137,41 @@ real Weather service. It covers input sources, presence, configuration precedenc
 authentication overrides, retry tokens, pagination, errors, and binary payloads.
 CI runs it on Linux and Windows. These checks do not prove authenticated access
 to deployed Leyline or Pigeon services.
+
+## Local MCP server
+
+Every generated executable includes an `mcp` subcommand for local agents:
+
+```sh
+weather --endpoint-url http://127.0.0.1:8080 mcp
+claude mcp add weather -- weather --config profiles.json --profile agent mcp
+```
+
+It uses the same endpoint, environment variables, named profiles and bearer
+credentials as operation commands. Wrappers can customize a parsed MCP
+invocation's `config` and pass it to `dispatch`, including token providers.
+Calls use the generated SDK and its operation authentication and retry rules.
+
+Stdio carries one JSON-RPC message per line and stdout contains only protocol
+responses. Initialize the session, send `notifications/initialized`, then use
+`tools/list` and `tools/call`; `ping` is available throughout. Closing stdin
+ends the server. Frames are limited to 1 MiB. Batch requests and discovery
+pagination are unsupported; operation pagination is explicit through cursors.
+Tools use Smithy operation names such as `GetCity`, while ordinary CLI commands
+use kebab-case. Tool errors return `isError: true` with a generic message;
+validation and SDK errors are never echoed because they may contain sensitive
+values. Successful tool results carry the modeled output in `structuredContent`
+and JSON text content. Protocol results intentionally retain requested sensitive
+output members; the stdio server does not log request or response values.
+
+The CLI reuses the HTTP MCP descriptor emitter, JSON schemas and validating
+registry. It respects the selected client audience (`External` by default,
+`--audience internal` when generating for trusted internal agents). No server
+`.mcp()` option is required: the CLI calls the ordinary service HTTP API.
+Streaming/event-stream operations retain the shared `mcp.streaming_excluded`
+notes in generated `MCP_EXCLUSIONS` and are unavailable as tools. The command
+name `mcp` is reserved and collisions are collected generation diagnostics.
+
+`python tools/test-cli.py` also verifies stdio initialization, discovery,
+notifications, malformed input, oversized frames, schema rejection, profiles,
+authentication overrides, modeled errors and a real Weather tool call in CI.

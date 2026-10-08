@@ -291,3 +291,18 @@ fn query_timestamps_accept_the_bound_and_document_formats() {
         assert_eq!(invocation.input["since"], json!(expected), "{raw}");
     }
 }
+
+#[test]
+fn mcp_uses_existing_configuration_without_operation_input() {
+    let invocation = run(&[
+        "weather",
+        "mcp",
+        "--endpoint-url",
+        "https://agent.example.com",
+    ])
+    .unwrap()
+    .unwrap();
+    assert_eq!(invocation.operation, "mcp");
+    assert_eq!(invocation.input, Value::Null);
+    assert!(!invocation.paginate);
+}

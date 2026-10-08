@@ -21,7 +21,10 @@ fn static_descriptors_match_golden() {
     ))
     .unwrap();
     assert!(code.contains("Some(MCP_TOOLS),"));
-    let descriptors = code.split("    /// External MCP tools;").nth(1).unwrap();
+    let descriptors = code
+        .split("    /// MCP tools for the selected audience;")
+        .nth(1)
+        .unwrap();
     let metadata = code
         .split("    /// The service, as the framework sees it.")
         .nth(1)

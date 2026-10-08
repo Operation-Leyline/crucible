@@ -2,6 +2,7 @@
 pub mod docs;
 pub mod documentation;
 pub mod json_schema;
+pub mod mcp;
 
 use crucible_smithy::ir::{
     Bindings, DocNotes, Fault, Member, Service, Shape, SimpleKind, TimestampFormat,

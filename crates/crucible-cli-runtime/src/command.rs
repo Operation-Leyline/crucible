@@ -53,10 +53,11 @@ pub(crate) fn build(spec: &Spec) -> Result<Command, Error> {
                 .global(true)
                 .value_parser(["bash", "elvish", "fish", "powershell", "zsh"])
                 .help("Print shell completion without making a request"),
-        );
+        )
+        .subcommand(Command::new("mcp").about("Serve local agents over MCP stdio"));
     let mut names = BTreeSet::new();
     for operation in &spec.operations {
-        if !names.insert(&operation.name) || operation.name == "help" {
+        if !names.insert(&operation.name) || matches!(operation.name.as_str(), "help" | "mcp") {
             return Err(Error::input(format!(
                 "duplicate or reserved command {}",
                 operation.name

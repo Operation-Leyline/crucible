@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 crucible-smithy.workspace = true
 crucible-codegen-rust.workspace = true
+crucible-codegen-common.workspace = true
 serde_json.workspace = true
 semver = "1"
 

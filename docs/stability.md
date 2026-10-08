@@ -119,3 +119,12 @@ of the consuming application's package version.
 Upgrade the build dependency and runtime together, then rebuild to regenerate.
 The `crucible-traits` Cargo package and model JAR share that workspace version;
 see [release preparation](releases.md#preparing-a-version).
+
+## Generated service CLI
+
+Generated service executables support the additive `mcp` command, documented in
+[the CLI guide](clients/cli.md#local-mcp-server). It uses existing configuration,
+profiles and authentication. Generated-code transport entry points and descriptor
+constructors belong to `crucible_cli_runtime::__generated`; they are hidden and
+must be regenerated with the runtime. Existing `parse`, `Invocation` and generated
+`dispatch` remain usable by wrappers with their previous defaults.
