@@ -399,7 +399,8 @@ protocol declining a request must leave it available to later protocols.
   target headers. Errors carry their full Smithy shape id in `__type`.
   CBOR preserves native byte strings, tag-1 timestamps, bignums, decimal
   fractions, and non-finite floating-point values. An absent input or output
-  type uses an empty body; an empty modeled structure still uses a document.
+  type uses an empty body (RPC v2 JSON servers also accept `{}` for an absent
+  input); an empty modeled structure still uses a document.
 - `InvokeProtocol` serves direct invocations: an operation called by name
   with its whole input as JSON, answered `{"output": ..}` or
   `{"error": {"__type": .., ..}}`. A payload blob is base64 there, like any
@@ -544,6 +545,71 @@ An error the generator fills (validation or internal) that has a string
 `requestId` member gets the id of the request it answers, the same one as
 the `x-request-id` header. A translation or `on_rejection` that builds such
 an error itself reads it from `Context::try_current()`.
+
+## Protocol conformance
+
+The Smithy `smithy.test` vectors in a model run against the real pipeline.
+`httpRequestTests`, `httpResponseTests` and `httpMalformedRequestTests` are
+lowered once, in `crucible-smithy`; `testParameters` of a malformed-request
+vector are expanded there (`$name` is replaced in the request and the
+expected response; ids become `Id[name=value]`). Request and response vectors
+without `appliesTo: client`, and every malformed-request vector, are server
+vectors.
+
+```rust
+// build.rs
+crucible_build::rust_service("weather_model")
+    .conformance()
+    .skip_vector("SomeVector", "why the server fails it today")
+    .generate();
+```
+
+```rust
+// lib.rs; Cargo.toml: crucible-server-runtime-rust = { features = ["test-support"] }
+// under [dev-dependencies]
+#[cfg(test)]
+mod conformance {
+    crucible_server_runtime_rust::include_conformance!();
+}
+```
+
+This writes one `#[test]` per vector for the service's protocol. The generated
+file is a vector table and calls into `crucible_server_runtime_rust::conformance`;
+what passes or fails is decided there, once:
+
+- **Request vector**: the request is sent, a stub operation captures the
+  input the pipeline decoded, and it must equal the vector's `params`.
+- **Response vector**: the stub operation returns `params` (as the output, or
+  as the modelled error for an error vector), and the status, headers and
+  body the pipeline serializes are compared with the vector's. JSON bodies
+  compare as documents, other bodies exactly; headers by name without case.
+- **Malformed-request vector**: the request must be refused with the stated
+  status, headers and body (`contents` as a document, or `messageRegex`
+  against the body's `message`), and no operation may run.
+
+`params` are Smithy's, not the model's: blobs are plain text and timestamps
+epoch seconds. A `ParamShape` table generated from the IR translates them to
+the wire form the generated types read, so the comparison is between typed
+values. A response vector is answered through a request the operation accepts:
+the operation's own when it has no labels and no required input, else the first
+request vector of that operation. A service built for the tests applies
+`defaults()`; pass a function to `include_conformance!(|builder| ..)` to add the
+service's own middleware.
+
+Nothing is dropped silently. A vector the generator cannot run (`vendorParams`,
+`authScheme`, a streaming member, no usable request) is a build error naming
+it; a vector the server fails is listed with `skip_vector(id, reason)`, which
+keeps it as an `#[ignore = "reason"]` test so it appears in every run, and a
+skip that names no vector is a build error too. A model with no applicable
+vector, or one using `smithy.protocols#rpcv2Cbor`, fails the build.
+`seed_request(operation, method, uri, headers, body)` names the request for an
+operation whose response vectors have no other (an RPC operation without input,
+for example).
+
+`e2e/rpcv2-json-service` runs Smithy's official RPC v2 JSON protocol tests this
+way (the `rpcv2-json` fixture), and `e2e/weather-service` runs the weather
+model's own, merged from `weather-vectors.json` the way an `apply` statement
+would add them.
 
 ## The service log
 

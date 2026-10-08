@@ -144,7 +144,7 @@ fn malformed_request_vectors_expand_test_parameters_when_lowered() {
     );
     assert!(literal.test_parameters.is_empty());
 
-    let json = serde_json::to_value(&literal).unwrap();
+    let json = serde_json::to_value(literal).unwrap();
     assert_eq!(json["case"]["kind"], "malformedRequest");
     assert_eq!(
         json["case"]["response"]["body"]["assertion"]["messageRegex"],

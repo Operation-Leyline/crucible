@@ -31,12 +31,12 @@ reviewed by CodeRabbit; never push to main.
 
 | Crate | Owns |
 |---|---|
-| `crucible-server-runtime-rust` | the Rust server framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
+| `crucible-server-runtime-rust` | the Rust server framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda), and the `test-support` conformance harness |
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client-runtime-rust` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
 | `crucible-traits` (`smithy/`) | canonical Smithy trait sources, exposed as a Cargo package and model JAR |
-| `crucible-codegen-rust` | IR → Rust server/client bindings and complete Cargo SDK packages with automatic runtime dependencies |
+| `crucible-codegen-rust` | IR → Rust server/client bindings, server conformance tests from `smithy.test` vectors, and complete Cargo SDK packages with automatic runtime dependencies |
 | `crucible-codegen` | shared native client and document/infrastructure/CLI output selection, target checks, generated-file ownership and stable output publication |
 | `crucible-build` | Cargo build scripts: compile/publish models, generate/export named client, document, infrastructure and CLI outputs and generate service contracts |
 | `crucible-policy` | configurable build-time API policy and directional compatibility checks; consumes only the lowered IR |
@@ -54,8 +54,10 @@ reviewed by CodeRabbit; never push to main.
 `e2e/` is its own Cargo workspace: `weather-model` (a model package),
 `weather-service` (a service package that generates in `build.rs`, laid out
 as `docs/framework.md` "Laying out a service" says: `operations/<resource>/`,
-one file per operation; `middlewares/` and `interceptors/`, one file per extension) and
-`weather-client` (a client package, tested against the service over HTTP).
+one file per operation; `middlewares/` and `interceptors/`, one file per extension),
+`weather-client` (a client package, tested against the service over HTTP) and
+`rpcv2-json-service` (Smithy's official RPC v2 JSON protocol tests, run against the
+server with stub operations: `docs/framework.md` "Protocol conformance").
 Code here follows the same rule: one type per file, named for it. It is the
 example service and the integration test. Keep these rules:
 
