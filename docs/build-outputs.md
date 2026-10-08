@@ -301,7 +301,7 @@ both Rust client and CLI runtime manifests exist. The CLI target uses the Rust
 emitter even when the build helper's `rust` feature is disabled.
 
 `model.docs("reference").generate_into("generated/reference")` exports Markdown
-in mdBook layout and `describe.json`. Its default audience is external; select
+in mdBook layout, `describe.json`, and the static HTML reference (`index.html`). Its default audience is external; select
 `.audience(Audience::Internal)` to include internal items with badges. See
 [service API references](docs.md) for the stable description schema and wire
 rendering diagnostics.

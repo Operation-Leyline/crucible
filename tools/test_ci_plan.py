@@ -56,8 +56,10 @@ class PlanTests(unittest.TestCase):
 
     def test_openapi_export_keeps_its_rust_qualification(self):
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/src/lib.rs"]), {"rust"})
-        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/src/lib.rs"]), {"rust"})
-        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/tests/golden/weather-external/describe.json"]), {"rust"})
+        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/src/lib.rs"]), {"rust", "docs_site"})
+        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/runtime/explorer.js"]), {"rust", "docs_site"})
+        self.assertEqual(affected_groups(["tools/test-docs-site.sh"]), {"rust", "docs_site"})
+        self.assertEqual(affected_groups(["crates/crucible-codegen-docs/tests/golden/weather-external/describe.json"]), {"rust", "docs_site"})
         self.assertEqual(affected_groups(["crates/crucible-codegen-openapi/tests/golden/weather.openapi.json"]), {"rust"})
 
     def test_onboarding_and_editor_integration_paths_keep_their_gates(self):
@@ -319,8 +321,8 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 6)
         self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 8)
         self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 5)
-        # Preserve the 36 test variants (including consumers) plus planner/aggregate and one tools build.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 39)
+        # Preserve the 37 test variants (including consumers) plus planner/aggregate and one tools build.
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 40)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):

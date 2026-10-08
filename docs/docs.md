@@ -5,11 +5,11 @@ Smithy IR. Each operation has request syntax, parameters, body members, response
 syntax, modeled errors, pagination, idempotency, and examples. Resource lifecycle
 tables and data-type pages connect those operation pages.
 
-The output is Markdown in mdBook layout, plus a versioned `describe.json`
-contract. It retains Smithy information that an OpenAPI conversion cannot carry,
+The output is Markdown in mdBook layout, a versioned `describe.json` contract,
+and a static single-page HTML reference that renders that contract in a browser. It retains Smithy information that an OpenAPI conversion cannot carry,
 including resources, pagination, idempotency tokens, retryable errors, and all
-documentation notes. The Markdown renderer consumes the same description data
-that a future static reference page or in-service Explorer can read.
+documentation notes. The Markdown and HTML renderers, and the in-service Explorer, read the same
+description data.
 
 ## Generating a reference
 
@@ -62,8 +62,12 @@ the previous reference. See [named outputs](build-outputs.md).
 ## Output layout
 
 ```text
-book.toml
+index.html
+explorer.js
+explorer.css
 describe.json
+describe.js
+book.toml
 src/
   SUMMARY.md
   index.md
@@ -78,8 +82,54 @@ errors, resource lifecycle slots, and operations. Data-type pages include
 structures, unions, enums, constrained scalars, and collections.
 
 With mdBook installed, `mdbook build generated/weather-docs` renders the
-Markdown. Crucible generates the source reference; it does not launch mdBook,
-build an HTML site, or serve an Explorer.
+Markdown. Crucible does not launch mdBook or serve the HTML reference.
+
+## Static HTML reference
+
+Open `index.html` in a browser, from `file://` or any static host. It shows a
+sidebar of resources and operations with search, the service overview, operation
+pages (request in protocol form, parameter and body tables, response, errors,
+pagination, idempotency, examples with copy buttons), data-type pages, and
+internal/deprecated/unstable badges. Light and dark themes follow
+`prefers-color-scheme`; every page has a hash address such as
+`#/op/example.weather%23GetCity/errors`, and the sidebar, search (`/` focuses
+it), and copy buttons work from the keyboard.
+
+`explorer.js` and `explorer.css` are identical for every service: a fixed,
+hand-written renderer (vanilla ES2022, no dependencies, no CDN, no web fonts, no
+build step, under 100 KB) beside the service's data. `index.html` contains no
+inline script or style, so the page works under
+`Content-Security-Policy: script-src 'self'; style-src 'self'`. The renderer
+reads `globalThis.CRUCIBLE_DESCRIPTION`, which `describe.js` sets from the same
+JSON as `describe.json`, and otherwise fetches `describe.json` beside the page.
+Browsers refuse to fetch a sibling file from `file://`, hence the script form.
+
+Documentation HTML in `describe.json` is sanitized at build time and is the only
+markup the renderer inserts. Every other model string (names, enum values,
+defaults, example bodies, notes, links) is added as text, and only `http(s)` and
+`mailto` links become anchors.
+
+### Extending the renderer
+
+The in-service Explorer adds its try-it panel without forking the renderer. Load
+a script after `explorer.js` and register a panel:
+
+```js
+CrucibleExplorer.registerOperationPanel((operation, container, context) => {
+  container.textContent = `Try ${operation.name}`;
+});
+```
+
+Each panel is called whenever an operation page is drawn, with the description's
+operation object, an empty element to fill, and a context with `description`,
+`shapes` and `route`. `registerOperationPanel` returns a function that removes
+the panel; panels registered after the first render redraw the page. An
+exception in a panel is shown in its container and does not affect the page. A
+page that wants to start the renderer itself marks its root
+`data-crucible-explorer data-manual` and calls
+`CrucibleExplorer.start(root, description)`. The pure view functions
+(`overviewView`, `operationView`, `shapeView`) return plain node objects, which
+is how `tests/site/` checks them under Node.
 
 ## Supported wire rendering and diagnostics
 
@@ -232,7 +282,10 @@ as appropriate. Buffered examples never claim to represent event framing.
 
 ## Reviewing generated changes
 
-Weather and RPC Catalog goldens include every generated file in both audiences.
+Weather and RPC Catalog goldens include every generated file in both audiences,
+except the identical renderer files, which have one reviewed copy under
+`tests/golden/site`, and `describe.js`, which tests compare with
+`describe.json`.
 The Catalog fixture covers documentation notes, pagination, unions, enums,
 idempotency, RPC headers, timestamp examples, and arbitrary-precision wire values.
 Run the focused tests after intended changes:
@@ -242,6 +295,14 @@ cargo test -p crucible-codegen-common -p crucible-codegen-docs -p crucible-smith
 cargo test -p crucible-build --features docs
 cargo test -p crucible-codegen --features docs
 cargo test -p crucible-cli
+```
+
+The renderer itself is tested under Node's built-in runner, against the Weather
+and Catalog `describe.json` goldens, a hostile-markup fixture, and a minimal DOM
+that runs the real boot path:
+
+```sh
+bash tools/test-docs-site.sh
 ```
 
 Use `CRUCIBLE_BLESS=1 cargo test -p crucible-codegen-docs` only for an intended

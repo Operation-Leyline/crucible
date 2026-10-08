@@ -11,7 +11,7 @@ import subprocess
 GROUPS = frozenset({
     "rust", "e2e", "service_cli", "cdk", "terraform", "c", "cpp", "r",
     "ruby", "php", "dart", "swift", "kotlin", "csharp", "java", "go",
-    "python", "typescript", "onboarding", "editor", "consumers",
+    "python", "typescript", "onboarding", "editor", "consumers", "docs_site",
 })
 # Rust checks include every generator's unit/golden tests. Real HTTP and the
 # dependency-free TS runtime cover the server path on every shared-code PR.
@@ -32,7 +32,9 @@ CONSUMER_CRATES = frozenset({
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.
     "openapi": set(),
-    "docs": set(),
+    # The static reference renderer is plain JS run by Node; Rust golden tests
+    # cover the files the generator copies.
+    "docs": {"docs_site"},
     "cli": {"service_cli"},
     "infra": {"cdk", "terraform"},
     "cdk": {"cdk"},
@@ -54,6 +56,7 @@ TOOLS = {
     "tools/build_traits_jar.py": CORE_GROUPS,
     **{f"tools/test-{name}.py": groups for name, groups in GENERATORS.items()},
     "tools/test-ts.sh": {"typescript", "e2e"},
+    "tools/test-docs-site.sh": {"docs_site"},
     "tools/test-e2e.sh": {"e2e"},
     "tools/test-kotlin-android.py": {"kotlin"},
     "tools/test-kotlin-multiplatform.py": {"kotlin"},
