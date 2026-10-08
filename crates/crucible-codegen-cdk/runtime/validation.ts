@@ -47,6 +47,13 @@ export function validate(value: unknown, schema: any, shapes: any, path: string,
       for (const [key, member] of Object.entries<any>(schema.members)) {
         validate(record[key], member, shapes, `${path}.${key}`, member.required, depth + 1);
       }
+      // toWire writes in key order, so an unvalidated key spelled like another member's wire
+      // name (`Max_Count` beside `maxCount`) would overwrite the validated value.
+      const wireOwners = new Map<string, string>(Object.entries<any>(schema.members).map(([key, member]) => [member.wire, key]));
+      for (const key of Object.keys(record)) {
+        const owner = wireOwners.get(key);
+        if (owner !== undefined && owner !== key) fail(`unknown property '${key}' aliases '${owner}'`);
+      }
     } else {
       for (const key of Object.keys(record)) {
         validate(key, schema.key, shapes, `${path}.<key>`, true, depth + 1);

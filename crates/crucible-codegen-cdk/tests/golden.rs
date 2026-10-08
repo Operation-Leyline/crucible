@@ -213,3 +213,19 @@ fn csharp_class_member_collision_is_diagnosed_before_emission() {
             .contains("enclosing class in .NET")
     );
 }
+
+#[test]
+fn runtime_rejects_unknown_keys_aliasing_a_member_wire_name() {
+    let (service, bindings, options) = inputs();
+    let plan = resolve(&service, &bindings).unwrap();
+    let files = emit(&service, &plan, &options).unwrap();
+    let runtime = files
+        .iter()
+        .find(|file| file.path == "src/validation.ts")
+        .unwrap();
+    assert!(
+        runtime.contents.contains("aliases '${owner}'"),
+        "{}",
+        runtime.contents
+    );
+}
