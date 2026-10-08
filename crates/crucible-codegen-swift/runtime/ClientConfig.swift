@@ -1,7 +1,7 @@
 import Foundation
 
 /// What the transport learned about a failed call, apart from the modeled body.
-public struct ErrorMetadata: Sendable, CustomStringConvertible {
+public struct ErrorMetadata: Sendable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
     /// The error's shape name as received, or `UnknownError` when none was sent.
     public var name: String
     /// The service's human-readable message, empty when it sent none.
@@ -21,6 +21,9 @@ public struct ErrorMetadata: Sendable, CustomStringConvertible {
         "ErrorMetadata(name=\(name), status=\(status)" + (requestID.map { ", requestID=\($0)" } ?? "")
             + (retryable ? ", retryable=true" : "") + (throttling ? ", throttling=true" : "") + ")"
     }
+    public var debugDescription: String { description }
+    /// Reflection (`dump`, `String(reflecting:)`) would otherwise list `message` and `headers`.
+    public var customMirror: Mirror { Mirror(self, children: ["description": description]) }
     public init(name: String = "UnknownError", message: String = "", status: Int = 0,
                 requestID: String? = nil, headers: [String: [String]] = [:], retryable: Bool = false, throttling: Bool = false) {
         self.name = name; self.message = message; self.status = status; self.requestID = requestID

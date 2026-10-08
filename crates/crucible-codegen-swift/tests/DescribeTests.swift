@@ -51,6 +51,16 @@ final class DescribeTests: XCTestCase {
         for leaked in secrets { XCTAssertFalse(dumped.contains(leaked), "\(leaked) in dump") }
     }
 
+    func testErrorMetadataDumpsHideMessageAndHeaders() {
+        let metadata = ErrorMetadata(name: "AccessDenied", message: "msg-secret", status: 403,
+                                     headers: ["authorization": ["header-secret"]])
+        var dumped = ""
+        dump(UnknownServiceError(metadata: metadata), to: &dumped)
+        for text in [dumped, String(reflecting: metadata), metadata.debugDescription] {
+            XCTAssertFalse(text.contains("header-secret") || text.contains("msg-secret"), text)
+        }
+    }
+
     func testUnionsAndAbsentMembers() {
         XCTAssertEqual(Credential.pin("9999").description, "Credential(pin=\(marker))")
         XCTAssertEqual(Credential.username("bob").description, "Credential(username=bob)")
