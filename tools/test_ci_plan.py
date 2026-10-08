@@ -298,6 +298,9 @@ class PlanTests(unittest.TestCase):
         self.assertIn("needs.plan.outputs.full == 'true'", jobs["qualification-tools"])
         self.assertIn("runs-on: ubuntu-22.04", jobs["qualification-tools"])
         self.assertIn("qualification-tools-linux-${{ github.sha }}", jobs["qualification-tools"])
+        # Re-running all jobs keeps the run and SHA, so replace its old artifact.
+        upload = jobs["qualification-tools"].split("uses: actions/upload-artifact@", 1)[1]
+        self.assertRegex(upload, r"(?m)^          overwrite: true$")
         action = (ROOT / ".github/actions/qualification-tools/action.yml").read_text()
         self.assertIn("qualification-tools-linux-${{ github.sha }}", action)
         self.assertNotIn("run-id:", action)
