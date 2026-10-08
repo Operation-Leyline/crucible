@@ -1,4 +1,14 @@
 fn main() {
+    let auth = "../../crates/crucible-smithy/tests/fixtures/auth-chain.json";
+    println!("cargo::rerun-if-changed={auth}");
+    let auth_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
+    std::fs::write(
+        auth_out.join("auth_chain.rs"),
+        crucible_build::RustCodegen::from_model(auth)
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     let model = "../../crates/crucible-smithy/tests/fixtures/observability.json";
     println!("cargo::rerun-if-changed={model}");
     let out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));

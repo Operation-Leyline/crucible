@@ -156,6 +156,7 @@ pub(crate) fn lower(
             }
             AuthScheme::Bearer => {
                 allowed.insert("authorization".to_owned());
+                exposed.insert("www-authenticate".to_owned());
             }
             AuthScheme::ApiKey {
                 name,

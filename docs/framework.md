@@ -430,6 +430,10 @@ protocol declining a request must leave it available to later protocols.
 
 ### Model-driven authentication
 
+The optional [JWT bearer authentication](auth.md) crate supplies a model-driven
+authenticator chain, Cognito presets, cached JWT verification, and test issuers.
+Install it explicitly; `defaults()` continues to leave authentication off.
+
 `Prepare::metadata(operation)`, `OperationJob::metadata()`, and
 `DecodedJob::metadata()` expose the registered `OperationMetadata`: the wire
 protocol, effective auth schemes, optional-auth and unsigned-payload flags,

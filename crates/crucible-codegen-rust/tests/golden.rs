@@ -11,6 +11,20 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
+fn auth_chain_server_metadata_matches_golden() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/auth-chain.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+    .unwrap();
+    matches_golden(
+        &generate(&service, &Options::default()).unwrap(),
+        "auth_chain.rs",
+    );
+}
+
+#[test]
 fn cors_server_description_matches_golden() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/cors.json"
