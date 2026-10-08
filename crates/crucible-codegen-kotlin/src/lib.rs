@@ -1,6 +1,6 @@
 //! Kotlin Multiplatform models and coroutine clients.
 mod models;
-use crucible_codegen_common::docs;
+use crucible_codegen_common::documentation as docs;
 use crucible_smithy::ir::{Operation, Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
