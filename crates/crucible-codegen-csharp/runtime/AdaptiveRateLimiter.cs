@@ -4,10 +4,15 @@
 /// </summary>
 public sealed class AdaptiveRateLimiter
 {
+    /// <summary>The slowest send rate, in requests per second.</summary>
     public const double MinFillRate = 0.5;
+    /// <summary>The smallest token bucket size.</summary>
     public const double MinCapacity = 1;
+    /// <summary>Weight of history in the smoothed measured rate.</summary>
     public const double Smoothing = 0.8;
+    /// <summary>Width in seconds of one rate measurement bucket.</summary>
     public const double TimeBucketRange = 0.5;
+    /// <summary>How far above the measured rate the fill rate may climb.</summary>
     public const double MaxRateAdjustScale = 2.0;
     private readonly object gate = new();
     private readonly CubicCalculator cubic;
@@ -22,13 +27,18 @@ public sealed class AdaptiveRateLimiter
     private double? last;
     private bool enabled;
 
+    /// <summary>Starts disabled; throttling responses enable it.</summary>
+    /// <param name="now">The current monotonic time in seconds.</param>
     public AdaptiveRateLimiter(double now)
     {
         lastBucket = Math.Floor(now);
         cubic = new CubicCalculator(0, now);
     }
+    /// <summary>The smoothed rate of responses, in requests per second.</summary>
     public double MeasuredRate { get { lock (gate) return measured; } }
+    /// <summary>The current token refill rate, in requests per second.</summary>
     public double FillRate { get { lock (gate) return fillRate; } }
+    /// <summary>Whether a throttling response has enabled rate limiting.</summary>
     public bool Enabled { get { lock (gate) return enabled; } }
 
     /// <summary>Takes one send token, possibly on credit, and returns how many seconds to wait before sending.</summary>

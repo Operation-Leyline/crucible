@@ -2,6 +2,20 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// A modeled error: HTTP 409, a client fault. It is thrown by operations that list it and derives from WeatherException.
+/// </summary>
 public sealed class @ConflictError : global::Example.Weather.WeatherException {
+    /// <summary>
+    /// The <c>message</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public string @MessageValue { get; set; } = default!;
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("ConflictError", ("MessageValue", @MessageValue));
 }

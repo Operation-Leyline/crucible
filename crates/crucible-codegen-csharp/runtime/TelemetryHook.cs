@@ -7,8 +7,16 @@
 /// </summary>
 public abstract class TelemetryHook
 {
+    /// <summary>A call began.</summary>
+    /// <param name="e">The event.</param>
     public virtual void OnOperationStarted(OperationStarted e) { }
+    /// <summary>An attempt is about to reach the transport.</summary>
+    /// <param name="e">The event.</param>
     public virtual void OnAttemptStarted(AttemptStarted e) { }
+    /// <summary>An attempt finished, successfully or not.</summary>
+    /// <param name="e">The event.</param>
     public virtual void OnAttemptFinished(AttemptFinished e) { }
+    /// <summary>A call finished.</summary>
+    /// <param name="e">The event.</param>
     public virtual void OnOperationFinished(OperationFinished e) { }
 }

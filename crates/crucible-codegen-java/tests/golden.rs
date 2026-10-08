@@ -198,3 +198,90 @@ fn reserved_names_are_diagnostics() {
         );
     }
 }
+
+fn docs_files() -> Vec<crucible_codegen_java::File> {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/client-docs-jvm.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    emit(&service, &options()).unwrap()
+}
+
+#[test]
+fn smithy_documentation_cannot_break_out_of_javadoc() {
+    for file in docs_files().iter().filter(|f| f.path.ends_with(".java")) {
+        assert_eq!(
+            file.contents.matches("/**").count(),
+            file.contents.matches("*/").count(),
+            "{} has a stray comment delimiter",
+            file.path
+        );
+    }
+    let client = docs_files()
+        .into_iter()
+        .find(|f| f.path.ends_with("/DocsClient.java"))
+        .unwrap()
+        .contents;
+    assert!(client.contains("<b>someone</b>"));
+    assert!(client.contains("<code>a *&#47; b</code>"));
+    assert!(client.contains("&lt;b&gt;html&lt;/b&gt; &#64;param"));
+    assert!(client.contains("@throws example.weather.model.Unavailable"));
+}
+
+#[test]
+fn sensitive_members_are_redacted_in_to_string() {
+    let files = docs_files();
+    let source = |name: &str| {
+        &files
+            .iter()
+            .find(|f| f.path.ends_with(name))
+            .unwrap()
+            .contents
+    };
+    let input = source("/model/GreetInput.java");
+    // Direct, via a sensitive target shape, and via a collection of one.
+    for member in ["password", "token", "secrets"] {
+        assert!(
+            input.contains(&format!(
+                "\"{member}\", example.weather.ModelFormat.redact({member})"
+            )),
+            "{member} must be redacted"
+        );
+    }
+    assert!(input.contains("\"names\", names"));
+    // `@sensitive` on the shape covers its untagged members.
+    assert!(source("/model/Classified.java").contains("ModelFormat.redact(detail)"));
+    assert!(source("/model/Profile.java").contains("ModelFormat.redact(pin)"));
+    assert!(source("/model/Choice.java").contains("ModelFormat.redact(code)"));
+    assert!(source("/model/Unavailable.java").contains("ModelFormat.redact(retryToken)"));
+}
+
+#[test]
+fn backslash_u_in_documentation_cannot_reach_javacs_unicode_pass() {
+    // javac decodes backslash-u everywhere in a source file, comments included.
+    let fixture = include_str!("../../crucible-smithy/tests/fixtures/client-docs-jvm.json")
+        .replace(
+            r#""smithy.api#documentation": "How fast.""#,
+            r#""smithy.api#documentation": "C:\\users\\x \\u002a/ `\\u002a/`""#,
+        );
+    let service = Model::from_json(&fixture).unwrap().lower(None).unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let mode = &files
+        .iter()
+        .find(|f| f.path.ends_with("/model/Mode.java"))
+        .unwrap()
+        .contents;
+    assert!(
+        mode.contains("C:&#92;users&#92;x &#92;u002a/ <code>&#92;u002a/</code>"),
+        "{mode}"
+    );
+    for file in files.iter().filter(|f| f.path.ends_with(".java")) {
+        assert!(
+            !file.contents.contains(r"\u002a"),
+            "{} keeps a backslash-u escape",
+            file.path
+        );
+    }
+}

@@ -5,4 +5,13 @@
  * client-wide [RetryQuota], so a client stops retrying during an outage. [ADAPTIVE] is standard
  * plus a client-side send-rate limiter that slows down after throttling responses.
  */
-enum class RetryMode { LEGACY, STANDARD, ADAPTIVE }
+enum class RetryMode {
+    /** Retry every eligible failure up to `maxAttempts`. */
+    LEGACY,
+
+    /** Add a client-wide [RetryQuota]. */
+    STANDARD,
+
+    /** Standard plus a client-side send-rate limiter. */
+    ADAPTIVE,
+}

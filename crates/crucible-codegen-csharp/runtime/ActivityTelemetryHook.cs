@@ -11,6 +11,7 @@ using System.Diagnostics.Metrics;
 /// </summary>
 public sealed class ActivityTelemetryHook : TelemetryHook
 {
+    /// <summary>The name of the <see cref="System.Diagnostics.ActivitySource"/> and <see cref="System.Diagnostics.Metrics.Meter"/> a client reports to by default.</summary>
     public const string Name = "Crucible.Client";
     private static readonly ActivitySource DefaultSource = new(Name);
     private static readonly Meter DefaultMeter = new(Name);
@@ -21,7 +22,11 @@ public sealed class ActivityTelemetryHook : TelemetryHook
     private readonly Counter<long> attempts;
     private readonly ConcurrentDictionary<string, Activity> activities = new(StringComparer.Ordinal);
 
+    /// <summary>Reports to the default <see cref="Name"/> source and meter.</summary>
     public ActivityTelemetryHook() : this(DefaultSource, DefaultDuration, DefaultAttempts) { }
+    /// <summary>Reports to a caller-supplied source and meter.</summary>
+    /// <param name="source">Receives one activity per operation and attempt.</param>
+    /// <param name="meter">Receives the duration and attempt instruments.</param>
     public ActivityTelemetryHook(ActivitySource source, Meter meter) : this(source, Duration(meter), Attempts(meter)) { }
     private ActivityTelemetryHook(ActivitySource source, Histogram<double> duration, Counter<long> attempts)
     { this.source = source; this.duration = duration; this.attempts = attempts; }
@@ -30,6 +35,8 @@ public sealed class ActivityTelemetryHook : TelemetryHook
     private static Counter<long> Attempts(Meter meter) =>
         meter.CreateCounter<long>("crucible.client.attempts", "{attempt}", "Attempts that reached the transport");
 
+    /// <summary>Starts the operation activity.</summary>
+    /// <param name="e">The event.</param>
     public override void OnOperationStarted(OperationStarted e)
     {
         var activity = source.StartActivity(e.Service.Split('#')[^1] + "." + e.Operation, ActivityKind.Client, default(ActivityContext),
@@ -37,6 +44,8 @@ public sealed class ActivityTelemetryHook : TelemetryHook
         if (activity is not null) activities[e.InvocationId] = activity;
     }
 
+    /// <summary>Starts an attempt activity beneath the operation.</summary>
+    /// <param name="e">The event.</param>
     public override void OnAttemptStarted(AttemptStarted e)
     {
         if (!activities.TryGetValue(e.InvocationId, out var activity)) return;
@@ -45,6 +54,8 @@ public sealed class ActivityTelemetryHook : TelemetryHook
         if (e.Attempt > 1) activity.SetTag("http.request.resend_count", e.Attempt - 1);
     }
 
+    /// <summary>Finishes the attempt activity and records its latency.</summary>
+    /// <param name="e">The event.</param>
     public override void OnAttemptFinished(AttemptFinished e)
     {
         attempts.Add(1, new KeyValuePair<string, object?>("rpc.service", e.Service), new KeyValuePair<string, object?>("rpc.method", e.Operation));
@@ -57,6 +68,8 @@ public sealed class ActivityTelemetryHook : TelemetryHook
         activity.AddEvent(new ActivityEvent("crucible.attempt", tags: tags));
     }
 
+    /// <summary>Finishes the operation activity and records its duration.</summary>
+    /// <param name="e">The event.</param>
     public override void OnOperationFinished(OperationFinished e)
     {
         var tags = new TagList { { "rpc.service", e.Service }, { "rpc.method", e.Operation } };

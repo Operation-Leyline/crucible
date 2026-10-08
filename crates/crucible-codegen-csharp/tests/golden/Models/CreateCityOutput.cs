@@ -2,6 +2,20 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#CreateCityOutput.
+/// </summary>
 public sealed class @CreateCityOutput {
+    /// <summary>
+    /// The <c>city</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public global::Example.Weather.Models.@CitySummary @City { get; set; } = default!;
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("CreateCityOutput", ("City", @City));
 }

@@ -198,6 +198,12 @@ private fun serialization(path: String) {
     val secondDefaults = reusedDefaults.build()
     check(!secondDefaults.document.asJsonObject.has("changed") && secondDefaults.blob.contentEquals(byteArrayOf(1, 2)))
     check(reusedDefaults.apply { count = 0 }.build().count == 0)
+    // Generated toString is readable, omits unset optionals, and never prints a sensitive member.
+    val shown = BuilderDefaults { requiredValue = "required"; secretToken = "hunter2"; optionalDefault = null }.toString()
+    check(shown.startsWith("BuilderDefaults(") && shown.contains("requiredValue=required")) { shown }
+    check(shown.contains("secretToken=*** Sensitive Data Redacted ***") && !shown.contains("hunter2")) { shown }
+    check(shown.contains("optionalDefault=null") && shown.contains("blob=ByteArray(2)")) { shown }
+    check(!BuilderDefaults { requiredValue = "required" }.toString().contains("secretToken")) { "unset optional printed" }
     try { BuilderDefaults {}; error("Missing required member accepted") } catch (_: IllegalArgumentException) { }
     try { BuilderDefaults { requiredValue = "required"; count = null }; error("Explicit null replaced by default") } catch (_: IllegalArgumentException) { }
     val present = CreateCityInput { this.name = "x"; this.location = null }

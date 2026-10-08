@@ -2,23 +2,257 @@
 #nullable enable
 namespace Example.Weather;
 
+/// <summary>
+/// Weather
+/// </summary>
+/// <remarks>
+/// <para>Create one with new WeatherClient(config), share it freely and dispose it when finished: the client is thread-safe, and Dispose releases only the HttpClient it created itself, never one supplied in the configuration.</para>
+/// <para>Every operation has an asynchronous form returning a Task and a blocking form that runs it on the thread pool. Failures surface as modeled errors, the service exception for any other error response, or a NetworkError when no response arrived.</para>
+/// </remarks>
 public sealed class WeatherClient : global::System.IDisposable {
     private readonly ClientRuntime runtime;
+    /// <summary>
+    /// Creates a client from the configuration, which is read once.
+    /// </summary>
+    /// <param name="config">Endpoint, credentials, retry and timeout settings.</param>
+    /// <exception cref="global::System.ArgumentException">The endpoint or a retry setting is invalid.</exception>
     public WeatherClient(ClientConfig config) { runtime = new(config, "https://weather.example", true); }
+    /// <summary>
+    /// Releases the HttpClient this client created; a supplied one stays caller-owned.
+    /// </summary>
     public void Dispose() => runtime.Dispose();
+    /// <summary>
+    /// Calls the CreateCity operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>The clientToken member is filled with a fresh idempotency token when omitted, so retries are safe.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ConflictError">The service returned example.weather#ConflictError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@CreateCityOutput> @CreateCityAsync(global::Example.Weather.Models.@CreateCityInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@CreateCityOutput>("CreateCity", input, cancellationToken);
+    /// <summary>
+    /// Calls the CreateCity operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>The clientToken member is filled with a fresh idempotency token when omitted, so retries are safe.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ConflictError">The service returned example.weather#ConflictError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Models.@CreateCityOutput @CreateCity(global::Example.Weather.Models.@CreateCityInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @CreateCityAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
+    /// Calls the GetCity operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.NotFoundError">The service returned example.weather#NotFoundError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@GetCityOutput> @GetCityAsync(global::Example.Weather.Models.@GetCityInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@GetCityOutput>("GetCity", input, cancellationToken);
+    /// <summary>
+    /// Calls the GetCity operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.NotFoundError">The service returned example.weather#NotFoundError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Models.@GetCityOutput @GetCity(global::Example.Weather.Models.@GetCityInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @GetCityAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
+    /// Calls the GetCityPhoto operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.NotFoundError">The service returned example.weather#NotFoundError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@GetCityPhotoOutput> @GetCityPhotoAsync(global::Example.Weather.Models.@GetCityPhotoInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@GetCityPhotoOutput>("GetCityPhoto", input, cancellationToken);
+    /// <summary>
+    /// Calls the GetCityPhoto operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.NotFoundError">The service returned example.weather#NotFoundError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Models.@GetCityPhotoOutput @GetCityPhoto(global::Example.Weather.Models.@GetCityPhotoInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @GetCityPhotoAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
+    /// Calls the ListCities operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// <para>Paginated by nextToken and nextToken; the PagesAsync variant walks every page.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@ListCitiesOutput> @ListCitiesAsync(global::Example.Weather.Models.@ListCitiesInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@ListCitiesOutput>("ListCities", input, cancellationToken);
+    /// <summary>
+    /// Calls the ListCities operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// <para>Paginated by nextToken and nextToken; the PagesAsync variant walks every page.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Models.@ListCitiesOutput @ListCities(global::Example.Weather.Models.@ListCitiesInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @ListCitiesAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
+    /// Calls the ListCities operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Lazily fetches each page, following the continuation token until the service stops returning one; enumerating drives the requests.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// <para>Paginated by nextToken and nextToken; the PagesAsync variant walks every page.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>An asynchronous sequence of pages.</returns>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::System.Collections.Generic.IAsyncEnumerable<global::Example.Weather.Models.@ListCitiesOutput> @ListCitiesPagesAsync(global::Example.Weather.Models.@ListCitiesInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.PagesAsync<global::Example.Weather.Models.@ListCitiesOutput>("ListCities", input, cancellationToken);
+    /// <summary>
+    /// Calls the Ping operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.Unit> @PingAsync(global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Unit>("Ping", null, cancellationToken);
+    /// <summary>
+    /// Calls the Ping operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Unit @Ping(global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @PingAsync(cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
+    /// Stores a city's photo exactly as sent.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>This operation is idempotent; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.NotFoundError">The service returned example.weather#NotFoundError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@PutCityPhotoOutput> @PutCityPhotoAsync(global::Example.Weather.Models.@PutCityPhotoInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@PutCityPhotoOutput>("PutCityPhoto", input, cancellationToken);
+    /// <summary>
+    /// Stores a city's photo exactly as sent.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>This operation is idempotent; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.NotFoundError">The service returned example.weather#NotFoundError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Models.@PutCityPhotoOutput @PutCityPhoto(global::Example.Weather.Models.@PutCityPhotoInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @PutCityPhotoAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
+    /// Calls the Status operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@StatusOutput> @StatusAsync(global::Example.Weather.Models.@StatusInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@StatusOutput>("Status", input, cancellationToken);
+    /// <summary>
+    /// Calls the Status operation.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>This operation is read-only; the client may retry it.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.ThrottlingError">The service returned example.weather#ThrottlingError.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationError">The service returned example.weather#ValidationError.</exception>
+    /// <exception cref="global::Example.Weather.WeatherException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
     public global::Example.Weather.Models.@StatusOutput @Status(global::Example.Weather.Models.@StatusInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @StatusAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
 }

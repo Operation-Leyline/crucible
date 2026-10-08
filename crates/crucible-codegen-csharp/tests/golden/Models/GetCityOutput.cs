@@ -2,10 +2,42 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#GetCityOutput.
+/// </summary>
 public sealed class @GetCityOutput {
+    /// <summary>
+    /// The <c>city</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public global::Example.Weather.Models.@CitySummary @City { get; set; } = default!;
+    /// <summary>
+    /// Whether forecast was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>> @ForecastPresence { get; set; }
+    /// <summary>
+    /// The <c>forecast</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; ForecastPresence tells the two apart.</para>
+    /// </remarks>
     public global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>? @Forecast { get => @ForecastPresence.IsSet && !@ForecastPresence.IsNull ? @ForecastPresence.Value : (global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>?)null; set => @ForecastPresence = value is null ? global::Example.Weather.Optional<global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>>.Null : global::Example.Weather.Optional<global::System.Collections.Generic.Dictionary<global::Example.Weather.Models.@Sky, global::System.Text.Json.Nodes.JsonNode>>.Of(value); }
+    /// <summary>
+    /// Whether requestId was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<string> @RequestIdValuePresence { get; set; }
+    /// <summary>
+    /// The <c>requestId</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; RequestIdValuePresence tells the two apart.</para>
+    /// </remarks>
     public string? @RequestIdValue { get => @RequestIdValuePresence.IsSet && !@RequestIdValuePresence.IsNull ? @RequestIdValuePresence.Value : (string?)null; set => @RequestIdValuePresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("GetCityOutput", ("City", @City), ("Forecast", @ForecastPresence), ("RequestIdValue", @RequestIdValuePresence));
 }

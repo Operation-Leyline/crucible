@@ -1,6 +1,7 @@
 //! Kotlin Multiplatform models and coroutine clients.
 mod models;
-use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use crucible_codegen_common::documentation as docs;
+use crucible_smithy::ir::{Operation, Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -125,6 +126,101 @@ fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
         _ => format!("{package}.model.`{}`", service.name_of(id)),
     }
 }
+/// One KDoc comment: the model's documentation, then Crucible's notes (already
+/// Markdown), then block tags. Model prose is escaped by `docs`; notes and tags
+/// interpolate model strings through [`code`], and a final guard keeps any of
+/// them from closing the comment or opening a nested one.
+pub(crate) fn kdoc(indent: &str, model: Option<&str>, notes: &[String], tags: &[String]) -> String {
+    let mut blocks = model.map(docs::kdoc).unwrap_or_default();
+    blocks.extend(notes.iter().map(|note| docs::kdoc_guard(note)));
+    // A comment that only tags a value still needs a summary line.
+    if blocks.is_empty()
+        && let Some(tag) = tags.first()
+    {
+        let (_, text) = tag.split_once(' ').unwrap_or_default();
+        blocks.push(format!("Returns {text}."));
+    }
+    let mut out = format!("{indent}/**\n");
+    for (index, block) in blocks.iter().enumerate() {
+        if index > 0 {
+            out.push_str(&format!("{indent} *\n"));
+        }
+        for line in docs::lines(block) {
+            out.push_str(&format!("{indent} * {line}\n"));
+        }
+    }
+    if !blocks.is_empty() && !tags.is_empty() {
+        out.push_str(&format!("{indent} *\n"));
+    }
+    for line in tags.iter().flat_map(|tag| docs::lines(tag)) {
+        out.push_str(&format!("{indent} * {}\n", docs::kdoc_guard(line)));
+    }
+    out.push_str(&format!("{indent} */\n"));
+    out
+}
+
+/// Inline code for KDoc notes.
+pub(crate) fn code(text: &str) -> String {
+    docs::kdoc_code(text)
+}
+
+fn operation_kdoc(
+    service: &Service,
+    op: &Operation,
+    package: &str,
+    variant: &str,
+    params: &[(&str, &str)],
+    returns: &str,
+    throws: bool,
+) -> String {
+    let mut notes = vec![];
+    if op.docs.is_none() {
+        notes.push(format!("Calls the {} operation.", code(op.name())));
+    }
+    notes.push(variant.to_string());
+    if let Some(token) = &op.idempotency_token {
+        notes.push(format!(
+            "The {} member is filled with a fresh idempotency token when omitted, so retries are safe.",
+            code(token)
+        ));
+    } else if op.idempotent {
+        notes.push("This operation is idempotent; the client may retry it.".into());
+    } else if op.readonly {
+        notes.push("This operation is read-only; the client may retry it.".into());
+    }
+    if let Some(page) = &op.paginated {
+        notes.push(format!(
+            "Paginated by {} and {}; the `Pages` variant walks every page.",
+            code(&page.input_token),
+            code(&page.output_token)
+        ));
+    }
+    let mut tags: Vec<String> = params
+        .iter()
+        .map(|(n, d)| format!("@param {n} {d}"))
+        .collect();
+    tags.push(format!("@return {returns}"));
+    if throws {
+        for error in &op.errors {
+            tags.push(format!(
+                "@throws {package}.model.{} if the service returns {}",
+                service.name_of(error),
+                code(&error.to_string())
+            ));
+        }
+        tags.push(format!(
+            "@throws {package}.{} for any other error response",
+            crucible_codegen_common::service_exception_name(service)
+        ));
+        tags.push(format!(
+            "@throws {package}.NetworkError if the transport fails"
+        ));
+    }
+    kdoc("    ", op.docs.as_deref(), &notes, &tags)
+}
+
+const PAGES_NOTE: &str = "Lazily fetches each page, following the continuation token until the service stops returning one; collecting the flow drives the requests.";
+
 pub fn capabilities() -> crucible_smithy::Capabilities {
     use crucible_smithy::Feature;
     crucible_smithy::Capabilities::new([
@@ -381,10 +477,20 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let schema = serde_json::to_string(&crucible_codegen_common::schema(service, field))
         .expect("schema serializes");
     let (models, codecs) = models::emit(service, package);
+    let service_summary = service
+        .docs
+        .clone()
+        .or_else(|| service.title.clone())
+        .unwrap_or_else(|| format!("Client for the {} service.", code(service.id.name())));
     let mut client = format!(
-        "class {client_name}(config: ClientConfig) : AutoCloseable {{\n    private val runtime = ClientRuntime(config, {}, {})\n    override fun close() = runtime.close()\n    /** This client's retry quota, shared by all of its calls: null in `RetryMode.LEGACY`. */\n    val retryQuota: RetryQuota? get() = runtime.retryQuota\n",
+        "{}class {client_name}(config: ClientConfig) : AutoCloseable {{\n    private val runtime = ClientRuntime(config, {}, {})\n{}    override fun close() = runtime.close()\n    /** This client's retry quota, shared by all of its calls: null in `RetryMode.LEGACY`. */\n    val retryQuota: RetryQuota? get() = runtime.retryQuota\n",
+        kdoc("", Some(&service_summary), &[
+            format!("Create one with `{client_name}(config)`, share it freely and call `close()` when finished: the client is safe to use from many coroutines at once, and `close()` releases the default HTTP engine and background work. A caller-supplied Ktor `HttpClient` stays owned by the caller and is not closed."),
+            "Every operation is a `suspend` function. Failures surface as modeled errors, the service exception for any other error response, or a `NetworkError` when no response arrived.".to_string(),
+        ], &["@param config endpoint, credentials, retry and timeout settings; copied on construction".to_string()]),
         literal(options.endpoint.as_deref().unwrap_or("")),
-        options.content_sha256
+        options.content_sha256,
+        kdoc("    ", None, &["Releases the client's own HTTP engine and timers; calls started afterwards fail.".to_string()], &[])
     );
     for op in &service.operations {
         let name = method(op.name());
@@ -397,6 +503,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .as_ref()
             .map_or(String::new(), |t| format!("input: {t}"));
         let argument = if input.is_some() { "input" } else { "null" };
+        let in_doc: &[(&str, &str)] = if input.is_some() {
+            &[("input", "the request")]
+        } else {
+            &[]
+        };
         let streaming_output = op
             .response
             .payload
@@ -404,20 +515,72 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .is_some_and(|payload| payload.streaming);
         if streaming_output {
             let separator = if input.is_some() { ", " } else { "" };
+            let stream_note = "The response body is streamed: it is only readable inside `consume`, which runs before the connection is released.";
+            let mut stream_params: Vec<(&str, &str)> = in_doc.to_vec();
+            stream_params.push(("consume", "reads the response"));
+            client.push_str(&operation_kdoc(
+                service,
+                op,
+                package,
+                stream_note,
+                &stream_params,
+                "whatever `consume` returns",
+                true,
+            ));
             client.push_str(&format!("    suspend fun <T> `{name}`({parameter}{separator}consume: suspend ({output}) -> T): T = runtime.callScoped({}, {argument}) {{ consume(it as {output}) }}\n",literal(op.name())));
             if let Some(input) = &input {
+                client.push_str(&operation_kdoc(
+                    service,
+                    op,
+                    package,
+                    "Builds the request with a lambda.",
+                    &[
+                        ("configure", "fills the request builder"),
+                        ("consume", "reads the streamed response"),
+                    ],
+                    "whatever `consume` returns",
+                    true,
+                ));
                 client.push_str(&format!("    suspend fun <T> `{name}`(configure: {input}.Builder.() -> kotlin.Unit = {{}}, consume: suspend ({output}) -> T): T = `{name}`({input}(configure), consume)\n"));
             }
         } else {
+            client.push_str(&operation_kdoc(
+                service,
+                op,
+                package,
+                "Suspends until the response has been decoded.",
+                in_doc,
+                "the response",
+                true,
+            ));
             client.push_str(&format!("    suspend fun `{name}`({parameter}): {output} = runtime.call({}, {argument}) as {output}\n",literal(op.name())));
             if let Some(input) = &input {
+                client.push_str(&operation_kdoc(service, op, package, "Builds the request with a lambda; omit it to send an empty request when every member is optional.", &[("block", "fills the request builder")], "the response", true));
                 client.push_str(&format!("    suspend fun `{name}`(block: {input}.Builder.() -> kotlin.Unit = {{}}): {output} = `{name}`({input}(block))\n"));
             }
         }
         if op.paginated.is_some() {
             if let Some(input) = &input {
+                client.push_str(&operation_kdoc(
+                    service,
+                    op,
+                    package,
+                    PAGES_NOTE,
+                    &[("block", "fills the request builder")],
+                    "a cold flow of pages",
+                    true,
+                ));
                 client.push_str(&format!("    fun `{name}Pages`(block: {input}.Builder.() -> kotlin.Unit = {{}}): kotlinx.coroutines.flow.Flow<{output}> = `{name}Pages`({input}(block))\n"));
             }
+            client.push_str(&operation_kdoc(
+                service,
+                op,
+                package,
+                PAGES_NOTE,
+                in_doc,
+                "a cold flow of pages",
+                true,
+            ));
             client.push_str(&format!("    fun `{name}Pages`({parameter}): kotlinx.coroutines.flow.Flow<{output}> = kotlinx.coroutines.flow.flow {{\n        runtime.pages({}, {argument}).collect {{ emit(it as {output}) }}\n    }}\n",literal(op.name())));
         }
         for waiter in op.waiters.keys() {
@@ -427,8 +590,36 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             } else {
                 "options: WaiterOptions = WaiterOptions()".into()
             };
+            let wait_note = format!(
+                "Polls {} until the {} waiter reaches its success state and returns the response that satisfied it, or null when an error acceptor succeeded. Throws `WaiterError` when a failure state is reached and `WaiterTimeout` when the deadline passes.",
+                code(op.name()),
+                code(waiter)
+            );
+            let mut wait_params: Vec<(&str, &str)> = in_doc.to_vec();
+            wait_params.push(("options", "the polling deadline and delay overrides"));
+            client.push_str(&operation_kdoc(
+                service,
+                op,
+                package,
+                &wait_note,
+                &wait_params,
+                "the satisfying response",
+                false,
+            ));
             client.push_str(&format!("    suspend fun `{method_name}`({parameters}): {output}? = runtime.waitUntil({}, {}, {argument}, options) as {output}?\n", literal(op.name()), literal(waiter)));
             if let Some(input) = &input {
+                client.push_str(&operation_kdoc(
+                    service,
+                    op,
+                    package,
+                    &wait_note,
+                    &[
+                        ("options", "the polling deadline and delay overrides"),
+                        ("block", "fills the request builder"),
+                    ],
+                    "the satisfying response",
+                    false,
+                ));
                 client.push_str(&format!("    suspend fun `{method_name}`(options: WaiterOptions = WaiterOptions(), block: {input}.Builder.() -> kotlin.Unit = {{}}): {output}? = `{method_name}`({input}(block), options)\n"));
             }
         }
@@ -488,6 +679,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/CachedCredentials.kt"),
         ),
         ("OptionalValue", include_str!("../runtime/OptionalValue.kt")),
+        ("ModelFormat", include_str!("../runtime/ModelFormat.kt")),
         ("ClientRuntime", include_str!("../runtime/ClientRuntime.kt")),
         ("JsonCodec", include_str!("../runtime/JsonCodec.kt")),
         ("Query", include_str!("../runtime/Query.kt")),

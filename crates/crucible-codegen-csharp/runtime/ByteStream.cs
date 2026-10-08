@@ -196,7 +196,9 @@ public sealed class ByteStream : IAsyncDisposable, IDisposable
         dispose?.Dispose();
     }
 
+    /// <inheritdoc/>
     public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
 
+    /// <inheritdoc/>
     public override string ToString() => $"ByteStream[Replayable={Replayable}, Length={(Length is long length ? length.ToString(System.Globalization.CultureInfo.InvariantCulture) : "unknown")}]";
 }

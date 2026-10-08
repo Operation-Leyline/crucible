@@ -2,13 +2,57 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#CreateCityInput.
+/// </summary>
 public sealed class @CreateCityInput {
+    /// <summary>
+    /// Whether name was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<string> @NamePresence { get; set; }
+    /// <summary>
+    /// The <c>name</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; NamePresence tells the two apart.</para>
+    /// </remarks>
     public string? @Name { get => @NamePresence.IsSet && !@NamePresence.IsNull ? @NamePresence.Value : (string?)null; set => @NamePresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    /// <summary>
+    /// Whether location was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<global::Example.Weather.Models.@Location> @LocationPresence { get; set; }
+    /// <summary>
+    /// The <c>location</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; LocationPresence tells the two apart.</para>
+    /// </remarks>
     public global::Example.Weather.Models.@Location? @Location { get => @LocationPresence.IsSet && !@LocationPresence.IsNull ? @LocationPresence.Value : (global::Example.Weather.Models.@Location?)null; set => @LocationPresence = value is null ? global::Example.Weather.Optional<global::Example.Weather.Models.@Location>.Null : global::Example.Weather.Optional<global::Example.Weather.Models.@Location>.Of(value); }
+    /// <summary>
+    /// Whether clientToken was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<string> @ClientTokenPresence { get; set; }
+    /// <summary>
+    /// The <c>clientToken</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; ClientTokenPresence tells the two apart.</para>
+    /// </remarks>
     public string? @ClientToken { get => @ClientTokenPresence.IsSet && !@ClientTokenPresence.IsNull ? @ClientTokenPresence.Value : (string?)null; set => @ClientTokenPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    /// <summary>
+    /// Whether expectedRevision was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<long> @ExpectedRevisionPresence { get; set; }
+    /// <summary>
+    /// The <c>expectedRevision</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; ExpectedRevisionPresence tells the two apart.</para>
+    /// </remarks>
     public long? @ExpectedRevision { get => @ExpectedRevisionPresence.IsSet && !@ExpectedRevisionPresence.IsNull ? @ExpectedRevisionPresence.Value : (long?)null; set => @ExpectedRevisionPresence = value is null ? global::Example.Weather.Optional<long>.Null : global::Example.Weather.Optional<long>.Of(value.Value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("CreateCityInput", ("Name", @NamePresence), ("Location", @LocationPresence), ("ClientToken", @ClientTokenPresence), ("ExpectedRevision", @ExpectedRevisionPresence));
 }

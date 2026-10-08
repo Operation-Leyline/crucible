@@ -1,4 +1,4 @@
-use super::{field, literal, ty};
+use super::{code, field, kdoc, literal, ty};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
 use serde_json::Value;
@@ -53,9 +53,20 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     "ArrayList"
                 };
                 let conversion = if l.is_set { ".toSet()" } else { "" };
+                models.push_str(&kdoc(
+                    "",
+                    l.docs.as_deref(),
+                    &[format!(
+                        "A {} of {}.",
+                        if l.is_set { "set" } else { "list" },
+                        code(&l.member.target.to_string())
+                    )],
+                    &[],
+                ));
                 if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
                     models.push_str(&format!(
-                        "class `{name}` : kotlin.collections.{base}<{t}>()\n"
+                        "class `{name}` : kotlin.collections.{base}<{t}>() {{\n    override fun toString(): kotlin.String = {}\n}}\n",
+                        if service.sensitive(&l.member) { format!("{package}.ModelFormat.REDACTED") } else { "super.toString()".to_string() }
                     ));
                     decode.push_str(&format!("        {target} -> {native}().apply {{ addAll(codec.readList(target, value) as List<{t}>) }}\n"));
                 } else {
@@ -74,9 +85,16 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     ty(service, &m.value.target, package),
                     if m.sparse { "?" } else { "" }
                 );
+                models.push_str(&kdoc(
+                    "",
+                    m.docs.as_deref(),
+                    &["A map shape.".to_string()],
+                    &[],
+                ));
                 if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
                     models.push_str(&format!(
-                        "class `{name}` : kotlin.collections.LinkedHashMap<{key}, {val}>()\n"
+                        "class `{name}` : kotlin.collections.LinkedHashMap<{key}, {val}>() {{\n    override fun toString(): kotlin.String = {}\n}}\n",
+                        if service.sensitive(&m.key) || service.sensitive(&m.value) { format!("{package}.ModelFormat.REDACTED") } else { "super.toString()".to_string() }
                     ));
                     decode.push_str(&format!("        {target} -> {native}().apply {{ putAll(codec.readMap(target, value) as Map<{key}, {val}>) }}\n"));
                 } else {
@@ -89,8 +107,15 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 }
             }
             Shape::Enum(e) => {
+                models.push_str(&kdoc("    ", e.docs.as_deref(), &["An open enum: a value this client does not know is kept as is, so compare with the constants or `value`.".to_string()], &["@property value the wire value".to_string()]));
                 models.push_str(&format!("    data class `{name}`(val value: kotlin.String) {{\n        override fun toString(): kotlin.String = value\n        companion object {{\n"));
                 for v in &e.values {
+                    models.push_str(&kdoc(
+                        "            ",
+                        v.docs.as_deref(),
+                        &[format!("The {} value.", code(&v.value))],
+                        &[],
+                    ));
                     models.push_str(&format!(
                         "            @kotlin.jvm.JvmField val `{}` = `{name}`({})\n",
                         v.name.to_uppercase(),
@@ -106,8 +131,15 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 ));
             }
             Shape::IntEnum(e) => {
+                models.push_str(&kdoc("", e.docs.as_deref(), &["An open integer enum: a value this client does not know is kept as is, so compare with the constants or `value`.".to_string()], &["@property value the wire value".to_string()]));
                 models.push_str(&format!("data class `{name}`(val value: kotlin.Int) {{\n    override fun toString(): kotlin.String = value.toString()\n    companion object {{\n"));
                 for v in &e.values {
+                    models.push_str(&kdoc(
+                        "        ",
+                        v.docs.as_deref(),
+                        &[format!("The {} value.", code(&v.value.to_string()))],
+                        &[],
+                    ));
                     models.push_str(&format!(
                         "        @kotlin.jvm.JvmField val `{}` = `{name}`({})\n",
                         v.name.to_uppercase(),
@@ -127,7 +159,18 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     stream_write.push_str(&format!("        {target} -> (value as {native}).copy {{ `{attribute}`=stream }}\n"));
                 }
 
+                let mut class_notes = vec![];
+                if let Some(error) = &s.error {
+                    class_notes.push(format!("A modeled error: HTTP {}, a {} fault. It is thrown by operations that list it and extends `{exception}`.", error.status, if matches!(error.fault, crucible_smithy::ir::Fault::Client) { "client" } else { "server" }));
+                } else {
+                    class_notes.push(format!("Build one with `{name} {{ ... }}` or `copy {{ ... }}`; it is immutable. Smithy shape {}.", code(&id.to_string())));
+                }
+                models.push_str(&kdoc("", s.docs.as_deref(), &class_notes, &[]));
                 models.push_str(&format!("class `{name}` internal constructor(\n"));
+                let mut format_pairs = String::new();
+                if s.error.is_some() && !s.members.iter().any(|m| m.name == "message") {
+                    format_pairs.push_str(", \"message\" to message");
+                }
                 let mut builder = String::from("    class Builder {\n");
                 let mut properties = String::new();
                 let mut build = format!("        fun build(): {native} = {native}(\n");
@@ -144,12 +187,54 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         let storage = format!("__crucibleField{index}");
                         let cast = format!("{package}.OptionalValue<{t}>");
                         models.push_str(&format!("    internal val {storage}: {cast},\n"));
-                        properties.push_str(&format!("    val `{f}`: {t}? get() = {storage}.value\n    fun has{}(): kotlin.Boolean = {storage}.present\n", variant(&f)));
-                        builder.push_str(&format!("        internal var {storage}: {cast} = {package}.OptionalValue.unset()\n        var `{f}`: {t}?\n            get() = {storage}.value\n            set(value) {{ {storage} = {package}.OptionalValue.of(value) }}\n        fun unset{}() {{ {storage} = {package}.OptionalValue.unset() }}\n", variant(&f)));
+                        let member_doc = |indent: &str| {
+                            kdoc(indent, m.docs.as_deref().or(Some(&format!("The `{}` member.", m.name))), &["Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.".to_string()], &[])
+                        };
+                        properties.push_str(&member_doc("    "));
+                        properties
+                            .push_str(&format!("    val `{f}`: {t}? get() = {storage}.value\n"));
+                        properties.push_str(&kdoc(
+                            "    ",
+                            None,
+                            &[format!(
+                                "Whether {} was set, even to `null`.",
+                                code(&m.name)
+                            )],
+                            &["@return true when the member is present".to_string()],
+                        ));
+                        properties.push_str(&format!(
+                            "    fun has{}(): kotlin.Boolean = {storage}.present\n",
+                            variant(&f)
+                        ));
+                        builder.push_str(&format!("        internal var {storage}: {cast} = {package}.OptionalValue.unset()\n"));
+                        builder.push_str(&member_doc("        "));
+                        builder.push_str(&format!("        var `{f}`: {t}?\n            get() = {storage}.value\n            set(value) {{ {storage} = {package}.OptionalValue.of(value) }}\n"));
+                        builder.push_str(&kdoc(
+                            "        ",
+                            None,
+                            &[format!(
+                                "Clears {} so it is omitted from requests.",
+                                code(&m.name)
+                            )],
+                            &[],
+                        ));
+                        builder.push_str(&format!("        fun unset{}() {{ {storage} = {package}.OptionalValue.unset() }}\n", variant(&f)));
                         build.push_str(&format!("            {storage} = {storage},\n"));
                         copy.push_str(&format!("        builder.{storage} = {storage}\n"));
                         (storage, cast)
                     } else {
+                        models.push_str(&kdoc(
+                            "    ",
+                            m.docs
+                                .as_deref()
+                                .or(Some(&format!("The `{}` member.", m.name))),
+                            &[if m.client_default().is_some() {
+                                "Has a default value when left unset.".to_string()
+                            } else {
+                                "Required.".to_string()
+                            }],
+                            &[],
+                        ));
                         models.push_str(&format!("    val `{f}`: {t},\n"));
                         let required = format!(
                             "requireNotNull(`{f}`) {{ {} }}",
@@ -159,9 +244,28 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                             let default = default_expr(service, &m.target, default, package)
                                 .expect("validated default");
                             let assigned = format!("__crucibleField{index}Assigned");
-                            builder.push_str(&format!("        private var {assigned}: kotlin.Boolean = false\n        var `{f}`: {t}? = null\n            set(value) {{ field = value; {assigned} = true }}\n"));
+                            builder.push_str(&format!(
+                                "        private var {assigned}: kotlin.Boolean = false\n"
+                            ));
+                            builder.push_str(&kdoc(
+                                "        ",
+                                m.docs
+                                    .as_deref()
+                                    .or(Some(&format!("The `{}` member.", m.name))),
+                                &["Has a default value when left unset.".to_string()],
+                                &[],
+                            ));
+                            builder.push_str(&format!("        var `{f}`: {t}? = null\n            set(value) {{ field = value; {assigned} = true }}\n"));
                             format!("if ({assigned}) {required} else {default}")
                         } else {
+                            builder.push_str(&kdoc(
+                                "        ",
+                                m.docs
+                                    .as_deref()
+                                    .or(Some(&format!("The `{}` member.", m.name))),
+                                &["Required: `build()` fails when it is left unset.".to_string()],
+                                &[],
+                            ));
                             builder.push_str(&format!("        var `{f}`: {t}? = null\n"));
                             required
                         };
@@ -169,6 +273,12 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         copy.push_str(&format!("        builder.`{f}` = this.`{f}`\n"));
                         (format!("`{f}`"), t)
                     };
+                    let shown = if s.sensitive() || crucible_codegen_common::redacted(service, m) {
+                        format!("{package}.ModelFormat.redact({storage})")
+                    } else {
+                        storage.clone()
+                    };
+                    format_pairs.push_str(&format!(", {n} to {shown}"));
                     encode.push_str(&format!(
                         "            codec.put(result, target, {n}, model.{storage})\n"
                     ));
@@ -183,6 +293,9 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     }
                 ));
                 models.push_str(&properties);
+                // Sensitive members never reach the string; see `ModelFormat`.
+                models.push_str(&kdoc("    ", None, &["Formats every set member as `Type(member=value, ...)`; sensitive members print as a redaction marker, never their value.".to_string()], &[]));
+                models.push_str(&format!("    override fun toString(): kotlin.String = {package}.ModelFormat.format({}{format_pairs})\n", literal(name)));
                 models.push_str("    companion object {\n");
                 models.push_str(&format!("        operator fun invoke(block: Builder.() -> kotlin.Unit = {{}}): {native} = Builder().apply(block).build()\n    }}\n"));
                 copy.push_str("    }.apply(block).build()");
@@ -200,6 +313,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 decode.push_str("        )\n");
             }
             Shape::Union(s) => {
+                models.push_str(&kdoc("    ", s.docs.as_deref(), &["A union: exactly one variant is set. A variant this client does not know arrives as `UnknownVariant`.".to_string()], &[]));
                 models.push_str(&format!("    sealed interface `{name}` {{\n"));
                 encode.push_str(&format!(
                     "        {target} -> when (val model = value as {native}) {{\n"
@@ -211,14 +325,28 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     let v = variant(&m.name);
                     let t = ty(service, &m.target, package);
                     let n = literal(&m.name);
+                    models.push_str(&kdoc(
+                        "        ",
+                        m.docs
+                            .as_deref()
+                            .or(Some(&format!("The `{}` variant.", m.name))),
+                        &[],
+                        &["@property value the variant's value".to_string()],
+                    ));
+                    let shown = if s.sensitive() || crucible_codegen_common::redacted(service, m) {
+                        format!("{package}.ModelFormat.redact(value)")
+                    } else {
+                        "value".to_string()
+                    };
                     models.push_str(&format!(
-                        "        data class `{v}`(val value: {t}?) : `{name}`\n"
+                        "        data class `{v}`(val value: {t}?) : `{name}` {{\n            override fun toString(): kotlin.String = {package}.ModelFormat.format({}, {n} to {shown})\n        }}\n", literal(name)
                     ));
                     encode.push_str(&format!("            is {native}.`{v}` -> wireObject {{ codec.put(it, target, {n}, model.value) }}\n"));
                     let wire = literal(&m.wire_name);
                     decode.push_str(&format!("            {wire} -> {native}.`{v}`(codec.readUnionMember(target, {n}, item) as {t}?)\n"));
                 }
-                models.push_str(&format!("        data class UnknownVariant(val name: kotlin.String, val value: kotlinx.serialization.json.JsonElement) : `{name}`\n    }}\n"));
+                models.push_str(&kdoc("        ", None, &["A variant this client does not recognize, preserved so it round-trips. Its payload is never printed, since it may be sensitive.".to_string()], &["@property name the wire name of the variant".to_string(), "@property value the raw JSON value".to_string()]));
+                models.push_str(&format!("        data class UnknownVariant(val name: kotlin.String, val value: kotlinx.serialization.json.JsonElement) : `{name}` {{\n            override fun toString(): kotlin.String = {package}.ModelFormat.format({}, \"unknownVariant\" to name, \"value\" to {package}.ModelFormat.REDACTED)\n        }}\n    }}\n", literal(name)));
                 encode.push_str(&format!("            is {native}.UnknownVariant -> codec.unknownUnion(target, model.name, model.value)\n        }}\n"));
                 decode.push_str(&format!(
                     "            else -> {native}.UnknownVariant(name, item)\n        }} }}\n"

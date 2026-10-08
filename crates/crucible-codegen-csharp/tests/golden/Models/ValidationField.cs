@@ -2,7 +2,27 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#ValidationField.
+/// </summary>
 public sealed class @ValidationField {
+    /// <summary>
+    /// The <c>path</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public string @Path { get; set; } = default!;
+    /// <summary>
+    /// The <c>message</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public string @MessageValue { get; set; } = default!;
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("ValidationField", ("Path", @Path), ("MessageValue", @MessageValue));
 }

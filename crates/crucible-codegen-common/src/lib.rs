@@ -22,6 +22,33 @@ pub fn service_exception_runtime_named(name: &str, source: &str) -> String {
         .replace("ServiceException", name)
 }
 
+/// Whether a debug representation of `member` must hide its value: the member
+/// or its target is `@sensitive`, or it is a collection whose elements are.
+/// A collection with any sensitive element is hidden whole, never element by element.
+pub fn redacted(service: &Service, member: &Member) -> bool {
+    fn nested(
+        service: &Service,
+        member: &Member,
+        seen: &mut Vec<crucible_smithy::ShapeId>,
+    ) -> bool {
+        if service.sensitive(member) {
+            return true;
+        }
+        if seen.contains(&member.target) {
+            return false;
+        }
+        seen.push(member.target.clone());
+        match service.shape(&member.target) {
+            Some(Shape::List(list)) => nested(service, &list.member, seen),
+            Some(Shape::Map(map)) => {
+                nested(service, &map.key, seen) || nested(service, &map.value, seen)
+            }
+            _ => false,
+        }
+    }
+    nested(service, member, &mut Vec::new())
+}
+
 pub fn check_service_exception_name(service: &Service) -> Result<(), crucible_smithy::Diagnostics> {
     let name = service_exception_name(service);
     let mut diagnostics = crucible_smithy::Diagnostics::default();

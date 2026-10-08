@@ -1,5 +1,9 @@
+/// <summary>Explicit credential sources for <see cref="ClientConfig.Credentials"/>: no ambient identity lookup happens unless you configure one.</summary>
 public static class CredentialProviders
 {
+    /// <summary>Tries each provider in order and returns the first non-null result.</summary>
+    /// <param name="providers">The sources, in priority order.</param>
+    /// <returns>A provider yielding null when none has credentials.</returns>
     public static Func<CancellationToken, ValueTask<AwsCredentials?>> Chain(params Func<CancellationToken, ValueTask<AwsCredentials?>>[] providers)
     {
         var snapshot = providers.ToArray();
@@ -19,12 +23,20 @@ public static class CredentialProviders
         if (string.IsNullOrEmpty(access) || string.IsNullOrEmpty(secret)) throw new InvalidOperationException("AWS credentials are incomplete");
         return new(access, secret, session);
     }
+    /// <summary>Reads <c>AWS_ACCESS_KEY_ID</c>, <c>AWS_SECRET_ACCESS_KEY</c> and <c>AWS_SESSION_TOKEN</c>.</summary>
+    /// <param name="token">Cancels the read.</param>
+    /// <returns>The credentials, or null when neither key nor secret is set.</returns>
+    /// <exception cref="InvalidOperationException">Only one of key and secret is set.</exception>
     public static ValueTask<AwsCredentials?> Environment(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         return ValueTask.FromResult(Create(System.Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID"),
             System.Environment.GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY"), System.Environment.GetEnvironmentVariable("AWS_SESSION_TOKEN")));
     }
+    /// <summary>Reads a profile of an AWS credentials file on each call.</summary>
+    /// <param name="profile">The section name; <c>AWS_PROFILE</c> or <c>default</c> when null.</param>
+    /// <param name="path">The credentials file; <c>AWS_SHARED_CREDENTIALS_FILE</c> or <c>~/.aws/credentials</c> when null.</param>
+    /// <returns>A provider yielding null when the file or profile is missing.</returns>
     public static Func<CancellationToken, ValueTask<AwsCredentials?>> Profile(string? profile = null, string? path = null) => async token =>
     {
         var name = profile ?? System.Environment.GetEnvironmentVariable("AWS_PROFILE") ?? "default";

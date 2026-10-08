@@ -2,9 +2,38 @@
 #nullable enable
 namespace Example.Weather.Models;
 
+/// <summary>
+/// Construct it with an object initializer. Smithy shape example.weather#PhotoSummary.
+/// </summary>
 public sealed class @PhotoSummary {
+    /// <summary>
+    /// The <c>size</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public int @Size { get; set; } = default!;
+    /// <summary>
+    /// The <c>thumbnail</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Required.</para>
+    /// </remarks>
     public byte[] @Thumbnail { get; set; } = default!;
+    /// <summary>
+    /// Whether caption was set, to a value or to an explicit null.
+    /// </summary>
     public global::Example.Weather.Optional<string> @CaptionPresence { get; set; }
+    /// <summary>
+    /// The <c>caption</c> member.
+    /// </summary>
+    /// <remarks>
+    /// <para>Optional: null when unset or explicitly null; CaptionPresence tells the two apart.</para>
+    /// </remarks>
     public string? @Caption { get => @CaptionPresence.IsSet && !@CaptionPresence.IsNull ? @CaptionPresence.Value : (string?)null; set => @CaptionPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    /// <summary>
+    /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
+    /// </summary>
+    /// <returns>The debug representation.</returns>
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("PhotoSummary", ("Size", @Size), ("Thumbnail", @Thumbnail), ("Caption", @CaptionPresence));
 }
