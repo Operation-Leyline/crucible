@@ -69,7 +69,9 @@ pub fn emit(service: &Service, module: &str) -> String {
                         value.value
                     ));
                 }
-                out.push_str(&format!("        public var description: Swift.String {{ \"{name}(\\(rawValue))\" }}\n"));
+                out.push_str(&format!(
+                    "        public var description: Swift.String {{ \"{name}(\\(rawValue))\" }}\n"
+                ));
                 out.push_str("        static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self { Self(rawValue: try Swift.Int32.fromWire(value, context)) }\n        func toWire(_ context: WireContext) throws -> JSONValue { .number(Swift.String(rawValue)) }\n    }\n");
             }
             Shape::Enum(enumeration) => {
@@ -83,7 +85,9 @@ pub fn emit(service: &Service, module: &str) -> String {
                         literal(&value.value)
                     ));
                 }
-                out.push_str(&format!("        public var description: Swift.String {{ \"{name}(\\(rawValue))\" }}\n"));
+                out.push_str(&format!(
+                    "        public var description: Swift.String {{ \"{name}(\\(rawValue))\" }}\n"
+                ));
                 out.push_str("        static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self { Self(rawValue: try value.string) }\n        func toWire(_ context: WireContext) throws -> JSONValue { .string(rawValue) }\n    }\n");
             }
             Shape::Structure(structure) => {
@@ -108,7 +112,9 @@ pub fn emit(service: &Service, module: &str) -> String {
                             "`{field}Presence`: OptionalValue<{value_type}>? = nil"
                         ));
                     } else {
-                        out.push_str(&format!("{member_docs}        public var `{field}`: {value_type}\n"));
+                        out.push_str(&format!(
+                            "{member_docs}        public var `{field}`: {value_type}\n"
+                        ));
                         parameters.push(format!("`{field}`: {value_type}"));
                     }
                 }
@@ -116,7 +122,12 @@ pub fn emit(service: &Service, module: &str) -> String {
                     out.push_str("        /// Status, request ID and retry classification of the failed response.\n        public var metadata: ErrorMetadata\n");
                     parameters.push(String::from("metadata: ErrorMetadata = ErrorMetadata()"));
                 }
-                out.push_str(&description(service, &name, &structure.members, structure.error.is_some()));
+                out.push_str(&description(
+                    service,
+                    &name,
+                    &structure.members,
+                    structure.error.is_some(),
+                ));
                 out.push_str(&format!(
                     "        public init({}) {{\n",
                     parameters.join(", ")
@@ -191,7 +202,11 @@ pub fn emit(service: &Service, module: &str) -> String {
                 out.push_str("        /// A member this client does not know, kept so it can be sent back unchanged.\n");
                 out.push_str("        case unknownVariant(name: Swift.String, value: JSONValue)\n        public var description: Swift.String {\n            switch self {\n");
                 for member in &union.members {
-                    let shown = if docs::is_redacted(service, member) { "Describe.redact(value)" } else { "value" };
+                    let shown = if docs::is_redacted(service, member) {
+                        "Describe.redact(value)"
+                    } else {
+                        "value"
+                    };
                     out.push_str(&format!("            case .`{}`(let value): return Describe.format({}, [({}, {shown})])\n", method(&member.name), literal(&name), literal(&member.name)));
                 }
                 out.push_str(&format!("            case .unknownVariant(let name, _): return Describe.format({}, [(\"unknownVariant\", name)])\n            }}\n        }}\n", literal(&name)));

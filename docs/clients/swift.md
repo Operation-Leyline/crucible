@@ -69,6 +69,26 @@ to a nonempty request payload. An empty raw response remains a present empty
 `Data` value. The optional SHA-256 digest covers exactly the bytes sent after
 middleware runs.
 
+## API documentation and string representations
+
+Every generated type, member, enum value, operation and the client carry
+DocC comments built from the model's `@documentation` plus Crucible's own text
+for the client, `ClientConfig`, errors, waiters and `Pages`; run
+`swift package generate-documentation` with the DocC plugin to render them.
+Bare `[name]` references and `@tag` lines in model text are escaped.
+
+Models conform to `CustomStringConvertible` and `CustomDebugStringConvertible`
+and print as `Secret(name=db, password=*** Sensitive Data Redacted ***)`. Unset
+members are omitted, nested models and collections recurse, a blob shows its
+length, and members that are `@sensitive` (or target a `@sensitive` shape or a
+collection of them) print the redaction marker. `debugPrint`, `dump` and
+`String(reflecting:)` answer with the same text, so reflection never reveals a
+sensitive value. Enums, unions and modeled errors follow the same rule; an
+error also shows its transport metadata, without headers or message.
+
+Structures and unions are not `Equatable` or `Hashable`; generated enums are
+`Hashable`.
+
 ## Transport and errors
 
 Each operation has one overall timeout, including token providers, middleware,

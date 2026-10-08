@@ -37,7 +37,13 @@ fn debug_info(service: &Service, runtime: &str, members: &[&Member], error: bool
 
 /// `describe()`, `__debugInfo()` and, outside errors, `__toString()`.
 /// `PHP` exceptions keep their own `__toString()`, which carries the trace.
-fn describe(service: &Service, runtime: &str, name: &str, members: &[&Member], error: bool) -> String {
+fn describe(
+    service: &Service,
+    runtime: &str,
+    name: &str,
+    members: &[&Member],
+    error: bool,
+) -> String {
     let mut out = format!(
         "    public function __debugInfo(): array\n    {{\n        return {runtime}\\Describe::debug({});\n    }}\n    public function describe(): string\n    {{\n        return {runtime}\\Describe::format({}, $this->__debugInfo());\n    }}\n",
         debug_info(service, runtime, members, error),
@@ -165,7 +171,13 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                 out.push_str(&format!(
                     "        return new {runtime}\\JsonObject($object);\n    }}\n"
                 ));
-                out.push_str(&describe(service, &runtime, name, &structure.members.iter().collect::<Vec<_>>(), error));
+                out.push_str(&describe(
+                    service,
+                    &runtime,
+                    name,
+                    &structure.members.iter().collect::<Vec<_>>(),
+                    error,
+                ));
                 out.push_str("}\n");
                 decode.push_str(&format!(
                     "            {target} => {name}::fromWire($value, $context),\n"
@@ -218,9 +230,16 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                     let wire_name = literal(&member.name);
                     let member_type = ty(service, &member.target, namespace, false);
                     let doc = ty(service, &member.target, namespace, true);
-                    let shown = if docs::is_redacted(service, member) { format!("{runtime}\\Describe::redact($this->value)") } else { "$this->value".to_string() };
+                    let shown = if docs::is_redacted(service, member) {
+                        format!("{runtime}\\Describe::redact($this->value)")
+                    } else {
+                        "$this->value".to_string()
+                    };
                     let variant_docs = docblock(member.docs.as_deref(), "");
-                    let describe = format!("    public function __debugInfo(): array {{ return {runtime}\\Describe::debug([{wire_name} => {shown}]); }}\n    public function __toString(): string {{ return {runtime}\\Describe::format({}, $this->__debugInfo()); }}\n", literal(name));
+                    let describe = format!(
+                        "    public function __debugInfo(): array {{ return {runtime}\\Describe::debug([{wire_name} => {shown}]); }}\n    public function __toString(): string {{ return {runtime}\\Describe::format({}, $this->__debugInfo()); }}\n",
+                        literal(name)
+                    );
                     files.push(File { path:format!("src/{variant}.php"), contents:format!("{header}{variant_docs}final class {variant} extends {name}\n{{\n    /** @param {doc}|null $value the member's value; null when the union carries an explicit null */\n    public function __construct(public readonly ?{member_type} $value) {{}}\n{describe}    public function toWire({runtime}\\WireContext $context): {runtime}\\JsonObject\n    {{\n        return new {runtime}\\JsonObject([{wire_name} => $this->value === null ? null : $context->codec->encode($this->value, $context->member({wire_name}))]);\n    }}\n}}\n") });
                 }
                 let unknown = format!("{name}UnknownVariant");

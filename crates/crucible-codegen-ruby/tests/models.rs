@@ -225,12 +225,30 @@ fn smithy_documentation_reaches_models_and_client() {
     for (text, source) in [
         ("# A stored secret.", secret),
         ("# The <b>name</b> of the secret.", secret),
-        ("# What a secret unlocks.", file("lib/vault_client/models/kind.rb")),
-        ("# A website login.", file("lib/vault_client/models/kind.rb")),
-        ("# Rarely rotated.", file("lib/vault_client/models/level.rb")),
-        ("# A way to prove identity.", file("lib/vault_client/models/credential.rb")),
-        ("# A password.", file("lib/vault_client/models/credential.rb")),
-        ("# The caller may not read this secret.", file("lib/vault_client/models/access_denied.rb")),
+        (
+            "# What a secret unlocks.",
+            file("lib/vault_client/models/kind.rb"),
+        ),
+        (
+            "# A website login.",
+            file("lib/vault_client/models/kind.rb"),
+        ),
+        (
+            "# Rarely rotated.",
+            file("lib/vault_client/models/level.rb"),
+        ),
+        (
+            "# A way to prove identity.",
+            file("lib/vault_client/models/credential.rb"),
+        ),
+        (
+            "# A password.",
+            file("lib/vault_client/models/credential.rb"),
+        ),
+        (
+            "# The caller may not read this secret.",
+            file("lib/vault_client/models/access_denied.rb"),
+        ),
         ("# Reads one secret.", client),
         ("# Stores secrets.", client),
         ("# @raise [AccessDenied]", client),
@@ -270,7 +288,10 @@ fn sensitive_members_are_redacted_in_string_representations() {
         );
     }
     assert!(secret.contains("payload: Runtime::Describe.bytes(@payload)"));
-    assert!(source("lib/vault_client/models/access_denied.rb").contains("reason: Runtime::Describe.redact(@reason)"));
+    assert!(
+        source("lib/vault_client/models/access_denied.rb")
+            .contains("reason: Runtime::Describe.redact(@reason)")
+    );
     let credential = source("lib/vault_client/models/credential.rb");
     assert!(credential.contains("password: Runtime::Describe.redact(@value)"));
     assert!(credential.contains("pin: Runtime::Describe.redact(@value)"));
@@ -291,6 +312,8 @@ fn vault_package_matches_golden() {
     }
     assert_eq!(
         snapshot.replace("\r\n", "\n"),
-        fs::read_to_string(golden).expect("golden").replace("\r\n", "\n")
+        fs::read_to_string(golden)
+            .expect("golden")
+            .replace("\r\n", "\n")
     );
 }

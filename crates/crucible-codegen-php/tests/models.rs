@@ -265,13 +265,19 @@ fn smithy_documentation_reaches_models_and_client() {
     let client = file("src/VaultClient.php");
     for (text, source) in [
         (" * A stored secret.", secret),
-        (" * @param string $name The <b>name</b> of the secret.", secret),
+        (
+            " * @param string $name The <b>name</b> of the secret.",
+            secret,
+        ),
         (" * What a secret unlocks.", file("src/Kind.php")),
         (" * A website login.", file("src/Kind.php")),
         (" * Rarely rotated.", file("src/Level.php")),
         (" * A way to prove identity.", file("src/Credential.php")),
         (" * A password.", file("src/CredentialPassword.php")),
-        (" * The caller may not read this secret.", file("src/AccessDenied.php")),
+        (
+            " * The caller may not read this secret.",
+            file("src/AccessDenied.php"),
+        ),
         (" * Reads one secret.", client),
         (" * Stores secrets.", client),
         (r" * @throws \VaultSdk\AccessDenied", client),
@@ -309,16 +315,23 @@ fn sensitive_members_are_redacted_in_string_representations() {
     }
     for member in ["name", "aliases", "labels", "kind", "revision"] {
         assert!(
-            !secret.contains(&format!(r"'{member}' => \VaultSdk\Runtime\Describe::redact")),
+            !secret.contains(&format!(
+                r"'{member}' => \VaultSdk\Runtime\Describe::redact"
+            )),
             "{member}"
         );
     }
     assert!(secret.contains(r"'payload' => \VaultSdk\Runtime\Describe::bytes($this->payload)"));
-    assert!(source("src/AccessDenied.php").contains(r"'reason' => \VaultSdk\Runtime\Describe::redact($this->reason)"));
+    assert!(
+        source("src/AccessDenied.php")
+            .contains(r"'reason' => \VaultSdk\Runtime\Describe::redact($this->reason)")
+    );
     assert!(source("src/CredentialPassword.php").contains("Describe::redact($this->value)"));
     assert!(source("src/CredentialPin.php").contains("Describe::redact($this->value)"));
     assert!(!source("src/CredentialUsername.php").contains("Describe::redact"));
-    assert!(source("src/CredentialUnknownVariant.php").contains("['unknownVariant' => $this->name]"));
+    assert!(
+        source("src/CredentialUnknownVariant.php").contains("['unknownVariant' => $this->name]")
+    );
 }
 
 #[test]
@@ -334,6 +347,8 @@ fn vault_package_matches_golden() {
     }
     assert_eq!(
         snapshot.replace("\r\n", "\n"),
-        fs::read_to_string(golden).expect("golden").replace("\r\n", "\n")
+        fs::read_to_string(golden)
+            .expect("golden")
+            .replace("\r\n", "\n")
     );
 }

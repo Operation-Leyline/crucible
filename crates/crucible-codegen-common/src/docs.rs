@@ -43,7 +43,8 @@ fn collection_redacted<'a>(
     seen.push(id);
     match service.shape(id) {
         Some(Shape::List(list)) => {
-            service.sensitive(&list.member) || collection_redacted(service, &list.member.target, seen)
+            service.sensitive(&list.member)
+                || collection_redacted(service, &list.member.target, seen)
         }
         Some(Shape::Map(map)) => {
             service.sensitive(&map.key)
@@ -242,10 +243,46 @@ mod tests {
     #[test]
     fn comments_skip_empty_text_and_blank_edges() {
         assert_eq!(line_comment("", "///", "  \n"), "");
-        assert_eq!(line_comment("  ", "#", "\none\n\ntwo\n"), "  # one\n  #\n  # two\n");
+        assert_eq!(
+            line_comment("  ", "#", "\none\n\ntwo\n"),
+            "  # one\n  #\n  # two\n"
+        );
         assert_eq!(
             block_comment("", "hi", &["@return x".into()]),
             "/**\n * hi\n *\n * @return x\n */\n"
         );
+    }
+
+    #[test]
+    fn collections_of_sensitive_elements_are_redacted_whole() {
+        use crucible_smithy::{Capabilities, Feature, Model, ShapeId};
+        let service = Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/client-docs.json"
+        ))
+        .unwrap()
+        .lower_with_capabilities(None, &Capabilities::new([Feature::IntEnum]))
+        .unwrap();
+        let id: ShapeId = "example.vault#Secret".parse().unwrap();
+        let Some(Shape::Structure(secret)) = service.shape(&id) else {
+            panic!("structure")
+        };
+        let redacted = |name: &str| is_redacted(&service, secret.member(name).unwrap());
+        // Direct, through a sensitive target, and through list and map elements.
+        for name in ["pin", "password", "history", "by_name"] {
+            assert!(
+                redacted(if name == "by_name" { "byName" } else { name }),
+                "{name}"
+            );
+        }
+        for name in [
+            "name",
+            "aliases",
+            "labels",
+            "kind",
+            "credential",
+            "revision",
+        ] {
+            assert!(!redacted(name), "{name}");
+        }
     }
 }

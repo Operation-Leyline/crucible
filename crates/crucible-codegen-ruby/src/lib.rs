@@ -2,17 +2,20 @@
 mod models;
 mod names;
 
+use crucible_codegen_common::docs;
 use crucible_smithy::{
     Diagnostics,
     ir::{Service, Shape},
 };
-use crucible_codegen_common::docs;
 use names::{constant, field, literal};
 
 fn client_docs(service: &Service, client_name: &str) -> String {
     let mut text = format!(
         "Client for the {} service.\n\n",
-        service.title.as_deref().unwrap_or_else(|| service.id.name())
+        service
+            .title
+            .as_deref()
+            .unwrap_or_else(|| service.id.name())
     );
     if let Some(service_docs) = &service.docs {
         text.push_str(&docs::escape(service_docs));
@@ -40,7 +43,9 @@ fn operation_docs(
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
     if pages {
-        text.push_str("\n\nThis operation is paginated: use the `_pages` variant to read every page.");
+        text.push_str(
+            "\n\nThis operation is paginated: use the `_pages` variant to read every page.",
+        );
     }
     text.push_str("\n");
     if let Some(input) = input {
@@ -50,7 +55,9 @@ fn operation_docs(
         text.push_str("\n@param response_target [IO, nil] receives the streamed body; the body is yielded to the block when omitted");
         text.push_str("\n@yieldparam chunk [String] a chunk of the streamed body");
     }
-    text.push_str("\n@param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled");
+    text.push_str(
+        "\n@param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled",
+    );
     text.push_str(&format!("\n@return [{output}] the service's response"));
     for name in docs::operation_errors(service, op) {
         text.push_str(&format!("\n@raise [{name}]"));
@@ -320,7 +327,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let mut client = format!(
         "# frozen_string_literal: true\nmodule {module}\n{}  class {client_name}\n{}    def initialize(config = Runtime::ClientConfig.new)\n      @runtime = Runtime::ClientRuntime.new(config, ::{module}.codec, endpoint: {}, digest: {})\n    end\n    # Releases the HTTP connection this client created. A transport passed in the configuration is left open.\n    def close = @runtime.close\n",
         client_docs(service, &client_name),
-        docs::line_comment("    ", "#", "Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see {Runtime::ClientConfig} for credentials, retries, timeouts and the transport.\n\n@param config [Runtime::ClientConfig]\n@raise [ArgumentError] when the endpoint or another setting is invalid"),
+        docs::line_comment(
+            "    ",
+            "#",
+            "Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see {Runtime::ClientConfig} for credentials, retries, timeouts and the transport.\n\n@param config [Runtime::ClientConfig]\n@raise [ArgumentError] when the endpoint or another setting is invalid"
+        ),
         literal(options.endpoint.as_deref().unwrap_or("")),
         options.content_sha256
     );
@@ -338,11 +349,18 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .as_ref()
             .is_some_and(|payload| payload.streaming);
         let input_type = op.input.as_ref().map(|id| service.name_of(id).to_string());
-        let output_type = op
-            .output
-            .as_ref()
-            .map_or_else(|| "Runtime::Unit".to_string(), |id| service.name_of(id).to_string());
-        client.push_str(&operation_docs(service, op, input_type.as_deref(), &output_type, streaming, op.paginated.is_some()));
+        let output_type = op.output.as_ref().map_or_else(
+            || "Runtime::Unit".to_string(),
+            |id| service.name_of(id).to_string(),
+        );
+        client.push_str(&operation_docs(
+            service,
+            op,
+            input_type.as_deref(),
+            &output_type,
+            streaming,
+            op.paginated.is_some(),
+        ));
         if streaming {
             client.push_str(&format!("    def {name}({input}response_target: nil, cancellation: nil, &block)\n      @runtime.call({}, {value}, cancellation: cancellation, response_target: response_target, block: block)\n    end\n",literal(op.name())));
         } else {
@@ -356,9 +374,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             let waiter_docs = description
                 .documentation
                 .as_deref()
-                .map(|text| format!("{}
+                .map(|text| {
+                    format!(
+                        "{}
 
-", docs::escape(text)))
+",
+                        docs::escape(text)
+                    )
+                })
                 .unwrap_or_default();
             client.push_str(&docs::line_comment("    ", "#", &format!("{waiter_docs}Calls {{#{name}}} repeatedly until the modeled `{waiter}` waiter succeeds, with jittered backoff between `min_delay` and `max_delay`. Returns nil when an error acceptor succeeds.
 

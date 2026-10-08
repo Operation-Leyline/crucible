@@ -8,7 +8,10 @@ use crucible_smithy::ir::{Operation, Service};
 fn client_docs(service: &Service, client_name: &str) -> String {
     let mut text = format!(
         "Client for the {} service.\n\n",
-        service.title.as_deref().unwrap_or_else(|| service.id.name())
+        service
+            .title
+            .as_deref()
+            .unwrap_or_else(|| service.id.name())
     );
     if let Some(service_docs) = &service.docs {
         text.push_str(&docs::escape(service_docs));
@@ -20,7 +23,15 @@ fn client_docs(service: &Service, client_name: &str) -> String {
     docs::block_comment("", &text, &[])
 }
 
-fn operation_docs(service: &Service, namespace: &str, op: &Operation, input: Option<&str>, output: &str, streaming: bool, pages: bool) -> String {
+fn operation_docs(
+    service: &Service,
+    namespace: &str,
+    op: &Operation,
+    input: Option<&str>,
+    output: &str,
+    streaming: bool,
+    pages: bool,
+) -> String {
     let token = op.idempotency_token.as_deref().map(names::field);
     let mut text = String::new();
     if let Some(summary) = &op.docs {
@@ -29,13 +40,18 @@ fn operation_docs(service: &Service, namespace: &str, op: &Operation, input: Opt
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
     if pages {
-        text.push_str("\n\nThis operation is paginated: use the `Pages` variant to read every page.");
+        text.push_str(
+            "\n\nThis operation is paginated: use the `Pages` variant to read every page.",
+        );
     }
     let mut tags = Vec::new();
     if let Some(input) = input {
         tags.push(format!("@param {input} $input the request to send"));
     }
-    tags.push("@param ?Runtime\\CancellationToken $cancellation cancels the call when cancelled".to_string());
+    tags.push(
+        "@param ?Runtime\\CancellationToken $cancellation cancels the call when cancelled"
+            .to_string(),
+    );
     if streaming {
         tags.push("@param null|\\Closure(string): void|resource $responseTarget receives the streamed body; null buffers it in a temporary stream".to_string());
     }
@@ -43,7 +59,10 @@ fn operation_docs(service: &Service, namespace: &str, op: &Operation, input: Opt
     for name in docs::operation_errors(service, op) {
         tags.push(format!("@throws \\{namespace}\\{name}"));
     }
-    tags.push(format!("@throws \\{namespace}\\{} for any other error response", crucible_codegen_common::service_exception_name(service)));
+    tags.push(format!(
+        "@throws \\{namespace}\\{} for any other error response",
+        crucible_codegen_common::service_exception_name(service)
+    ));
     docs::block_comment("    ", &text, &tags)
 }
 
@@ -80,8 +99,19 @@ pub fn emit(service: &Service, options: &Options) -> String {
             .map(|id| ty(service, id, namespace, false))
             .unwrap_or("Runtime\\Unit".into());
         let streaming = op.response.payload.as_ref().is_some_and(|p| p.streaming);
-        let input_type = op.input.as_ref().map(|id| ty(service, id, namespace, false));
-        out.push_str(&operation_docs(service, namespace, op, input_type.as_deref(), &output, streaming, op.paginated.is_some()));
+        let input_type = op
+            .input
+            .as_ref()
+            .map(|id| ty(service, id, namespace, false));
+        out.push_str(&operation_docs(
+            service,
+            namespace,
+            op,
+            input_type.as_deref(),
+            &output,
+            streaming,
+            op.paginated.is_some(),
+        ));
         if streaming {
             out.push_str(&format!("    public function {name}({input}?Runtime\\CancellationToken $cancellation = null, mixed $responseTarget = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation, $responseTarget);\n    }}\n"));
         } else {

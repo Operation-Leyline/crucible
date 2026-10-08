@@ -33,7 +33,10 @@ fn yard_type(service: &Service, id: &ShapeId) -> String {
             SimpleKind::Document => "Runtime::JsonValue".into(),
         },
         Some(Shape::List(list)) => format!("Array<{}>", yard_type(service, &list.member.target)),
-        Some(Shape::Map(map)) => format!("Hash{{String => {}}}", yard_type(service, &map.value.target)),
+        Some(Shape::Map(map)) => format!(
+            "Hash{{String => {}}}",
+            yard_type(service, &map.value.target)
+        ),
         Some(Shape::Unit) | None => "Runtime::Unit".into(),
         Some(_) => service.name_of(id).to_string(),
     }
@@ -193,7 +196,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                         value.value
                     ));
                 }
-                out.push_str(&format!("      def inspect = '{name}(' + @value.to_s + ')'\n      alias to_s inspect\n"));
+                out.push_str(&format!(
+                    "      def inspect = '{name}(' + @value.to_s + ')'\n      alias to_s inspect\n"
+                ));
                 out.push_str("    end\n");
             }
             Shape::Enum(enumeration) => {
@@ -207,7 +212,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                         literal(&value.value)
                     ));
                 }
-                out.push_str(&format!("      def inspect = '{name}(' + @value + ')'\n      alias to_s inspect\n"));
+                out.push_str(&format!(
+                    "      def inspect = '{name}(' + @value + ')'\n      alias to_s inspect\n"
+                ));
                 out.push_str("    end\n");
             }
             Shape::Union(union) => {
@@ -220,7 +227,11 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 for m in &union.members {
                     let wire = literal(&m.name);
                     out.push_str(&yard(m.docs.as_deref(), "      "));
-                    let shown = if docs::is_redacted(service, m) { "Runtime::Describe.redact(@value)" } else { "@value" };
+                    let shown = if docs::is_redacted(service, m) {
+                        "Runtime::Describe.redact(@value)"
+                    } else {
+                        "@value"
+                    };
                     out.push_str(&format!("      class {} < {name}\n        # @return [{}, nil] the member's value; nil when the union carries an explicit null\n        attr_reader :value\n        def initialize(value)\n          @value = value\n          freeze\n        end\n        def to_wire(context)\n          {{{wire} => @value.nil? ? nil : context.codec.encode(@value, context.member({wire}))}}\n        end\n        def inspect = Runtime::Describe.format({}, {{{}: {shown}}})\n        alias to_s inspect\n      end\n",variant(&m.name), yard_type(service, &m.target), literal(name), field(&m.name)));
                 }
                 let type_literal = literal(name);
