@@ -61,7 +61,7 @@ fn ty(service: &Service, id: &ShapeId) -> String {
         return match shape {
             Shape::Simple(s) => simple(s.kind).into(),
             Shape::IntEnum(_) => unreachable!("integer enums are capability-gated"),
-            Shape::Unit => "Unit".into(),
+            Shape::Unit { .. } => "Unit".into(),
             _ => unreachable!("prelude shape"),
         };
     }
@@ -382,7 +382,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 }
                 models.push_str(")\n\n");
             }
-            Shape::Unit => models.push_str(&format!("type {name} = Unit\n\n")),
+            Shape::Unit { .. } => models.push_str(&format!("type {name} = Unit\n\n")),
             // Members use io.Reader or io.ReadCloser directly; see member_ty.
             Shape::Simple(s) if s.streaming => {}
             Shape::Simple(s) => models.push_str(&format!("type {name} = {}\n\n", simple(s.kind))),

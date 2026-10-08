@@ -77,7 +77,7 @@ pub(crate) fn emit(
         out.push('\n');
         match shape {
             Shape::IntEnum(values) => crate::open::int_enumeration(&mut out, name, values, client),
-            Shape::Unit => {}
+            Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
                 doc(&mut out, "", simple.docs.as_deref());
                 out.push_str(&format!(

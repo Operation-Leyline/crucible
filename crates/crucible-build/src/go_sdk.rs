@@ -6,14 +6,22 @@ use crate::ModelPackage;
 pub struct GoSdk<'a> {
     model: &'a ModelPackage,
     name: String,
+    audience: crucible_codegen::Audience,
     options: GoOptions,
 }
 
 impl<'a> GoSdk<'a> {
+    /// Select internal API explicitly; the default is external.
+    pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
+        self.audience = audience;
+        self
+    }
+
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         Self {
             model,
             name: name.into(),
+            audience: crucible_codegen::Audience::External,
             options: GoOptions {
                 module_path: format!("example.com/{name}-sdk"),
                 package_name: format!("{}_sdk", crate::output_builder::native_snake(name)),

@@ -161,6 +161,20 @@ a JSON body, its byte count checked by `@length`. An `@httpPayload` blob is
 the request body itself, and its `Blob` shares the body's buffer rather than
 copying it.
 
+## Internal operations
+
+Servers implement all operations regardless of client audience. Generated static
+`OperationInfo::internal` records Smithy's `@internal` annotation. An application's
+`OperationAwareMiddleware::before` can check `job.operation().internal` together
+with an authenticated principal in `job.context()` and reject external callers.
+The framework supplies metadata and extension interfaces; caller policy belongs
+to the service. Client filtering does not secure a server endpoint.
+
+The [audience integration test](../e2e/weather-service/tests/audience.rs) demonstrates
+rejecting an external caller while allowing an internal caller to reach the same
+operation. Its example header is only a test caller marker; production services
+should use their authenticated principal.
+
 ## Laying out a service
 
 One type per file, named for what it holds, Java-package style:
@@ -333,7 +347,10 @@ An empty trait uses origin `*` and a preflight cache age of 600 seconds. Set
 Lowering computes sorted, case-insensitively deduplicated request and response
 header lists across all operations and errors, including authentication headers,
 `content-type`, `x-request-id`, and `X-Crucible-Error`. The generated service
-carries only a static description; the runtime prepares header values once.
+uses the full server contract, including internal operations and headers;
+client audience projection does not narrow its CORS policy. CORS permission
+does not replace application caller authorization. The generated service carries
+only a static description; the runtime prepares header values once.
 Input `@httpPrefixHeaders` bindings retain their prefixes separately: preflight
 adds matching concrete names from `Access-Control-Request-Headers`, since
 browsers do not interpret partial wildcards such as `x-meta-*`.
@@ -555,6 +572,9 @@ vector are expanded there (`$name` is replaced in the request and the
 expected response; ids become `Id[name=value]`). Request and response vectors
 without `appliesTo: client`, and every malformed-request vector, are server
 vectors.
+
+Server conformance always uses the full model, including internal operations and
+members, regardless of the selected client audience.
 
 ```rust
 // build.rs

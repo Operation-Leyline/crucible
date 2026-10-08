@@ -177,7 +177,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                             continue;
                         }
                         let text = match shape {
-                            Shape::Unit => continue,
+                            Shape::Unit { .. } => continue,
                             Shape::Simple(s) => &s.docs,
                             Shape::Enum(s) => &s.docs,
                             Shape::IntEnum(s) => &s.docs,

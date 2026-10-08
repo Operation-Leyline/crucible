@@ -7,6 +7,13 @@ provide `fetch`, `Request`, Web Crypto, and `structuredClone`. Models are
 TypeScript interfaces and aliases; JavaScript callers use the same built package.
 The package declares TypeScript `>=5.7 <7` as a build dependency.
 
+## API audience
+
+Clients omit `@internal` API by default. Select `--audience internal` for a full
+client, or `.audience(crucible_build::Audience::Internal)` on the Cargo build
+helper. Servers always retain the complete contract.
+See [API audience selection](../build-outputs.md#selecting-an-api-audience).
+
 ## Generating and installing
 
 Use your service's `smithy/` source directory, a `.smithy` file, or a prepared

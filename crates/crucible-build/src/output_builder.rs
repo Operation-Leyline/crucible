@@ -19,6 +19,7 @@ macro_rules! generation_methods {
         pub fn generate(self) -> crate::Artifact {
             self.model
                 .sdk(&self.name, crucible_codegen::Client::$variant(self.options))
+                .audience(self.audience)
                 .generate()
         }
 
@@ -26,6 +27,7 @@ macro_rules! generation_methods {
         pub fn try_generate(self) -> Result<crate::Artifact, String> {
             self.model
                 .sdk(&self.name, crucible_codegen::Client::$variant(self.options))
+                .audience(self.audience)
                 .try_generate()
         }
 
@@ -33,6 +35,7 @@ macro_rules! generation_methods {
         pub fn generate_into(self, output: impl AsRef<std::path::Path>) -> crate::Artifact {
             self.model
                 .sdk(&self.name, crucible_codegen::Client::$variant(self.options))
+                .audience(self.audience)
                 .generate_into(output)
         }
 
@@ -43,6 +46,7 @@ macro_rules! generation_methods {
         ) -> Result<crate::Artifact, String> {
             self.model
                 .sdk(&self.name, crucible_codegen::Client::$variant(self.options))
+                .audience(self.audience)
                 .try_generate_into(output)
         }
     };
@@ -106,8 +110,12 @@ macro_rules! output_generation_methods {
 
         /// Generate without panicking on invalid settings or unsupported semantics.
         pub fn try_generate(self) -> Result<crate::Artifact, String> {
+            let audience = self.audience;
             let (model, name, generator) = self.prepare()?;
-            model.output(&name, generator).try_generate()
+            model
+                .output(&name, generator)
+                .audience(audience)
+                .try_generate()
         }
 
         /// Generate under OUT_DIR and export relative to the producer's manifest.
@@ -121,8 +129,12 @@ macro_rules! output_generation_methods {
             self,
             output: impl AsRef<std::path::Path>,
         ) -> Result<crate::Artifact, String> {
+            let audience = self.audience;
             let (model, name, generator) = self.prepare()?;
-            model.output(&name, generator).try_generate_into(output)
+            model
+                .output(&name, generator)
+                .audience(audience)
+                .try_generate_into(output)
         }
     };
 }

@@ -446,7 +446,7 @@ impl<'a> Generator<'a> {
                     _ => "&SHAPE_PLAIN".to_owned(),
                 }
             }
-            Some(Shape::Unit) | None => "&SHAPE_UNIT".to_owned(),
+            Some(Shape::Unit { .. }) | None => "&SHAPE_UNIT".to_owned(),
             Some(Shape::Enum(_) | Shape::IntEnum(_)) => "&SHAPE_PLAIN".to_owned(),
             Some(
                 shape @ (Shape::List(_) | Shape::Map(_) | Shape::Structure(_) | Shape::Union(_)),

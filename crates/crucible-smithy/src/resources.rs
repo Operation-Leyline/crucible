@@ -99,6 +99,7 @@ fn visit(
         list: target(&shape.list),
     };
     let mut resource = Resource {
+        internal: shape.traits.contains_key(&smithy("internal")),
         id: id.clone(),
         identifiers,
         properties,

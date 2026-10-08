@@ -45,7 +45,7 @@ fn unsupported_targets_and_symbol_collisions_are_diagnostics() {
         "smithy.api#Document".parse().unwrap();
     service.shapes.insert(
         "smithy.api#Document".parse().unwrap(),
-        crucible_smithy::ir::Shape::Unit,
+        crucible_smithy::ir::Shape::Unit { internal: false },
     );
     plan.resources[0].cdk.as_mut().unwrap().class_name = Some("CfnResource".into());
     let errors = emit(&service, &plan, &options).unwrap_err().to_string();
@@ -149,6 +149,7 @@ fn timestamps_use_explicit_provider_representation() {
     service.shapes.insert(
         id,
         crucible_smithy::ir::Shape::Simple(crucible_smithy::ir::Simple {
+            internal: false,
             streaming: false,
             requires_length: false,
             kind: crucible_smithy::ir::SimpleKind::Timestamp,

@@ -69,7 +69,7 @@ fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
     }
     match service.shape(id).expect("lowered target") {
         Shape::IntEnum(_) => format!("global::{ns}.Models.@{}", service.name_of(id)),
-        Shape::Unit => format!("global::{ns}.Unit"),
+        Shape::Unit { .. } => format!("global::{ns}.Unit"),
         Shape::Simple(s) if s.streaming => format!("global::{ns}.ByteStream"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::BigInteger => "global::System.Numerics.BigInteger",
@@ -194,7 +194,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     let mut names = BTreeSet::from([client_name.to_ascii_lowercase()]);
     for (id, shape) in &service.shapes {
-        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         let name = service.name_of(id);
@@ -321,7 +321,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "internal static class ModelRegistry {\n    internal static readonly global::System.Collections.Generic.Dictionary<string, global::System.Type> Types = new() {\n",
     );
     for (id, shape) in &service.shapes {
-        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         let name = service.name_of(id);

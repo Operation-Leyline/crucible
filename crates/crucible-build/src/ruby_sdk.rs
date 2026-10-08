@@ -6,16 +6,24 @@ use crate::ModelPackage;
 pub struct RubySdk<'a> {
     model: &'a ModelPackage,
     name: String,
+    audience: crucible_codegen::Audience,
     options: RubyOptions,
 }
 
 impl<'a> RubySdk<'a> {
+    /// Select internal API explicitly; the default is external.
+    pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
+        self.audience = audience;
+        self
+    }
+
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         let native_name = format!("{}_sdk", crate::output_builder::native_snake(name));
         let module = format!("{}Sdk", crate::output_builder::native_pascal(name));
         Self {
             model,
             name: name.into(),
+            audience: crucible_codegen::Audience::External,
             options: RubyOptions {
                 package_name: native_name,
                 module_name: module,

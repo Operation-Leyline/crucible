@@ -8,6 +8,14 @@ The generated package uses `crucible-client-runtime-rust` and
 the shared `crucible-wire` runtime. Use the current stable Rust toolchain
 and an async runtime such as Tokio.
 
+## API audience
+
+Clients omit `@internal` API by default. Select `--audience internal` for a full
+client, or `.audience(crucible_build::Audience::Internal)` on the Cargo build
+helper. The legacy Rust `client(...)` and `RustCodegen::client_from_model(...)`
+helpers accept the same setter. Servers always retain the complete contract.
+See [API audience selection](../build-outputs.md#selecting-an-api-audience).
+
 ## Generating a client
 
 For shared Smithy models, named SDKs, and application packages, follow

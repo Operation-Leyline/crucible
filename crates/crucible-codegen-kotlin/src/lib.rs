@@ -104,7 +104,7 @@ fn method(text: &str) -> String {
 }
 fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     match service.shape(id).expect("lowered target") {
-        Shape::Unit => "kotlin.Unit".into(),
+        Shape::Unit { .. } => "kotlin.Unit".into(),
         Shape::Simple(s) if s.streaming => format!("{package}.ByteStream"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::String => "kotlin.String",
@@ -230,7 +230,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .map(str::to_string),
     );
     for (id, shape) in &service.shapes {
-        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         let name = service.name_of(id);

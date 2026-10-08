@@ -44,6 +44,7 @@ impl<const SAFE: bool> Operation for Request<SAFE> {
         errors: &["Ordinary", "Transient", "Throttled"],
         readonly: SAFE,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };

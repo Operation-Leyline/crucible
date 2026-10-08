@@ -52,6 +52,7 @@ const fn operation(
         errors: &[],
         readonly: false,
         idempotent: false,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     }

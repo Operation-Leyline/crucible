@@ -75,7 +75,7 @@ pub(crate) fn exports(service: &Service, diagnostics: &mut Diagnostics) -> Strin
 fn shape_names(service: &Service) -> impl Iterator<Item = (&'static str, &ShapeId)> {
     models::model_shapes(service)
         .into_iter()
-        .filter(|(_, shape)| !matches!(shape, Shape::Unit))
+        .filter(|(_, shape)| !matches!(shape, Shape::Unit { .. }))
         .map(|(id, _)| ("model", id))
         .chain(
             errors::error_shapes(service)

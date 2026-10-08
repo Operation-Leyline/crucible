@@ -6,14 +6,22 @@ use crate::ModelPackage;
 pub struct TsSdk<'a> {
     model: &'a ModelPackage,
     name: String,
+    audience: crucible_codegen::Audience,
     options: TsOptions,
 }
 
 impl<'a> TsSdk<'a> {
+    /// Select internal API explicitly; the default is external.
+    pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
+        self.audience = audience;
+        self
+    }
+
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         Self {
             model,
             name: name.into(),
+            audience: crucible_codegen::Audience::External,
             options: TsOptions {
                 package_name: format!("{name}-sdk"),
                 package_version: std::env::var("CARGO_PKG_VERSION")

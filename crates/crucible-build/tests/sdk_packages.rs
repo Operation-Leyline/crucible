@@ -14,6 +14,45 @@ fn package_probe() {
     };
     let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
+    if mode == "audience" {
+        let package = crucible_build::model_from_json("model.json").compile();
+        let external = package.rust_client("public").generate();
+        let internal = package
+            .rust_client("internal")
+            .audience(crucible_build::Audience::Internal)
+            .generate();
+        let contents = |artifact: crucible_build::Artifact| {
+            fs::read_to_string(artifact.path.join("src/lib.rs")).unwrap()
+        };
+        assert!(!contents(external).contains("SecretInput"));
+        assert!(contents(internal).contains("SecretInput"));
+        let generic = package
+            .sdk(
+                "generic",
+                crucible_build::clients::Client::Rust(Default::default()),
+            )
+            .generate();
+        assert!(!contents(generic).contains("SecretInput"));
+        #[cfg(feature = "ts")]
+        for (name, audience, visible) in [
+            ("ts", crucible_build::Audience::External, false),
+            ("ts-internal", crucible_build::Audience::Internal, true),
+        ] {
+            let artifact = package.ts_client(name).audience(audience).generate();
+            let source = fs::read_to_string(artifact.path.join("src/client.ts")).unwrap();
+            assert_eq!(source.contains("Secret"), visible);
+        }
+        #[cfg(feature = "openapi")]
+        for (name, audience, visible) in [
+            ("api", crucible_build::Audience::External, false),
+            ("api-internal", crucible_build::Audience::Internal, true),
+        ] {
+            let artifact = package.openapi(name).audience(audience).generate();
+            let source = fs::read_to_string(artifact.path.join("openapi.json")).unwrap();
+            assert_eq!(source.contains("/secret"), visible);
+        }
+        return;
+    }
     if mode == "resolve" {
         let artifact = crucible_build::artifact("source_model", "rust");
         assert_eq!(artifact.target, "rust");
@@ -220,4 +259,15 @@ fn artifact_export_rejects_paths_outside_the_generated_package_before_writing() 
         "keep"
     );
     assert!(!root.join("export/private").exists());
+}
+
+#[test]
+fn named_outputs_default_external_and_can_select_internal() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("model.json"),
+        include_str!("../../crucible-smithy/tests/fixtures/internal.json"),
+    )
+    .unwrap();
+    probe(root.path(), "audience");
 }

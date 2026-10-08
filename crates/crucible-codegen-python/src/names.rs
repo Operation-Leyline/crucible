@@ -67,7 +67,7 @@ pub fn ty(service: &Service, id: &ShapeId, prefix: &str) -> String {
     }
     match service.shape(id).expect("lowered target") {
         Shape::IntEnum(_) => unreachable!("integer enums are capability-gated"),
-        Shape::Unit => "None".into(),
+        Shape::Unit { .. } => "None".into(),
         Shape::Simple(s) => match s.kind {
             SimpleKind::BigInteger => "int",
             SimpleKind::BigDecimal => "Decimal",

@@ -135,7 +135,7 @@ fn method(text: &str) -> String {
 }
 fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     match service.shape(id).expect("lowered target") {
-        Shape::Unit => format!("{package}.model.Unit"),
+        Shape::Unit { .. } => format!("{package}.model.Unit"),
         Shape::Simple(s) if s.streaming => format!("{package}.ByteStream"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::String => "java.lang.String",
@@ -337,7 +337,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             .to_string(),
     ]);
     for (id, shape) in &service.shapes {
-        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         let name = service.name_of(id);
@@ -493,7 +493,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "    static java.util.Map<java.lang.String, java.lang.Class<?>> classes() {\n        java.util.Map<java.lang.String, java.lang.Class<?>> result = new java.util.HashMap<>();\n",
     );
     for (id, shape) in &service.shapes {
-        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         let name = service.name_of(id);

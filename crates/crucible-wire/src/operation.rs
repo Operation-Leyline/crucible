@@ -96,6 +96,8 @@ impl ServiceInfo {
 
 #[derive(Debug)]
 pub struct OperationInfo {
+    /// Smithy @internal; caller authorization remains application policy.
+    pub internal: bool,
     /// The operation's shape id, `namespace#Name`.
     pub id: &'static str,
     pub name: &'static str,

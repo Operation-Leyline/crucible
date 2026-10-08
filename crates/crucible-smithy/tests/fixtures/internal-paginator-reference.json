@@ -1,0 +1,191 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.audience#Api": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.audience#Public"
+        },
+        {
+          "target": "example.audience#Secret"
+        }
+      ]
+    },
+    "example.audience#Public": {
+      "type": "operation",
+      "input": {
+        "target": "example.audience#PublicInput"
+      },
+      "output": {
+        "target": "example.audience#PublicOutput"
+      },
+      "errors": [
+        {
+          "target": "example.audience#PublicFault"
+        },
+        {
+          "target": "example.audience#InternalFault"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/public",
+          "code": 200
+        },
+        "smithy.api#paginated": {
+          "inputToken": "token",
+          "outputToken": "token",
+          "items": "items",
+          "pageSize": "size"
+        }
+      }
+    },
+    "example.audience#Secret": {
+      "type": "operation",
+      "input": {
+        "target": "example.audience#SecretInput"
+      },
+      "traits": {
+        "smithy.api#internal": {},
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/secret",
+          "code": 200
+        }
+      }
+    },
+    "example.audience#PublicInput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "value": {
+          "target": "smithy.api#String"
+        },
+        "privateValue": {
+          "target": "example.audience#SecretValue",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        },
+        "privateHeader": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#internal": {},
+            "smithy.api#httpHeader": "x-private"
+          }
+        },
+        "token": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        },
+        "size": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        }
+      }
+    },
+    "example.audience#PublicOutput": {
+      "type": "structure",
+      "members": {
+        "value": {
+          "target": "smithy.api#String"
+        },
+        "privateValue": {
+          "target": "example.audience#SecretValue",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        },
+        "choice": {
+          "target": "example.audience#Choice"
+        },
+        "token": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        },
+        "items": {
+          "target": "example.audience#Items",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        }
+      }
+    },
+    "example.audience#SecretInput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#internal": {}
+      },
+      "members": {
+        "secret": {
+          "target": "example.audience#SecretValue"
+        }
+      }
+    },
+    "example.audience#SecretValue": {
+      "type": "string",
+      "traits": {
+        "smithy.api#internal": {}
+      }
+    },
+    "example.audience#Choice": {
+      "type": "union",
+      "members": {
+        "public": {
+          "target": "smithy.api#String"
+        },
+        "private": {
+          "target": "example.audience#SecretValue",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        }
+      }
+    },
+    "example.audience#PublicFault": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.audience#InternalFault": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#internal": {},
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.audience#Items": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      }
+    }
+  }
+}

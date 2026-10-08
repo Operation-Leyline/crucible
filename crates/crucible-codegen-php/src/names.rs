@@ -163,7 +163,7 @@ pub fn variant(value: &str) -> String {
 pub fn ty(service: &Service, id: &ShapeId, namespace: &str, docs: bool) -> String {
     let runtime = |name| format!("\\{namespace}\\Runtime\\{name}");
     match service.shape(id).expect("shape") {
-        Shape::Unit => runtime("Unit"),
+        Shape::Unit { .. } => runtime("Unit"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::BigInteger => runtime("BigInteger"),
             SimpleKind::BigDecimal => runtime("BigDecimal"),

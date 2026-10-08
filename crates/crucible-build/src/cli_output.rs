@@ -8,10 +8,17 @@ use crate::ModelPackage;
 pub struct CliOutput<'a> {
     model: &'a ModelPackage,
     name: String,
+    audience: crucible_codegen::Audience,
     options: CliOptions,
 }
 
 impl<'a> CliOutput<'a> {
+    /// Select internal API explicitly; the default is external.
+    pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
+        self.audience = audience;
+        self
+    }
+
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         // Use this helper's checkout, not the model producer's manifest directory.
         // Cargo Git dependencies retain the matching runtime crates alongside it.
@@ -23,6 +30,7 @@ impl<'a> CliOutput<'a> {
         Self {
             model,
             name: name.into(),
+            audience: crucible_codegen::Audience::External,
             options: CliOptions {
                 bin_name: format!("{name}-cli"),
                 package_version: std::env::var("CARGO_PKG_VERSION")

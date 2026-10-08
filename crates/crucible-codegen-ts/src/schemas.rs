@@ -174,7 +174,7 @@ pub(crate) fn emit(service: &Service) -> String {
                 SimpleKind::Float | SimpleKind::Double => "number",
             },
             Shape::Enum(_) => "string",
-            Shape::Unit => "document",
+            Shape::Unit { .. } => "document",
             Shape::List(_) => "list",
             Shape::Map(_) => "map",
             Shape::Structure(structure) | Shape::Union(structure) => {
@@ -288,7 +288,7 @@ pub(crate) fn body_schema(
         }),
         Shape::IntEnum(_) => Some("integer(32)".to_owned()),
         Shape::Enum(_) => Some("string".to_owned()),
-        Shape::Unit => Some("document".to_owned()),
+        Shape::Unit { .. } => Some("document".to_owned()),
         _ if converting.contains(&member.target) => Some(schema_name(service, &member.target)),
         _ => None,
     }

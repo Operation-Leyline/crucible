@@ -148,7 +148,7 @@ fn field(value: &str) -> String {
 }
 fn ty(service: &Service, id: &ShapeId) -> String {
     match service.shape(id).expect("shape") {
-        Shape::Unit => "Unit".into(),
+        Shape::Unit { .. } => "Unit".into(),
         Shape::Simple(s) => match s.kind {
             SimpleKind::BigInteger => "core.BigInt",
             SimpleKind::BigDecimal => "json.BigDecimal",
@@ -252,7 +252,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     names.insert(format!("{}Client", service.id.name()));
     let mut aliases = BTreeMap::new();
     for (id, shape) in &service.shapes {
-        if matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         let name = service.name_of(id);

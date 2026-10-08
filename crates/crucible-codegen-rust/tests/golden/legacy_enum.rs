@@ -85,6 +85,7 @@ pub mod legacy {
         errors: &[],
         readonly: false,
         idempotent: true,
+        internal: false,
         idempotency_token: None,
         traits: &[],
     };

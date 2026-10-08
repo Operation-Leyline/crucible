@@ -7,14 +7,22 @@ use crate::{Artifact, ModelPackage};
 pub struct JavaSdk<'a> {
     model: &'a ModelPackage,
     name: String,
+    audience: crucible_codegen::Audience,
     options: JavaOptions,
 }
 
 impl<'a> JavaSdk<'a> {
+    /// Select internal API explicitly; the default is external.
+    pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
+        self.audience = audience;
+        self
+    }
+
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         Self {
             model,
             name: name.into(),
+            audience: crucible_codegen::Audience::External,
             options: JavaOptions {
                 group_id: "example".into(),
                 artifact_id: format!("{name}-sdk"),
@@ -67,12 +75,14 @@ impl<'a> JavaSdk<'a> {
     pub fn generate(self) -> Artifact {
         self.model
             .sdk(&self.name, Client::Java(self.options))
+            .audience(self.audience)
             .generate()
     }
     /// Fallible equivalent of generation.
     pub fn try_generate(self) -> Result<Artifact, String> {
         self.model
             .sdk(&self.name, Client::Java(self.options))
+            .audience(self.audience)
             .try_generate()
     }
 
@@ -86,6 +96,7 @@ impl<'a> JavaSdk<'a> {
     pub fn try_generate_into(self, output: impl AsRef<Path>) -> Result<Artifact, String> {
         self.model
             .sdk(&self.name, Client::Java(self.options))
+            .audience(self.audience)
             .try_generate_into(output)
     }
 }

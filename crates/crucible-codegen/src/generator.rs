@@ -46,8 +46,24 @@ impl Generator {
 
     /// Generate files from the lowered model without changing an output directory.
     pub fn emit(&self, service: &Service) -> Result<Vec<File>, Diagnostics> {
+        self.emit_for_audience(service, crate::Audience::External)
+    }
+
+    /// Server bindings always retain the full contract, regardless of audience.
+    pub fn emit_for_audience(
+        &self,
+        service: &Service,
+        audience: crate::Audience,
+    ) -> Result<Vec<File>, Diagnostics> {
+        let projected;
+        let service = if matches!(self, Self::Server(_)) {
+            service
+        } else {
+            projected = crucible_smithy::project(service, audience)?;
+            &projected
+        };
         match self {
-            Self::Client(client) => client.emit(service),
+            Self::Client(client) => client.emit_projected(service),
             Self::Server(server) => server.emit(service),
             #[cfg(feature = "openapi")]
             Self::OpenApi(options) => {

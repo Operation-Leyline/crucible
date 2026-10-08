@@ -6,15 +6,23 @@ use crate::ModelPackage;
 pub struct PhpSdk<'a> {
     model: &'a ModelPackage,
     name: String,
+    audience: crucible_codegen::Audience,
     options: PhpOptions,
 }
 
 impl<'a> PhpSdk<'a> {
+    /// Select internal API explicitly; the default is external.
+    pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
+        self.audience = audience;
+        self
+    }
+
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         let module = format!("{}Sdk", crate::output_builder::native_pascal(name));
         Self {
             model,
             name: name.into(),
+            audience: crucible_codegen::Audience::External,
             options: PhpOptions {
                 package_name: format!(
                     "example/{}-sdk",

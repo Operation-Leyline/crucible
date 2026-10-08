@@ -6,14 +6,22 @@ use crate::ModelPackage;
 pub struct RSdk<'a> {
     model: &'a ModelPackage,
     name: String,
+    audience: crucible_codegen::Audience,
     options: ROptions,
 }
 
 impl<'a> RSdk<'a> {
+    /// Select internal API explicitly; the default is external.
+    pub fn audience(mut self, audience: crucible_codegen::Audience) -> Self {
+        self.audience = audience;
+        self
+    }
+
     pub(crate) fn new(model: &'a ModelPackage, name: &str) -> Self {
         Self {
             model,
             name: name.into(),
+            audience: crucible_codegen::Audience::External,
             options: ROptions {
                 package_name: format!("{}.sdk", name.replace('-', ".")),
                 package_version: std::env::var("CARGO_PKG_VERSION")

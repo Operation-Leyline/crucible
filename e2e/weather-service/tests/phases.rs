@@ -49,6 +49,7 @@ static INFO: OperationInfo = OperationInfo {
     errors: &[],
     readonly: false,
     idempotent: false,
+    internal: false,
     idempotency_token: None,
     traits: &[],
 };

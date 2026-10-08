@@ -29,6 +29,8 @@ pub type Traits = BTreeMap<ShapeId, Value>;
 #[derive(Debug, Clone)]
 pub struct Service {
     pub cors: Option<Cors>,
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub endpoint_discovery: Option<EndpointDiscovery>,
     pub recursive_groups: Vec<RecursiveGroup>,
     pub xml_namespace: Option<XmlNamespace>,
@@ -63,6 +65,8 @@ pub struct Service {
 
 #[derive(Debug, Clone)]
 pub struct Resource {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub id: ShapeId,
     pub identifiers: BTreeMap<String, ShapeId>,
     pub properties: BTreeMap<String, ShapeId>,
@@ -179,7 +183,9 @@ impl Service {
 pub enum Shape {
     /// `smithy.api#Unit`: no value, as an operation's input or output or as
     /// a union member that carries nothing.
-    Unit,
+    Unit {
+        internal: bool,
+    },
     Simple(Simple),
     Enum(Enum),
     IntEnum(IntEnum),
@@ -190,9 +196,30 @@ pub enum Shape {
 }
 
 impl Shape {
+    pub fn internal(&self) -> bool {
+        match self {
+            Self::Unit { internal } => *internal,
+            Self::Simple(s) => s.internal,
+            Self::Enum(s) => s.internal,
+            Self::IntEnum(s) => s.internal,
+            Self::List(s) => s.internal,
+            Self::Map(s) => s.internal,
+            Self::Structure(s) | Self::Union(s) => s.internal,
+        }
+    }
+
+    pub fn members(&self) -> Vec<&Member> {
+        match self {
+            Self::Structure(s) | Self::Union(s) => s.members.iter().collect(),
+            Self::List(s) => vec![&s.member],
+            Self::Map(s) => vec![&s.key, &s.value],
+            _ => vec![],
+        }
+    }
+
     pub fn sensitive(&self) -> bool {
         let traits = match self {
-            Self::Unit => return false,
+            Self::Unit { .. } => return false,
             Self::Simple(s) => &s.traits,
             Self::Enum(s) => &s.traits,
             Self::IntEnum(s) => &s.traits,
@@ -206,6 +233,8 @@ impl Shape {
 
 #[derive(Debug, Clone)]
 pub struct Simple {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub streaming: bool,
     pub requires_length: bool,
     pub kind: SimpleKind,
@@ -235,6 +264,8 @@ pub enum SimpleKind {
 
 #[derive(Debug, Clone)]
 pub struct Enum {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub values: Vec<EnumValue>,
     pub docs: Option<String>,
     pub traits: Traits,
@@ -242,6 +273,8 @@ pub struct Enum {
 
 #[derive(Debug, Clone)]
 pub struct EnumValue {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     /// The member name, for a language symbol.
     pub name: String,
     /// What goes on the wire.
@@ -251,6 +284,8 @@ pub struct EnumValue {
 
 #[derive(Debug, Clone)]
 pub struct IntEnum {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub values: Vec<IntEnumValue>,
     pub docs: Option<String>,
     pub traits: Traits,
@@ -258,6 +293,8 @@ pub struct IntEnum {
 
 #[derive(Debug, Clone)]
 pub struct IntEnumValue {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub name: String,
     pub value: i32,
     pub docs: Option<String>,
@@ -265,6 +302,8 @@ pub struct IntEnumValue {
 
 #[derive(Debug, Clone)]
 pub struct List {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub sparse: bool,
     pub is_set: bool,
     pub member: Member,
@@ -275,6 +314,8 @@ pub struct List {
 
 #[derive(Debug, Clone)]
 pub struct Map {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub sparse: bool,
     pub key: Member,
     pub value: Member,
@@ -285,6 +326,8 @@ pub struct Map {
 
 #[derive(Debug, Clone)]
 pub struct Structure {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub streaming: bool,
     pub members: Vec<Member>,
     /// Present on a shape marked `@error`.
@@ -306,6 +349,8 @@ impl Structure {
 
 #[derive(Debug, Clone)]
 pub struct Member {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     pub event_binding: Option<EventBinding>,
     pub name: String,
     /// JSON property name; HTTP and public API names remain independent.
@@ -410,6 +455,8 @@ pub struct Retryable {
 
 #[derive(Debug, Clone)]
 pub struct Operation {
+    /// Visibility settled from Smithy @internal during lowering.
+    pub internal: bool,
     /// The sole output member is the restXml root rather than its child.
     pub unwrapped_xml_output: bool,
     pub unsigned_payload: bool,

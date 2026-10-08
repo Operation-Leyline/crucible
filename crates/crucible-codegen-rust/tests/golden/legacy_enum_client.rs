@@ -151,6 +151,7 @@ static SET_COLOR_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::cr
     errors: &[],
     readonly: false,
     idempotent: true,
+    internal: false,
     idempotency_token: None,
     traits: &[],
 };

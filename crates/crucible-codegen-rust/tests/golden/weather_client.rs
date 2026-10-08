@@ -1205,6 +1205,7 @@ static CREATE_CITY_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::
     errors: &["ConflictError", "ThrottlingError", "ValidationError"],
     readonly: false,
     idempotent: true,
+    internal: false,
     idempotency_token: Some("clientToken"),
     traits: &[("example.weather#tier", "\"write\"")],
 };
@@ -1288,6 +1289,7 @@ static GET_CITY_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::cru
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: true,
     idempotent: false,
+    internal: false,
     idempotency_token: None,
     traits: &[],
 };
@@ -1369,6 +1371,7 @@ static GET_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::OperationInfo =
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: true,
     idempotent: false,
+    internal: false,
     idempotency_token: None,
     traits: &[],
 };
@@ -1452,6 +1455,7 @@ static LIST_CITIES_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::
     errors: &["ThrottlingError", "ValidationError"],
     readonly: true,
     idempotent: false,
+    internal: false,
     idempotency_token: None,
     traits: &[],
 };
@@ -1524,6 +1528,7 @@ static PING_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::crucibl
     errors: &["ThrottlingError", "ValidationError"],
     readonly: true,
     idempotent: false,
+    internal: false,
     idempotency_token: None,
     traits: &[],
 };
@@ -1605,6 +1610,7 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::OperationInfo =
     errors: &["NotFoundError", "ThrottlingError", "ValidationError"],
     readonly: false,
     idempotent: true,
+    internal: false,
     idempotency_token: None,
     traits: &[],
 };
@@ -1681,6 +1687,7 @@ static STATUS_OPERATION: ::crucible_client_runtime_rust::OperationInfo = ::cruci
     errors: &["ThrottlingError", "ValidationError"],
     readonly: true,
     idempotent: false,
+    internal: false,
     idempotency_token: None,
     traits: &[],
 };

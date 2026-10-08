@@ -11,7 +11,7 @@ use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, Structure};
 pub(crate) fn ts_type(service: &Service, target: &ShapeId, prefix: &str) -> String {
     if target.is_prelude() {
         let builtin = match service.shape(target) {
-            Some(Shape::Unit) => Some("Unit"),
+            Some(Shape::Unit { .. }) => Some("Unit"),
             Some(Shape::Simple(simple)) => Some(match simple.kind {
                 SimpleKind::BigInteger => "bigint",
                 SimpleKind::BigDecimal => "Decimal",

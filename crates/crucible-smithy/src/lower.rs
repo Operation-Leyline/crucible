@@ -283,6 +283,7 @@ impl<'m> Lowerer<'m> {
         });
         Service {
             cors,
+            internal: shape.traits.contains_key(&smithy("internal")),
             endpoint_discovery,
             recursive_groups,
             xml_namespace,
@@ -624,6 +625,7 @@ impl<'m> Lowerer<'m> {
             );
         }
         Some(Operation {
+            internal: shape.traits.contains_key(&smithy("internal")),
             unwrapped_xml_output,
             unsigned_payload,
             discovered_endpoint: None,
@@ -1543,6 +1545,13 @@ impl<'m> Lowerer<'m> {
                 }
                 // The enum IR carries docs; deprecated and tags remain in the shape's raw trait.
                 values.push(EnumValue {
+                    // Smithy's enum conversion maps this legacy tag to @internal.
+                    internal: definition
+                        .get("tags")
+                        .and_then(Value::as_array)
+                        .is_some_and(|tags| {
+                            tags.iter().any(|tag| tag.as_str() == Some("internal"))
+                        }),
                     name: name.to_owned(),
                     value: value.to_owned(),
                     docs: definition
@@ -1561,6 +1570,7 @@ impl<'m> Lowerer<'m> {
         let explicit_format = self.explicit_timestamp_format(&shape.traits);
         let simple = |kind| {
             Shape::Simple(Simple {
+                internal: shape.traits.contains_key(&smithy("internal")),
                 kind,
                 streaming: shape.traits.contains_key(&smithy("streaming")),
                 requires_length: shape.traits.contains_key(&smithy("requiresLength")),
@@ -1573,6 +1583,7 @@ impl<'m> Lowerer<'m> {
         Some(match shape.kind {
             Kind::Boolean => simple(SimpleKind::Boolean),
             Kind::String if shape.traits.contains_key(&smithy("enum")) => Shape::Enum(Enum {
+                internal: shape.traits.contains_key(&smithy("internal")),
                 values: self.legacy_enum(id, &shape.traits[&smithy("enum")]),
                 docs,
                 traits,
@@ -1613,10 +1624,12 @@ impl<'m> Lowerer<'m> {
             }
             Kind::Blob => simple(SimpleKind::Blob),
             Kind::Enum => Shape::Enum(Enum {
+                internal: shape.traits.contains_key(&smithy("internal")),
                 values: shape
                     .members
                     .iter()
                     .map(|(name, member)| EnumValue {
+                        internal: member.traits.contains_key(&smithy("internal")),
                         name: name.clone(),
                         value: string_trait(&member.traits, "enumValue")
                             .unwrap_or_else(|| name.clone()),
@@ -1637,14 +1650,21 @@ impl<'m> Lowerer<'m> {
                         .and_then(Value::as_i64)
                         .and_then(|value| i32::try_from(value).ok());
                     match value {
-                        Some(value)=>{
-                            if !numbers.insert(value) {self.diagnostics.push(&id.with_member(name),"intEnum values must be unique");}
-                            values.push(IntEnumValue {name:name.clone(),value,docs:string_trait(&member.traits,"documentation")});
+                        Some(value) => {
+                            if !numbers.insert(value) {
+                                self.diagnostics.push(&id.with_member(name), "intEnum values must be unique");
+                            }
+                            values.push(IntEnumValue {
+                                internal: member.traits.contains_key(&smithy("internal")),
+                                name: name.clone(), value,
+                                docs: string_trait(&member.traits, "documentation"),
+                            });
                         }
-                        None=>self.diagnostics.push(&id.with_member(name),"intEnum member must have an integer @enumValue within signed 32-bit range"),
+                        None => self.diagnostics.push(&id.with_member(name), "intEnum member must have an integer @enumValue within signed 32-bit range"),
                     }
                 }
                 Shape::IntEnum(IntEnum {
+                    internal: shape.traits.contains_key(&smithy("internal")),
                     values,
                     docs,
                     traits,
@@ -1664,6 +1684,7 @@ impl<'m> Lowerer<'m> {
                 let mut constraints = constraints(&shape.traits);
                 constraints.unique_items |= is_set;
                 Shape::List(List {
+                    internal: shape.traits.contains_key(&smithy("internal")),
                     sparse,
                     is_set,
                     member,
@@ -1678,6 +1699,7 @@ impl<'m> Lowerer<'m> {
                 let key = self.collection_member(id, "key", shape.key.as_ref(), false)?;
                 let value = self.collection_member(id, "value", shape.value.as_ref(), sparse)?;
                 Shape::Map(Map {
+                    internal: shape.traits.contains_key(&smithy("internal")),
                     sparse,
                     key,
                     value,
@@ -1686,8 +1708,11 @@ impl<'m> Lowerer<'m> {
                     traits,
                 })
             }
-            Kind::Structure if shape.traits.contains_key(&smithy("unitType")) => Shape::Unit,
+            Kind::Structure if shape.traits.contains_key(&smithy("unitType")) => Shape::Unit {
+                internal: shape.traits.contains_key(&smithy("internal")),
+            },
             Kind::Structure => Shape::Structure(Structure {
+                internal: shape.traits.contains_key(&smithy("internal")),
                 streaming: false,
                 members: self.members(id, shape),
                 error: self.error_info(id, shape),
@@ -1695,6 +1720,7 @@ impl<'m> Lowerer<'m> {
                 traits,
             }),
             Kind::Union => Shape::Union(Structure {
+                internal: shape.traits.contains_key(&smithy("internal")),
                 streaming: shape.traits.contains_key(&smithy("streaming")),
                 members: self.members(id, shape),
                 error: None,
@@ -1829,6 +1855,7 @@ impl<'m> Lowerer<'m> {
             default.clone()
         };
         Member {
+            internal: member.traits.contains_key(&smithy("internal")),
             event_binding: self.event_binding(member_id, member),
             name: name.to_owned(),
             wire_name: if self.protocol.uses_json_names() {

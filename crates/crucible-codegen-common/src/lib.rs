@@ -112,7 +112,7 @@ fn bindings(b: &Bindings) -> Value {
 pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
     let shapes: serde_json::Map<String, Value> = service.shapes.iter().map(|(id, shape)| {
         let mut value = match shape {
-            Shape::Unit => json!({"kind":"unit"}),
+            Shape::Unit { .. } => json!({"kind":"unit"}),
             Shape::Simple(s) => json!({"kind": match s.kind {
                 SimpleKind::String => "string", SimpleKind::Boolean => "boolean",
                 SimpleKind::Byte => "byte", SimpleKind::Short => "short", SimpleKind::Integer => "integer", SimpleKind::Long => "long",

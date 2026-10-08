@@ -30,7 +30,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
     );
 
     for (index, (id, shape)) in service.shapes.iter().enumerate() {
-        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit) {
+        if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
         }
         let mut models = String::new();

@@ -18,7 +18,7 @@ pub(crate) fn shape(service: &Service, shape: &Shape) -> Value {
 
 fn base(service: &Service, shape: &Shape) -> Value {
     let (mut value, docs, annotations) = match shape {
-        Shape::Unit => return json!({"type": "object", "maxProperties": 0}),
+        Shape::Unit { .. } => return json!({"type": "object", "maxProperties": 0}),
         Shape::Simple(simple) => {
             let value = match simple.kind {
                 SimpleKind::Boolean => json!({"type": "boolean"}),

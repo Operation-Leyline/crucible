@@ -81,6 +81,10 @@ reach, keyed by shape id. Lowering settles, once:
   preflight names. Generators consume this policy without reading raw traits.
 - **Constraints**: the target's `@length`/`@range`/`@pattern`/`@uniqueItems`
   with the member's own laid over them.
+- **Visibility**: `@internal` becomes explicit `internal` flags on operations,
+  shapes and members. Audience projection in `crucible-smithy` consumes these
+  flags and validates removed references once. Shared output selection invokes
+  projection before target capability checks; servers keep the full IR.
 - **Sensitivity**: member and target annotations resolve through the IR; generated
   static metadata supports recursive logging redaction.
 - **HTTP bindings**: label, query, header, body or payload for each input

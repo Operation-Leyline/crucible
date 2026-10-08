@@ -111,7 +111,7 @@ impl<'a> Layout<'a> {
     pub fn ty(&self, owner: &ShapeId, target: &ShapeId) -> String {
         let runtime = format!("::{}::runtime", self.options.namespace);
         match self.service.shape(target).expect("shape") {
-            Shape::Unit => format!("{runtime}::Unit"),
+            Shape::Unit { .. } => format!("{runtime}::Unit"),
             Shape::Simple(simple) => match simple.kind {
                 SimpleKind::BigInteger => format!("{runtime}::BigInteger"),
                 SimpleKind::BigDecimal => format!("{runtime}::BigDecimal"),

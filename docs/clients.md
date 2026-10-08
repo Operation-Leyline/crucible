@@ -6,6 +6,14 @@ Crucible provides native clients for Leyline's language portfolio. Every emitter
 reads the same lowered Smithy IR; the language guide explains its public API
 and representation limits.
 
+## API audiences
+
+Generated clients default to the external audience and omit Smithy `@internal`
+API. Use `--audience internal` on `crucible generate`, or
+`.audience(crucible_build::Audience::Internal)` on a named output, to include the
+full contract. See [selecting an API audience](build-outputs.md#selecting-an-api-audience)
+for diagnostics and migration instructions.
+
 ## Language guides
 
 For standalone command-line tools, see [generating a service CLI](clients/cli.md).

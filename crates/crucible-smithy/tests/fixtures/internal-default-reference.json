@@ -1,0 +1,283 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.audience#Api": {
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.audience#Public"
+        },
+        {
+          "target": "example.audience#Secret"
+        }
+      ]
+    },
+    "example.audience#Public": {
+      "type": "operation",
+      "input": {
+        "target": "example.audience#PublicInput"
+      },
+      "output": {
+        "target": "example.audience#PublicOutput"
+      },
+      "errors": [
+        {
+          "target": "example.audience#PublicFault"
+        },
+        {
+          "target": "example.audience#InternalFault"
+        }
+      ],
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/public",
+          "code": 200
+        }
+      }
+    },
+    "example.audience#Secret": {
+      "type": "operation",
+      "input": {
+        "target": "example.audience#SecretInput"
+      },
+      "traits": {
+        "smithy.api#internal": {},
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/secret",
+          "code": 200
+        }
+      }
+    },
+    "example.audience#PublicInput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "value": {
+          "target": "smithy.api#String"
+        },
+        "privateValue": {
+          "target": "example.audience#SecretValue",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        },
+        "privateHeader": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#internal": {},
+            "smithy.api#httpHeader": "x-private"
+          }
+        },
+        "VisibleEnum": {
+          "target": "example.audience#VisibleEnum",
+          "traits": {
+            "smithy.api#default": "PRIVATE"
+          }
+        },
+        "VisibleIntEnum": {
+          "target": "example.audience#VisibleIntEnum",
+          "traits": {
+            "smithy.api#default": 2
+          }
+        }
+      }
+    },
+    "example.audience#PublicOutput": {
+      "type": "structure",
+      "members": {
+        "value": {
+          "target": "smithy.api#String"
+        },
+        "privateValue": {
+          "target": "example.audience#SecretValue",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        },
+        "choice": {
+          "target": "example.audience#Choice"
+        },
+        "VisibleEnum": {
+          "target": "example.audience#VisibleEnum",
+          "traits": {
+            "smithy.api#default": "PRIVATE"
+          }
+        },
+        "VisibleIntEnum": {
+          "target": "example.audience#VisibleIntEnum",
+          "traits": {
+            "smithy.api#default": 2
+          }
+        }
+      }
+    },
+    "example.audience#SecretInput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#internal": {}
+      },
+      "members": {
+        "secret": {
+          "target": "example.audience#SecretValue"
+        },
+        "SecretEnum": {
+          "target": "example.audience#SecretEnum"
+        },
+        "SecretIntEnum": {
+          "target": "example.audience#SecretIntEnum"
+        },
+        "SecretList": {
+          "target": "example.audience#SecretList"
+        },
+        "SecretMap": {
+          "target": "example.audience#SecretMap"
+        },
+        "SecretUnion": {
+          "target": "example.audience#SecretUnion"
+        }
+      }
+    },
+    "example.audience#SecretValue": {
+      "type": "string",
+      "traits": {
+        "smithy.api#internal": {}
+      }
+    },
+    "example.audience#Choice": {
+      "type": "union",
+      "members": {
+        "public": {
+          "target": "smithy.api#String"
+        },
+        "private": {
+          "target": "example.audience#SecretValue",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        }
+      }
+    },
+    "example.audience#PublicFault": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.audience#InternalFault": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#internal": {},
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      },
+      "members": {
+        "message": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.audience#SecretEnum": {
+      "type": "enum",
+      "traits": {
+        "smithy.api#internal": {}
+      },
+      "members": {
+        "ONE": {
+          "target": "smithy.api#Unit"
+        }
+      }
+    },
+    "example.audience#SecretIntEnum": {
+      "type": "intEnum",
+      "traits": {
+        "smithy.api#internal": {}
+      },
+      "members": {
+        "ONE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 1
+          }
+        }
+      }
+    },
+    "example.audience#SecretList": {
+      "type": "list",
+      "traits": {
+        "smithy.api#internal": {}
+      },
+      "member": {
+        "target": "smithy.api#String"
+      }
+    },
+    "example.audience#SecretMap": {
+      "type": "map",
+      "traits": {
+        "smithy.api#internal": {}
+      },
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "smithy.api#String"
+      }
+    },
+    "example.audience#SecretUnion": {
+      "type": "union",
+      "traits": {
+        "smithy.api#internal": {}
+      },
+      "members": {
+        "value": {
+          "target": "smithy.api#String"
+        }
+      }
+    },
+    "example.audience#VisibleEnum": {
+      "type": "enum",
+      "members": {
+        "PUBLIC": {
+          "target": "smithy.api#Unit"
+        },
+        "PRIVATE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#internal": {}
+          }
+        }
+      }
+    },
+    "example.audience#VisibleIntEnum": {
+      "type": "intEnum",
+      "members": {
+        "PUBLIC": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 1
+          }
+        },
+        "PRIVATE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#internal": {},
+            "smithy.api#enumValue": 2
+          }
+        }
+      }
+    }
+  }
+}

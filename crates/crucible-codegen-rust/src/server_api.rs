@@ -47,7 +47,7 @@ pub(crate) fn exports(service: &Service, diagnostics: &mut Diagnostics) -> Strin
             "model",
             models::model_shapes(service)
                 .into_iter()
-                .filter(|(_, shape)| !matches!(shape, Shape::Unit))
+                .filter(|(_, shape)| !matches!(shape, Shape::Unit { .. }))
                 .map(|(id, _)| id)
                 .collect::<Vec<_>>(),
         ),

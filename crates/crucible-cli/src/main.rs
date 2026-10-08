@@ -100,9 +100,15 @@ enum Command {
         target: ClientLanguage,
         #[arg(long)]
         out: PathBuf,
+        /// Select the same audience as the generated client under test.
+        #[arg(long, value_enum, default_value = "external")]
+        audience: AudienceArg,
     },
     /// Generate code for one target.
     Generate {
+        /// Public outputs omit @internal API unless explicitly selected.
+        #[arg(long, global = true, value_enum, default_value = "external")]
+        audience: AudienceArg,
         #[command(subcommand)]
         target: Box<Target>,
     },
@@ -122,6 +128,21 @@ enum Command {
         #[arg(long, default_value = "crate::operations::Service")]
         service_type: String,
     },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum AudienceArg {
+    External,
+    Internal,
+}
+
+impl From<AudienceArg> for crucible_codegen::Audience {
+    fn from(value: AudienceArg) -> Self {
+        match value {
+            AudienceArg::External => Self::External,
+            AudienceArg::Internal => Self::Internal,
+        }
+    }
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -596,17 +617,21 @@ fn run(command: Command) -> ExitCode {
             source,
             target,
             out,
-        } => lower_with_capabilities(&source, &target.capabilities()).and_then(|service| {
-            let tests = client_tests(&service);
-            let value = serde_json::json!({"schemaVersion":1, "service":service.id, "tests":tests});
-            let json =
-                serde_json::to_string_pretty(&value).expect("protocol tests are JSON values");
-            output::write(&out, [("protocol-tests.json", json.as_str())])
-                .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
-            println!("wrote {} protocol tests to {}", tests.len(), out.display());
-            Ok(())
-        }),
-        Command::Generate { target } => generate(*target),
+            audience,
+        } => lower_for_audience(&source, audience.into(), &target.capabilities()).and_then(
+            |service| {
+                let tests = client_tests(&service);
+                let value =
+                    serde_json::json!({"schemaVersion":1, "service":service.id, "tests":tests});
+                let json =
+                    serde_json::to_string_pretty(&value).expect("protocol tests are JSON values");
+                output::write(&out, [("protocol-tests.json", json.as_str())])
+                    .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+                println!("wrote {} protocol tests to {}", tests.len(), out.display());
+                Ok(())
+            },
+        ),
+        Command::Generate { target, audience } => generate(*target, audience.into()),
         Command::Scaffold {
             source,
             out,
@@ -652,6 +677,20 @@ fn lower_with_capabilities(
     .map_err(|error| error.to_string())
 }
 
+fn lower_for_audience(
+    source: &Source,
+    audience: crucible_codegen::Audience,
+    capabilities: &crucible_smithy::Capabilities,
+) -> Result<Service, String> {
+    let all = crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
+    let full = lower_with_capabilities(source, &all)?;
+    let projected = crucible_smithy::project(&full, audience).map_err(|d| d.to_string())?;
+    projected
+        .require_capabilities(capabilities)
+        .map_err(|d| d.to_string())?;
+    Ok(projected)
+}
+
 fn lower_infrastructure(source: &Source) -> Result<Service, String> {
     load_model(source)?
         .lower_infrastructure(source.service.as_ref())
@@ -678,7 +717,7 @@ fn load_model(source: &Source) -> Result<Model, String> {
     Model::from_json(&json).map_err(|error| error.to_string())
 }
 
-fn generate(target: Target) -> Result<(), String> {
+fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), String> {
     match target {
         Target::Openapi {
             source,
@@ -686,7 +725,7 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
         } => {
             let service =
-                lower_with_capabilities(&source, &crucible_codegen_openapi::capabilities())?;
+                lower_for_audience(&source, audience, &crucible_codegen_openapi::capabilities())?;
             let document = crucible_codegen_openapi::generate(
                 &service,
                 &crucible_codegen_openapi::Options { endpoint },
@@ -703,7 +742,8 @@ fn generate(target: Target) -> Result<(), String> {
             config,
             out,
         } => {
-            let service = lower_infrastructure(&source)?;
+            let service = crucible_smithy::project(&lower_infrastructure(&source)?, audience)
+                .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let options = read_config(&config)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)
@@ -726,7 +766,8 @@ fn generate(target: Target) -> Result<(), String> {
             provider_address,
             out,
         } => {
-            let service = lower_infrastructure(&source)?;
+            let service = crucible_smithy::project(&lower_infrastructure(&source)?, audience)
+                .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)
                 .map_err(|d| format!("invalid provisioning bindings:\n{d}"))?;
@@ -753,7 +794,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             runtime_path,
         } => {
-            let service = lower(&source)?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_smithy::Capabilities::default())?;
             let runtime_path = runtime_path.canonicalize().map_err(|error| {
                 format!(
                     "cannot resolve runtime path {}: {error}",
@@ -802,7 +844,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_ruby::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_ruby::capabilities())?;
             let client = crucible_codegen::Client::Ruby(crucible_codegen::RubyOptions {
                 package_name,
                 module_name,
@@ -811,7 +854,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the Ruby client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -827,7 +870,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_c::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_c::capabilities())?;
             let client = crucible_codegen::Client::C(crucible_codegen::COptions {
                 package_name,
                 prefix,
@@ -836,7 +880,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the C client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -851,7 +895,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_r::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_r::capabilities())?;
             let client = crucible_codegen::Client::R(crucible_codegen::ROptions {
                 package_name,
                 package_version,
@@ -859,7 +904,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the R client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -875,7 +920,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_cpp::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_cpp::capabilities())?;
             let client = crucible_codegen::Client::Cpp(crucible_codegen::CppOptions {
                 package_name,
                 namespace,
@@ -884,7 +930,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the C++ client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -900,7 +946,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_php::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_php::capabilities())?;
             let client = crucible_codegen::Client::Php(crucible_codegen::PhpOptions {
                 package_name,
                 namespace,
@@ -909,7 +956,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the PHP client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -924,7 +971,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_dart::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_dart::capabilities())?;
             let client = crucible_codegen::Client::Dart(crucible_codegen::DartOptions {
                 package_name,
                 package_version,
@@ -932,7 +980,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the Dart client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -949,7 +997,7 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service =
-                lower_with_capabilities(&source, &crucible_codegen_swift::capabilities())?;
+                lower_for_audience(&source, audience, &crucible_codegen_swift::capabilities())?;
             let client = crucible_codegen::Client::Swift(crucible_codegen::SwiftOptions {
                 package_name,
                 module_name,
@@ -958,7 +1006,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the Swift client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -975,7 +1023,7 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service =
-                lower_with_capabilities(&source, &crucible_codegen_csharp::capabilities())?;
+                lower_for_audience(&source, audience, &crucible_codegen_csharp::capabilities())?;
             let client = crucible_codegen::Client::Csharp(crucible_codegen::CsharpOptions {
                 namespace,
                 package_id,
@@ -984,7 +1032,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the C# client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -1002,7 +1050,7 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service =
-                lower_with_capabilities(&source, &crucible_codegen_kotlin::capabilities())?;
+                lower_for_audience(&source, audience, &crucible_codegen_kotlin::capabilities())?;
             let client = crucible_codegen::Client::Kotlin(crucible_codegen::KotlinOptions {
                 group_id,
                 artifact_id,
@@ -1012,7 +1060,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the Kotlin client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -1029,7 +1077,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_java::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_java::capabilities())?;
             let client = crucible_codegen::Client::Java(crucible_codegen::JavaOptions {
                 group_id,
                 artifact_id,
@@ -1039,7 +1088,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the Java client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -1054,7 +1103,8 @@ fn generate(target: Target) -> Result<(), String> {
             endpoint,
             content_sha256,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_go::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_go::capabilities())?;
             let client = crucible_codegen::Client::Go(crucible_codegen::GoOptions {
                 module_path,
                 package_name,
@@ -1062,7 +1112,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the Go client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -1079,7 +1129,7 @@ fn generate(target: Target) -> Result<(), String> {
             content_sha256,
         } => {
             let service =
-                lower_with_capabilities(&source, &crucible_codegen_python::capabilities())?;
+                lower_for_audience(&source, audience, &crucible_codegen_python::capabilities())?;
             let client = crucible_codegen::Client::Python(crucible_codegen::PythonOptions {
                 package_name,
                 module_name,
@@ -1088,7 +1138,7 @@ fn generate(target: Target) -> Result<(), String> {
                 content_sha256,
             });
             let files = client
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|d| format!("cannot generate the Python client:\n{d}"))?;
             crucible_codegen::write(&out, &files)
                 .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -1112,7 +1162,11 @@ fn generate(target: Target) -> Result<(), String> {
             } else {
                 crucible_codegen_rust::capabilities()
             };
-            let service = lower_with_capabilities(&source, &capabilities)?;
+            let service = if client {
+                lower_for_audience(&source, audience, &capabilities)?
+            } else {
+                lower_with_capabilities(&source, &capabilities)?
+            };
             if client {
                 let mut options = crucible_codegen::RustOptions {
                     package_name,
@@ -1128,7 +1182,7 @@ fn generate(target: Target) -> Result<(), String> {
                     );
                 }
                 let files = crucible_codegen::Client::Rust(options)
-                    .emit(&service)
+                    .emit_for_audience(&service, audience)
                     .map_err(|d| format!("cannot generate the Rust SDK:\n{d}"))?;
                 crucible_codegen::write(&out, &files)
                     .map_err(|e| format!("cannot write {}: {e}", out.display()))?;
@@ -1159,7 +1213,8 @@ fn generate(target: Target) -> Result<(), String> {
             middleware,
             package_json,
         } => {
-            let service = lower_with_capabilities(&source, &crucible_codegen_ts::capabilities())?;
+            let service =
+                lower_for_audience(&source, audience, &crucible_codegen_ts::capabilities())?;
             let package_json = package_json
                 .map(|path| {
                     let text = std::fs::read_to_string(&path)
@@ -1184,7 +1239,7 @@ fn generate(target: Target) -> Result<(), String> {
                 package_json,
             };
             let files = crucible_codegen::Client::Ts(options)
-                .emit(&service)
+                .emit_for_audience(&service, audience)
                 .map_err(|diagnostics| {
                     format!(
                         "cannot generate the TypeScript client:
@@ -1210,7 +1265,7 @@ fn summary(service: &Service) -> String {
     let mut kinds: BTreeMap<&str, usize> = BTreeMap::new();
     for shape in service.shapes.values() {
         let kind = match shape {
-            Shape::Unit => "unit",
+            Shape::Unit { .. } => "unit",
             Shape::Simple(_) => "simple",
             Shape::Enum(_) => "enum",
             Shape::IntEnum(_) => "intEnum",

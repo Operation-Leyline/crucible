@@ -106,6 +106,20 @@ impl Client {
 
     /// Generate native source files, without changing an output directory.
     pub fn emit(&self, service: &Service) -> Result<Vec<File>, Diagnostics> {
+        self.emit_for_audience(service, crate::Audience::External)
+    }
+
+    /// Select the API audience before checking target capabilities.
+    pub fn emit_for_audience(
+        &self,
+        service: &Service,
+        audience: crate::Audience,
+    ) -> Result<Vec<File>, Diagnostics> {
+        let service = crucible_smithy::project(service, audience)?;
+        self.emit_projected(&service)
+    }
+
+    pub(crate) fn emit_projected(&self, service: &Service) -> Result<Vec<File>, Diagnostics> {
         service.require_capabilities(&self.capabilities())?;
         match *self {
             #[cfg(feature = "rust")]
