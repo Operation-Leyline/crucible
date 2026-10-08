@@ -15,6 +15,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+# Shipped as prebuilt binaries on GitHub Releases, never to crates.io.
+BINARY_ONLY = {"crucible-cli"}
 MAX_KEYWORDS = 5
 MAX_CATEGORIES = 5
 
@@ -26,7 +28,7 @@ def workspace_packages(root):
     ).stdout
     metadata = json.loads(out)
     members = set(metadata["workspace_members"])
-    return [p for p in metadata["packages"] if p["id"] in members]
+    return [p for p in metadata["packages"] if p["id"] in members and p["name"] not in BINARY_ONLY]
 
 
 def publishable(package):
