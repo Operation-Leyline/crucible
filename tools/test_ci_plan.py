@@ -238,7 +238,10 @@ class PlanTests(unittest.TestCase):
                 continue
             group = re.search(r"needs\.plan\.outputs\.(\w+) == 'true'", body).group(1)
             self.assertIn(group, GROUPS)
-            self.assertIn("needs: plan" if job == "rust" else "needs: [plan, rust]", body)
+            if job in {"rust", "qualification-tools"}:
+                self.assertIn("needs: plan", body)
+            else:
+                self.assertRegex(body, r"needs: \[plan, rust(?:, qualification-tools)?\]")
             self.assertIn(job, gate)
             seen.add(group)
         self.assertEqual(seen, GROUPS)
@@ -255,7 +258,7 @@ class PlanTests(unittest.TestCase):
                     continue
                 condition = re.search(r"^    if: (.+)$", body, re.MULTILINE).group(1)
                 group = re.search(r"outputs\.(\w+) == 'true'", condition).group(1)
-                if group not in groups or ("outputs.full" in condition and not full):
+                if group not in groups or ("outputs.full == 'true'" in condition and not full):
                     continue
                 matrix = re.search(r"full == 'true' && '([^']+)' \|\| '([^']+)'", body)
                 if "outputs.onboarding_hosts" in body:
@@ -269,8 +272,8 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 6)
         self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 8)
         self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 5)
-        # The pre-existing full matrix has 31 test jobs plus planner/aggregate.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 37)
+        # Preserve the 35 test variants plus planner/aggregate and one tools build.
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 38)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):
@@ -287,6 +290,33 @@ class PlanTests(unittest.TestCase):
         self.assertIn("needs: [preflight, qualify]", release)
         self.assertIn('-f "sha=$GITHUB_SHA"', release)
         self.assertIn("--verify-tag", release)
+
+    def test_qualification_artifacts_are_same_run_and_full_only(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text()
+        jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
+                              workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
+        self.assertIn("needs.plan.outputs.full == 'true'", jobs["qualification-tools"])
+        self.assertIn("runs-on: ubuntu-22.04", jobs["qualification-tools"])
+        self.assertIn("qualification-tools-linux-${{ github.sha }}", jobs["qualification-tools"])
+        # Re-running all jobs keeps the run and SHA, so replace its old artifact.
+        upload = jobs["qualification-tools"].split("uses: actions/upload-artifact@", 1)[1]
+        self.assertRegex(upload, r"(?m)^          overwrite: true$")
+        action = (ROOT / ".github/actions/qualification-tools/action.yml").read_text()
+        self.assertIn("qualification-tools-linux-${{ github.sha }}", action)
+        self.assertNotIn("run-id:", action)
+        self.assertNotIn("github-token:", action)
+        self.assertIn("chmod +x", action)
+        for name, body in jobs.items():
+            if "uses: ./.github/actions/qualification-tools" in body:
+                with self.subTest(job=name):
+                    self.assertIn("needs: [plan, rust, qualification-tools]", body)
+                    self.assertIn("always() && !cancelled() && needs.rust.result == 'success'", body)
+                    self.assertIn("needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true'", body)
+                    self.assertIn("if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'", body)
+        self.assertIn('results["plan"]["outputs"]["full"] == "true"', jobs["ci"])
+        release = (ROOT / ".github/workflows/release.yml").read_text()
+        self.assertIn("uses: ./.github/actions/qualification-tools", release)
+        self.assertNotIn("cargo build", release)
 
     def test_runs_are_bounded_and_prs_do_not_evict_main_caches(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
@@ -306,7 +336,7 @@ class PlanTests(unittest.TestCase):
         for name, body in jobs.items():
             with self.subTest(job=name):
                 self.assertRegex(body, r"(?m)^    timeout-minutes: \d+$")
-                self.assertEqual(body.count("Swatinem/rust-cache@v2"), body.count(save_on_main))
+                self.assertEqual(len(re.findall(r"uses: Swatinem/rust-cache@", body)), body.count(save_on_main))
 
 
 if __name__ == "__main__":

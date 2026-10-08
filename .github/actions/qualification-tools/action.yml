@@ -1,0 +1,14 @@
+name: Same-run qualification tools
+description: Reuse the exact commit's Jammy generator and HTTP fixture
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+      with:
+        name: qualification-tools-linux-${{ github.sha }}
+        path: ${{ runner.temp }}/qualification-tools
+    - shell: bash
+      run: |
+        chmod +x "$RUNNER_TEMP/qualification-tools/"*
+        echo "CRUCIBLE_BIN=$RUNNER_TEMP/qualification-tools/crucible" >> "$GITHUB_ENV"
+        echo "WEATHER_BIN=$RUNNER_TEMP/qualification-tools/weather-service" >> "$GITHUB_ENV"

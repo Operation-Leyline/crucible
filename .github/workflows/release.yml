@@ -18,6 +18,7 @@ concurrency:
 jobs:
   preflight:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false, fetch-depth: 0 }
@@ -40,18 +41,17 @@ jobs:
   publish:
     needs: [preflight, qualify]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/qualification-tools
       - name: Package the matching starter
         run: |
-          cargo build -p crucible-cli --locked
-          python3 tools/package_starter.py --cli target/debug/crucible
-          python3 tools/package_starter.py --cli target/debug/crucible --client
+          python3 tools/package_starter.py --cli "$CRUCIBLE_BIN"
+          python3 tools/package_starter.py --cli "$CRUCIBLE_BIN" --client
         env:
           CARGO_BUILD_JOBS: '2'
       - uses: actions/download-artifact@v4
