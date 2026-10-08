@@ -180,7 +180,7 @@ impl Check<'_> {
             return;
         };
         match shape {
-            Shape::Unit => {
+            Shape::Unit { .. } => {
                 if value.as_object().is_none_or(|o| !o.is_empty()) {
                     self.problems
                         .push(format!("{path} must be an empty object"));
@@ -353,19 +353,8 @@ impl Check<'_> {
         let Some(bounds) = &constraints.range else {
             return;
         };
-        let Some(actual) = number.as_f64() else {
-            return;
-        };
-        let below = bounds
-            .min
-            .as_ref()
-            .and_then(Number::as_f64)
-            .is_some_and(|min| actual < min);
-        let above = bounds
-            .max
-            .as_ref()
-            .and_then(Number::as_f64)
-            .is_some_and(|max| actual > max);
+        let below = bounds.min.as_ref().is_some_and(|min| precedes(number, min));
+        let above = bounds.max.as_ref().is_some_and(|max| precedes(max, number));
         if below || above {
             self.constraint(format!("{path}: {number} is outside its range"));
         }
@@ -374,6 +363,15 @@ impl Check<'_> {
     fn mismatch(&mut self, path: &str, expected: &str, value: &Value) {
         self.problems
             .push(format!("{path} must be a {expected}, not {}", kind(value)));
+    }
+}
+
+/// Whether `a < b`. Integers compare exactly, as `f64` would round `Long` and
+/// `BigInteger` values past 2^53 onto their bounds.
+fn precedes(a: &Number, b: &Number) -> bool {
+    match (a.to_string().parse::<i128>(), b.to_string().parse::<i128>()) {
+        (Ok(a), Ok(b)) => a < b,
+        _ => matches!((a.as_f64(), b.as_f64()), (Some(a), Some(b)) if a < b),
     }
 }
 
@@ -434,5 +432,22 @@ impl Service {
             }
             _ => value.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn integer_bounds_compare_exactly_past_f64_precision() {
+        let bound: Number = "9007199254740993".parse().unwrap();
+        let below: Number = "9007199254740992".parse().unwrap();
+        assert!(precedes(&below, &bound));
+        assert!(!precedes(&bound, &below));
+        assert!(!precedes(&bound, &bound));
+        let fraction: Number = "1.5".parse().unwrap();
+        let two: Number = "2".parse().unwrap();
+        assert!(precedes(&fraction, &two));
     }
 }
