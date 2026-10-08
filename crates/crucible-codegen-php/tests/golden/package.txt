@@ -66,6 +66,15 @@ final class CitySummary implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'createdAt', $this->createdAt, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['id' => $this->id, 'name' => $this->name, 'population' => $this->population, 'updatedAt' => $this->updatedAt, 'createdAt' => $this->createdAt]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('CitySummary', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/ConflictError.php ===
@@ -95,6 +104,14 @@ final class ConflictError extends \Example\Weather\WeatherException implements \
         $object = [];
         $context->put($object, 'message', $this->messageValue, false);
         return new \Example\Weather\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['message' => $this->messageValue, 'metadata' => $this->metadata]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('ConflictError', $this->__debugInfo());
     }
 }
 
@@ -128,6 +145,15 @@ final class Coordinates implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'longitude', $this->longitude, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['latitude' => $this->latitude, 'longitude' => $this->longitude]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('Coordinates', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/CreateCityInput.php ===
@@ -168,6 +194,15 @@ final class CreateCityInput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'expectedRevision', $this->expectedRevision, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['name' => $this->name, 'location' => $this->location, 'clientToken' => $this->clientToken, 'expectedRevision' => $this->expectedRevision]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('CreateCityInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/CreateCityOutput.php ===
@@ -196,6 +231,15 @@ final class CreateCityOutput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'city', $this->city, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['city' => $this->city]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('CreateCityOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/Decoder.php ===
@@ -276,6 +320,15 @@ final class GetCityInput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'at', $this->at, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['cityId' => $this->cityId, 'at' => $this->at]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('GetCityInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/GetCityOutput.php ===
@@ -312,6 +365,15 @@ final class GetCityOutput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'requestId', $this->requestId, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['city' => $this->city, 'forecast' => $this->forecast, 'requestId' => $this->requestId]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('GetCityOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/GetCityPhotoInput.php ===
@@ -340,6 +402,15 @@ final class GetCityPhotoInput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'cityId', $this->cityId, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['cityId' => $this->cityId]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('GetCityPhotoInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/GetCityPhotoOutput.php ===
@@ -372,6 +443,15 @@ final class GetCityPhotoOutput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'photo', $this->photo, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['caption' => $this->caption, 'photo' => \Example\Weather\Runtime\Describe::bytes($this->photo)]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('GetCityPhotoOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/ListCitiesInput.php ===
@@ -408,6 +488,15 @@ final class ListCitiesInput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'tags', $this->tags, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['nextToken' => $this->nextToken, 'maxResults' => $this->maxResults, 'tags' => $this->tags]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('ListCitiesInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/ListCitiesOutput.php ===
@@ -440,6 +529,15 @@ final class ListCitiesOutput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'nextToken', $this->nextToken, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['cities' => $this->cities, 'nextToken' => $this->nextToken]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('ListCitiesOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/Location.php ===
@@ -470,8 +568,10 @@ namespace Example\Weather;
 
 final class LocationCoordinates extends Location
 {
-    /** @param \Example\Weather\Coordinates|null $value */
+    /** @param \Example\Weather\Coordinates|null $value the member's value; null when the union carries an explicit null */
     public function __construct(public readonly ?\Example\Weather\Coordinates $value) {}
+    public function __debugInfo(): array { return \Example\Weather\Runtime\Describe::debug(['coordinates' => $this->value]); }
+    public function __toString(): string { return \Example\Weather\Runtime\Describe::format('Location', $this->__debugInfo()); }
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         return new \Example\Weather\Runtime\JsonObject(['coordinates' => $this->value === null ? null : $context->codec->encode($this->value, $context->member('coordinates'))]);
@@ -485,8 +585,10 @@ namespace Example\Weather;
 
 final class LocationUnknown extends Location
 {
-    /** @param \Example\Weather\Runtime\Unit|null $value */
+    /** @param \Example\Weather\Runtime\Unit|null $value the member's value; null when the union carries an explicit null */
     public function __construct(public readonly ?\Example\Weather\Runtime\Unit $value) {}
+    public function __debugInfo(): array { return \Example\Weather\Runtime\Describe::debug(['unknown' => $this->value]); }
+    public function __toString(): string { return \Example\Weather\Runtime\Describe::format('Location', $this->__debugInfo()); }
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         return new \Example\Weather\Runtime\JsonObject(['unknown' => $this->value === null ? null : $context->codec->encode($this->value, $context->member('unknown'))]);
@@ -498,9 +600,14 @@ final class LocationUnknown extends Location
 declare(strict_types=1);
 namespace Example\Weather;
 
+/** A member this client does not know, kept so it can be sent back unchanged. */
 final class LocationUnknownVariant extends Location
 {
+    /** @param string $name the member name received @param \Example\Weather\Runtime\JsonValue $value the raw value received */
     public function __construct(public readonly string $name, public readonly \Example\Weather\Runtime\JsonValue $value) {}
+    /** Omits the value: nothing says whether it is sensitive. */
+    public function __debugInfo(): array { return ['unknownVariant' => $this->name]; }
+    public function __toString(): string { return \Example\Weather\Runtime\Describe::format('Location', $this->__debugInfo()); }
     public function toWire(\Example\Weather\Runtime\WireContext $context): \Example\Weather\Runtime\JsonObject
     {
         if (\Example\Weather\Runtime\WireCodec::object($context->shape()->get('members'))->has($this->name)) throw new \UnexpectedValueException('Unknown variant name is declared');
@@ -540,6 +647,14 @@ final class NotFoundError extends \Example\Weather\WeatherException implements \
         $context->put($object, 'resourceId', $this->resourceId, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['message' => $this->messageValue, 'resourceId' => $this->resourceId, 'metadata' => $this->metadata]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('NotFoundError', $this->__debugInfo());
+    }
 }
 
 === src/PhotoSummary.php ===
@@ -576,6 +691,15 @@ final class PhotoSummary implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'caption', $this->caption, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['size' => $this->size, 'thumbnail' => \Example\Weather\Runtime\Describe::bytes($this->thumbnail), 'caption' => $this->caption]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('PhotoSummary', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/PutCityPhotoInput.php ===
@@ -612,6 +736,15 @@ final class PutCityPhotoInput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'photo', $this->photo, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['cityId' => $this->cityId, 'caption' => $this->caption, 'photo' => \Example\Weather\Runtime\Describe::bytes($this->photo)]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('PutCityPhotoInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/PutCityPhotoOutput.php ===
@@ -640,6 +773,15 @@ final class PutCityPhotoOutput implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'photo', $this->photo, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['photo' => $this->photo]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('PutCityPhotoOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/Schema.php ===
@@ -667,6 +809,7 @@ final readonly class Sky implements \Example\Weather\Runtime\WireModel
     public const CLEAR = 'clear';
     public const CLOUDY = 'cloudy';
     public function toWire(\Example\Weather\Runtime\WireContext $context): string { return $this->value; }
+    public function __toString(): string { return 'Sky(' . $this->value . ')'; }
 }
 
 === src/StatusInput.php ===
@@ -691,6 +834,15 @@ final class StatusInput implements \Example\Weather\Runtime\WireModel
         $object = [];
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug([]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('StatusInput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/StatusOutput.php ===
@@ -715,6 +867,15 @@ final class StatusOutput implements \Example\Weather\Runtime\WireModel
         $object = [];
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug([]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('StatusOutput', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/ThrottlingError.php ===
@@ -748,6 +909,14 @@ final class ThrottlingError extends \Example\Weather\WeatherException implements
         $context->put($object, 'message', $this->messageValue, false);
         $context->put($object, 'retryAfter', $this->retryAfter, true);
         return new \Example\Weather\Runtime\JsonObject($object);
+    }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['message' => $this->messageValue, 'retryAfter' => $this->retryAfter, 'metadata' => $this->metadata]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('ThrottlingError', $this->__debugInfo());
     }
 }
 
@@ -791,6 +960,14 @@ final class ValidationError extends \Example\Weather\WeatherException implements
         $context->put($object, 'requestId', $this->requestId, true);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['message' => $this->messageValue, 'reason' => $this->reason, 'fieldList' => $this->fieldList, 'requestId' => $this->requestId, 'metadata' => $this->metadata]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('ValidationError', $this->__debugInfo());
+    }
 }
 
 === src/ValidationField.php ===
@@ -823,6 +1000,15 @@ final class ValidationField implements \Example\Weather\Runtime\WireModel
         $context->put($object, 'message', $this->messageValue, false);
         return new \Example\Weather\Runtime\JsonObject($object);
     }
+    public function __debugInfo(): array
+    {
+        return \Example\Weather\Runtime\Describe::debug(['path' => $this->path, 'message' => $this->messageValue]);
+    }
+    public function describe(): string
+    {
+        return \Example\Weather\Runtime\Describe::format('ValidationField', $this->__debugInfo());
+    }
+    public function __toString(): string { return $this->describe(); }
 }
 
 === src/ValidationReason.php ===
@@ -838,6 +1024,7 @@ final readonly class ValidationReason implements \Example\Weather\Runtime\WireMo
     public const FIELD_VALIDATION_FAILED = 'fieldValidationFailed';
     public const OTHER = 'other';
     public function toWire(\Example\Weather\Runtime\WireContext $context): string { return $this->value; }
+    public function __toString(): string { return 'ValidationReason(' . $this->value . ')'; }
 }
 
 === src/WeatherClient.php ===
@@ -845,43 +1032,137 @@ final readonly class ValidationReason implements \Example\Weather\Runtime\WireMo
 declare(strict_types=1);
 namespace Example\Weather;
 
+/**
+ * Client for the Weather service.
+ *
+ * Create one `WeatherClient` per configuration and reuse it: it keeps its HTTP connections open between calls. A client is not safe to share across threads or fibers that run calls at the same time; give each its own. Call `close()` when finished. Every operation blocks until it completes and reports failure as a ServiceException for a service response, a NetworkException when no response arrives, a TimeoutException when the call outlasts `ClientConfig::$timeout`, or a CancelledException.
+ */
 final class WeatherClient
 {
     private readonly Runtime\ClientRuntime $runtime;
+    /**
+     * Creates a client. Without a `$config`, the generated endpoint is used and no credentials are sent; see ClientConfig for credentials, retries, timeouts and the transport.
+     *
+     * @throws \InvalidArgumentException when the endpoint or another setting is invalid
+     */
     public function __construct(Runtime\ClientConfig $config = new Runtime\ClientConfig())
     {
         $this->runtime = new Runtime\ClientRuntime($config, Schema::codec(), Decoder::error(...), '', true);
     }
+    /** Releases the HTTP transport this client created. A transport passed in the configuration is left open. */
     public function close(): void { $this->runtime->close(); }
+    /**
+     * Idempotent: retried automatically after transient failures.
+     *
+     * `clientToken` is filled with a fresh token when omitted, so retries do not repeat the effect.
+     *
+     * @param \Example\Weather\CreateCityInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \Example\Weather\CreateCityOutput the service's response
+     * @throws \Example\Weather\ConflictError
+     * @throws \Example\Weather\ThrottlingError
+     * @throws \Example\Weather\ValidationError
+     * @throws \Example\Weather\WeatherException for any other error response
+     */
     public function createCity(\Example\Weather\CreateCityInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\CreateCityOutput
     {
         return $this->runtime->call('CreateCity', $input, $cancellation);
     }
+    /**
+     * Read-only: retried automatically after transient failures.
+     *
+     * @param \Example\Weather\GetCityInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \Example\Weather\GetCityOutput the service's response
+     * @throws \Example\Weather\NotFoundError
+     * @throws \Example\Weather\ThrottlingError
+     * @throws \Example\Weather\ValidationError
+     * @throws \Example\Weather\WeatherException for any other error response
+     */
     public function getCity(\Example\Weather\GetCityInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\GetCityOutput
     {
         return $this->runtime->call('GetCity', $input, $cancellation);
     }
+    /**
+     * Read-only: retried automatically after transient failures.
+     *
+     * @param \Example\Weather\GetCityPhotoInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \Example\Weather\GetCityPhotoOutput the service's response
+     * @throws \Example\Weather\NotFoundError
+     * @throws \Example\Weather\ThrottlingError
+     * @throws \Example\Weather\ValidationError
+     * @throws \Example\Weather\WeatherException for any other error response
+     */
     public function getCityPhoto(\Example\Weather\GetCityPhotoInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\GetCityPhotoOutput
     {
         return $this->runtime->call('GetCityPhoto', $input, $cancellation);
     }
+    /**
+     * Read-only: retried automatically after transient failures.
+     *
+     * This operation is paginated: use the `Pages` variant to read every page.
+     *
+     * @param \Example\Weather\ListCitiesInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \Example\Weather\ListCitiesOutput the service's response
+     * @throws \Example\Weather\ThrottlingError
+     * @throws \Example\Weather\ValidationError
+     * @throws \Example\Weather\WeatherException for any other error response
+     */
     public function listCities(\Example\Weather\ListCitiesInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\ListCitiesOutput
     {
         return $this->runtime->call('ListCities', $input, $cancellation);
     }
-    /** @return \Generator<int, \Example\Weather\ListCitiesOutput> */
+    /**
+     * Every page of `listCities()`, following the pagination token until the service stops returning one. The generator makes one call per page, so each can fail.
+     *
+     * @return \Generator<int, \Example\Weather\ListCitiesOutput> the output of each page
+     */
     public function listCitiesPages(\Example\Weather\ListCitiesInput $input, ?Runtime\CancellationToken $cancellation = null): \Generator
     {
         return $this->runtime->pages('ListCities', $input, $cancellation);
     }
+    /**
+     * Read-only: retried automatically after transient failures.
+     *
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return Runtime\Unit the service's response
+     * @throws \Example\Weather\ThrottlingError
+     * @throws \Example\Weather\ValidationError
+     * @throws \Example\Weather\WeatherException for any other error response
+     */
     public function ping(?Runtime\CancellationToken $cancellation = null): Runtime\Unit
     {
         return $this->runtime->call('Ping', new Runtime\Unit(), $cancellation);
     }
+    /**
+     * Stores a city's photo exactly as sent.
+     *
+     * Idempotent: retried automatically after transient failures.
+     *
+     * @param \Example\Weather\PutCityPhotoInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \Example\Weather\PutCityPhotoOutput the service's response
+     * @throws \Example\Weather\NotFoundError
+     * @throws \Example\Weather\ThrottlingError
+     * @throws \Example\Weather\ValidationError
+     * @throws \Example\Weather\WeatherException for any other error response
+     */
     public function putCityPhoto(\Example\Weather\PutCityPhotoInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\PutCityPhotoOutput
     {
         return $this->runtime->call('PutCityPhoto', $input, $cancellation);
     }
+    /**
+     * Read-only: retried automatically after transient failures.
+     *
+     * @param \Example\Weather\StatusInput $input the request to send
+     * @param ?Runtime\CancellationToken $cancellation cancels the call when cancelled
+     * @return \Example\Weather\StatusOutput the service's response
+     * @throws \Example\Weather\ThrottlingError
+     * @throws \Example\Weather\ValidationError
+     * @throws \Example\Weather\WeatherException for any other error response
+     */
     public function status(\Example\Weather\StatusInput $input, ?Runtime\CancellationToken $cancellation = null): \Example\Weather\StatusOutput
     {
         return $this->runtime->call('Status', $input, $cancellation);
@@ -893,6 +1174,7 @@ final class WeatherClient
 declare(strict_types=1);
 namespace Example\Weather;
 
+/** The base of every error this service returns, modeled or not. */
 class WeatherException extends Runtime\ServiceError {}
 
 === src/schema.json ===

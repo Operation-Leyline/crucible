@@ -5,6 +5,13 @@ namespace CrucibleGenerated\Runtime;
 /** Whole epoch seconds and nanoseconds, including before the Unix epoch. */
 final readonly class Timestamp
 {
+    /** RFC 3339 in UTC, with the fraction only when it is not zero. */
+    public function __toString(): string
+    {
+        $fraction = rtrim(str_pad((string)$this->nanoseconds, 9, '0', STR_PAD_LEFT), '0');
+        return gmdate('Y-m-d\TH:i:s', $this->seconds) . ($fraction === '' ? '' : '.' . $fraction) . 'Z';
+    }
+
     public function __construct(public int $seconds, public int $nanoseconds = 0)
     {
         if ($nanoseconds < 0 || $nanoseconds > 999999999) throw new \InvalidArgumentException('Nanoseconds out of range');

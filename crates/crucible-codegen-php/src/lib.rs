@@ -313,6 +313,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ),
         ("ExactJson", include_str!("../runtime/ExactJson.php")),
         ("Absent", include_str!("../runtime/Absent.php")),
+        ("Describe", include_str!("../runtime/Describe.php")),
         ("HttpRequest", include_str!("../runtime/HttpRequest.php")),
         ("HttpResponse", include_str!("../runtime/HttpResponse.php")),
         (
