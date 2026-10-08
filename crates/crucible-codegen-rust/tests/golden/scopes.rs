@@ -133,7 +133,7 @@ pub mod scoped_weather {
         id: "example.scopes#Overrides",
         name: "Overrides",
         resource: None,
-        method: "POST",
+        method: "GET",
         path: &[::crucible_server_runtime_rust::operation::Segment::Literal("overrides")],
         literal_query: &[],
         status: 200,

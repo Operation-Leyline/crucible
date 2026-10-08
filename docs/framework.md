@@ -449,13 +449,15 @@ protocol declining a request must leave it available to later protocols.
 
 ### Model-driven authentication
 
-The optional [JWT bearer authentication](auth.md) crate supplies a model-driven
+The optional [JWT bearer authentication](auth.md) crate (with its opt-in
+[OAuth scope enforcement](auth.md#oauth-scopes)) supplies a model-driven
 authenticator chain, Cognito presets, cached JWT verification, and test issuers.
 Install it explicitly; `defaults()` continues to leave authentication off.
 
 `Prepare::metadata(operation)`, `OperationJob::metadata()`, and
 `DecodedJob::metadata()` expose the registered `OperationMetadata`: the wire
-protocol, effective auth schemes, optional-auth and unsigned-payload flags,
+protocol, effective auth schemes, required OAuth scopes (and the service default),
+optional-auth and unsigned-payload flags,
 input/output presence, and event-stream descriptions. Context retains it after
 selection through `Context::operation_metadata()`.
 

@@ -38,6 +38,7 @@ pub(crate) fn lower(
         model: shapes,
         protocol: Protocol::CrucibleJson,
         service_name: service_id.name().to_owned(),
+        default_scopes: Vec::new(),
         selected_protocol,
         diagnostics: Diagnostics::default(),
         shapes: BTreeMap::new(),
@@ -59,6 +60,8 @@ pub(crate) struct Lowerer<'m> {
     protocol: Protocol,
     /// The service's shape name, which RPC v2 request paths carry.
     service_name: String,
+    /// The service's `@crucible.auth#scopes`, which operations inherit.
+    default_scopes: Vec<String>,
     selected_protocol: Option<Protocol>,
     pub(crate) model: &'m BTreeMap<ShapeId, ast::Shape>,
     pub(crate) diagnostics: Diagnostics,
@@ -123,7 +126,7 @@ impl<'m> Lowerer<'m> {
                 "@crucible.auth#scopes requires the service to declare an authentication scheme",
             );
         }
-        let default_scopes = scopes.unwrap_or_default();
+        self.default_scopes = scopes.unwrap_or_default();
         let service_errors: Vec<ShapeId> = shape.errors.iter().map(|r| r.target.clone()).collect();
         let default_pagination = shape.traits.get(&smithy("paginated"));
         for (operation, _) in self.operation_ids(shape) {
@@ -150,7 +153,6 @@ impl<'m> Lowerer<'m> {
                     &service_errors,
                     default_pagination,
                     &default_auth,
-                    &default_scopes,
                     &auth,
                 )
             })
@@ -305,7 +307,7 @@ impl<'m> Lowerer<'m> {
             title: string_trait(&shape.traits, "title"),
             docs: string_trait(&shape.traits, "documentation"),
             auth,
-            scopes: default_scopes,
+            scopes: std::mem::take(&mut self.default_scopes),
             auth_schemes,
             endpoint_rules,
             protocol_tests,
@@ -516,7 +518,6 @@ impl<'m> Lowerer<'m> {
         service_errors: &[ShapeId],
         default_pagination: Option<&Value>,
         default_auth: &[ShapeId],
-        default_scopes: &[String],
         supported_auth: &[ShapeId],
     ) -> Option<Operation> {
         let Some(shape) = self.model.get(id) else {
@@ -543,7 +544,7 @@ impl<'m> Lowerer<'m> {
             }
             Some(scopes) => scopes,
             None if auth.is_empty() => Vec::new(),
-            None => default_scopes.to_vec(),
+            None => self.default_scopes.clone(),
         };
         let (method, uri, status) = if self.protocol.uses_http_bindings() {
             let Some(http) = shape.traits.get(&smithy("http")) else {

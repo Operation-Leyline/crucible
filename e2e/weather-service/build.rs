@@ -10,6 +10,15 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    let scopes = "../../crates/crucible-smithy/tests/fixtures/scopes.json";
+    println!("cargo::rerun-if-changed={scopes}");
+    std::fs::write(
+        auth_out.join("scopes.rs"),
+        crucible_build::RustCodegen::from_model(scopes)
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     let model = "../../crates/crucible-smithy/tests/fixtures/observability.json";
     println!("cargo::rerun-if-changed={model}");
     let out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));

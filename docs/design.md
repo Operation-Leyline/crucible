@@ -75,6 +75,9 @@ reach, keyed by shape id. Lowering settles, once:
   Client defaults on those members are ignored; server defaults remain intact.
 - **Authentication**: effective schemes inherit from the service, with operation
   `@auth` overrides resolved here. An empty override disables bearer credentials.
+- **Scopes**: `@crucible.auth#scopes` on a service is the default, on an
+  operation the override (`[]` opts out). Each operation carries its effective
+  list, empty when public; misuse is a diagnostic. See [auth.md](auth.md#oauth-scopes).
 - **CORS**: service `@cors` becomes a typed policy with defaults, authentication
   and protocol headers, and all input/output/error header bindings resolved once.
   Prefix-bound input headers remain prefixes for matching concrete browser
