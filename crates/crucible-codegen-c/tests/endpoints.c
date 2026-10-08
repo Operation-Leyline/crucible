@@ -117,10 +117,10 @@ static void generated_resolution(void) {
         behavior_operations_read_result_free(&result);
     }
     check(state.calls == 1, "invalid hosts are never dispatched");
-    behavior_operations_public_result anonymous = {0};
-    good(behavior_operations_public(client, NULL, NULL, &anonymous, &error), &error, "public");
+    behavior_operations_public_value_result anonymous = {0};
+    good(behavior_operations_public_value(client, NULL, NULL, &anonymous, &error), &error, "public");
     check(!state.authorized && !strcmp(state.host, "local.example.test"), "anonymous rule endpoint");
-    behavior_operations_public_result_free(&anonymous);
+    behavior_operations_public_value_result_free(&anonymous);
     behavior_client_free(client);
 
     config.disable_host_prefix = true; client = client_new(config);
