@@ -114,7 +114,8 @@ fn main() {
 }
 ```
 
-`compile()` assembles and lowers the model once. `publish()` exposes the compiled
+The model compiles lazily on the first output or publication call and is lowered
+once for named outputs. `publish()` exposes the compiled
 `model.json` through Cargo metadata. Generation writes artifacts under `OUT_DIR/outputs/<name>` and records them in `crucible-artifacts.json`.
 Publishing without named outputs clears registrations from earlier builds. Publishing
 after generation on the same model handle preserves its current registrations.
@@ -416,7 +417,7 @@ fn main() {
 }
 ```
 
-`model_dependency` reads the direct dependency's `DEP_WEATHER_MODEL_MODEL`
+`model("weather_model")` reads the direct dependency's `DEP_WEATHER_MODEL_MODEL`
 metadata. It loads the published AST without invoking the Smithy compiler.
 The SDK producer owns its output and artifact registry. A Rust producer can
 use `model.rust_client("rust").generate()` with the same input.
