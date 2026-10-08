@@ -1,6 +1,9 @@
 //! Shapes may be named like identifiers the generated code uses: `Option`,
 //! `Fault`, `ErrorInfo`, `Validator`, `Validate`. The generated server module
 //! and SDK must still compile, so each is checked with `cargo check`.
+#[path = "../../../tests/support/cargo_target.rs"]
+mod cargo_target;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -35,20 +38,11 @@ fn service() -> crucible_smithy::ir::Service {
         .unwrap()
 }
 
-fn check(manifest: &Path, target: &str) {
+fn check(manifest: &Path) {
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .args(["check", "--manifest-path"])
         .arg(manifest)
-        .env(
-            "CARGO_TARGET_DIR",
-            std::env::var_os("CARGO_TARGET_DIR")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| {
-                    Path::new(env!("CARGO_MANIFEST_DIR"))
-                        .join("../../target")
-                        .join(target)
-                }),
-        )
+        .env("CARGO_TARGET_DIR", cargo_target::target_dir())
         .output()
         .unwrap();
     assert!(
@@ -81,10 +75,7 @@ fn server_code_compiles_with_shapes_named_like_bare_identifiers() {
         ),
     )
     .unwrap();
-    check(
-        &directory.path().join("Cargo.toml"),
-        "bare-identifiers-server",
-    );
+    check(&directory.path().join("Cargo.toml"));
 }
 
 #[test]
@@ -104,5 +95,5 @@ fn sdk_compiles_with_shapes_named_like_bare_identifiers() {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, &file.contents).unwrap();
     }
-    check(&directory.path().join("Cargo.toml"), "bare-identifiers-sdk");
+    check(&directory.path().join("Cargo.toml"));
 }

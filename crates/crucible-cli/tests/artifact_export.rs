@@ -1,3 +1,6 @@
+#[path = "../../../tests/support/cargo_target.rs"]
+mod cargo_target;
+
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
@@ -66,7 +69,7 @@ fn export(root: &Path, package: &str, artifact: &str) -> Output {
         .arg(root.join("Cargo.toml"))
         .args(["--package", package, "--out"])
         .arg(root.join("exported java"))
-        .env("CARGO_TARGET_DIR", root.join("cargo target"))
+        .env("CARGO_TARGET_DIR", cargo_target::target_dir())
         .env("CARGO_BUILD_JOBS", "1")
         .env("CARGO_NET_OFFLINE", "true")
         .output()
