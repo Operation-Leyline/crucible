@@ -370,6 +370,23 @@ impl crucible_server_runtime_rust::Middleware for TransportRefusal {
 }
 
 #[tokio::test]
+async fn selected_tool_uses_precomputed_operation_body_limit() {
+    let service = weather_service::builder(Arc::new(MemoryCities::default()))
+        .mcp(McpProtocol::new(weather::MCP_TOOLS))
+        .operation_body_limit::<weather::Ping>(1)
+        .build()
+        .unwrap();
+    // Discovery has no selected operation and keeps the service envelope limit.
+    assert!(send(&service, rpc("tools/list", json!({}))).await["result"]["tools"].is_array());
+    let message = rpc("tools/call", json!({"name":"Ping","arguments":{}}));
+    let (status, _, body) = request(&service, "POST", &message.to_string(), &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["error"]["code"], -32602);
+    assert!(body["error"]["message"].as_str().unwrap().contains("larger than 1 bytes"));
+}
+
+#[tokio::test]
 async fn pre_dispatch_failures_preserve_http_errors() {
     let limited = weather_service::builder(Arc::new(MemoryCities::default()))
         .mcp(McpProtocol::new(weather::MCP_TOOLS))
