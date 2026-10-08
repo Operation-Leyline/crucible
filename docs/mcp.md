@@ -134,8 +134,11 @@ exactly or receives HTTP 403 before parsing. Service `@cors` settings, including
 `*`, do not authorize MCP origins. `.allow_any_origin()` is a separate explicit
 opt-in. Authentication still applies to requests without Origin.
 
-POST requires `Content-Type: application/json`. Other methods, including GET and
-DELETE, return HTTP 405. JSON-RPC batches return `-32600`. Service body limits
+POST requires `Content-Type: application/json`. GET and DELETE return HTTP 405.
+With service `@cors`, allowed OPTIONS preflights use the existing CORS policy,
+augmented with POST and `MCP-Protocol-Version`. Endpoint guards also run for
+preflights; a browser deployment's guard must admit valid OPTIONS requests
+without requiring the credentials that browsers send only on the later POST. JSON-RPC batches return `-32600`. Service body limits
 apply to the entire JSON-RPC envelope; operation-specific limits also apply
 after tool identification. There is no SSE, resumability, session state,
 server-to-client request, resource/prompt capability, or asynchronous task API.

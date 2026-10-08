@@ -21,6 +21,7 @@ struct Call {
 pub struct McpProtocol {
     descriptors: &'static [ToolDescriptor],
     registry: Option<ToolRegistry>,
+    cors: Option<crate::middlewares::Cors>,
     path: String,
     origins: Vec<String>,
     any_origin: bool,
@@ -34,6 +35,7 @@ impl McpProtocol {
         Self {
             descriptors,
             registry: None,
+            cors: None,
             path: "/mcp".into(),
             origins: Vec::new(),
             any_origin: false,
@@ -191,6 +193,14 @@ impl Protocol for McpProtocol {
         if self.server_version.is_empty() {
             self.server_version = prepare.service().version.to_owned();
         }
+        self.cors = prepare
+            .service()
+            .cors
+            .map(|info| {
+                crate::middlewares::Cors::new(info)
+                    .and_then(|cors| cors.extend(&["POST"], &["mcp-protocol-version"]))
+            })
+            .transpose()?;
         let registry = ToolRegistry::new(self.descriptors)?;
         for descriptor in self.descriptors {
             if !prepare
@@ -227,6 +237,14 @@ impl Protocol for McpProtocol {
             {
                 job.respond(response);
                 return Ok(());
+            }
+            if job.request().method == "OPTIONS"
+                && let Some(cors) = &self.cors
+            {
+                crate::Middleware::before(cors, job).resolve().await?;
+                if job.outcome().is_some() {
+                    return Ok(());
+                }
             }
             if job.request().method != "POST" {
                 job.respond(

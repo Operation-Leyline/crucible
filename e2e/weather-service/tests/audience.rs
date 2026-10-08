@@ -77,7 +77,7 @@ async fn mcp_uses_external_projection_and_hides_internal_operations_and_members(
                 message: Some(rejection.summary()),
             })
         })
-        .mcp(McpProtocol::new(api::MCP_TOOLS))
+        .mcp(McpProtocol::new(api::MCP_TOOLS).allowed_origins(["https://example.com"]))
         .protocol(JsonProtocol)
         .build()
         .unwrap();
@@ -127,6 +127,25 @@ async fn mcp_uses_external_projection_and_hides_internal_operations_and_members(
         .body(Body::from("bad JSON"))
         .unwrap();
     assert_eq!(service.handle(request).await.status().as_u16(), 403);
+    let preflight = Request::builder()
+        .method("OPTIONS")
+        .uri("/mcp")
+        .header("origin", "https://example.com")
+        .header("access-control-request-method", "POST")
+        .header(
+            "access-control-request-headers",
+            "mcp-protocol-version,content-type",
+        )
+        .body(Body::empty())
+        .unwrap();
+    let response = service.handle(preflight).await;
+    assert_eq!(response.status().as_u16(), 204);
+    assert!(
+        response.headers()["access-control-allow-headers"]
+            .to_str()
+            .unwrap()
+            .contains("mcp-protocol-version")
+    );
 }
 
 #[tokio::test]
