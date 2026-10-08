@@ -336,19 +336,19 @@ pub use smithy::rust_service_from_smithy_with;
 /// Compile a source-only Smithy package and select named generated outputs.
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
 pub fn smithy(sources: impl AsRef<Path>) -> Model {
-    model(sources)
+    Model::from_sources(sources)
 }
 
 /// Use a compiled AST without invoking a Smithy compiler.
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
 pub fn model_from_json(source: impl AsRef<Path>) -> Model {
-    model(source)
+    Model::from_json(source)
 }
 
 /// Generate outputs in a separate package using its model dependency's AST.
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
 pub fn model_dependency(links: &str) -> ModelPackage {
-    model(links).compile()
+    Model::from_dependency(links).compile()
 }
 
 /// Resolve a named artifact published by a direct model dependency.
@@ -381,7 +381,7 @@ pub fn artifact(links: &str, name: &str) -> Artifact {
 /// generate from. The package's manifest needs `links`.
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).publish()")]
 pub fn publish_model(path: impl AsRef<Path>) {
-    model(path).publish();
+    Model::from_json(path).publish();
 }
 
 /// From a service package's `build.rs`: generates the server side from the
@@ -389,7 +389,7 @@ pub fn publish_model(path: impl AsRef<Path>) {
 #[cfg(feature = "rust")]
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
 pub fn rust_service(links: &str) -> ServerOutput {
-    model(links).server()
+    Model::from_dependency(links).server()
 }
 
 /// From a client package's `build.rs`: generates a client from the model
@@ -397,7 +397,7 @@ pub fn rust_service(links: &str) -> ServerOutput {
 #[cfg(feature = "rust")]
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).client()")]
 pub fn client(links: &str) -> ServerOutput {
-    model(links).client().into_legacy()
+    Model::from_dependency(links).client().into_legacy()
 }
 
 /// A model dependency is missing Cargo's published AST metadata.
@@ -450,7 +450,7 @@ pub type RustCodegen = ServerOutput;
 #[cfg(feature = "rust")]
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
 pub fn service(links: &str) -> ServerOutput {
-    model(links).server()
+    Model::from_dependency(links).server()
 }
 
 /// What to generate, and from which model.
@@ -496,7 +496,7 @@ impl ServerOutput {
     /// Deprecated direct server constructor.
     #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
     pub fn from_model(source: impl AsRef<Path>) -> Self {
-        model(source).server()
+        Model::from_json(source).server()
     }
 
     /// Select client visibility. Server generation always retains everything.
@@ -508,7 +508,7 @@ impl ServerOutput {
     /// A client, from a model file directly.
     #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).client()")]
     pub fn client_from_model(source: impl AsRef<Path>) -> Self {
-        model(source).client().into_legacy()
+        Model::from_json(source).client().into_legacy()
     }
 
     /// The service to generate, when the model defines several.

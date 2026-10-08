@@ -58,6 +58,20 @@ fn vocabulary_probe() {
                     .render()
                     .unwrap()
             );
+            fs::write("model.ast", WEATHER).unwrap();
+            assert_eq!(
+                m.server().render().unwrap(),
+                crucible_build::RustCodegen::from_model("model.ast")
+                    .render()
+                    .unwrap()
+            );
+            assert_eq!(
+                m.server().render().unwrap(),
+                crucible_build::model_from_json("model.ast")
+                    .server()
+                    .render()
+                    .unwrap()
+            );
             let old: crucible_build::ModelBuilder = crucible_build::model_from_json("model.json");
             assert_eq!(old.server().render().unwrap(), m.server().render().unwrap());
             m.client().generate();

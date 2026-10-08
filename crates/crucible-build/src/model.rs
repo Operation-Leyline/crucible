@@ -13,6 +13,30 @@ pub struct Model {
 }
 
 impl Model {
+    fn configured(builder: ModelConfig) -> Self {
+        Self {
+            builder,
+            path: OnceCell::new(),
+            package: OnceCell::new(),
+        }
+    }
+
+    pub(crate) fn from_json(source: impl AsRef<Path>) -> Self {
+        Self::configured(ModelConfig::new(source.as_ref(), true))
+    }
+
+    pub(crate) fn from_sources(source: impl AsRef<Path>) -> Self {
+        Self::configured(ModelConfig::new(source.as_ref(), false))
+    }
+
+    pub(crate) fn from_dependency(links: &str) -> Self {
+        let path = crate::try_published(links).unwrap_or_else(|error| {
+            eprintln!("{error}");
+            std::panic::panic_any(error)
+        });
+        Self::from_json(path)
+    }
+
     pub(crate) fn new(source: &Path) -> Self {
         Self::try_new(source).unwrap_or_else(|error| {
             // Preserve the named error payload while making Cargo's failure actionable.
@@ -29,11 +53,7 @@ impl Model {
         } else {
             ModelConfig::new(&crate::try_published(&source.to_string_lossy())?, true)
         };
-        Ok(Self {
-            builder,
-            path: OnceCell::new(),
-            package: OnceCell::new(),
-        })
+        Ok(Self::configured(builder))
     }
 
     /// Select a service when the model declares several.

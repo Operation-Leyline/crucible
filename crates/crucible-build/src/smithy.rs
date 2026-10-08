@@ -20,7 +20,7 @@ use crate::absolute;
 )]
 #[allow(deprecated)]
 pub fn rust_service_from_smithy(sources: impl AsRef<Path>) -> ServerOutput {
-    crate::model(sources).server()
+    crate::Model::from_sources(sources).server()
 }
 
 /// Use an explicitly selected compiler dependency instead of the default pin.
@@ -55,7 +55,7 @@ pub fn rust_service_from_smithy_with(
 )]
 #[allow(deprecated)]
 pub fn client_from_smithy(sources: impl AsRef<Path>) -> ServerOutput {
-    crate::model(sources).client().into_legacy()
+    crate::Model::from_sources(sources).client().into_legacy()
 }
 
 /// Generate a Rust client with an explicitly selected official compiler.
@@ -88,7 +88,7 @@ pub fn client_from_smithy_with(
 )]
 #[allow(deprecated)]
 pub fn publish_model_from_smithy(sources: impl AsRef<Path>) {
-    crate::model(sources).publish();
+    crate::Model::from_sources(sources).publish();
 }
 
 /// Compile and publish a shared model using an explicitly selected compiler.
