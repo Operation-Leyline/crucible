@@ -43,6 +43,13 @@ class ExtendedTypeTests(unittest.TestCase):
         self.assertEqual(codec.read_header({"target": "smithy.api#BigInteger"}, str(big)), big)
         self.assertEqual(codec.read_header({"target": "smithy.api#BigDecimal"}, "1.5"), Decimal("1.5"))
 
+    def test_offset_less_date_time_decodes_aware_and_round_trips(self):
+        from datetime import timezone
+        from types_client.runtime import _timestamp
+        decoded = _timestamp("2026-10-01T12:30:00", "date-time", True)
+        self.assertEqual(decoded.tzinfo, timezone.utc)
+        self.assertEqual(_timestamp(decoded, "date-time", False), "2026-10-01T12:30:00Z")
+
     def test_invalid_precision_and_collection_values_fail(self):
         codec = _Codec(models._SCHEMA, models._CLASSES)
         for value in (True, 0.5, 2 ** 31):

@@ -144,7 +144,9 @@ def _timestamp(value: Any, fmt: str, decode: bool) -> Any:
             return datetime.fromtimestamp(float(value), timezone.utc)
         if fmt == "http-date":
             return parsedate_to_datetime(value).astimezone(timezone.utc)
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        # An offset-less date-time is UTC, and must stay aware to be sent back.
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
     if not isinstance(value, datetime) or value.tzinfo is None:
         raise TypeError("timestamps must be timezone-aware datetime values")
     value = value.astimezone(timezone.utc)
