@@ -122,6 +122,11 @@ crucible generate ts model.json --audience internal \
   --out target/internal-ts --package-name @example/internal-api
 ```
 
+`crucible conformance` accepts the same audience selector and defaults to external.
+Export vectors for the audience used to generate the client. Projection removes
+vectors whose parameters or request expectations need removed members, enum values
+or errors; response bodies may still contain unknown server fields.
+
 External projection refuses contracts that need removed API. It collects every
 required internal member, external reference to an internal shape, paginator,
 waiter or endpoint reference to a removed member, and removed lifecycle operation

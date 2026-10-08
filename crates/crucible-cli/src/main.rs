@@ -100,6 +100,9 @@ enum Command {
         target: ClientLanguage,
         #[arg(long)]
         out: PathBuf,
+        /// Select the same audience as the generated client under test.
+        #[arg(long, value_enum, default_value = "external")]
+        audience: AudienceArg,
     },
     /// Generate code for one target.
     Generate {
@@ -614,7 +617,8 @@ fn run(command: Command) -> ExitCode {
             source,
             target,
             out,
-        } => lower_with_capabilities(&source, &target.capabilities()).and_then(|service| {
+            audience,
+        } => lower_for_audience(&source, audience.into(), &target.capabilities()).and_then(|service| {
             let tests = client_tests(&service);
             let value = serde_json::json!({"schemaVersion":1, "service":service.id, "tests":tests});
             let json =

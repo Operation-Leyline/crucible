@@ -250,9 +250,7 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
                 .member()
                 .is_none_or(|name| member_exists(&result.shapes, Some(&root), name))
     });
-    result
-        .protocol_tests
-        .retain(|test| operations.contains(&test.operation));
+    crate::audience_protocol_tests::retain(service, &mut result);
     result.endpoint_discovery = result
         .endpoint_discovery
         .take()

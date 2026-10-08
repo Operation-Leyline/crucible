@@ -2,6 +2,46 @@ use std::{fs, process::Command};
 
 const MODEL: &str = include_str!("../../crucible-smithy/tests/fixtures/internal.json");
 
+#[test]
+fn conformance_export_selects_the_same_audience_as_the_client() {
+    let root = tempfile::tempdir().unwrap();
+    let model = root.path().join("model.json");
+    fs::write(
+        &model,
+        include_str!("../../crucible-smithy/tests/fixtures/internal-protocol-tests.json"),
+    )
+    .unwrap();
+    for internal in [false, true] {
+        let out = root.path().join(format!("conformance-{internal}"));
+        let mut args = vec![
+            "conformance",
+            model.to_str().unwrap(),
+            "--target",
+            "ts",
+            "--out",
+            out.to_str().unwrap(),
+        ];
+        if internal {
+            args.extend(["--audience", "internal"]);
+        }
+        let result = run(&args);
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let document: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(out.join("protocol-tests.json")).unwrap())
+                .unwrap();
+        let tests = document["tests"].as_array().unwrap();
+        assert_eq!(tests.len(), if internal { 12 } else { 2 });
+        assert_eq!(
+            tests.iter().any(|test| test["id"] == "InternalOperation"),
+            internal
+        );
+    }
+}
+
 fn run(arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_crucible"))
         .args(arguments)

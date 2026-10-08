@@ -4,6 +4,65 @@ use crucible_smithy::{Audience, Capabilities, Feature, Model, ShapeId, project};
 const INTERNAL: &str = include_str!("fixtures/internal.json");
 
 #[test]
+fn projected_request_vectors_check_the_payload_contract() {
+    for (target, body, retained) in [
+        ("smithy.api#String", "raw public payload", true),
+        (
+            "example.audience#PrivateDetails",
+            r#"{"value":"public"}"#,
+            true,
+        ),
+        (
+            "example.audience#PrivateDetails",
+            r#"{"hidden":"secret"}"#,
+            false,
+        ),
+    ] {
+        let mut model: serde_json::Value =
+            serde_json::from_str(include_str!("fixtures/internal-protocol-tests.json")).unwrap();
+        model["shapes"]["example.audience#PublicInput"]["members"] = serde_json::json!({
+            "value": {"target": target, "traits": {"smithy.api#httpPayload": {}}},
+            "privateHeader": {"target": "smithy.api#String", "traits": {
+                "smithy.api#internal": {}, "smithy.api#httpHeader": "X-Private"
+            }}
+        });
+        model["shapes"]["example.audience#Public"]["traits"]["smithy.test#httpRequestTests"] = serde_json::json!([{
+            "id": "PayloadRequest", "protocol": "crucible.protocols#json",
+            "appliesTo": "client", "method": "POST", "uri": "/public",
+            "params": {}, "body": body
+        }]);
+        let external = project(&lower(&model.to_string(), false), Audience::External).unwrap();
+        assert_eq!(
+            external
+                .protocol_tests
+                .iter()
+                .any(|test| test.id == "PayloadRequest"),
+            retained,
+            "{target}: {body}"
+        );
+    }
+}
+
+#[test]
+fn protocol_vectors_keep_only_representable_params_bindings_and_operations() {
+    let full = lower(include_str!("fixtures/internal-protocol-tests.json"), false);
+    assert_eq!(full.protocol_tests.len(), 12);
+    let external = project(&full, Audience::External).unwrap();
+    assert_eq!(
+        external
+            .protocol_tests
+            .iter()
+            .map(|test| test.id.as_str())
+            .collect::<Vec<_>>(),
+        ["PublicRequest", "PublicResponse"]
+    );
+    assert_eq!(
+        project(&full, Audience::Internal).unwrap().protocol_tests,
+        full.protocol_tests
+    );
+}
+
+#[test]
 fn cors_keeps_the_full_server_contract_when_client_bindings_are_projected() {
     let full = lower(include_str!("fixtures/internal-cors.json"), false);
     let cors = full.cors.as_ref().unwrap();

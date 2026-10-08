@@ -7,6 +7,7 @@
 
 mod ast;
 mod audience;
+mod audience_protocol_tests;
 mod capabilities;
 mod cors;
 mod diagnostics;
