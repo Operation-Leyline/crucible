@@ -291,7 +291,13 @@ fn binding_schema(
             SimpleKind::Short => Some("integer(16)".to_owned()),
             SimpleKind::Integer => Some("integer(32)".to_owned()),
             SimpleKind::Long => Some("integer(64)".to_owned()),
-            _ => Some("number".to_owned()),
+            SimpleKind::Float | SimpleKind::Double => {
+                Some(if service.protocol_settings.non_finite_float_strings {
+                    "{ kind: \"number\", nonFinite: true }".to_owned()
+                } else {
+                    "number".to_owned()
+                })
+            }
         },
         Shape::IntEnum(_) => Some("integer(32)".to_owned()),
         Shape::List(list) => Some(format!(

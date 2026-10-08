@@ -1047,8 +1047,12 @@ function parseHeader(text: string, schema: Schema | undefined, wire = false): un
   switch (schema?.kind) {
     case "integer": case "bigInteger": case "bigDecimal":
       return wire ? new JsonNumber(text.trim()) : fromWire(schema, new JsonNumber(text.trim()));
-    case "number":
-      return fromWire(schema, new JsonNumber(text.trim()));
+    case "number": {
+      const trimmed = text.trim();
+      const value = schema.nonFinite && ["NaN", "Infinity", "-Infinity"].includes(trimmed) ? trimmed : new JsonNumber(trimmed);
+      // The enclosing output schema must see the protocol string, so it converts non-finite values only once.
+      return wire ? value : fromWire(schema, value);
+    }
     case "boolean":
       return text.trim() === "true";
     case "timestamp":
