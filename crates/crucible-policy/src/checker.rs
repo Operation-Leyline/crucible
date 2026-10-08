@@ -130,6 +130,13 @@ impl Checker<'_> {
                     "idempotency contract changed",
                 );
             }
+            if old_op.readonly && !new_op.readonly {
+                self.push(
+                    "compatibility.operation",
+                    &old_op.id,
+                    "readonly contract changed; existing clients may retry requests that now have side effects",
+                );
+            }
             self.root(
                 &old_op.id,
                 old_op.input.as_ref(),

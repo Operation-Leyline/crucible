@@ -148,7 +148,12 @@ pub fn field(value: &str) -> String {
     while result.contains("__") {
         result = result.replace("__", "_u_");
     }
-    if keyword(&result) || ["metadata", "what", "min", "max"].contains(&result.as_str()) {
+    if keyword(&result)
+        || [
+            "metadata", "what", "min", "max", "errno", "stdin", "stdout", "stderr",
+        ]
+        .contains(&result.as_str())
+    {
         result.push_str("_value");
     }
     result
@@ -177,5 +182,12 @@ mod tests {
         assert!(!super::keyword("CLASS"));
         assert!(!super::keyword("my_variable"));
         assert!(!super::keyword("hello"));
+    }
+
+    #[test]
+    fn escapes_macro_like_member_names() {
+        for name in ["errno", "stdin", "stdout", "stderr"] {
+            assert_eq!(super::field(name), format!("{name}_value"));
+        }
     }
 }

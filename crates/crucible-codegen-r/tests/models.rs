@@ -113,6 +113,7 @@ fn invalid_metadata_and_collisions_are_diagnosed() {
 fn runtime_names_and_static_nul_are_diagnosed() {
     for name in [
         "startsWith",
+        "substring",
         "endsWith",
         "isTRUE",
         "seq_len",

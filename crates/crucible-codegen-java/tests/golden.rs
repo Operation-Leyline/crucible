@@ -34,6 +34,32 @@ fn client_name_follows_service_identity() {
     );
     assert!(!files.iter().any(|file| file.path.ends_with("/Client.java")));
 }
+
+#[test]
+fn member_matching_first_package_segment_keeps_optional_initializer_valid() {
+    let mut model: serde_json::Value = serde_json::from_str(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap();
+    model["shapes"]["example.weather#CreateCityInput"]["members"]["ex"] =
+        serde_json::json!({"target":"smithy.api#String"});
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let mut config = options();
+    config.package_name = "ex.edge".into();
+    let files = emit(&service, &config).unwrap();
+    let source = files
+        .iter()
+        .find(|file| file.path.ends_with("CreateCityInput.java"))
+        .unwrap();
+    assert!(
+        source
+            .contents
+            .contains("OptionalValue<java.lang.String> ex_ = ex.edge.OptionalValue.unset();")
+    );
+}
 #[test]
 fn weather_matches_goldens() {
     let service = Model::from_json(include_str!(

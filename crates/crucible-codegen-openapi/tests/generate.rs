@@ -409,6 +409,15 @@ fn aws_rest_json_uses_its_timestamp_and_error_rules() {
             .get("X-Amzn-Errortype")
             .is_some()
     );
+    let conflict = &doc["components"]["schemas"]["example.weather.ConflictError"];
+    assert!(
+        !conflict["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v == "__type")
+    );
+    assert!(conflict["properties"].get("__type").is_none());
 }
 
 #[test]

@@ -215,7 +215,7 @@ fn responses(service: &Service, op: &Operation) -> Value {
             ..Default::default()
         };
         let mut content = content(service, structure, &bindings);
-        if error.payload.is_none() && !service.protocol_settings.no_error_wrapping {
+        if error.payload.is_none() && service.protocol == Protocol::CrucibleJson {
             let schema = &mut content["application/json"]["schema"];
             schema["properties"]["__type"] = json!({"type": "string", "const": error.wire_code});
             let required = schema
