@@ -64,7 +64,7 @@ OS, one shared Cargo cache (`tools/test-consumers.py`):
 1. the starter produced by `crucible new`, built against this checkout;
 2. `e2e/weather-service` (model, service, Rust client and the generated
    `smithy.test` conformance suite);
-3. a Leyline-shaped fixture (`e2e/consumer-*`): a separate model crate;
+3. a Leyline-shaped fixture (`tests/consumers/leyline`): a separate model crate;
    `AuthenticatorChain` and scope checks from `crucible-auth`; a custom async
    `Middleware` and `OperationAwareMiddleware`; an `Interceptor`; a modelled
    `ValidationException` with typed reasons; `host::lambda_event`; and a

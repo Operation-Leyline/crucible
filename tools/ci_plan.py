@@ -11,7 +11,7 @@ import subprocess
 GROUPS = frozenset({
     "rust", "e2e", "service_cli", "cdk", "terraform", "c", "cpp", "r",
     "ruby", "php", "dart", "swift", "kotlin", "csharp", "java", "go",
-    "python", "typescript", "onboarding", "editor",
+    "python", "typescript", "onboarding", "editor", "consumers",
 })
 # Rust checks include every generator's unit/golden tests. Real HTTP and the
 # dependency-free TS runtime cover the server path on every shared-code PR.
@@ -22,6 +22,13 @@ MODEL_GROUPS = CORE_GROUPS | {"python", "go"}
 # The shared engine and Cargo facade own clients, schemas, provisioning and CLI
 # packages. Keep representative SDKs and each additional native output consumer.
 SDK_GROUPS = MODEL_GROUPS | {"java", "cdk", "terraform", "service_cli"}
+# The stable surface downstream services build against: compile the starter, the
+# example service and a Leyline-shaped fixture. Selected by the crates and files
+# whose public API or generated shape those consumers use, and always at release.
+CONSUMER_CRATES = frozenset({
+    "crucible-build", "crucible-server-runtime-rust", "crucible-wire",
+    "crucible-codegen-rust", "crucible-auth",
+})
 GENERATORS = {
     # The OpenAPI emitter is qualified by Rust unit/golden and CLI tests.
     "openapi": set(),
@@ -55,10 +62,11 @@ TOOLS = {
     # path without rebuilding native consumers whose sources did not change.
     "tools/ci_plan.py": {"e2e"},
     "tools/test_ci_plan.py": {"e2e"},
-    ".github/workflows/ci.yml": CORE_GROUPS,
-    ".github/workflows/release.yml": CORE_GROUPS,
+    ".github/workflows/ci.yml": CORE_GROUPS | {"consumers"},
+    ".github/workflows/release.yml": CORE_GROUPS | {"consumers"},
     "tools/crucible_release.py": {"e2e"},
     "tools/test_crucible_release.py": {"e2e"},
+    "tools/test-consumers.py": {"consumers"},
 }
 
 
@@ -93,12 +101,14 @@ def affected_groups(paths):
                 selected.update(GENERATORS.get(language, set()))
                 continue
             crate = parts[1]
+            if crate in CONSUMER_CRATES:
+                selected.add("consumers")
             # A rename diff includes deleted paths under the former crate name.
             if crate in {"crucible-client", "crucible-client-runtime-rust"}:
                 selected.update({"e2e", "service_cli"})
             elif crate == "crucible-cli-runtime":
                 selected.add("service_cli")
-            elif crate in {"crucible", "crucible-server-runtime-rust", "crucible-wire", "crucible-policy", "crucible-cli", "crucible-codegen-rust"}:
+            elif crate in {"crucible", "crucible-server-runtime-rust", "crucible-wire", "crucible-policy", "crucible-cli", "crucible-codegen-rust", "crucible-auth"}:
                 selected.update(CORE_GROUPS)
                 if crate == "crucible-cli":
                     selected.add("service_cli")
@@ -118,8 +128,12 @@ def affected_groups(paths):
             selected.update(TOOLS[path])
         elif path.startswith("tools/cpp-vcpkg/"):
             selected.update({"c", "cpp"})
+        elif path.startswith("tests/consumers/"):
+            selected.add("consumers")
         elif path.startswith(("smithy/", "vendor/smithy-tooling/")):
             selected.update(CORE_GROUPS)
+            if path.startswith("smithy/"):
+                selected.add("consumers")
         elif path.startswith("e2e/"):
             selected.update(CORE_GROUPS)
         elif path.startswith("tests/conformance/") or path in {"Cargo.toml", "Cargo.lock", "tools/sdk_test_support.py"}:

@@ -1,0 +1,15 @@
+# An independent consumer of the generated Rust SDK package: a client author's
+# view. It depends on `../sdk`, which leyline-model's build script generates,
+# so it is its own workspace and is built after the model (see
+# tools/test-consumers.py).
+[package]
+name = "leyline-sdk-consumer"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+leyline-sdk = { path = "../sdk" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+[workspace]

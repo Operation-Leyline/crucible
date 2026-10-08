@@ -1,0 +1,12 @@
+# The model crate: Smithy sources only, shared by the service and the SDK the
+# way Leyline shares its contract. Publishes the compiled model to dependants
+# (`links`) and exports a complete Rust SDK package for independent consumers.
+[package]
+name = "leyline-model"
+version = "0.0.0"
+edition = "2024"
+publish = false
+links = "leyline_model"
+
+[build-dependencies]
+crucible-build = { path = "../../../../crates/crucible-build" }
