@@ -3,7 +3,8 @@ name = "crucible-auth"
 description = "Opt-in JWT/OIDC verification and model-driven authenticator chains"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# jsonwebtoken 11 needs 1.88.
+rust-version = "1.88"
 publish.workspace = true
 repository.workspace = true
 
@@ -15,7 +16,8 @@ test-support = ["dep:rsa", "dep:rand", "dep:base64", "dep:p256"]
 crucible-server-runtime-rust = { path = "../crucible-server-runtime-rust", default-features = false }
 async-trait = "0.1"
 axum = "0.8"
-jsonwebtoken = { version = "9.3", default-features = false }
+# Pure-Rust crypto backend: no C toolchain, and verification only uses public keys.
+jsonwebtoken = { version = "11.1", default-features = false, features = ["rust_crypto"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "json", "stream"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 serde.workspace = true

@@ -41,6 +41,32 @@ async fn algorithms_signature_and_required_claims_fail_closed() {
     );
 }
 
+/// GHSA-h395-gr6q-cpjc: jsonwebtoken < 10.3 treated a wrongly typed claim as
+/// absent, so its check was skipped. A numeric claim sent as text must refuse.
+#[tokio::test]
+async fn claims_with_the_wrong_json_type_are_refused() {
+    let issuer = TestTokenIssuer::es256("https://issuer.example", "known").unwrap();
+    let auth =
+        JwtAuthenticator::with_jwks(issuer.config(vec!["client".into()]), issuer.jwks()).unwrap();
+    let claims = issuer.id_claims("person", "client");
+    let far_future = "4102444800";
+    for (name, value) in [
+        ("exp", json!(far_future)),
+        ("nbf", json!(far_future)),
+        ("nbf", json!("0")),
+        ("aud", json!(1)),
+        ("iss", json!(1)),
+        ("sub", json!(1)),
+    ] {
+        let mut wrong = claims.clone();
+        wrong[name] = value.clone();
+        assert!(
+            auth.verify(&issuer.mint(&wrong).unwrap()).await.is_err(),
+            "{name} = {value}"
+        );
+    }
+}
+
 #[test]
 fn public_jwks_rejects_ambiguous_kids_and_non_signing_keys() {
     let issuer = TestTokenIssuer::es256("https://issuer.example", "known").unwrap();

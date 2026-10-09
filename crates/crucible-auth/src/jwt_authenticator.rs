@@ -216,11 +216,10 @@ impl JwtAuthenticator {
                 let stale = cache.fetched.is_some_and(|time| {
                     time.elapsed() < self.config.cache_ttl.saturating_add(self.config.max_stale)
                 });
-                if stale {
-                    if let Some(key) = cache.keys.get(kid).filter(|key| key.algorithm == algorithm)
-                    {
-                        return Ok(key.decoding.clone());
-                    }
+                if stale
+                    && let Some(key) = cache.keys.get(kid).filter(|key| key.algorithm == algorithm)
+                {
+                    return Ok(key.decoding.clone());
                 }
                 return if cache
                     .fetched
@@ -470,13 +469,12 @@ fn parse_keys(value: &Value) -> std::result::Result<BTreeMap<String, SigningKey>
         {
             continue;
         }
-        if let Some(operations) = value.get("key_ops") {
-            if !operations
+        if let Some(operations) = value.get("key_ops")
+            && !operations
                 .as_array()
                 .is_some_and(|ops| ops.iter().any(|op| op.as_str() == Some("verify")))
-            {
-                continue;
-            }
+        {
+            continue;
         }
         let algorithm = match value.get("kty").and_then(Value::as_str) {
             Some("RSA") => Algorithm::RS256,
