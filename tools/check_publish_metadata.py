@@ -16,7 +16,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 # Shipped as prebuilt binaries on GitHub Releases, never to crates.io.
-BINARY_ONLY = {"crucible-cli"}
+BINARY_ONLY = {"crucible-cli", "crucible-lsp"}
 MAX_KEYWORDS = 5
 MAX_CATEGORIES = 5
 

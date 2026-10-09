@@ -48,6 +48,8 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client-runtime-rust` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`) |
+| `crucible-lang` | the Crucible modelling language front end (`docs/idl/`): lossless lexer, parser with recovery, typed syntax tree, name resolution, checks, and lowering to the same IR `crucible-smithy` produces, plus a source map |
+| `crucible-lsp` | the language server for `.cru` files and `crucible.toml`: package-wide diagnostics, completion, semantic tokens, navigation, rename, folding, formatting and quick fixes. Editor plugins live in their own repositories (`crucible-intellij`), bundle its release binaries and only start it |
 | `crucible-traits` (`smithy/`) | canonical Smithy trait sources, exposed as a Cargo package and model JAR |
 | `crucible-codegen-rust` | IR → Rust server/client bindings, server conformance tests from `smithy.test` vectors, and complete Cargo SDK packages with automatic runtime dependencies |
 | `crucible-codegen` | shared native client and document/infrastructure/CLI output selection, target checks, generated-file ownership and stable output publication |

@@ -17,6 +17,29 @@ version's section when it is prepared.
 
 ### Added
 
+- `crucible-lang`: an internal front end for Crucible's own modelling language
+  (`docs/idl/`), lowering `.cru` packages to the same IR the Smithy front end
+  produces. The weather model compiles to identical IR from both. Not yet a
+  supported surface.
+- `crucible_build::model(..)` accepts a `.cru` package directory, one whose
+  `crucible.toml` has a `[model]` table, and compiles it without Smithy or a
+  JVM. Server bindings, clients, OpenAPI and the service CLI generate from it;
+  documentation, provisioning, the API Explorer and model export report an
+  error for a `.cru` model for now.
+- `crucible-lsp`, a language server for `.cru` files: the compiler's
+  diagnostics as you type across the whole package, context-aware completion,
+  semantic highlighting, go to definition, find references, rename,
+  highlighting of other uses, hover, document and workspace symbols, folding,
+  formatting and quick fixes for unknown types. It also checks `crucible.toml`.
+  Releases attach it for Linux, macOS and Windows; the separate
+  `crucible-intellij` repository bundles it into the JetBrains plugin.
+- `crucible_lang::format`, a conservative `.cru` formatter: indentation by
+  bracket depth, trailing whitespace and blank-line runs.
+- The IR carries typed facts generators previously read from raw Smithy
+  traits: `Structure::strict` and `input`, `Member::idempotency_token` and
+  `mutability`, `sensitive` on members and shapes, and `Service::is_bearer`.
+  Generated output is unchanged. An invalid `@aws.cloudformation#cfnMutability`
+  value is now a lowering diagnostic instead of being ignored.
 - Crucible Explorer: optional `explorer` runtime feature and
   `.server().explorer()` build output, serving an embedded API reference with
   schema forms, JSON calls, credentials, curl copying and pagination. Defaults
