@@ -155,7 +155,7 @@ class PlanTests(unittest.TestCase):
         jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
                               workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
         self.assertIn("python3 tools/test-consumers.py", jobs["consumers"])
-        self.assertIn("runs-on: ubuntu-latest", jobs["consumers"])
+        self.assertIn("runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}", jobs["consumers"])
         self.assertNotIn("matrix", jobs["consumers"])
         # The aggregate cannot pass a release (full) run when consumers was skipped or failed.
         self.assertIn('results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success"', jobs["ci"])
@@ -348,7 +348,7 @@ class PlanTests(unittest.TestCase):
         jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
                               workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
         self.assertIn("needs.plan.outputs.full == 'true'", jobs["qualification-tools"])
-        self.assertIn("runs-on: ubuntu-22.04", jobs["qualification-tools"])
+        self.assertIn("runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}", jobs["qualification-tools"])
         self.assertIn("qualification-tools-linux-${{ github.sha }}", jobs["qualification-tools"])
         # Re-running all jobs keeps the run and SHA, so replace its old artifact.
         upload = jobs["qualification-tools"].split("uses: actions/upload-artifact@", 1)[1]

@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.LINUX_RUNNER_2404 || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
@@ -51,7 +51,7 @@ jobs:
   publish:
     if: ${{ inputs.publish }}
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ${{ vars.LINUX_RUNNER_2404 || 'ubuntu-24.04' }}
     environment: sdk-publish
     steps:
       - uses: actions/checkout@v4

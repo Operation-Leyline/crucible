@@ -10,7 +10,8 @@ fn doc(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
         .unwrap_or_default();
     if let Some(deprecated) = &notes.deprecated {
         out.push_str(&format!(
-            "{indent}@Deprecated({})\n",
+            // models.dart imports dart:core only under the `core.` prefix.
+            "{indent}@core.Deprecated({})\n",
             literal(&deprecated.note())
         ));
     }

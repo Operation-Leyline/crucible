@@ -29,7 +29,7 @@ final class CitySummary implements wire.WireModel {
   final stamp.Timestamp? _createdAt;
   final wire.Field<stamp.Timestamp>? _createdAtPresence;
   /// Deprecated since 2026-08: Use updatedAt.
-  @Deprecated("Use updatedAt. (since 2026-08)")
+  @core.Deprecated("Use updatedAt. (since 2026-08)")
   stamp.Timestamp? get createdAt => _createdAtPresence != null ? _createdAtPresence.value : _createdAt;
   /// Whether `createdAt` was omitted, set to null, or given a value.
   wire.Field<stamp.Timestamp> get createdAtPresence => _createdAtPresence ?? (_createdAt == null ? const wire.Field.unset() : wire.Field.value(_createdAt));
@@ -496,7 +496,7 @@ final class Sky implements wire.WireModel {
   const Sky(this.value);
   static const clear = Sky("clear");
   /// Deprecated: Reported as CLEAR with a cloud cover reading.
-  @Deprecated("Reported as CLEAR with a cloud cover reading.")
+  @core.Deprecated("Reported as CLEAR with a cloud cover reading.")
   static const cloudy = Sky("cloudy");
   @core.override
   core.Object toWire(wire.WireContext context) => value;
