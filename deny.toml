@@ -23,7 +23,7 @@ allow = [
     "CDLA-Permissive-2.0",
 ]
 # Workspace crates are `publish = false` until the publishing plan lands, so
-# their (still missing) licence field is not reported here; tools/check-publish-metadata.py
+# their (still missing) licence field is not reported here; tools/check_publish_metadata.py
 # is what verifies it.
 private = { ignore = true }
 

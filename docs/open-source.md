@@ -55,7 +55,7 @@ python tools/check_publish_metadata.py --order
 
 - [ ] Set `publish` back to the default (remove `publish = false` from
       `[workspace.package]`); keep it on `e2e/` and `vendor/` crates.
-- [ ] Add `license`, `readme`, `keywords` (at most five) and `categories` to
+- [ ] Add `license`, `readme`, `keywords` and `categories` (at most five each) to
       `[workspace.package]` and inherit them in every crate.
 - [ ] Give every workspace dependency in `[workspace.dependencies]` a
       `version` next to its `path` (`crucible-wire = { version = "0.4.0",
@@ -91,6 +91,8 @@ writing). Plan for both:
       store it as the `CARGO_REGISTRY_TOKEN` secret of the `crates-io`
       environment (only reviewers' approval may use it).
 - [ ] Create the `crates-io` environment with required reviewers.
+- [ ] Once a second maintainer exists, enable **Prevent self-review** on the
+      `crates-io` environment so whoever starts a publish cannot approve it.
 - [ ] Run **Publish crates** with `dry_run` on (the default). Fix everything
       it reports; the dry run packages and compiles each crate against the
       others in dependency order.
