@@ -55,15 +55,11 @@ pub(crate) fn optional(structure: &Structure, member: &Member) -> bool {
 }
 
 pub(crate) fn is_input(structure: &Structure) -> bool {
-    structure.traits.contains_key(&smithy("input"))
+    structure.input
 }
 
 pub(crate) fn is_idempotency_token(member: &Member) -> bool {
-    member.traits.contains_key(&smithy("idempotencyToken"))
-}
-
-pub(crate) fn smithy(name: &str) -> ShapeId {
-    ShapeId::new("smithy.api", name)
+    member.idempotency_token
 }
 
 /// `CreateGraph` → `createGraph`; a leading acronym lowers as a word, so

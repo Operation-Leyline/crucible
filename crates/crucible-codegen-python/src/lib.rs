@@ -364,15 +364,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 for m in &s.members {
                     let native = field(&m.name);
                     let t = ty(service, &m.target, "");
-                    let input = s.traits.contains_key(&ShapeId::new("smithy.api", "input"));
                     let optional = matches!(shape, Shape::Union(_))
-                        || if input {
+                        || if s.input {
                             !m.required
                         } else {
                             m.optional_on_client()
                         }
-                        || m.traits
-                            .contains_key(&ShapeId::new("smithy.api", "idempotencyToken"));
+                        || m.idempotency_token;
                     if s.error.is_some() {
                         if native == "message" {
                             models.push_str("    message: str\n");

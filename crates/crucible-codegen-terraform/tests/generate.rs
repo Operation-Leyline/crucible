@@ -82,10 +82,7 @@ fn rejects_unrelated_sources_and_sensitive_identifiers() {
     let crucible_smithy::ir::Shape::Simple(id) = service.shapes.get_mut(&target).unwrap() else {
         panic!()
     };
-    id.traits.insert(
-        "smithy.api#sensitive".parse().unwrap(),
-        serde_json::json!({}),
-    );
+    id.sensitive = true;
     let errors = emit(&service, &plan, &options()).err().unwrap().to_string();
     assert!(errors.contains("canonical create input"));
     assert!(errors.contains("identifiers cannot be sensitive"));

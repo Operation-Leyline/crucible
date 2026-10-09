@@ -305,8 +305,8 @@ fn visit(
         Some(Shape::Simple(simple)) if matches!(simple.kind, SimpleKind::Document | SimpleKind::Blob) => diagnostics.push(id, "CDK properties do not yet support document or blob targets; use an explicit string representation in the provisioning model"),
         Some(Shape::Simple(_)) | Some(Shape::Enum(_)) => {},
         Some(Shape::Structure(s)) => for member in &s.members { visit(service, &member.target, seen, diagnostics); },
-        Some(Shape::List(s)) => { if s.traits.contains_key(&ShapeId::new("smithy.api", "sparse")) { diagnostics.push(id,"CDK sparse lists are not supported"); } visit(service, &s.member.target, seen, diagnostics); },
-        Some(Shape::Map(s)) => { if s.traits.contains_key(&ShapeId::new("smithy.api", "sparse")) { diagnostics.push(id,"CDK sparse maps are not supported"); } visit(service, &s.key.target, seen, diagnostics); visit(service, &s.value.target, seen, diagnostics); },
+        Some(Shape::List(s)) => { if s.sparse { diagnostics.push(id,"CDK sparse lists are not supported"); } visit(service, &s.member.target, seen, diagnostics); },
+        Some(Shape::Map(s)) => { if s.sparse { diagnostics.push(id,"CDK sparse maps are not supported"); } visit(service, &s.key.target, seen, diagnostics); visit(service, &s.value.target, seen, diagnostics); },
         _ => diagnostics.push(id, "unsupported CDK property target (union, unit or missing shape)"),
     }
 }

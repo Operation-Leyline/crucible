@@ -260,11 +260,7 @@ pub fn object<'a>(
     if !required.is_empty() {
         value["required"] = json!(required);
     }
-    if structure
-        .traits
-        .keys()
-        .any(|id| id.to_string() == "crucible.protocols#strict")
-    {
+    if structure.strict {
         value["additionalProperties"] = json!(false);
     }
     value
