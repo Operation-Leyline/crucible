@@ -387,7 +387,11 @@ impl<'a> Lowerer<'a> {
                         self.error(
                             file,
                             name.span,
-                            format!("`{}` is already declared as a {kind}", name.name),
+                            format!(
+                                "`{}` is already declared as {} {kind}",
+                                name.name,
+                                article(kind)
+                            ),
                         );
                     } else {
                         // The package's own files come first, so `previous` is
@@ -2806,5 +2810,14 @@ impl<'a> Lowerer<'a> {
                 _ => {}
             }
         }
+    }
+}
+
+/// `a` or `an` before a declaration keyword: `an error`, `a structure`.
+fn article(word: &str) -> &'static str {
+    if word.starts_with(['a', 'e', 'i', 'o', 'u']) {
+        "an"
+    } else {
+        "a"
     }
 }

@@ -154,7 +154,7 @@ fn optional_and_default_together_is_refused() {
 #[test]
 fn duplicate_declarations_are_refused() {
     let m = messages("structure Oops { a: string }");
-    assert_mentions(&m, "`Oops` is already declared as a error");
+    assert_mentions(&m, "`Oops` is already declared as an error");
 }
 
 #[test]

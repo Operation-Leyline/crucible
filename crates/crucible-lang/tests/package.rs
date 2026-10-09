@@ -194,3 +194,40 @@ fn manifest_problems_point_at_their_keys() {
     let syntax = check("[model\n");
     assert_eq!(syntax.len(), 1, "{syntax:?}");
 }
+
+#[test]
+fn sources_stay_inside_the_package() {
+    let dir = package_dir(
+        "escaping",
+        "[model]\nnamespace = \"example.shop\"\nsources = [\"../shared\"]\n",
+        &[("service.cru", SERVICE)],
+    );
+    assert!(
+        load_package(&dir)
+            .unwrap_err()
+            .contains("must stay inside the package directory")
+    );
+    let text = "[model]\nnamespace = \"example.shop\"\nsources = [\"../shared\", \"/abs\"]\n";
+    let problems: Vec<String> = check_manifest(&dir, text)
+        .into_iter()
+        .map(|d| d.message)
+        .collect();
+    assert_eq!(problems.len(), 2, "{problems:?}");
+    assert!(
+        problems[0].contains("inside the package") && problems[1].contains("relative"),
+        "{problems:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_directory_symlink_loop_is_not_followed() {
+    let dir = package_dir(
+        "symlink-loop",
+        "[model]\nnamespace = \"example.shop\"\n",
+        &[("service.cru", SERVICE)],
+    );
+    std::os::unix::fs::symlink(&dir, dir.join("loop")).unwrap();
+    let package = load_package(&dir).unwrap();
+    assert_eq!(package.files.len(), 1);
+}

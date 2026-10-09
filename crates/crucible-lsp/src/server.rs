@@ -145,7 +145,15 @@ impl Server {
     }
 
     pub fn run(mut self) -> Result<(), Error> {
-        while let Ok(message) = self.connection.receiver.recv() {
+        let mut next: Option<Message> = None;
+        loop {
+            let message = match next.take() {
+                Some(message) => message,
+                None => match self.connection.receiver.recv() {
+                    Ok(message) => message,
+                    Err(_) => break,
+                },
+            };
             match message {
                 Message::Request(request) => {
                     if self.connection.handle_shutdown(&request)? {
@@ -153,7 +161,27 @@ impl Server {
                     }
                     self.request(request)?;
                 }
-                Message::Notification(notification) => self.notification(notification)?,
+                Message::Notification(notification) => {
+                    // Edits arrive in bursts while typing: apply every queued
+                    // notification first, then compile each package once.
+                    let mut dirty: Vec<PathBuf> = Vec::new();
+                    let mut pending = Some(notification);
+                    while let Some(notification) = pending.take() {
+                        if let Some(unit) = self.notification(notification)?
+                            && !dirty.contains(&unit)
+                        {
+                            dirty.push(unit);
+                        }
+                        match self.connection.receiver.try_recv() {
+                            Ok(Message::Notification(queued)) => pending = Some(queued),
+                            Ok(other) => next = Some(other),
+                            Err(_) => {}
+                        }
+                    }
+                    for unit in dirty {
+                        self.recompile(&unit)?;
+                    }
+                }
                 Message::Response(_) => {}
             }
         }
@@ -167,7 +195,9 @@ impl Server {
 
     // ---- documents ---------------------------------------------------------
 
-    fn notification(&mut self, notification: Notification) -> Result<(), Error> {
+    /// Applies one notification to the open documents. Returns the package to
+    /// recompile, if any; the caller compiles once per burst of edits.
+    fn notification(&mut self, notification: Notification) -> Result<Option<PathBuf>, Error> {
         let uri = match notification.method.as_str() {
             DidOpenTextDocument::METHOD => {
                 let params: lsp_types::DidOpenTextDocumentParams =
@@ -199,7 +229,7 @@ impl Server {
                 let params: lsp_types::DidChangeTextDocumentParams =
                     serde_json::from_value(notification.params)?;
                 let Some(document) = self.documents.get_mut(&params.text_document.uri) else {
-                    return Ok(());
+                    return Ok(None);
                 };
                 // Full synchronisation: the last change is the whole text.
                 if let Some(change) = params.content_changes.into_iter().last() {
@@ -224,25 +254,23 @@ impl Server {
                 let params: lsp_types::DidCloseTextDocumentParams =
                     serde_json::from_value(notification.params)?;
                 let Some(document) = self.documents.remove(&params.text_document.uri) else {
-                    return Ok(());
+                    return Ok(None);
                 };
                 self.publish(params.text_document.uri, Vec::new())?;
-                if let Some(unit) = document.unit {
-                    self.recompile(&unit)?;
-                }
-                return Ok(());
+                return Ok(document.unit);
             }
-            _ => return Ok(()),
+            _ => return Ok(None),
         };
         let Some(document) = self.documents.get(&uri) else {
-            return Ok(());
+            return Ok(None);
         };
         match document.unit.clone() {
-            Some(unit) => self.recompile(&unit),
+            Some(unit) => Ok(Some(unit)),
             // A policy-only manifest: its syntax is all there is to check.
             None => {
                 let diagnostics = self.manifest_diagnostics(&uri);
-                self.publish(uri, diagnostics)
+                self.publish(uri, diagnostics)?;
+                Ok(None)
             }
         }
     }
@@ -355,10 +383,17 @@ impl Server {
     fn file_of(&self, uri: &Url) -> Option<(&Unit, Option<usize>)> {
         let document = self.documents.get(uri)?;
         let unit = self.units.get(document.unit.as_ref()?)?;
-        let key = document.path.as_deref().map(normalize);
-        let index = unit.compiled.files[..unit.own]
-            .iter()
-            .position(|file| Some(normalize(Path::new(&file.path))) == key);
+        let index = match document.path.as_deref() {
+            Some(path) => {
+                let key = normalize(path);
+                unit.compiled.files[..unit.own]
+                    .iter()
+                    .position(|file| normalize(Path::new(&file.path)) == key)
+            }
+            // An untitled buffer is the only file of its standalone unit.
+            None if unit.standalone => Some(0),
+            None => None,
+        };
         Some((unit, index))
     }
 

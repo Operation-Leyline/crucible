@@ -429,3 +429,47 @@ fn editing_features_work_across_the_package() {
 
     client.stop();
 }
+
+#[test]
+fn an_untitled_buffer_is_checked() {
+    let mut client = Client::start();
+    let uri = "untitled:Untitled-1";
+    client.open(uri, "structure A { b: Missing }\n");
+    let diagnostics = client.diagnostics(uri);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
+    assert!(
+        diagnostics[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Missing")
+    );
+    client.stop();
+}
+
+#[test]
+fn a_burst_of_edits_ends_with_the_last_texts_diagnostics() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-burst");
+    package(&dir);
+    let service = uri(&dir.join("service.cru"));
+    let mut client = Client::start();
+    client.open(&service, SERVICE);
+    client.diagnostics(&service);
+    for version in 2..30 {
+        client.change(
+            &service,
+            version,
+            &SERVICE.replace("id: ItemId", &format!("id: Typo{version}")),
+        );
+    }
+    client.change(&service, 30, SERVICE);
+    // Intermediate texts may or may not be compiled; the last one must be.
+    let mut last = client.diagnostics(&service);
+    for _ in 0..30 {
+        if last.is_empty() {
+            break;
+        }
+        last = client.diagnostics(&service);
+    }
+    assert_eq!(last, Vec::<Value>::new());
+    client.stop();
+}

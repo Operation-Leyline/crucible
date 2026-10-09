@@ -90,6 +90,9 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
     }
     let mut paths = Vec::new();
     for source in &sources {
+        if let Some(problem) = escapes(source) {
+            return Err(format!("{}: `{source}` {problem}", field("sources")));
+        }
         let root = dir.join(source);
         if !root.is_dir() {
             return Err(format!(
@@ -127,14 +130,31 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
     })
 }
 
+/// Why a `sources` entry is not allowed, if it is not. Sources stay inside
+/// the package directory: the build reruns when that directory changes, so a
+/// source elsewhere would leave generated code stale without an error.
+fn escapes(source: &str) -> Option<&'static str> {
+    let path = Path::new(source);
+    if path.is_absolute() || path.has_root() {
+        return Some("must be a path relative to the package directory");
+    }
+    path.components()
+        .any(|component| matches!(component, std::path::Component::ParentDir))
+        .then_some("must stay inside the package directory")
+}
+
 fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir)
         .map_err(|error| format!("cannot read {}: {error}", dir.display()))?;
     for entry in entries {
-        let path = entry.map_err(|error| error.to_string())?.path();
-        if path.is_dir() {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let path = entry.path();
+        // `file_type` does not follow symlinks: a link back to an ancestor
+        // would otherwise recurse forever. Linked directories are not walked.
+        let kind = entry.file_type().map_err(|error| error.to_string())?;
+        if kind.is_dir() {
             collect_cru(&path, out)?;
-        } else if path.extension().is_some_and(|ext| ext == "cru") {
+        } else if path.extension().is_some_and(|ext| ext == "cru") && path.is_file() {
             out.push(path);
         }
     }
@@ -202,7 +222,12 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
     }
     let sources = model.sources.unwrap_or_default();
     for source in &sources {
-        if !dir.join(source.get_ref()).is_dir() {
+        if let Some(problem) = escapes(source.get_ref()) {
+            out.push(Diagnostic::new(
+                span(source.span()),
+                format!("`{}` {problem}", source.get_ref()),
+            ));
+        } else if !dir.join(source.get_ref()).is_dir() {
             out.push(Diagnostic::new(
                 span(source.span()),
                 format!(

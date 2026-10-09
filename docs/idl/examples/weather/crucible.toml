@@ -14,8 +14,5 @@ imports = []            # e.g. ["crucible.errors"] for the standard errors
 input = "{Operation}Input"
 output = "{Operation}Output"
 
-[rules.naming]
-severity = "error"
-operations = "PascalCase"
-shapes = "PascalCase"
-members = "camelCase"
+# Naming and other guards are `rule` declarations in the package's sources
+# (decisions 45-47), not settings here: see examples/standards/policy.
