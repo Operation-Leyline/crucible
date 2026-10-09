@@ -1,0 +1,22 @@
+schema_version = 1
+
+[model]
+namespace = "com.leylinedb"
+language = 1
+sources = ["model", "policy"]
+# org.standards brings its rules, templates and shared shapes. Leyline can add
+# rules in policy/ but cannot remove or weaken these (decision 47).
+imports = ["crucible.errors", "org.standards"]
+
+# The dependency entry pins the version (decision 60).
+[model.dependencies]
+"org.standards" = { path = "../standards" }
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"
+
+# Compatibility is checked on every compile against the last release
+# (decision 47d), not only when someone runs `crucible diff`.
+[model.baseline]
+artifact = "releases/2026-09-04/leyline.model.json"

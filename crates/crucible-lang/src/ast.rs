@@ -1,0 +1,564 @@
+//! The typed syntax tree. It records what was written, with spans; names are
+//! not resolved and meaning is not checked here. Missing pieces after an
+//! error are empty identifiers, so later phases always see a whole tree.
+
+use crate::span::Span;
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct File {
+    pub items: Vec<Item>,
+}
+
+/// A top-level declaration with its documentation, annotations and modifiers.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Item {
+    pub doc: Option<Doc>,
+    pub annotations: Vec<Annotation>,
+    pub modifiers: Vec<Ident>,
+    pub decl: Decl,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Doc {
+    /// The Markdown text: `///` and one following space removed per line.
+    pub text: String,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Ident {
+    pub name: String,
+    pub span: Span,
+}
+
+impl Ident {
+    /// Stands in for a name the source left out; a diagnostic was reported.
+    pub fn missing(span: Span) -> Self {
+        Self {
+            name: String::new(),
+            span,
+        }
+    }
+
+    pub fn is_missing(&self) -> bool {
+        self.name.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StrLit {
+    /// The unescaped value.
+    pub value: String,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NumLit {
+    /// The number as written, so no precision is lost before lowering.
+    pub text: String,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Annotation {
+    pub name: Ident,
+    pub args: Vec<Arg>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Arg {
+    pub key: Option<Key>,
+    pub value: Value,
+}
+
+/// An argument or object key: `since:` or `"Home" =`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Key {
+    Name(Ident),
+    Text(StrLit),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Value {
+    Str(StrLit),
+    Number(NumLit),
+    Ident(Ident),
+    List(Vec<Value>, Span),
+    Object(Vec<Field>, Span),
+}
+
+impl Value {
+    pub fn span(&self) -> Span {
+        match self {
+            Value::Str(s) => s.span,
+            Value::Number(n) => n.span,
+            Value::Ident(i) => i.span,
+            Value::List(_, span) | Value::Object(_, span) => *span,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Field {
+    pub key: Key,
+    pub value: Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Decl {
+    Service(Block),
+    Protocol(Block),
+    Resource(Resource),
+    Operation(Operation),
+    Template(Template),
+    Structure(Structure),
+    Union(Union),
+    Error(ErrorDecl),
+    Enum(EnumDecl),
+    Scalar(Scalar),
+    List(ListDecl),
+    Map(MapDecl),
+    Metadata(Metadata),
+    Rule(Rule),
+    Except(Except),
+    Migration(Migration),
+    Conversion(Conversion),
+}
+
+/// A named block of keyword clauses: `service` and `protocol`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Block {
+    pub name: Ident,
+    pub clauses: Vec<Clause>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Clause {
+    pub doc: Option<Doc>,
+    pub name: Ident,
+    pub value: ClauseValue,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClauseValue {
+    /// `paginated(inputToken: nextToken)`
+    Args(Vec<Arg>),
+    /// `errors { header "X-Crucible-Error" }`
+    Block(Vec<Clause>),
+    /// `version "2026-10-01"`, `auth bearer`, `operations [Ping]`
+    Value(Value),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Resource {
+    pub name: Ident,
+    /// `in Organization`
+    pub parent: Option<Ident>,
+    pub entries: Vec<ResourceEntry>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResourceEntryKind {
+    Id,
+    Property,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResourceEntry {
+    pub doc: Option<Doc>,
+    pub annotations: Vec<Annotation>,
+    pub kind: ResourceEntryKind,
+    pub name: Ident,
+    pub ty: TypeRef,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Operation {
+    pub name: Ident,
+    pub attachment: Option<Attachment>,
+    pub entries: Vec<OpEntry>,
+}
+
+/// `reads Graph`, `on Graph collection`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Attachment {
+    pub role: Ident,
+    pub resource: Ident,
+    pub collection: bool,
+}
+
+/// A role template: what every operation of a role carries.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Template {
+    pub role: Ident,
+    pub entries: Vec<OpEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OpEntry {
+    Http(Http),
+    /// `paginated(items: graphs)`
+    Call(Call),
+    Body(Body),
+    Errors(Vec<Ident>, Span),
+    Example(Example),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Http {
+    pub method: Ident,
+    pub uri: StrLit,
+    pub status: Option<NumLit>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Call {
+    pub name: Ident,
+    pub args: Vec<Arg>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BodyKind {
+    Input,
+    Output,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Body {
+    /// `strict`
+    pub modifiers: Vec<Ident>,
+    pub kind: BodyKind,
+    pub members: Vec<Member>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Example {
+    pub doc: Option<Doc>,
+    pub title: StrLit,
+    pub parts: Vec<ExamplePart>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExamplePart {
+    Input(Value),
+    Output(Value),
+    Error(Ident, Value),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Member {
+    pub doc: Option<Doc>,
+    pub annotations: Vec<Annotation>,
+    pub kind: MemberKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MemberKind {
+    /// `include RequestIdMixin`
+    Include(Ident),
+    /// `$graphId as id?`
+    Elided {
+        name: Ident,
+        alias: Option<Ident>,
+        optional: bool,
+    },
+    /// `name?: Type { constraints } = default`. A union arm may have no type.
+    Field {
+        name: Ident,
+        optional: bool,
+        ty: Option<TypeRef>,
+        default: Option<Value>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeRef {
+    pub name: Ident,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Constraint {
+    pub name: Ident,
+    pub value: ConstraintValue,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConstraintValue {
+    /// `unique`
+    Flag,
+    /// `length 1..100`, `range ..5`: both ends inclusive.
+    Range {
+        min: Option<NumLit>,
+        max: Option<NumLit>,
+    },
+    Value(Value),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Structure {
+    pub name: Ident,
+    /// `for Graph`: a view of a resource.
+    pub resource: Option<Ident>,
+    pub members: Vec<Member>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Union {
+    pub name: Ident,
+    pub members: Vec<Member>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ErrorDecl {
+    pub name: Ident,
+    pub entries: Vec<ErrorEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ErrorEntry {
+    Status(NumLit),
+    Retryable { throttling: bool, span: Span },
+    Member(Member),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumDecl {
+    pub name: Ident,
+    /// `: integer`
+    pub base: Option<Ident>,
+    pub values: Vec<EnumValue>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EnumValue {
+    pub doc: Option<Doc>,
+    pub annotations: Vec<Annotation>,
+    pub name: Ident,
+    pub value: Option<Value>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Scalar {
+    /// `string`, `integer`, `timestamp`, ...
+    pub kind: Ident,
+    pub name: Ident,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ListDecl {
+    pub name: Ident,
+    pub member: Ident,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MapDecl {
+    pub name: Ident,
+    pub key: Ident,
+    pub value: Ident,
+    pub constraints: Vec<Constraint>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Metadata {
+    pub name: Ident,
+    /// Each target is one or two words: `operation`, `enum value`.
+    pub targets: Vec<Vec<Ident>>,
+    pub ty: Option<MetaType>,
+    pub conflicts: Vec<Ident>,
+    /// `retention source`: checked by the compiler and rules, never written
+    /// to the IR. `runtime`, the default, reaches generated code.
+    pub retention: Option<Ident>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MetaType {
+    Enum(Vec<EnumValue>),
+    Type(TypeRef),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Rule {
+    pub name: Ident,
+    /// `strict`, `exceptable`, `advice`
+    pub flags: Vec<Ident>,
+    pub clauses: Vec<RuleClause>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Quantifier {
+    Every,
+    No,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RuleClause {
+    pub quantifier: Quantifier,
+    /// `operation`, `input member`
+    pub kind: Vec<Ident>,
+    pub condition: Option<Expr>,
+    pub requirements: Vec<Expr>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Expr {
+    pub kind: ExprKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprKind {
+    Or(Box<Expr>, Box<Expr>),
+    And(Box<Expr>, Box<Expr>),
+    Not(Box<Expr>),
+    /// `has one of @a, @b`
+    HasOneOf(Vec<Ref>),
+    /// `has length`, `has @operationClass`
+    Has(Ref),
+    /// `addresses Organization`
+    Addresses(Ident),
+    /// A bare path is a flag: `readonly`, `paginated`.
+    Flag(Path),
+    Compare {
+        path: Path,
+        op: Operator,
+        operand: Operand,
+    },
+}
+
+/// `name` or `@metadataKey`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ref {
+    pub metadata: bool,
+    pub name: Ident,
+}
+
+/// `type.length.max`, `@operationClass`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Path {
+    pub head: Ref,
+    pub rest: Vec<Ident>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Operator {
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    In,
+    Is,
+    StartsWith,
+    EndsWith,
+    Matches,
+    Contains,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Operand {
+    Value(Value),
+    /// `is inline primitive`
+    Words(Vec<Ident>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Except {
+    pub rule: Ident,
+    pub target: Ident,
+    pub reason: StrLit,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Migration {
+    pub version: StrLit,
+    pub from: StrLit,
+    pub steps: Vec<Step>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Step {
+    pub doc: Option<Doc>,
+    pub kind: StepKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StepKind {
+    Rename {
+        path: Dotted,
+        to: Ident,
+    },
+    Require {
+        path: Dotted,
+        how: RequireHow,
+    },
+    Add {
+        path: Dotted,
+        name: Option<Ident>,
+        downgrade: Ident,
+        mapping: Vec<(Ident, Ident)>,
+    },
+    Move {
+        operation: Ident,
+        method: Ident,
+        uri: StrLit,
+    },
+    Reshape {
+        path: Dotted,
+        members: Vec<Ident>,
+        into: Ident,
+        hook: Hook,
+    },
+    RemoveOperation(Ident),
+    Behavior(Dotted),
+    Sunset(StrLit),
+    Retype {
+        path: Dotted,
+        to: Ident,
+        hook: Option<Hook>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RequireHow {
+    Default(Value),
+    Hook(Hook),
+}
+
+/// `by hook` or `by async hook`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Hook {
+    pub is_async: bool,
+    pub span: Span,
+}
+
+/// `CreateGraph.input.homeRegion`
+#[derive(Debug, Clone, PartialEq)]
+pub struct Dotted {
+    pub parts: Vec<Ident>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Conversion {
+    pub from: Ident,
+    pub to: Ident,
+    pub hook: Hook,
+}

@@ -22,6 +22,7 @@ crucible-build = { path = "crates/crucible-build" }
 crucible-policy = { path = "crates/crucible-policy" }
 crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
 crucible-smithy = { path = "crates/crucible-smithy" }
+crucible-lang = { path = "crates/crucible-lang" }
 crucible-traits = { path = "smithy" }
 smithy-tooling = { path = "vendor/smithy-tooling" }
 crucible-codegen-ts = { path = "crates/crucible-codegen-ts" }

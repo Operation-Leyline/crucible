@@ -1,0 +1,9 @@
+schema_version = 1
+
+# The organisation's API standards as an executable package, versioned and
+# published from the api-standards repository. Services import it and pin a
+# version; they can add rules but never remove or weaken these (decision 47).
+[model]
+namespace = "org.standards"
+language = 1
+sources = ["policy", "shapes"]

@@ -1,0 +1,16 @@
+// Shared shapes the standards name. Defined once; services use them, and the
+// rules below can require them by name.
+
+/// A point in time, as an RFC 3339 timestamp in UTC (common-terms.md).
+timestamp DateTime
+
+/// Marks where a page of results ended. Opaque, tamper-proof, bound to the
+/// caller (pagination.md).
+string NextToken { length 1..2048; pattern "^[A-Za-z0-9_-]+$" }
+
+/// The most results to return in one page (common-terms.md, MaxResults).
+integer MaxResults { range 1..100 }
+
+/// Identifies one logical attempt at a change. ASCII 33-126, at least 64
+/// characters allowed (idempotency.md).
+string ClientToken { length 1..128; pattern "^[!-~]+$" }

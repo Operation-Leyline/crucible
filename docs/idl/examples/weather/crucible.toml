@@ -1,0 +1,21 @@
+schema_version = 1
+
+# The package: one namespace, declared once. Files under `model/` are
+# containers; declaration order and file order never matter.
+[model]
+namespace = "example.weather"
+language = 1
+sources = ["model"]
+imports = []            # e.g. ["crucible.errors"] for the standard errors
+
+# Operation inputs and outputs are anonymous in the source; these rules name
+# the generated types. Changing them renames every generated input/output type.
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"
+
+[rules.naming]
+severity = "error"
+operations = "PascalCase"
+shapes = "PascalCase"
+members = "camelCase"

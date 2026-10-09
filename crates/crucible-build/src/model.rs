@@ -124,7 +124,7 @@ impl Model {
         output.service = self.builder.service.clone();
         output.policy = self.builder.policy.clone();
         output.protocol = self.builder.protocol;
-        output.options.require_rejection = !self.builder.json;
+        output.options.require_rejection = !self.builder.json || self.builder.cru;
         output
     }
 
@@ -305,7 +305,7 @@ impl Model {
             return Ok(package);
         }
         let mut builder = self.builder;
-        let source_requires_rejection = !builder.json;
+        let source_requires_rejection = !builder.json || builder.cru;
         if let Some(path) = self.path.into_inner() {
             builder.source = path;
             builder.json = true;
@@ -323,7 +323,7 @@ impl Model {
             builder.source = self.path().to_path_buf();
             builder.json = true;
             let mut package = builder.compile();
-            package.server_requires_rejection = !self.builder.json;
+            package.server_requires_rejection = !self.builder.json || self.builder.cru;
             package
         })
     }

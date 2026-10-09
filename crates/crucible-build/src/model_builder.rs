@@ -9,7 +9,11 @@ use crate::{ModelPackage, absolute, parse};
 #[derive(Clone)]
 pub struct ModelConfig {
     pub(crate) source: PathBuf,
+    /// Already an artifact: a JSON AST, or a `.cru` package (see `cru`).
     pub(crate) json: bool,
+    /// A `.cru` package: needs no compiler, behaves like sources for
+    /// starter defaults such as requiring a fillable validation error.
+    pub(crate) cru: bool,
     pub(crate) service: Option<ShapeId>,
     pub(crate) protocol: Option<Protocol>,
     pub(crate) policy: Option<PathBuf>,
@@ -17,9 +21,12 @@ pub struct ModelConfig {
 
 impl ModelConfig {
     pub(crate) fn new(source: &Path, json: bool) -> Self {
+        let source = absolute(source);
+        let cru = crate::cru::is_package(&source);
         Self {
-            source: absolute(source),
-            json,
+            source,
+            json: json || cru,
+            cru,
             service: None,
             protocol: None,
             policy: None,
@@ -90,26 +97,36 @@ impl ModelConfig {
             crate::compile_smithy_with(&self.source, output.join("smithy"), compiler)
                 .map_err(|error| error.to_string())?
         };
-        let text = std::fs::read_to_string(&path)
-            .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-        let model = Model::from_json(&text).map_err(|e| e.to_string())?;
         // Lower shared semantics once. Each selected emitter still checks its
         // own supported capabilities before producing output.
-        let capabilities = Capabilities::new(Feature::ALL.iter().copied());
-        let service = match self.protocol {
-            Some(protocol) => {
-                model.lower_with_protocol(self.service.as_ref(), &capabilities, protocol)
+        let (service, model) = if crate::cru::is_package(&path) {
+            (
+                crate::cru::lower(&path, self.service.as_ref(), self.protocol)?,
+                None,
+            )
+        } else {
+            let text = std::fs::read_to_string(&path)
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+            let model = Model::from_json(&text).map_err(|e| e.to_string())?;
+            let capabilities = Capabilities::new(Feature::ALL.iter().copied());
+            let service = match self.protocol {
+                Some(protocol) => {
+                    model.lower_with_protocol(self.service.as_ref(), &capabilities, protocol)
+                }
+                None => model.lower_with_capabilities(self.service.as_ref(), &capabilities),
             }
-            None => model.lower_with_capabilities(self.service.as_ref(), &capabilities),
-        }
-        .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())?;
+            (service, Some(model))
+        };
+        #[cfg(not(any(feature = "docs", feature = "cdk", feature = "terraform")))]
+        let _ = model;
         if let Some(policy) = &self.policy {
             println!("cargo::rerun-if-changed={}", policy.display());
             crate::check_policy(&service, policy)?;
         }
         ModelPackage::new(
             path,
-            !self.json,
+            !self.json || self.cru,
             service,
             output,
             #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]

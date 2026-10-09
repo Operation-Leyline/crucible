@@ -1,0 +1,58 @@
+// The standard Crucible exceptions (smithy/errors.smithy), bundled with the
+// compiler so a package imports them with `imports = ["crucible.errors"]`.
+// The generated server fills ValidationException, InternalServerException and
+// UnknownOperationException itself, so their shapes must stay as they are.
+
+/// No operation matches the request's method and path.
+error UnknownOperationException {
+    status 404
+    message: string
+}
+
+/// A request cannot be parsed or does not satisfy the service's input model.
+error ValidationException {
+    status 400
+    message: string
+    reason: ValidationExceptionReason
+    fieldList?: ValidationExceptionFieldList
+}
+
+/// A machine-readable reason; clients never need to parse message text.
+enum ValidationExceptionReason {
+    UNKNOWN_OPERATION = "unknownOperation"
+    CANNOT_PARSE = "cannotParse"
+    FIELD_VALIDATION_FAILED = "fieldValidationFailed"
+    OTHER = "other"
+}
+
+list ValidationExceptionFieldList: ValidationExceptionField
+
+/// A request field that failed validation.
+structure ValidationExceptionField {
+    name: string
+    message: string
+}
+
+/// An unexpected server failure. Its message never exposes the underlying cause.
+error InternalServerException {
+    status 500
+    retryable
+    message: string
+    @header("Retry-After")
+    retryAfterSeconds?: integer
+}
+
+// Retained for existing service contracts. New services use the exception
+// shapes above; changing an existing error's name or status breaks clients.
+
+/// A request cannot be parsed or does not satisfy the service's input model.
+error ValidationError {
+    status 400
+    message: string
+}
+
+/// An unexpected server failure. Its message never exposes the underlying cause.
+error InternalError {
+    status 500
+    message: string
+}

@@ -103,6 +103,7 @@ mod cdk_output;
 mod cli_output;
 #[cfg(feature = "cpp")]
 mod cpp_sdk;
+mod cru;
 #[cfg(feature = "csharp")]
 mod csharp_sdk;
 #[cfg(feature = "dart")]
@@ -686,6 +687,11 @@ impl ServerOutput {
                 .map(|path| absolute(&path))
         });
         if let Some(path) = model_output {
+            assert!(
+                !cru::is_package(&self.model),
+                "crucible: exporting the model of a .cru package ({}) for compatibility checks is not supported yet",
+                self.model.display()
+            );
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)
                     .expect("crucible: cannot create model export directory");
@@ -711,22 +717,26 @@ impl ServerOutput {
     }
 
     fn lower(&self) -> Result<crucible_smithy::ir::Service, String> {
-        let json = std::fs::read_to_string(&self.model)
-            .map_err(|error| format!("cannot read {}: {error}", self.model.display()))?;
-        let model = SmithyModel::from_json(&json).map_err(|error| error.to_string())?;
         let capabilities = match self.side {
             Side::Server => crucible_codegen_rust::capabilities(),
             Side::Client => crucible_codegen_rust::client_capabilities(),
         };
-        let capabilities_all =
-            crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
-        let service = match self.protocol {
-            Some(protocol) => {
-                model.lower_with_protocol(self.service.as_ref(), &capabilities_all, protocol)
+        let service = if cru::is_package(&self.model) {
+            cru::lower(&self.model, self.service.as_ref(), self.protocol)?
+        } else {
+            let json = std::fs::read_to_string(&self.model)
+                .map_err(|error| format!("cannot read {}: {error}", self.model.display()))?;
+            let model = SmithyModel::from_json(&json).map_err(|error| error.to_string())?;
+            let capabilities_all =
+                crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
+            match self.protocol {
+                Some(protocol) => {
+                    model.lower_with_protocol(self.service.as_ref(), &capabilities_all, protocol)
+                }
+                None => model.lower_with_capabilities(self.service.as_ref(), &capabilities_all),
             }
-            None => model.lower_with_capabilities(self.service.as_ref(), &capabilities_all),
-        }
-        .map_err(|error| error.to_string())?;
+            .map_err(|error| error.to_string())?
+        };
         if let Some(policy) = &self.policy {
             check_policy(&service, policy)?;
         }
@@ -774,6 +784,9 @@ impl ServerOutput {
         let generated = match self.side {
             Side::Server => {
                 let explorer_service = if self.options.explorer.is_some() {
+                    if cru::is_package(&self.model) {
+                        return Err(cru::unsupported("An Explorer description", &self.model));
+                    }
                     let json = std::fs::read_to_string(&self.model).map_err(|e| e.to_string())?;
                     let model = SmithyModel::from_json(&json).map_err(|e| e.to_string())?;
                     Some(

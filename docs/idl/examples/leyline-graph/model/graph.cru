@@ -1,0 +1,328 @@
+// Leyline, the Graph resource and three of its operations, ported from
+// leyline/smithy/src/main/smithy (resources/Graph.smithy, operations/graphs/*).
+// Documentation is abridged. This excerpt exists to show what the weather
+// model cannot: resources, property elision, include, enum-valued metadata,
+// a public operation with a payload, and the standard error package.
+
+// ---- project metadata (shapes/throttling-traits.smithy, audit-traits.smithy,
+//      suspension-traits.smithy) --------------------------------------------
+
+/// The request-rate class an operation is charged to. Every operation has
+/// exactly one (rules.metadata in crucible.toml).
+metadata operationClass on operation: enum {
+    /// Reads of the control plane: every `readonly` operation outside `dataPlane`.
+    controlRead
+    /// Changes to the control plane that finish in the request.
+    controlWrite
+    /// Queries and the pages of their results.
+    dataPlane
+    /// Requests that start background work.
+    asyncJob
+}
+
+/// This operation also has a request-rate bucket of its own, beside its class.
+metadata ownRequestLimit on operation
+
+/// This operation still works while its organization is suspended.
+metadata permittedWhileSuspended on operation
+
+/// Classify an organization audit event. Category never captures request values.
+metadata auditCategory on operation: enum { management, metadataRead, dataAccess }
+
+/// Explicitly outside the organization journal, with the reason.
+metadata auditExcluded on operation: string { length 1.. } conflicts auditCategory
+
+/// Include this validated input field in the audit request projection.
+metadata auditField on member conflicts sensitive
+
+// ---- the resource (resources/Graph.smithy) ---------------------------------
+
+/// One graph: nodes, the edges between them, and the properties on both.
+/// A graph is the unit of isolation. Leyline assigns the identifier; you
+/// choose the name, which only has to be unique within your organization.
+// `in Organization` makes Graph a child resource: it inherits `organizationId`
+// from Organization (declared in organization.cru) and adds its own `graphId`.
+// The resource lists no operations; each operation attaches itself with a role
+// verb. Index, ImportJob, QueryJob and Write declare `in Graph` the same way.
+resource Graph in Organization {
+    id graphId: GraphId
+
+    property groupId: GraphGroupId
+    property groupRevision: GraphGroupRevision
+    property name: GraphName
+    property homeRegion: GraphHomeRegion
+    property description: GraphDescription
+    property createdAt: DateTime
+    property updatedAt: DateTime
+    property manifestGeneration: GraphGeneration
+    property nodeCount: Count
+    property edgeCount: Count
+    property keySpec: KeySpec
+    property sizeBytes: ByteCount
+    property indexBytes: ByteCount
+    property importSummary: GraphImportSummary
+    property schemaPreview: GraphSchemaPreview
+    property searchMetadata: GraphSearchMetadata
+    property historyId: GraphHistoryId
+}
+
+// Elsewhere, one file per operation, as Leyline lays them out today:
+//   operation UpdateGraph updates Graph { .. }
+//   operation RevertGraph on Graph { .. }
+//   operation ExecuteQuery on Graph { .. }
+//   operation BatchGetGraph on Graph collection { .. }
+
+/// Identifies one graph. `g_`, a ULID of 26 lowercase Crockford base32
+/// characters, `_` and the three-letter code of the graph's home region.
+string GraphId { length 28..32; pattern "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$" }
+
+/// The region a graph's data lives in, chosen at creation and fixed.
+enum GraphHomeRegion {
+    US_EAST_1 = "us-east-1"
+    EU_WEST_1 = "eu-west-1"
+}
+
+/// What a graph is called. Unique within the organization, compared without
+/// regard to case.
+string GraphName { length 1..64; pattern "^[^\\s\\x00-\\x1F\\x7F-\\x9F]([^\\x00-\\x1F\\x7F-\\x9F]*[^\\s\\x00-\\x1F\\x7F-\\x9F])?$" }
+
+/// A longer description of what this graph holds.
+string GraphDescription { length 0..2000; pattern "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F-\\x9F]*$" }
+
+/// One graph. `for Graph` makes this a view of the resource: a `$member` is
+/// that identifier or property, with its type and docs; any member written in
+/// full is not. Nothing is marked "not a property".
+structure GraphData for Graph {
+    /// The identifier Leyline assigned. Every request addresses the graph by it.
+    $graphId as id
+
+    /// The region holding this graph's data. Every graph has one.
+    $homeRegion
+
+    /// Absent for an ungrouped graph. Membership does not grant graph access.
+    $groupId?
+
+    /// Changes only when group membership changes.
+    $groupRevision
+    $name
+    /// Absent when no description was given.
+    $description?
+    $createdAt
+    /// When this graph's details or contents last changed.
+    $updatedAt
+    /// A version number for the graph's contents, which increases by at least
+    /// one every time a write is committed.
+    $manifestGeneration
+    $nodeCount
+    $edgeCount
+    /// The layout declared when this graph was created. Absent if none was declared.
+    $keySpec?
+    /// Absent until it has first been measured, rather than reported as zero.
+    $sizeBytes?
+    $indexBytes?
+    $importSummary?
+    $schemaPreview?
+    $searchMetadata?
+    $historyId?
+}
+
+/// One page of results: at most `MaxResults`.
+list GraphList: GraphData { length ..100 }
+
+// ---- operations (operations/graphs/*.smithy) -------------------------------
+
+/// Create a graph.
+///
+/// Leyline assigns the identifier and returns it as `id`; you choose the
+/// `name`, which must be unique within the organization. [ListRegions] says
+/// which regions can be a home. Safe to repeat with the same `clientToken`:
+/// the original outcome is replayed. Change a name or description with
+/// [UpdateGraph].
+@auditCategory(management)
+@operationClass(controlWrite)
+idempotent operation CreateGraph creates Graph {
+    http POST "/v1/organizations/{organizationId}/graphs" -> 201
+
+    // `creates Graph` makes the input a view of Graph and requires the parent's
+    // identifiers only: `$organizationId`. Binding `$graphId` here would be an
+    // error (a client-chosen id is `puts`). `{organizationId}` binds the label
+    // by name. Members written in full are plain input members.
+    input {
+        $organizationId
+
+        /// What to call the graph. Unique within the organization.
+        $name
+        /// A longer description of what this graph holds.
+        $description?
+        /// Create as a member of this organization-owned group.
+        $groupId?
+        /// How to arrange this graph's nodes on disk. Declared once, here, and
+        /// fixed from then on.
+        $keySpec?
+
+        // clientToken comes from org.standards' `template creates`; writing it
+        // here would be an error.
+
+        /// Where the graph's data lives, chosen once. Defaults to the
+        /// organization's `homeRegion`.
+        $homeRegion?
+
+        /// Load a sample dataset into the new graph, server-side.
+        sample?: SampleDataset
+
+        /// Retain this graph's history from its first commit.
+        historyPolicy?: HistoryPolicy
+    }
+
+    // `GraphData` is a `for Graph` view, so this member carries the resource's
+    // properties. No @nestedProperties.
+    output {
+        graph: GraphData
+    }
+
+    errors [ResourceNotFoundException, ConflictException, ServiceQuotaExceededException]
+}
+
+/// Retrieve one graph.
+// `reads` implies readonly and requires every identifier, inherited ones too.
+@auditCategory(metadataRead)
+@operationClass(controlRead)
+operation GetGraph reads Graph {
+    http GET "/v1/organizations/{organizationId}/graphs/{graphId}"
+
+    input {
+        $organizationId
+        $graphId
+    }
+
+    output {
+        graph: GraphData
+    }
+
+    errors [ResourceNotFoundException]
+}
+
+/// List an organization's graphs.
+///
+/// Returns only the graphs your credentials permit you to see, ordered by
+/// `id`. With `query` this becomes a search over graph metadata and observed
+/// labels, ordered by relevance instead.
+@auditCategory(metadataRead)
+@operationClass(controlRead)
+operation ListGraphs lists Graph {
+    http GET "/v1/organizations/{organizationId}/graphs"
+    // `template lists` supplies the tokens, page size, nextToken and maxResults;
+    // the operation names only its collection.
+    paginated(items: graphs)
+
+    input {
+        $organizationId
+
+        /// Restrict to this group. `@query` with no argument uses the member name.
+        @query
+        $groupId?
+
+        /// Return only graphs without a group. Cannot be combined with groupId.
+        @query
+        ungroupedOnly?: FilterFlag
+
+        /// Words ANDed across graph id, name, description and observed labels.
+        @query
+        query?: GraphSearchQuery
+
+        /// Search only the signed-in user's saved organization pins.
+        @query
+        pinnedOnly?: FilterFlag
+    }
+
+    // The list element is `for Graph`: a first-class property binding through
+    // a list output. nextToken comes from the template.
+    output {
+        graphs: GraphList
+    }
+}
+
+/// Delete a graph and everything in it. Not reversible. Deleting a graph that
+/// is not there succeeds: the outcome you asked for already holds.
+@auditCategory(management)
+@operationClass(controlWrite)
+@permittedWhileSuspended
+operation DeleteGraph deletes Graph {
+    http DELETE "/v1/organizations/{organizationId}/graphs/{graphId}" -> 204
+
+    input {
+        $organizationId
+        $graphId
+    }
+
+    errors [ConflictException]
+}
+
+// ---- a public operation with a raw payload (operations/payments) ------------
+
+/// Receive an event from the payment processor (Stripe webhook). Only the
+/// processor calls it; it takes no `Authorization` header. The caller proves
+/// itself with the `Stripe-Signature` header.
+@auditExcluded("Public operation without a single organization audit scope; every processed event is recorded as a row beside its purchase.")
+@operationClass(controlWrite)
+@ownRequestLimit
+public operation RecordStripeEvent {
+    http POST "/v1/payment-events/stripe"
+
+    input {
+        @header("Stripe-Signature")
+        signature: StripeSignature
+        @payload
+        event: StripeEventBody
+    }
+
+    output {
+        received: PaymentEventReceived
+    }
+}
+
+// ---- errors (shapes/errors.smithy) ------------------------------------------
+
+/// What went wrong, in plain language, for people to read. Never match on it
+/// in code: it may be reworded at any time.
+string ErrorMessage { length 1..2048 }
+
+/// Mixed into every exception so the whole error surface answers "which
+/// request was this" the same way. A plain structure; `include` copies its
+/// members, docs and annotations. No mixin keyword, no inheritance.
+structure RequestIdMixin {
+    /// Identifies this request, for support and for correlating your own logs
+    /// with ours. Quote it when reporting a problem.
+    requestId?: RequestId
+}
+
+/// Something about the request itself is wrong, and repeating it unchanged
+/// will fail the same way. `reason` says which kind of problem it was.
+error ValidationException {
+    status 400
+    include RequestIdMixin
+
+    /// What went wrong, in plain language. Do not match on it in code; use
+    /// `reason` and `fieldList` instead.
+    message: ErrorMessage
+    /// The kind of validation failure, for branching in code.
+    reason: ValidationExceptionReason
+    /// The inputs that failed validation, where the problem can be traced to
+    /// specific fields. Absent when it cannot.
+    fieldList?: ValidationExceptionFieldList
+}
+
+/// Why a request failed validation.
+enum ValidationExceptionReason {
+    /// The request could not be understood.
+    CANNOT_PARSE = "cannotParse"
+    /// One or more input fields were individually invalid. See `fieldList`.
+    FIELD_VALIDATION_FAILED = "fieldValidationFailed"
+    INVALID_STATE = "invalidState"
+    INVALID_TOKEN = "invalidToken"
+    QUERY_TIMEOUT = "queryTimeout"
+    RESPONSE_TOO_LARGE = "responseTooLarge"
+    ROW_LIMIT_EXCEEDED = "rowLimitExceeded"
+    /// The request names no operation: no method and path the API serves.
+    UNKNOWN_OPERATION = "unknownOperation"
+}
