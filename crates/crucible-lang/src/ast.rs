@@ -71,6 +71,8 @@ pub struct Annotation {
 pub struct Arg {
     pub key: Option<Key>,
     pub value: Value,
+    /// The key, if any, through the value.
+    pub span: Span,
 }
 
 /// An argument or object key: `since:` or `"Home" =`.
@@ -104,6 +106,7 @@ impl Value {
 pub struct Field {
     pub key: Key,
     pub value: Value,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -186,9 +189,11 @@ pub struct Operation {
 /// `reads Graph`, `on Graph collection`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attachment {
+    /// Any word: lowering reports one that is not a role.
     pub role: Ident,
     pub resource: Ident,
     pub collection: bool,
+    pub span: Span,
 }
 
 /// A role template: what every operation of a role carries.
@@ -231,6 +236,8 @@ pub enum BodyKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Body {
+    /// Documents the generated input or output structure.
+    pub doc: Option<Doc>,
     /// `strict`
     pub modifiers: Vec<Ident>,
     pub kind: BodyKind,
@@ -257,6 +264,8 @@ pub enum ExamplePart {
 pub struct Member {
     pub doc: Option<Doc>,
     pub annotations: Vec<Annotation>,
+    /// `internal`, `sensitive` (decision 19).
+    pub modifiers: Vec<Ident>,
     pub kind: MemberKind,
     pub span: Span,
 }
@@ -284,6 +293,8 @@ pub enum MemberKind {
 pub struct TypeRef {
     pub name: Ident,
     pub constraints: Vec<Constraint>,
+    /// The name through the constraint block, if any.
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -344,6 +355,8 @@ pub struct EnumDecl {
 pub struct EnumValue {
     pub doc: Option<Doc>,
     pub annotations: Vec<Annotation>,
+    /// `internal` (decision 19).
+    pub modifiers: Vec<Ident>,
     pub name: Ident,
     pub value: Option<Value>,
     pub span: Span,
@@ -474,7 +487,7 @@ pub enum Operator {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operand {
     Value(Value),
-    /// `is inline primitive`
+    /// The words after `is`: `is inline primitive`, `is string`.
     Words(Vec<Ident>),
 }
 

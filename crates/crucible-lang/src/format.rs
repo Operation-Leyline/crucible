@@ -53,6 +53,12 @@ pub fn format(source: &str, options: &FormatOptions) -> Option<String> {
     let mut line_start = 0;
     // The last token of the previous line with code, and that line's level.
     let mut previous: Option<(&Token, usize)> = None;
+    // Where doc comments end: each runs to its line's end.
+    let doc_ends: Vec<usize> = tokens
+        .iter()
+        .filter(|token| token.kind == TokenKind::DocComment)
+        .map(|token| token.span.end as usize)
+        .collect();
     for line in source.split('\n') {
         let line_end = line_start + line.len();
         let first = next;
@@ -60,7 +66,14 @@ pub fn format(source: &str, options: &FormatOptions) -> Option<String> {
             next += 1;
         }
         let on_line = &significant[first..next];
-        let text = line.trim_end_matches('\r').trim_end();
+        // Trailing spaces in a doc comment are Markdown (two make a line
+        // break), so a line ending in one keeps them.
+        let doc_ends_line = doc_ends.binary_search(&line_end).is_ok();
+        let text = if doc_ends_line {
+            line.trim_end_matches('\r')
+        } else {
+            line.trim_end_matches('\r').trim_end()
+        };
         let content = text.trim_start();
         if content.is_empty() {
             blank_lines += 1;
@@ -74,7 +87,7 @@ pub fn format(source: &str, options: &FormatOptions) -> Option<String> {
                 && previous.is_some_and(|(last, at)| at == level && ends_clause(source, last))
                 || on_line
                     .first()
-                    .is_some_and(|token| starts_continuation(source, token));
+                    .is_some_and(|token| starts_continuation(source, token, on_line.get(1)));
             if !out.is_empty() && blank_lines > 0 {
                 out.push_str(newline);
             }
@@ -123,10 +136,16 @@ fn ends_clause(source: &str, token: &Token) -> bool {
     }
 }
 
-fn starts_continuation(source: &str, token: &Token) -> bool {
+/// A line starting with one of these continues the previous clause, unless
+/// the word is a member's name: `by: string` is a member called `by`.
+fn starts_continuation(source: &str, token: &Token, next: Option<&&Token>) -> bool {
     match token.kind {
         TokenKind::Arrow | TokenKind::Eq | TokenKind::Dot => true,
-        TokenKind::Ident => CONTINUES.contains(&token.span.text(source)),
+        TokenKind::Ident => {
+            CONTINUES.contains(&token.span.text(source))
+                && !next
+                    .is_some_and(|next| matches!(next.kind, TokenKind::Colon | TokenKind::Question))
+        }
         _ => false,
     }
 }
@@ -183,6 +202,24 @@ mod tests {
         assert_eq!(
             format("structure A { a: \"open }\n", &FormatOptions::default()),
             None
+        );
+    }
+
+    #[test]
+    fn members_named_like_continuation_words_keep_their_level() {
+        let source = "structure S {\nby: string\nwhere?: string\n}\n";
+        assert_eq!(
+            fmt(source),
+            "structure S {\n    by: string\n    where?: string\n}\n"
+        );
+    }
+
+    #[test]
+    fn doc_comments_keep_markdown_trailing_spaces() {
+        let source = "/// First line  \n/// second\nstructure S {   \n}\n";
+        assert_eq!(
+            fmt(source),
+            "/// First line  \n/// second\nstructure S {\n}\n"
         );
     }
 

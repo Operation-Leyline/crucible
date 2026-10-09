@@ -131,6 +131,11 @@ impl Lexer<'_> {
     }
 
     fn run(&mut self) {
+        // A UTF-8 byte-order mark, as some Windows editors write, is not text.
+        if self.source.starts_with('\u{feff}') {
+            self.pos = '\u{feff}'.len_utf8();
+            self.push(TokenKind::Whitespace, 0);
+        }
         while let Some(byte) = self.peek(0) {
             let start = self.pos;
             let kind = match byte {
@@ -257,17 +262,24 @@ impl Lexer<'_> {
         }
     }
 
+    /// A run of characters that start no token: one token, one diagnostic.
     fn unknown(&mut self) -> TokenKind {
         let start = self.pos;
-        let len = self.source[self.pos..]
-            .chars()
-            .next()
-            .map_or(1, char::len_utf8);
-        self.pos += len;
+        while let Some(c) = self.source[self.pos..].chars().next() {
+            if self.pos > start && starts_token(c) {
+                break;
+            }
+            self.pos += c.len_utf8();
+        }
         let shown = &self.source[start..self.pos];
+        let what = if shown.chars().count() == 1 {
+            "character"
+        } else {
+            "characters"
+        };
         self.diagnostics.push(Diagnostic::new(
             Span::new(start, self.pos),
-            format!("unexpected character `{shown}`"),
+            format!("unexpected {what} `{shown}`"),
         ));
         TokenKind::Unknown
     }
@@ -299,8 +311,11 @@ pub fn unescape(text: &str) -> Result<String, String> {
                     .strip_prefix('{')
                     .and_then(|rest| rest.split_once('}'))
                     .ok_or_else(|| "a `\\u` escape is written `\\u{XXXX}`".to_owned())?;
-                let value = u32::from_str_radix(code.0, 16)
-                    .ok()
+                // `from_str_radix` would also take a sign: `\u{+41}`.
+                let digits = !code.0.is_empty() && code.0.chars().all(|c| c.is_ascii_hexdigit());
+                let value = digits
+                    .then(|| u32::from_str_radix(code.0, 16).ok())
+                    .flatten()
                     .and_then(char::from_u32)
                     .ok_or_else(|| format!("`\\u{{{}}}` is not a character", code.0))?;
                 out.push(value);
@@ -311,4 +326,9 @@ pub fn unescape(text: &str) -> Result<String, String> {
         }
     }
     Ok(out)
+}
+
+/// Whether `c` can begin a token, so a run of unknown characters stops there.
+fn starts_token(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "{}()[],;:?@$=!<>.-/\"_".contains(c)
 }
