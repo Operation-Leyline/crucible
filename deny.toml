@@ -1,0 +1,41 @@
+# cargo-deny policy for the dependency graph that ships with Crucible.
+# Run: cargo deny check   (https://embarkstudios.github.io/cargo-deny/)
+# Copyleft is intentionally absent from the allow list: a new dependency under
+# GPL/LGPL/AGPL/MPL/EPL fails the licence check and needs a deliberate decision.
+
+[graph]
+all-features = true
+
+[licenses]
+confidence-threshold = 0.9
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "0BSD",
+    "BSL-1.0",
+    "Unlicense",
+    "CDLA-Permissive-2.0",
+]
+# Workspace crates are `publish = false` until the publishing plan lands, so
+# their (still missing) licence field is not reported here; tools/check_publish_metadata.py
+# is what verifies it.
+private = { ignore = true }
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

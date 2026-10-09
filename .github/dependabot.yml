@@ -1,0 +1,11 @@
+# Keeps third-party GitHub Actions current. Pair with SHA pinning: Dependabot
+# updates a pinned `uses: owner/action@<sha> # vX.Y.Z` and its version comment together.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
