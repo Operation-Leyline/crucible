@@ -419,6 +419,7 @@ version = "0.4.0"
 dependencies = [
  "crucible-codegen",
  "crucible-codegen-rust",
+ "crucible-lang",
  "crucible-policy",
  "crucible-smithy",
  "crucible-traits",
@@ -458,6 +459,16 @@ dependencies = [
  "semver",
  "serde_json",
  "url",
+]
+
+[[package]]
+name = "crucible-lang"
+version = "0.4.0"
+dependencies = [
+ "crucible-smithy",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]
