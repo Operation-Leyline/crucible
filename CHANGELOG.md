@@ -15,6 +15,13 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-08
+
+A stable build and runtime contract (`crucible_build::model()`, the hidden
+`__generated` boundary and a compile-time version check), MCP, JWT/OIDC auth,
+service API docs and the Crucible Explorer. Breaking: follow *Migration* and
+[docs/migrating.md](docs/migrating.md).
+
 ### Added
 
 - Crucible Explorer: optional `explorer` runtime feature and
