@@ -441,8 +441,8 @@ trait when a project defines it.
     - Label members are required scalars or enums (no lists, structures,
       maps or blobs); at most one greedy label per URI.
     - Query members are scalars, enums or lists of them.
-    - Header members are scalars other than blobs, enums, timestamps or
-      lists of them, named by a valid header token; a string with a media
+    - Header members are scalars (enums and timestamps included, blobs
+      and documents not) or lists of them, named by a valid header token; a string with a media
       type travels base64-encoded; framing and hop-by-hop headers
       (`Content-Length`, `Transfer-Encoding`, `Host`, `Connection` and
       similar) and the service's auth header (`Authorization` under bearer

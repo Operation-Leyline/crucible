@@ -332,6 +332,28 @@ fn http(service: &Service, operation: &Operation, diagnostics: &mut Diagnostics)
                 ..Bindings::default()
             };
             headers(service, error, shape, &bindings, bearer, diagnostics);
+            // An error's body is every member not bound elsewhere; beside a
+            // payload, those members would be dropped.
+            if let Some(payload) = &info.payload {
+                let bound = |name: &str| {
+                    name == payload.member
+                        || info.response_code.as_deref() == Some(name)
+                        || info
+                            .headers
+                            .iter()
+                            .chain(&info.prefix_headers)
+                            .any(|b| b.member == name)
+                };
+                for member in shape.members.iter().filter(|m| !bound(&m.name)) {
+                    diagnostics.push(
+                        &error.with_member(&member.name),
+                        format!(
+                            "the body is the payload `{}`; bind `{}` to a header",
+                            payload.member, member.name
+                        ),
+                    );
+                }
+            }
         }
     }
 }

@@ -1249,8 +1249,10 @@ impl<'s> Parser<'s> {
             // A declaration here means the targets are missing; leave it.
             // Target words are also declaration keywords, so only an
             // unambiguous head counts: `structure X {`, not `operation` then
-            // the next line's `metadata k`.
-            if self.declaration_ahead() && self.kind(2) != Some(TokenKind::Ident) {
+            // the next line's `metadata k`. `enum value` is a target, not an
+            // enum named `value`.
+            let enum_value = self.at_word("enum") && self.at_word_ahead(1, "value");
+            if !enum_value && self.declaration_ahead() && self.kind(2) != Some(TokenKind::Ident) {
                 self.expected("a target such as `operation` or `member`");
                 break;
             }

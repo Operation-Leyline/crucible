@@ -240,3 +240,23 @@ fn rule_flags_and_metadata_targets_do_not_take_the_next_declaration() {
     let (items, _) = names("metadata k on\nstructure X {\n    a: string\n}\n");
     assert_eq!(items.last().map(String::as_str), Some("X"));
 }
+
+#[test]
+fn enum_value_is_a_metadata_target_even_with_a_type() {
+    for source in [
+        "metadata tag on enum value: string\n",
+        "metadata tag on member, enum value: enum { a b }\n",
+    ] {
+        let parsed = parse(source);
+        assert!(
+            parsed.diagnostics.is_empty(),
+            "{source}: {:?}",
+            parsed.diagnostics
+        );
+        let Decl::Metadata(m) = &parsed.file.items[0].decl else {
+            panic!()
+        };
+        assert!(m.targets.iter().any(|t| t.len() == 2), "{:?}", m.targets);
+        assert!(m.ty.is_some());
+    }
+}

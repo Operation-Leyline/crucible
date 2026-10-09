@@ -436,3 +436,14 @@ fn included_views_elide_against_their_own_resource() {
         Vec::<String>::new()
     );
 }
+
+#[test]
+fn an_error_payload_takes_the_whole_body() {
+    let m = messages(
+        "error Raw {\n    status 400\n    @payload data: blob\n    note: string\n}\nreadonly operation Get {\n    http GET \"/raw\"\n    errors [Raw]\n}",
+    );
+    assert_mentions(
+        &m,
+        "the body is the payload `data`; bind `note` to a header",
+    );
+}
