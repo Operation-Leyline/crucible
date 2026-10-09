@@ -135,6 +135,16 @@ version's section when it is prepared.
   generated code reaches them through `__generated` (#182). `OpenEnum`,
   `UnknownUnion`, `Field` and `ModelledError` stay public at the crate root.
 
+### Security
+
+- `crucible-auth` moves to `jsonwebtoken` 11.1 (pure-Rust `rust_crypto`
+  backend), past GHSA-h395-gr6q-cpjc, where a wrongly typed standard claim was
+  treated as absent. Crucible already required `exp`/`iss`/`sub` and checks time
+  and audience claims itself with typed reads; new tests pin that wrongly typed
+  `exp`, `nbf`, `aud`, `iss` and `sub` are refused. `crucible-auth` now needs
+  Rust 1.88. `crucible_auth::Algorithm` is re-exported from the new version with
+  the same variants (#192).
+
 ### Migration
 
 From 0.4 to the next release. The same steps, with before and after code, are
