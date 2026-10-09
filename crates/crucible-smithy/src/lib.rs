@@ -31,6 +31,7 @@ mod resources;
 mod scopes;
 mod shape_id;
 mod timestamp_default;
+pub mod validate;
 mod xml;
 
 use std::collections::BTreeMap;

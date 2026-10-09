@@ -95,14 +95,27 @@ fn imports_must_be_known_and_names_must_not_collide() {
         "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.nothing\"]\n",
         &[("service.cru", SERVICE)],
     );
-    let compiled = compile(&load_package(&dir).unwrap(), None);
+    // Loading refuses it, as the editor's manifest check does.
+    let error = load_package(&dir).unwrap_err();
     assert!(
-        compiled
-            .render()
-            .contains("unknown import `crucible.nothing`"),
-        "{}",
-        compiled.render()
+        error.contains("unknown import `crucible.nothing`"),
+        "{error}"
     );
+    // Compiled directly, the bad import does not hide the package's own problems.
+    let mut package = crucible_lang::Package::new(
+        "example.shop",
+        vec![crucible_lang::SourceFile {
+            path: "service.cru".into(),
+            text: format!("{SERVICE}\nstructure Extra {{ a: Missing }}\n"),
+        }],
+    );
+    package.imports = vec!["crucible.nothing".into()];
+    let rendered = compile(&package, None).render();
+    assert!(
+        rendered.contains("unknown import `crucible.nothing`"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("unknown type `Missing`"), "{rendered}");
 
     let dir = package_dir(
         "collision",
@@ -230,4 +243,197 @@ fn a_directory_symlink_loop_is_not_followed() {
     std::os::unix::fs::symlink(&dir, dir.join("loop")).unwrap();
     let package = load_package(&dir).unwrap();
     assert_eq!(package.files.len(), 1);
+}
+
+#[test]
+fn the_manifest_checks_cover_language_naming_and_namespaces() {
+    let dir = package_dir("manifest-more", "", &[("model/a.cru", "")]);
+    let messages = |text: &str| -> Vec<String> {
+        check_manifest(&dir, text)
+            .into_iter()
+            .map(|d| d.message)
+            .collect()
+    };
+    assert!(messages("[model]\nnamespace = \"smithy.api\"\n")[0].contains("reserved"));
+    assert!(messages("[model]\nnamespace = \"crucible.errors\"\n")[0].contains("reserved"));
+    assert!(
+        messages("[model]\nnamespace = \"a\"\nlanguage = 999\n")[0].contains("language version 1")
+    );
+    assert!(messages("[model]\nnamespace = \"a\"\nlanguage = 1\n").is_empty());
+    let same = messages(
+        "[model]\nnamespace = \"a\"\n[model.naming]\ninput = \"{Operation}Body\"\noutput = \"{Operation}Body\"\n",
+    );
+    assert!(same[0].contains("must differ"), "{same:?}");
+    let spaced =
+        messages("[model]\nnamespace = \"a\"\n[model.naming]\ninput = \"{Operation}-in put\"\n");
+    assert!(spaced[0].contains("make a name"), "{spaced:?}");
+    let drive = messages("[model]\nnamespace = \"a\"\nsources = [\"C:foo\"]\n");
+    assert!(!drive.is_empty() || !cfg!(windows), "{drive:?}");
+}
+
+#[test]
+fn a_syntax_error_in_one_file_does_not_hide_another_files_problems() {
+    let package = crucible_lang::Package::new(
+        "example.shop",
+        vec![
+            crucible_lang::SourceFile {
+                path: "a.cru".into(),
+                text: "structure A {\n    a: = \n}\n".into(),
+            },
+            crucible_lang::SourceFile {
+                path: "b.cru".into(),
+                text: format!("{SERVICE}\nstructure B {{ b: Missing }}\n"),
+            },
+        ],
+    );
+    let rendered = compile(&package, None).render();
+    assert!(rendered.contains("a.cru"), "{rendered}");
+    assert!(rendered.contains("unknown type `Missing`"), "{rendered}");
+}
+
+#[test]
+fn a_bad_namespace_is_reported_when_compiling() {
+    let rendered = compile(&crucible_lang::Package::new("smithy.api", vec![]), None).render();
+    assert!(rendered.contains("reserved"), "{rendered}");
+}
+
+/// One shape of `smithy/errors.smithy`, read with just enough of the IDL for
+/// that file: what the bundled `.cru` copy must agree with.
+#[derive(Debug, Default, PartialEq)]
+struct SmithyShape {
+    kind: String,
+    docs: Option<String>,
+    status: Option<u16>,
+    retryable: bool,
+    /// (name, required, header) for members, (name, value) as (name, false, value) for enums.
+    members: Vec<(String, bool, Option<String>)>,
+}
+
+fn smithy_errors() -> std::collections::BTreeMap<String, SmithyShape> {
+    let text = include_str!("../../../smithy/errors.smithy");
+    let mut shapes = std::collections::BTreeMap::new();
+    let mut current: Option<(String, SmithyShape)> = None;
+    let (mut docs, mut status, mut retryable, mut required, mut header) =
+        (Vec::new(), None, false, false, None);
+    for line in text.lines().map(str::trim) {
+        if let Some(doc) = line.strip_prefix("///") {
+            docs.push(doc.trim().to_owned());
+        } else if let Some(code) = line.strip_prefix("@httpError(") {
+            status = code.trim_end_matches(')').parse().ok();
+        } else if line == "@retryable" {
+            retryable = true;
+        } else if line == "@required" {
+            required = true;
+        } else if let Some(name) = line.strip_prefix("@httpHeader(\"") {
+            header = Some(name.trim_end_matches("\")").to_owned());
+        } else if let Some(rest) = ["structure ", "enum ", "list "]
+            .iter()
+            .find_map(|kind| line.strip_prefix(kind).map(|rest| (kind.trim(), rest)))
+        {
+            let (kind, rest) = rest;
+            let name = rest.trim_end_matches('{').trim().to_owned();
+            let shape = SmithyShape {
+                kind: kind.to_owned(),
+                docs: (!docs.is_empty()).then(|| docs.join("\n")),
+                status: status.take(),
+                retryable: std::mem::take(&mut retryable),
+                members: Vec::new(),
+            };
+            docs.clear();
+            current = Some((name, shape));
+        } else if line == "}" {
+            if let Some((name, shape)) = current.take() {
+                shapes.insert(name, shape);
+            }
+        } else if let Some((_, shape)) = current.as_mut()
+            && !line.is_empty()
+            && !line.starts_with("//")
+        {
+            let (name, value) = line
+                .split_once(" = ")
+                .map(|(n, v)| (n, Some(v.trim_matches('"').to_owned())))
+                .unwrap_or_else(|| (line.split(':').next().unwrap_or(line), None));
+            let member = if shape.kind == "enum" {
+                (name.trim().to_owned(), false, value)
+            } else {
+                (
+                    name.trim().to_owned(),
+                    std::mem::take(&mut required),
+                    header.take(),
+                )
+            };
+            shape.members.push(member);
+        }
+    }
+    shapes
+}
+
+#[test]
+fn the_bundled_errors_match_smithy_errors_smithy() {
+    use crucible_smithy::ir::Shape;
+    let expected = smithy_errors();
+    assert_eq!(expected.len(), 8, "{expected:#?}");
+    let errors: Vec<&str> = expected
+        .iter()
+        .filter(|(_, shape)| shape.status.is_some())
+        .map(|(name, _)| name.as_str())
+        .collect();
+    let mut package = crucible_lang::Package::new(
+        "example.shop",
+        vec![crucible_lang::SourceFile {
+            path: "service.cru".into(),
+            text: format!(
+                "service Shop {{\n    version \"1\"\n    protocol json\n    operations [Ping]\n    errors [{}]\n}}\nreadonly operation Ping {{\n    http GET \"/ping\"\n}}\n",
+                errors.join(", ")
+            ),
+        }],
+    );
+    package.imports = vec!["crucible.errors".into()];
+    let compiled = compile(&package, None);
+    assert!(compiled.diagnostics.is_empty(), "\n{}", compiled.render());
+    let service = compiled.service.unwrap();
+    for (name, smithy) in &expected {
+        let shape = service
+            .shape(&ShapeId::new("crucible.errors", name))
+            .unwrap_or_else(|| panic!("{name} is not bundled"));
+        let actual = match shape {
+            Shape::Structure(s) => SmithyShape {
+                kind: "structure".into(),
+                docs: s.docs.clone(),
+                status: s.error.as_ref().map(|e| e.status),
+                retryable: s.error.as_ref().is_some_and(|e| e.retryable.is_some()),
+                members: s
+                    .members
+                    .iter()
+                    .map(|m| {
+                        let header = s.error.as_ref().and_then(|e| {
+                            e.headers
+                                .iter()
+                                .find(|b| b.member == m.name)
+                                .map(|b| b.name.clone())
+                        });
+                        (m.name.clone(), m.required, header)
+                    })
+                    .collect(),
+            },
+            Shape::Enum(e) => SmithyShape {
+                kind: "enum".into(),
+                docs: e.docs.clone(),
+                members: e
+                    .values
+                    .iter()
+                    .map(|v| (v.name.clone(), false, Some(v.value.clone())))
+                    .collect(),
+                ..SmithyShape::default()
+            },
+            Shape::List(l) => SmithyShape {
+                kind: "list".into(),
+                docs: l.docs.clone(),
+                members: vec![("member".into(), false, None)],
+                ..SmithyShape::default()
+            },
+            other => panic!("{name}: {other:?}"),
+        };
+        assert_eq!(&actual, smithy, "{name}");
+    }
 }

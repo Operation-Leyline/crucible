@@ -105,18 +105,34 @@ pub struct Compiled {
 }
 
 impl Compiled {
+    /// Whether any diagnostic is an error, which withholds the service.
+    pub fn has_errors(&self) -> bool {
+        self.diagnostics
+            .iter()
+            .any(|item| item.diagnostic.is_error())
+    }
+
     /// Every diagnostic, rendered with file, line, column and the source line.
     pub fn render(&self) -> String {
         let mut out = String::new();
+        let mut indexes: Vec<Option<LineIndex>> = vec![None; self.files.len()];
         for item in &self.diagnostics {
-            match item.file.and_then(|index| self.files.get(index)) {
-                Some(file) => {
-                    let lines = LineIndex::new(&file.text);
-                    out.push_str(&item.diagnostic.render(&file.path, &file.text, &lines));
+            match item
+                .file
+                .and_then(|index| self.files.get(index).map(|file| (index, file)))
+            {
+                Some((index, file)) => {
+                    let lines = indexes[index].get_or_insert_with(|| LineIndex::new(&file.text));
+                    out.push_str(&item.diagnostic.render(&file.path, &file.text, lines));
                 }
                 None => {
+                    let prefix = if item.diagnostic.is_error() {
+                        ""
+                    } else {
+                        "warning: "
+                    };
                     out.push_str(&format!(
-                        "{}: {}\n",
+                        "{}: {prefix}{}\n",
                         self.namespace, item.diagnostic.message
                     ));
                 }
@@ -126,11 +142,49 @@ impl Compiled {
     }
 }
 
+/// Why `namespace` cannot name a package, if it cannot: it is dot-separated
+/// identifiers, and the Smithy prelude's and bundled packages' namespaces are
+/// taken.
+pub(crate) fn namespace_problem(namespace: &str) -> Option<String> {
+    let valid = !namespace.is_empty()
+        && namespace.split('.').all(|part| {
+            part.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        });
+    if !valid {
+        return Some(format!(
+            "`{namespace}` is not a namespace: use dot-separated identifiers, such as `example.service`"
+        ));
+    }
+    if namespace == "smithy.api" || BUNDLED.iter().any(|(bundled, _)| *bundled == namespace) {
+        return Some(format!(
+            "the namespace `{namespace}` is reserved for {}",
+            if namespace == "smithy.api" {
+                "the prelude"
+            } else {
+                "a bundled package"
+            }
+        ));
+    }
+    None
+}
+
 /// Compiles `package` and lowers `service` (or its only service).
+///
+/// Every file is checked: a syntax error or an unknown import does not hide
+/// the problems in the rest of the package (AGENTS.md: one run lists every
+/// problem). Semantic diagnostics inside a file with syntax errors are
+/// dropped, since its tree has placeholders where the source is broken.
 pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
     let mut files = package.files.clone();
     let mut namespaces = vec![package.namespace.clone(); files.len()];
     let mut diagnostics = Vec::new();
+    if let Some(problem) = namespace_problem(&package.namespace) {
+        diagnostics.push(FileDiagnostic {
+            file: None,
+            diagnostic: Diagnostic::new(Span::default(), problem),
+        });
+    }
     let mut imported = Vec::new();
     for import in &package.imports {
         if imported.contains(import) {
@@ -161,37 +215,29 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
         }
     }
     let parsed: Vec<Parsed> = files.iter().map(|file| parse(&file.text)).collect();
+    let broken: Vec<bool> = parsed
+        .iter()
+        .map(|parsed| parsed.diagnostics.iter().any(Diagnostic::is_error))
+        .collect();
     for (index, parsed) in parsed.iter().enumerate() {
         diagnostics.extend(parsed.diagnostics.iter().map(|diagnostic| FileDiagnostic {
             file: Some(index),
             diagnostic: diagnostic.clone(),
         }));
     }
-    // A tree with syntax errors has placeholder names; lowering it would only
-    // add noise on top of the real problems.
-    if !diagnostics.is_empty() {
-        return Compiled {
-            namespace: package.namespace.clone(),
-            files,
-            parsed,
-            service: None,
-            source_map: SourceMap::new(),
-            diagnostics,
-        };
-    }
-    let (lowered, source_map, mut problems) =
+    let (lowered, source_map, problems) =
         crate::lower::lower(package, &parsed, &namespaces, service);
-    diagnostics.append(&mut problems);
-    let service = if diagnostics.is_empty() {
-        lowered
-    } else {
-        None
-    };
+    diagnostics.extend(
+        problems
+            .into_iter()
+            .filter(|problem| !problem.file.is_some_and(|file| broken[file])),
+    );
+    let failed = diagnostics.iter().any(|item| item.diagnostic.is_error());
     Compiled {
         namespace: package.namespace.clone(),
         files,
         parsed,
-        service,
+        service: if failed { None } else { lowered },
         source_map,
         diagnostics,
     }

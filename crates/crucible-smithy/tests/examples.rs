@@ -79,7 +79,10 @@ fn malformed_examples_are_diagnosed_against_the_operation() {
     expect("NotAList", &["@examples must be a list"]);
     expect("Unknown", &["@examples[0] is malformed", "inpt"]);
     expect("NoTitle", &["@examples[0] is malformed", "title"]);
-    expect("Both", &["an example cannot have both output and error"]);
+    expect(
+        "Both",
+        &["an example cannot have both an output and an error"],
+    );
     expect(
         "WrongError",
         &["error.shapeId \"test.examples#Other\" is not an error of this operation"],

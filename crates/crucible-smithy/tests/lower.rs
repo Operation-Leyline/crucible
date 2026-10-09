@@ -359,7 +359,15 @@ fn pagination_merges_service_defaults() {
 
 #[test]
 fn member_constraints_override_their_targets() {
-    let service = weather();
+    // CityName is 1..100; a member length of ..40 replaces it entirely, as
+    // Smithy specifies, so the minimum goes too.
+    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+    shape(&mut model, "CreateCityInput")["members"]["name"]["traits"]["smithy.api#length"] =
+        json!({ "max": 40 });
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower(None)
+        .unwrap();
     let Some(Shape::Structure(input)) = service.shape(&id("example.weather#CreateCityInput"))
     else {
         panic!();
@@ -557,7 +565,7 @@ fn refuses_a_payload_beside_body_members() {
     assert_eq!(messages.len(), 1, "{messages:?}");
     assert!(
         messages[0].contains("PutCityPhotoInput$note")
-            && messages[0].contains("the body is the @httpPayload member `photo`"),
+            && messages[0].contains("the body is the payload `photo`"),
         "{messages:?}"
     );
 }
@@ -594,7 +602,7 @@ fn refuses_blobs_in_headers() {
     });
     assert_eq!(messages.len(), 1, "{messages:?}");
     assert!(
-        messages[0].contains("@httpHeader cannot carry example.weather#Thumbnail"),
+        messages[0].contains("a header carries text: `caption`"),
         "{messages:?}"
     );
 }
@@ -643,9 +651,7 @@ fn refuses_greedy_labels_and_structured_headers() {
         "{messages:?}"
     );
     assert!(
-        messages
-            .iter()
-            .any(|m| m.contains("@httpHeader cannot carry")),
+        messages.iter().any(|m| m.contains("a header carries text")),
         "{messages:?}"
     );
 }
@@ -769,5 +775,48 @@ fn renaming_clashing_shapes_on_the_service_resolves_the_diagnostic() {
     assert_eq!(
         service.name_of(&ShapeId::new("other.ns", "Thing")),
         "OtherThing"
+    );
+}
+
+/// The rules in `crucible_smithy::validate`, which the `.cru` front end shares.
+#[test]
+fn shared_ir_rules_refuse_what_http_cannot_carry() {
+    let messages = refused(|model| {
+        shape(model, "CreateCity")["traits"]["smithy.api#http"]["code"] = json!(204);
+        shape(model, "CreateCityInput")["members"]["expectedRevision"]["traits"]["smithy.api#httpHeader"] =
+            json!("Content-Length");
+        shape(model, "PutCityPhotoInput")["members"]["caption"]["traits"]["smithy.api#httpHeader"] =
+            json!("authorization");
+        shape(model, "ListCities")["traits"]["smithy.api#paginated"]["items"] = json!("nextToken");
+        shape(model, "CreateCity")["errors"] = json!([
+            { "target": "example.weather#ConflictError" },
+            { "target": "example.weather#ConflictError" }
+        ]);
+    });
+    for expected in [
+        "a 204 response carries no body",
+        "the HTTP layer owns the Content-Length header",
+        "bearer token in the Authorization header",
+        "pagination items `nextToken` must be a list or map",
+        "returns `ConflictError` twice",
+    ] {
+        assert!(
+            messages.iter().any(|m| m.contains(expected)),
+            "missing {expected:?}: {messages:#?}"
+        );
+    }
+}
+
+#[test]
+fn header_names_are_tokens() {
+    let messages = refused(|model| {
+        shape(model, "CreateCityInput")["members"]["expectedRevision"]["traits"]["smithy.api#httpHeader"] =
+            json!("X Bad");
+    });
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("\"X Bad\" is not a valid header name")),
+        "{messages:?}"
     );
 }

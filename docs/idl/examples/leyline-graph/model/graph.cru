@@ -134,8 +134,8 @@ list GraphList: GraphData { length ..100 }
 /// Create a graph.
 ///
 /// Leyline assigns the identifier and returns it as `id`; you choose the
-/// `name`, which must be unique within the organization. [ListRegions] says
-/// which regions can be a home. Safe to repeat with the same `clientToken`:
+/// `name`, which must be unique within the organization. `ListRegions` (not
+/// in this excerpt) says which regions can be a home. Safe to repeat with the same `clientToken`:
 /// the original outcome is replayed. Change a name or description with
 /// [UpdateGraph].
 @auditCategory(management)
@@ -325,4 +325,15 @@ enum ValidationExceptionReason {
     ROW_LIMIT_EXCEEDED = "rowLimitExceeded"
     /// The request names no operation: no method and path the API serves.
     UNKNOWN_OPERATION = "unknownOperation"
+}
+
+/// The inputs that failed validation.
+list ValidationExceptionFieldList: ValidationExceptionField
+
+/// One input that failed validation.
+structure ValidationExceptionField {
+    /// A JSON pointer to the member, such as `/name`.
+    path: string
+    /// What is wrong with it.
+    message: ErrorMessage
 }

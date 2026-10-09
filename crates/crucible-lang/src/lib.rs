@@ -20,7 +20,7 @@ pub mod span;
 pub use compile::{
     Compiled, FileDiagnostic, Location, Naming, Package, SourceFile, SourceMap, compile,
 };
-pub use diagnostic::Diagnostic;
+pub use diagnostic::{Diagnostic, Severity};
 pub use format::{FormatOptions, format};
 pub use lexer::{Token, TokenKind};
 pub use package::{check_manifest, is_package, load_package, load_package_with_manifest};

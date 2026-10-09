@@ -62,12 +62,13 @@ const DECLARATIONS: &[&str] = &[
     "conversion",
 ];
 
-const ROLES: &[&str] = &[
-    "creates", "puts", "reads", "updates", "deletes", "lists", "on",
-];
-
 /// Words that end an `is` operand's word list or a rule kind.
 const RULE_WORDS: &[&str] = &["where", "must", "every", "no", "and", "or"];
+
+/// How deeply brackets and `not`s may nest. Recursion past this would risk
+/// the stack, which is not a panic the editor's server could survive; real
+/// models stay far below it.
+const MAX_DEPTH: usize = 64;
 
 pub(crate) struct Parser<'s> {
     source: &'s str,
@@ -75,15 +76,22 @@ pub(crate) struct Parser<'s> {
     /// Indices of the significant (non-trivia) tokens.
     sig: Vec<usize>,
     pos: usize,
+    /// Current bracket nesting, bounded by [`MAX_DEPTH`].
+    depth: usize,
+    too_deep_reported: bool,
+    /// Doc comments attached to something; any other is reported.
+    docs_used: Vec<Span>,
     pub(crate) diagnostics: Vec<Diagnostic>,
 }
 
 impl<'s> Parser<'s> {
     pub(crate) fn new(source: &'s str, tokens: &'s [Token]) -> Self {
+        // Unknown characters were reported by the lexer; skipping them here
+        // keeps the parser from reporting them a second time.
         let sig = tokens
             .iter()
             .enumerate()
-            .filter(|(_, token)| !token.kind.is_trivia())
+            .filter(|(_, token)| !token.kind.is_trivia() && token.kind != TokenKind::Unknown)
             .map(|(index, _)| index)
             .collect();
         Self {
@@ -91,8 +99,32 @@ impl<'s> Parser<'s> {
             tokens,
             sig,
             pos: 0,
+            depth: 0,
+            too_deep_reported: false,
+            docs_used: Vec::new(),
             diagnostics: Vec::new(),
         }
+    }
+
+    /// Enters one level of nesting, or reports that the input nests too
+    /// deeply (once per file) and refuses.
+    fn enter(&mut self) -> bool {
+        if self.depth >= MAX_DEPTH {
+            if !self.too_deep_reported {
+                self.too_deep_reported = true;
+                self.error(
+                    self.here(),
+                    format!("brackets nest more than {MAX_DEPTH} levels deep here"),
+                );
+            }
+            return false;
+        }
+        self.depth += 1;
+        true
+    }
+
+    fn leave(&mut self) {
+        self.depth -= 1;
     }
 
     // ---- token access ------------------------------------------------------
@@ -211,36 +243,98 @@ impl<'s> Parser<'s> {
         }
     }
 
-    /// Whether the current token starts a line with no indentation. A
-    /// declaration keyword there inside a body means the body's `}` is
-    /// missing; members and entries are always indented.
-    fn at_line_start(&self) -> bool {
-        let Some(token) = self.token(0) else {
-            return false;
-        };
-        let start = token.span.start as usize;
-        start == 0 || self.source.as_bytes()[start - 1] == b'\n'
-    }
-
-    fn at_declaration_start(&self) -> bool {
-        match self.kind(0) {
-            Some(TokenKind::At) => true,
-            Some(TokenKind::Ident) => {
-                let word = self.text(0);
-                DECLARATIONS.contains(&word) || SCALARS.contains(&word) || MODIFIERS.contains(&word)
+    /// Whether the tokens ahead are a declaration's head, such as
+    /// `structure Name {` or `list Names:`, after any annotations and
+    /// modifiers. Inside a body that means its `}` is missing. It reads token
+    /// shapes only: layout carries no meaning (decision 65), and no member or
+    /// entry has these shapes.
+    fn declaration_ahead(&self) -> bool {
+        let mut i = 0;
+        while self.kind(i) == Some(TokenKind::At) {
+            i += 1;
+            if self.kind(i) == Some(TokenKind::Ident) {
+                i += 1;
             }
+            if self.kind(i) == Some(TokenKind::LParen) {
+                i = self.past_group(i);
+            }
+        }
+        while self.kind(i) == Some(TokenKind::Ident)
+            && MODIFIERS.contains(&self.text(i))
+            && self.kind(i + 1) == Some(TokenKind::Ident)
+        {
+            i += 1;
+        }
+        if self.kind(i) != Some(TokenKind::Ident) {
+            return false;
+        }
+        let named = self.kind(i + 1) == Some(TokenKind::Ident);
+        let next = self.kind(i + 2);
+        let word_next = |word: &str| self.at_word_ahead(i + 2, word);
+        match self.text(i) {
+            "service" | "protocol" | "union" | "error" | "template" => {
+                named && next == Some(TokenKind::LBrace)
+            }
+            "resource" => named && (next == Some(TokenKind::LBrace) || word_next("in")),
+            "operation" | "rule" => {
+                named && matches!(next, Some(TokenKind::LBrace | TokenKind::Ident))
+            }
+            "structure" => named && (next == Some(TokenKind::LBrace) || word_next("for")),
+            "enum" => named && matches!(next, Some(TokenKind::LBrace | TokenKind::Colon)),
+            "list" | "map" => named && next == Some(TokenKind::Colon),
+            "metadata" => named && word_next("on"),
+            "except" => named && word_next("for"),
+            "conversion" => named && next == Some(TokenKind::Arrow),
+            "migration" => self.kind(i + 1) == Some(TokenKind::String),
+            word if SCALARS.contains(&word) => named,
             _ => false,
         }
     }
 
-    /// The `///` lines directly before the current token.
+    /// The index just past the bracketed group that opens at `ahead`.
+    fn past_group(&self, ahead: usize) -> usize {
+        let mut depth = 0usize;
+        let mut i = ahead;
+        while let Some(kind) = self.kind(i) {
+            i += 1;
+            match kind {
+                TokenKind::LBrace | TokenKind::LParen | TokenKind::LBracket => depth += 1,
+                TokenKind::RBrace | TokenKind::RParen | TokenKind::RBracket => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        i
+    }
+
+    /// Whether a bracketed list should stop here without consuming: at a
+    /// closer that is not its own, or at a declaration, so one missing `)`
+    /// or `]` cannot swallow the rest of the file.
+    fn list_interrupted(&mut self, closer: TokenKind) -> bool {
+        let stray = matches!(
+            self.kind(0),
+            Some(TokenKind::RBrace | TokenKind::RParen | TokenKind::RBracket)
+        ) && !self.at(closer);
+        if stray || self.declaration_ahead() {
+            self.expected(closer.describe());
+            return true;
+        }
+        false
+    }
+
+    /// The `///` lines before the current token, which document it. Plain
+    /// `//` comments between them do not detach the documentation.
     fn doc(&self) -> Option<Doc> {
         let &current = self.sig.get(self.pos)?;
         let mut lines = Vec::new();
         let mut span: Option<Span> = None;
         for token in self.tokens[..current].iter().rev() {
             match token.kind {
-                TokenKind::Whitespace => {}
+                TokenKind::Whitespace | TokenKind::LineComment => {}
                 TokenKind::DocComment => {
                     let text = token.span.text(self.source);
                     let text = text.strip_prefix("///").unwrap_or(text);
@@ -257,6 +351,37 @@ impl<'s> Parser<'s> {
             text: lines.join("\n"),
             span,
         })
+    }
+
+    /// The documentation of what is parsed next, recorded as attached.
+    fn take_doc(&mut self) -> Option<Doc> {
+        let doc = self.doc();
+        if let Some(doc) = &doc {
+            self.docs_used.push(doc.span);
+        }
+        doc
+    }
+
+    /// Doc comments attached to nothing: documentation that would be lost.
+    fn report_orphan_docs(&mut self) {
+        let orphans: Vec<Span> = self
+            .tokens
+            .iter()
+            .filter(|token| token.kind == TokenKind::DocComment)
+            .map(|token| token.span)
+            .filter(|span| {
+                !self
+                    .docs_used
+                    .iter()
+                    .any(|used| used.start <= span.start && span.end <= used.end)
+            })
+            .collect();
+        for span in orphans {
+            self.diagnostics.push(Diagnostic::warning(
+                span,
+                "this doc comment documents nothing here; use `//` for a plain comment",
+            ));
+        }
     }
 
     // ---- primitives --------------------------------------------------------
@@ -330,12 +455,29 @@ impl<'s> Parser<'s> {
     }
 
     /// Parses `{ entry* }`. An entry that consumes nothing has reported an
-    /// error; the offending token (or bracketed group) is skipped.
-    fn braced<T>(&mut self, mut entry: impl FnMut(&mut Self) -> Option<T>) -> Vec<T> {
+    /// error; the offending token (or bracketed group) is skipped. A
+    /// declaration's head ends the body: its `}` is missing.
+    fn braced<T>(&mut self, entry: impl FnMut(&mut Self) -> Option<T>) -> Vec<T> {
+        self.braced_in(true, entry)
+    }
+
+    /// [`Self::braced`], optionally not stopping at declaration heads: an
+    /// example's `error Name { ... }` part has one's shape.
+    fn braced_in<T>(
+        &mut self,
+        stop_at_declarations: bool,
+        mut entry: impl FnMut(&mut Self) -> Option<T>,
+    ) -> Vec<T> {
         let mut out = Vec::new();
-        if !self.expect(TokenKind::LBrace) {
+        if !self.at(TokenKind::LBrace) {
+            self.expected("`{`");
             return out;
         }
+        if !self.enter() {
+            self.skip_group();
+            return out;
+        }
+        self.pos += 1;
         loop {
             self.skip_separators();
             match self.kind(0) {
@@ -347,7 +489,7 @@ impl<'s> Parser<'s> {
                     self.pos += 1;
                     break;
                 }
-                _ if self.at_line_start() && self.at_declaration_start() => {
+                _ if stop_at_declarations && self.declaration_ahead() => {
                     self.expected("`}` before the next declaration");
                     break;
                 }
@@ -361,6 +503,7 @@ impl<'s> Parser<'s> {
                 self.skip_group();
             }
         }
+        self.leave();
         out
     }
 
@@ -385,7 +528,15 @@ impl<'s> Parser<'s> {
 
     fn call_args(&mut self) -> Vec<Arg> {
         let mut out = Vec::new();
-        self.expect(TokenKind::LParen);
+        if !self.at(TokenKind::LParen) {
+            self.expected("`(`");
+            return out;
+        }
+        if !self.enter() {
+            self.skip_group();
+            return out;
+        }
+        self.pos += 1;
         loop {
             self.skip_separators();
             match self.kind(0) {
@@ -397,9 +548,11 @@ impl<'s> Parser<'s> {
                     self.pos += 1;
                     break;
                 }
+                _ if self.list_interrupted(TokenKind::RParen) => break,
                 _ => {}
             }
             let start = self.pos;
+            let span_start = self.here();
             let key = if self.at(TokenKind::Ident) && self.kind(1) == Some(TokenKind::Colon) {
                 let key = self.ident("a name");
                 self.pos += 1;
@@ -412,12 +565,17 @@ impl<'s> Parser<'s> {
                 None
             };
             if let Some(value) = self.value() {
-                out.push(Arg { key, value });
+                out.push(Arg {
+                    key,
+                    value,
+                    span: span_start.to(self.last_end()),
+                });
             }
             if self.pos == start {
                 self.skip_group();
             }
         }
+        self.leave();
         out
     }
 
@@ -427,7 +585,12 @@ impl<'s> Parser<'s> {
             Some(TokenKind::Number) => Some(Value::Number(self.number("a number"))),
             Some(TokenKind::Ident) => Some(Value::Ident(self.ident("a name"))),
             Some(TokenKind::LBracket) => {
-                let start = self.bump().expect("checked").span;
+                let start = self.here();
+                if !self.enter() {
+                    self.skip_group();
+                    return None;
+                }
+                self.pos += 1;
                 let mut items = Vec::new();
                 loop {
                     self.skip_separators();
@@ -440,6 +603,7 @@ impl<'s> Parser<'s> {
                             self.pos += 1;
                             break;
                         }
+                        _ if self.list_interrupted(TokenKind::RBracket) => break,
                         _ => {}
                     }
                     let before = self.pos;
@@ -450,11 +614,13 @@ impl<'s> Parser<'s> {
                         self.skip_group();
                     }
                 }
+                self.leave();
                 Some(Value::List(items, start.to(self.last_end())))
             }
             Some(TokenKind::LBrace) => {
                 let start = self.here();
                 let fields = self.braced(|p| {
+                    let field_start = p.here();
                     let key = match p.kind(0) {
                         Some(TokenKind::Ident) => Key::Name(p.ident("a field name")),
                         Some(TokenKind::String) => Key::Text(p.string("a field name")),
@@ -465,7 +631,11 @@ impl<'s> Parser<'s> {
                     };
                     p.expect(TokenKind::Colon);
                     let value = p.value()?;
-                    Some(Field { key, value })
+                    Some(Field {
+                        key,
+                        value,
+                        span: field_start.to(p.last_end()),
+                    })
                 });
                 Some(Value::Object(fields, start.to(self.last_end())))
             }
@@ -483,7 +653,11 @@ impl<'s> Parser<'s> {
         } else {
             Vec::new()
         };
-        TypeRef { name, constraints }
+        TypeRef {
+            span: name.span.to(self.last_end()),
+            name,
+            constraints,
+        }
     }
 
     fn constraints(&mut self) -> Vec<Constraint> {
@@ -543,6 +717,7 @@ impl<'s> Parser<'s> {
                     self.pos += 1;
                     break;
                 }
+                _ if self.list_interrupted(TokenKind::RBracket) => break,
                 Some(TokenKind::Ident) => out.push(self.ident("a name")),
                 _ => {
                     self.expected("a name");
@@ -574,13 +749,20 @@ impl<'s> Parser<'s> {
                 break;
             }
             let start = self.pos;
-            if let Some(item) = self.item() {
-                items.push(item);
-            }
-            if self.pos == start {
-                self.recover_item();
+            match self.item() {
+                Some(item) => {
+                    items.push(item);
+                    if self.pos == start {
+                        self.recover_item();
+                    }
+                }
+                // A failed item reported its problem, possibly after
+                // consuming annotations; skip past it so the same token is
+                // not reported again.
+                None => self.recover_item(),
             }
         }
+        self.report_orphan_docs();
         File { items }
     }
 
@@ -589,7 +771,7 @@ impl<'s> Parser<'s> {
         let mut depth = 0usize;
         let mut first = true;
         while let Some(kind) = self.kind(0) {
-            if !first && depth == 0 && self.at_declaration_start() {
+            if !first && depth == 0 && self.declaration_ahead() {
                 break;
             }
             first = false;
@@ -616,7 +798,7 @@ impl<'s> Parser<'s> {
     }
 
     fn item(&mut self) -> Option<Item> {
-        let doc = self.doc();
+        let doc = self.take_doc();
         let start = self.here();
         let annotations = self.annotations();
         let modifiers = self.modifiers();
@@ -625,6 +807,20 @@ impl<'s> Parser<'s> {
             return None;
         }
         let keyword = self.text(0);
+        // A declaration keyword with no name after it (`error: string` at the
+        // top level) is one problem; skip it rather than parse a hollow shell.
+        let named = match keyword {
+            "migration" => self.kind(1) == Some(TokenKind::String),
+            word if DECLARATIONS.contains(&word) || SCALARS.contains(&word) => {
+                self.kind(1) == Some(TokenKind::Ident)
+            }
+            _ => true,
+        };
+        if !named {
+            self.pos += 1;
+            self.expected(&format!("a name after `{keyword}`"));
+            return None;
+        }
         let decl = match keyword {
             "service" => {
                 self.pos += 1;
@@ -646,7 +842,7 @@ impl<'s> Parser<'s> {
                 self.pos += 1;
                 let name = self.ident("a structure name");
                 let resource = self.eat_word("for").then(|| self.ident("a resource name"));
-                let members = self.braced(Self::member);
+                let members = self.braced(Self::typed_member);
                 Decl::Structure(Structure {
                     name,
                     resource,
@@ -764,7 +960,7 @@ impl<'s> Parser<'s> {
     }
 
     fn clause(&mut self) -> Option<Clause> {
-        let doc = self.doc();
+        let doc = self.take_doc();
         if !self.at(TokenKind::Ident) {
             self.expected("a clause such as `version` or `operations`");
             return None;
@@ -798,7 +994,7 @@ impl<'s> Parser<'s> {
             .eat_word("in")
             .then(|| self.ident("the parent resource"));
         let entries = self.braced(|p| {
-            let doc = p.doc();
+            let doc = p.take_doc();
             let start = p.here();
             let annotations = p.annotations();
             let kind = if p.eat_word("id") {
@@ -831,7 +1027,10 @@ impl<'s> Parser<'s> {
     fn operation(&mut self) -> Operation {
         self.pos += 1;
         let name = self.ident("an operation name");
-        let attachment = if self.at(TokenKind::Ident) && ROLES.contains(&self.text(0)) {
+        // Any word here is a role, so a misspelt one (`reeds`) is reported by
+        // lowering as an unknown role rather than as a missing `{`.
+        let attachment = if self.at(TokenKind::Ident) {
+            let start = self.here();
             let role = self.ident("a role");
             let resource = self.ident("a resource name");
             let collection = self.eat_word("collection");
@@ -839,6 +1038,7 @@ impl<'s> Parser<'s> {
                 role,
                 resource,
                 collection,
+                span: start.to(self.last_end()),
             })
         } else {
             None
@@ -852,6 +1052,8 @@ impl<'s> Parser<'s> {
     }
 
     fn op_entry(&mut self) -> Option<OpEntry> {
+        // Only examples and bodies keep documentation; a doc comment on any
+        // other entry is reported as documenting nothing.
         let doc = self.doc();
         let start = self.here();
         if self.at_word("http") && self.kind(1) == Some(TokenKind::Ident) {
@@ -874,9 +1076,10 @@ impl<'s> Parser<'s> {
             return Some(OpEntry::Errors(errors, start.to(self.last_end())));
         }
         if self.at_word("example") && self.kind(1) == Some(TokenKind::String) {
+            let doc = self.take_doc();
             self.pos += 1;
             let title = self.string("a title");
-            let parts = self.braced(|p| {
+            let parts = self.braced_in(false, |p| {
                 if p.eat_word("input") {
                     p.value().map(ExamplePart::Input)
                 } else if p.eat_word("output") {
@@ -914,8 +1117,12 @@ impl<'s> Parser<'s> {
             self.expected("`http`, `input`, `output`, `errors`, `example` or a clause");
             return None;
         };
-        let members = self.braced(Self::member);
+        if let Some(doc) = &doc {
+            self.docs_used.push(doc.span);
+        }
+        let members = self.braced(Self::typed_member);
         Some(OpEntry::Body(Body {
+            doc,
             modifiers,
             kind,
             members,
@@ -925,10 +1132,22 @@ impl<'s> Parser<'s> {
 
     // ---- members -----------------------------------------------------------
 
+    /// A member of a structure, an operation body or an error, which needs a
+    /// type: `name string` is reported as a missing `:`.
+    fn typed_member(&mut self) -> Option<Member> {
+        self.member_in(true)
+    }
+
+    /// A union arm, which may have no type.
     fn member(&mut self) -> Option<Member> {
-        let doc = self.doc();
+        self.member_in(false)
+    }
+
+    fn member_in(&mut self, typed: bool) -> Option<Member> {
+        let doc = self.take_doc();
         let start = self.here();
         let annotations = self.annotations();
+        let modifiers = self.modifiers();
         let kind = if self.at_word("include") && self.kind(1) == Some(TokenKind::Ident) {
             self.pos += 1;
             MemberKind::Include(self.ident("a structure name"))
@@ -944,7 +1163,14 @@ impl<'s> Parser<'s> {
         } else if self.at(TokenKind::Ident) {
             let name = self.ident("a member name");
             let optional = self.eat(TokenKind::Question);
-            let ty = self.eat(TokenKind::Colon).then(|| self.type_ref("a type"));
+            let ty = if self.eat(TokenKind::Colon) {
+                Some(self.type_ref("a type"))
+            } else if typed && self.at(TokenKind::Ident) && !self.declaration_ahead() {
+                self.expected("`:` between the member name and its type");
+                Some(self.type_ref("a type"))
+            } else {
+                None
+            };
             let default = if self.eat(TokenKind::Eq) {
                 self.value()
             } else {
@@ -963,6 +1189,7 @@ impl<'s> Parser<'s> {
         Some(Member {
             doc,
             annotations,
+            modifiers,
             kind,
             span: start.to(self.last_end()),
         })
@@ -983,13 +1210,14 @@ impl<'s> Parser<'s> {
                 span: start.to(self.last_end()),
             });
         }
-        self.member().map(ErrorEntry::Member)
+        self.typed_member().map(ErrorEntry::Member)
     }
 
     fn enum_value(&mut self) -> Option<EnumValue> {
-        let doc = self.doc();
+        let doc = self.take_doc();
         let start = self.here();
         let annotations = self.annotations();
+        let modifiers = self.modifiers();
         if !self.at(TokenKind::Ident) {
             self.expected("an enum value");
             return None;
@@ -1003,6 +1231,7 @@ impl<'s> Parser<'s> {
         Some(EnumValue {
             doc,
             annotations,
+            modifiers,
             name,
             value,
             span: start.to(self.last_end()),
@@ -1017,6 +1246,16 @@ impl<'s> Parser<'s> {
         self.expect_word("on");
         let mut targets = Vec::new();
         loop {
+            // A declaration here means the targets are missing; leave it.
+            // Target words are also declaration keywords, so only an
+            // unambiguous head counts: `structure X {`, not `operation` then
+            // the next line's `metadata k`. `enum value` is a target, not an
+            // enum named `value`.
+            let enum_value = self.at_word("enum") && self.at_word_ahead(1, "value");
+            if !enum_value && self.declaration_ahead() && self.kind(2) != Some(TokenKind::Ident) {
+                self.expected("a target such as `operation` or `member`");
+                break;
+            }
             let first = self.ident("a target such as `operation` or `member`");
             let mut target = vec![first];
             if target[0].name == "enum" && self.at_word("value") {
@@ -1064,7 +1303,8 @@ impl<'s> Parser<'s> {
         self.pos += 1;
         let name = self.ident("a rule name");
         let mut flags = Vec::new();
-        while self.at(TokenKind::Ident) {
+        // Flags end at the body, or at a declaration when the body is missing.
+        while self.at(TokenKind::Ident) && !self.declaration_ahead() {
             flags.push(self.ident("`strict`, `exceptable` or `advice`"));
         }
         let clauses = self.braced(Self::rule_clause);
@@ -1139,23 +1379,53 @@ impl<'s> Parser<'s> {
     }
 
     fn not_expr(&mut self) -> Expr {
-        let start = self.here();
-        if self.eat_word("not") {
-            let inner = self.not_expr();
-            let span = start.to(inner.span);
-            return Expr {
-                kind: ExprKind::Not(Box::new(inner)),
+        // Iterative, and bounded like brackets: thousands of `not`s would
+        // otherwise recurse on parsing and again on dropping the tree.
+        let mut starts = Vec::new();
+        while self.at_word("not") {
+            if starts.len() == MAX_DEPTH {
+                self.error(
+                    self.here(),
+                    format!("more than {MAX_DEPTH} `not`s in a row"),
+                );
+                while self.eat_word("not") {}
+                break;
+            }
+            starts.push(self.here());
+            self.pos += 1;
+        }
+        let mut expr = self.atom();
+        while let Some(start) = starts.pop() {
+            let span = start.to(expr.span);
+            expr = Expr {
+                kind: ExprKind::Not(Box::new(expr)),
                 span,
             };
         }
-        self.atom()
+        expr
     }
 
     fn atom(&mut self) -> Expr {
         let start = self.here();
-        if self.eat(TokenKind::LParen) {
+        if self.at(TokenKind::LParen) {
+            if !self.enter() {
+                self.skip_group();
+                return Expr {
+                    kind: ExprKind::Flag(Path {
+                        head: Ref {
+                            metadata: false,
+                            name: Ident::missing(start),
+                        },
+                        rest: Vec::new(),
+                        span: start,
+                    }),
+                    span: start.to(self.last_end()),
+                };
+            }
+            self.pos += 1;
             let inner = self.expr();
             self.expect(TokenKind::RParen);
+            self.leave();
             return Expr {
                 kind: inner.kind,
                 span: start.to(self.last_end()),
@@ -1215,14 +1485,10 @@ impl<'s> Parser<'s> {
             while self.at(TokenKind::Ident) && !RULE_WORDS.contains(&self.text(0)) {
                 words.push(self.ident("a kind"));
             }
-            match words.len() {
-                0 => {
-                    self.expected("a kind after `is`");
-                    Operand::Words(words)
-                }
-                1 => Operand::Value(Value::Ident(words.remove(0))),
-                _ => Operand::Words(words),
+            if words.is_empty() {
+                self.expected("a kind after `is`");
             }
+            Operand::Words(words)
         } else {
             match self.value() {
                 Some(value) => Operand::Value(value),
@@ -1280,7 +1546,7 @@ impl<'s> Parser<'s> {
     }
 
     fn step(&mut self) -> Option<Step> {
-        let doc = self.doc();
+        let doc = self.take_doc();
         let start = self.here();
         if !self.at(TokenKind::Ident) {
             self.expected("a migration step such as `rename` or `require`");

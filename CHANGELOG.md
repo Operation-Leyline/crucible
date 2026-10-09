@@ -117,6 +117,29 @@ version's section when it is prepared.
 
 ### Changed
 
+- Smithy lowering refuses more models that HTTP cannot carry, through rules
+  now shared with the `.cru` front end (`crucible_smithy::validate`): a body
+  on a HEAD, 204 or 304 response; framing and hop-by-hop headers (`Host`,
+  `Content-Length`, `Transfer-Encoding` and the like) and `Authorization`
+  under bearer auth as modelled headers; header names that are not HTTP
+  tokens; an operation that lists the same error twice. Pagination members
+  must have the right types (`items` a list or map, `pageSize` an integer),
+  and pagination paths must be identifiers. Several existing messages are
+  reworded.
+- `ir::EnumValue` and `ir::IntEnumValue` carry their own `traits`, so
+  metadata on a single enum value reaches generators.
+  `ir::Service::project_metadata_only` keeps only project metadata in every
+  raw `traits` map.
+- `crucible-lang`: diagnostics have a severity. Warnings (a plain member that
+  shadows a resource entry, an operation on a resource the service does not
+  reach, a member constraint that loosens its type's, a dangling `[Name]`
+  doc link, an orphan `///`) never withhold the IR. The compiler now checks
+  roles and resources (decisions 31 to 33), binding placement, idempotency
+  tokens, defaults, constraint applicability, map keys, metadata declarations and values, and duplicate
+  clauses, and reports problems at the member or name they concern. The
+  parser recovers from unclosed brackets and deep nesting without layout
+  rules. `[model.dependencies]` and `[model.baseline]` are reported as not
+  supported yet.
 - The server serves HTTP on hyper directly and dispatches with fewer
   allocations; `Crucible` implements `tower::Service`, `into_router()` still
   returns an Axum `Router`, and `host::http_on_until` accepts a caller's
