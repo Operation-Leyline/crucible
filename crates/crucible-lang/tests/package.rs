@@ -95,14 +95,27 @@ fn imports_must_be_known_and_names_must_not_collide() {
         "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.nothing\"]\n",
         &[("service.cru", SERVICE)],
     );
-    let compiled = compile(&load_package(&dir).unwrap(), None);
+    // Loading refuses it, as the editor's manifest check does.
+    let error = load_package(&dir).unwrap_err();
     assert!(
-        compiled
-            .render()
-            .contains("unknown import `crucible.nothing`"),
-        "{}",
-        compiled.render()
+        error.contains("unknown import `crucible.nothing`"),
+        "{error}"
     );
+    // Compiled directly, the bad import does not hide the package's own problems.
+    let mut package = crucible_lang::Package::new(
+        "example.shop",
+        vec![crucible_lang::SourceFile {
+            path: "service.cru".into(),
+            text: format!("{SERVICE}\nstructure Extra {{ a: Missing }}\n"),
+        }],
+    );
+    package.imports = vec!["crucible.nothing".into()];
+    let rendered = compile(&package, None).render();
+    assert!(
+        rendered.contains("unknown import `crucible.nothing`"),
+        "{rendered}"
+    );
+    assert!(rendered.contains("unknown type `Missing`"), "{rendered}");
 
     let dir = package_dir(
         "collision",
@@ -230,4 +243,56 @@ fn a_directory_symlink_loop_is_not_followed() {
     std::os::unix::fs::symlink(&dir, dir.join("loop")).unwrap();
     let package = load_package(&dir).unwrap();
     assert_eq!(package.files.len(), 1);
+}
+
+#[test]
+fn the_manifest_checks_cover_language_naming_and_namespaces() {
+    let dir = package_dir("manifest-more", "", &[("model/a.cru", "")]);
+    let messages = |text: &str| -> Vec<String> {
+        check_manifest(&dir, text)
+            .into_iter()
+            .map(|d| d.message)
+            .collect()
+    };
+    assert!(messages("[model]\nnamespace = \"smithy.api\"\n")[0].contains("reserved"));
+    assert!(messages("[model]\nnamespace = \"crucible.errors\"\n")[0].contains("reserved"));
+    assert!(
+        messages("[model]\nnamespace = \"a\"\nlanguage = 999\n")[0].contains("language version 1")
+    );
+    assert!(messages("[model]\nnamespace = \"a\"\nlanguage = 1\n").is_empty());
+    let same = messages(
+        "[model]\nnamespace = \"a\"\n[model.naming]\ninput = \"{Operation}Body\"\noutput = \"{Operation}Body\"\n",
+    );
+    assert!(same[0].contains("must differ"), "{same:?}");
+    let spaced =
+        messages("[model]\nnamespace = \"a\"\n[model.naming]\ninput = \"{Operation}-in put\"\n");
+    assert!(spaced[0].contains("make a name"), "{spaced:?}");
+    let drive = messages("[model]\nnamespace = \"a\"\nsources = [\"C:foo\"]\n");
+    assert!(!drive.is_empty() || !cfg!(windows), "{drive:?}");
+}
+
+#[test]
+fn a_syntax_error_in_one_file_does_not_hide_another_files_problems() {
+    let package = crucible_lang::Package::new(
+        "example.shop",
+        vec![
+            crucible_lang::SourceFile {
+                path: "a.cru".into(),
+                text: "structure A {\n    a: = \n}\n".into(),
+            },
+            crucible_lang::SourceFile {
+                path: "b.cru".into(),
+                text: format!("{SERVICE}\nstructure B {{ b: Missing }}\n"),
+            },
+        ],
+    );
+    let rendered = compile(&package, None).render();
+    assert!(rendered.contains("a.cru"), "{rendered}");
+    assert!(rendered.contains("unknown type `Missing`"), "{rendered}");
+}
+
+#[test]
+fn a_bad_namespace_is_reported_when_compiling() {
+    let rendered = compile(&crucible_lang::Package::new("smithy.api", vec![]), None).render();
+    assert!(rendered.contains("reserved"), "{rendered}");
 }

@@ -42,6 +42,24 @@ pub fn load_package(dir: &Path) -> Result<Package, String> {
 /// unsaved changes to it does.
 pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, String> {
     let manifest = dir.join("crucible.toml");
+    // The build and the editor apply the same checks, so a manifest the
+    // editor marks wrong never builds.
+    let problems = check_manifest(dir, text);
+    if !problems.is_empty() {
+        let lines = crate::span::LineIndex::new(text);
+        let rendered: Vec<String> = problems
+            .iter()
+            .map(|problem| {
+                let (line, column) = lines.line_col(text, problem.span.start);
+                format!(
+                    "{}:{line}:{column}: {}",
+                    manifest.display(),
+                    problem.message
+                )
+            })
+            .collect();
+        return Err(rendered.join("\n"));
+    }
     let table: toml::Table = text
         .parse()
         .map_err(|error| format!("{}: {error}", manifest.display()))?;
@@ -138,6 +156,14 @@ fn escapes(source: &str) -> Option<&'static str> {
     if path.is_absolute() || path.has_root() {
         return Some("must be a path relative to the package directory");
     }
+    // `C:foo` on Windows is neither absolute nor rooted, but its prefix
+    // makes `join` replace the package directory.
+    if path
+        .components()
+        .any(|component| matches!(component, std::path::Component::Prefix(_)))
+    {
+        return Some("must be a path relative to the package directory");
+    }
     path.components()
         .any(|component| matches!(component, std::path::Component::ParentDir))
         .then_some("must stay inside the package directory")
@@ -178,9 +204,8 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
         sources: Option<Vec<toml::Spanned<String>>>,
         imports: Option<Vec<toml::Spanned<String>>>,
         naming: Option<NamingTable>,
-        // Reserved for the language version; accepted so manifests can pin it.
-        #[allow(dead_code)]
-        language: Option<toml::Value>,
+        /// The language version the package is written in (decision 6).
+        language: Option<toml::Spanned<toml::Value>>,
     }
     #[derive(serde::Deserialize)]
     #[serde(deny_unknown_fields)]
@@ -208,17 +233,18 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
             "[model] must name the package namespace: namespace = \"example.service\"",
         )),
         Some(namespace) => {
-            let valid = namespace.get_ref().split('.').all(|part| {
-                part.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
-                    && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-            });
-            if !valid {
-                out.push(Diagnostic::new(
-                    span(namespace.span()),
-                    "a namespace is dot-separated identifiers, such as `example.service`",
-                ));
+            if let Some(problem) = crate::compile::namespace_problem(namespace.get_ref()) {
+                out.push(Diagnostic::new(span(namespace.span()), problem));
             }
         }
+    }
+    if let Some(language) = &model.language
+        && language.get_ref().as_integer() != Some(1)
+    {
+        out.push(Diagnostic::new(
+            span(language.span()),
+            "this compiler reads language version 1: language = 1",
+        ));
     }
     let sources = model.sources.unwrap_or_default();
     for source in &sources {
@@ -257,13 +283,41 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
         }
     }
     if let Some(naming) = model.naming {
-        for pattern in [naming.input, naming.output].into_iter().flatten() {
+        for pattern in [&naming.input, &naming.output].into_iter().flatten() {
+            let name = pattern.get_ref().replace("{Operation}", "Op");
+            let identifier = name.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
             if !pattern.get_ref().contains("{Operation}") {
                 out.push(Diagnostic::new(
                     span(pattern.span()),
                     "a naming pattern must contain {Operation}, such as \"{Operation}Input\"",
                 ));
+            } else if !identifier {
+                out.push(Diagnostic::new(
+                    span(pattern.span()),
+                    "a naming pattern must make a name: letters, digits and `_` around {Operation}",
+                ));
             }
+        }
+        // Equal patterns would give an operation's input and output one name.
+        let input = naming
+            .input
+            .as_ref()
+            .map_or("{Operation}Input", |p| p.get_ref().as_str());
+        let output = naming
+            .output
+            .as_ref()
+            .map_or("{Operation}Output", |p| p.get_ref().as_str());
+        if input == output {
+            let at = naming
+                .output
+                .as_ref()
+                .or(naming.input.as_ref())
+                .map_or(header, |p| span(p.span()));
+            out.push(Diagnostic::new(
+                at,
+                "the input and output naming patterns must differ, or both bodies get one name",
+            ));
         }
     }
     out

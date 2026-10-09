@@ -44,12 +44,19 @@ pub(crate) fn lower(
         ));
     }
     let compiled = crucible_lang::compile(&package, service.map(ShapeId::name));
+    let rendered = compiled.render();
     match compiled.service {
-        Some(service) if compiled.diagnostics.is_empty() => Ok(service),
-        _ => Err(format!(
+        Some(service) => {
+            // Warnings do not fail the build; Cargo shows each one.
+            for line in rendered.lines().filter(|line| line.contains(": warning: ")) {
+                println!("cargo::warning={line}");
+            }
+            Ok(service)
+        }
+        None => Err(format!(
             "{} does not compile:\n{}",
             path.display(),
-            compiled.render()
+            rendered
         )),
     }
 }

@@ -436,16 +436,19 @@ impl Server {
         for item in &unit.compiled.diagnostics {
             let diagnostic = &item.diagnostic;
             match item.file {
-                Some(file) if Some(file) == own_index => out.push(error(
+                Some(file) if Some(file) == own_index => out.push(at_severity(
                     lines.range(diagnostic.span.start, diagnostic.span.end),
                     diagnostic.message.clone(),
+                    diagnostic.severity,
                 )),
                 // A problem in another file of the package (an import
                 // included) still fails the build: show where it is, unless
                 // that file is open and shows it itself.
                 Some(file) => {
                     let other = &unit.compiled.files[file];
-                    if file < unit.own && self.is_open(&other.path) {
+                    // Only errors elsewhere fail the build; warnings show in
+                    // their own file when it is open.
+                    if !diagnostic.is_error() || (file < unit.own && self.is_open(&other.path)) {
                         continue;
                     }
                     let (line, column) = crucible_lang::LineIndex::new(&other.text)
@@ -461,7 +464,11 @@ impl Server {
                     ));
                 }
                 None if unit.standalone => {}
-                None => out.push(error(top, diagnostic.message.clone())),
+                None => out.push(at_severity(
+                    top,
+                    diagnostic.message.clone(),
+                    diagnostic.severity,
+                )),
             }
         }
         out
@@ -478,9 +485,10 @@ impl Server {
         check_manifest(dir, &document.text)
             .into_iter()
             .map(|diagnostic| {
-                error(
+                at_severity(
                     lines.range(diagnostic.span.start, diagnostic.span.end),
                     diagnostic.message,
+                    diagnostic.severity,
                 )
             })
             .collect()
@@ -950,6 +958,16 @@ impl Server {
             }));
         }
         Some(out)
+    }
+}
+
+fn at_severity(range: Range, message: String, severity: crucible_lang::Severity) -> Diagnostic {
+    Diagnostic {
+        severity: Some(match severity {
+            crucible_lang::Severity::Error => DiagnosticSeverity::ERROR,
+            crucible_lang::Severity::Warning => DiagnosticSeverity::WARNING,
+        }),
+        ..error(range, message)
     }
 }
 
