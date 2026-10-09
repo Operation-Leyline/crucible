@@ -152,6 +152,56 @@ impl Service {
     ) -> Result<(), crate::Diagnostics> {
         capabilities.check(&self.requirements)
     }
+    /// Keeps only project metadata in every raw `traits` map, dropping
+    /// Smithy's and Crucible's own traits, which the IR already carries as
+    /// typed fields (decision 43). The `.cru` front end emits IR this way.
+    pub fn project_metadata_only(&mut self) {
+        let standard = |id: &ShapeId| {
+            id.is_prelude()
+                || id.namespace().starts_with("aws.")
+                || id.namespace() == "crucible.protocols"
+                || id.namespace() == "smithy.test"
+        };
+        let strip = |traits: &mut Traits| traits.retain(|id, _| !standard(id));
+        strip(&mut self.traits);
+        for operation in &mut self.operations {
+            strip(&mut operation.traits);
+        }
+        for shape in self.shapes.values_mut() {
+            match shape {
+                Shape::Unit { .. } => {}
+                Shape::Simple(s) => strip(&mut s.traits),
+                Shape::Enum(s) => {
+                    strip(&mut s.traits);
+                    for value in &mut s.values {
+                        strip(&mut value.traits);
+                    }
+                }
+                Shape::IntEnum(s) => {
+                    strip(&mut s.traits);
+                    for value in &mut s.values {
+                        strip(&mut value.traits);
+                    }
+                }
+                Shape::List(s) => {
+                    strip(&mut s.traits);
+                    strip(&mut s.member.traits);
+                }
+                Shape::Map(s) => {
+                    strip(&mut s.traits);
+                    strip(&mut s.key.traits);
+                    strip(&mut s.value.traits);
+                }
+                Shape::Structure(s) | Shape::Union(s) => {
+                    strip(&mut s.traits);
+                    for member in &mut s.members {
+                        strip(&mut member.traits);
+                    }
+                }
+            }
+        }
+    }
+
     /// Whether `scheme`, one of the service's auth scheme ids, is bearer auth.
     pub fn is_bearer(&self, scheme: &ShapeId) -> bool {
         matches!(self.auth_schemes.get(scheme), Some(AuthScheme::Bearer))
@@ -330,6 +380,8 @@ pub struct EnumValue {
     pub docs: Option<String>,
     /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
     pub notes: DocNotes,
+    /// The value's own traits, such as project metadata on one enum value.
+    pub traits: Traits,
 }
 
 #[derive(Debug, Clone)]
@@ -354,6 +406,8 @@ pub struct IntEnumValue {
     pub docs: Option<String>,
     /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
     pub notes: DocNotes,
+    /// The value's own traits, such as project metadata on one enum value.
+    pub traits: Traits,
 }
 
 #[derive(Debug, Clone)]

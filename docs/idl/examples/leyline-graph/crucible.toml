@@ -5,8 +5,10 @@ namespace = "com.leylinedb"
 language = 1
 sources = ["model", "policy"]
 # org.standards brings its rules, templates and shared shapes. Leyline can add
-# rules in policy/ but cannot remove or weaken these (decision 47).
-imports = ["crucible.errors", "org.standards"]
+# rules in policy/ but cannot remove or weaken these (decision 47). Leyline
+# declares its own ValidationException, with more reasons than the bundled
+# crucible.errors one, so it does not import that package.
+imports = ["org.standards"]
 
 # The dependency entry pins the version (decision 60).
 [model.dependencies]

@@ -178,7 +178,7 @@ fn malformed_event_streams_are_diagnostics_against_their_shapes() {
             }),
         ),
         (
-            "bind this member to a label, query parameter or header",
+            "to a label, query parameter or header",
             Box::new(|model| {
                 model["shapes"]["example.events#ChatInput"]["members"]["topic"] =
                     json!({"target": "smithy.api#String"});

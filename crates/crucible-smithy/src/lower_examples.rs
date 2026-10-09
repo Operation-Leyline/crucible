@@ -45,8 +45,6 @@ impl Lowerer<'_> {
         &mut self,
         id: &ShapeId,
         operation: &ast::Shape,
-        input: Option<&ShapeId>,
-        output: Option<&ShapeId>,
         errors: &[ShapeId],
     ) -> Vec<Example> {
         let Some(value) = operation
@@ -69,44 +67,25 @@ impl Lowerer<'_> {
                     continue;
                 }
             };
-            let mut check = Check {
-                shapes: &self.shapes,
-                allow_constraint_errors: entry.allow_constraint_errors,
-                problems: Vec::new(),
-            };
-            // An omitted input is an empty one, so required members are still
-            // demanded of it.
-            let empty = empty_object();
-            check.io("input", input, entry.input.as_ref().unwrap_or(&empty));
-            if let Some(output_value) = &entry.output {
-                check.io("output", output, output_value);
-            }
+            // Values are checked against the lowered shapes by
+            // crate::validate, shared with the .cru front end.
             let mut error = None;
             if let Some(entry_error) = &entry.error {
-                if entry.output.is_some() {
-                    check
-                        .problems
-                        .push("an example cannot have both output and error".into());
-                }
                 match entry_error.shape_id.parse::<ShapeId>() {
                     Ok(shape) if errors.contains(&shape) => {
-                        check.io("error.content", Some(&shape), &entry_error.content);
                         error = Some(ExampleError {
                             shape,
                             content: entry_error.content.clone(),
                         });
                     }
-                    _ => check.problems.push(format!(
-                        "error.shapeId {:?} is not an error of this operation",
-                        entry_error.shape_id
-                    )),
+                    _ => self.diagnostics.push(
+                        id,
+                        format!(
+                            "@examples[{index}] {:?}: error.shapeId {:?} is not an error of this operation",
+                            entry.title, entry_error.shape_id
+                        ),
+                    ),
                 }
-            }
-            for problem in check.problems {
-                self.diagnostics.push(
-                    id,
-                    format!("@examples[{index}] {:?}: {problem}", entry.title),
-                );
             }
             examples.push(Example {
                 title: entry.title,
@@ -121,15 +100,16 @@ impl Lowerer<'_> {
     }
 }
 
-struct Check<'a> {
-    shapes: &'a BTreeMap<ShapeId, Shape>,
-    allow_constraint_errors: bool,
-    problems: Vec<String>,
+/// Checks model values against lowered shapes: examples and defaults.
+pub(crate) struct Check<'a> {
+    pub(crate) shapes: &'a BTreeMap<ShapeId, Shape>,
+    pub(crate) allow_constraint_errors: bool,
+    pub(crate) problems: Vec<String>,
 }
 
 impl Check<'_> {
     /// An operation's input, output or error, where no shape means Unit.
-    fn io(&mut self, path: &str, shape: Option<&ShapeId>, value: &Value) {
+    pub(crate) fn io(&mut self, path: &str, shape: Option<&ShapeId>, value: &Value) {
         let Value::Object(members) = value else {
             self.problems
                 .push(format!("{path} must be an object, not {}", kind(value)));
@@ -175,7 +155,13 @@ impl Check<'_> {
         self.value(path, &member.target, &member.constraints, value);
     }
 
-    fn value(&mut self, path: &str, target: &ShapeId, constraints: &Constraints, value: &Value) {
+    pub(crate) fn value(
+        &mut self,
+        path: &str,
+        target: &ShapeId,
+        constraints: &Constraints,
+        value: &Value,
+    ) {
         let Some(shape) = self.shapes.get(target) else {
             return;
         };

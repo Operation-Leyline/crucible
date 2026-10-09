@@ -182,6 +182,12 @@ fn client_symbols_head_bodies_and_package_options_are_diagnosed() {
     model["shapes"]["test#Get"]["input"] = json!({"target":"test#Root"});
     model["shapes"]["test#Get"]["traits"]["smithy.api#http"]["method"] = json!("HEAD");
     model["shapes"]["test#Root"]["members"] = json!({"body":{"target":"smithy.api#String"}});
+    // A HEAD response has no body either, which lowering already refuses;
+    // drop the output so only the generator's request-body check is left.
+    model["shapes"]["test#Get"]
+        .as_object_mut()
+        .unwrap()
+        .remove("output");
     assert!(emit(&lower(&model), &options()).is_err());
     for value in ["", "1..2", "1.2.3.4.5", "1.0-beta", "1\n0"] {
         let mut config = options();

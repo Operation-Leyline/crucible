@@ -206,6 +206,10 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
         naming: Option<NamingTable>,
         /// The language version the package is written in (decision 6).
         language: Option<toml::Spanned<toml::Value>>,
+        /// Decided (decisions 60 and 47d) but not implemented: reported as
+        /// such rather than as unknown keys.
+        dependencies: Option<toml::Spanned<toml::Table>>,
+        baseline: Option<toml::Spanned<toml::Value>>,
     }
     #[derive(serde::Deserialize)]
     #[serde(deny_unknown_fields)]
@@ -263,8 +267,35 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
             ));
         }
     }
+    for (key, at) in [
+        (
+            "dependencies",
+            model.dependencies.as_ref().map(|d| d.span()),
+        ),
+        ("baseline", model.baseline.as_ref().map(|b| b.span())),
+    ] {
+        if let Some(at) = at {
+            out.push(Diagnostic::new(
+                span(at),
+                format!("`[model.{key}]` is not supported by the compiler yet"),
+            ));
+        }
+    }
+    let dependencies: Vec<String> = model
+        .dependencies
+        .as_ref()
+        .map(|d| d.get_ref().keys().cloned().collect())
+        .unwrap_or_default();
     for import in model.imports.unwrap_or_default() {
-        if !crate::compile::BUNDLED
+        if dependencies.contains(import.get_ref()) {
+            out.push(Diagnostic::new(
+                span(import.span()),
+                format!(
+                    "`{}` is a dependency package; importing one is not supported by the compiler yet",
+                    import.get_ref()
+                ),
+            ));
+        } else if !crate::compile::BUNDLED
             .iter()
             .any(|(namespace, _)| namespace == import.get_ref())
         {

@@ -202,3 +202,77 @@ fn migration_steps_parse() {
         crucible_lang::ast::RequireHow::Hook(hook) if hook.is_async
     ));
 }
+
+/// The example packages compile: weather without errors, and the others with only
+/// "not supported yet" diagnostics for what the compiler does not lower yet.
+#[test]
+fn every_example_package_compiles() {
+    for (package, clean) in [
+        ("weather", true),
+        ("standards", false),
+        ("leyline-graph", false),
+    ] {
+        let dir = examples().join(package);
+        let loaded = match crucible_lang::load_package(&dir) {
+            Ok(loaded) => loaded,
+            Err(error) => {
+                // Every manifest problem is one the compiler has decided but not built.
+                assert!(
+                    !clean
+                        && error
+                            .lines()
+                            .filter(|line| !line.trim().is_empty())
+                            .all(|line| line.contains("not supported by the compiler yet")),
+                    "{package}: {error}"
+                );
+                continue;
+            }
+        };
+        let compiled = crucible_lang::compile(&loaded, None);
+        let rendered = compiled.render();
+        if clean {
+            // Weather's one warning is deliberate; see weather_ir.rs.
+            assert!(!compiled.has_errors(), "{package}:\n{rendered}");
+            continue;
+        }
+        for diagnostic in &compiled.diagnostics {
+            let message = &diagnostic.diagnostic.message;
+            assert!(
+                !diagnostic.diagnostic.is_error()
+                    || message.contains("not supported")
+                    || message.contains("declares no service"),
+                "{package}: unexpected {message:?}\n{rendered}"
+            );
+        }
+    }
+}
+
+/// Truncating any example at any point gives diagnostics, never a panic:
+/// an editor compiles every half-typed state.
+#[test]
+fn truncated_examples_never_panic() {
+    let mut files = Vec::new();
+    cru_files(&examples(), &mut files);
+    for path in &files {
+        let source = std::fs::read_to_string(path).expect("readable");
+        let cuts: Vec<usize> = source
+            .char_indices()
+            .map(|(at, _)| at)
+            .step_by(13)
+            .chain([source.len()])
+            .collect();
+        for cut in cuts {
+            let text = &source[..cut];
+            let package = crucible_lang::Package::new(
+                "example.fuzz",
+                vec![crucible_lang::SourceFile {
+                    path: "fuzz.cru".into(),
+                    text: text.to_owned(),
+                }],
+            );
+            let compiled = crucible_lang::compile(&package, None);
+            let _ = compiled.render();
+            let _ = crucible_lang::format(text, &Default::default());
+        }
+    }
+}

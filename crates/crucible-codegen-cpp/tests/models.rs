@@ -147,6 +147,15 @@ fn head_request_bodies_are_diagnosed_before_generation() {
     let mut model = weather();
     model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["method"] =
         "HEAD".into();
+    // A HEAD response has no body either, which lowering already refuses;
+    // drop the output (and its examples) so only the generator's request-body
+    // check is left.
+    let create = &mut model["shapes"]["example.weather#CreateCity"];
+    create.as_object_mut().unwrap().remove("output");
+    create["traits"]
+        .as_object_mut()
+        .unwrap()
+        .remove("smithy.api#examples");
     let diagnostics = emit(&lower(&model), &options())
         .err()
         .expect("diagnostic")

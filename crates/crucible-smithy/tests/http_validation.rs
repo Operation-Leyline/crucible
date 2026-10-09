@@ -76,9 +76,9 @@ fn malformed_http_bindings_collect_all_diagnostics() {
         .to_string();
     for message in [
         "duplicate URI label",
-        "duplicate HTTP header",
-        "duplicate HTTP query",
-        "conflicts with a literal query",
+        "the header",
+        "the query parameter",
+        "is also a literal in the URI",
         "HTTP route conflicts",
         "HTTP method",
         "HTTP status code",

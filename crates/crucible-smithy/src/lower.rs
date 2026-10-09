@@ -174,46 +174,6 @@ impl<'m> Lowerer<'m> {
             }
         }
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
-        if self.protocol.uses_http_bindings() {
-            let mut routes = BTreeMap::new();
-            for operation in &operations {
-                // Label names do not distinguish routes; greediness and literal query values do.
-                let path: Vec<_> = operation
-                    .uri
-                    .segments
-                    .iter()
-                    .map(|segment| match segment {
-                        Segment::Literal(value) => format!("literal:{value}"),
-                        Segment::Label(name) if operation.uri.greedy_labels.contains(name) => {
-                            "greedy".to_owned()
-                        }
-                        Segment::Label(_) => "label".to_owned(),
-                    })
-                    .collect();
-                let mut query = operation.uri.query.clone();
-                query.sort();
-                let host = operation.endpoint.as_ref().map(|endpoint| {
-                    endpoint
-                        .parts
-                        .iter()
-                        .map(|part| match part {
-                            crate::ir::HostPrefixPart::Literal { value } => {
-                                format!("literal:{value}")
-                            }
-                            crate::ir::HostPrefixPart::Label { .. } => "label".to_owned(),
-                        })
-                        .collect::<Vec<_>>()
-                });
-                if let Some(previous) =
-                    routes.insert((&operation.method, host, path, query), &operation.id)
-                {
-                    self.diagnostics.push(
-                        &operation.id,
-                        format!("HTTP route conflicts with {previous}"),
-                    );
-                }
-            }
-        }
         let resources = if infrastructure {
             crate::resources::lower(self.model, shape, &mut self.diagnostics)
         } else if documentation {
@@ -264,30 +224,12 @@ impl<'m> Lowerer<'m> {
             self.diagnostics
                 .push(id, "awsQuery requires service @xmlNamespace");
         }
-        crate::names::check_unique(
-            self.shapes
-                .keys()
-                .filter(|id| !id.is_prelude())
-                .map(|id| (id, shape.rename.get(id).map_or(id.name(), String::as_str))),
-            &mut self.diagnostics,
-        );
         let mut waiter_names = BTreeSet::new();
         for operation in &operations {
             for name in operation.waiters.keys() {
                 if !waiter_names.insert(name.to_ascii_lowercase()) {
                     self.diagnostics.push(&operation.id, format!("waiter name {name} must be case-insensitively unique across the service"));
                 }
-            }
-        }
-        // Client error tables are service-wide and decode by the protocol's wire code.
-        // Renaming a shape changes its API name, not that discriminator.
-        let mut error_codes = BTreeMap::new();
-        for (error_id, error_shape) in &self.shapes {
-            if let Shape::Structure(structure) = error_shape
-                && let Some(error) = &structure.error
-                && let Some(previous) = error_codes.insert(&error.wire_code, error_id)
-            {
-                self.diagnostics.push(error_id, format!("error wire code {:?} collides with {previous}; client error decoding requires service-wide unique wire codes", error.wire_code));
             }
         }
         self.check_stream_references(&operations);
@@ -304,7 +246,7 @@ impl<'m> Lowerer<'m> {
                 &mut self.diagnostics,
             )
         });
-        Service {
+        let service = Service {
             cors,
             internal: shape.traits.contains_key(&smithy("internal")),
             endpoint_discovery,
@@ -341,7 +283,10 @@ impl<'m> Lowerer<'m> {
             shapes: std::mem::take(&mut self.shapes),
             traits: shape.traits.clone(),
             renames: shape.rename.clone(),
-        }
+        };
+        // Rules of the IR itself, shared with the .cru front end.
+        crate::validate::service(&service, &mut self.diagnostics);
+        service
     }
 
     fn check_protocol(&mut self, id: &ShapeId, shape: &ast::Shape) {
@@ -678,7 +623,7 @@ impl<'m> Lowerer<'m> {
                 .map(|(name, _)| name.clone())
         });
         let paginated = self.paginated(id, shape, default_pagination);
-        let examples = self.examples(id, shape, input.as_ref(), output.as_ref(), &errors);
+        let examples = self.examples(id, shape, &errors);
 
         let unsigned_payload = auth
             .iter()
@@ -848,29 +793,15 @@ impl<'m> Lowerer<'m> {
                 }
                 seen_payload = true;
             } else if member.traits.contains_key(&smithy("httpLabel")) {
-                if !member.traits.contains_key(&smithy("required")) {
-                    self.diagnostics
-                        .push(&member_id, "an @httpLabel member must be @required");
-                }
-                self.check_scalar(&member_id, &member.target, "@httpLabel", false);
-                if uri.greedy_labels.contains(name)
-                    && !self
-                        .model
-                        .get(&member.target)
-                        .is_some_and(|s| matches!(s.kind, Kind::String | Kind::Enum))
-                {
-                    self.diagnostics
-                        .push(&member_id, "a greedy URI label must target a string");
-                }
+                // Requiredness and target kinds are checked by crate::validate.
                 bindings.labels.push(name.clone());
             } else if let Some(param) = string_trait(&member.traits, "httpQuery") {
-                self.check_scalar(&member_id, &member.target, "@httpQuery", true);
                 bindings.query.push(Binding {
                     member: name.clone(),
                     name: param,
                 });
             } else if let Some(header) = string_trait(&member.traits, "httpHeader") {
-                self.check_scalar(&member_id, &member.target, "@httpHeader", true);
+                self.header_features(&member_id, &member.target);
                 bindings.headers.push(Binding {
                     member: name.clone(),
                     name: header,
@@ -915,19 +846,6 @@ impl<'m> Lowerer<'m> {
                 "@httpLabel member does not appear in the operation's URI",
             );
         }
-        self.check_binding_names(input, &bindings);
-        for binding in &bindings.query {
-            if uri.query.iter().any(|(name, _)| name == &binding.name) {
-                self.diagnostics.push(
-                    &input.with_member(&binding.member),
-                    format!(
-                        "@httpQuery {:?} conflicts with a literal query parameter",
-                        binding.name
-                    ),
-                );
-            }
-        }
-        self.check_alone(input, &bindings);
         self.check_prefix_headers(input, &bindings);
         self.header_encodings(input, &mut bindings);
         self.binding_timestamp_formats(input, &mut bindings);
@@ -997,12 +915,7 @@ impl<'m> Lowerer<'m> {
             }
             match string_trait(&member.traits, "httpHeader") {
                 Some(header) => {
-                    self.check_scalar(
-                        &output.with_member(name),
-                        &member.target,
-                        "@httpHeader",
-                        true,
-                    );
+                    self.header_features(&output.with_member(name), &member.target);
                     bindings.headers.push(Binding {
                         member: name.clone(),
                         name: header,
@@ -1011,33 +924,10 @@ impl<'m> Lowerer<'m> {
                 None => bindings.body.push(name.clone()),
             }
         }
-        self.check_binding_names(output, &bindings);
-        self.check_alone(output, &bindings);
         self.check_prefix_headers(output, &bindings);
         self.header_encodings(output, &mut bindings);
         self.binding_timestamp_formats(output, &mut bindings);
         bindings
-    }
-
-    fn check_binding_names(&mut self, structure: &ShapeId, bindings: &Bindings) {
-        let mut headers = BTreeSet::new();
-        for binding in &bindings.headers {
-            if !headers.insert(binding.name.to_ascii_lowercase()) {
-                self.diagnostics.push(
-                    &structure.with_member(&binding.member),
-                    format!("duplicate HTTP header {:?}", binding.name),
-                );
-            }
-        }
-        let mut query = BTreeSet::new();
-        for binding in &bindings.query {
-            if !query.insert(&binding.name) {
-                self.diagnostics.push(
-                    &structure.with_member(&binding.member),
-                    format!("duplicate HTTP query parameter {:?}", binding.name),
-                );
-            }
-        }
     }
 
     /// Resolve the representation and content type of the complete HTTP body.
@@ -1088,22 +978,6 @@ impl<'m> Lowerer<'m> {
             member: member_id.member().unwrap_or_default().to_owned(),
             media_type,
         })
-    }
-
-    /// A payload is the whole body: nothing else can travel in it.
-    fn check_alone(&mut self, structure: &ShapeId, bindings: &Bindings) {
-        let Some(payload) = &bindings.payload else {
-            return;
-        };
-        for member in &bindings.body {
-            self.diagnostics.push(
-                &structure.with_member(member),
-                format!(
-                    "the body is the @httpPayload member `{}`; bind this member to a label, query parameter or header",
-                    payload.member
-                ),
-            );
-        }
     }
 
     fn check_prefix_headers(&mut self, structure: &ShapeId, bindings: &Bindings) {
@@ -1218,7 +1092,10 @@ impl<'m> Lowerer<'m> {
         }
     }
 
-    fn check_scalar(&mut self, member: &ShapeId, target: &ShapeId, binding: &str, lists: bool) {
+    /// A header carrying a media-typed string travels base64-encoded, which
+    /// generators must support. What a header may carry at all is checked by
+    /// `crate::validate`.
+    fn header_features(&mut self, member: &ShapeId, target: &ShapeId) {
         let Some(shape) = self.model.get(target) else {
             return;
         };
@@ -1230,40 +1107,13 @@ impl<'m> Lowerer<'m> {
         } else {
             Some(shape)
         };
-        if binding == "@httpHeader"
-            && header_target.is_some_and(|s| {
-                matches!(s.kind, Kind::String | Kind::Enum)
-                    && s.traits.contains_key(&smithy("mediaType"))
-            })
-        {
+        if header_target.is_some_and(|s| {
+            matches!(s.kind, Kind::String | Kind::Enum)
+                && s.traits.contains_key(&smithy("mediaType"))
+        }) {
             self.require(member, Feature::MediaTypeHeaders, smithy("mediaType"));
         }
-        let scalar = |kind: Kind| {
-            !matches!(
-                kind,
-                Kind::Structure
-                    | Kind::Union
-                    | Kind::Map
-                    | Kind::List
-                    | Kind::Set
-                    | Kind::Document
-                    | Kind::Blob
-            )
-        };
-        let ok = match shape.kind {
-            Kind::List if lists => shape
-                .member
-                .as_ref()
-                .and_then(|m| self.model.get(&m.target))
-                .is_some_and(|m| scalar(m.kind)),
-            kind => scalar(kind),
-        };
-        if !ok {
-            self.diagnostics
-                .push(member, format!("{binding} cannot carry {target}"));
-        }
     }
-
     fn paginated(
         &mut self,
         id: &ShapeId,
@@ -1281,70 +1131,25 @@ impl<'m> Lowerer<'m> {
         let output_token = field("outputToken");
         let items = field("items");
         let page_size = field("pageSize");
-        for (name, path, root, nested) in [
-            (
-                "inputToken",
-                input_token.as_deref(),
-                shape.input.as_ref(),
-                false,
-            ),
-            (
-                "outputToken",
-                output_token.as_deref(),
-                shape.output.as_ref(),
-                true,
-            ),
-            ("items", items.as_deref(), shape.output.as_ref(), true),
-            (
-                "pageSize",
-                page_size.as_deref(),
-                shape.input.as_ref(),
-                false,
-            ),
+        // Paths, member types and requiredness are checked by
+        // crate::validate against the lowered shapes.
+        for (name, path) in [
+            ("inputToken", input_token.as_deref()),
+            ("outputToken", output_token.as_deref()),
+            ("items", items.as_deref()),
+            ("pageSize", page_size.as_deref()),
         ] {
-            let Some(path) = path else {
-                if own
+            if path.is_none()
+                && (own
                     .get(name)
                     .or_else(|| default.and_then(|d| d.get(name)))
                     .is_some()
-                    || matches!(name, "inputToken" | "outputToken")
-                {
-                    self.diagnostics.push(
-                        id,
-                        format!("@paginated {name} must be a member name or path"),
-                    );
-                }
-                continue;
-            };
-            let member = root.and_then(|root| self.pagination_member(&root.target, path, nested));
-            let Some(member) = member else {
+                    || matches!(name, "inputToken" | "outputToken"))
+            {
                 self.diagnostics.push(
                     id,
-                    format!(
-                        "@paginated {name} path {path:?} does not resolve to a structure member"
-                    ),
+                    format!("@paginated {name} must be a member name or path"),
                 );
-                continue;
-            };
-            let kind = self.model.get(&member.target).map(|target| target.kind);
-            let required = member.traits.contains_key(&smithy("required"));
-            let valid = match name {
-                "items" => matches!(kind, Some(Kind::List | Kind::Map)),
-                "pageSize" => matches!(
-                    kind,
-                    Some(Kind::Byte | Kind::Short | Kind::Integer | Kind::Long)
-                ),
-                _ => matches!(kind, Some(Kind::String | Kind::Map)),
-            };
-            if !valid {
-                self.diagnostics.push(
-                    id,
-                    format!("@paginated {name} path {path:?} has an invalid target type"),
-                );
-            }
-            if name == "inputToken" && required {
-                self.diagnostics
-                    .push(id, "@paginated inputToken must not be @required");
             }
         }
         Some(Paginated {
@@ -1353,29 +1158,6 @@ impl<'m> Lowerer<'m> {
             items,
             page_size,
         })
-    }
-
-    fn pagination_member(&self, root: &ShapeId, path: &str, nested: bool) -> Option<&ast::Member> {
-        if !nested && path.contains('.') {
-            return None;
-        }
-        let mut target = root;
-        let mut result = None;
-        for name in path.split('.') {
-            if !name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
-                || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-            {
-                return None;
-            }
-            let structure = self.model.get(target)?;
-            if structure.kind != Kind::Structure {
-                return None;
-            }
-            let member = structure.members.get(name)?;
-            target = &member.target;
-            result = Some(member);
-        }
-        result
     }
 
     /// XML has no null element, so a sparse entry could not round-trip.
@@ -1648,6 +1430,7 @@ impl<'m> Lowerer<'m> {
                         .and_then(Value::as_str)
                         .map(str::to_owned),
                     notes: DocNotes::lower_legacy_enum_value(id, definition, &mut self.diagnostics),
+                    traits: Traits::new(),
                 });
             }
         }
@@ -1735,6 +1518,7 @@ impl<'m> Lowerer<'m> {
                             &member.traits,
                             &mut self.diagnostics,
                         ),
+                        traits: member.traits.clone(),
                     })
                     .collect(),
                 docs,
@@ -1765,6 +1549,7 @@ impl<'m> Lowerer<'m> {
                                     &member.traits,
                                     &mut self.diagnostics,
                                 ),
+                                traits: member.traits.clone(),
                             });
                         }
                         None => self.diagnostics.push(&id.with_member(name), "intEnum member must have an integer @enumValue within signed 32-bit range"),

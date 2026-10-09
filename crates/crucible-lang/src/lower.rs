@@ -22,9 +22,9 @@ use serde_json::{Map as JsonMap, Number, Value as Json};
 
 use crate::Parsed;
 use crate::ast::{
-    Annotation, Body, BodyKind, ClauseValue, Constraint, ConstraintValue, Decl, Doc, EnumValue,
-    ErrorEntry, ExamplePart, Ident, Item, Key, Member, MemberKind, MetaType, Metadata, NumLit,
-    OpEntry, Operation, Resource, ResourceEntry, TypeRef, Value,
+    Annotation, Attachment, Body, BodyKind, ClauseValue, Constraint, ConstraintValue, Decl, Doc,
+    EnumValue, ErrorEntry, ExamplePart, Ident, Item, Key, Member, MemberKind, MetaType, Metadata,
+    NumLit, OpEntry, Operation, Resource, ResourceEntry, ResourceEntryKind, TypeRef, Value,
 };
 use crate::compile::{FileDiagnostic, Location, Naming, Package, SourceMap};
 use crate::diagnostic::Diagnostic;
@@ -48,6 +48,7 @@ pub(crate) fn lower(
         protocol: Protocol::CrucibleJson,
         service_name: String::new(),
         shapes: BTreeMap::new(),
+        meta_shapes: BTreeMap::new(),
         visiting: BTreeSet::new(),
         recursive: BTreeSet::new(),
         requirements: BTreeSet::new(),
@@ -55,6 +56,8 @@ pub(crate) fn lower(
         http_outputs: BTreeSet::new(),
     };
     lowerer.collect(parsed, namespaces);
+    lowerer.check_resources();
+    lowerer.check_metadata();
     let service = lowerer.service(service);
     lowerer.report_recursion();
     (service, lowerer.source_map, lowerer.diagnostics)
@@ -87,6 +90,18 @@ struct MemberContext<'a> {
     union: bool,
     /// URI labels, for an operation input: a member of that name binds to it.
     labels: &'a [String],
+    /// Where the members travel, which decides the bindings they may carry.
+    site: Site,
+}
+
+/// What a structure is on the wire.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Site {
+    Input,
+    Output,
+    Error,
+    /// Any other structure or union: nested in a body, so never bound.
+    Nested,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -136,6 +151,9 @@ struct ConstraintInfo {
 const ROLES: &[&str] = &[
     "creates", "puts", "reads", "updates", "deletes", "lists", "on",
 ];
+
+/// The roles a resource's lifecycle has one of each (decision 32).
+const LIFECYCLE: &[&str] = &["creates", "puts", "reads", "updates", "deletes", "lists"];
 
 fn smithy(name: &str) -> ShapeId {
     ShapeId::new("smithy.api", name)
@@ -240,49 +258,6 @@ fn doc_text(doc: Option<&Doc>) -> Option<String> {
     doc.map(|doc| doc.text.clone())
 }
 
-/// Whether a trait id is one of Smithy's or Crucible's own, which the IR
-/// already represents as typed fields.
-fn is_standard_trait(id: &ShapeId) -> bool {
-    id.is_prelude()
-        || id.namespace().starts_with("aws.")
-        || id.namespace() == "crucible.protocols"
-        || id.namespace() == "smithy.test"
-}
-
-/// The IR's raw `traits` maps carry project metadata only (decision 43).
-/// Lowering uses the Smithy-equivalent traits internally, for bindings and
-/// timestamp formats; every typed fact they encode is already on the IR.
-fn project_metadata_only(service: &mut Service) {
-    let strip = |traits: &mut Traits| traits.retain(|id, _| !is_standard_trait(id));
-    strip(&mut service.traits);
-    for operation in &mut service.operations {
-        strip(&mut operation.traits);
-    }
-    for shape in service.shapes.values_mut() {
-        match shape {
-            Shape::Unit { .. } => {}
-            Shape::Simple(s) => strip(&mut s.traits),
-            Shape::Enum(s) => strip(&mut s.traits),
-            Shape::IntEnum(s) => strip(&mut s.traits),
-            Shape::List(s) => {
-                strip(&mut s.traits);
-                strip(&mut s.member.traits);
-            }
-            Shape::Map(s) => {
-                strip(&mut s.traits);
-                strip(&mut s.key.traits);
-                strip(&mut s.value.traits);
-            }
-            Shape::Structure(s) | Shape::Union(s) => {
-                strip(&mut s.traits);
-                for member in &mut s.members {
-                    strip(&mut member.traits);
-                }
-            }
-        }
-    }
-}
-
 struct Lowerer<'a> {
     ns: &'a str,
     naming: &'a Naming,
@@ -293,6 +268,8 @@ struct Lowerer<'a> {
     protocol: Protocol,
     service_name: String,
     shapes: BTreeMap<ShapeId, Shape>,
+    /// Metadata value types, lowered apart from the service's shapes.
+    meta_shapes: BTreeMap<ShapeId, Shape>,
     visiting: BTreeSet<ShapeId>,
     recursive: BTreeSet<ShapeId>,
     requirements: BTreeSet<FeatureUse>,
@@ -310,11 +287,48 @@ impl<'a> Lowerer<'a> {
         });
     }
 
+    fn warning(&mut self, file: usize, span: Span, message: impl Into<String>) {
+        self.diagnostics.push(FileDiagnostic {
+            file: Some(file),
+            diagnostic: Diagnostic::warning(span, message),
+        });
+    }
+
     fn package_error(&mut self, message: impl Into<String>) {
         self.diagnostics.push(FileDiagnostic {
             file: None,
             diagnostic: Diagnostic::new(Span::default(), message),
         });
+    }
+
+    /// A diagnostic against an IR id, at the source that declared it: the
+    /// member, else its shape, else the package.
+    fn error_at(&mut self, id: &ShapeId, message: &str) {
+        let location = self
+            .source_map
+            .get(id)
+            .or_else(|| self.source_map.get(&id.root()))
+            .copied();
+        match location {
+            Some(Location { file, span }) => self.error(file, span, message),
+            None => self.package_error(format!("{id}: {message}")),
+        }
+    }
+
+    /// A doc comment's text, after warning about `[Name]` links that name
+    /// nothing: documentation generators would render them dangling.
+    fn doc(&mut self, file: usize, doc: Option<&Doc>) -> Option<String> {
+        let doc = doc?;
+        for name in doc_links(&doc.text) {
+            if self.decl(name).is_none() && prelude(name).is_none() {
+                self.warning(
+                    file,
+                    doc.span,
+                    format!("the doc link `[{name}]` names nothing in this package"),
+                );
+            }
+        }
+        Some(doc.text.clone())
     }
 
     fn id(&self, name: &str) -> ShapeId {
@@ -381,6 +395,16 @@ impl<'a> Lowerer<'a> {
                     );
                     continue;
                 }
+                if name.name.contains('-') {
+                    self.error(
+                        file,
+                        name.span,
+                        format!(
+                            "a name is an identifier: `{}` cannot contain `-`",
+                            name.name
+                        ),
+                    );
+                }
                 if let Some(previous) = self.decls.get(name.name.as_str()).copied() {
                     let kind = decl_keyword(&previous.item.decl);
                     if previous.ns == ns {
@@ -411,6 +435,269 @@ impl<'a> Lowerer<'a> {
                     continue;
                 }
                 self.decls.insert(&name.name, DeclRef { file, item, ns });
+            }
+        }
+    }
+
+    /// The identifiers of `resource`: its parents' first, then its own.
+    fn identifiers(&self, resource: &str) -> (Vec<String>, Vec<String>) {
+        let mut chain = Vec::new();
+        let mut current = Some(resource.to_owned());
+        let mut seen = BTreeSet::new();
+        while let Some(name) = current {
+            if !seen.insert(name.clone()) {
+                break;
+            }
+            let Some(Decl::Resource(r)) = self.decl(&name).map(|d| &d.item.decl) else {
+                break;
+            };
+            chain.push(r);
+            current = r.parent.as_ref().map(|p| p.name.clone());
+        }
+        let ids = |r: &Resource| -> Vec<String> {
+            r.entries
+                .iter()
+                .filter(|e| e.kind == ResourceEntryKind::Id)
+                .map(|e| e.name.name.clone())
+                .collect()
+        };
+        let own = chain.first().map(|r| ids(r)).unwrap_or_default();
+        let inherited = chain.iter().skip(1).rev().flat_map(|r| ids(r)).collect();
+        (inherited, own)
+    }
+
+    /// Decision 31: what a resource declares, checked once whether or not a
+    /// service reaches it; and decision 32's one operation per lifecycle role.
+    fn check_resources(&mut self) {
+        let decls: Vec<DeclRef<'a>> = self.decls.values().copied().collect();
+        for decl in &decls {
+            let Decl::Resource(resource) = &decl.item.decl else {
+                continue;
+            };
+            let file = decl.file;
+            self.modifiers(file, decl.item, &[]);
+            if let Some(annotation) = decl.item.annotations.first() {
+                self.error(
+                    file,
+                    annotation.span,
+                    "annotations on a resource are not supported by the compiler yet",
+                );
+            }
+            if let Some(parent) = &resource.parent {
+                match self.decl(&parent.name).map(|d| &d.item.decl) {
+                    Some(Decl::Resource(_)) => {}
+                    _ => self.error(
+                        file,
+                        parent.span,
+                        format!("`{}` is not a resource", parent.name),
+                    ),
+                }
+                // Follow the chain: reaching this resource again is a cycle.
+                let mut current = Some(parent.name.clone());
+                let mut seen = BTreeSet::new();
+                while let Some(name) = current {
+                    if name == resource.name.name {
+                        self.error(
+                            file,
+                            resource.name.span,
+                            format!("`{}` is its own ancestor", resource.name.name),
+                        );
+                        break;
+                    }
+                    if !seen.insert(name.clone()) {
+                        break;
+                    }
+                    current = match self.decl(&name).map(|d| &d.item.decl) {
+                        Some(Decl::Resource(r)) => r.parent.as_ref().map(|p| p.name.clone()),
+                        _ => None,
+                    };
+                }
+            }
+            self.doc(file, decl.item.doc.as_ref());
+            let mut names = BTreeSet::new();
+            for entry in &resource.entries {
+                self.doc(file, entry.doc.as_ref());
+                if let Some(annotation) = entry.annotations.first() {
+                    self.error(
+                        file,
+                        annotation.span,
+                        "annotations on a resource identifier or property are not supported by the compiler yet",
+                    );
+                }
+                if !names.insert(entry.name.name.as_str()) {
+                    self.error(
+                        file,
+                        entry.name.span,
+                        format!("`{}` is declared twice", entry.name.name),
+                    );
+                } else if let Some(parent) = &resource.parent
+                    && self
+                        .resource_entry(&parent.name, &entry.name.name)
+                        .is_some()
+                {
+                    self.error(
+                        file,
+                        entry.name.span,
+                        format!(
+                            "`{}` is already declared by an ancestor of `{}`",
+                            entry.name.name, resource.name.name
+                        ),
+                    );
+                }
+                let Some(target) = self.resolve_type(file, &entry.ty.name) else {
+                    continue;
+                };
+                if entry.kind == ResourceEntryKind::Id {
+                    let text = target == smithy("String")
+                        || match self.decl(target.name()).map(|d| &d.item.decl) {
+                            Some(Decl::Scalar(s)) => s.kind.name == "string",
+                            Some(Decl::Enum(e)) => e.base.is_none(),
+                            _ => false,
+                        };
+                    if !text {
+                        self.error(
+                            file,
+                            entry.ty.span,
+                            "a resource identifier is a string or a string enum: it is part of a URI",
+                        );
+                    }
+                }
+            }
+        }
+        // Each lifecycle role is held by one operation per resource.
+        let mut holders: BTreeMap<(String, String), String> = BTreeMap::new();
+        for decl in &decls {
+            let Decl::Operation(operation) = &decl.item.decl else {
+                continue;
+            };
+            let Some(attachment) = &operation.attachment else {
+                continue;
+            };
+            let role = attachment.role.name.as_str();
+            if !LIFECYCLE.contains(&role) {
+                continue;
+            }
+            let key = (attachment.resource.name.clone(), role.to_owned());
+            if let Some(holder) = holders.get(&key) {
+                self.error(
+                    decl.file,
+                    attachment.span,
+                    format!(
+                        "`{}` already has a `{role}` operation, `{holder}`; each lifecycle role is held by one operation",
+                        attachment.resource.name
+                    ),
+                );
+            } else {
+                holders.insert(key, operation.name.name.clone());
+            }
+        }
+    }
+
+    /// Decision 32: the role names a known verb, and fixes which identifiers
+    /// the input binds and which keywords it implies.
+    fn check_role(
+        &mut self,
+        file: usize,
+        operation: &Operation,
+        attachment: &Attachment,
+        input: Option<&Body>,
+        modifiers: &BTreeSet<String>,
+    ) {
+        let role = attachment.role.name.as_str();
+        if !ROLES.contains(&role) {
+            self.error(
+                file,
+                attachment.role.span,
+                format!(
+                    "`{role}` is not a role; a role is one of {}",
+                    ROLES.join(", ")
+                ),
+            );
+            return;
+        }
+        if attachment.collection && role != "on" {
+            self.error(
+                file,
+                attachment.span,
+                format!(
+                    "`collection` follows `on` only: `on {} collection`",
+                    attachment.resource.name
+                ),
+            );
+        }
+        match role {
+            "reads" | "lists" if modifiers.contains("idempotent") => self.error(
+                file,
+                operation.name.span,
+                format!("`{role}` implies `readonly`; the operation is not also `idempotent`"),
+            ),
+            "puts" | "updates" | "deletes" if modifiers.contains("readonly") => self.error(
+                file,
+                operation.name.span,
+                format!("`{role}` implies `idempotent`; the operation is not also `readonly`"),
+            ),
+            _ => {}
+        }
+        if !matches!(
+            self.decl(&attachment.resource.name).map(|d| &d.item.decl),
+            Some(Decl::Resource(_))
+        ) {
+            return;
+        }
+        let bound: BTreeSet<&str> = input
+            .map(|body| {
+                body.members
+                    .iter()
+                    .filter_map(|member| match &member.kind {
+                        MemberKind::Elided { name, .. } => Some(name.name.as_str()),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let (inherited, own) = self.identifiers(&attachment.resource.name);
+        let collection = matches!(role, "creates" | "lists") || attachment.collection;
+        let required: Vec<&String> = if collection {
+            inherited.iter().collect()
+        } else {
+            inherited.iter().chain(&own).collect()
+        };
+        let missing: Vec<String> = required
+            .iter()
+            .filter(|id| !bound.contains(id.as_str()))
+            .map(|id| format!("`${id}`"))
+            .collect();
+        if !missing.is_empty() {
+            let which = if collection {
+                "its parent's identifiers"
+            } else {
+                "every identifier"
+            };
+            self.error(
+                file,
+                attachment.span,
+                format!(
+                    "`{}` {role} `{}`, so its input binds {which}: add {}",
+                    operation.name.name,
+                    attachment.resource.name,
+                    missing.join(", ")
+                ),
+            );
+        }
+        if collection {
+            for id in own.iter().filter(|id| bound.contains(id.as_str())) {
+                let hint = if role == "creates" {
+                    "; an operation that chooses the identifier `puts`"
+                } else {
+                    ""
+                };
+                self.error(
+                    file,
+                    attachment.span,
+                    format!(
+                        "a collection operation binds only the parent's identifiers, not `${id}`{hint}"
+                    ),
+                );
             }
         }
     }
@@ -482,12 +769,14 @@ impl<'a> Lowerer<'a> {
             Value::Object(fields, _) => {
                 let mut map = JsonMap::new();
                 for field in fields {
-                    let key = match &field.key {
-                        Key::Name(name) => name.name.clone(),
-                        Key::Text(text) => text.value.clone(),
+                    let (key, span) = match &field.key {
+                        Key::Name(name) => (name.name.clone(), name.span),
+                        Key::Text(text) => (text.value.clone(), text.span),
                     };
                     let value = self.json(file, &field.value);
-                    map.insert(key, value);
+                    if map.insert(key.clone(), value).is_some() {
+                        self.error(file, span, format!("`{key}` is given twice"));
+                    }
                 }
                 Json::Object(map)
             }
@@ -500,12 +789,18 @@ impl<'a> Lowerer<'a> {
         &mut self,
         file: usize,
         annotations: &[Annotation],
+        modifiers: &[Ident],
         position: Position,
     ) -> Annotations {
         let mut out = Annotations::default();
         let mut custom: Vec<(&Ident, &Metadata)> = Vec::new();
+        let mut given = BTreeSet::new();
         for annotation in annotations {
             let name = annotation.name.name.as_str();
+            if !given.insert(name) {
+                self.error(file, annotation.span, format!("`@{name}` is given twice"));
+                continue;
+            }
             let member_only = matches!(
                 name,
                 "query" | "header" | "payload" | "token" | "mutability"
@@ -690,15 +985,11 @@ impl<'a> Lowerer<'a> {
                         continue;
                     }
                     let value = self.metadata_value(file, annotation, metadata);
-                    let source_only = match &metadata.retention {
-                        None => false,
-                        Some(r) if r.name == "runtime" => false,
-                        Some(r) if r.name == "source" => true,
-                        Some(r) => {
-                            self.error(decl.file, r.span, "retention is `source` or `runtime`");
-                            false
-                        }
-                    };
+                    // `check_metadata` reported any other retention once.
+                    let source_only = metadata
+                        .retention
+                        .as_ref()
+                        .is_some_and(|r| r.name == "source");
                     // Source-only metadata is for the compiler and rules; the
                     // runtime never sees it (decision 43).
                     if !source_only {
@@ -708,19 +999,244 @@ impl<'a> Lowerer<'a> {
                 }
             }
         }
-        let present: BTreeSet<&str> = annotations.iter().map(|a| a.name.name.as_str()).collect();
+        // A key may conflict with another key or with a modifier.
+        let present: BTreeSet<&str> = annotations
+            .iter()
+            .map(|a| a.name.name.as_str())
+            .chain(modifiers.iter().map(|m| m.name.as_str()))
+            .collect();
         for (name, metadata) in custom {
             for conflict in &metadata.conflicts {
                 if present.contains(conflict.name.as_str()) {
                     self.error(
                         file,
                         name.span,
-                        format!("`@{}` conflicts with `@{}`", name.name, conflict.name),
+                        format!("`@{}` conflicts with `{}`", name.name, conflict.name),
                     );
                 }
             }
         }
         out
+    }
+
+    /// Decisions 43 and 44, once per metadata declaration rather than at
+    /// every use: targets, conflicts, retention, the value type, and no
+    /// shadowing of a built-in annotation, which would always win.
+    fn check_metadata(&mut self) {
+        const TARGETS: &[&str] = &[
+            "service",
+            "resource",
+            "operation",
+            "structure",
+            "union",
+            "error",
+            "enum",
+            "scalar",
+            "list",
+            "map",
+            "member",
+            "enum value",
+        ];
+        const BUILT_IN: &[&str] = &[
+            "deprecated",
+            "since",
+            "unstable",
+            "externalDocs",
+            "query",
+            "header",
+            "payload",
+            "token",
+            "mutability",
+        ];
+        const MODIFIERS: &[&str] = &[
+            "internal",
+            "sensitive",
+            "strict",
+            "readonly",
+            "idempotent",
+            "public",
+        ];
+        let decls: Vec<DeclRef<'a>> = self.decls.values().copied().collect();
+        let mut types = Vec::new();
+        for decl in &decls {
+            let Decl::Metadata(metadata) = &decl.item.decl else {
+                continue;
+            };
+            let file = decl.file;
+            let name = &metadata.name;
+            if BUILT_IN.contains(&name.name.as_str()) {
+                self.error(
+                    file,
+                    name.span,
+                    format!(
+                        "`@{}` is a built-in annotation; a metadata key cannot take its name",
+                        name.name
+                    ),
+                );
+            }
+            let mut targets = BTreeSet::new();
+            for words in &metadata.targets {
+                let target = words
+                    .iter()
+                    .map(|w| w.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let span = words.first().map_or(name.span, |w| w.span);
+                if !TARGETS.contains(&target.as_str()) {
+                    self.error(
+                        file,
+                        span,
+                        format!(
+                            "`{target}` is not a metadata target; targets are {}",
+                            TARGETS.join(", ")
+                        ),
+                    );
+                } else if !targets.insert(target.clone()) {
+                    self.error(file, span, format!("`{target}` is listed twice"));
+                }
+            }
+            for conflict in &metadata.conflicts {
+                let known = MODIFIERS.contains(&conflict.name.as_str())
+                    || BUILT_IN.contains(&conflict.name.as_str())
+                    || matches!(
+                        self.decl(&conflict.name).map(|d| &d.item.decl),
+                        Some(Decl::Metadata(_))
+                    );
+                if conflict.name == name.name {
+                    self.error(
+                        file,
+                        conflict.span,
+                        "a metadata key cannot conflict with itself",
+                    );
+                } else if !known {
+                    self.error(
+                        file,
+                        conflict.span,
+                        format!(
+                            "`{}` is not a metadata key, built-in annotation or modifier",
+                            conflict.name
+                        ),
+                    );
+                }
+            }
+            if let Some(retention) = &metadata.retention
+                && !matches!(retention.name.as_str(), "source" | "runtime")
+            {
+                self.error(file, retention.span, "retention is `source` or `runtime`");
+            }
+            match &metadata.ty {
+                Some(MetaType::Enum(values)) => {
+                    let mut seen = BTreeSet::new();
+                    for value in values {
+                        if !seen.insert(value.name.name.as_str()) {
+                            self.error(
+                                file,
+                                value.name.span,
+                                format!("`{}` is listed twice", value.name.name),
+                            );
+                        }
+                    }
+                }
+                Some(MetaType::Type(ty)) => {
+                    let Some(id) = self.resolve_type(file, &ty.name) else {
+                        continue;
+                    };
+                    if !self.metadata_type(&id, true) {
+                        self.error(
+                            file,
+                            ty.name.span,
+                            "a metadata value is a scalar, an enum or a structure of those (decision 44)",
+                        );
+                    }
+                    self.constraint_block(file, &ty.constraints);
+                    let on = match prelude(&ty.name.name) {
+                        Some((_, kind)) => on_kind(kind),
+                        None => On::Other,
+                    };
+                    if prelude(&ty.name.name).is_some() {
+                        self.check_constraints(file, &ty.constraints, on, true);
+                    }
+                    types.push(id);
+                }
+                None => {}
+            }
+        }
+        // Lower the value types for checking values against, apart from the
+        // service's shapes: their problems are reported where they are
+        // declared, and a type used only by metadata adds no requirement.
+        let requirements = self.requirements.clone();
+        let reported = self.diagnostics.len();
+        for id in types {
+            self.visit(&id);
+        }
+        self.diagnostics.truncate(reported);
+        self.requirements = requirements;
+        self.recursive.clear();
+        self.meta_shapes = std::mem::take(&mut self.shapes);
+    }
+
+    /// Decision 44: a scalar, an enum, or (at the top) a structure of those.
+    fn metadata_type(&self, id: &ShapeId, top: bool) -> bool {
+        if id.is_prelude() {
+            return prelude_kind(id.name()).is_some_and(|kind| kind != SimpleKind::Document);
+        }
+        match self.decl(id.name()).map(|d| &d.item.decl) {
+            Some(Decl::Scalar(s)) => s.kind.name != "document",
+            Some(Decl::Enum(_)) => true,
+            Some(Decl::Structure(s)) if top => s.members.iter().all(|member| match &member.kind {
+                MemberKind::Field { ty: Some(ty), .. } => {
+                    let id = match prelude(&ty.name.name) {
+                        Some((name, _)) => smithy(name),
+                        None => self.ref_id(&ty.name.name),
+                    };
+                    self.metadata_type(&id, false)
+                }
+                _ => false,
+            }),
+            _ => false,
+        }
+    }
+
+    /// A metadata value against its declared type and constraints.
+    fn check_metadata_value(
+        &mut self,
+        file: usize,
+        span: Span,
+        name: &str,
+        ty: &TypeRef,
+        value: &Json,
+    ) {
+        let id = match prelude(&ty.name.name) {
+            Some((prelude, _)) => smithy(prelude),
+            None => self.ref_id(&ty.name.name),
+        };
+        if !self.meta_shapes.contains_key(&id) {
+            // The declaration's own problem, already reported.
+            return;
+        }
+        // Constraint problems were reported with the declaration.
+        let reported = self.diagnostics.len();
+        let own = self.constraint_block(file, &ty.constraints);
+        self.diagnostics.truncate(reported);
+        let mut constraints = match self.meta_shapes.get(&id) {
+            Some(Shape::Simple(s)) => s.constraints.clone(),
+            _ => Constraints::default(),
+        };
+        if own.constraints.length.is_some() {
+            constraints.length = own.constraints.length;
+        }
+        if own.constraints.range.is_some() {
+            constraints.range = own.constraints.range;
+        }
+        if own.constraints.pattern.is_some() {
+            constraints.pattern = own.constraints.pattern;
+        }
+        let what = format!("the value of `@{name}`");
+        for problem in
+            crucible_smithy::validate::value(&self.meta_shapes, &what, &id, &constraints, value)
+        {
+            self.error(file, span, problem);
+        }
     }
 
     fn no_args(&mut self, file: usize, annotation: &Annotation) {
@@ -774,18 +1290,23 @@ impl<'a> Lowerer<'a> {
                 }
             }
             (Some(MetaType::Type(ty)), [arg]) if arg.key.is_none() => {
-                if ty.name.name == "string" && !matches!(arg.value, Value::Str(_)) {
-                    self.error(file, arg.value.span(), format!("`@{name}` takes a string"));
-                }
-                self.json(file, &arg.value)
+                let json = self.json(file, &arg.value);
+                self.check_metadata_value(file, arg.value.span(), name, ty, &json);
+                json
             }
-            (Some(_), args) => {
+            (Some(ty), args) => {
                 let mut map = JsonMap::new();
                 for arg in args {
                     match &arg.key {
                         Some(Key::Name(key)) => {
                             let value = self.json(file, &arg.value);
-                            map.insert(key.name.clone(), value);
+                            if map.insert(key.name.clone(), value).is_some() {
+                                self.error(
+                                    file,
+                                    key.span,
+                                    format!("`{}` is given twice", key.name),
+                                );
+                            }
                         }
                         _ => self.error(
                             file,
@@ -794,7 +1315,11 @@ impl<'a> Lowerer<'a> {
                         ),
                     }
                 }
-                Json::Object(map)
+                let map = Json::Object(map);
+                if let MetaType::Type(ty) = ty {
+                    self.check_metadata_value(file, annotation.span, name, ty, &map);
+                }
+                map
             }
         }
     }
@@ -906,6 +1431,210 @@ impl<'a> Lowerer<'a> {
         info
     }
 
+    /// What kind of value a constraint would constrain at `id`.
+    fn on_shape(&self, id: &ShapeId) -> On {
+        match self.shapes.get(id) {
+            Some(Shape::Simple(simple)) => on_kind(simple.kind),
+            Some(Shape::Enum(_)) => On::StringEnum,
+            Some(Shape::List(_)) => On::List,
+            Some(Shape::Map(_)) => On::Map,
+            _ => On::Other,
+        }
+    }
+
+    /// Each constraint applies to some kinds of value, once, and a pattern
+    /// must be one the generated validators can run. `member` positions
+    /// report `mediaType` themselves.
+    fn check_constraints(&mut self, file: usize, block: &[Constraint], on: On, member: bool) {
+        let mut seen = BTreeSet::new();
+        for constraint in block {
+            let name = constraint.name.name.as_str();
+            if !seen.insert(name) {
+                self.error(
+                    file,
+                    constraint.span,
+                    format!("`{name}` is given twice; give each constraint once"),
+                );
+                continue;
+            }
+            let (applies, what) = match name {
+                "length" => (
+                    matches!(on, On::Text | On::Blob | On::List | On::Map),
+                    "a string, blob, list or map",
+                ),
+                "range" => (on == On::Number, "a number"),
+                "pattern" => (on == On::Text, "a string"),
+                "unique" => (on == On::List, "a list"),
+                "format" => (on == On::Timestamp, "a timestamp"),
+                "mediaType" if !member => (matches!(on, On::Text | On::Blob), "a blob or string"),
+                _ => continue,
+            };
+            if !applies {
+                self.error(
+                    file,
+                    constraint.span,
+                    format!("`{name}` constrains {what}, which this is not"),
+                );
+            }
+            if name == "pattern"
+                && let ConstraintValue::Value(Value::Str(pattern)) = &constraint.value
+                && let Some(problem) = crucible_smithy::validate::pattern_problem(&pattern.value)
+            {
+                self.error(
+                    file,
+                    pattern.span,
+                    format!("this pattern cannot be checked: {problem}"),
+                );
+            }
+        }
+    }
+
+    /// A member's default, as the IR carries it: checked against the target
+    /// and its constraints, and an enum value named by its symbol written as
+    /// its wire value.
+    fn default_value(
+        &mut self,
+        file: usize,
+        span: Span,
+        value: &Value,
+        target: &ShapeId,
+        constraints: &Constraints,
+    ) -> Json {
+        let mut json = self.json(file, value);
+        match self.shapes.get(target) {
+            Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Timestamp => {
+                self.error(
+                    file,
+                    span,
+                    "timestamp defaults are not supported by the compiler yet",
+                );
+                return json;
+            }
+            Some(Shape::Union(_)) => {
+                self.error(
+                    file,
+                    span,
+                    "a union has no default: it has no value until one arm is set",
+                );
+                return json;
+            }
+            Some(Shape::Structure(_)) => {
+                self.error(
+                    file,
+                    span,
+                    "a structure has no default; make the member optional",
+                );
+                return json;
+            }
+            Some(Shape::Enum(enumeration)) => {
+                if let Some(found) = enumeration
+                    .values
+                    .iter()
+                    .find(|v| matches!(value, Value::Ident(i) if i.name == v.name))
+                {
+                    json = Json::String(found.value.clone());
+                }
+            }
+            Some(Shape::IntEnum(enumeration)) => {
+                if let Some(found) = enumeration
+                    .values
+                    .iter()
+                    .find(|v| matches!(value, Value::Ident(i) if i.name == v.name))
+                {
+                    json = Json::Number(found.value.into());
+                }
+            }
+            _ => {}
+        }
+        for problem in crucible_smithy::validate::value(
+            &self.shapes,
+            "the default",
+            target,
+            constraints,
+            &json,
+        ) {
+            self.error(file, span, problem);
+        }
+        json
+    }
+
+    /// Bindings carry a member in a part of an HTTP message, so each one is
+    /// valid only where that part exists, and a member has at most one.
+    #[allow(clippy::too_many_arguments)]
+    fn check_member_bindings(
+        &mut self,
+        file: usize,
+        member: &Member,
+        name: &str,
+        name_span: Span,
+        required: bool,
+        target: &ShapeId,
+        annotations: &Annotations,
+        context: MemberContext<'_>,
+    ) {
+        let at = |binding: &str| {
+            member
+                .annotations
+                .iter()
+                .find(|a| a.name.name == binding)
+                .map_or(name_span, |a| a.span)
+        };
+        let bindings: Vec<&str> = [
+            ("query", annotations.query.is_some()),
+            ("header", annotations.header.is_some()),
+            ("payload", annotations.payload),
+        ]
+        .into_iter()
+        .filter_map(|(binding, set)| set.then_some(binding))
+        .collect();
+        if let [first, second, ..] = bindings.as_slice() {
+            self.error(
+                file,
+                at(second),
+                format!("`{name}` is bound once: `@{first}` and `@{second}` cannot both apply"),
+            );
+        }
+        for binding in &bindings {
+            let allowed = match (context.site, *binding) {
+                (Site::Input, _) => true,
+                (Site::Output | Site::Error, "query") => false,
+                (Site::Output | Site::Error, _) => true,
+                (Site::Nested, _) => false,
+            };
+            if !allowed {
+                let place = if *binding == "query" {
+                    "an operation input"
+                } else {
+                    "an operation input, output or error"
+                };
+                self.error(
+                    file,
+                    at(binding),
+                    format!("`@{binding}` binds a member of {place}; here it would be ignored"),
+                );
+            }
+        }
+        if annotations.token {
+            if context.site != Site::Input {
+                self.error(
+                    file,
+                    at("token"),
+                    "`@token` marks an operation input member; here it would be ignored",
+                );
+            }
+            if required {
+                self.error(
+                    file,
+                    name_span,
+                    format!("the idempotency token `{name}` is optional (`{name}?`): a client fills it when absent"),
+                );
+            }
+            if self.on_shape(target) != On::Text {
+                self.error(file, name_span, "an idempotency token is a string");
+            }
+        }
+    }
+
     /// Modifiers on a declaration: each position accepts its own.
     fn modifiers(&mut self, file: usize, item: &Item, allowed: &[&str]) -> BTreeSet<String> {
         let mut out = BTreeSet::new();
@@ -989,9 +1718,14 @@ impl<'a> Lowerer<'a> {
         keyword: &'static str,
         modifiers: &BTreeSet<String>,
     ) -> (Traits, DocNotes, Option<String>) {
-        let annotations = self.annotations(file, &item.annotations, Position::Shape(keyword));
+        let annotations = self.annotations(
+            file,
+            &item.annotations,
+            &item.modifiers,
+            Position::Shape(keyword),
+        );
         let mut traits = annotations.traits;
-        let docs = doc_text(item.doc.as_ref());
+        let docs = self.doc(file, item.doc.as_ref());
         if let Some(docs) = &docs {
             traits.insert(smithy("documentation"), Json::String(docs.clone()));
         }
@@ -1016,18 +1750,7 @@ impl<'a> Lowerer<'a> {
                 };
                 self.kind_requirements(id, kind);
                 let info = self.constraint_block(file, &scalar.constraints);
-                if info.format.is_some() && kind != SimpleKind::Timestamp {
-                    self.error(file, scalar.name.span, "only a timestamp has a `format`");
-                }
-                if info.media_type.is_some()
-                    && !matches!(kind, SimpleKind::Blob | SimpleKind::String)
-                {
-                    self.error(
-                        file,
-                        scalar.name.span,
-                        "only a blob or string has a `mediaType`",
-                    );
-                }
+                self.check_constraints(file, &scalar.constraints, on_kind(kind), false);
                 traits.extend(info.traits);
                 Shape::Simple(Simple {
                     internal: modifiers.contains("internal"),
@@ -1053,13 +1776,32 @@ impl<'a> Lowerer<'a> {
                         false
                     }
                 };
+                let mut names = BTreeSet::new();
+                for value in &enumeration.values {
+                    if !names.insert(value.name.name.as_str()) {
+                        self.error(
+                            file,
+                            value.name.span,
+                            format!("enum value `{}` is declared twice", value.name.name),
+                        );
+                    }
+                }
                 if integer {
                     self.require(id, Feature::IntEnum, smithy("IntEnum"));
-                    let values = enumeration
-                        .values
-                        .iter()
-                        .filter_map(|value| self.int_enum_value(file, value))
-                        .collect();
+                    let mut seen = BTreeSet::new();
+                    let mut values = Vec::new();
+                    for value in &enumeration.values {
+                        if let Some(lowered) = self.int_enum_value(file, id, value) {
+                            if !seen.insert(lowered.value) {
+                                self.error(
+                                    file,
+                                    value.span,
+                                    format!("enum value {} appears twice", lowered.value),
+                                );
+                            }
+                            values.push(lowered);
+                        }
+                    }
                     Shape::IntEnum(IntEnum {
                         internal: modifiers.contains("internal"),
                         sensitive: modifiers.contains("sensitive"),
@@ -1072,7 +1814,7 @@ impl<'a> Lowerer<'a> {
                     let mut seen = BTreeSet::new();
                     let mut values = Vec::new();
                     for value in &enumeration.values {
-                        let lowered = self.enum_value(file, value);
+                        let lowered = self.enum_value(file, id, value);
                         if !seen.insert(lowered.value.clone()) {
                             self.error(
                                 file,
@@ -1098,6 +1840,7 @@ impl<'a> Lowerer<'a> {
                 let target = self.resolve_type(file, &list.member)?;
                 let member = self.collection_member(id, "member", &target);
                 let info = self.constraint_block(file, &list.constraints);
+                self.check_constraints(file, &list.constraints, On::List, false);
                 traits.extend(info.traits);
                 Shape::List(List {
                     internal: modifiers.contains("internal"),
@@ -1116,9 +1859,18 @@ impl<'a> Lowerer<'a> {
                 let (mut traits, notes, docs) = self.shape_traits(file, item, "map", &modifiers);
                 let key = self.resolve_type(file, &map.key)?;
                 let value = self.resolve_type(file, &map.value)?;
+                self.visit(&key);
+                if !matches!(self.on_shape(&key), On::Text | On::StringEnum) {
+                    self.error(
+                        file,
+                        map.key.span,
+                        "a map key is a string or a string enum: JSON object keys are text",
+                    );
+                }
                 let key = self.collection_member(id, "key", &key);
                 let value = self.collection_member(id, "value", &value);
                 let info = self.constraint_block(file, &map.constraints);
+                self.check_constraints(file, &map.constraints, On::Map, false);
                 traits.extend(info.traits);
                 Shape::Map(Map {
                     internal: modifiers.contains("internal"),
@@ -1160,6 +1912,7 @@ impl<'a> Lowerer<'a> {
                     resource,
                     union: false,
                     labels: &[],
+                    site: Site::Nested,
                 };
                 let members = self.members(file, &structure.members, context);
                 Shape::Structure(IrStructure {
@@ -1183,6 +1936,7 @@ impl<'a> Lowerer<'a> {
                     resource: None,
                     union: true,
                     labels: &[],
+                    site: Site::Nested,
                 };
                 let members = self.members(file, &union.members, context);
                 Shape::Union(IrStructure {
@@ -1206,6 +1960,12 @@ impl<'a> Lowerer<'a> {
                 let mut members = Vec::new();
                 for entry in &error.entries {
                     match entry {
+                        ErrorEntry::Status(literal) if status.is_some() => {
+                            self.error(file, literal.span, "an error has one `status`");
+                        }
+                        ErrorEntry::Retryable { span, .. } if retryable.is_some() => {
+                            self.error(file, *span, "an error is `retryable` once");
+                        }
                         ErrorEntry::Status(literal) => match literal.text.parse::<u16>() {
                             Ok(code) if (400..=599).contains(&code) => status = Some(code),
                             _ => self.error(
@@ -1259,6 +2019,7 @@ impl<'a> Lowerer<'a> {
                     resource: None,
                     union: false,
                     labels: &[],
+                    site: Site::Error,
                 };
                 let members = self.members(file, &members, context);
                 let info = self.error_info(id, &members, fault, status, retryable);
@@ -1279,8 +2040,35 @@ impl<'a> Lowerer<'a> {
         })
     }
 
-    fn enum_value(&mut self, file: usize, value: &EnumValue) -> IrEnumValue {
-        let annotations = self.annotations(file, &value.annotations, Position::EnumValue);
+    /// `internal` is the one modifier an enum value takes (decision 19):
+    /// sensitivity belongs to the whole enum, since a value's name is public.
+    fn enum_value_internal(&mut self, file: usize, value: &EnumValue) -> bool {
+        let mut internal = false;
+        for modifier in &value.modifiers {
+            if modifier.name == "internal" {
+                internal = true;
+            } else {
+                self.error(
+                    file,
+                    modifier.span,
+                    format!(
+                        "`{}` does not apply to an enum value; only `internal` does",
+                        modifier.name
+                    ),
+                );
+            }
+        }
+        internal
+    }
+
+    fn enum_value(&mut self, file: usize, id: &ShapeId, value: &EnumValue) -> IrEnumValue {
+        let internal = self.enum_value_internal(file, value);
+        let annotations = self.annotations(
+            file,
+            &value.annotations,
+            &value.modifiers,
+            Position::EnumValue,
+        );
         let wire = match &value.value {
             None => value.name.name.clone(),
             Some(Value::Str(s)) => s.value.clone(),
@@ -1289,17 +2077,30 @@ impl<'a> Lowerer<'a> {
                 value.name.name.clone()
             }
         };
+        self.locate(id.with_member(&value.name.name), file, value.span);
         IrEnumValue {
-            internal: false,
+            internal,
             name: value.name.name.clone(),
             value: wire,
-            docs: doc_text(value.doc.as_ref()),
+            docs: self.doc(file, value.doc.as_ref()),
             notes: annotations.notes,
+            traits: annotations.traits,
         }
     }
 
-    fn int_enum_value(&mut self, file: usize, value: &EnumValue) -> Option<IntEnumValue> {
-        let annotations = self.annotations(file, &value.annotations, Position::EnumValue);
+    fn int_enum_value(
+        &mut self,
+        file: usize,
+        id: &ShapeId,
+        value: &EnumValue,
+    ) -> Option<IntEnumValue> {
+        let internal = self.enum_value_internal(file, value);
+        let annotations = self.annotations(
+            file,
+            &value.annotations,
+            &value.modifiers,
+            Position::EnumValue,
+        );
         let number = match &value.value {
             Some(Value::Number(n)) => n.text.parse::<i32>().ok(),
             _ => None,
@@ -1312,12 +2113,14 @@ impl<'a> Lowerer<'a> {
             );
             return None;
         };
+        self.locate(id.with_member(&value.name.name), file, value.span);
         Some(IntEnumValue {
-            internal: false,
+            internal,
             name: value.name.name.clone(),
             value: number,
-            docs: doc_text(value.doc.as_ref()),
+            docs: self.doc(file, value.doc.as_ref()),
             notes: annotations.notes,
+            traits: annotations.traits,
         })
     }
 
@@ -1363,8 +2166,16 @@ impl<'a> Lowerer<'a> {
             resource,
             union: false,
             labels,
+            site: match source.body.kind {
+                BodyKind::Input => Site::Input,
+                BodyKind::Output => Site::Output,
+            },
         };
         let members = self.members(file, &source.body.members, context);
+        let docs = self.doc(file, source.body.doc.as_ref());
+        if let Some(docs) = &docs {
+            traits.insert(smithy("documentation"), Json::String(docs.clone()));
+        }
         Shape::Structure(IrStructure {
             internal: false,
             sensitive: false,
@@ -1373,7 +2184,7 @@ impl<'a> Lowerer<'a> {
             input: source.body.kind == BodyKind::Input,
             members,
             error: None,
-            docs: None,
+            docs,
             notes: DocNotes::default(),
             traits,
         })
@@ -1437,38 +2248,38 @@ impl<'a> Lowerer<'a> {
     ) -> Vec<IrMember> {
         let mut out = Vec::new();
         let mut including = Vec::new();
-        self.members_into(file, members, context, &mut out, &mut including);
         let mut names = BTreeSet::new();
-        for member in &out {
-            if !names.insert(member.name.clone()) {
-                if let Some(decl) = self.decl(context.owner.name()) {
-                    self.error(
-                        decl.file,
-                        decl.item.span,
-                        format!(
-                            "member `{}` is declared twice in `{}`",
-                            member.name,
-                            context.owner.name()
-                        ),
-                    );
-                } else {
-                    self.package_error(format!(
-                        "member `{}` is declared twice in `{}`",
-                        member.name,
-                        context.owner.name()
-                    ));
-                }
-            }
+        self.members_into(
+            file,
+            members,
+            context,
+            None,
+            &mut out,
+            &mut names,
+            &mut including,
+        );
+        let mut tokens = out.iter().filter(|member| member.idempotency_token);
+        if let (Some(first), Some(second)) = (tokens.next(), tokens.next()) {
+            let message = format!(
+                "`{}` and `{}` are both idempotency tokens; an input has at most one",
+                first.name, second.name
+            );
+            self.error_at(&context.owner.with_member(&second.name), &message);
         }
         out
     }
 
+    /// `at` is where an included member is reported: the `include` that
+    /// brought it in, in the file being lowered.
+    #[allow(clippy::too_many_arguments)]
     fn members_into(
         &mut self,
         file: usize,
         members: &[Member],
         context: MemberContext<'_>,
+        at: Option<(usize, Span)>,
         out: &mut Vec<IrMember>,
+        names: &mut BTreeSet<String>,
         including: &mut Vec<String>,
     ) {
         for member in members {
@@ -1500,11 +2311,43 @@ impl<'a> Lowerer<'a> {
                     continue;
                 }
                 including.push(name.name.clone());
-                self.members_into(decl.file, &structure.members, context, out, including);
+                let at = at.or(Some((file, name.span)));
+                // An included `for Resource` structure elides against its own
+                // resource, wherever it is included.
+                let context = MemberContext {
+                    resource: structure
+                        .resource
+                        .as_ref()
+                        .map(|r| r.name.as_str())
+                        .or(context.resource),
+                    ..context
+                };
+                self.members_into(
+                    decl.file,
+                    &structure.members,
+                    context,
+                    at,
+                    out,
+                    names,
+                    including,
+                );
                 including.pop();
                 continue;
             }
             if let Some(lowered) = self.member(file, member, context) {
+                if !names.insert(lowered.name.clone()) {
+                    let (file, span) = at.unwrap_or((file, member.span));
+                    self.error(
+                        file,
+                        span,
+                        format!(
+                            "member `{}` is declared twice in `{}`",
+                            lowered.name,
+                            context.owner.name()
+                        ),
+                    );
+                    continue;
+                }
                 out.push(lowered);
             }
         }
@@ -1607,7 +2450,12 @@ impl<'a> Lowerer<'a> {
             }
         };
         let required = required && !context.union;
-        let annotations = self.annotations(file, &member.annotations, Position::Member);
+        let mut annotations = self.annotations(
+            file,
+            &member.annotations,
+            &member.modifiers,
+            Position::Member,
+        );
         let target = match ty {
             Some(ty) => self.resolve_type(ty_file, &ty.name)?,
             None => smithy("Unit"),
@@ -1617,8 +2465,59 @@ impl<'a> Lowerer<'a> {
             Some(TypeRef { constraints, .. }) => self.constraint_block(ty_file, constraints),
             None => ConstraintInfo::default(),
         };
-        let mut traits = annotations.traits;
+        let on = self.on_shape(&target);
+        self.check_constraints(ty_file, ty.map_or(&[][..], |ty| &ty.constraints), on, true);
+        self.check_member_bindings(
+            file,
+            member,
+            &name,
+            name_span,
+            required,
+            &target,
+            &annotations,
+            context,
+        );
+        let mut traits = std::mem::take(&mut annotations.traits);
         traits.extend(own.traits);
+        if name.contains('-') {
+            self.error(
+                file,
+                name_span,
+                format!("a member name is an identifier: `{name}` cannot contain `-`"),
+            );
+        }
+        // Decision 33: a member binds a resource entry only by elision.
+        if matches!(member.kind, MemberKind::Field { .. })
+            && let Some(resource) = context.resource
+            && self.resource_entry(resource, &name).is_some()
+        {
+            self.warning(
+                file,
+                name_span,
+                format!(
+                    "`{name}` is a plain member and does not bind `{resource}`'s `{name}`; did you mean `${name}`?"
+                ),
+            );
+        }
+        let mut internal = false;
+        let mut sensitive = false;
+        for modifier in &member.modifiers {
+            match modifier.name.as_str() {
+                "internal" => internal = true,
+                "sensitive" => sensitive = true,
+                other => self.error(
+                    file,
+                    modifier.span,
+                    format!("`{other}` does not apply to a member; `internal` and `sensitive` do"),
+                ),
+            }
+        }
+        if internal {
+            traits.insert(smithy("internal"), Json::Object(JsonMap::new()));
+        }
+        if sensitive {
+            traits.insert(smithy("sensitive"), Json::Object(JsonMap::new()));
+        }
         if let Some(query) = &annotations.query {
             let parameter = query.clone().unwrap_or_else(|| name.clone());
             traits.insert(smithy("httpQuery"), Json::String(parameter));
@@ -1633,13 +2532,6 @@ impl<'a> Lowerer<'a> {
             traits.insert(smithy("idempotencyToken"), Json::Object(JsonMap::new()));
         }
         if context.labels.contains(&name) {
-            if !required {
-                self.error(
-                    file,
-                    name_span,
-                    format!("`{name}` binds the URI label {{{name}}}, so it must be required"),
-                );
-            }
             let explicit =
                 annotations.query.is_some() || annotations.header.is_some() || annotations.payload;
             if explicit {
@@ -1654,23 +2546,47 @@ impl<'a> Lowerer<'a> {
         if required {
             traits.insert(smithy("required"), Json::Object(JsonMap::new()));
         }
-        let default = default.map(|value| self.json(file, value));
-        if let Some(default) = &default {
-            traits.insert(smithy("default"), default.clone());
-            if matches!(self.shapes.get(&target), Some(Shape::Simple(s)) if s.kind == SimpleKind::Timestamp)
-            {
-                self.error(
-                    file,
-                    name_span,
-                    "timestamp defaults are not supported by the compiler yet",
-                );
-            }
-        }
+        // A doc borrowed from the resource entry is checked with the entry.
+        self.doc(file, member.doc.as_ref());
         let docs = doc_text(doc);
         if let Some(docs) = &docs {
             traits.insert(smithy("documentation"), Json::String(docs.clone()));
         }
+        // A member's constraint replaces its type's, as in Smithy. One that
+        // loosens it accepts what the type refuses, which is usually a
+        // mistake (a dropped bound), so it is a warning, not an error: the
+        // weather model loosens a name on purpose to exercise output checks.
         let mut constraints = self.constraints_of(&target);
+        if let (Some(own_length), Some(length)) = (&own.constraints.length, &constraints.length)
+            && !within(
+                own_length.min,
+                own_length.max,
+                length.min,
+                length.max,
+                |a, b| a.cmp(b),
+            )
+        {
+            self.warning(
+                file,
+                name_span,
+                format!("`{name}`'s `length` loosens its type's, which it replaces; give both bounds to keep the type's"),
+            );
+        }
+        if let (Some(own_range), Some(range)) = (&own.constraints.range, &constraints.range)
+            && !within(
+                own_range.min.as_ref().and_then(Number::as_f64),
+                own_range.max.as_ref().and_then(Number::as_f64),
+                range.min.as_ref().and_then(Number::as_f64),
+                range.max.as_ref().and_then(Number::as_f64),
+                |a, b| a.total_cmp(b),
+            )
+        {
+            self.warning(
+                file,
+                name_span,
+                format!("`{name}`'s `range` loosens its type's, which it replaces; give both bounds to keep the type's"),
+            );
+        }
         if own.constraints.length.is_some() {
             constraints.length = own.constraints.length;
         }
@@ -1681,6 +2597,11 @@ impl<'a> Lowerer<'a> {
             constraints.pattern = own.constraints.pattern;
         }
         constraints.unique_items |= own.constraints.unique_items;
+        let default =
+            default.map(|value| self.default_value(file, name_span, value, &target, &constraints));
+        if let Some(default) = &default {
+            traits.insert(smithy("default"), default.clone());
+        }
         if own.media_type.is_some() {
             self.error(
                 file,
@@ -1700,8 +2621,8 @@ impl<'a> Lowerer<'a> {
             });
         self.locate(context.owner.with_member(&name), file, member.span);
         Some(IrMember {
-            internal: false,
-            sensitive: false,
+            internal,
+            sensitive,
             event_binding: None,
             name: name.clone(),
             wire_name: name,
@@ -1736,7 +2657,10 @@ impl<'a> Lowerer<'a> {
             };
             if traits.contains_key(&smithy("httpPayload")) {
                 if bindings.payload.is_some() {
-                    self.package_error(format!("{owner}: only one member may be the payload"));
+                    self.error_at(
+                        &owner.with_member(&member.name),
+                        "only one member may be the payload",
+                    );
                 } else {
                     bindings.payload = self.payload(owner, member);
                 }
@@ -1756,29 +2680,8 @@ impl<'a> Lowerer<'a> {
                 bindings.body.push(member.name.clone());
             }
         }
-        let mut headers = BTreeSet::new();
-        for binding in &bindings.headers {
-            if !headers.insert(binding.name.to_ascii_lowercase()) {
-                self.package_error(format!("{owner}: duplicate HTTP header {:?}", binding.name));
-            }
-        }
-        let mut query = BTreeSet::new();
-        for binding in &bindings.query {
-            if !query.insert(binding.name.clone()) {
-                self.package_error(format!(
-                    "{owner}: duplicate query parameter {:?}",
-                    binding.name
-                ));
-            }
-        }
-        if let Some(payload) = &bindings.payload {
-            for member in &bindings.body {
-                self.package_error(format!(
-                    "{owner}: the body is the payload `{}`; bind `{member}` to a label, query parameter or header",
-                    payload.member
-                ));
-            }
-        }
+        // Duplicate names, binding targets and a payload beside body members
+        // are checked by crucible_smithy::validate.
         self.header_encodings(owner, members, &mut bindings);
         self.binding_timestamp_formats(members, &mut bindings);
         bindings
@@ -1791,20 +2694,20 @@ impl<'a> Lowerer<'a> {
                 SimpleKind::String => (PayloadKind::String, &s.traits),
                 SimpleKind::Document => (PayloadKind::Document, &s.traits),
                 _ => {
-                    self.package_error(format!(
-                        "{owner}${}: a payload is a blob, string, structure, union or document",
-                        member.name
-                    ));
+                    self.error_at(
+                        &owner.with_member(&member.name),
+                        "a payload is a blob, string, structure, union or document",
+                    );
                     return None;
                 }
             },
             Some(Shape::Enum(e)) => (PayloadKind::String, &e.traits),
             Some(Shape::Structure(s) | Shape::Union(s)) => (PayloadKind::Document, &s.traits),
             _ => {
-                self.package_error(format!(
-                    "{owner}${}: a payload is a blob, string, structure, union or document",
-                    member.name
-                ));
+                self.error_at(
+                    &owner.with_member(&member.name),
+                    "a payload is a blob, string, structure, union or document",
+                );
                 return None;
             }
         };
@@ -1940,8 +2843,43 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    // ---- operations --------------------------------------------------------
+    /// `paginated(inputToken: a, outputToken: b, items: c, pageSize: d)`:
+    /// each key known and given once.
+    fn pagination_args(&mut self, file: usize, args: &[crate::ast::Arg]) -> JsonMap<String, Json> {
+        let mut out = JsonMap::new();
+        for arg in args {
+            match (&arg.key, &arg.value) {
+                (Some(Key::Name(key)), Value::Ident(member)) => {
+                    if !matches!(
+                        key.name.as_str(),
+                        "inputToken" | "outputToken" | "items" | "pageSize"
+                    ) {
+                        self.error(
+                            file,
+                            key.span,
+                            format!(
+                                "`{}` is not a pagination key; the keys are inputToken, outputToken, items and pageSize",
+                                key.name
+                            ),
+                        );
+                    } else if out
+                        .insert(key.name.clone(), Json::String(member.name.clone()))
+                        .is_some()
+                    {
+                        self.error(file, key.span, format!("`{}` is given twice", key.name));
+                    }
+                }
+                _ => self.error(
+                    file,
+                    arg.value.span(),
+                    "`paginated` takes `inputToken:`, `outputToken:`, `items:` and `pageSize:` member names",
+                ),
+            }
+        }
+        out
+    }
 
+    // ---- operations --------------------------------------------------------
     fn uri(&mut self, file: usize, span: Span, pattern: &str) -> Uri {
         let (path, query) = pattern.split_once('?').unwrap_or((pattern, ""));
         if !path.starts_with('/') {
@@ -1960,7 +2898,39 @@ impl<'a> Lowerer<'a> {
         let mut segments = Vec::new();
         let mut greedy_labels = Vec::new();
         for part in path.split('/').filter(|part| !part.is_empty()) {
-            match part.strip_prefix('{').and_then(|p| p.strip_suffix('}')) {
+            let label = part.strip_prefix('{').and_then(|p| p.strip_suffix('}'));
+            if let Some(label) = label {
+                let name = label.strip_suffix('+').unwrap_or(label);
+                if name.is_empty() {
+                    self.error(
+                        file,
+                        span,
+                        "`{}` is an empty URI label: name the member it binds",
+                    );
+                    continue;
+                }
+                if name.contains(['{', '}']) {
+                    self.error(
+                        file,
+                        span,
+                        format!("URI segment `{part}` holds more than one label; a segment is one label or literal text"),
+                    );
+                    continue;
+                }
+                if !name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+                    || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                {
+                    self.error(
+                        file,
+                        span,
+                        format!(
+                            "URI label `{{{name}}}` must name a member, which is an identifier"
+                        ),
+                    );
+                    continue;
+                }
+            }
+            match label {
                 Some(label) if label.ends_with('+') => {
                     let label = label.trim_end_matches('+').to_owned();
                     greedy_labels.push(label.clone());
@@ -2020,7 +2990,12 @@ impl<'a> Lowerer<'a> {
             item,
             &["readonly", "idempotent", "public", "internal"],
         );
-        let annotations = self.annotations(file, &item.annotations, Position::Operation);
+        let annotations = self.annotations(
+            file,
+            &item.annotations,
+            &item.modifiers,
+            Position::Operation,
+        );
         let mut traits = annotations.traits;
 
         let mut http = None;
@@ -2045,7 +3020,19 @@ impl<'a> Lowerer<'a> {
                         self.error(file, body.span, "an operation has one input and one output");
                     }
                 }
-                OpEntry::Errors(errors, _) => own_errors.extend(errors),
+                OpEntry::Errors(errors, _) => {
+                    for error in errors {
+                        if own_errors.iter().any(|e: &&Ident| e.name == error.name) {
+                            self.error(
+                                file,
+                                error.span,
+                                format!("`{}` is listed twice", error.name),
+                            );
+                        } else {
+                            own_errors.push(error);
+                        }
+                    }
+                }
                 OpEntry::Call(call) if call.name.name == "paginated" => {
                     if pagination.replace(call).is_some() {
                         self.error(file, call.span, "an operation has one `paginated` clause");
@@ -2066,6 +3053,24 @@ impl<'a> Lowerer<'a> {
                 operation.name.span,
                 "an operation served over HTTP needs an `http METHOD \"/uri\"` clause",
             );
+            // Still check what the operation declares, so one run lists
+            // every problem.
+            if input.is_some() {
+                self.visit(&self.id(&self.naming.input(&operation.name.name)));
+            }
+            if output.is_some() {
+                self.visit(&self.id(&self.naming.output(&operation.name.name)));
+            }
+            for error in own_errors {
+                match self.decl(&error.name).map(|d| &d.item.decl) {
+                    Some(Decl::Error(_)) => self.visit(&self.ref_id(&error.name)),
+                    _ => self.error(
+                        file,
+                        error.span,
+                        format!("`{}` is not an error", error.name),
+                    ),
+                }
+            }
             return None;
         };
         let method = http.method.name.clone();
@@ -2080,6 +3085,9 @@ impl<'a> Lowerer<'a> {
             );
         }
         let uri = self.uri(file, http.uri.span, &http.uri.value);
+        if !uri.greedy_labels.is_empty() {
+            self.require(&id, Feature::GreedyLabels, smithy("http"));
+        }
         let status = match &http.status {
             None => 200,
             Some(literal) => match literal.text.parse::<u16>() {
@@ -2104,9 +3112,7 @@ impl<'a> Lowerer<'a> {
 
         let (role, resource) = match &operation.attachment {
             Some(attachment) => {
-                if !ROLES.contains(&attachment.role.name.as_str()) {
-                    self.error(file, attachment.role.span, "unknown role");
-                }
+                self.check_role(file, operation, attachment, input, &modifiers);
                 match self.decl(&attachment.resource.name).map(|d| &d.item.decl) {
                     Some(Decl::Resource(_)) => {}
                     _ => self.error(
@@ -2270,19 +3276,7 @@ impl<'a> Lowerer<'a> {
         }
 
         let paginated = pagination.and_then(|call| {
-            let mut own = JsonMap::new();
-            for arg in &call.args {
-                match (&arg.key, &arg.value) {
-                    (Some(Key::Name(key)), Value::Ident(member)) => {
-                        own.insert(key.name.clone(), Json::String(member.name.clone()));
-                    }
-                    _ => self.error(
-                        file,
-                        arg.value.span(),
-                        "`paginated` takes `inputToken:`, `outputToken:`, `items:` and `pageSize:` member names",
-                    ),
-                }
-            }
+            let own = self.pagination_args(file, &call.args);
             let field = |name: &str| {
                 own.get(name)
                     .or_else(|| default_pagination.get(name))
@@ -2295,22 +3289,7 @@ impl<'a> Lowerer<'a> {
                 items: field("items"),
                 page_size: field("pageSize"),
             };
-            for (what, member, members) in [
-                ("inputToken", Some(&paginated.input_token), &input_members),
-                ("pageSize", paginated.page_size.as_ref(), &input_members),
-                ("outputToken", Some(&paginated.output_token), &output_members),
-                ("items", paginated.items.as_ref(), &output_members),
-            ] {
-                if let Some(member) = member
-                    && !members.iter().any(|m| &m.name == member)
-                {
-                    self.error(
-                        file,
-                        call.span,
-                        format!("pagination {what} `{member}` is not a member of the operation's {}", if matches!(what, "inputToken" | "pageSize") { "input" } else { "output" }),
-                    );
-                }
-            }
+            // Member paths and types are checked by crucible_smithy::validate.
             traits.insert(smithy("paginated"), Json::Object(own));
             Some(paginated)
         });
@@ -2327,7 +3306,7 @@ impl<'a> Lowerer<'a> {
         for example in examples {
             let mut lowered = IrExample {
                 title: example.title.value.clone(),
-                docs: doc_text(example.doc.as_ref()),
+                docs: self.doc(file, example.doc.as_ref()),
                 input: None,
                 output: None,
                 error: None,
@@ -2338,21 +3317,34 @@ impl<'a> Lowerer<'a> {
             if let Some(docs) = &lowered.docs {
                 raw.insert("documentation".into(), Json::String(docs.clone()));
             }
+            let mut parts = BTreeSet::new();
             for part in &example.parts {
+                let (kind, span) = match part {
+                    ExamplePart::Input(value) => ("input", value.span()),
+                    ExamplePart::Output(value) => ("output", value.span()),
+                    ExamplePart::Error(name, _) => ("error", name.span),
+                };
+                if !parts.insert(kind) {
+                    self.error(file, span, format!("an example has one `{kind}`"));
+                    continue;
+                }
                 match part {
                     ExamplePart::Input(value) => lowered.input = Some(self.json(file, value)),
                     ExamplePart::Output(value) => lowered.output = Some(self.json(file, value)),
                     ExamplePart::Error(name, value) => {
                         let shape = self.ref_id(&name.name);
-                        if !errors.contains(&shape) {
+                        let content = self.json(file, value);
+                        if errors.contains(&shape) {
+                            lowered.error = Some(ExampleError { shape, content });
+                        } else {
+                            // Reported here, at the name, rather than by the
+                            // shared validator against the operation.
                             self.error(
                                 file,
                                 name.span,
                                 format!("`{}` is not one of this operation's errors", name.name),
                             );
                         }
-                        let content = self.json(file, value);
-                        lowered.error = Some(ExampleError { shape, content });
                     }
                 }
             }
@@ -2375,7 +3367,7 @@ impl<'a> Lowerer<'a> {
             traits.insert(smithy("examples"), Json::Array(example_traits));
         }
 
-        let docs = doc_text(item.doc.as_ref());
+        let docs = self.doc(file, item.doc.as_ref());
         if let Some(docs) = &docs {
             traits.insert(smithy("documentation"), Json::String(docs.clone()));
         }
@@ -2466,7 +3458,8 @@ impl<'a> Lowerer<'a> {
         };
         let Some(decl) = chosen else {
             // Still check every declaration, so one run lists every problem.
-            self.check_unreached(&BTreeSet::new(), &[]);
+            self.check_unreached(&BTreeSet::new(), &[], &JsonMap::new(), &[]);
+            self.shapes.clear();
             return None;
         };
         let file = decl.file;
@@ -2478,7 +3471,8 @@ impl<'a> Lowerer<'a> {
         self.locate(id.clone(), file, item.span);
         self.service_name = block.name.name.clone();
         self.modifiers(file, item, &[]);
-        let annotations = self.annotations(file, &item.annotations, Position::Service);
+        let annotations =
+            self.annotations(file, &item.annotations, &item.modifiers, Position::Service);
         let mut traits = annotations.traits;
 
         let mut version = None;
@@ -2489,26 +3483,28 @@ impl<'a> Lowerer<'a> {
         let mut operation_names: Vec<&Ident> = Vec::new();
         let mut resource_names: Vec<&Ident> = Vec::new();
         let mut error_names: Vec<&Ident> = Vec::new();
+        let mut clauses = BTreeSet::new();
         for clause in &block.clauses {
+            let name = clause.name.name.as_str();
+            if matches!(
+                name,
+                "version" | "title" | "protocol" | "auth" | "paginated"
+            ) && !clauses.insert(name)
+            {
+                self.error(
+                    file,
+                    clause.span,
+                    format!("a service has one `{name}` clause"),
+                );
+                continue;
+            }
             match (clause.name.name.as_str(), &clause.value) {
                 ("version", ClauseValue::Value(Value::Str(s))) => version = Some(s.value.clone()),
                 ("title", ClauseValue::Value(Value::Str(s))) => title = Some(s.value.clone()),
                 ("protocol", ClauseValue::Value(Value::Ident(p))) => protocol = Some(p),
                 ("auth", ClauseValue::Value(Value::Ident(a))) => auth_scheme = Some(a),
                 ("paginated", ClauseValue::Args(args)) => {
-                    for arg in args {
-                        match (&arg.key, &arg.value) {
-                            (Some(Key::Name(key)), Value::Ident(member)) => {
-                                pagination
-                                    .insert(key.name.clone(), Json::String(member.name.clone()));
-                            }
-                            _ => self.error(
-                                file,
-                                arg.value.span(),
-                                "`paginated` takes `key: member` pairs",
-                            ),
-                        }
-                    }
+                    pagination = self.pagination_args(file, args);
                 }
                 (
                     "operations" | "resources" | "errors",
@@ -2521,6 +3517,13 @@ impl<'a> Lowerer<'a> {
                     };
                     for value in values {
                         match value {
+                            Value::Ident(name) if list.iter().any(|n| n.name == name.name) => {
+                                self.error(
+                                    file,
+                                    name.span,
+                                    format!("`{}` is listed twice", name.name),
+                                );
+                            }
                             Value::Ident(name) => list.push(name),
                             other => self.error(file, other.span(), "expected a name"),
                         }
@@ -2532,6 +3535,13 @@ impl<'a> Lowerer<'a> {
                     format!("unknown or malformed service clause `{name}`"),
                 ),
             }
+        }
+        if version.is_none() {
+            self.error(
+                file,
+                block.name.span,
+                "a service declares its version: `version \"2026-01-01\"`",
+            );
         }
         match protocol {
             Some(p) if p.name == "json" => self.protocol = Protocol::CrucibleJson,
@@ -2577,7 +3587,7 @@ impl<'a> Lowerer<'a> {
         if !pagination.is_empty() {
             traits.insert(smithy("paginated"), Json::Object(pagination.clone()));
         }
-        let docs = doc_text(item.doc.as_ref());
+        let docs = self.doc(file, item.doc.as_ref());
         if let Some(docs) = &docs {
             traits.insert(smithy("documentation"), Json::String(docs.clone()));
         }
@@ -2649,6 +3659,26 @@ impl<'a> Lowerer<'a> {
             })
             .copied()
             .collect();
+        let mut unreached = Vec::new();
+        for decl in self.decls.values() {
+            if let Decl::Operation(o) = &decl.item.decl
+                && let Some(attachment) = &o.attachment
+                && decl.ns == self.ns
+                && !reachable(self, &attachment.resource.name)
+            {
+                unreached.push((
+                    decl.file,
+                    attachment.span,
+                    format!(
+                        "`{}` is not part of the service: the service does not reach `{}`; list it, or its root, in `resources`",
+                        o.name.name, attachment.resource.name
+                    ),
+                ));
+            }
+        }
+        for (file, span, message) in unreached {
+            self.warning(file, span, message);
+        }
         operations.extend(attached);
 
         let mut service_errors = Vec::new();
@@ -2704,23 +3734,50 @@ impl<'a> Lowerer<'a> {
             resources: BTreeMap::new(),
             resource_roots: Vec::new(),
             resource_references: BTreeMap::new(),
-            shapes: std::mem::take(&mut self.shapes),
+            // Cloned, not taken: `check_unreached` must not lower a reached
+            // shape a second time and repeat its diagnostics.
+            shapes: self.shapes.clone(),
             traits,
             renames: BTreeMap::new(),
         };
+        // Rules of the IR itself, shared with the Smithy front end.
+        let mut issues = crucible_smithy::Diagnostics::default();
+        crucible_smithy::validate::service(&service, &mut issues);
+        for issue in issues.iter() {
+            self.error_at(&issue.shape, &issue.message);
+        }
         let included: BTreeSet<&str> = operations
             .iter()
             .filter_map(|decl| decl_name(&decl.item.decl).map(|n| n.name.as_str()))
             .collect();
-        self.check_unreached(&included, &auth);
-        project_metadata_only(&mut service);
+        // Operations the service does not reach are checked in its context:
+        // its errors, default pagination and auth, and the shared rules.
+        let errors = service.errors.clone();
+        let unreached = self.check_unreached(&included, &errors, &pagination, &auth);
+        let mut probe = service.clone();
+        probe.operations = unreached;
+        probe.shapes = std::mem::take(&mut self.shapes);
+        let mut issues = crucible_smithy::Diagnostics::default();
+        for operation in &probe.operations {
+            crucible_smithy::validate::operation(&probe, operation, &mut issues);
+        }
+        for issue in issues.iter() {
+            self.error_at(&issue.shape, &issue.message);
+        }
+        service.project_metadata_only();
         Some(service)
     }
 
     /// Lowers what the service does not reach, only for its diagnostics: a
     /// declaration nothing uses yet must still be a valid one. None of it
     /// enters the IR.
-    fn check_unreached(&mut self, included: &BTreeSet<&str>, auth: &[ShapeId]) {
+    fn check_unreached(
+        &mut self,
+        included: &BTreeSet<&str>,
+        errors: &[ShapeId],
+        pagination: &JsonMap<String, Json>,
+        auth: &[ShapeId],
+    ) -> Vec<IrOperation> {
         let decls: Vec<DeclRef<'a>> = self.decls.values().copied().collect();
         let operations: Vec<DeclRef<'a>> = decls
             .iter()
@@ -2734,8 +3791,9 @@ impl<'a> Lowerer<'a> {
         for decl in &operations {
             self.register_bodies(*decl);
         }
+        let mut lowered = Vec::new();
         for decl in operations {
-            self.operation(decl, &[], &JsonMap::new(), auth);
+            lowered.extend(self.operation(decl, errors, pagination, auth));
         }
         for decl in decls {
             if is_type(&decl.item.decl)
@@ -2745,7 +3803,7 @@ impl<'a> Lowerer<'a> {
                 self.visit(&id);
             }
         }
-        self.shapes.clear();
+        lowered
     }
 
     /// Records an operation's bodies under their generated names, and which
@@ -2811,6 +3869,90 @@ impl<'a> Lowerer<'a> {
             }
         }
     }
+}
+
+/// The `[Name]` shortcut links in Markdown text: a capitalised identifier in
+/// brackets, outside code spans, not part of an inline `[text](url)` or
+/// reference `[text][ref]` link or a `[ref]: url` definition.
+fn doc_links(text: &str) -> Vec<&str> {
+    let mut links = Vec::new();
+    for line in text.lines() {
+        let bytes = line.as_bytes();
+        let mut code = false;
+        let mut i = 0;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'`' => code = !code,
+                b'[' if !code && (i == 0 || bytes[i - 1] != b']') => {
+                    if let Some(len) = line[i + 1..].find(']') {
+                        let name = &line[i + 1..i + 1 + len];
+                        let after = bytes.get(i + 2 + len).copied();
+                        let identifier = name.starts_with(|c: char| c.is_ascii_uppercase())
+                            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                        if identifier && !matches!(after, Some(b'(' | b'[' | b':')) {
+                            links.push(name);
+                        }
+                        i += len + 1;
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+    }
+    links
+}
+
+/// What a constraint would constrain.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum On {
+    Text,
+    StringEnum,
+    Blob,
+    Number,
+    Timestamp,
+    List,
+    Map,
+    Other,
+}
+
+fn on_kind(kind: SimpleKind) -> On {
+    match kind {
+        SimpleKind::String => On::Text,
+        SimpleKind::Blob => On::Blob,
+        SimpleKind::Timestamp => On::Timestamp,
+        SimpleKind::Byte
+        | SimpleKind::Short
+        | SimpleKind::Integer
+        | SimpleKind::Long
+        | SimpleKind::Float
+        | SimpleKind::Double
+        | SimpleKind::BigInteger
+        | SimpleKind::BigDecimal => On::Number,
+        SimpleKind::Boolean | SimpleKind::Document => On::Other,
+    }
+}
+
+/// Whether the bounds `[min, max]` lie inside `[outer_min, outer_max]`;
+/// a missing bound is unbounded.
+fn within<T>(
+    min: Option<T>,
+    max: Option<T>,
+    outer_min: Option<T>,
+    outer_max: Option<T>,
+    cmp: impl Fn(&T, &T) -> std::cmp::Ordering,
+) -> bool {
+    let low = match (&min, &outer_min) {
+        (_, None) => true,
+        (None, Some(_)) => false,
+        (Some(min), Some(outer)) => cmp(min, outer).is_ge(),
+    };
+    let high = match (&max, &outer_max) {
+        (_, None) => true,
+        (None, Some(_)) => false,
+        (Some(max), Some(outer)) => cmp(max, outer).is_le(),
+    };
+    low && high
 }
 
 /// `a` or `an` before a declaration keyword: `an error`, `a structure`.

@@ -41,38 +41,11 @@ fn cru_weather() -> (Package, crucible_lang::Compiled) {
 /// - decision 43: raw `traits` carry project metadata only, because every
 ///   standard trait is a typed IR field.
 fn as_cru_lowers_it(mut service: Service) -> Service {
-    let standard = |id: &crucible_smithy::ShapeId| {
-        id.is_prelude()
-            || id.namespace().starts_with("aws.")
-            || id.namespace() == "crucible.protocols"
-            || id.namespace() == "smithy.test"
-    };
-    let strip = |traits: &mut crucible_smithy::ir::Traits| traits.retain(|id, _| !standard(id));
-    strip(&mut service.traits);
-    for operation in &mut service.operations {
-        strip(&mut operation.traits);
-    }
+    service.project_metadata_only();
     for shape in service.shapes.values_mut() {
-        match shape {
-            Shape::Unit { .. } => {}
-            Shape::Simple(s) => strip(&mut s.traits),
-            Shape::Enum(s) => strip(&mut s.traits),
-            Shape::IntEnum(s) => strip(&mut s.traits),
-            Shape::List(s) => {
-                strip(&mut s.traits);
-                strip(&mut s.member.traits);
-            }
-            Shape::Map(s) => {
-                strip(&mut s.traits);
-                strip(&mut s.key.traits);
-                strip(&mut s.value.traits);
-            }
-            Shape::Structure(s) | Shape::Union(s) => {
-                strip(&mut s.traits);
-                for member in &mut s.members {
-                    member.client_optional = false;
-                    strip(&mut member.traits);
-                }
+        if let Shape::Structure(s) | Shape::Union(s) = shape {
+            for member in &mut s.members {
+                member.client_optional = false;
             }
         }
     }
@@ -105,7 +78,19 @@ fn first_difference(expected: &str, actual: &str) -> Option<String> {
 #[test]
 fn weather_cru_lowers_to_the_same_ir_as_the_smithy_fixture() {
     let (_, compiled) = cru_weather();
-    assert!(compiled.diagnostics.is_empty(), "\n{}", compiled.render());
+    // The one diagnostic is deliberate: CreateCity's name loosens CityName's
+    // length so the e2e tests can produce an output its target refuses.
+    let messages: Vec<&str> = compiled
+        .diagnostics
+        .iter()
+        .map(|d| d.diagnostic.message.as_str())
+        .collect();
+    assert!(!compiled.has_errors(), "\n{}", compiled.render());
+    assert_eq!(messages.len(), 1, "\n{}", compiled.render());
+    assert!(
+        messages[0].contains("`name`'s `length` loosens"),
+        "{messages:?}"
+    );
     let actual = compiled.service.expect("service");
     let expected = as_cru_lowers_it(smithy_weather());
     assert_eq!(actual.operations.len(), 7);

@@ -20,10 +20,13 @@ trait when a project defines it.
    onto IR fields rather than the untangling of trait interactions that
    makes `lower.rs` 2k lines. The semantics `lower.rs` settles (effective
    constraints, binding locations, pagination merge, timestamp defaults,
-   audience projection, route conflicts) move into the new lowering; the
-   inventory lists them and the fixtures pin them. The acceptance test is
-   IR equality: the Smithy path (`Java` + `crucible-smithy`) and the new
-   path must produce identical `ir::Service` for every model in the
+   audience projection) move into the new lowering; rules that hold of the
+   IR itself (route conflicts, binding targets, pagination types, examples,
+   name collisions) are checked once, in `crucible_smithy::validate`, which
+   both front ends call. The inventory lists them and the fixtures pin them.
+   The acceptance test is IR equality: the Smithy path (`Java` +
+   `crucible-smithy`) and the new path must produce the same `ir::Service`,
+   equal on modelled fields as decision 63 defines, for every model in the
    converted corpus.
 
 2. **There is no converter. Leyline and Pigeon are rewritten by hand as
@@ -31,13 +34,14 @@ trait when a project defines it.
    for as long as anything still uses Smithy.** *Replaces:* the earlier
    plan to convert the corpus mechanically. *Why:* the rewrite is the
    point; a mechanical conversion would carry Smithy's shape of the models
-   into the new language. Both front ends produce the same IR, so the
-   weather model, which exists in both forms, is the equality test, and
+   into the new language. Both front ends produce the same IR (decision
+   63 says what "same" covers), so the weather model, which exists in both forms, is the equality test, and
    generator goldens cover the rest.
 
 3. **The compiled artifact consumers exchange is a serialized IR with a
-   versioned format (`crucible.model/1`), not source and not the Smithy
-   AST.** A model package publishes it; services, SDK packages and the CLI
+   versioned format, not source and not the Smithy AST.** Decision 62 sets
+   the versions: `crucible.model/0` while the IR is unstable, then
+   `crucible.model/1`. A model package publishes it; services, SDK packages and the CLI
    read it. Source compilation happens in the model package only.
    *Replaces:* `DEP_<NAME>_MODEL` carrying the Smithy AST, and the CLI's
    `model.json` input. *Why:* same layout as today, so
@@ -75,10 +79,12 @@ trait when a project defines it.
    exists per service and the build helper already selects it.
 
 7. **Crucible's standard shapes are an importable package, not
-   built-ins.** `crucible.errors` (`ValidationException`,
-   `InternalServerException`, `UnknownOperationException`,
-   `AccessDeniedException`, `ThrottlingException`) and `crucible.auth` are
-   imported by name. *Replaces:* the `crucible-traits` model jar and
+   built-ins.** `crucible.errors` is imported by name and declares what
+   `smithy/errors.smithy` does: `ValidationException` (with its reason
+   enum and field list), `InternalServerException`,
+   `UnknownOperationException`, `ValidationError` and `InternalError`. It is
+   the only bundled package so far; `crucible.auth` and any access-denied or
+   throttling errors are added when a model needs them. *Replaces:* the `crucible-traits` model jar and
    `use crucible.errors#ValidationException`. *Why:* the same shapes,
    without a JVM artifact; the generator's "fill the validation error"
    rule keys on shape id as it does now.
@@ -132,6 +138,9 @@ trait when a project defines it.
     are **inclusive at both ends**; the reference states this prominently
     because Rust readers expect `..` to exclude the upper bound. The
     vocabulary stays closed and is validated once, in the server runtime;
+    a member's constraint replaces its type's, as in the IR, so the
+    compiler warns about one that loosens the type's (`length ..40` on a
+    `1..100` type drops the minimum; write `1..40` to keep it);
     an expression language (CEL-style) is deferred until a cross-field rule
     needs it. *Replaces:* `@length`, `@range`, `@pattern` on shapes and
     members with the member laid over the target. *Why:* identical to the
@@ -151,8 +160,11 @@ trait when a project defines it.
     rules in lowering. *Why:* every consumer declares one `DateTime`
     shape with `date-time`; AWS protocol defaults go with decision 35.
 
-19. **`internal` and `sensitive` are modifiers on shapes, members,
-    operations and enum values.** *Replaces:* `@internal`, `@sensitive`.
+19. **`internal` and `sensitive` are modifiers on shapes, members and
+    operations; `internal` also applies to enum values.** Sensitivity
+    belongs to the whole enum: a value's name is public in every generated
+    SDK, so `sensitive` on one value is refused. *Replaces:* `@internal`,
+    `@sensitive`.
     *Why:* audience projection, MCP and log redaction already consume
     these flags from the IR.
 
@@ -172,7 +184,9 @@ trait when a project defines it.
     The IR fields `required`, `default`, `client_optional` and
     `optional_on_server` are all derivable: `client_optional` is always
     false, which is the client behaviour the TypeScript generator already
-    chose deliberately. The converter must get the flipped default right
+    chose deliberately. This is a deliberate difference from the Smithy
+    front end, which makes every member of an `@input` structure
+    client-optional; decision 63's comparison applies it before comparing. The converter must get the flipped default right
     in every file. Research: every human-authored REST IDL of the last
     decade (TypeSpec, Fern, Avro `T?`, Smithy 2.0 in effect) and every
     language that retrofitted null safety chose required-by-default types;
@@ -185,7 +199,11 @@ trait when a project defines it.
     #3203), so expect to document it carefully.
 
 21. **Defaults are literals of the member's type, applied by the server
-    when the member is absent, and fillable by generators.** *Replaces:*
+    when the member is absent, and fillable by generators.** The compiler
+    checks a default against the type and its constraints; an enum default
+    is written as the value's symbol (`size: Size = SMALL`) and lowered to
+    its wire value. Unions, structures and (for now) timestamps have no
+    default. *Replaces:*
     `@default` with its client-vs-server rules. *Why:* one use in the
     corpus; keeping it costs nothing and the generators handle it.
 
@@ -423,12 +441,23 @@ trait when a project defines it.
     - Label members are required scalars or enums (no lists, structures,
       maps or blobs); at most one greedy label per URI.
     - Query members are scalars, enums or lists of them.
-    - Header members are scalars, enums, timestamps or lists of them; a
-      blob header needs a media type; framing and hop-by-hop headers
+    - Header members are scalars other than blobs, enums, timestamps or
+      lists of them, named by a valid header token; a string with a media
+      type travels base64-encoded; framing and hop-by-hop headers
       (`Content-Length`, `Transfer-Encoding`, `Host`, `Connection` and
-      similar) and the service's auth header cannot be modelled members.
+      similar) and the service's auth header (`Authorization` under bearer
+      auth) cannot be modelled members.
     - At most one `@payload`; with a payload, no other member is body.
-    - Routes are unique per method and path shape (already in `lower.rs`).
+    - A member has one binding, and a binding appears only where its part
+      of the message exists: `@query` in an input, `@header` and
+      `@payload` in an input, output or error.
+    - Routes are unique per method and path shape.
+
+    Everything above except the request-body rule is checked on the IR by
+    `crucible_smithy::validate`, so the Smithy and `.cru` front ends refuse
+    the same models. The GET, HEAD and DELETE request-body rule is checked
+    by the `.cru` front end only; Smithy models keep the generators' own
+    diagnostics for it.
 
     The `rpc` family's rules: no member bindings at all, operation names
     unique within the service, and the streaming restrictions the protocol
@@ -470,7 +499,8 @@ trait when a project defines it.
     traits. *Why:* zero consumer uses. Each is a later additive syntax
     decision or, with decision 35, a removal from the IR.
 
-39. **Media types are a `mediaType` modifier on blob and string types.**
+39. **Media types are a `mediaType` constraint on blob and string types:**
+    `blob Photo { mediaType "image/jpeg" }`. A member cannot set one.
     *Replaces:* `@mediaType`. *Why:* one use; payload content types depend
     on it.
 
@@ -489,14 +519,16 @@ trait when a project defines it.
 
 41. **`///` comments are Markdown documentation on the following
     declaration; `[Name]` resolves to a shape or operation in the package
-    and a dangling link is an error.** *Replaces:* `@documentation`, and
+    and a dangling link is reported.** It is a warning for now, so a port in
+    progress still compiles; it becomes an error once the ported models are
+    clean. *Replaces:* `@documentation`, and
     Smithy's unchecked links. *Why:* 5.5k doc lines with cross-links feed
     14 SDKs and the reference site; a broken link should fail at compile
     time, not in a rendered page.
 
-42. **`title` on a service; `deprecated(since, message)`, `since`,
-    `unstable` and `externalDocs(name: url)` as annotations anywhere
-    documentation attaches.** *Replaces:* `@title`, `@deprecated`,
+42. **`title` on a service; `@deprecated(since: "..", message: "..")`,
+    `@since("..")`, `@unstable` and `@externalDocs("Name" = "https://..")`
+    as annotations anywhere documentation attaches.** *Replaces:* `@title`, `@deprecated`,
     `@since`, `@unstable`, `@externalDocumentation`. *Why:* `DocNotes` is
     already rendered by every generator.
 
@@ -507,8 +539,13 @@ trait when a project defines it.
     map as `namespace#key` with their JSON value.** `metadata
     operationClass on operation: enum { controlRead, controlWrite,
     dataPlane, asyncJob }`. Target kinds: `service`, `resource`,
-    `operation`, `structure`, `union`, `member`, `enum value`. `conflicts
-    with` is kept. Selectors are not. *Replaces:* `@trait(selector:
+    `operation`, `structure`, `union`, `error`, `enum`, `scalar`, `list`,
+    `map`, `member`, `enum value` (annotations on resources are not lowered
+    yet). Conflicts are kept, written `conflicts a, b` (decision 65); a
+    conflict may name another key, a built-in annotation or a modifier
+    (`conflicts sensitive`). Selectors are not. A key's declaration is
+    checked once (targets, conflicts, retention, value type, no built-in
+    annotation's name) and each use's value against the declared type. *Replaces:* `@trait(selector:
     "..", conflicts: [..])` on a shape used as the value type. *Why:*
     Leyline's six traits need exactly this; `trait_as`, `has_trait` and
     `when_trait` read the same map and keep working unchanged. Research
@@ -656,7 +693,10 @@ server binding exists for it.
     lifecycle consistency, recursion through required members, and
     constraint applicability to the type. *Replaces:* Smithy's core
     validators. *Why:* every one of these is a silent assumption in
-    `lower.rs` today; the inventory lists them.
+    `lower.rs` today; the inventory lists them. Those that are facts about
+    the IR (routes, bindings, header names, pagination types, examples,
+    name and wire-code collisions) live in `crucible_smithy::validate` and
+    run for both front ends; the rest are in the language's lowering.
 
 ## Still Smithy, on purpose
 
@@ -826,7 +866,10 @@ these are working choices, changed freely as implementation teaches.
     naming a local path; and, under Cargo, model packages found through
     their `links` metadata as today. The dependency entry pins the
     version, so imports name packages without a version suffix. Git and
-    registry fetching wait for a second organisation to need them.
+    registry fetching wait for a second organisation to need them. Built so
+    far: bundled packages only (`crucible.errors`). `[model.dependencies]`
+    and Cargo discovery are not implemented, and the manifest check refuses
+    a `dependencies` key rather than ignore it.
 
 61. **Source positions live in a source map beside the IR.** Lowering
     returns `ir::Service` plus a map from shape and member ids to spans.
@@ -838,7 +881,8 @@ these are working choices, changed freely as implementation teaches.
     shapes, bodies and members to their file and span.
 
 62. **The artifact is serialized IR, explicitly unstable for now.** v1
-    writes `ir::Service` with serde under `format: "crucible.model/0"`.
+    will write `ir::Service` with serde under `format: "crucible.model/0"`;
+    not built yet, since the IR has no serde derives.
     Freezing artifacts for migrations (decision 52) waits for a stable
     `crucible.model/1`, defined after the IR cleanup of decision 3a, so
     nothing frozen carries Smithy-shaped fields.
@@ -869,6 +913,14 @@ these are working choices, changed freely as implementation teaches.
     OpenAPI and docs generators produce byte-identical output from both
     paths; any raw Smithy trait a generator still reads is synthesized by
     the new lowering until that generator reads a typed field instead.
+    Two differences are deliberate and applied before comparing:
+    `client_optional` is always false from `.cru` (decision 20), and raw
+    traits carry project metadata only (decision 62a,
+    `Service::project_metadata_only`).
+    Like Smithy's `lower`, the `.cru` compile produces the contract IR and
+    leaves `Service::resources` empty; resource views come with the
+    documentation and infrastructure lowerings, which the language does not
+    have yet.
 
 64. **The compiler front end is hand-written, in a new `crucible-lang`
     crate.** A lexer that keeps every byte (whitespace and comments are
@@ -880,7 +932,9 @@ these are working choices, changed freely as implementation teaches.
 
 65. **Grammar choices that the examples left open.** Newlines carry no
     meaning; `;` and `,` are optional separators. Identifiers may contain
-    `-` between letters (`date-time`, `epoch-seconds`). Metadata conflicts
+    `-` between letters (`date-time`, `epoch-seconds`), but the name of a
+    declaration, member or URI label may not: it becomes a symbol in every
+    generated language. Metadata conflicts
     are written `conflicts a, b`. `@query` takes an optional name that
     defaults to the member name; `@header` always names its header.
     Pagination merges operation clause over template over service
