@@ -40,7 +40,7 @@ class ReleaseTests(unittest.TestCase):
         (root / "crates/crucible-server-runtime-rust/Cargo.toml").write_text('[package]\nname = "crucible-server-runtime-rust"\nversion.workspace = true\n')
         (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "smithy"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
         (root / "e2e").mkdir()
-        (root / "tests/consumers/leyline").mkdir(parents=True)
+        (root / "tests/consumers/leyline/leyline-sdk-consumer").mkdir(parents=True)
         lock = '''version = 4
 
 [[package]]

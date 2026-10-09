@@ -101,7 +101,7 @@ without an entry, so a release cannot be tagged without notes.
 ```sh
 git switch -c claude/release-0.2.1
 python tools/crucible_release.py prepare 0.2.1
-git diff -- Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.lock
+git diff -- Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.lock tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock
 python tools/crucible_release.py check 0.2.1
 ```
 
@@ -126,7 +126,7 @@ git diff -- crates
 Commit the version bump and reviewed golden changes together, then open a PR:
 
 ```sh
-git add CHANGELOG.md Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.lock crates/*/tests/golden
+git add CHANGELOG.md Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.lock tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock crates/*/tests/golden
 git commit -m "chore: prepare Crucible 0.2.1"
 git push -u origin claude/release-0.2.1
 gh pr create --base main --title "Release Crucible 0.2.1" --body "Bump the shared workspace version, lock entries, and generator provenance metadata to 0.2.1."

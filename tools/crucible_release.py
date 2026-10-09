@@ -11,7 +11,12 @@ from build_traits_jar import version as traits_version
 ROOT = Path(__file__).resolve().parents[1]
 # Every checked-in lockfile that pins the workspace crates by path. The root one
 # must list all of them; the others hold the subset their workspace uses.
-LOCKFILES = ("Cargo.lock", "e2e/Cargo.lock", "tests/consumers/leyline/Cargo.lock")
+LOCKFILES = (
+    "Cargo.lock",
+    "e2e/Cargo.lock",
+    "tests/consumers/leyline/Cargo.lock",
+    "tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock",
+)
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
 
 
