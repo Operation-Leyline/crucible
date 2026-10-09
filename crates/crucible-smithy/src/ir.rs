@@ -71,7 +71,9 @@ pub struct Service {
     /// lowering additionally includes resource identifier/property targets.
     pub shapes: BTreeMap<ShapeId, Shape>,
     pub traits: Traits,
-    pub(crate) renames: BTreeMap<ShapeId, String>,
+    /// Service-local shape renames (Smithy `rename`); [`Service::name_of`]
+    /// reads them. Public so other front ends can build a service.
+    pub renames: BTreeMap<ShapeId, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -150,12 +152,14 @@ impl Service {
     ) -> Result<(), crate::Diagnostics> {
         capabilities.check(&self.requirements)
     }
+    /// Whether `scheme`, one of the service's auth scheme ids, is bearer auth.
+    pub fn is_bearer(&self, scheme: &ShapeId) -> bool {
+        matches!(self.auth_schemes.get(scheme), Some(AuthScheme::Bearer))
+    }
+
     /// Effective sensitivity: a member or its target can forbid logging.
     pub fn sensitive(&self, member: &Member) -> bool {
-        member
-            .traits
-            .contains_key(&ShapeId::new("smithy.api", "sensitive"))
-            || self.shape(&member.target).is_some_and(Shape::sensitive)
+        member.sensitive || self.shape(&member.target).is_some_and(Shape::sensitive)
     }
 
     pub fn shape(&self, id: &ShapeId) -> Option<&Shape> {
@@ -255,16 +259,15 @@ impl Shape {
     }
 
     pub fn sensitive(&self) -> bool {
-        let traits = match self {
-            Self::Unit { .. } => return false,
-            Self::Simple(s) => &s.traits,
-            Self::Enum(s) => &s.traits,
-            Self::IntEnum(s) => &s.traits,
-            Self::List(s) => &s.traits,
-            Self::Map(s) => &s.traits,
-            Self::Structure(s) | Self::Union(s) => &s.traits,
-        };
-        traits.contains_key(&ShapeId::new("smithy.api", "sensitive"))
+        match self {
+            Self::Unit { .. } => false,
+            Self::Simple(s) => s.sensitive,
+            Self::Enum(s) => s.sensitive,
+            Self::IntEnum(s) => s.sensitive,
+            Self::List(s) => s.sensitive,
+            Self::Map(s) => s.sensitive,
+            Self::Structure(s) | Self::Union(s) => s.sensitive,
+        }
     }
 }
 
@@ -272,6 +275,8 @@ impl Shape {
 pub struct Simple {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
+    /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
+    pub sensitive: bool,
     pub streaming: bool,
     pub requires_length: bool,
     pub kind: SimpleKind,
@@ -305,6 +310,8 @@ pub enum SimpleKind {
 pub struct Enum {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
+    /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
+    pub sensitive: bool,
     pub values: Vec<EnumValue>,
     pub docs: Option<String>,
     /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
@@ -329,6 +336,8 @@ pub struct EnumValue {
 pub struct IntEnum {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
+    /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
+    pub sensitive: bool,
     pub values: Vec<IntEnumValue>,
     pub docs: Option<String>,
     /// `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
@@ -351,6 +360,8 @@ pub struct IntEnumValue {
 pub struct List {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
+    /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
+    pub sensitive: bool,
     pub sparse: bool,
     pub is_set: bool,
     pub member: Member,
@@ -365,6 +376,8 @@ pub struct List {
 pub struct Map {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
+    /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
+    pub sensitive: bool,
     pub sparse: bool,
     pub key: Member,
     pub value: Member,
@@ -379,7 +392,15 @@ pub struct Map {
 pub struct Structure {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
+    /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
+    pub sensitive: bool,
     pub streaming: bool,
+    /// Refuses members it does not define (`crucible.protocols#strict`, or a
+    /// `strict` structure or input). Server side only.
+    pub strict: bool,
+    /// An operation's own input structure (Smithy `@input`, or an anonymous
+    /// `input` body). Generators use it to type members as the model says.
+    pub input: bool,
     pub members: Vec<Member>,
     /// Present on a shape marked `@error`.
     pub error: Option<ErrorInfo>,
@@ -391,8 +412,7 @@ pub struct Structure {
 
 impl Structure {
     pub fn sensitive(&self) -> bool {
-        self.traits
-            .contains_key(&ShapeId::new("smithy.api", "sensitive"))
+        self.sensitive
     }
 
     pub fn member(&self, name: &str) -> Option<&Member> {
@@ -404,6 +424,8 @@ impl Structure {
 pub struct Member {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
+    /// `@sensitive` on the member itself; see [`Service::sensitive`].
+    pub sensitive: bool,
     pub event_binding: Option<EventBinding>,
     pub name: String,
     /// JSON property name; HTTP and public API names remain independent.
@@ -416,6 +438,11 @@ pub struct Member {
     /// `@clientOptional`, or a member of an `@input` structure: a client may
     /// omit it even when the server requires it.
     pub client_optional: bool,
+    /// The input member a client fills with a fresh idempotency token.
+    pub idempotency_token: bool,
+    /// An explicit infrastructure mutability for the property this member
+    /// carries; `None` leaves it to the resource lifecycle.
+    pub mutability: Option<Mutability>,
     /// The target's constraints with the member's own laid over them.
     pub constraints: Constraints,
     /// The member's own `@timestampFormat`; see [`Service::timestamp_format`].
@@ -454,6 +481,46 @@ impl Member {
 
     pub fn optional_on_client(&self) -> bool {
         self.client_optional || self.optional_on_server()
+    }
+}
+
+/// How provisioning may change a resource property, in CloudFormation's
+/// vocabulary, which the CDK and Terraform generators map onto their own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mutability {
+    /// Set at create, changed by update, read back.
+    Full,
+    /// Set at create only, never read back.
+    Create,
+    /// Set at create only, read back: changing it replaces the resource.
+    CreateAndRead,
+    /// Read only: the service assigns it.
+    Read,
+    /// Written at create and update, never read back (a secret, say).
+    Write,
+}
+
+impl Mutability {
+    /// The `aws.cloudformation#cfnMutability` spelling.
+    pub fn from_cfn(value: &str) -> Option<Self> {
+        Some(match value {
+            "full" => Self::Full,
+            "create" => Self::Create,
+            "create-and-read" => Self::CreateAndRead,
+            "read" => Self::Read,
+            "write" => Self::Write,
+            _ => return None,
+        })
+    }
+
+    /// Whether changing the property after creation replaces the resource.
+    pub fn create_only(self) -> bool {
+        matches!(self, Self::Create | Self::CreateAndRead)
+    }
+
+    /// Whether reads never return the property.
+    pub fn write_only(self) -> bool {
+        matches!(self, Self::Create | Self::Write)
     }
 }
 

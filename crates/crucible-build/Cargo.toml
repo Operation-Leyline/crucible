@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 crucible-codegen-rust = { workspace = true, optional = true }
 crucible-codegen = { workspace = true, default-features = false }
+crucible-lang.workspace = true
 crucible-smithy.workspace = true
 crucible-policy.workspace = true
 crucible-traits.workspace = true

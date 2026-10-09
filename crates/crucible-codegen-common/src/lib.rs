@@ -204,7 +204,7 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
         let mut value = json!({"method":op.method,"uri":op.uri.to_string(),"input":op.input.as_ref().map(ToString::to_string),"output":op.output.as_ref().map(ToString::to_string),
             "request":bindings(&op.request),"response":bindings(&op.response),"errors":op.errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
             "safe":op.readonly || op.idempotent || op.idempotency_token.is_some(),"token":op.idempotency_token,"pagination":pagination,
-            "bearer":op.auth.iter().any(|id|id.to_string()=="smithy.api#httpBearerAuth")});
+            "bearer":op.auth.iter().any(|id|service.is_bearer(id))});
         if !op.uri.greedy_labels.is_empty() { value["greedyLabels"] = json!(op.uri.greedy_labels); }
         if op.unsigned_payload {value["unsignedPayload"] = json!(true);}
         if op.unwrapped_xml_output {value["unwrappedXmlOutput"] = json!(true);}
@@ -214,16 +214,12 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
         if let Some(endpoint) = &op.endpoint { value["endpoint"] = json!(endpoint); }
         if !op.endpoint_parameters.is_empty() { value["endpointParameters"] = json!(op.endpoint_parameters); }
         if !op.waiters.is_empty() { value["waiters"] = json!(op.waiters); }
-        if service.auth_schemes.keys().any(|id|id.to_string()!="smithy.api#httpBearerAuth") { value["auth"] = json!(op.auth.iter().map(ToString::to_string).collect::<Vec<_>>()); }
+        if service.auth_schemes.keys().any(|id|!service.is_bearer(id)) { value["auth"] = json!(op.auth.iter().map(ToString::to_string).collect::<Vec<_>>()); }
         (op.name().into(),value)
     }).collect();
     let mut value = json!({"service":service.id.to_string(),"version":service.version,"shapes":shapes,"operations":operations,
-        "bearer":service.auth.iter().any(|id|id.to_string()=="smithy.api#httpBearerAuth")});
-    if service
-        .auth_schemes
-        .keys()
-        .any(|id| id.to_string() != "smithy.api#httpBearerAuth")
-    {
+        "bearer":service.auth.iter().any(|id|service.is_bearer(id))});
+    if service.auth_schemes.keys().any(|id| !service.is_bearer(id)) {
         value["authSchemes"] = json!(
             service
                 .auth_schemes

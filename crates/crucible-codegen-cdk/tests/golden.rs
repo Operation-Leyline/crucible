@@ -150,6 +150,7 @@ fn timestamps_use_explicit_provider_representation() {
         id,
         crucible_smithy::ir::Shape::Simple(crucible_smithy::ir::Simple {
             internal: false,
+            sensitive: false,
             streaming: false,
             requires_length: false,
             kind: crucible_smithy::ir::SimpleKind::Timestamp,

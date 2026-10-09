@@ -1,0 +1,844 @@
+//! What the editor shows that the compiler does not compute: the role of every
+//! token for highlighting, the declarations a name refers to, and the outline.
+//! Keywords are contextual identifiers in this language, so a token's role
+//! comes from the syntax tree, not from a word list.
+
+use std::collections::{BTreeMap, HashMap};
+
+use crucible_lang::ast::{
+    Annotation, Arg, Body, Clause, ClauseValue, ConstraintValue, Decl, Dotted, ErrorEntry,
+    ExamplePart, Expr, ExprKind, Ident, Item, Key, Member, MemberKind, MetaType, OpEntry, Operand,
+    Path, Ref, StepKind, TypeRef, Value,
+};
+use crucible_lang::{Parsed, TokenKind};
+
+/// Token types, in legend order; [`Role`] indexes into this.
+pub const TOKEN_TYPES: &[&str] = &[
+    "keyword",
+    "type",
+    "struct",
+    "enum",
+    "class",
+    "interface",
+    "function",
+    "property",
+    "enumMember",
+    "decorator",
+    "parameter",
+    "string",
+    "number",
+    "comment",
+];
+
+/// Token modifiers, in legend order: bit `1 << index`.
+pub const TOKEN_MODIFIERS: &[&str] = &["declaration", "documentation", "defaultLibrary"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Keyword,
+    Type,
+    Struct,
+    Enum,
+    Class,
+    Interface,
+    Function,
+    Property,
+    EnumMember,
+    Decorator,
+    Parameter,
+    String,
+    Number,
+    Comment,
+}
+
+pub const DECLARATION: u32 = 1;
+pub const DOCUMENTATION: u32 = 2;
+pub const DEFAULT_LIBRARY: u32 = 4;
+
+/// One highlighted token: a byte range, its role and modifier bits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Highlight {
+    pub start: u32,
+    pub end: u32,
+    pub role: Role,
+    pub modifiers: u32,
+}
+
+/// The built-in scalar types (`docs/idl/reference.md`).
+pub const BUILTIN_TYPES: &[&str] = &[
+    "string",
+    "boolean",
+    "byte",
+    "short",
+    "integer",
+    "long",
+    "float",
+    "double",
+    "bigInteger",
+    "bigDecimal",
+    "timestamp",
+    "blob",
+    "document",
+];
+
+/// A named declaration somewhere in the package or its imports.
+#[derive(Debug, Clone)]
+pub struct Declaration {
+    /// The declaring keyword: `structure`, `operation`, `string`, ...
+    pub keyword: String,
+    pub role: Role,
+    pub file: usize,
+    pub name_start: u32,
+    pub name_end: u32,
+    pub doc: Option<String>,
+}
+
+/// Every declaration by name. Names are unique within a compiled package,
+/// imports included; the compiler reports a clash.
+#[derive(Debug, Clone, Default)]
+pub struct Index {
+    pub declarations: HashMap<String, Declaration>,
+}
+
+impl Index {
+    pub fn new(parsed: &[Parsed]) -> Self {
+        let mut declarations = HashMap::new();
+        for (file, parsed) in parsed.iter().enumerate() {
+            for item in &parsed.file.items {
+                let Some((keyword, role, name)) = describe(&item.decl) else {
+                    continue;
+                };
+                if name.is_missing() {
+                    continue;
+                }
+                declarations
+                    .entry(name.name.clone())
+                    .or_insert_with(|| Declaration {
+                        keyword,
+                        role,
+                        file,
+                        name_start: name.span.start,
+                        name_end: name.span.end,
+                        doc: item.doc.as_ref().map(|doc| doc.text.clone()),
+                    });
+            }
+        }
+        Self { declarations }
+    }
+
+    /// How a reference to `name` is highlighted.
+    fn reference(&self, name: &str) -> Option<(Role, u32)> {
+        if let Some(declaration) = self.declarations.get(name) {
+            return Some((declaration.role, 0));
+        }
+        BUILTIN_TYPES
+            .contains(&name)
+            .then_some((Role::Type, DEFAULT_LIBRARY))
+    }
+}
+
+/// The keyword, highlight role and name of a named declaration.
+pub fn describe(decl: &Decl) -> Option<(String, Role, &Ident)> {
+    Some(match decl {
+        Decl::Service(block) => ("service".into(), Role::Interface, &block.name),
+        Decl::Protocol(block) => ("protocol".into(), Role::Interface, &block.name),
+        Decl::Resource(resource) => ("resource".into(), Role::Class, &resource.name),
+        Decl::Operation(operation) => ("operation".into(), Role::Function, &operation.name),
+        Decl::Structure(structure) => ("structure".into(), Role::Struct, &structure.name),
+        Decl::Union(union) => ("union".into(), Role::Struct, &union.name),
+        Decl::Error(error) => ("error".into(), Role::Class, &error.name),
+        Decl::Enum(enumeration) => ("enum".into(), Role::Enum, &enumeration.name),
+        Decl::Scalar(scalar) => (scalar.kind.name.clone(), Role::Type, &scalar.name),
+        Decl::List(list) => ("list".into(), Role::Type, &list.name),
+        Decl::Map(map) => ("map".into(), Role::Type, &map.name),
+        Decl::Metadata(metadata) => ("metadata".into(), Role::Decorator, &metadata.name),
+        Decl::Rule(rule) => ("rule".into(), Role::Function, &rule.name),
+        Decl::Template(_) | Decl::Except(_) | Decl::Migration(_) | Decl::Conversion(_) => {
+            return None;
+        }
+    })
+}
+
+/// The highlight of every token in one file, in source order.
+pub fn highlights(parsed: &Parsed, index: &Index) -> Vec<Highlight> {
+    let mut walker = Walker {
+        index,
+        roles: BTreeMap::new(),
+    };
+    for item in &parsed.file.items {
+        walker.item(item);
+    }
+    let mut out = Vec::new();
+    for token in &parsed.tokens {
+        let (start, end) = (token.span.start, token.span.end);
+        let (role, modifiers) = match token.kind {
+            TokenKind::LineComment => (Role::Comment, 0),
+            TokenKind::DocComment => (Role::Comment, DOCUMENTATION),
+            TokenKind::String => (Role::String, 0),
+            TokenKind::Number => (Role::Number, 0),
+            TokenKind::At => (Role::Decorator, 0),
+            // A name the tree did not classify is a keyword: the declaration
+            // keywords, modifiers, clause and constraint names, roles, HTTP
+            // methods and the words of rules and migrations.
+            TokenKind::Ident => walker
+                .roles
+                .get(&start)
+                .copied()
+                .unwrap_or((Role::Keyword, 0)),
+            _ => continue,
+        };
+        out.push(Highlight {
+            start,
+            end,
+            role,
+            modifiers,
+        });
+    }
+    out
+}
+
+struct Walker<'a> {
+    index: &'a Index,
+    roles: BTreeMap<u32, (Role, u32)>,
+}
+
+impl Walker<'_> {
+    fn set(&mut self, ident: &Ident, role: Role, modifiers: u32) {
+        if !ident.is_missing() {
+            self.roles.insert(ident.span.start, (role, modifiers));
+        }
+    }
+
+    fn declare(&mut self, ident: &Ident, role: Role) {
+        self.set(ident, role, DECLARATION);
+    }
+
+    /// A name that refers to a declaration or a built-in type; anything
+    /// else gets `fallback`, if any.
+    fn reference(&mut self, ident: &Ident, fallback: Option<Role>) {
+        match self.index.reference(&ident.name) {
+            Some((role, modifiers)) => self.set(ident, role, modifiers),
+            None => {
+                if let Some(role) = fallback {
+                    self.set(ident, role, 0);
+                }
+            }
+        }
+    }
+
+    fn type_ref(&mut self, ty: &TypeRef) {
+        self.reference(&ty.name, Some(Role::Type));
+        self.constraints(&ty.constraints);
+    }
+
+    fn constraints(&mut self, constraints: &[crucible_lang::ast::Constraint]) {
+        for constraint in constraints {
+            if let ConstraintValue::Value(value) = &constraint.value {
+                self.value(value, Role::EnumMember);
+            }
+        }
+    }
+
+    fn annotations(&mut self, annotations: &[Annotation]) {
+        for annotation in annotations {
+            self.set(&annotation.name, Role::Decorator, 0);
+            self.args(&annotation.args, Role::EnumMember);
+        }
+    }
+
+    /// `ident` is how an identifier value is shown when it names no type: a
+    /// member for `paginated(items: graphs)`, a constant for `@mutability(create)`.
+    fn args(&mut self, args: &[Arg], ident: Role) {
+        for arg in args {
+            if let Some(Key::Name(key)) = &arg.key {
+                self.set(key, Role::Parameter, 0);
+            }
+            self.value(&arg.value, ident);
+        }
+    }
+
+    fn value(&mut self, value: &Value, ident: Role) {
+        match value {
+            Value::Ident(name) => self.reference(name, Some(ident)),
+            Value::List(items, _) => {
+                for item in items {
+                    self.value(item, ident);
+                }
+            }
+            Value::Object(fields, _) => {
+                for field in fields {
+                    if let Key::Name(key) = &field.key {
+                        self.set(key, Role::Property, 0);
+                    }
+                    self.value(&field.value, ident);
+                }
+            }
+            Value::Str(_) | Value::Number(_) => {}
+        }
+    }
+
+    fn clauses(&mut self, clauses: &[Clause]) {
+        for clause in clauses {
+            match &clause.value {
+                ClauseValue::Args(args) => self.args(args, Role::Property),
+                ClauseValue::Block(inner) => self.clauses(inner),
+                ClauseValue::Value(value) => self.value(value, Role::EnumMember),
+            }
+        }
+    }
+
+    fn members(&mut self, members: &[Member]) {
+        for member in members {
+            self.member(member);
+        }
+    }
+
+    fn member(&mut self, member: &Member) {
+        self.annotations(&member.annotations);
+        match &member.kind {
+            MemberKind::Include(name) => self.reference(name, Some(Role::Struct)),
+            MemberKind::Elided { name, alias, .. } => {
+                self.set(name, Role::Property, 0);
+                if let Some(alias) = alias {
+                    self.declare(alias, Role::Property);
+                }
+            }
+            MemberKind::Field {
+                name, ty, default, ..
+            } => {
+                self.declare(name, Role::Property);
+                if let Some(ty) = ty {
+                    self.type_ref(ty);
+                }
+                if let Some(default) = default {
+                    self.value(default, Role::EnumMember);
+                }
+            }
+        }
+    }
+
+    fn entries(&mut self, entries: &[OpEntry]) {
+        for entry in entries {
+            match entry {
+                OpEntry::Http(_) => {}
+                OpEntry::Call(call) => self.args(&call.args, Role::Property),
+                OpEntry::Body(Body { members, .. }) => self.members(members),
+                OpEntry::Errors(names, _) => {
+                    for name in names {
+                        self.reference(name, Some(Role::Class));
+                    }
+                }
+                OpEntry::Example(example) => {
+                    for part in &example.parts {
+                        match part {
+                            ExamplePart::Input(value) | ExamplePart::Output(value) => {
+                                self.value(value, Role::EnumMember);
+                            }
+                            ExamplePart::Error(name, value) => {
+                                self.reference(name, Some(Role::Class));
+                                self.value(value, Role::EnumMember);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn item(&mut self, item: &Item) {
+        self.annotations(&item.annotations);
+        if let Some((_, role, name)) = describe(&item.decl) {
+            self.declare(name, role);
+        }
+        match &item.decl {
+            Decl::Service(block) | Decl::Protocol(block) => self.clauses(&block.clauses),
+            Decl::Resource(resource) => {
+                if let Some(parent) = &resource.parent {
+                    self.reference(parent, Some(Role::Class));
+                }
+                for entry in &resource.entries {
+                    self.annotations(&entry.annotations);
+                    self.declare(&entry.name, Role::Property);
+                    self.type_ref(&entry.ty);
+                }
+            }
+            Decl::Operation(operation) => {
+                if let Some(attachment) = &operation.attachment {
+                    self.reference(&attachment.resource, Some(Role::Class));
+                }
+                self.entries(&operation.entries);
+            }
+            Decl::Template(template) => self.entries(&template.entries),
+            Decl::Structure(structure) => {
+                if let Some(resource) = &structure.resource {
+                    self.reference(resource, Some(Role::Class));
+                }
+                self.members(&structure.members);
+            }
+            Decl::Union(union) => self.members(&union.members),
+            Decl::Error(error) => {
+                for entry in &error.entries {
+                    if let ErrorEntry::Member(member) = entry {
+                        self.member(member);
+                    }
+                }
+            }
+            Decl::Enum(enumeration) => {
+                if let Some(base) = &enumeration.base {
+                    self.reference(base, Some(Role::Type));
+                }
+                self.enum_values(&enumeration.values);
+            }
+            Decl::Scalar(scalar) => {
+                self.set(&scalar.kind, Role::Type, DEFAULT_LIBRARY);
+                self.constraints(&scalar.constraints);
+            }
+            Decl::List(list) => {
+                self.reference(&list.member, Some(Role::Type));
+                self.constraints(&list.constraints);
+            }
+            Decl::Map(map) => {
+                self.reference(&map.key, Some(Role::Type));
+                self.reference(&map.value, Some(Role::Type));
+                self.constraints(&map.constraints);
+            }
+            Decl::Metadata(metadata) => {
+                match &metadata.ty {
+                    Some(MetaType::Enum(values)) => self.enum_values(values),
+                    Some(MetaType::Type(ty)) => self.type_ref(ty),
+                    None => {}
+                }
+                for conflict in &metadata.conflicts {
+                    self.set(conflict, Role::Decorator, 0);
+                }
+            }
+            Decl::Rule(rule) => {
+                for clause in &rule.clauses {
+                    if let Some(condition) = &clause.condition {
+                        self.expr(condition);
+                    }
+                    for requirement in &clause.requirements {
+                        self.expr(requirement);
+                    }
+                }
+            }
+            Decl::Except(except) => {
+                self.reference(&except.rule, Some(Role::Function));
+                self.reference(&except.target, None);
+            }
+            Decl::Migration(migration) => {
+                for step in &migration.steps {
+                    self.step(&step.kind);
+                }
+            }
+            Decl::Conversion(conversion) => {
+                self.reference(&conversion.from, Some(Role::Type));
+                self.reference(&conversion.to, Some(Role::Type));
+            }
+        }
+    }
+
+    fn enum_values(&mut self, values: &[crucible_lang::ast::EnumValue]) {
+        for value in values {
+            self.annotations(&value.annotations);
+            self.declare(&value.name, Role::EnumMember);
+            if let Some(inner) = &value.value {
+                self.value(inner, Role::EnumMember);
+            }
+        }
+    }
+
+    fn metadata_ref(&mut self, reference: &Ref) {
+        if reference.metadata {
+            self.set(&reference.name, Role::Decorator, 0);
+        }
+    }
+
+    fn path(&mut self, path: &Path) {
+        self.metadata_ref(&path.head);
+    }
+
+    fn expr(&mut self, expr: &Expr) {
+        match &expr.kind {
+            ExprKind::Or(left, right) | ExprKind::And(left, right) => {
+                self.expr(left);
+                self.expr(right);
+            }
+            ExprKind::Not(inner) => self.expr(inner),
+            ExprKind::HasOneOf(refs) => {
+                for reference in refs {
+                    self.metadata_ref(reference);
+                }
+            }
+            ExprKind::Has(reference) => self.metadata_ref(reference),
+            ExprKind::Addresses(name) => self.reference(name, Some(Role::Class)),
+            ExprKind::Flag(path) => self.path(path),
+            ExprKind::Compare { path, operand, .. } => {
+                self.path(path);
+                if let Operand::Value(value) = operand {
+                    self.value(value, Role::EnumMember);
+                }
+            }
+        }
+    }
+
+    fn dotted(&mut self, dotted: &Dotted) {
+        if let Some((head, rest)) = dotted.parts.split_first() {
+            self.reference(head, None);
+            for part in rest {
+                if !matches!(part.name.as_str(), "input" | "output") {
+                    self.set(part, Role::Property, 0);
+                }
+            }
+        }
+    }
+
+    fn step(&mut self, step: &StepKind) {
+        match step {
+            StepKind::Rename { path, to } => {
+                self.dotted(path);
+                self.set(to, Role::Property, 0);
+            }
+            StepKind::Require { path, how } => {
+                self.dotted(path);
+                if let crucible_lang::ast::RequireHow::Default(value) = how {
+                    self.value(value, Role::EnumMember);
+                }
+            }
+            StepKind::Add {
+                path,
+                name,
+                mapping,
+                ..
+            } => {
+                self.dotted(path);
+                if let Some(name) = name {
+                    self.set(name, Role::Property, 0);
+                }
+                for (from, to) in mapping {
+                    self.set(from, Role::EnumMember, 0);
+                    self.set(to, Role::EnumMember, 0);
+                }
+            }
+            StepKind::Move { operation, .. } | StepKind::RemoveOperation(operation) => {
+                self.reference(operation, Some(Role::Function));
+            }
+            StepKind::Reshape {
+                path,
+                members,
+                into,
+                ..
+            } => {
+                self.dotted(path);
+                for member in members {
+                    self.set(member, Role::Property, 0);
+                }
+                self.set(into, Role::Property, 0);
+            }
+            StepKind::Behavior(path) => self.dotted(path),
+            StepKind::Sunset(_) => {}
+            StepKind::Retype { path, to, .. } => {
+                self.dotted(path);
+                self.reference(to, Some(Role::Type));
+            }
+        }
+    }
+}
+
+/// Every place `name` refers to its declaration in one file, the declaration
+/// itself included: `(start, end, is_declaration)`. Words that merely spell
+/// the name, a member called the same say, are not references.
+pub fn occurrences(
+    parsed: &Parsed,
+    text: &str,
+    index: &Index,
+    name: &str,
+) -> Vec<(u32, u32, bool)> {
+    highlights(parsed, index)
+        .into_iter()
+        .filter(|highlight| {
+            matches!(
+                highlight.role,
+                Role::Type
+                    | Role::Struct
+                    | Role::Enum
+                    | Role::Class
+                    | Role::Interface
+                    | Role::Function
+                    | Role::Decorator
+            ) && highlight.modifiers & DEFAULT_LIBRARY == 0
+                && &text[highlight.start as usize..highlight.end as usize] == name
+        })
+        .map(|highlight| {
+            (
+                highlight.start,
+                highlight.end,
+                highlight.modifiers & DECLARATION != 0,
+            )
+        })
+        .collect()
+}
+
+/// The identifier token covering `offset`, if any. An offset just past an
+/// identifier counts, so a caret at a name's end still finds it.
+pub fn ident_at(parsed: &Parsed, text: &str, offset: usize) -> Option<(u32, u32, String)> {
+    let offset = offset as u32;
+    parsed
+        .tokens
+        .iter()
+        .filter(|token| token.kind == TokenKind::Ident)
+        .find(|token| token.span.start <= offset && offset <= token.span.end)
+        .map(|token| {
+            (
+                token.span.start,
+                token.span.end,
+                token.span.text(text).to_owned(),
+            )
+        })
+}
+
+/// Hover text for a declaration: its signature line and documentation.
+pub fn hover_markdown(name: &str, declaration: &Declaration) -> String {
+    let mut out = format!("```\n{} {name}\n```", declaration.keyword);
+    if let Some(doc) = &declaration.doc {
+        out.push_str("\n\n");
+        out.push_str(doc.trim());
+    }
+    out
+}
+
+/// One entry of the outline, with byte ranges.
+#[derive(Debug, Clone)]
+pub struct Symbol {
+    pub name: String,
+    pub detail: String,
+    pub kind: lsp_types::SymbolKind,
+    pub start: u32,
+    pub end: u32,
+    pub name_start: u32,
+    pub name_end: u32,
+    pub children: Vec<Symbol>,
+}
+
+pub fn outline(parsed: &Parsed) -> Vec<Symbol> {
+    use lsp_types::SymbolKind as K;
+    let mut out = Vec::new();
+    for item in &parsed.file.items {
+        let Some((keyword, role, name)) = describe(&item.decl) else {
+            continue;
+        };
+        if name.is_missing() {
+            continue;
+        }
+        let kind = match role {
+            Role::Interface => K::INTERFACE,
+            Role::Class => K::CLASS,
+            Role::Function => K::FUNCTION,
+            Role::Struct => K::STRUCT,
+            Role::Enum => K::ENUM,
+            Role::Decorator => K::PROPERTY,
+            _ => K::TYPE_PARAMETER,
+        };
+        let mut children = Vec::new();
+        let members = |members: &[Member], into: &mut Vec<Symbol>| {
+            for member in members {
+                let (name, detail) = match &member.kind {
+                    MemberKind::Field { name, ty, .. } => (
+                        name,
+                        ty.as_ref()
+                            .map(|ty| ty.name.name.clone())
+                            .unwrap_or_default(),
+                    ),
+                    MemberKind::Elided { name, alias, .. } => {
+                        (alias.as_ref().unwrap_or(name), format!("${}", name.name))
+                    }
+                    MemberKind::Include(name) => (name, "include".to_owned()),
+                };
+                if name.is_missing() {
+                    continue;
+                }
+                into.push(Symbol {
+                    name: name.name.clone(),
+                    detail,
+                    kind: K::FIELD,
+                    start: member.span.start,
+                    end: member.span.end,
+                    name_start: name.span.start,
+                    name_end: name.span.end,
+                    children: Vec::new(),
+                });
+            }
+        };
+        match &item.decl {
+            Decl::Structure(structure) => members(&structure.members, &mut children),
+            Decl::Union(union) => members(&union.members, &mut children),
+            Decl::Error(error) => {
+                let list: Vec<Member> = error
+                    .entries
+                    .iter()
+                    .filter_map(|entry| match entry {
+                        ErrorEntry::Member(member) => Some(member.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                members(&list, &mut children);
+            }
+            Decl::Operation(operation) => {
+                for entry in &operation.entries {
+                    if let OpEntry::Body(body) = entry {
+                        let label = match body.kind {
+                            crucible_lang::ast::BodyKind::Input => "input",
+                            crucible_lang::ast::BodyKind::Output => "output",
+                        };
+                        let mut fields = Vec::new();
+                        members(&body.members, &mut fields);
+                        children.push(Symbol {
+                            name: label.to_owned(),
+                            detail: String::new(),
+                            kind: K::OBJECT,
+                            start: body.span.start,
+                            end: body.span.end,
+                            name_start: body.span.start,
+                            name_end: body.span.start + label.len() as u32,
+                            children: fields,
+                        });
+                    }
+                }
+            }
+            Decl::Enum(enumeration) => {
+                for value in &enumeration.values {
+                    if value.name.is_missing() {
+                        continue;
+                    }
+                    children.push(Symbol {
+                        name: value.name.name.clone(),
+                        detail: String::new(),
+                        kind: K::ENUM_MEMBER,
+                        start: value.span.start,
+                        end: value.span.end,
+                        name_start: value.name.span.start,
+                        name_end: value.name.span.end,
+                        children: Vec::new(),
+                    });
+                }
+            }
+            Decl::Resource(resource) => {
+                for entry in &resource.entries {
+                    children.push(Symbol {
+                        name: entry.name.name.clone(),
+                        detail: entry.ty.name.name.clone(),
+                        kind: K::PROPERTY,
+                        start: entry.span.start,
+                        end: entry.span.end,
+                        name_start: entry.name.span.start,
+                        name_end: entry.name.span.end,
+                        children: Vec::new(),
+                    });
+                }
+            }
+            _ => {}
+        }
+        out.push(Symbol {
+            name: name.name.clone(),
+            detail: keyword,
+            kind,
+            start: item.span.start,
+            end: item.span.end,
+            name_start: name.span.start,
+            name_end: name.span.end,
+            children,
+        });
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SOURCE: &str = r#"
+/// A city.
+@since("1")
+structure City {
+    name: CityName = "x"
+    kind?: Kind
+    size: integer { range 1..10 }
+}
+
+string CityName { length 1..10 }
+
+enum Kind { BIG = "big" }
+
+operation GetCity reads City {
+    http GET "/cities/{name}" -> 200
+    paginated(items: name)
+    input { $name }
+    errors [Missing]
+}
+"#;
+
+    fn role_of(highlights: &[Highlight], word: &str, nth: usize) -> (Role, u32) {
+        let start = SOURCE
+            .match_indices(word)
+            .filter(|(index, _)| {
+                // Whole words only.
+                let before = SOURCE[..*index].chars().last();
+                let after = SOURCE[index + word.len()..].chars().next();
+                !before.is_some_and(|c| c.is_alphanumeric())
+                    && !after.is_some_and(|c| c.is_alphanumeric())
+            })
+            .nth(nth)
+            .unwrap()
+            .0 as u32;
+        let highlight = highlights
+            .iter()
+            .find(|highlight| highlight.start == start)
+            .unwrap_or_else(|| panic!("no highlight for {word} #{nth}"));
+        (highlight.role, highlight.modifiers)
+    }
+
+    #[test]
+    fn tokens_take_their_role_from_the_tree() {
+        let parsed = crucible_lang::parse(SOURCE);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let highlights = highlights(&parsed, &index);
+        let role = |word, nth| role_of(&highlights, word, nth);
+        assert_eq!(role("structure", 0), (Role::Keyword, 0));
+        assert_eq!(role("City", 0), (Role::Struct, DECLARATION));
+        assert_eq!(role("City", 1), (Role::Struct, 0));
+        assert_eq!(role("since", 0), (Role::Decorator, 0));
+        assert_eq!(role("name", 0), (Role::Property, DECLARATION));
+        assert_eq!(role("CityName", 0), (Role::Type, 0));
+        assert_eq!(role("CityName", 1), (Role::Type, DECLARATION));
+        assert_eq!(role("Kind", 0), (Role::Enum, 0));
+        assert_eq!(role("integer", 0), (Role::Type, DEFAULT_LIBRARY));
+        assert_eq!(role("range", 0), (Role::Keyword, 0));
+        assert_eq!(role("string", 0), (Role::Type, DEFAULT_LIBRARY));
+        assert_eq!(role("BIG", 0), (Role::EnumMember, DECLARATION));
+        assert_eq!(role("GetCity", 0), (Role::Function, DECLARATION));
+        assert_eq!(role("reads", 0), (Role::Keyword, 0));
+        assert_eq!(role("GET", 0), (Role::Keyword, 0));
+        assert_eq!(role("items", 0), (Role::Parameter, 0));
+        assert_eq!(role("Missing", 0), (Role::Class, 0));
+        let doc = highlights.iter().find(|h| h.role == Role::Comment).unwrap();
+        assert_eq!(doc.modifiers, DOCUMENTATION);
+        assert!(highlights.iter().any(|h| h.role == Role::String));
+        assert!(highlights.iter().any(|h| h.role == Role::Number));
+    }
+
+    #[test]
+    fn the_outline_lists_declarations_and_their_members() {
+        let parsed = crucible_lang::parse(SOURCE);
+        let outline = outline(&parsed);
+        let names: Vec<&str> = outline.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["City", "CityName", "Kind", "GetCity"]);
+        let city: Vec<&str> = outline[0]
+            .children
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect();
+        assert_eq!(city, ["name", "kind", "size"]);
+        assert_eq!(outline[3].children[0].name, "input");
+        assert_eq!(outline[3].children[0].children[0].name, "name");
+    }
+}

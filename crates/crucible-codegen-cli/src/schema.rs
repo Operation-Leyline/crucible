@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
+use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, TimestampFormat};
-use crucible_smithy::{Diagnostics, ShapeId};
 use serde_json::{Value, json};
 
 use crate::{Options, names};
@@ -123,7 +123,7 @@ fn describe_member(service: &Service, member: &Member) -> Value {
         "target": member.target.to_string(),
         "description": member.notes.prose(member.docs.as_deref()).unwrap_or_default(),
         "required": !member.optional_on_client() && member.client_default().is_none()
-            && !member.traits.contains_key(&ShapeId::new("smithy.api", "idempotencyToken")),
+            && !member.idempotency_token,
         "sensitive": service.sensitive(member),
     });
     if matches!(service.shape(&member.target), Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Timestamp)

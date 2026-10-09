@@ -65,6 +65,11 @@ class PlanTests(unittest.TestCase):
     def test_explorer_test_support_selects_http_gate(self):
         self.assertEqual(affected_groups(["crates/crucible-codegen-docs/tests/site/fake-dom.mjs"]), {"rust", "docs_site", "e2e"})
 
+    def test_language_front_end_and_server_have_their_own_gates(self):
+        self.assertEqual(affected_groups(["crates/crucible-lang/src/lower.rs"]), SDK_GROUPS)
+        self.assertEqual(affected_groups(["crates/crucible-lsp/src/server.rs"]), {"rust"})
+        self.assertEqual(affected_groups(["tools/package_lsp.py"]), {"rust", "e2e"})
+
     def test_onboarding_and_editor_integration_paths_keep_their_gates(self):
         self.assertEqual(affected_groups(["smithy/errors.smithy"]), CORE_GROUPS | CONSUMERS)
         self.assertEqual(affected_groups(["vendor/smithy-tooling/src/runtime.rs"]), CORE_GROUPS)
@@ -324,8 +329,9 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 6)
         self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 8)
         self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 5)
-        # Preserve the 37 test variants (including consumers) plus planner/aggregate and one tools build.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 40)
+        # Preserve the 37 test variants (including consumers) plus planner/aggregate, one tools build
+        # and the release-only language server build.
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 41)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):

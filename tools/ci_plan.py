@@ -69,6 +69,7 @@ TOOLS = {
     ".github/workflows/ci.yml": CORE_GROUPS | {"consumers"},
     ".github/workflows/release.yml": CORE_GROUPS | {"consumers"},
     "tools/crucible_release.py": {"e2e"},
+    "tools/package_lsp.py": {"e2e"},
     "tools/test_crucible_release.py": {"e2e"},
     "tools/test-consumers.py": {"consumers"},
 }
@@ -120,6 +121,12 @@ def affected_groups(paths):
                     selected.add("service_cli")
             elif crate in {"crucible-codegen", "crucible-build"}:
                 selected.update(SDK_GROUPS)
+            elif crate == "crucible-lang":
+                # The .cru front end lowers through crucible-build into every output.
+                selected.update(SDK_GROUPS)
+            elif crate == "crucible-lsp":
+                # Editors only: its unit and protocol tests run in the Rust job.
+                selected.add("rust")
             elif crate in {"crucible-smithy", "crucible-codegen-common"}:
                 selected.update(MODEL_GROUPS)
             elif crate.startswith("crucible-codegen-"):

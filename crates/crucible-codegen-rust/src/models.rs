@@ -15,12 +15,11 @@ use crate::types::{boxed_members, builtin, field_type, rust_type};
 /// `@crucible.protocols#strict`, and with `all_inputs` every structure an
 /// input reaches.
 pub(crate) fn strict_shapes(service: &Service, all_inputs: bool) -> BTreeSet<ShapeId> {
-    let marker = ShapeId::new("crucible.protocols", "strict");
     let mut strict: BTreeSet<ShapeId> = service
         .shapes
         .iter()
         .filter_map(|(id, shape)| match shape {
-            Shape::Structure(s) if s.traits.contains_key(&marker) => Some(id.clone()),
+            Shape::Structure(s) if s.strict => Some(id.clone()),
             _ => None,
         })
         .collect();

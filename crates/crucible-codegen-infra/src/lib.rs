@@ -223,13 +223,7 @@ fn resolve_property(
     let (target, mut constraints, docs, sensitive) = match (&binding.source, &binding.target) {
         (Some(source), None) => {
             let (member, sensitive) = member_at(service, source)?;
-            immutable |= matches!(
-                member
-                    .traits
-                    .get(&ShapeId::new("aws.cloudformation", "cfnMutability"))
-                    .and_then(Value::as_str),
-                Some("create" | "create-and-read")
-            );
+            immutable |= member.mutability.is_some_and(|m| m.create_only());
             if matches!(service.shape(&member.target), Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Timestamp)
             {
                 timestamp_format = Some(service.timestamp_format(member));
@@ -345,13 +339,7 @@ fn resolve_property(
 }
 
 fn write_only(member: &Member) -> bool {
-    matches!(
-        member
-            .traits
-            .get(&ShapeId::new("aws.cloudformation", "cfnMutability"))
-            .and_then(Value::as_str),
-        Some("write" | "create")
-    )
+    member.mutability.is_some_and(|m| m.write_only())
 }
 
 fn write_only_shape(service: &Service, id: &ShapeId, seen: &mut BTreeSet<ShapeId>) -> bool {

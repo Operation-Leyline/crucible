@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Operation, Service, Shape};
 
-use crate::names::{doc, documented, literal, method_name, optional, smithy};
+use crate::names::{doc, documented, literal, method_name, optional};
 use crate::{Middleware, Options};
 
 pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String {
@@ -38,7 +38,7 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
     } else {
         ""
     };
-    let bearer = service.auth.contains(&smithy("httpBearerAuth"));
+    let bearer = service.auth.iter().any(|id| service.is_bearer(id));
     doc(
         &mut out,
         "  ",

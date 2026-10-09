@@ -1,0 +1,265 @@
+// The weather model, ported from crates/crucible-smithy/tests/fixtures/weather.json.
+// Same shape ids, same IR. Lines starting with // are comments; /// is documentation.
+//
+// Members are required unless marked `name?:`; `= value` gives a default.
+// Range bounds (`1..100`, `..5`) are inclusive at both ends.
+// Keywords (readonly, idempotent, strict, public) are closed compiler-validated
+// modifiers; @annotations carry values or bind members (bindings, @token, metadata).
+
+@externalDocs("Home" = "https://weather.example/docs")
+service Weather {
+    version "2026-10-01"
+    title "Weather"
+    protocol json
+    auth bearer
+    paginated(inputToken: nextToken, outputToken: nextToken)
+
+    operations [Ping, Status]
+    resources [City]
+    errors [ThrottlingError, ValidationError]
+}
+
+// Custom metadata: declared with a target kind and a value type, applied
+// with @name, and carried into the IR as example.weather#tier etc.
+metadata tier on operation: string
+metadata audited on member
+
+// A resource declares only what it is. Operations attach themselves with a
+// role verb (creates, reads, lists, on ...), so the resource never lists them.
+resource City {
+    id cityId: CityId
+}
+
+@deprecated(since: "2026-09", message: "Use Status instead.")
+readonly operation Ping {
+    http GET "/ping"
+}
+
+readonly operation Status {
+    http GET "/status"
+    input {}
+    output {}
+}
+
+// `creates` binds only parent identifiers (City has none). The members below
+// are plain input members: City declares no properties in this model.
+@tier("write")
+idempotent operation CreateCity creates City {
+    http POST "/cities" -> 201
+
+    strict input {
+        @audited
+        name: CityName { length ..40 }
+        location?: Location
+        @token
+        clientToken?: string
+        @header("X-Expected-Revision")
+        expectedRevision?: long
+    }
+
+    output {
+        city: CitySummary
+    }
+
+    errors [ConflictError]
+
+    /// Creates Lisbon with coordinates.
+    example "Create a city" {
+        input { name: "Lisbon", location: { coordinates: { latitude: 38.72, longitude: -9.14 } }, expectedRevision: 7 }
+        output { city: { id: "c-0a1b2c3d", name: "Lisbon", population: 545000, updatedAt: "2026-01-02T03:04:05Z", createdAt: 1767323045 } }
+    }
+
+    example "Create a duplicate city" {
+        input { name: "Lisbon" }
+        error ConflictError { message: "Lisbon already exists" }
+    }
+}
+
+// `reads` implies readonly and requires every identifier: `$cityId` binds it,
+// and the URI label binds by name.
+operation GetCity reads City {
+    http GET "/cities/{cityId}"
+
+    input {
+        $cityId
+        @query("at")
+        at?: DateTime
+    }
+
+    output {
+        city: CitySummary
+        forecast?: Forecast
+        @header("X-Request-Id")
+        requestId?: string
+    }
+
+    errors [NotFoundError]
+
+    example "Read a city" {
+        input { cityId: "c-0a1b2c3d", at: "2026-01-02T03:04:05Z" }
+        output { city: { id: "c-0a1b2c3d", name: "Lisbon" }, forecast: { clear: { highC: 21 } }, requestId: "req-1" }
+    }
+
+    example "Read a missing city" {
+        input { cityId: "c-ffffffff" }
+        error NotFoundError { message: "No such city", resourceId: "c-ffffffff" }
+    }
+}
+
+operation ListCities lists City {
+    http GET "/cities"
+    paginated(items: cities, pageSize: maxResults)
+
+    input {
+        @query("nextToken")
+        nextToken?: string
+        @query("maxResults")
+        maxResults?: integer { range 1..100 }
+        @query("tag")
+        tags?: Tags
+    }
+
+    output {
+        cities: CitySummaries
+        nextToken?: string
+    }
+
+    example "List the first page" {
+        input { maxResults: 2, tags: ["coastal", "capital"] }
+        output { cities: [{ id: "c-0a1b2c3d", name: "Lisbon" }], nextToken: "page-2" }
+    }
+}
+
+/// Stores a city's photo exactly as sent.
+idempotent operation PutCityPhoto on City {
+    http PUT "/cities/{cityId}/photo"
+
+    input {
+        $cityId
+        @header("X-Photo-Caption")
+        caption?: string
+        @payload
+        photo: Photo
+    }
+
+    output {
+        photo: PhotoSummary
+    }
+
+    errors [NotFoundError]
+}
+
+readonly operation GetCityPhoto on City {
+    http GET "/cities/{cityId}/photo"
+
+    input {
+        $cityId
+    }
+
+    output {
+        @header("X-Photo-Caption")
+        caption?: string
+        @payload
+        photo?: Photo
+    }
+
+    errors [NotFoundError]
+}
+
+// Named scalars carry constraints and documentation; members may tighten them.
+
+string CityId { pattern "^c-[a-z0-9]{8}$" }
+
+string CityName { length 1..100 }
+
+timestamp DateTime { format date-time }
+
+/// A photo, carried unparsed.
+blob Photo { length 1..4096; mediaType "image/jpeg" }
+
+/// The photo's first bytes: base64 in JSON.
+blob Thumbnail { length ..8 }
+
+list Tags: string { length ..5 }
+
+list CitySummaries: CitySummary
+
+list ValidationFieldList: ValidationField
+
+map Forecast: Sky -> document
+
+structure CitySummary {
+    id: CityId
+    name: CityName
+    population: long = 0
+    updatedAt?: timestamp
+    @deprecated(since: "2026-08", message: "Use updatedAt.")
+    createdAt?: timestamp { format epoch-seconds }
+}
+
+@unstable
+@since("2026-10")
+@externalDocs(
+    "Reference" = "https://weather.example/docs/photos/reference",
+    "Photo guide" = "https://weather.example/docs/photos",
+)
+structure PhotoSummary {
+    size: integer
+    thumbnail: Thumbnail
+    caption?: string
+}
+
+structure Coordinates {
+    latitude: double
+    longitude: double
+}
+
+structure ValidationField {
+    path: string
+    message: string
+}
+
+union Location {
+    coordinates: Coordinates
+    unknown
+}
+
+enum Sky {
+    CLEAR = "clear"
+    @deprecated(message: "Reported as CLEAR with a cloud cover reading.")
+    CLOUDY = "cloudy"
+}
+
+enum ValidationReason {
+    UNKNOWN_OPERATION = "unknownOperation"
+    CANNOT_PARSE = "cannotParse"
+    FIELD_VALIDATION_FAILED = "fieldValidationFailed"
+    OTHER = "other"
+}
+
+error NotFoundError {
+    status 404
+    message: string
+    resourceId?: string
+}
+
+error ConflictError {
+    status 409
+    message: string
+}
+
+error ValidationError {
+    status 400
+    message: string
+    reason: ValidationReason
+    fieldList?: ValidationFieldList
+    requestId?: string
+}
+
+error ThrottlingError {
+    status 429
+    retryable throttling
+    message: string
+    @header("Retry-After")
+    retryAfter?: integer
+}

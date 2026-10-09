@@ -309,11 +309,7 @@ impl Checker<'_> {
                 }
             }
             (Shape::Structure(a), Shape::Structure(b)) => {
-                let strict = ShapeId::new("crucible.protocols", "strict");
-                if direction == Direction::Input
-                    && !a.traits.contains_key(&strict)
-                    && b.traits.contains_key(&strict)
-                {
+                if direction == Direction::Input && !a.strict && b.strict {
                     self.push(
                         "compatibility.constraints",
                         old_id,

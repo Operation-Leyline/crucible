@@ -1,0 +1,204 @@
+//! Every `.cru` file under `docs/idl/examples` lexes losslessly and parses
+//! without a diagnostic. The examples are the language's design artifacts,
+//! so the parser and the design cannot drift apart.
+
+use std::path::{Path, PathBuf};
+
+use crucible_lang::ast::{BodyKind, Decl, ExprKind, MemberKind, OpEntry, Quantifier, StepKind};
+use crucible_lang::{LineIndex, parse};
+
+fn examples() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/idl/examples")
+}
+
+fn cru_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let mut entries: Vec<_> = std::fs::read_dir(dir)
+        .unwrap_or_else(|error| panic!("{}: {error}", dir.display()))
+        .map(|entry| entry.expect("directory entry").path())
+        .collect();
+    entries.sort();
+    for path in entries {
+        if path.is_dir() {
+            cru_files(&path, out);
+        } else if path.extension().is_some_and(|ext| ext == "cru") {
+            out.push(path);
+        }
+    }
+}
+
+fn read(relative: &str) -> String {
+    let path = examples().join(relative);
+    std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
+}
+
+#[test]
+fn every_example_round_trips_and_parses_cleanly() {
+    let mut files = Vec::new();
+    cru_files(&examples(), &mut files);
+    assert!(files.len() >= 6, "found {files:?}");
+    let mut failures = String::new();
+    for path in &files {
+        let source = std::fs::read_to_string(path).expect("readable");
+        let parsed = parse(&source);
+        let rebuilt: String = parsed
+            .tokens
+            .iter()
+            .map(|token| token.span.text(&source))
+            .collect();
+        assert_eq!(rebuilt, source, "{} is not lossless", path.display());
+        let lines = LineIndex::new(&source);
+        for diagnostic in &parsed.diagnostics {
+            failures.push_str(&diagnostic.render(&path.display().to_string(), &source, &lines));
+        }
+        assert!(
+            !parsed.file.items.is_empty(),
+            "{} has no items",
+            path.display()
+        );
+    }
+    assert!(failures.is_empty(), "\n{failures}");
+}
+
+fn operation<'a>(
+    file: &'a crucible_lang::ast::File,
+    name: &str,
+) -> &'a crucible_lang::ast::Operation {
+    file.items
+        .iter()
+        .find_map(|item| match &item.decl {
+            Decl::Operation(op) if op.name.name == name => Some(op),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no operation {name}"))
+}
+
+#[test]
+fn weather_operations_attach_to_their_resource() {
+    let parsed = parse(&read("weather/model/weather.cru"));
+    let get = operation(&parsed.file, "GetCity");
+    let attachment = get.attachment.as_ref().expect("attached");
+    assert_eq!(attachment.role.name, "reads");
+    assert_eq!(attachment.resource.name, "City");
+    let input = get
+        .entries
+        .iter()
+        .find_map(|entry| match entry {
+            OpEntry::Body(body) if body.kind == BodyKind::Input => Some(body),
+            _ => None,
+        })
+        .expect("input");
+    assert!(matches!(
+        &input.members[0].kind,
+        MemberKind::Elided { name, optional: false, .. } if name.name == "cityId"
+    ));
+    let MemberKind::Field { name, optional, .. } = &input.members[1].kind else {
+        panic!("field");
+    };
+    assert_eq!((name.name.as_str(), *optional), ("at", true));
+    assert_eq!(input.members[1].annotations[0].name.name, "query");
+}
+
+#[test]
+fn documentation_attaches_to_examples_and_declarations() {
+    let parsed = parse(&read("weather/model/weather.cru"));
+    let create = operation(&parsed.file, "CreateCity");
+    let example = create
+        .entries
+        .iter()
+        .find_map(|entry| match entry {
+            OpEntry::Example(example) if example.title.value == "Create a city" => Some(example),
+            _ => None,
+        })
+        .expect("example");
+    assert_eq!(
+        example.doc.as_ref().map(|doc| doc.text.as_str()),
+        Some("Creates Lisbon with coordinates.")
+    );
+    let photo = parsed
+        .file
+        .items
+        .iter()
+        .find(|item| matches!(&item.decl, Decl::Scalar(s) if s.name.name == "Photo"))
+        .expect("Photo");
+    assert_eq!(
+        photo.doc.as_ref().map(|d| d.text.as_str()),
+        Some("A photo, carried unparsed.")
+    );
+}
+
+#[test]
+fn leyline_rules_parse_into_clauses() {
+    let parsed = parse(&read("leyline-graph/policy/leyline.cru"));
+    let semantics = parsed
+        .file
+        .items
+        .iter()
+        .find_map(|item| match &item.decl {
+            Decl::Rule(rule) if rule.name.name == "ClassMatchesSemantics" => Some(rule),
+            _ => None,
+        })
+        .expect("rule");
+    assert_eq!(semantics.flags[0].name, "strict");
+    assert_eq!(semantics.clauses.len(), 2);
+    assert_eq!(semantics.clauses[1].quantifier, Quantifier::Every);
+    let condition = semantics.clauses[1].condition.as_ref().expect("where");
+    assert!(matches!(condition.kind, ExprKind::Or(..)));
+    assert!(matches!(
+        semantics.clauses[1].requirements[0].kind,
+        ExprKind::Not(_)
+    ));
+    let excepts = parsed
+        .file
+        .items
+        .iter()
+        .filter(|item| matches!(item.decl, Decl::Except(_)))
+        .count();
+    assert_eq!(excepts, 2);
+}
+
+#[test]
+fn migration_steps_parse() {
+    let parsed = parse(&read("leyline-graph/migrations/2026-11-01.cru"));
+    let Decl::Migration(migration) = &parsed.file.items[0].decl else {
+        panic!("migration");
+    };
+    assert_eq!(migration.version.value, "2026-11-01");
+    assert_eq!(migration.from.value, "2026-09-04");
+    let verbs: Vec<&str> = migration
+        .steps
+        .iter()
+        .map(|step| match &step.kind {
+            StepKind::Rename { .. } => "rename",
+            StepKind::Require { .. } => "require",
+            StepKind::Add { .. } => "add",
+            StepKind::Move { .. } => "move",
+            StepKind::Reshape { .. } => "reshape",
+            StepKind::RemoveOperation(_) => "remove",
+            StepKind::Behavior(_) => "behavior",
+            StepKind::Sunset(_) => "sunset",
+            StepKind::Retype { .. } => "retype",
+        })
+        .collect();
+    assert_eq!(
+        verbs,
+        [
+            "rename", "require", "add", "add", "move", "require", "reshape", "reshape", "remove",
+            "behavior", "sunset"
+        ]
+    );
+    let StepKind::Add { name, mapping, .. } = &migration.steps[3].kind else {
+        panic!("add");
+    };
+    assert_eq!(
+        name.as_ref().map(|n| n.name.as_str()),
+        Some("GraphNameReservedException")
+    );
+    assert_eq!(mapping.len(), 2);
+    let StepKind::Require { how, .. } = &migration.steps[5].kind else {
+        panic!("require");
+    };
+    assert!(matches!(
+        how,
+        crucible_lang::ast::RequireHow::Hook(hook) if hook.is_async
+    ));
+}

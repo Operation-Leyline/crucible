@@ -7,7 +7,7 @@ use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Binding, Member, Operation, Service, Shape, SimpleKind, Structure};
 
 use crate::errors::error_shapes;
-use crate::names::{literal, property, smithy};
+use crate::names::{literal, property};
 
 /// Everything `schemas.ts` can import, whether or not this service needs it.
 /// An operation with one of these names is declared under another local name
@@ -380,7 +380,7 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     let mut fields = vec![
         format!("name: {}", literal(op.name())),
         format!("method: {}", literal(&op.method)),
-        format!("bearer: {}", op.auth.contains(&smithy("httpBearerAuth"))),
+        format!("bearer: {}", op.auth.iter().any(|id| service.is_bearer(id))),
     ];
     if service.protocol != crucible_smithy::Protocol::CrucibleJson {
         fields.push(format!(

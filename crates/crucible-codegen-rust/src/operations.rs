@@ -314,7 +314,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
     };
     out.push_str(&format!(
         "{allow}impl ::crucible_server_runtime_rust::__generated::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
-        op.auth.iter().any(|id| id.to_string() == "smithy.api#httpBearerAuth"),
+        op.auth.iter().any(|id| service.is_bearer(id)),
         operation_static(op),
         input_type(service, op),
         output_ty,

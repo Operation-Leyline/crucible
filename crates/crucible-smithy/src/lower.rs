@@ -14,8 +14,8 @@ use crate::ast::{self, Kind, Traits};
 use crate::diagnostics::Diagnostics;
 use crate::ir::{
     Binding, Bindings, Bounds, Constraints, DocNotes, Enum, EnumValue, ErrorInfo, Fault,
-    HeaderEncoding, IntEnum, IntEnumValue, List, Map, Member, Operation, Paginated, Payload,
-    PayloadKind, Retryable, Segment, Service, Shape, Simple, SimpleKind, Structure,
+    HeaderEncoding, IntEnum, IntEnumValue, List, Map, Member, Mutability, Operation, Paginated,
+    Payload, PayloadKind, Retryable, Segment, Service, Shape, Simple, SimpleKind, Structure,
     TimestampFormat, Uri,
 };
 use crate::shape_id::ShapeId;
@@ -1662,6 +1662,7 @@ impl<'m> Lowerer<'m> {
         let simple = |kind| {
             Shape::Simple(Simple {
                 internal: shape.traits.contains_key(&smithy("internal")),
+                sensitive: shape.traits.contains_key(&smithy("sensitive")),
                 kind,
                 streaming: shape.traits.contains_key(&smithy("streaming")),
                 requires_length: shape.traits.contains_key(&smithy("requiresLength")),
@@ -1676,6 +1677,7 @@ impl<'m> Lowerer<'m> {
             Kind::Boolean => simple(SimpleKind::Boolean),
             Kind::String if shape.traits.contains_key(&smithy("enum")) => Shape::Enum(Enum {
                 internal: shape.traits.contains_key(&smithy("internal")),
+                sensitive: shape.traits.contains_key(&smithy("sensitive")),
                 values: self.legacy_enum(id, &shape.traits[&smithy("enum")]),
                 docs,
                 notes,
@@ -1718,6 +1720,7 @@ impl<'m> Lowerer<'m> {
             Kind::Blob => simple(SimpleKind::Blob),
             Kind::Enum => Shape::Enum(Enum {
                 internal: shape.traits.contains_key(&smithy("internal")),
+                sensitive: shape.traits.contains_key(&smithy("sensitive")),
                 values: shape
                     .members
                     .iter()
@@ -1769,6 +1772,7 @@ impl<'m> Lowerer<'m> {
                 }
                 Shape::IntEnum(IntEnum {
                     internal: shape.traits.contains_key(&smithy("internal")),
+                    sensitive: shape.traits.contains_key(&smithy("sensitive")),
                     values,
                     docs,
                     notes,
@@ -1790,6 +1794,7 @@ impl<'m> Lowerer<'m> {
                 constraints.unique_items |= is_set;
                 Shape::List(List {
                     internal: shape.traits.contains_key(&smithy("internal")),
+                    sensitive: shape.traits.contains_key(&smithy("sensitive")),
                     sparse,
                     is_set,
                     member,
@@ -1806,6 +1811,7 @@ impl<'m> Lowerer<'m> {
                 let value = self.collection_member(id, "value", shape.value.as_ref(), sparse)?;
                 Shape::Map(Map {
                     internal: shape.traits.contains_key(&smithy("internal")),
+                    sensitive: shape.traits.contains_key(&smithy("sensitive")),
                     sparse,
                     key,
                     value,
@@ -1820,7 +1826,12 @@ impl<'m> Lowerer<'m> {
             },
             Kind::Structure => Shape::Structure(Structure {
                 internal: shape.traits.contains_key(&smithy("internal")),
+                sensitive: shape.traits.contains_key(&smithy("sensitive")),
                 streaming: false,
+                strict: shape
+                    .traits
+                    .contains_key(&ShapeId::new("crucible.protocols", "strict")),
+                input: shape.traits.contains_key(&smithy("input")),
                 members: self.members(id, shape),
                 error: self.error_info(id, shape),
                 docs,
@@ -1829,7 +1840,10 @@ impl<'m> Lowerer<'m> {
             }),
             Kind::Union => Shape::Union(Structure {
                 internal: shape.traits.contains_key(&smithy("internal")),
+                sensitive: shape.traits.contains_key(&smithy("sensitive")),
                 streaming: shape.traits.contains_key(&smithy("streaming")),
+                strict: false,
+                input: false,
                 members: self.members(id, shape),
                 error: None,
                 docs,
@@ -1975,6 +1989,7 @@ impl<'m> Lowerer<'m> {
         };
         Member {
             internal: member.traits.contains_key(&smithy("internal")),
+            sensitive: member.traits.contains_key(&smithy("sensitive")),
             event_binding: self.event_binding(member_id, member),
             name: name.to_owned(),
             wire_name: if self.protocol.uses_json_names() {
@@ -1987,6 +2002,8 @@ impl<'m> Lowerer<'m> {
             default,
             wire_default,
             client_optional: in_input || member.traits.contains_key(&smithy("clientOptional")),
+            idempotency_token: member.traits.contains_key(&smithy("idempotencyToken")),
+            mutability: self.mutability(member_id, &member.traits),
             constraints: effective,
             timestamp_format: self.explicit_timestamp_format(&member.traits),
             wire_timestamp_format: format,
@@ -1994,6 +2011,20 @@ impl<'m> Lowerer<'m> {
             notes: DocNotes::lower(member_id, &member.traits, &mut self.diagnostics),
             traits: member.traits.clone(),
         }
+    }
+
+    /// `@aws.cloudformation#cfnMutability`, typed; an unknown value is a
+    /// diagnostic rather than a silently mutable property.
+    fn mutability(&mut self, member_id: &ShapeId, traits: &Traits) -> Option<Mutability> {
+        let value = traits.get(&ShapeId::new("aws.cloudformation", "cfnMutability"))?;
+        let parsed = value.as_str().and_then(Mutability::from_cfn);
+        if parsed.is_none() {
+            self.diagnostics.push(
+                member_id,
+                "@cfnMutability must be full, create, create-and-read, read or write",
+            );
+        }
+        parsed
     }
 
     fn error_info(&mut self, id: &ShapeId, shape: &ast::Shape) -> Option<ErrorInfo> {

@@ -1,0 +1,64 @@
+// A hypothetical breaking release of Leyline, written as a server migration.
+// The model sources describe 2026-11-01 only. This file says how to serve
+// clients still on 2026-09-04 from it. The compiler replays these steps on
+// the frozen artifact releases/2026-09-04/leyline.model.json and refuses to
+// build unless the result is the current model.
+//
+// Step verbs are a closed set. A step converts automatically, or names a hook:
+// `by hook` generates a pure function, `by async hook` one that may do I/O.
+// The compiler knows whether a shape is used in requests, responses or both,
+// and generates only the directions that are needed.
+
+/// Graph storage is reported as one structure, region becomes a required
+/// choice, and graphs being deleted get their own status.
+migration "2026-11-01" from "2026-09-04" {
+
+    // ---- automatic ---------------------------------------------------------
+
+    /// Renamed to match the api-standards common terms.
+    rename GraphData.manifestGeneration -> generation
+
+    /// Index kind is now required. Requests from older clients mean a B-tree.
+    require CreateIndex.input.kind default BTREE
+
+    /// A graph that is being deleted reports `RETIRING`. Older clients only
+    /// know ACTIVE and DELETED, and a retiring graph is gone for them.
+    add GraphStatus.RETIRING downgrade DELETED
+
+    /// A new error. Older clients see the conflict they already handle, with
+    /// the same message and resource id.
+    add CreateGraph.errors GraphNameReservedException downgrade ConflictException {
+        message <- message
+        resourceId <- name
+    }
+
+    /// The revert endpoint moved under the history sub-path. The old route
+    /// keeps working for older clients only.
+    move RevertGraph from POST "/v1/organizations/{organizationId}/graphs/{graphId}/revert"
+
+    // ---- hooked ------------------------------------------------------------
+
+    /// A request from an older client may omit homeRegion; it meant the
+    /// organization's home region. Needs a lookup, so it is async.
+    require CreateGraph.input.homeRegion by async hook
+
+    /// sizeBytes and indexBytes became one `storage` structure. GraphData is
+    /// only ever returned, so only a downgrade is generated.
+    reshape GraphData { sizeBytes, indexBytes } -> storage by hook
+
+    /// The group filter takes several groups. A request from an older client
+    /// names at most one. ListGraphs input only, so only an upgrade is generated.
+    reshape ListGraphs.input { groupId } -> groupIds by hook
+
+    /// GetWrite is gone; older clients keep it through a legacy handler.
+    remove operation GetWrite
+
+    // ---- behaviour ---------------------------------------------------------
+
+    /// Graphs being deleted no longer appear in listings. Not a shape change,
+    /// so the handler branches on the version; declaring it generates the
+    /// constant and puts it in the changelog.
+    behavior ListGraphs.excludesRetiring
+
+    sunset "2028-11-01"
+}

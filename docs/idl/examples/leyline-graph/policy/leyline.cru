@@ -1,0 +1,53 @@
+// Leyline's own rules, on top of org.standards (which it imports and cannot
+// weaken). Ported from leyline/smithy/src/main/smithy/validators.smithy, which
+// ran them through smithy-linters at build time only, and only in Gradle.
+
+/// Every operation is charged to exactly one request-rate class, and is either
+/// classified for the audit journal or excluded from it with a reason.
+rule Classified strict {
+    every operation
+    must has @operationClass
+    must has one of @auditCategory, @auditExcluded
+}
+
+/// A class agrees with the operation's semantics, so a read can never land in a
+/// write's bucket or the reverse.
+rule ClassMatchesSemantics strict {
+    every operation where @operationClass == controlRead
+    must readonly
+    every operation where @operationClass == controlWrite or @operationClass == asyncJob
+    must not readonly
+}
+
+/// Only a control-plane write needs to say it still works while suspended: reads
+/// always do, and queries and jobs never do.
+rule SuspensionOnlyOnControlWrite strict {
+    every operation where has @permittedWhileSuspended
+    must @operationClass == controlWrite
+}
+
+/// Organization data is addressed under its organization, so every access log,
+/// metric and WAF rule sees the tenant in the path.
+rule TenantInPath strict {
+    every operation where addresses Organization
+    must http.uri startsWith "/v1/organizations/{organizationId}"
+}
+
+/// A public operation takes no credentials, so it is rate-limited on its own
+/// and states why it is outside the audit journal.
+rule PublicOperationsAreContained strict {
+    every operation where public
+    must has @ownRequestLimit
+    must has @auditExcluded
+}
+
+/// Members target named, constrained shapes, never an inline primitive.
+rule NoInlinePrimitives {
+    every member where not template
+    must not type is inline primitive
+}
+
+// NoDocument is `exceptable` in org.standards, so Leyline may except it here,
+// with a reason, and the exception is recorded in the compiled artifact.
+except NoDocument for CypherValue because "Cypher parameters are open JSON; the service bounds their size."
+except NoDocument for AuditRequest because "Audit captures the validated request projection; bounded by auditField rules."

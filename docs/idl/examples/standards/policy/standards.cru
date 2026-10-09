@@ -1,0 +1,118 @@
+// api-standards/standards/*.md, as rules. Each rule's /// text is what a
+// violation prints, so it cites the standard it enforces.
+
+// ---- pagination.md ---------------------------------------------------------
+
+/// Every list operation carries the standard pagination members, so none can
+/// forget them. Restating a template member in an operation is an error.
+template lists {
+    paginated(inputToken: nextToken, outputToken: nextToken, pageSize: maxResults)
+    input {
+        /// The token from the previous page's response.
+        @query
+        nextToken?: NextToken
+        /// The most results to return; fewer may come back.
+        @query
+        maxResults?: MaxResults
+    }
+    output {
+        /// Present when there are more results. Absent on the last page.
+        nextToken?: NextToken
+    }
+}
+
+/// All list operations that return resources MUST be paginated, over exactly
+/// one collection (pagination.md, rules 1-3).
+rule ListsArePaginated strict {
+    every operation where role == lists
+    must paginated
+}
+
+// ---- idempotency.md --------------------------------------------------------
+
+/// Resource creation requests carry a client-specified idempotency attribute
+/// named clientToken.
+template creates {
+    input {
+        /// Generated clients fill this. Reuse it with identical input to replay
+        /// a lost response.
+        @token
+        clientToken?: ClientToken
+    }
+}
+
+/// The idempotency attribute MUST NOT be required, and MUST allow at least 64
+/// ASCII characters in the range 33-126 (idempotency.md).
+rule TokensAreOptionalAndLongEnough strict {
+    every member where has @token
+    must optional
+    must type.length.max >= 64
+}
+
+// ---- input-validation.md ---------------------------------------------------
+
+/// If an API parameter uses an ambiguous primitive like String, it MUST have
+/// constraints; sizes SHOULD define a minimum and maximum (input-validation.md).
+rule BoundedStrings {
+    every string where not enum
+    must has length
+}
+
+/// Every number has a range.
+rule BoundedNumbers {
+    every number where not enum
+    must has range
+}
+
+/// Every list, map and blob has a length.
+rule BoundedCollections {
+    every list must has length
+    every map must has length
+    every blob must has length
+}
+
+/// A document accepts any JSON, so no model constraint can bound it. One that
+/// is truly open needs an exception with a reason, and a size bound the
+/// service enforces.
+rule NoDocument exceptable {
+    no document
+}
+
+// ---- common-terms.md -------------------------------------------------------
+
+/// Operation verbs follow the standard terms for their role.
+rule VerbMatchesRole strict {
+    every operation where role == reads must name startsWith "Get"
+    every operation where role == lists must name startsWith "List"
+    every operation where role == creates must name startsWith "Create"
+    every operation where role == updates must name startsWith "Update"
+    every operation where role == deletes must name startsWith "Delete"
+    every operation where role == puts must name startsWith "Put"
+}
+
+/// Times use the shared DateTime shape. Attributes end in At; range filters
+/// end in Before or After (common-terms.md, response filtering).
+rule TimesAreNamedAndTyped {
+    every member where type is timestamp
+    must type == DateTime
+    every output member where type is timestamp
+    must name endsWith "At"
+    every input member where type is timestamp
+    must name matches ".*(At|Before|After)$"
+}
+
+/// List operations MUST NOT return information that might be deemed
+/// sensitive (common-terms.md, List).
+rule ListsReturnNothingSensitive strict {
+    every operation where role == lists
+    must not output contains sensitive
+}
+
+// ---- documentation ---------------------------------------------------------
+
+/// Operations and errors are documented; their docs reach every SDK and the
+/// reference site.
+rule Documented {
+    every operation must documented
+    every error must documented
+}

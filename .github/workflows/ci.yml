@@ -778,6 +778,38 @@ jobs:
           name: smithy-cargo-plugin
           path: dist/smithy-cargo-0.1.0.zip
 
+  # The language server for editors, per platform, built on release (full)
+  # runs only. The release attaches these; the crucible-intellij plugin
+  # bundles them.
+  lsp-binaries:
+    needs: [plan, rust]
+    if: needs.plan.outputs.rust == 'true' && needs.plan.outputs.full == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, os: linux }
+          - { target: aarch64-apple-darwin, os: macos-15 }
+          - { target: x86_64-apple-darwin, os: macos-15 }
+          - { target: x86_64-pc-windows-msvc, os: windows-2022 }
+    runs-on: ${{ matrix.os == 'linux' && (vars.LINUX_RUNNER || 'ubuntu-latest') || matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: '${{ matrix.target }}' }
+      - run: cargo build --locked --release -p crucible-lsp --target ${{ matrix.target }}
+        env:
+          CARGO_BUILD_JOBS: '2'
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: python tools/package_lsp.py --target ${{ matrix.target }} --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crucible-lsp-${{ matrix.target }}
+          path: dist/crucible-lsp-${{ matrix.target }}.zip
+          overwrite: true
   onboarding:
     needs: [plan, rust]
     if: needs.plan.outputs.onboarding == 'true'
@@ -807,7 +839,7 @@ jobs:
   # A stable aggregate reports failures while allowing intentionally omitted jobs.
   ci:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, docs-site, e2e, consumers, onboarding, editor]
+    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, docs-site, e2e, consumers, onboarding, editor, lsp-binaries]
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:

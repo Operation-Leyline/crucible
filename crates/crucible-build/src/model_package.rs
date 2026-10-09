@@ -17,7 +17,8 @@ pub struct ModelPackage {
     #[cfg(feature = "docs")]
     documentation: std::cell::OnceCell<Result<Service, String>>,
     #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
-    model_ast: crucible_smithy::Model,
+    /// `None` for a `.cru` package, which has no Smithy AST.
+    model_ast: Option<crucible_smithy::Model>,
     #[cfg(any(feature = "cdk", feature = "terraform"))]
     infrastructure: std::cell::OnceCell<Result<Service, String>>,
     #[cfg(any(
@@ -42,8 +43,9 @@ impl ModelPackage {
         server_requires_rejection: bool,
         service: Service,
         output: PathBuf,
-        #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
-        model_ast: crucible_smithy::Model,
+        #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))] model_ast: Option<
+            crucible_smithy::Model,
+        >,
         #[cfg(any(
             feature = "rust",
             feature = "docs",
@@ -98,11 +100,15 @@ impl ModelPackage {
         // Cache this separate lowering so all infrastructure variants share it.
         self.infrastructure
             .get_or_init(|| {
+                let ast = self
+                    .model_ast
+                    .as_ref()
+                    .ok_or_else(|| crate::cru::unsupported("Infrastructure output", &self.model))?;
                 let service = match self.selected_protocol {
-                    Some(protocol) => self
-                        .model_ast
-                        .lower_infrastructure_with_protocol(Some(&self.service.id), protocol),
-                    None => self.model_ast.lower_infrastructure(Some(&self.service.id)),
+                    Some(protocol) => {
+                        ast.lower_infrastructure_with_protocol(Some(&self.service.id), protocol)
+                    }
+                    None => ast.lower_infrastructure(Some(&self.service.id)),
                 }
                 .map_err(|error| error.to_string())?;
                 if let Some(policy) = &self.policy {
@@ -118,8 +124,11 @@ impl ModelPackage {
     pub(crate) fn documentation(&self) -> Result<&Service, String> {
         self.documentation
             .get_or_init(|| {
-                let service = self
+                let ast = self
                     .model_ast
+                    .as_ref()
+                    .ok_or_else(|| crate::cru::unsupported("Documentation output", &self.model))?;
+                let service = ast
                     .lower_documentation(Some(&self.service.id), self.selected_protocol)
                     .map_err(|error| error.to_string())?;
                 if let Some(policy) = &self.policy {
