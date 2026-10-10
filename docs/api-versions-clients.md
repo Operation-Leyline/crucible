@@ -77,14 +77,14 @@ operation's protocol header:
   `Crucible-Version` request header and exposes it and `Sunset`, from the
   first release. CORS configured outside the model (an API gateway, a
   CDN, a tower layer) must allow `Crucible-Version` too, or browser
-  requests fail their preflight.
+  requests fail their preflight. A non-safelisted header makes every
+  cross-origin request preflighted, one extra round trip until the
+  preflight is cached (`maxAge`).
 - **Freeze before you publish.** Once a release's clients are published,
   freeze it as the baseline (`crucible freeze`). The guard then requires
   a migration for a new `version`, and the server keeps serving the
   published release. A service with no baseline that changes its
-  `version` refuses every client generated before the change. A non-safelisted header makes every cross-origin request
-  preflighted, one extra round trip until the preflight is cached
-  (`maxAge`).
+  `version` refuses every client generated before the change.
 - **Server.** Every `.cru` service knows its current release, with or
   without migrations. It serves the release named and refuses any other
   with `400`, including a newer client calling a server that has no

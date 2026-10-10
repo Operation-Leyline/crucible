@@ -169,8 +169,8 @@ pub fn guard(
             diagnostic: Diagnostic::new(
                 crate::span::Span::default(),
                 format!(
-                    "the service's version is \"{}\" but no migration comes from the baseline \"{}\"; declare `migration \"{}\" from \"{}\" {{}}`, empty when nothing breaks",
-                    service.version, old.version, service.version, old.version
+                    "the service's version is \"{}\" but no migration comes from the baseline \"{version}\"; declare `migration \"{}\" from \"{version}\" {{}}`, empty when nothing breaks",
+                    service.version, service.version
                 ),
             ),
         });

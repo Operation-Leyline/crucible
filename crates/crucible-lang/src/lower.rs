@@ -3730,7 +3730,7 @@ impl<'a> Lowerer<'a> {
             protocol_settings: ProtocolSettings::default(),
             requirements: std::mem::take(&mut self.requirements).into_iter().collect(),
             id,
-            version: version.clone().unwrap_or_default(),
+            version: version.unwrap_or_default(),
             title,
             docs,
             notes: annotations.notes,
@@ -3753,18 +3753,15 @@ impl<'a> Lowerer<'a> {
         };
         // A `.cru` service's version is a release its clients name in the
         // `Crucible-Version` header, when it can travel in one.
+        service.api_version = Some(service.version.clone())
+            .filter(|name| !name.is_empty() && name.bytes().all(|b| b.is_ascii_graphic()));
         // Absent is reported elsewhere; declared, it must travel in a header.
-        if version_declared
-            && !(!service.version.is_empty()
-                && service.version.bytes().all(|b| b.is_ascii_graphic()))
-        {
+        if version_declared && service.api_version.is_none() {
             self.error_at(
                 &service.id,
                 "the service's version names the release clients send in the `Crucible-Version` header: use visible ASCII without spaces",
             );
         }
-        service.api_version = Some(service.version.clone())
-            .filter(|name| !name.is_empty() && name.bytes().all(|b| b.is_ascii_graphic()));
         // Rules of the IR itself, shared with the Smithy front end.
         let mut issues = crucible_smithy::Diagnostics::default();
         crucible_smithy::validate::service(&service, &mut issues);
