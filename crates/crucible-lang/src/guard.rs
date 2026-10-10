@@ -468,6 +468,20 @@ impl Context<'_> {
                         newer.and_then(|id| self.new.shapes.get(id)),
                     ) {
                         for (to, from) in mapping {
+                            if let (Some(target), Some(source)) =
+                                (older.member(&to.name), newer.member(&from.name))
+                                && target.required
+                                && target.default.is_none()
+                                && !(source.required || source.default.is_some())
+                            {
+                                return Err(error(
+                                    from.span,
+                                    format!(
+                                        "`{}` is optional on {}, but {} requires `{}`",
+                                        from.name, error_name.name, downgrade.name, to.name
+                                    ),
+                                ));
+                            }
                             if older.member(&to.name).is_none() {
                                 return Err(error(
                                     to.span,
@@ -717,8 +731,31 @@ fn dotted(path: &Dotted) -> String {
 
 fn is_date(text: &str) -> bool {
     let parts: Vec<&str> = text.split('-').collect();
-    matches!(parts.as_slice(), [y, m, d] if y.len() == 4 && m.len() == 2 && d.len() == 2
-        && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit())))
+    let [y, m, d] = parts.as_slice() else {
+        return false;
+    };
+    if y.len() != 4
+        || m.len() != 2
+        || d.len() != 2
+        || !parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return false;
+    }
+    // A date that exists: the `Sunset` header carries it.
+    let (year, month, day): (u32, u32, u32) = (
+        y.parse().unwrap_or(0),
+        m.parse().unwrap_or(0),
+        d.parse().unwrap_or(0),
+    );
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
 }
 
 /// The older versions `compiled` still serves, oldest first: the chain of

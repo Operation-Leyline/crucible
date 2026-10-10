@@ -52,6 +52,7 @@ impl ListItemsOperation for Shop {
                 input.limit.to_string(),
                 input.sort,
             ],
+            kinds: vec![Kind::Small, Kind::Huge],
         })
     }
 }
@@ -201,25 +202,38 @@ async fn an_older_request_gets_the_values_it_could_not_send() {
     // v2 sends a sort order but no page size: the default fills it.
     let (status, _, body) = call(&service, "GET", "/items?sort=price", Some("v2")).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body, json!({ "names": ["v2", "20", "price"] }));
+    assert_eq!(body["names"], json!(["v2", "20", "price"]));
     // v1 may send neither: the async hook supplies the sort order.
     // v1 may send neither, and calls the page size `max`: the rename and
     // the async hook run in the same migration.
     let (_, _, body) = call(&service, "GET", "/items?max=5", Some("v1")).await;
-    assert_eq!(body, json!({ "names": ["v1", "5", "name"] }));
+    assert_eq!(body["names"], json!(["v1", "5", "name"]));
     let (_, _, body) = call(&service, "GET", "/items?max=1", Some("v1")).await;
-    assert_eq!(body, json!({ "names": ["v1", "1", "newest"] }));
+    assert_eq!(body["names"], json!(["v1", "1", "newest"]));
     // A hook that fails fails the request.
     let (status, _, _) = call(&service, "GET", "/items?max=0", Some("v1")).await;
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     // What a v1 request did send is kept.
     let (_, _, body) = call(&service, "GET", "/items?sort=size", Some("v1")).await;
-    assert_eq!(body, json!({ "names": ["v1", "20", "size"] }));
+    assert_eq!(body["names"], json!(["v1", "20", "size"]));
     // At v3 both are required.
     let (status, _, _) = call(&service, "GET", "/items?sort=name", Some("v3")).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     let (_, _, body) = call(&service, "GET", "/items?limit=5&sort=name", Some("v3")).await;
-    assert_eq!(body, json!({ "names": ["v3", "5", "name"] }));
+    assert_eq!(body["names"], json!(["v3", "5", "name"]));
+}
+
+#[tokio::test]
+async fn a_new_enum_value_reaches_older_clients_as_one_they_know() {
+    let service = service(Unversioned::Oldest);
+    for (version, kinds) in [
+        ("v1", json!(["SMALL", "LARGE"])),
+        ("v2", json!(["SMALL", "LARGE"])),
+        ("v3", json!(["SMALL", "HUGE"])),
+    ] {
+        let (_, _, body) = call(&service, "GET", "/items?limit=5&sort=name", Some(version)).await;
+        assert_eq!(body["kinds"], kinds, "{version}: {body}");
+    }
 }
 
 #[tokio::test]

@@ -399,33 +399,11 @@ pub(crate) fn missing(supported: &[ApiVersion]) -> Rejection {
     )
 }
 
-/// `YYYY-MM-DD` as an HTTP date, for the `Sunset` header.
+/// `YYYY-MM-DD` as an HTTP date, for the `Sunset` header; `None` for a
+/// date that does not exist.
 pub(crate) fn http_date(date: &str) -> Option<String> {
-    let mut parts = date.split('-');
-    let (year, month, day): (i64, u32, u32) = (
-        parts.next()?.parse().ok()?,
-        parts.next()?.parse().ok()?,
-        parts.next()?.parse().ok()?,
-    );
-    if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
-        return None;
-    }
-    // Days since 1970-01-01, civil from days (Howard Hinnant).
-    let y = if month <= 2 { year - 1 } else { year };
-    let era = y.div_euclid(400);
-    let yoe = y - era * 400;
-    let m = i64::from(month);
-    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + i64::from(day) - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = era * 146_097 + doe - 719_468;
-    let weekday = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"][days.rem_euclid(7) as usize];
-    let months = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    Some(format!(
-        "{weekday}, {day:02} {} {year} 00:00:00 GMT",
-        months[month as usize - 1]
-    ))
+    let date = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?;
+    Some(date.format("%a, %d %b %Y 00:00:00 GMT").to_string())
 }
 
 #[cfg(test)]
@@ -554,6 +532,7 @@ mod tests {
             Some("Thu, 01 Jan 1970 00:00:00 GMT")
         );
         assert_eq!(http_date("2028-13-01"), None);
+        assert_eq!(http_date("2027-02-30"), None);
         assert_eq!(http_date("soon"), None);
     }
 }

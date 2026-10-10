@@ -107,6 +107,10 @@ pub(crate) fn emit(
             }) {
                 // The handler takes the last version's types.
                 let at_last = operation(models[last], &old_op.id).expect("the last version has it");
+                if streams(old_op) || streams(at_last) {
+                    // Streams cross no JSON conversion: not served.
+                    continue;
+                }
                 Some(legacy(&models, last, at_last, &mut methods, diagnostics))
             } else {
                 // Gone without a handler: the guard refuses such a model.
@@ -217,17 +221,18 @@ pub(crate) fn emit(
         .iter()
         .map(|version| {
             format!(
-                "({}, {})",
+                "({}, {}, &{}::SERVICE)",
                 version_constant(&version.name),
                 version
                     .sunset
                     .as_deref()
-                    .map_or("None".to_owned(), |date| format!("Some({})", literal(date)))
+                    .map_or("None".to_owned(), |date| format!("Some({})", literal(date))),
+                version_module(&version.name)
             )
         })
         .collect();
     out.push_str(&format!(
-        "\n    pub(super) fn register(builder: {RT}::OperationsBuilder) -> {RT}::OperationsBuilder {{\n        builder\n            .versions(CURRENT, &[{}]){registrations}\n    }}\n",
+        "\n    /// The older versions, oldest first: sunset and release.\n    static OLDER: &[({RT}::versioning::ApiVersion, ::std::option::Option<&str>, &{RT}::ServiceInfo)] = &[{}];\n\n    pub(super) fn register(builder: {RT}::OperationsBuilder) -> {RT}::OperationsBuilder {{\n        builder\n            .versions(CURRENT, OLDER){registrations}\n    }}\n",
         older.join(", ")
     ));
     out.push_str(&registration(service, &methods, diagnostics));
@@ -630,6 +635,21 @@ fn conversion(
                 };
                 let mut pairs = Vec::new();
                 for (to, from) in members {
+                    if let (Some(target), Some(source)) =
+                        (older.member(to), member_of(current, error, from))
+                        && target.required
+                        && target.default.is_none()
+                        && !(source.required || source.default.is_some())
+                    {
+                        diagnostics.push(
+                            replacement,
+                            format!(
+                                "{} requires `{to}`, but `{from}` is optional on {}; an error without it could not reach older clients",
+                                replacement.name(),
+                                error.name()
+                            ),
+                        );
+                    }
                     match (older.member(to), wire(current, error, from)) {
                         (Some(to), Some(from)) => pairs.push(format!(
                             "({}, {})",

@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 pub struct OperationsBuilder {
     pub(crate) operations: Operations,
-    /// Older API versions, oldest first, with their sunsets.
-    pub(crate) older: Vec<(ApiVersion, Option<&'static str>)>,
+    /// Older API versions, oldest first, with their sunsets and releases.
+    pub(crate) older: Vec<(ApiVersion, Option<&'static str>, &'static ServiceInfo)>,
     /// Older versions' operations, built once the current ones are known.
     pub(crate) versioned: Vec<Versioned>,
     /// The service's migration hooks, by name.
@@ -106,13 +106,14 @@ impl OperationsBuilder {
     }
 
     /// Names the current API version and the older ones still served,
-    /// oldest first, with their sunsets. Generated for a model with
-    /// migrations (docs/api-versions.md).
+    /// oldest first, with their sunsets and their releases' service
+    /// descriptions, which their routes are read against. Generated for a
+    /// model with migrations (docs/api-versions.md).
     #[doc(hidden)]
     pub fn versions(
         mut self,
         current: ApiVersion,
-        older: &'static [(ApiVersion, Option<&'static str>)],
+        older: &'static [(ApiVersion, Option<&'static str>, &'static ServiceInfo)],
     ) -> Self {
         self.operations.versions.current = Some(current);
         self.older = older.to_vec();
@@ -202,8 +203,8 @@ impl OperationsBuilder {
             .map(|op| op.name)
             .filter(|name| !self.operations.entries.contains_key(name))
             .collect();
-        for (version, sunset) in std::mem::take(&mut self.older) {
-            let mut operations = Operations::builder(service).operations;
+        for (version, sunset, release) in std::mem::take(&mut self.older) {
+            let mut operations = Operations::builder(release).operations;
             for versioned in self.versioned.iter().filter(|v| v.version == version) {
                 if versioned.refused {
                     continue;
@@ -315,10 +316,15 @@ where
         })
     });
     let classify = service.classify;
+    // A legacy handler answers with its own release's errors.
+    let release = serving.errors.map(|release| release.classify);
     let downgrade_error: DowngradeError = Arc::new(move |mut error: Error| {
         for conversion in chain.iter().rev() {
             for known in conversion.errors {
-                let Some(modelled) = classify(error.get_ref()) else {
+                let Some(modelled) = release
+                    .and_then(|classify| classify(error.get_ref()))
+                    .or_else(|| classify(error.get_ref()))
+                else {
                     return error;
                 };
                 if modelled.shape_id() != known.from {

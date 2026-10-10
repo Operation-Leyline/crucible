@@ -25,10 +25,15 @@ readonly operation ListItems {
         @query
         sort: string
     }
-    output { names: Names }
+    output {
+        names: Names
+        kinds: Kinds
+    }
 }
 
 list Names: string
+
+list Kinds: Kind
 
 idempotent operation DeleteItem {
     http DELETE "/items/{id}"

@@ -499,7 +499,7 @@ fn registration(service: &Service) -> String {
         bounds.push("versions::Migrations".to_owned());
         calls.push_str("\n        .migrations(implementation.clone())");
     }
-    let implementation = if service.operations.is_empty() {
+    let implementation = if service.operations.is_empty() && service.versions.is_empty() {
         "_implementation"
     } else {
         "implementation"

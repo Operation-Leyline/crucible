@@ -180,9 +180,10 @@ pub(crate) fn body(
     body_with(service, options, explorer_service, true, diagnostics)
 }
 
-/// [`body`], with `strict` false for an older release: its types read the
-/// current version's values converted down, which may carry members added
-/// since, so none refuses an unknown member.
+/// [`body`], with `strict` false for an older release. Its output types read
+/// the current version's values converted down, which may carry members
+/// added since, so a structure an output or error reaches never refuses an
+/// unknown member; one only inputs reach decodes as strictly as before.
 pub(crate) fn body_with(
     service: &Service,
     options: &Options,
@@ -190,11 +191,12 @@ pub(crate) fn body_with(
     strict: bool,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    let strict = if strict {
-        models::strict_shapes(service, options.strict_inputs)
-    } else {
-        Default::default()
-    };
+    let mut strict_shapes = models::strict_shapes(service, options.strict_inputs);
+    if !strict {
+        let outputs = models::output_reachable(service);
+        strict_shapes.retain(|id| !outputs.contains(id));
+    }
+    let strict = strict_shapes;
     let model = models::emit(service, &strict, false, diagnostics);
     let errors = errors::emit(service, false, diagnostics);
     check_patterns(service, diagnostics);

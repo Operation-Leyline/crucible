@@ -636,10 +636,9 @@ impl Crucible {
         if let Some(upgrade) = &entry.upgrade {
             let input = job.input.take().expect("decoded input checked");
             // Logged as the client sent it, which the operation's
-            // redactions describe.
-            if job.wants_snapshot {
-                job.input_snapshot = Some(input.to_json());
-            }
+            // redactions describe; kept even before anything asks, since an
+            // interceptor may ask after the input became the current one's.
+            job.input_snapshot = Some(input.to_json());
             job.input = Some(upgrade(input).await?);
         }
         entered.decoded = true;

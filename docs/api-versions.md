@@ -207,7 +207,7 @@ impl versions::v1::Migration for Shop {
 - **A removed operation keeps one handler.** `remove operation Op` makes
   the handler of the last version that had `Op` part of that migration's
   trait. It takes and returns that version's types; older versions reach
-  it through the chain. Its errors are the current model's.
+  it through the chain. It answers with its own release's errors.
 
 Operations with a streaming payload or an event stream are served at the
 current version only: they are not routed at older versions, so a request
@@ -231,6 +231,10 @@ examples against the server at its version as generated tests
 
 ## Limits
 
+- **Strictness at older versions.** A structure an older release's
+  outputs or errors also reach does not refuse unknown members when an
+  older request carries one: it must read responses that gained members
+  since. One only inputs reach stays as strict as the release was.
 - **Older versions are their frozen releases.** A request at an older
   version is read and answered with that release's types, so what was
   added since (an operation, an optional member) is not visible at it.

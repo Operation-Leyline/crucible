@@ -94,3 +94,78 @@ fn an_enum_value_that_keys_a_map_is_reported() {
         "{diagnostics}"
     );
 }
+
+#[test]
+fn a_retype_without_a_hook_is_reported() {
+    let v1 = V1.replace(
+        "output { byKind: Counts }",
+        "output { byKind: Counts, total: integer }",
+    );
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-conversion");
+    let _ = fs::remove_dir_all(&dir);
+    let frozen = dir.join("releases/v1");
+    fs::create_dir_all(&frozen).unwrap();
+    fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
+    fs::write(frozen.join("shop.cru"), &v1).unwrap();
+    fs::write(
+        dir.join("crucible.toml"),
+        format!(
+            "{MANIFEST}
+[model.baseline]
+path = \"releases/v1\"
+"
+        ),
+    )
+    .unwrap();
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("total: integer", "total: string");
+    fs::write(
+        dir.join("shop.cru"),
+        format!(
+            "{current}
+migration \"v2\" from \"v1\" {{
+    retype GetCountsOutput.total -> string
+}}
+"
+        ),
+    )
+    .unwrap();
+    let diagnostics = generate(&lower(&dir), &Options::default()).unwrap_err();
+    assert!(
+        diagnostics.to_string().contains("declared `conversion`"),
+        "{diagnostics}"
+    );
+}
+
+#[test]
+fn a_release_declaring_migration_is_reported_when_it_needs_hooks() {
+    let v1 = V1.replace(
+        "operations [GetCounts]",
+        "operations [GetCounts, Migration]",
+    ) + "\nreadonly operation Migration {\n    http GET \"/migration\"\n    output { done: boolean }\n}\n";
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-migration-name");
+    let _ = fs::remove_dir_all(&dir);
+    let frozen = dir.join("releases/v1");
+    fs::create_dir_all(&frozen).unwrap();
+    fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
+    fs::write(frozen.join("shop.cru"), &v1).unwrap();
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1\"\n"),
+    )
+    .unwrap();
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("output { done: boolean }", "output { done: string }");
+    fs::write(
+        dir.join("shop.cru"),
+        format!("{current}\nmigration \"v2\" from \"v1\" {{\n    retype MigrationOutput.done -> string by hook\n}}\n"),
+    )
+    .unwrap();
+    let diagnostics = generate(&lower(&dir), &Options::default()).unwrap_err();
+    assert!(
+        diagnostics.to_string().contains("declares `Migration`"),
+        "{diagnostics}"
+    );
+}
