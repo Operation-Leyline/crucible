@@ -39,6 +39,9 @@ static class Program
         readonly Task loop;
         public string Endpoint { get; }
         public int Attempts;
+        // A handler failure, kept apart from the shutdown filters below so a
+        // failure that races disposal still fails the test.
+        ExceptionDispatchInfo? failure;
         public Server(Func<Request, Response> handler)
         {
             listener.Start(); Endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
@@ -66,7 +69,9 @@ static class Program
                         var body = new byte[int.Parse(headers.GetValueOrDefault("Content-Length", "0"))];
                         await stream.ReadExactlyAsync(body, stop.Token);
                         Attempts++;
-                        var response = handler(new(lines[0].Split(' ')[1], headers, body));
+                        Response response;
+                        try { response = handler(new(lines[0].Split(' ')[1], headers, body)); }
+                        catch (Exception error) { failure = ExceptionDispatchInfo.Capture(error); throw; }
                         var bytes = response.BinaryBody ?? Encoding.UTF8.GetBytes(response.Body);
                         var responseHeaders = $"HTTP/1.1 {response.Status} Test\r\nContent-Length: {bytes.Length + (response.Truncated ? 10 : 0)}\r\nConnection: close\r\n";
                         if (response.Headers is not null) foreach (var (key, value) in response.Headers) responseHeaders += $"{key}: {value}\r\n";
@@ -84,7 +89,7 @@ static class Program
         }
         // Stopping the listener under a pending accept fails it in several
         // racy ways; cancel and let the loop finish first.
-        public async ValueTask DisposeAsync() { stop.Cancel(); await loop; listener.Stop(); stop.Dispose(); }
+        public async ValueTask DisposeAsync() { stop.Cancel(); await loop; listener.Stop(); stop.Dispose(); failure?.Throw(); }
     }
     static async Task RetryCases(string path)
     {
