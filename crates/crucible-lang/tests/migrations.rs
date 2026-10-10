@@ -342,3 +342,43 @@ fn the_versions_served_are_the_chain_of_frozen_releases() {
         VersionStep::Require { member, default, .. } if member == "limit" && default == &serde_json::json!(20)
     )));
 }
+
+#[test]
+fn a_release_is_frozen_under_its_own_version() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-misnamed");
+    let _ = std::fs::remove_dir_all(&dir);
+    // releases/v1 holds a model that says it is v0.
+    let to_v2 = "migration \"v2\" from \"v1\" {}
+";
+    let v2 = V1.replace("version \"v1\"", "version \"v2\"") + to_v2;
+    for (name, text) in [
+        ("v1", V1.replace("version \"v1\"", "version \"v0\"")),
+        ("v2", v2.clone()),
+    ] {
+        let frozen = dir.join("releases").join(name);
+        std::fs::create_dir_all(&frozen).unwrap();
+        std::fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
+        std::fs::write(frozen.join("shop.cru"), text).unwrap();
+    }
+    std::fs::write(
+        dir.join("crucible.toml"),
+        format!(
+            "{MANIFEST}
+[model.baseline]
+path = \"releases/v2\"
+"
+        ),
+    )
+    .unwrap();
+    let v3 = v2.replace("version \"v2\"", "version \"v3\"")
+        + "migration \"v3\" from \"v2\" {}
+";
+    std::fs::write(dir.join("shop.cru"), v3).unwrap();
+
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let error = crucible_lang::versions(&loaded, &compiled, own).unwrap_err();
+    assert!(error.contains("declares version \"v0\""), "{error}");
+}

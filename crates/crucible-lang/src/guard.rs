@@ -702,6 +702,15 @@ pub fn versions(
         let old = compile(&frozen, None)
             .service
             .ok_or_else(|| format!("the frozen release {} does not compile", dir.display()))?;
+        // The chain follows releases by name: a release frozen under another
+        // version's name would serve one version's contract as another's.
+        if old.version != name {
+            return Err(format!(
+                "the frozen release at {} declares version \"{}\"; its folder must be named for it",
+                dir.display(),
+                old.version
+            ));
+        }
         let context = Context {
             namespace: &compiled.namespace,
             old: &old,
