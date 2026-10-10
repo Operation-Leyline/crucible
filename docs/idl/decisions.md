@@ -741,7 +741,11 @@ pass in `reports/`.
     which becomes "declare a version". *Why:* keeps the number of versions
     proportional to the number of breaking decisions, not releases.
 
-52. **The source is always the latest model; history is a chain of frozen
+52. *(Implemented for the compile-time check: a migration from the
+    baseline's version must declare every breaking change, and each step
+    must match one; see [api-policy.md](../api-policy.md). The baseline is
+    a frozen copy of the sources. Runtime transforms, decisions 53-59, are
+    not built yet.)* **The source is always the latest model; history is a chain of frozen
     artifacts plus declared changes.** Each released version's compiled
     artifact is checked in under `releases/` and never edited. A
     `migration "2026-11-01" from "2026-09-04" { .. }` block declares how to

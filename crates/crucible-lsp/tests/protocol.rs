@@ -778,7 +778,7 @@ fn breaking_changes_against_the_baseline_show_as_you_type() {
         breaking["message"]
             .as_str()
             .unwrap()
-            .starts_with("breaking change since the baseline")
+            .starts_with("breaking change since v1")
     );
     assert_eq!(breaking["range"]["start"], position(&moved, "GetItem {", 0));
     client.stop();

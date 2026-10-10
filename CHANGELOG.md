@@ -67,6 +67,13 @@ version's section when it is prepared.
   a breaking change fails the build and shows in the editor where it was
   made. A directory with its own package manifest is never collected into
   its parent package.
+- Declared migrations: a breaking change against the baseline compiles when
+  `migration "<new>" from "<baseline version>"` declares it with `rename`,
+  `require`, `add`, `move`, `reshape`, `retype` or `remove operation`, and
+  every step must match a change that happened (`crucible_lang::guard`).
+  Builds, the CLI and `crucible-lsp` share the check; the editor shows an
+  undeclared change where it was made and a mismatched step at the step.
+  Hooks are recorded, not yet generated.
 - `crucible check` and `crucible generate` accept a `.cru` package directory
   as the model, compiled without Smithy or a JVM, as `crucible_build` does.
 - `crucible_lang::format`, a conservative `.cru` formatter: indentation by

@@ -618,12 +618,12 @@ impl Server {
         // The compatibility guard, against the frozen baseline, as the build
         // applies it.
         let mut baseline_notes = Vec::new();
-        match crucible_lang::compile_baseline(&package, None) {
+        let config = config.unwrap_or_default();
+        match crucible_lang::guard(&package, &compiled, own, &config) {
             None => {}
             Some(Err(problem)) => baseline_notes.push((true, problem)),
-            Some(Ok(old)) => {
-                let (placed, unplaced) =
-                    policy::compatibility(&compiled, own, &old, &config.unwrap_or_default());
+            Some(Ok(guard)) => {
+                let (placed, unplaced) = policy::compatibility(&compiled, own, guard);
                 policy.extend(placed);
                 baseline_notes.extend(unplaced);
             }

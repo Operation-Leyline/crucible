@@ -11,6 +11,7 @@ pub mod ast;
 pub mod compile;
 pub mod diagnostic;
 pub mod format;
+pub mod guard;
 pub mod lexer;
 mod lower;
 pub mod package;
@@ -23,6 +24,7 @@ pub use compile::{
 };
 pub use diagnostic::{Diagnostic, Severity};
 pub use format::{FormatOptions, format, format_lines};
+pub use guard::{Guard, guard};
 pub use lexer::{Token, TokenKind};
 pub use package::{check_manifest, is_package, load_package, load_package_with_manifest};
 pub use span::{LineIndex, Span};
