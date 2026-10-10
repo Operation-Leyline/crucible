@@ -622,7 +622,10 @@ fn conversion(
                 downgrade: replacement,
                 members,
             } if target == operation => {
-                if self::operation(current, operation).is_none() {
+                if models[step + 1..]
+                    .iter()
+                    .any(|model| self::operation(model, operation).is_none())
+                {
                     // A legacy handler answers with its release's errors,
                     // which the current model may not declare.
                     diagnostics.push(

@@ -213,12 +213,56 @@ pub(crate) async fn apply_with(
             .cloned()
             .ok_or_else(|| Error::internal(format!("API version hook {name} is not registered")))
     };
-    // Fills read the value as it arrived: one fill's member is not
-    // another's input, which the older type may refuse.
-    let arrived = transforms
+    // Fills run first, each reading the value as it arrived: one fill's
+    // member is not another's input, which the older type may refuse.
+    let fills: Vec<_> = transforms
         .iter()
-        .any(|transform| matches!(transform, Transform::Fill { .. }))
-        .then(|| value.clone());
+        .filter_map(|transform| match transform {
+            Transform::Fill { at, member, hook } => Some((*at, *member, *hook)),
+            _ => None,
+        })
+        .collect();
+    if !fills.is_empty() {
+        let mut arrived = value.clone();
+        let mut computed = Vec::with_capacity(fills.len());
+        for (at, member, name) in &fills {
+            let call = hook(name)?;
+            let mut owners = Vec::new();
+            visit(&mut arrived, at, &mut |slot| {
+                if let Value::Object(map) = slot
+                    && !map.contains_key(*member)
+                {
+                    owners.push(slot.clone());
+                }
+            });
+            let mut filled = Vec::with_capacity(owners.len());
+            for owner in owners {
+                filled.push(call(owner).await?);
+            }
+            computed.push(filled);
+        }
+        for ((at, member, name), filled) in fills.iter().zip(computed) {
+            // The live value differs from what arrived only by members
+            // fills added, so the same owners lack this one, in order.
+            let expected = filled.len();
+            let mut filled = filled.into_iter();
+            let mut placed = 0;
+            visit(value, at, &mut |slot| {
+                if let Value::Object(map) = slot
+                    && !map.contains_key(*member)
+                    && let Some(item) = filled.next()
+                {
+                    map.insert((*member).to_owned(), item);
+                    placed += 1;
+                }
+            });
+            if placed != expected {
+                return Err(Error::internal(format!(
+                    "API version hook {name}: filled {placed} of {expected} places"
+                )));
+            }
+        }
+    }
     for transform in transforms {
         match transform {
             Transform::Hook { at, hook: name } => {
@@ -244,35 +288,7 @@ pub(crate) async fn apply_with(
                     }
                 });
             }
-            Transform::Fill {
-                at,
-                member,
-                hook: name,
-            } => {
-                let call = hook(name)?;
-                let mut owners = Vec::new();
-                let mut source = arrived.clone().unwrap_or_default();
-                visit(&mut source, at, &mut |slot| {
-                    if let Value::Object(map) = slot
-                        && !map.contains_key(*member)
-                    {
-                        owners.push(slot.clone());
-                    }
-                });
-                let mut filled = Vec::with_capacity(owners.len());
-                for owner in owners {
-                    filled.push(call(owner).await?);
-                }
-                let mut filled = filled.into_iter();
-                visit(value, at, &mut |slot| {
-                    if let Value::Object(map) = slot
-                        && !map.contains_key(*member)
-                        && let Some(item) = filled.next()
-                    {
-                        map.insert((*member).to_owned(), item);
-                    }
-                });
-            }
+            Transform::Fill { .. } => {}
             plain => apply(value, std::slice::from_ref(plain)),
         }
     }
@@ -558,6 +574,39 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(value, json!({ "name": "x", "a": 1, "b": 2 }));
+    }
+
+    #[tokio::test]
+    async fn fills_run_first_and_pair_with_their_own_places() {
+        let mut hooks = Hooks::new();
+        let echo: HookFn =
+            Arc::new(|owner: Value| Box::pin(async move { Ok(owner["id"].clone()) }));
+        hooks.insert("echo", echo);
+        let mut value = json!({ "items": [{ "id": 1, "x": 9 }, { "id": 2 }, { "id": 3, "m": 0 }] });
+        // Listed after a rename: fills still run first, read what arrived
+        // and land on the item each was made from.
+        apply_with(
+            &mut value,
+            &[
+                Transform::Rename {
+                    at: &[Seg::Field("items"), Seg::Items],
+                    from: "x",
+                    to: "y",
+                },
+                Transform::Fill {
+                    at: &[Seg::Field("items"), Seg::Items],
+                    member: "m",
+                    hook: "echo",
+                },
+            ],
+            &hooks,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            value,
+            json!({ "items": [{ "id": 1, "y": 9, "m": 1 }, { "id": 2, "m": 2 }, { "id": 3, "m": 0 }] })
+        );
     }
 
     #[test]
