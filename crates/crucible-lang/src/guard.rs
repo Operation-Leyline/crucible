@@ -1,5 +1,5 @@
 //! The compatibility guard (decision 47d) and declared migrations
-//! (decisions 51-54a): a package against the frozen package of its last
+//! (decisions 51-54a): a package against the snapshot of its last
 //! release. A breaking change compiles only when the migration from that
 //! release declares it, and each declared step must match a change that
 //! happened, so the migration and the model cannot drift apart.
@@ -14,7 +14,7 @@ use crucible_smithy::ir::{ApiVersion, Hook, Operation, Service, Shape, VersionSt
 use serde_json::Value as Json;
 
 use crate::ast::{Decl, Dotted, Ident, Key, Migration, RequireHow, StepKind, Value};
-use crate::compile::{Compiled, FileDiagnostic, Package, compile, compile_baseline};
+use crate::compile::{Compiled, FileDiagnostic, Package, load_baseline};
 use crate::diagnostic::Diagnostic;
 
 /// What the guard found for one package.
@@ -84,14 +84,15 @@ pub fn guard(
     config: &Config,
 ) -> Option<Result<Guard, String>> {
     let service = compiled.service.as_ref()?;
-    let old = match compile_baseline(package, None)? {
+    let old = match load_baseline(package)? {
         Ok(old) => old,
         Err(problem) => return Some(Err(problem)),
     };
+    // `releases/<version>.json`: the release's name is its file's stem.
     let version = package
         .baseline
         .as_deref()
-        .and_then(Path::file_name)
+        .and_then(Path::file_stem)
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     let report = crucible_policy::diff(&old, service, config);
@@ -103,7 +104,7 @@ pub fn guard(
             diagnostic: Diagnostic::new(
                 crate::span::Span::default(),
                 format!(
-                    "the baseline is frozen as \"{version}\" but its service declares version \"{}\"; name the release directory after the version",
+                    "the baseline is frozen as \"{version}\" but its service declares version \"{}\"; name the release file after the version",
                     old.version
                 ),
             ),
@@ -774,7 +775,7 @@ fn is_date(text: &str) -> bool {
 
 /// The older versions `compiled` still serves, oldest first: the chain of
 /// migrations back from the service's version, each `from` a release frozen
-/// beside the baseline (`releases/<version>`). `guard` has checked the
+/// beside the baseline (`releases/<version>.json`). `guard` has checked the
 /// newest migration; an older one was checked when it was the newest.
 pub fn versions(
     package: &Package,
@@ -806,24 +807,21 @@ pub fn versions(
         if !seen.insert(name.clone()) {
             return Err(format!("the migrations from \"{name}\" form a cycle"));
         }
-        let dir = releases.join(&name);
-        if !crate::is_package(&dir) {
+        let file = releases.join(crate::release::file_name(&name)?);
+        if !file.is_file() {
             return Err(format!(
-                "release \"{name}\", which the migration to \"{}\" comes from, is not frozen at {}",
+                "release \"{name}\", which the migration to \"{}\" comes from, is not frozen at {}; freeze it with `crucible freeze` (`--from <git ref>` for a past release)",
                 migration.version.value,
-                dir.display()
+                file.display()
             ));
         }
-        let frozen = crate::load_package(&dir)?;
-        let old = compile(&frozen, None)
-            .service
-            .ok_or_else(|| format!("the frozen release {} does not compile", dir.display()))?;
+        let old = crate::release::load(&file)?;
         // The chain follows releases by name: a release frozen under another
         // version's name would serve one version's contract as another's.
         if old.version != name {
             return Err(format!(
-                "the frozen release at {} declares version \"{}\"; its folder must be named for it",
-                dir.display(),
+                "the frozen release {} declares version \"{}\"; its file must be named for it",
+                file.display(),
                 old.version
             ));
         }

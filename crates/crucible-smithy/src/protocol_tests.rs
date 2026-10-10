@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpProtocolTest {
     pub id: String,
@@ -25,7 +25,7 @@ pub struct HttpProtocolTest {
     pub tags: Vec<String>,
     /// The `testParameters` combination a malformed-request vector was
     /// expanded with, so the case stays traceable to its template.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub test_parameters: BTreeMap<String, String>,
     pub case: HttpTestCase,
 }
@@ -37,7 +37,7 @@ pub enum TestAppliesTo {
     Server,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -67,7 +67,7 @@ pub enum HttpTestCase {
 
 /// The request a malformed-request vector sends. Unlike a request vector it
 /// is the whole message, not a set of expectations about one.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MalformedRequestDefinition {
     pub method: String,
@@ -82,7 +82,7 @@ pub struct MalformedRequestDefinition {
 
 /// What the refusal must look like. Headers are required to be present with
 /// these values; a server may send more.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MalformedResponseDefinition {
     pub code: u16,
@@ -106,7 +106,7 @@ pub enum MalformedBodyAssertion {
     MessageRegex(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpMessageExpectation {
     pub headers: BTreeMap<String, String>,
@@ -254,7 +254,9 @@ pub(crate) fn lower(
     result
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 enum Kind {
     Request,
     Response,

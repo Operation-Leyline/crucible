@@ -54,17 +54,29 @@ enum Kind { SMALL, LARGE }
 
 const MANIFEST: &str = "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.errors\"]\n";
 
+/// Freezes `source`, a release of the shop, into `dir/releases`, as
+/// `crucible freeze` does: compiled once, then a snapshot.
+fn freeze(dir: &Path, source: &str) {
+    let staging = dir.with_extension("staging");
+    let _ = fs::remove_dir_all(&staging);
+    fs::create_dir_all(&staging).unwrap();
+    fs::write(staging.join("crucible.toml"), MANIFEST).unwrap();
+    fs::write(staging.join("shop.cru"), source).unwrap();
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&staging).unwrap(), None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let service = compiled.service.unwrap();
+    crucible_lang::release::freeze(&dir.join("releases"), &service, "test").unwrap();
+}
+
 /// A package whose release v1 is `V1`, at v2 with `current` and `migration`.
 fn package(name: &str, current: &str, migration: &str) -> PathBuf {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("versions-{name}"));
     let _ = fs::remove_dir_all(&dir);
-    let frozen = dir.join("releases/v1");
-    fs::create_dir_all(&frozen).unwrap();
-    fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
-    fs::write(frozen.join("shop.cru"), V1).unwrap();
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, V1);
     fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1\"\n"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
     )
     .unwrap();
     fs::write(
@@ -103,16 +115,14 @@ fn a_retype_without_a_hook_is_reported() {
     );
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-conversion");
     let _ = fs::remove_dir_all(&dir);
-    let frozen = dir.join("releases/v1");
-    fs::create_dir_all(&frozen).unwrap();
-    fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
-    fs::write(frozen.join("shop.cru"), &v1).unwrap();
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, &v1);
     fs::write(
         dir.join("crucible.toml"),
         format!(
             "{MANIFEST}
 [model.baseline]
-path = \"releases/v1\"
+path = \"releases/v1.json\"
 "
         ),
     )
@@ -146,13 +156,11 @@ fn a_release_declaring_migration_is_reported_when_it_needs_hooks() {
     ) + "\nreadonly operation Migration {\n    http GET \"/migration\"\n    output { done: boolean }\n}\n";
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-migration-name");
     let _ = fs::remove_dir_all(&dir);
-    let frozen = dir.join("releases/v1");
-    fs::create_dir_all(&frozen).unwrap();
-    fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
-    fs::write(frozen.join("shop.cru"), &v1).unwrap();
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, &v1);
     fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1\"\n"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
     )
     .unwrap();
     let current = v1
@@ -172,13 +180,12 @@ fn a_release_declaring_migration_is_reported_when_it_needs_hooks() {
 
 #[test]
 fn a_cru_service_without_migrations_still_knows_its_release() {
-    // Release 1 of the fixture, frozen: no migrations, so no older releases,
+    // The language's weather example: no migrations, so no older releases,
     // but its server refuses a client of any other release.
-    let release = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../e2e/weather-service/versioned/releases/v1");
+    let release = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/idl/examples/weather");
     let code = generate(&lower(&release), &Options::default()).unwrap();
     assert!(
-        code.contains(".versions(::crucible_server_runtime_rust::__generated::versioning::ApiVersion::new(0, \"v1\"), &[])"),
+        code.contains(".versions(::crucible_server_runtime_rust::__generated::versioning::ApiVersion::new(0, \"2026-10-01\"), &[])"),
         "{code}"
     );
     assert!(!code.contains("pub mod versions"));

@@ -16,11 +16,12 @@ pub mod lexer;
 mod lower;
 pub mod package;
 mod parser;
+pub mod release;
 pub mod span;
 
 pub use compile::{
     Compiled, FileDiagnostic, Location, Naming, Package, SourceFile, SourceMap, bundled_packages,
-    compile, compile_baseline,
+    compile, load_baseline,
 };
 pub use diagnostic::{Diagnostic, Severity};
 pub use format::{FormatOptions, format, format_lines};

@@ -1,3 +1,0 @@
-[model]
-namespace = "example.shop"
-imports = ["crucible.errors"]

@@ -1,7 +1,7 @@
 use crate::ir::TimestampFormat;
 use crate::{Feature, ShapeId};
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolSettings {
     pub http: Vec<String>,
@@ -14,7 +14,7 @@ pub struct ProtocolSettings {
     /// (AWS JSON and all XML-family protocols).
     pub non_finite_float_strings: bool,
     /// `bigInteger` and `bigDecimal` travel as JSON strings (RPC v2 JSON).
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub arbitrary_precision_strings: bool,
 }
 
@@ -33,7 +33,7 @@ impl Default for ProtocolSettings {
 }
 
 /// The selected wire protocol, never inferred separately by an emitter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Protocol {
     #[serde(rename = "crucibleJson")]
     CrucibleJson,

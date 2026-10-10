@@ -8,7 +8,7 @@ use crate::ir::{
 use crate::{Diagnostics, ShapeId};
 
 /// Public packages omit internal API unless their producer explicitly opts in.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Audience {
     #[default]
     External,

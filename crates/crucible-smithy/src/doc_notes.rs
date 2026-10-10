@@ -13,7 +13,7 @@ use crate::diagnostics::Diagnostics;
 use crate::shape_id::ShapeId;
 
 /// `smithy.api#deprecated`: both fields are optional in Smithy.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Deprecation {
     pub message: Option<String>,
     pub since: Option<String>,
@@ -51,7 +51,7 @@ impl Deprecation {
 }
 
 /// The documentation-only traits on one shape, member, operation or service.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DocNotes {
     pub deprecated: Option<Deprecation>,
     /// `smithy.api#since`: the version that introduced the element.

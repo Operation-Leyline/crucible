@@ -60,8 +60,14 @@ version's section when it is prepared.
   explains them on hover, and reports policy errors where they are written;
   an unknown top-level key is an error.
 - The compatibility guard for `.cru` packages: `[model.baseline] path`
-  names a frozen copy of the last release, made by `crucible freeze
-  <package> --out releases/<version>`. Builds, `crucible check`,
+  names the last release, frozen by `crucible freeze <package>` as
+  `releases/<version>.json`: a snapshot of the compiled model (canonical
+  JSON with a `format` version), read back without recompiling and
+  checksummed in `releases/crucible.lock`, so a build refuses an edited
+  release. `crucible freeze <package> --from <git ref>` backfills a release
+  from the package as it was at a commit or tag (docs/api-policy.md,
+  "Releases"). The IR (`crucible_smithy::ir`) is serializable, and
+  `crucible_smithy::snapshot` reads and writes release snapshots. Builds, `crucible check`,
   `crucible generate` and `crucible-lsp` compare the package against it with
   the `crucible diff` checker and the manifest's `[compatibility]` settings;
   a breaking change fails the build and shows in the editor where it was
@@ -72,8 +78,8 @@ version's section when it is prepared.
   its lowered migration steps (`ir::VersionStep`) and its sunset, from the
   chain of migrations back from the service's `version`
   (`crucible_lang::versions`; docs/api-versions.md). A release is named by
-  its service's `version`: `crucible freeze` writes `releases/<version>` by
-  default, a frozen release's directory must match its version, and the
+  its service's `version`: `crucible freeze` writes `releases/<version>.json`,
+  a release's file name must match its version, and the
   newest migration must serve the current version.
 - Serving older API versions (docs/api-versions.md): a Rust service whose
   `.cru` model has migrations serves every version in the chain from its

@@ -46,18 +46,30 @@ idempotent operation DeleteItem {
 
 const MANIFEST: &str = "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.errors\"]\n";
 
-/// A package whose baseline, `releases/v1`, is `V1`, and whose model is
-/// `current` plus `migration`.
+/// Freezes `source`, a release of the shop, into `dir/releases`, as
+/// `crucible freeze` does: compiled once, then a snapshot.
+fn freeze(dir: &Path, source: &str) {
+    let staging = dir.with_extension("staging");
+    let _ = std::fs::remove_dir_all(&staging);
+    std::fs::create_dir_all(&staging).unwrap();
+    std::fs::write(staging.join("crucible.toml"), MANIFEST).unwrap();
+    std::fs::write(staging.join("shop.cru"), source).unwrap();
+    let compiled = compile(&load_package(&staging).unwrap(), None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let service = compiled.service.unwrap();
+    crucible_lang::release::freeze(&dir.join("releases"), &service, "test").unwrap();
+}
+
+/// A package whose baseline, `releases/v1.json`, is `V1`, and whose model
+/// is `current` plus `migration`.
 fn package(name: &str, current: &str, migration: &str) -> PathBuf {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("migrations-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
-    let frozen = dir.join("releases/v1");
-    std::fs::create_dir_all(&frozen).unwrap();
-    std::fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
-    std::fs::write(frozen.join("shop.cru"), V1).unwrap();
+    std::fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, V1);
     std::fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1\"\n"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
     )
     .unwrap();
     // A release with a migration is the next version.
@@ -330,15 +342,12 @@ fn the_versions_served_are_the_chain_of_frozen_releases() {
         .replace("        limit?: integer", "        limit: integer")
         + "\n"
         + to_v3;
-    for (name, text) in [("v1", V1.to_owned()), ("v2", v2)] {
-        let frozen = dir.join("releases").join(name);
-        std::fs::create_dir_all(&frozen).unwrap();
-        std::fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
-        std::fs::write(frozen.join("shop.cru"), text).unwrap();
-    }
+    std::fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, V1);
+    freeze(&dir, &v2);
     std::fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v2\"\n"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v2.json\"\n"),
     )
     .unwrap();
     std::fs::write(dir.join("shop.cru"), v3).unwrap();
@@ -377,35 +386,21 @@ fn the_versions_served_are_the_chain_of_frozen_releases() {
 }
 
 #[test]
-fn a_release_is_frozen_under_its_own_version() {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-misnamed");
+fn a_release_is_read_only_under_the_name_it_was_frozen_as() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-renamed");
     let _ = std::fs::remove_dir_all(&dir);
-    // releases/v1 holds a model that says it is v0.
-    let to_v2 = "migration \"v2\" from \"v1\" {}
-";
-    let v2 = V1.replace("version \"v1\"", "version \"v2\"") + to_v2;
-    for (name, text) in [
-        ("v1", V1.replace("version \"v1\"", "version \"v0\"")),
-        ("v2", v2.clone()),
-    ] {
-        let frozen = dir.join("releases").join(name);
-        std::fs::create_dir_all(&frozen).unwrap();
-        std::fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
-        std::fs::write(frozen.join("shop.cru"), text).unwrap();
-    }
+    std::fs::create_dir_all(&dir).unwrap();
+    // Release v0, renamed to v1.json after it was frozen.
+    freeze(&dir, &V1.replace("version \"v1\"", "version \"v0\""));
+    std::fs::rename(dir.join("releases/v0.json"), dir.join("releases/v1.json")).unwrap();
+    let v2 = V1.replace("version \"v1\"", "version \"v2\"") + "migration \"v2\" from \"v1\" {}\n";
+    freeze(&dir, &v2);
     std::fs::write(
         dir.join("crucible.toml"),
-        format!(
-            "{MANIFEST}
-[model.baseline]
-path = \"releases/v2\"
-"
-        ),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v2.json\"\n"),
     )
     .unwrap();
-    let v3 = v2.replace("version \"v2\"", "version \"v3\"")
-        + "migration \"v3\" from \"v2\" {}
-";
+    let v3 = v2.replace("version \"v2\"", "version \"v3\"") + "migration \"v3\" from \"v2\" {}\n";
     std::fs::write(dir.join("shop.cru"), v3).unwrap();
 
     let loaded = load_package(&dir).unwrap();
@@ -413,7 +408,50 @@ path = \"releases/v2\"
     let compiled = compile(&loaded, None);
     assert!(compiled.service.is_some(), "{}", compiled.render());
     let error = crucible_lang::versions(&loaded, &compiled, own).unwrap_err();
-    assert!(error.contains("declares version \"v0\""), "{error}");
+    assert!(error.contains("not recorded in crucible.lock"), "{error}");
+}
+
+#[test]
+fn a_release_is_named_only_by_a_version_a_file_can_carry() {
+    for version in ["../x", "2026/09", "a:b", ".hidden", ""] {
+        assert!(
+            crucible_lang::release::file_name(version).is_err(),
+            "{version}"
+        );
+    }
+    assert_eq!(
+        crucible_lang::release::file_name("2026-09-04").unwrap(),
+        "2026-09-04.json"
+    );
+}
+
+#[test]
+fn a_freeze_that_stopped_before_the_lock_is_finished_by_the_next() {
+    let dir = package("refreeze", V1, "");
+    // As if the first freeze stopped after writing the snapshot.
+    std::fs::remove_file(dir.join("releases/crucible.lock")).unwrap();
+    freeze(&dir, V1);
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    let guarded =
+        guard(&loaded, &compiled, loaded.files.len(), &Config::default()).expect("a baseline");
+    assert!(guarded.is_ok(), "{:?}", guarded.err());
+}
+
+#[test]
+fn an_edited_release_is_refused() {
+    let dir = package("edited", V1, "");
+    let path = dir.join("releases/v1.json");
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, text.replace("\"v1\"", "\"v1 \"")).unwrap();
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    let Err(error) =
+        guard(&loaded, &compiled, loaded.files.len(), &Config::default()).expect("a baseline")
+    else {
+        panic!("the edited release is refused");
+    };
+    assert!(error.contains("changed after it was frozen"), "{error}");
 }
 
 #[test]
@@ -503,4 +541,17 @@ fn every_new_release_has_a_migration() {
         rules(&guard),
         problems(&guard)
     );
+}
+
+#[test]
+fn a_release_checked_out_with_crlf_line_endings_is_not_an_edit() {
+    let dir = package("crlf", V1, "");
+    let path = dir.join("releases/v1.json");
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, text.replace('\n', "\r\n")).unwrap();
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    let guarded =
+        guard(&loaded, &compiled, loaded.files.len(), &Config::default()).expect("a baseline");
+    assert!(guarded.is_ok(), "{:?}", guarded.err());
 }

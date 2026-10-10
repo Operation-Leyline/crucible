@@ -115,7 +115,7 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
                 .and_then(toml::Value::as_str)
                 .ok_or_else(|| {
                     format!(
-                        "{} must be a table naming the frozen package: path = \"releases/2026-09-04\"",
+                        "{} must be a table naming the frozen release: path = \"releases/2026-09-04.json\"",
                         field("baseline")
                     )
                 })?;
@@ -123,9 +123,9 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
                 return Err(format!("{}: `{path}` {problem}", field("baseline.path")));
             }
             let frozen = dir.join(path);
-            if !is_package(&frozen) {
+            if !path.ends_with(".json") || !frozen.is_file() {
                 return Err(format!(
-                    "{}: {} is not a frozen package; make one with `crucible freeze`",
+                    "{}: {} is not a frozen release; `crucible freeze` writes one as `releases/<version>.json`",
                     field("baseline.path"),
                     frozen.display()
                 ));
@@ -215,8 +215,7 @@ fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
         // `file_type` does not follow symlinks: a link back to an ancestor
         // would otherwise recurse forever. Linked directories are not walked.
         let kind = entry.file_type().map_err(|error| error.to_string())?;
-        // A directory with its own package manifest, such as a frozen
-        // baseline under `releases/`, is a package of its own.
+        // A directory with its own package manifest is a package of its own.
         if kind.is_dir() && !is_package(&path) {
             collect_cru(&path, out)?;
         } else if path.extension().is_some_and(|ext| ext == "cru") && path.is_file() {
@@ -268,7 +267,7 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
         /// Decided (decision 60) but not implemented: reported as such
         /// rather than as unknown keys.
         dependencies: Option<toml::Spanned<toml::Table>>,
-        /// The frozen package of the last release (decision 47d).
+        /// The last release's snapshot (decision 47d).
         baseline: Option<Baseline>,
     }
     #[derive(serde::Deserialize)]
@@ -363,11 +362,11 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
                 at,
                 format!("`{}` {problem}", path.get_ref()),
             ));
-        } else if !is_package(&dir.join(path.get_ref())) {
+        } else if !path.get_ref().ends_with(".json") || !dir.join(path.get_ref()).is_file() {
             out.push(Diagnostic::new(
                 at,
                 format!(
-                    "`{}` is not a frozen package; make one with `crucible freeze`",
+                    "`{}` is not a frozen release; `crucible freeze` writes one as `releases/<version>.json`",
                     path.get_ref()
                 ),
             ));

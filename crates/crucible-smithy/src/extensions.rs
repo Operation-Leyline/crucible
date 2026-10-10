@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -28,26 +28,26 @@ pub enum AuthScheme {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ApiKeyLocation {
     Header,
     Query,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct EndpointHostPrefix {
     pub parts: Vec<HostPrefixPart>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum HostPrefixPart {
     Literal { value: String },
     Label { member: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Waiter {
     pub min_delay: u64,
@@ -58,14 +58,14 @@ pub struct Waiter {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct WaiterAcceptor {
     pub state: WaiterState,
     pub matcher: WaiterMatcher,
     pub message: Option<WaiterPath>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WaiterState {
     Success,
@@ -73,7 +73,7 @@ pub enum WaiterState {
     Retry,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum WaiterMatcher {
     Success {
@@ -94,7 +94,7 @@ pub enum WaiterMatcher {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WaiterComparator {
     StringEquals,
@@ -104,26 +104,26 @@ pub enum WaiterComparator {
 }
 
 /// A portable compiled JMESPath expression over model member names.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct WaiterPath {
     pub expression: crate::jmespath_ir::JmesExpression,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PathStep {
     Member { name: String },
     Index { index: i64 },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 pub struct EndpointRuleSet {
     pub version: String,
     pub parameters: BTreeMap<String, EndpointParameter>,
     pub rules: Vec<EndpointRule>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EndpointParameter {
     pub kind: EndpointParameterKind,
@@ -133,7 +133,7 @@ pub struct EndpointParameter {
     pub documentation: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EndpointParameterKind {
     String,
@@ -142,7 +142,7 @@ pub enum EndpointParameterKind {
 }
 
 /// Sources in descending Smithy precedence. Select the first present value.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EndpointParameterSource {
     Static { value: Value },
@@ -153,20 +153,20 @@ pub enum EndpointParameterSource {
     Default { value: Value },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 pub struct EndpointRule {
     pub conditions: Vec<EndpointCondition>,
     pub result: EndpointResult,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 pub struct EndpointCondition {
     pub function: EndpointFunction,
     pub arguments: Vec<EndpointExpression>,
     pub assign: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EndpointResult {
     Endpoint {
@@ -182,7 +182,7 @@ pub enum EndpointResult {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EndpointExpression {
     String {
@@ -209,14 +209,14 @@ pub enum EndpointExpression {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EndpointTemplatePart {
     Literal { value: String },
     Reference { name: String, path: Vec<PathStep> },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EndpointFunction {
     IsSet,
@@ -231,7 +231,7 @@ pub enum EndpointFunction {
 }
 
 /// The representation of an explicitly bound whole HTTP body.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PayloadKind {
     Blob,
@@ -240,13 +240,13 @@ pub enum PayloadKind {
     EventStream,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum HeaderEncoding {
     Base64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -279,7 +279,7 @@ pub enum ChecksumAlgorithm {
     Xxhash128,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EventBinding {
     Header,
@@ -288,7 +288,7 @@ pub enum EventBinding {
 
 /// The member of an operation input or output that carries an event stream
 /// (`@streaming` union), and where the structure's other members travel.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventStreamBinding {
     pub member: String,

@@ -5,4 +5,4 @@ namespace = "example.shop"
 imports = ["crucible.errors"]
 
 [model.baseline]
-path = "releases/v2"
+path = "releases/v2.json"

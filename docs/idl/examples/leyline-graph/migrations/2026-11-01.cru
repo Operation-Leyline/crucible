@@ -1,7 +1,7 @@
 // A hypothetical breaking release of Leyline, written as a server migration.
 // The model sources describe 2026-11-01 only. This file says how to serve
 // clients still on 2026-09-04 from it. The compiler replays these steps on
-// the frozen artifact releases/2026-09-04/leyline.model.json and refuses to
+// the frozen artifact releases/2026-09-04.json and refuses to
 // build unless the result is the current model.
 //
 // Step verbs are a closed set. A step converts automatically, or names a hook:

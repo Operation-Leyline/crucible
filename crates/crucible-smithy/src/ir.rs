@@ -27,7 +27,7 @@ use crate::shape_id::ShapeId;
 
 pub type Traits = BTreeMap<ShapeId, Value>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Service {
     pub cors: Option<Cors>,
     /// Visibility settled from Smithy @internal during lowering.
@@ -87,7 +87,7 @@ pub struct Service {
 
 /// An older API version: its release's model, and how a request or a
 /// response crosses to the next version.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ApiVersion {
     /// The release's `version`, such as `2026-09-04`.
     pub name: String,
@@ -101,7 +101,7 @@ pub struct ApiVersion {
 
 /// One checked migration step, its paths resolved to shape ids. `old`
 /// names a shape in this version's model, `new` in the next version's.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum VersionStep {
     /// A member renamed: `old.from` became `new.to`.
     Rename {
@@ -151,7 +151,7 @@ pub enum VersionStep {
 
 /// What a hook converts. `old` names a shape in the older version's model,
 /// `new` in the next version's.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Hook {
     /// `reshape S { .. } -> m`: the whole structure, each way it travels.
     Reshape { old: ShapeId, new: ShapeId },
@@ -175,7 +175,7 @@ pub enum Hook {
     Conversion,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Resource {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -194,7 +194,7 @@ pub struct Resource {
     pub notes: DocNotes,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ResourceLifecycle {
     pub create: Option<ShapeId>,
     pub put: Option<ShapeId>,
@@ -204,13 +204,13 @@ pub struct ResourceLifecycle {
     pub list: Option<ShapeId>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ResourceOperationBindings {
     pub input: ResourceMemberBindings,
     pub output: ResourceMemberBindings,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct ResourceMemberBindings {
     /// Resource identifier name to member path, starting at the input/output.
     pub identifiers: BTreeMap<String, Vec<String>>,
@@ -221,7 +221,7 @@ pub struct ResourceMemberBindings {
     pub collections: BTreeMap<String, ResourceMemberBindings>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ResourceReference {
     pub resource: ShapeId,
     pub service: Option<ShapeId>,
@@ -352,7 +352,7 @@ impl Service {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[allow(
     clippy::large_enum_variant,
     reason = "built once per shape and only read; boxing would only add indirection for emitters"
@@ -420,7 +420,7 @@ impl Shape {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Simple {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -437,7 +437,7 @@ pub struct Simple {
     pub traits: Traits,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SimpleKind {
     Boolean,
     String,
@@ -455,7 +455,7 @@ pub enum SimpleKind {
     Blob,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Enum {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -468,7 +468,7 @@ pub struct Enum {
     pub traits: Traits,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EnumValue {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -483,7 +483,7 @@ pub struct EnumValue {
     pub traits: Traits,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IntEnum {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -496,7 +496,7 @@ pub struct IntEnum {
     pub traits: Traits,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IntEnumValue {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -509,7 +509,7 @@ pub struct IntEnumValue {
     pub traits: Traits,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct List {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -525,7 +525,7 @@ pub struct List {
     pub traits: Traits,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Map {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -541,7 +541,7 @@ pub struct Map {
     pub traits: Traits,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Structure {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -573,7 +573,7 @@ impl Structure {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Member {
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
@@ -639,7 +639,7 @@ impl Member {
 
 /// How provisioning may change a resource property, in CloudFormation's
 /// vocabulary, which the CDK and Terraform generators map onto their own.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Mutability {
     /// Set at create, changed by update, read back.
     Full,
@@ -677,7 +677,7 @@ impl Mutability {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Constraints {
     pub length: Option<Bounds<u64>>,
     pub range: Option<Bounds<Number>>,
@@ -696,13 +696,13 @@ impl Constraints {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Bounds<T> {
     pub min: Option<T>,
     pub max: Option<T>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ErrorInfo {
     pub protocol_headers: BTreeMap<String, String>,
     /// Selected protocol's body discriminator; REST JSON uses its header instead.
@@ -721,18 +721,18 @@ pub struct ErrorInfo {
     pub response_code: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Fault {
     Client,
     Server,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Retryable {
     pub throttling: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Operation {
     /// Fixed request headers required by the selected protocol.
     pub protocol_headers: BTreeMap<String, String>,
@@ -782,7 +782,7 @@ pub struct Operation {
 /// One `@examples` entry. `input`, `output` and `error.content` are model
 /// values: members are named as in the model and timestamps are as written.
 /// [`Service::wire_example`] renders a member's value as a document carries it.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Example {
     pub title: String,
     pub docs: Option<String>,
@@ -794,7 +794,7 @@ pub struct Example {
     pub allow_constraint_errors: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ExampleError {
     pub shape: ShapeId,
     pub content: Value,
@@ -807,7 +807,7 @@ impl Operation {
 }
 
 /// Where each member of an input or output structure travels.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct Bindings {
     pub timestamp_formats: BTreeMap<String, TimestampFormat>,
     pub header_encodings: BTreeMap<String, HeaderEncoding>,
@@ -828,7 +828,7 @@ pub struct Bindings {
     pub payload: Option<Payload>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Payload {
     pub kind: PayloadKind,
     pub streaming: bool,
@@ -839,14 +839,14 @@ pub struct Payload {
     pub media_type: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Binding {
     pub member: String,
     /// The query parameter or header name.
     pub name: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TimestampFormat {
     DateTime,
@@ -854,7 +854,7 @@ pub enum TimestampFormat {
     EpochSeconds,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Paginated {
     pub input_token: String,
     pub output_token: String,
@@ -862,7 +862,7 @@ pub struct Paginated {
     pub page_size: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Uri {
     pub segments: Vec<Segment>,
     /// Literal query parameters in the pattern, such as `?x-id=Get`.
@@ -871,7 +871,7 @@ pub struct Uri {
     pub greedy_labels: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Segment {
     Literal(String),
     Label(String),
