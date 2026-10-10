@@ -39,6 +39,9 @@ static class Program
         readonly Task loop;
         public string Endpoint { get; }
         public int Attempts;
+        // A guard: a handler failure of a type the shutdown filters below
+        // catch, racing disposal, still fails the test.
+        ExceptionDispatchInfo? failure;
         public Server(Func<Request, Response> handler)
         {
             listener.Start(); Endpoint = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
@@ -47,7 +50,12 @@ static class Program
                 {
                     while (!stop.IsCancellationRequested)
                     {
-                        using var socket = await listener.AcceptTcpClientAsync(stop.Token);
+                        TcpClient accepted;
+                        // Disposal cancels before it stops the listener, so a
+                        // pending accept ends only by cancellation.
+                        try { accepted = await listener.AcceptTcpClientAsync(stop.Token); }
+                        catch (OperationCanceledException) when (stop.IsCancellationRequested) { break; }
+                        using var socket = accepted;
                         await using var stream = socket.GetStream();
                         var head = new List<byte>(); var one = new byte[1];
                         while (true)
@@ -61,7 +69,9 @@ static class Program
                         var body = new byte[int.Parse(headers.GetValueOrDefault("Content-Length", "0"))];
                         await stream.ReadExactlyAsync(body, stop.Token);
                         Attempts++;
-                        var response = handler(new(lines[0].Split(' ')[1], headers, body));
+                        Response response;
+                        try { response = handler(new(lines[0].Split(' ')[1], headers, body)); }
+                        catch (Exception error) { failure = ExceptionDispatchInfo.Capture(error); throw; }
                         var bytes = response.BinaryBody ?? Encoding.UTF8.GetBytes(response.Body);
                         var responseHeaders = $"HTTP/1.1 {response.Status} Test\r\nContent-Length: {bytes.Length + (response.Truncated ? 10 : 0)}\r\nConnection: close\r\n";
                         if (response.Headers is not null) foreach (var (key, value) in response.Headers) responseHeaders += $"{key}: {value}\r\n";
@@ -70,12 +80,22 @@ static class Program
                         await stream.WriteAsync(bytes, stop.Token);
                     }
                 }
-                // Stopping the listener fails a pending accept in more ways
-                // than cancellation (InvalidOperationException, SocketException).
-                catch (Exception) when (stop.IsCancellationRequested) { }
+                // An exchange cut short by shutdown; anything else, such as a
+                // request the handler rejects, still fails the test.
+                catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+                catch (IOException) when (stop.IsCancellationRequested) { }
+                catch (ObjectDisposedException) when (stop.IsCancellationRequested) { }
             });
         }
-        public async ValueTask DisposeAsync() { stop.Cancel(); listener.Stop(); await loop; stop.Dispose(); }
+        // Stopping the listener under a pending accept fails it in several
+        // racy ways; cancel and let the loop finish first.
+        public async ValueTask DisposeAsync()
+        {
+            stop.Cancel();
+            try { await loop; }
+            finally { listener.Stop(); stop.Dispose(); }
+            failure?.Throw();
+        }
     }
     static async Task RetryCases(string path)
     {
