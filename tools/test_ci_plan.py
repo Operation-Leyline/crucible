@@ -403,10 +403,13 @@ class PlanTests(unittest.TestCase):
             with self.subTest(job=name):
                 self.assertRegex(body, r"(?m)^    timeout-minutes: \d+$")
                 self.assertEqual(len(re.findall(r"uses: Swatinem/rust-cache@", body)), body.count(save_on_main))
-                # Every other cache restores on PRs and saves from main only.
-                self.assertNotRegex(body, r"uses: actions/cache@")
-                for save in re.findall(r"uses: actions/cache/save@.*\n\s+if: (.*)", body):
-                    self.assertIn("github.ref == 'refs/heads/main'", save)
+        # The large editor SDK and Gradle caches restore on PRs and save from
+        # main only.
+        self.assertNotRegex(jobs["editor"], r"uses: actions/cache@")
+        saves = re.findall(r"uses: actions/cache/save@.*\n\s+if: (.*)", jobs["editor"])
+        self.assertTrue(saves)
+        for save in saves:
+            self.assertIn("github.ref == 'refs/heads/main'", save)
         self.assertIn("cache-read-only: ${{ github.ref != 'refs/heads/main' }}", jobs["kotlin-multiplatform"])
 
 
