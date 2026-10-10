@@ -42,26 +42,31 @@ has passed.
 ## The carrier
 
 The version travels in a request header, `Crucible-Version`, for every HTTP
-protocol; an invoke envelope carries it as `"version"`. The protocol
-declaration names the carrier (decision 57), so a protocol can choose
-another. The response echoes the version it was served at.
+protocol. Other carriers, such as a field of an invoke envelope, come with
+the protocol declaration (decision 57). The response echoes the version it
+was served at.
 
 | Request | Served at |
 |---|---|
 | A supported version | That version |
 | The current version | The current version: no conversion |
-| No version | The resolver's choice (below) |
-| An unknown version | Refused: `400 UnsupportedApiVersion`, listing the supported ones |
-| A version past its `sunset` | `Deprecation` and `Sunset` headers; refused with `410` if the service opts in |
+| No version | As the builder says (below) |
+| An unknown version | Refused with `400`, the service's validation error naming the supported versions |
+| A version with a `sunset` | Served, with `Deprecation: true` and `Sunset: <date>` headers |
 
-A request with no version resolves through a framework hook,
-`Builder::api_version(resolver)`, like `request_id`: a service can pin each
-account to the version it first used, as Stripe does. With no resolver, it
-is served at the oldest supported version: a client built before it sent a
-version was built against an older contract. A service whose callers are
-all generated can make the version required instead
-(`ApiVersions::required()`): a request without one is refused with
-`400 MissingApiVersion`, listing the supported versions.
+A request with no version is settled by `Builder::api_version`:
+
+- `Unversioned::Oldest` (the default) serves it at the oldest supported
+  version. That is right for a client built for the oldest release, before
+  versions existed, and wrong for a client of a later release that sends no
+  version: it would be decoded and answered with the oldest contract. Until
+  generated clients send their version (phase 5), a service with more than
+  one older release uses one of the other two.
+- `Unversioned::Resolve(resolver)` lets the service choose, like
+  `request_id`: it can pin each account to the version it first used, as
+  Stripe does. A resolver that returns `None` falls back to the oldest.
+- `Unversioned::Required` refuses the request with `400`, the service's
+  validation error naming the supported versions.
 
 ## Compiler and IR
 
@@ -84,25 +89,30 @@ versions ignore `versions`; the semantics are settled once, here.
 
 ## Generated code
 
-For each older version, the Rust server generator writes a module beside
-today's types, from that version's IR:
+The Rust server generator writes a `versions` module in the service's
+module, with a module per older version, generated from that version's IR
+as the current one is:
 
 ```rust
-pub mod v2026_09_04 {
-    pub struct GetGraphInput { .. }      // the old types, with serde and Validate
-    pub struct GetGraphOutput { .. }
-    pub static OPERATIONS: VersionTable = ..; // old OperationInfo: routes, members, errors
-    pub static STEPS: &[Step] = &[..];        // the conversions to the next version, as data
+pub mod versions {
+    pub const V2026_09_04: ApiVersion = ..; // for `behavior` branches
+    pub const V2026_11_01: ApiVersion = ..;
+    pub const CURRENT: ApiVersion = V2026_11_01;
+
+    pub mod v2026_09_04 {
+        pub struct GetGraphInput { .. }  // the old types, with serde and Validate
+        pub struct GetGraph;             // the old OperationInfo: route, members, errors
+    }
+    // The conversions between each version and the next, as data.
+    mod __conversions { static GET_GRAPH_0: Conversion = ..; }
 }
-pub const V2026_09_04: ApiVersion = ..;   // for `behavior` branches
-pub const V2026_11_01: ApiVersion = ..;   // the current version
 ```
 
 The conversions are `'static` data the framework interprets, not generated
 functions: generated Rust stays types and descriptions (AGENTS.md).
-`operations(service)` registers the old tables with the current handlers.
-Nothing in a handler changes; a `behavior` branch reads
-`self.context().api_version() < V2026_11_01`.
+`operations(service)` registers each old operation with the current
+handler. Nothing in a handler changes; a `behavior` branch reads
+`self.context().api_version() < Some(versions::V2026_11_01)`.
 
 ## Runtime
 
@@ -148,9 +158,17 @@ direction it is needed in, as the compiler knows from the IR.
 ## Until phase 4
 
 An old version whose chain contains a hooked step for an operation cannot
-convert that operation yet. That operation answers `501 NotImplemented` at
-that version, and the build warns; the version's other operations are
-served.
+convert that operation yet. That operation is not routed at that version,
+so it is answered as any request no operation matches (`404`, `405`, or
+the service's unknown-operation error), and the build warns; the version's
+other operations are served. Operations with a streaming payload or an
+event stream are served at the current version only, the same way.
+
+What the generator cannot convert is a diagnostic against the shape, not a
+silent skip: a member inside a recursive shape, and a member renamed inside
+an error. An `add .. downgrade F { .. }` step must fill every member `F`
+requires, from members the new error has; the guard checks it, so a
+downgrade never fails at run time for a missing member.
 
 ## Testing
 
@@ -162,11 +180,14 @@ and refusal over HTTP.
 
 ## Decisions
 
-1. **No version on a request** is served at the oldest supported version,
-   unless a resolver chooses; a service can make the version required
-   instead. There are no consumers yet, so nothing needs a transition.
+1. **No version on a request** is served at the oldest supported version
+   by default, unless a resolver chooses; a service can make the version
+   required instead. The default suits clients that predate versions; until
+   clients send theirs (phase 5), a service with several older releases
+   resolves or requires. There are no consumers yet, so nothing needs a
+   transition.
 2. **Version names** are the service's `version` clause, checked against
    the newest migration.
-3. **Hooked steps before phase 4** refuse that operation at the old version
-   with `501` and a build warning.
+3. **Hooked steps before phase 4** leave that operation unrouted at the old
+   version, with a build warning.
 4. **Clients** send their version in phase 5, all generators together.
