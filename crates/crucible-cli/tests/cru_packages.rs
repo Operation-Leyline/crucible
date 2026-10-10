@@ -70,3 +70,35 @@ fn a_package_that_does_not_compile_lists_its_problems() {
     ]);
     assert!(String::from_utf8_lossy(&protocol.stderr).contains("--protocol cannot select"));
 }
+
+#[test]
+fn check_applies_the_policy_in_the_package_manifest() {
+    let weather = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/idl/examples/weather");
+    let tmp = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let dir = tmp.path();
+    std::fs::create_dir(dir.join("model")).unwrap();
+    std::fs::copy(
+        weather.join("model/weather.cru"),
+        dir.join("model/weather.cru"),
+    )
+    .unwrap();
+    let manifest = std::fs::read_to_string(weather.join("crucible.toml")).unwrap();
+    std::fs::write(
+        dir.join("crucible.toml"),
+        format!(
+            "{manifest}
+[rules.naming]
+members = \"PascalCase\"
+"
+        ),
+    )
+    .unwrap();
+    let check = crucible(&["check", dir.to_str().unwrap()]);
+    assert!(!check.status.success());
+    let out = String::from_utf8_lossy(&check.stdout).into_owned()
+        + &String::from_utf8_lossy(&check.stderr);
+    assert!(
+        out.contains("naming.members") && out.contains("is not PascalCase"),
+        "{out}"
+    );
+}

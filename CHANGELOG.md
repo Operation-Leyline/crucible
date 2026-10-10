@@ -44,6 +44,19 @@ version's section when it is prepared.
   startup and keeps them compiled, so workspace symbols, references and
   rename work with no file open; it registers file watchers and recompiles
   when `.cru` files or manifests change outside the editor.
+- A `.cru` package's `crucible.toml` can hold its API policy beside `[model]`;
+  builds of the package and `crucible check <package>` apply it without
+  `.policy(..)`. `schema_version` is now optional.
+- Every policy check can set its own severity: `members = { case =
+  "camelCase", severity = "warning" }`, and likewise `pattern`, `path`,
+  `target` and `enabled` for the other checks. Bare values keep the group's
+  severity, so existing files are unchanged. Messages now say what is wrong
+  ("operation name `createGraph` is not PascalCase").
+- `crucible-lsp` runs the package's policy on every compile and reports each
+  finding at the name it concerns, with a rename to the configured case as a
+  quick fix. In `crucible.toml` it completes every table, key and value,
+  explains them on hover, and reports policy errors where they are written;
+  an unknown top-level key is an error.
 - `crucible check` and `crucible generate` accept a `.cru` package directory
   as the model, compiled without Smithy or a JVM, as `crucible_build` does.
 - `crucible_lang::format`, a conservative `.cru` formatter: indentation by

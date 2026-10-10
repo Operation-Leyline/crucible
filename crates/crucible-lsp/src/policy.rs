@@ -1,0 +1,167 @@
+//! API policy in the editor: the package's policy runs on every compile, and
+//! each finding is shown at the name it is about, as the build would report
+//! it, with a rename where a naming case says what the name should be.
+
+use std::path::Path;
+
+use crucible_lang::{Compiled, TokenKind};
+use crucible_policy::{Check, Config, NameCase, Severity};
+use crucible_smithy::ShapeId;
+
+/// One policy finding in a file of the package.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Finding {
+    pub file: usize,
+    pub start: u32,
+    pub end: u32,
+    pub error: bool,
+    pub rule: String,
+    pub message: String,
+    /// The name a naming case asks for, offered as a fix.
+    pub rename: Option<String>,
+}
+
+/// The policy that applies to the package in `dir`: its own manifest's, or
+/// a `crucible.toml` above it that carries policy, as a workspace sharing
+/// one file selects with `.policy(..)`. `manifest` is the package manifest's
+/// unsaved text, when the editor has it open.
+pub fn source(dir: &Path, manifest: Option<&str>) -> Option<String> {
+    let own = manifest
+        .map(str::to_owned)
+        .or_else(|| std::fs::read_to_string(dir.join("crucible.toml")).ok());
+    if let Some(text) = own.filter(|text| Config::declares_policy(text)) {
+        return Some(text);
+    }
+    dir.ancestors().skip(1).find_map(|parent| {
+        std::fs::read_to_string(parent.join("crucible.toml"))
+            .ok()
+            .filter(|text| Config::declares_policy(text))
+    })
+}
+
+/// Every unexcepted finding of `config` on the compiled package, at the
+/// name of the declaration, member or enum value it concerns. Findings on
+/// imports, or on shapes with no source position, are dropped.
+pub fn findings(compiled: &Compiled, own: usize, config: &Config) -> Vec<Finding> {
+    let Some(service) = &compiled.service else {
+        return Vec::new();
+    };
+    let report = crucible_policy::check(service, config);
+    let mut out = Vec::new();
+    for finding in report.findings {
+        if finding.exception.is_some() || finding.severity == Severity::Off {
+            continue;
+        }
+        let Ok(id) = finding.shape.parse::<ShapeId>() else {
+            continue;
+        };
+        let Some(location) = compiled.source_map.get(&id) else {
+            continue;
+        };
+        if location.file >= own {
+            continue;
+        }
+        let name = id.member().unwrap_or(id.name());
+        let file = &compiled.files[location.file];
+        // The declaration's span covers its body; point at its name.
+        let (start, end) = compiled.parsed[location.file]
+            .tokens
+            .iter()
+            .find(|token| {
+                token.kind == TokenKind::Ident
+                    && token.span.start >= location.span.start
+                    && token.span.end <= location.span.end
+                    && token.span.text(&file.text) == name
+            })
+            .map_or((location.span.start, location.span.start), |token| {
+                (token.span.start, token.span.end)
+            });
+        let rename = case_for(config, &finding.rule)
+            .filter(|case| !case.value.matches(name))
+            .map(|case| case.value.apply(name))
+            .filter(|renamed| renamed != name);
+        out.push(Finding {
+            file: location.file,
+            start,
+            end,
+            error: finding.severity == Severity::Error,
+            rule: finding.rule,
+            message: finding.message,
+            rename,
+        });
+    }
+    out
+}
+
+/// The naming case a naming rule checks, if the config sets one.
+fn case_for<'c>(config: &'c Config, rule: &str) -> Option<&'c Check<NameCase>> {
+    let naming = config.rules.naming.as_ref()?;
+    match rule {
+        "naming.operations" => naming.operations.as_ref(),
+        "naming.shapes" => naming.shapes.as_ref(),
+        "naming.members" => naming.members.as_ref(),
+        "naming.enums" => naming.enum_values.as_ref(),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SOURCE: &str = r#"service Shop {
+    version "1"
+    protocol json
+    operations [listItems]
+}
+
+/// Lists items.
+readonly operation listItems {
+    http GET "/items"
+    input { @query Page_size?: integer }
+    output { names: Names }
+}
+
+list Names: string
+"#;
+
+    #[test]
+    fn findings_point_at_names_with_their_severity_and_fix() {
+        let package = crucible_lang::Package::new(
+            "example.shop",
+            vec![crucible_lang::SourceFile {
+                path: "shop.cru".into(),
+                text: SOURCE.into(),
+            }],
+        );
+        let compiled = crucible_lang::compile(&package, None);
+        assert!(compiled.service.is_some(), "{}", compiled.render());
+        let config = Config::parse(
+            "[rules.naming]\noperations = \"PascalCase\"\nmembers = { case = \"camelCase\", severity = \"warning\" }\n",
+        )
+        .unwrap();
+        let findings = findings(&compiled, 1, &config);
+        let operation = findings
+            .iter()
+            .find(|f| f.rule == "naming.operations")
+            .unwrap();
+        assert!(operation.error);
+        assert_eq!(
+            &SOURCE[operation.start as usize..operation.end as usize],
+            "listItems"
+        );
+        // The declaration, not the reference in the service.
+        assert!(operation.start as usize > SOURCE.find("readonly").unwrap());
+        assert_eq!(operation.rename.as_deref(), Some("ListItems"));
+        let member = findings
+            .iter()
+            .find(|f| f.rule == "naming.members")
+            .unwrap();
+        assert!(!member.error);
+        assert_eq!(
+            &SOURCE[member.start as usize..member.end as usize],
+            "Page_size"
+        );
+        assert_eq!(member.rename.as_deref(), Some("pageSize"));
+    }
+}

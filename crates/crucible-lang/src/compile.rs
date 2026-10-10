@@ -44,6 +44,11 @@ pub(crate) const BUNDLED: &[(&str, &str)] = &[(
     include_str!("../bundled/crucible.errors.cru"),
 )];
 
+/// The namespaces of the bundled packages a manifest can import.
+pub fn bundled_packages() -> impl Iterator<Item = &'static str> {
+    BUNDLED.iter().map(|(namespace, _)| *namespace)
+}
+
 /// How anonymous operation inputs and outputs are named (decision 25).
 #[derive(Debug, Clone)]
 pub struct Naming {

@@ -192,6 +192,26 @@ fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
 /// source directories, unknown imports and naming patterns without
 /// `{Operation}`. A manifest without `[model]` is a policy file: only its
 /// syntax is checked here.
+/// The top-level policy keys `crucible-policy` reads beside `[model]`.
+const POLICY_KEYS: &[&str] = &["schema_version", "rules", "compatibility", "exceptions"];
+
+/// Where a top-level key or table is written: `key =`, `[key` or `[[key`.
+fn top_level_key(text: &str, key: &str) -> Span {
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim_start();
+        let after = trimmed.trim_start_matches('[').trim_start();
+        if let Some(rest) = after.strip_prefix(key)
+            && rest.starts_with([' ', '=', '.', ']', '\t'])
+        {
+            let start = offset + (line.len() - after.len());
+            return Span::new(start, start + key.len());
+        }
+        offset += line.len();
+    }
+    Span::default()
+}
+
 pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
     #[derive(serde::Deserialize)]
     struct Manifest {
@@ -225,12 +245,30 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
             return vec![Diagnostic::new(at, error.message().to_owned())];
         }
     };
+    let mut out = Vec::new();
+    // Beside [model] are the policy keys `crucible-policy` reads; anything
+    // else is a typo that would otherwise be ignored. (Read on its own:
+    // `flatten` would lose the spans the checks below report at.)
+    let keys: Vec<String> = text
+        .parse::<toml::Table>()
+        .map(|table| table.keys().cloned().collect())
+        .unwrap_or_default();
+    for key in keys.iter().filter(|key| *key != "model") {
+        if !POLICY_KEYS.contains(&key.as_str()) {
+            out.push(Diagnostic::new(
+                top_level_key(text, key),
+                format!(
+                    "unknown key `{key}` in crucible.toml; it holds [model] and the policy keys {}",
+                    POLICY_KEYS.join(", ")
+                ),
+            ));
+        }
+    }
     let Some(model) = manifest.model else {
-        return Vec::new();
+        return out;
     };
     let header = span(model.span());
     let model = model.into_inner();
-    let mut out = Vec::new();
     match &model.namespace {
         None => out.push(Diagnostic::new(
             header,

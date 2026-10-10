@@ -58,12 +58,48 @@ packages opt in with `.policy(...)`. Explicit selection avoids watching a
 missing optional config, which would force Cargo to rerun the build script
 on every build. Normal builds require no baseline, Git history, or CLI install.
 
+### In a `.cru` package's manifest
+
+A Crucible language package needs no second file: its own `crucible.toml`
+holds the policy beside `[model]`, and every build of the package applies
+it, as does `crucible check <package>`. `.policy(..)` and `--config` still
+select another file.
+
+```toml
+[model]
+namespace = "example.service"
+imports = ["crucible.errors"]
+
+[rules.naming]
+operations = "PascalCase"
+members = { case = "camelCase", severity = "warning" }
+```
+
+The language server applies the same policy as you type: a finding shows at
+the name it concerns, as an error or a warning, and a naming finding offers
+a rename to the configured case. It looks for the policy in the package's
+manifest, then in the nearest `crucible.toml` above it that has one, which
+covers a workspace that selects a shared file with `.policy(..)`. The
+manifest itself completes every table, key and value, explains each on
+hover, and reports a bad value where it is written.
+
 ## Config reference
 
-`schema_version = 1` is required. Unknown fields, rules, enum values, malformed
-regular expressions, and unsupported schema versions are errors.
-Each group accepts `severity = "error"`, `"warning"`, or `"off"`; the default
-is `"error"`. Omitted static groups run no checks.
+`schema_version = 1` is optional; 1 is the only version. Unknown fields,
+rules, enum values, malformed regular expressions, and unsupported schema
+versions are errors. Each group accepts `severity = "error"`, `"warning"`, or
+`"off"`; the default is `"error"`. Omitted static groups run no checks.
+
+Every check also takes its own severity. Write it bare to use the group's,
+or as a table naming its value and severity:
+
+| Check | Bare | With its own severity |
+|---|---|---|
+| a naming or path case | `members = "camelCase"` | `members = { case = "camelCase", severity = "warning" }` |
+| a naming pattern | `operations_pattern = "Get.*"` | `operations_pattern = { pattern = "Get.*", severity = "warning" }` |
+| the path prefix | `prefix = "/v1"` | `prefix = { path = "/v1", severity = "warning" }` |
+| a documentation target | `targets = ["operations"]` | `targets = [{ target = "errors", severity = "warning" }]` |
+| a compatibility family | `wire = true` | `sdk_source = { enabled = true, severity = "warning" }` |
 
 | Group | Options |
 |---|---|

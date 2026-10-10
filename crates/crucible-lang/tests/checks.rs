@@ -447,3 +447,17 @@ fn an_error_payload_takes_the_whole_body() {
         "the body is the payload `data`; bind `note` to a header",
     );
 }
+
+#[test]
+fn a_manifest_may_hold_policy_but_not_unknown_keys() {
+    let dir = std::env::temp_dir();
+    let policy =
+        "[model]\nnamespace = \"example.shop\"\n\n[rules.naming]\noperations = \"PascalCase\"\n";
+    assert_eq!(crucible_lang::check_manifest(&dir, policy), Vec::new());
+    let typo =
+        "[model]\nnamespace = \"example.shop\"\n\n[rule.naming]\noperations = \"PascalCase\"\n";
+    let problems = crucible_lang::check_manifest(&dir, typo);
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].message.contains("unknown key `rule`"));
+    assert_eq!(problems[0].span.text(typo), "rule");
+}

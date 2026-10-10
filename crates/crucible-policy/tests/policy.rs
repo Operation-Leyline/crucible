@@ -313,3 +313,72 @@ fn effective_member_timestamps_override_changed_target_formats() {
         .remove("smithy.api#timestampFormat");
     assert!(rules(&old, &new).contains(&"compatibility.timestamp".into()));
 }
+
+#[test]
+fn each_check_can_carry_its_own_severity() {
+    let config = Config::parse(
+        r#"
+[rules.naming]
+severity = "error"
+operations = "camelCase"
+members = { case = "PascalCase", severity = "warning" }
+"#,
+    )
+    .unwrap();
+    let report = check(&lower(&model()), &config);
+    let operation = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "naming.operations")
+        .unwrap();
+    assert_eq!(operation.severity, Severity::Error);
+    assert_eq!(
+        operation.message,
+        "operation name `GetItem` is not camelCase"
+    );
+    let member = report
+        .findings
+        .iter()
+        .find(|f| f.rule == "naming.members")
+        .unwrap();
+    assert_eq!(member.severity, Severity::Warning);
+    assert!(
+        member.message.ends_with("is not PascalCase"),
+        "{}",
+        member.message
+    );
+}
+
+#[test]
+fn a_package_manifest_can_hold_its_policy() {
+    let text = "[model]\nnamespace = \"example.api\"\nsources = [\".\"]\n\n[rules.paths]\nprefix = \"/v1\"\n";
+    assert!(Config::declares_policy(text));
+    assert!(!Config::declares_policy(
+        "[model]\nnamespace = \"example.api\"\n"
+    ));
+    let config = Config::parse(text).unwrap();
+    assert_eq!(config.schema_version, 1);
+    assert_eq!(config.rules.paths.unwrap().prefix.unwrap().value, "/v1");
+}
+
+#[test]
+fn problems_point_at_what_is_wrong() {
+    let text = "[rules.naming]\noperations = \"Pascal\"\n";
+    let error = Config::parse_located(text).unwrap_err();
+    let span = error.span.clone().unwrap();
+    assert!(text[span].contains("Pascal"), "{error:?}");
+
+    let text = "[rules.paths]\nprefix = { path = \"v1\", severity = \"warning\" }\n";
+    let error = Config::parse_located(text).unwrap_err();
+    assert_eq!(&text[error.span.unwrap()], "\"v1\"");
+
+    let text =
+        "[[exceptions]]\nrule = \"naming.typo\"\nshape = \"example.api#GetItem\"\nreason = \"x\"\n";
+    let error = Config::parse_located(text).unwrap_err();
+    assert_eq!(&text[error.span.unwrap()], "\"naming.typo\"");
+    assert!(
+        error.message.contains("naming.members"),
+        "{}",
+        error.message
+    );
+}

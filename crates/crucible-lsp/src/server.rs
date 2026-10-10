@@ -43,7 +43,7 @@ use serde_json::Value;
 use crate::analysis::{self, Index, Symbol, TOKEN_MODIFIERS, TOKEN_TYPES};
 use crate::insight::{self, HintKind};
 use crate::lines::Lines;
-use crate::{actions, completion, folding};
+use crate::{actions, completion, folding, manifest, policy};
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 /// A request's result, or an LSP error code and message.
@@ -77,7 +77,13 @@ pub fn capabilities() -> ServerCapabilities {
             },
         )),
         completion_provider: Some(CompletionOptions {
-            trigger_characters: Some(vec!["@".into(), ":".into(), "[".into()]),
+            trigger_characters: Some(vec![
+                "@".into(),
+                ":".into(),
+                "[".into(),
+                "\"".into(),
+                "{".into(),
+            ]),
             ..Default::default()
         }),
         definition_provider: Some(OneOf::Left(true)),
@@ -150,6 +156,8 @@ struct Unit {
     load_error: Option<String>,
     /// How often each declaration is referred to in the unit's own files.
     usages: HashMap<String, usize>,
+    /// The package policy's findings, at the names they concern.
+    policy: Vec<policy::Finding>,
 }
 
 pub struct Server {
@@ -572,6 +580,18 @@ impl Server {
                 *usages.entry(name).or_default() += count;
             }
         }
+        // The policy the build applies: the package manifest's, or one above
+        // it. A policy that does not parse shows in the manifest instead.
+        let policy_dir = if standalone {
+            unit.parent()
+        } else {
+            Some(unit)
+        };
+        let policy = policy_dir
+            .and_then(|dir| policy::source(dir, manifest))
+            .and_then(|text| crucible_policy::Config::parse(&text).ok())
+            .map(|config| policy::findings(&compiled, own, &config))
+            .unwrap_or_default();
         Unit {
             compiled,
             index,
@@ -579,6 +599,7 @@ impl Server {
             standalone: standalone || load_error.is_some(),
             load_error,
             usages,
+            policy,
         }
     }
 
@@ -674,6 +695,27 @@ impl Server {
                 )),
             }
         }
+        for finding in &unit.policy {
+            if Some(finding.file) != own_index {
+                continue;
+            }
+            out.push(Diagnostic {
+                range: lines.range(finding.start, finding.end),
+                severity: Some(if finding.error {
+                    DiagnosticSeverity::ERROR
+                } else {
+                    DiagnosticSeverity::WARNING
+                }),
+                code: Some(lsp_types::NumberOrString::String(finding.rule.clone())),
+                source: Some("crucible policy".into()),
+                message: finding.message.clone(),
+                data: finding
+                    .rename
+                    .as_ref()
+                    .map(|name| serde_json::json!({ "rename": name })),
+                ..Default::default()
+            });
+        }
         out
     }
 
@@ -685,7 +727,7 @@ impl Server {
             return Vec::new();
         };
         let lines = Lines::new(&document.text);
-        check_manifest(dir, &document.text)
+        let mut out: Vec<Diagnostic> = check_manifest(dir, &document.text)
             .into_iter()
             .map(|diagnostic| {
                 at_severity(
@@ -694,7 +736,21 @@ impl Server {
                     diagnostic.severity,
                 )
             })
-            .collect()
+            .collect();
+        // The policy beside [model], or a policy-only file: the same checks
+        // the build applies, at the value they are about.
+        if crucible_policy::Config::declares_policy(&document.text)
+            && let Err(problem) = crucible_policy::Config::parse_located(&document.text)
+        {
+            let range = problem.span.map_or(lines.first_line(), |span| {
+                lines.range(span.start as u32, span.end as u32)
+            });
+            // TOML syntax errors are already reported by the manifest check.
+            if !out.iter().any(|existing| existing.range == range) {
+                out.push(error(range, problem.message));
+            }
+        }
+        out
     }
 
     fn publish(&self, uri: Url, diagnostics: Vec<Diagnostic>) -> Result<(), Error> {
@@ -879,6 +935,15 @@ impl Server {
     }
 
     fn completion(&self, uri: &Url, position: Position) -> Option<CompletionResponse> {
+        if let Some(document) = self.documents.get(uri)
+            && document.kind == Kind::Manifest
+        {
+            let offset = Lines::new(&document.text).offset(position);
+            return Some(CompletionResponse::Array(manifest::complete(
+                &document.text,
+                offset,
+            )));
+        }
         let (document, parsed, unit) = self.model(uri)?;
         let offset = Lines::new(&document.text).offset(position);
         let context = completion::context(&parsed, &document.text, offset);
@@ -1162,6 +1227,18 @@ impl Server {
     }
 
     fn hover(&self, uri: &Url, position: Position) -> Option<Hover> {
+        if let Some(document) = self.documents.get(uri)
+            && document.kind == Kind::Manifest
+        {
+            let offset = Lines::new(&document.text).offset(position);
+            return Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: manifest::hover(&document.text, offset)?,
+                }),
+                range: None,
+            });
+        }
         let (_, name, declaration, range) = self.declaration_at(uri, position)?;
         Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
@@ -1302,6 +1379,37 @@ impl Server {
         let lines = Lines::new(&document.text);
         let mut out = Vec::new();
         for diagnostic in &params.context.diagnostics {
+            // A naming finding renames the declaration everywhere, or a
+            // member or enum value where it is declared.
+            if let Some(new_name) = diagnostic
+                .data
+                .as_ref()
+                .and_then(|data| data.get("rename"))
+                .and_then(Value::as_str)
+            {
+                let edit = match self.rename(uri, diagnostic.range.start, new_name) {
+                    Ok(Some(edit)) => edit,
+                    _ => WorkspaceEdit {
+                        changes: Some(HashMap::from([(
+                            uri.clone(),
+                            vec![TextEdit {
+                                range: diagnostic.range,
+                                new_text: new_name.to_owned(),
+                            }],
+                        )])),
+                        ..Default::default()
+                    },
+                };
+                out.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: format!("Rename to `{new_name}`"),
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: Some(vec![diagnostic.clone()]),
+                    edit: Some(edit),
+                    is_preferred: Some(true),
+                    ..Default::default()
+                }));
+                continue;
+            }
             let Some(name) = actions::unknown_type(&diagnostic.message) else {
                 continue;
             };
