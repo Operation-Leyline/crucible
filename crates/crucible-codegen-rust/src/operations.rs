@@ -347,6 +347,13 @@ fn wire(service: &Service, op: &Operation) -> String {
             "    const PROTOCOL: ::crucible_server_runtime_rust::__generated::operation::Protocol = ::crucible_server_runtime_rust::__generated::operation::Protocol::{protocol};\n"
         ));
     }
+    // The release a generated client names in `Crucible-Version`.
+    if let Some(version) = &service.api_version {
+        out.push_str(&format!(
+            "    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some({});\n",
+            literal(version)
+        ));
+    }
     let wire = |name: &Option<String>| {
         name.as_ref().map_or("None".to_owned(), |name| {
             let wire = structure(service, op.input.as_ref())
@@ -403,12 +410,14 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
         // a browser client names its version and reads the echoed one.
         let merged = |pick: fn(&crucible_smithy::ir::Cors) -> &Vec<String>, extra: &[&str]| {
             let mut values: std::collections::BTreeSet<String> = pick(cors).iter().cloned().collect();
-            if !service.versions.is_empty() {
-                for version in &service.versions {
-                    if let Some(older) = &version.service.cors {
-                        values.extend(pick(older).iter().cloned());
-                    }
+            for version in &service.versions {
+                if let Some(older) = &version.service.cors {
+                    values.extend(pick(older).iter().cloned());
                 }
+            }
+            // Generated clients of a `.cru` service always send their release,
+            // from the first, before any migration exists.
+            if service.api_version.is_some() || !service.versions.is_empty() {
                 values.extend(extra.iter().map(|value| (*value).to_owned()));
             }
             values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ")

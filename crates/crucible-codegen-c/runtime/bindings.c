@@ -459,6 +459,10 @@ status crucible_generated_binding_prepare(arena *storage, const yyjson_val *sche
         string value; TRY(take(storage, &target, &value, issue));
         TRY(crucible_generated_header_set(storage, &request.headers, VIEW("X-Amz-Target"), value, issue));
     }
+    /* The release this client was generated for (docs/api-versions-clients.md). */
+    const yyjson_val *api_version = get(schema, "apiVersion");
+    if (api_version && yyjson_is_str((yyjson_val *)api_version))
+        TRY(crucible_generated_header_set(storage, &request.headers, VIEW("crucible-version"), text(api_version), issue));
     TRY(crucible_generated_validate_request(&request, issue));
     *out = request; return OK;
 }

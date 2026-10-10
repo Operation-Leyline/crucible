@@ -228,6 +228,11 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
                 .collect::<std::collections::BTreeMap<_, _>>()
         );
     }
+    // The release every request names in `Crucible-Version`
+    // (docs/api-versions-clients.md); absent for a Smithy model.
+    if let Some(version) = &service.api_version {
+        value["apiVersion"] = json!(version);
+    }
     if service.protocol != crucible_smithy::Protocol::CrucibleJson {
         value["protocol"] = json!(service.protocol);
         value["protocolSettings"] = json!(service.protocol_settings);

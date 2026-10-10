@@ -469,6 +469,8 @@ export function parseTimestamp(value: string | number): Date {
 /** Where each member of an operation's input and output travels. */
 export interface OperationSpec {
   readonly protocol?: "crucibleJson" | "awsRestJson1" | "awsJson1_0" | "awsJson1_1";
+  /** The release this client was generated for, sent as `Crucible-Version` (docs/api-versions-clients.md). */
+  readonly apiVersion?: string;
   readonly target?: string;
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
   readonly unsignedPayload?: boolean;
@@ -1007,6 +1009,7 @@ export class Transport {
     if (operation.protocol==="awsJson1_0" || operation.protocol==="awsJson1_1") {
       body ??="{}";headers.set("content-type",`application/x-amz-json-${operation.protocol==="awsJson1_0"?"1.0":"1.1"}`);headers.set("x-amz-target",operation.target!);
     }
+    if (operation.apiVersion !== undefined) headers.set("crucible-version", operation.apiVersion);
     if (operation.inputEvents && events) {
       const source = values[operation.inputEvents.member] ?? [];
       if (typeof source !== "object" || (!(Symbol.asyncIterator in source) && !(Symbol.iterator in source))) throw new TypeError(`${operation.name}: an event stream member is an EventStream or an iterable of events`);

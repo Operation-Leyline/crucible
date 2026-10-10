@@ -162,6 +162,8 @@ internal final class ClientRuntime: Sendable {
             let service = try codec.schema["service"]!.string
             headers["x-amz-target"] = String(service.split(separator: "#").last ?? Substring(service)) + "." + name
         }
+        // The release this client was generated for (docs/api-versions-clients.md).
+        if let apiVersion = codec.schema["apiVersion"]?.text { headers["crucible-version"] = apiVersion }
         guard let url = URL(string: base + path) else { throw WireError("Invalid request URL") }
         return Prepared(name: name, operation: op, request: HTTPRequest(url: url, method: try op["method"]!.string, headers: headers, body: body),
                         checksum: checksum, endpoint: resolved)

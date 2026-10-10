@@ -78,6 +78,11 @@ pub struct Service {
     /// with the steps that take it to the next (docs/api-versions.md). Empty
     /// for a service with no migrations; `version` is the current one.
     pub versions: Vec<ApiVersion>,
+    /// The release a generated client names in its `Crucible-Version`
+    /// header (docs/api-versions-clients.md): the service's `version`, for
+    /// a `.cru` service, whose versions are releases. `None` for a Smithy
+    /// model, whose `version` names no release a server serves by.
+    pub api_version: Option<String>,
 }
 
 /// An older API version: its release's model, and how a request or a

@@ -80,6 +80,20 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(len(list(client.list_cities_pages())), 2)
         self.assertEqual(seen, [None, "page2"])
 
+    def test_a_client_names_its_release(self):
+        # A `.cru` service's description names the release its clients send
+        # in `Crucible-Version` (docs/api-versions-clients.md).
+        import copy
+        sent = []
+        with httpx.Client(transport=httpx.MockTransport(lambda r: (sent.append(r), httpx.Response(200, json={}))[1])) as http:
+            client = WeatherClient(http=http, token=lambda: "token")
+            client.ping()
+            self.assertNotIn("crucible-version", sent[-1].headers)
+            client._codec.schema = copy.deepcopy(client._codec.schema)
+            client._codec.schema["apiVersion"] = "2026-09-04"
+            client.ping()
+            self.assertEqual(sent[-1].headers["crucible-version"], "2026-09-04")
+
     def test_hardening_auth_empty_digest_dot_labels_and_dense_collections(self):
         sent = []
         def credential():

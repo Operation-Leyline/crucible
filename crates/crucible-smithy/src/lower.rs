@@ -284,6 +284,7 @@ impl<'m> Lowerer<'m> {
             traits: shape.traits.clone(),
             renames: shape.rename.clone(),
             versions: Vec::new(),
+            api_version: None,
         };
         // Rules of the IR itself, shared with the .cru front end.
         crate::validate::service(&service, &mut self.diagnostics);

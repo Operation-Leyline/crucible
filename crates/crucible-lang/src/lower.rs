@@ -2673,6 +2673,13 @@ impl<'a> Lowerer<'a> {
                     name: parameter,
                 });
             } else if let Some(header) = string("httpHeader") {
+                // Generated clients send their release in this header.
+                if header.eq_ignore_ascii_case("crucible-version") {
+                    self.error_at(
+                        &owner.with_member(&member.name),
+                        "`Crucible-Version` carries the API release a client was generated for; bind the member to another header",
+                    );
+                }
                 bindings.headers.push(Binding {
                     member: member.name.clone(),
                     name: header,
@@ -3741,7 +3748,18 @@ impl<'a> Lowerer<'a> {
             traits,
             renames: BTreeMap::new(),
             versions: Vec::new(),
+            api_version: None,
         };
+        // A `.cru` service's version is a release its clients name in the
+        // `Crucible-Version` header, when it can travel in one.
+        if !service.version.is_empty() && !service.version.bytes().all(|b| b.is_ascii_graphic()) {
+            self.error_at(
+                &service.id,
+                "the service's version names the release clients send in the `Crucible-Version` header: use visible ASCII without spaces",
+            );
+        }
+        service.api_version = Some(service.version.clone())
+            .filter(|name| !name.is_empty() && name.bytes().all(|b| b.is_ascii_graphic()));
         // Rules of the IR itself, shared with the Smithy front end.
         let mut issues = crucible_smithy::Diagnostics::default();
         crucible_smithy::validate::service(&service, &mut issues);
