@@ -48,11 +48,10 @@ static class Program
                     while (!stop.IsCancellationRequested)
                     {
                         TcpClient accepted;
-                        // Stopping the listener fails a pending accept in more
-                        // ways than cancellation; only those failures end the loop.
+                        // Disposal cancels before it stops the listener, so a
+                        // pending accept ends only by cancellation.
                         try { accepted = await listener.AcceptTcpClientAsync(stop.Token); }
-                        catch (Exception error) when (stop.IsCancellationRequested
-                            && error is OperationCanceledException or InvalidOperationException or SocketException or ObjectDisposedException) { break; }
+                        catch (OperationCanceledException) when (stop.IsCancellationRequested) { break; }
                         using var socket = accepted;
                         await using var stream = socket.GetStream();
                         var head = new List<byte>(); var one = new byte[1];
@@ -83,7 +82,9 @@ static class Program
                 catch (ObjectDisposedException) when (stop.IsCancellationRequested) { }
             });
         }
-        public async ValueTask DisposeAsync() { stop.Cancel(); listener.Stop(); await loop; stop.Dispose(); }
+        // Stopping the listener under a pending accept fails it in several
+        // racy ways; cancel and let the loop finish first.
+        public async ValueTask DisposeAsync() { stop.Cancel(); await loop; listener.Stop(); stop.Dispose(); }
     }
     static async Task RetryCases(string path)
     {
