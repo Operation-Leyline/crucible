@@ -1,0 +1,47 @@
+service Shop {
+    version "v2"
+    protocol json
+    operations [GetItem, ListItems, DeleteItem]
+    errors [ValidationException, InternalServerException]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    errors [ItemNotFoundException]
+    output {
+        title: string
+        size?: integer
+        kind: Kind
+    }
+}
+
+enum Kind { SMALL, LARGE }
+
+readonly operation ListItems {
+    http GET "/items"
+    input {
+        @query
+        limit?: integer
+    }
+    output { names: Names }
+}
+
+list Names: string
+
+idempotent operation DeleteItem {
+    http DELETE "/items/{id}"
+    input { id: string }
+    output { deleted: boolean }
+}
+
+error ItemNotFoundException {
+    status 404
+    message: string
+}
+
+// v2 renamed the item's name.
+migration "v2" from "v1" {
+    rename GetItem.output.name -> title
+    sunset "2027-01-01"
+}

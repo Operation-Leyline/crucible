@@ -456,7 +456,12 @@ fn registration(service: &Service) -> String {
     out.push_str(
         "    pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::Operations, ::crucible_server_runtime_rust::__generated::MissingOperations> {\n        self.0.build()\n    }\n}\n\n",
     );
-    out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))\n}\n\n");
+    if service.versions.is_empty() {
+        out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))\n}\n\n");
+    } else {
+        // The older versions are served by the same implementations.
+        out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(versions::register(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE)))\n}\n\n");
+    }
     let bounds: Vec<String> = service
         .operations
         .iter()

@@ -1,15 +1,34 @@
 use crate::OperationMetadata;
 use crate::error::{Error, Result};
-use crate::operation::{Input, Operation, Output, Segment};
+use crate::operation::{Input, Operation, Output, Segment, ServiceInfo};
 use crate::operations::{
-    Entry, Invoke, MissingOperations, Operations, StreamingOutput, decode, decode_bound,
-    decode_cbor, decode_events, decode_json,
+    Entry, Invoke, MissingOperations, OlderVersion, Operations, StreamingOutput, decode,
+    decode_bound, decode_cbor, decode_events, decode_json,
 };
+use crate::validate::Validator;
+use crate::versioning::{self, ApiVersion, Conversion, Downgrade, DowngradeError, Upgrade};
 use std::sync::Arc;
 
 pub struct OperationsBuilder {
     pub(crate) operations: Operations,
+    /// Older API versions, oldest first, with their sunsets.
+    pub(crate) older: Vec<(ApiVersion, Option<&'static str>)>,
+    /// Older versions' operations, built once the current ones are known.
+    pub(crate) versioned: Vec<Versioned>,
 }
+
+/// An older version's operation: its entry is built from the current
+/// operation's, which may be registered after it.
+pub(crate) struct Versioned {
+    version: ApiVersion,
+    name: &'static str,
+    /// Not served at this version: a step with a hook, or a stream.
+    refused: bool,
+    entry: BuildEntry,
+}
+
+/// Builds an older version's entry from the current operation's.
+type BuildEntry = Box<dyn Fn(&Entry, &'static ServiceInfo) -> Entry + Send + Sync>;
 
 impl OperationsBuilder {
     /// Registers `O`, served by `call` on `implementation`. Generated code
@@ -53,29 +72,78 @@ impl OperationsBuilder {
                 decode_events: decode_events::<O>,
                 invoke,
                 body_limit: None,
+                upgrade: None,
+                downgrade: None,
+                downgrade_error: None,
             },
         );
         self
     }
 
+    /// Names the current API version and the older ones still served,
+    /// oldest first, with their sunsets. Generated for a model with
+    /// migrations (docs/api-versions.md).
+    #[doc(hidden)]
+    pub fn versions(
+        mut self,
+        current: ApiVersion,
+        older: &'static [(ApiVersion, Option<&'static str>)],
+    ) -> Self {
+        self.operations.versions.current = Some(current);
+        self.older = older.to_vec();
+        self
+    }
+
+    /// Registers `Old`, an operation as an older `version` declared it,
+    /// served by the current `Current` through `chain`: that version's
+    /// conversion and every later one's, oldest first. Generated.
+    #[doc(hidden)]
+    pub fn add_versioned<Old: Operation, Current: Operation>(
+        mut self,
+        version: ApiVersion,
+        chain: &'static [&'static Conversion],
+    ) -> Self
+    where
+        Old::Output: serde::de::DeserializeOwned,
+    {
+        // Streams are not converted: such operations are served at the
+        // current version only.
+        let refused = chain.iter().any(|conversion| conversion.refused.is_some())
+            || Current::INPUT_EVENTS.is_some()
+            || Current::OUTPUT_EVENTS.is_some();
+        self.versioned.push(Versioned {
+            version,
+            name: Current::INFO.name,
+            refused,
+            entry: Box::new(move |current, service| {
+                versioned_entry::<Old, Current>(current, service, chain)
+            }),
+        });
+        self
+    }
+
     /// The table, or the operations the service has not implemented.
     pub fn build(mut self) -> std::result::Result<Operations, MissingOperations> {
-        for entry in self.operations.entries.values() {
-            let info = entry.info;
-            if info
-                .path
-                .iter()
-                .any(|s| matches!(s, Segment::GreedyLabel(_)))
-            {
-                self.operations.greedy_routes.push(info);
-                continue;
+        let service = self.operations.service;
+        for (version, sunset) in std::mem::take(&mut self.older) {
+            let mut operations = Operations::builder(service).operations;
+            for versioned in self.versioned.iter().filter(|v| v.version == version) {
+                if versioned.refused {
+                    continue;
+                }
+                if let Some(current) = self.operations.entries.get(versioned.name) {
+                    let entry = (versioned.entry)(current, service);
+                    operations.entries.insert(entry.info.name, entry);
+                }
             }
-            let routes = &mut self.operations.routes;
-            if routes.len() <= info.path.len() {
-                routes.resize_with(info.path.len() + 1, Vec::new);
-            }
-            routes[info.path.len()].push(info);
+            index(&mut operations);
+            self.operations.versions.older.push(OlderVersion {
+                version,
+                sunset,
+                operations,
+            });
         }
+        index(&mut self.operations);
         let missing: Vec<&'static str> = self
             .operations
             .service
@@ -89,5 +157,110 @@ impl OperationsBuilder {
         } else {
             Err(MissingOperations(missing))
         }
+    }
+}
+
+/// Fills the route index of `operations` from its entries.
+fn index(operations: &mut Operations) {
+    let infos: Vec<_> = operations
+        .entries
+        .values()
+        .map(|entry| entry.info)
+        .collect();
+    for info in infos {
+        if info
+            .path
+            .iter()
+            .any(|s| matches!(s, Segment::GreedyLabel(_)))
+        {
+            operations.greedy_routes.push(info);
+            continue;
+        }
+        let routes = &mut operations.routes;
+        if routes.len() <= info.path.len() {
+            routes.resize_with(info.path.len() + 1, Vec::new);
+        }
+        routes[info.path.len()].push(info);
+    }
+}
+
+/// The entry of `Old`, an older version's operation, served by `current`
+/// through `chain`: it decodes as `Old`, converts its input up to
+/// `Current`'s, and converts the outcome back down before encoding.
+fn versioned_entry<Old: Operation, Current: Operation>(
+    current: &Entry,
+    service: &'static ServiceInfo,
+    chain: &'static [&'static Conversion],
+) -> Entry
+where
+    Old::Output: serde::de::DeserializeOwned,
+{
+    let upgrade: Upgrade = Arc::new(move |input: Box<dyn Input>| {
+        let mut value = input.to_json();
+        for conversion in chain {
+            versioning::apply(&mut value, conversion.upgrade);
+        }
+        let input: Current::Input =
+            serde_json::from_value(value).map_err(crate::operations::unreadable)?;
+        Validator::check(&input)?;
+        Ok(Box::new(input) as Box<dyn Input>)
+    });
+    let downgrade: Downgrade = Arc::new(move |output: Box<dyn Output>| {
+        let mut value = output.to_json();
+        for conversion in chain.iter().rev() {
+            versioning::apply(&mut value, conversion.downgrade);
+        }
+        let output: Old::Output = serde_json::from_value(value).map_err(|error| {
+            Error::internal(format!(
+                "{}: the output does not convert to its older version: {error}",
+                Old::INFO.name
+            ))
+        })?;
+        Ok(Box::new(StreamingOutput::<Old>(output)) as Box<dyn Output>)
+    });
+    let classify = service.classify;
+    let downgrade_error: DowngradeError = Arc::new(move |mut error: Error| {
+        for conversion in chain.iter().rev() {
+            for known in conversion.errors {
+                let Some(modelled) = classify(error.get_ref()) else {
+                    return error;
+                };
+                if modelled.shape_id() != known.from {
+                    continue;
+                }
+                let members = modelled.to_json();
+                let mut older = serde_json::Map::new();
+                for (to, from) in known.members {
+                    if let Some(value) = members.get(*from) {
+                        older.insert((*to).to_owned(), value.clone());
+                    }
+                }
+                // The step names every member the older error requires
+                // (the guard checks), so this fails only on a value the
+                // older error refuses.
+                error = (known.to)(serde_json::Value::Object(older)).unwrap_or_else(|| {
+                    Error::internal(format!(
+                        "{}: {} does not convert to the error its API version knows",
+                        Old::INFO.name,
+                        known.from
+                    ))
+                });
+            }
+        }
+        error
+    });
+    Entry {
+        info: Old::INFO,
+        metadata: OperationMetadata::of::<Old>(),
+        decode: decode::<Old>,
+        decode_json: decode_json::<Old>,
+        decode_cbor: decode_cbor::<Old>,
+        decode_bound: decode_bound::<Old>,
+        decode_events: decode_events::<Old>,
+        invoke: current.invoke.clone(),
+        body_limit: current.body_limit,
+        upgrade: Some(upgrade),
+        downgrade: Some(downgrade),
+        downgrade_error: Some(downgrade_error),
     }
 }

@@ -59,6 +59,16 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // Three releases of one API, the older two served from the current
+    // implementation (docs/api-versions.md).
+    std::fs::write(
+        out.join("versioned.rs"),
+        crucible_build::model("versioned")
+            .server()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     crucible_build::model("weather_model")
         .server()
         .explorer()

@@ -1,0 +1,8 @@
+# The API versions fixture (docs/api-versions.md): v3 is current; v1 and
+# v2 are frozen under releases/ and still served.
+[model]
+namespace = "example.shop"
+imports = ["crucible.errors"]
+
+[model.baseline]
+path = "releases/v2"

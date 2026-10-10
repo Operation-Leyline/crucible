@@ -292,6 +292,21 @@ impl Context<'_> {
         ShapeId::new(self.namespace, name)
     }
 
+    /// The shape `name` in `service`: the package's own, else an imported
+    /// one, such as `crucible.errors#ValidationException`.
+    fn named(&self, service: &Service, name: &str) -> ShapeId {
+        let own = self.id(name);
+        if service.shapes.contains_key(&own) {
+            return own;
+        }
+        service
+            .shapes
+            .keys()
+            .find(|id| id.name() == name)
+            .cloned()
+            .unwrap_or(own)
+    }
+
     /// `Shape`, `Shape.member`, `Op.input`, `Op.output.member`, resolved in
     /// `service`: operations' inputs and outputs are their structures.
     fn resolve(&self, service: &Service, path: &Dotted) -> Option<Target> {
@@ -416,7 +431,7 @@ impl Context<'_> {
                 path,
                 name,
                 downgrade,
-                ..
+                mapping,
             } => match name {
                 // `add Op.errors NewError downgrade OldError { .. }`
                 Some(error_name) => {
@@ -438,11 +453,52 @@ impl Context<'_> {
                             format!("{} was not added to {op_name}'s errors", error_name.name),
                         ));
                     }
-                    if !old_op.errors.iter().any(|e| e.name() == downgrade.name) {
+                    let Some(older) = old_op.errors.iter().find(|e| e.name() == downgrade.name)
+                    else {
                         return Err(error(
                             downgrade.span,
                             format!("{op_name} had no error {} in the baseline", downgrade.name),
                         ));
+                    };
+                    // Older clients get the downgrade error built from the
+                    // new one's members: it needs every member it requires.
+                    let newer = new_op.errors.iter().find(|e| e.name() == added.name());
+                    if let (Some(Shape::Structure(older)), Some(Shape::Structure(newer))) = (
+                        self.old.shapes.get(older),
+                        newer.and_then(|id| self.new.shapes.get(id)),
+                    ) {
+                        for (to, from) in mapping {
+                            if older.member(&to.name).is_none() {
+                                return Err(error(
+                                    to.span,
+                                    format!("{} has no member `{}`", downgrade.name, to.name),
+                                ));
+                            }
+                            if newer.member(&from.name).is_none() {
+                                return Err(error(
+                                    from.span,
+                                    format!("{} has no member `{}`", error_name.name, from.name),
+                                ));
+                            }
+                        }
+                        let unfilled: Vec<&str> = older
+                            .members
+                            .iter()
+                            .filter(|member| member.required && member.default.is_none())
+                            .filter(|member| !mapping.iter().any(|(to, _)| to.name == member.name))
+                            .map(|member| member.name.as_str())
+                            .collect();
+                        if !unfilled.is_empty() {
+                            return Err(error(
+                                downgrade.span,
+                                format!(
+                                    "{} requires `{}`, which this step does not fill from {}",
+                                    downgrade.name,
+                                    unfilled.join("`, `"),
+                                    error_name.name
+                                ),
+                            ));
+                        }
                     }
                     Ok(vec![
                         Cover::exact(old_op.id.clone(), ERROR),
@@ -854,8 +910,8 @@ impl Context<'_> {
                 mapping,
             } => VersionStep::AddError {
                 operation: op_id(&first(path), self.new).unwrap_or_else(|| self.id(&first(path))),
-                error: self.id(&error.name),
-                downgrade: self.id(&downgrade.name),
+                error: self.named(self.new, &error.name),
+                downgrade: self.named(self.old, &downgrade.name),
                 members: mapping
                     .iter()
                     .map(|(old, new)| (old.name.clone(), new.name.clone()))

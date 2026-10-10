@@ -45,6 +45,9 @@ pub struct Job {
     pub(crate) decode_bound: Option<crate::operations::DecodeBound>,
     pub(crate) input: Option<Box<dyn Input>>,
     pub(crate) outcome: Option<Outcome>,
+    /// At an older API version: how the outcome reads at that version.
+    pub(crate) downgrade: Option<crate::versioning::Downgrade>,
+    pub(crate) downgrade_error: Option<crate::versioning::DowngradeError>,
     pub(crate) error_revision: u64,
     pub(crate) response_headers: HeaderMap,
     pub(crate) wants_snapshot: bool,

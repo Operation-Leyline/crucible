@@ -229,7 +229,7 @@ fn reshapes_retypes_and_new_errors_can_be_declared() {
         r#"migration "v2" from "v1" {
     reshape GetItem.output { name, size } -> label by hook
     retype DeleteItem.output.deleted -> string by hook
-    add GetItem.errors ItemGoneException downgrade ValidationException {
+    add GetItem.errors ItemGoneException downgrade InternalServerException {
         message <- message
     }
 }
@@ -242,6 +242,39 @@ fn reshapes_retypes_and_new_errors_can_be_declared() {
         problems(&guard)
     );
     assert_eq!(problems(&guard), Vec::<String>::new());
+
+    // Older clients get the downgrade error built from the new one: the
+    // step fills every member it requires, from members that exist.
+    for (mapping, expected) in [
+        (
+            "message <- message",
+            "ValidationException requires `reason`, which this step does not fill from ItemGoneException",
+        ),
+        (
+            "message <- detail",
+            "ItemGoneException has no member `detail`",
+        ),
+    ] {
+        let guard = run(
+            "unfilled-downgrade",
+            &current,
+            &format!(
+                "migration \"v2\" from \"v1\" {{
+    reshape GetItem.output {{ name, size }} -> label by hook
+    retype DeleteItem.output.deleted -> string by hook
+    add GetItem.errors ItemGoneException downgrade ValidationException {{
+        {mapping}
+    }}
+}}
+"
+            ),
+        );
+        assert!(
+            problems(&guard).iter().any(|p| p.contains(expected)),
+            "{expected}: {:?}",
+            problems(&guard)
+        );
+    }
 }
 
 #[test]

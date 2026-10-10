@@ -31,6 +31,7 @@ pub struct Context {
     request_id: HeaderValue,
     operation: OnceLock<&'static OperationInfo>,
     operation_metadata: OnceLock<OperationMetadata>,
+    api_version: OnceLock<crate::versioning::ApiVersion>,
     received: Instant,
     deadline: Mutex<Option<Instant>>,
     /// The request head, held once: the job reads it from here.
@@ -55,6 +56,7 @@ impl Context {
             request_id,
             operation: operation.map_or_else(OnceLock::new, OnceLock::from),
             operation_metadata: OnceLock::new(),
+            api_version: OnceLock::new(),
             received: Instant::now(),
             deadline: Mutex::new(None),
             request,
@@ -114,6 +116,17 @@ impl Context {
         self.operation_metadata
             .set(metadata)
             .expect("metadata selected once");
+    }
+
+    pub(crate) fn select_api_version(&self, version: crate::versioning::ApiVersion) {
+        let _ = self.api_version.set(version);
+    }
+
+    /// The API version the request is served at, for a service whose model
+    /// has migrations: a behaviour change branches on it
+    /// (`self.context().api_version() < Some(V2026_11_01)`).
+    pub fn api_version(&self) -> Option<crate::versioning::ApiVersion> {
+        self.api_version.get().copied()
     }
 
     pub(crate) fn select_operation(&self, operation: &'static OperationInfo) {
