@@ -899,7 +899,8 @@ impl Context<'_> {
                     }
                     RequireHow::Hook(_) => VersionStep::Hooked {
                         kind: "require".into(),
-                        operations: op_id(&first(path), self.new).into_iter().collect(),
+                        // `Op.input.m` or `Shape.m`: every operation it reaches.
+                        operations: operations_reaching(self.new, &new.shape),
                     },
                 }
             }

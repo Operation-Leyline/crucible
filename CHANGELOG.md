@@ -85,8 +85,9 @@ version's section when it is prepared.
   `Context::api_version()` is the version a request is served at.
   `Builder::api_version(Unversioned)` settles a request without a version:
   the oldest supported (the default), a resolver's choice, or refused.
-  Responses echo the version, with `Deprecation` and `Sunset` headers past a
-  migration's `sunset`. Operations a hooked step or a stream affects are
+  Responses echo the version, with a `Sunset` header when its migration
+  declares a `sunset`. MCP tool calls and direct invocations are served at
+  the current version. Operations a hooked step or a stream affects are
   served at the current version only, with a build warning. An `add ..
   downgrade` step must fill every member the older error requires.
 - Declared migrations: a breaking change against the baseline compiles when

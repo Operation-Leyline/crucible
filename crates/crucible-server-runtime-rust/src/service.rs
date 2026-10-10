@@ -441,6 +441,15 @@ impl Crucible {
         let Some(current) = versions.current else {
             return Ok(operations);
         };
+        if self
+            .inner
+            .protocols
+            .iter()
+            .any(|protocol| protocol.current_version_only(job.request()))
+        {
+            job.context.select_api_version(current);
+            return Ok(operations);
+        }
         let named = job
             .request()
             .headers
@@ -480,8 +489,6 @@ impl Crucible {
         if let Some(date) = sunset.and_then(versioning::http_date)
             && let Ok(value) = HeaderValue::from_str(&date)
         {
-            job.response_headers
-                .insert("deprecation", HeaderValue::from_static("true"));
             job.response_headers.insert("sunset", value);
         }
         Ok(table)

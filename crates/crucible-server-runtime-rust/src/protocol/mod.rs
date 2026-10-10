@@ -72,6 +72,15 @@ pub trait Protocol: Send + Sync + 'static {
         true
     }
 
+    /// Whether this protocol serves `request` at the current API version
+    /// only, whatever it names: its callers are built from the current
+    /// model, such as MCP tools and direct invocations (docs/api-versions.md).
+    #[doc(hidden)]
+    fn current_version_only(&self, request: &Parts) -> bool {
+        let _ = request;
+        false
+    }
+
     /// Endpoint admission before transport middleware or body parsing. Only the
     /// protocol owning the request runs this hook; `Job::respond` stops dispatch.
     #[doc(hidden)]

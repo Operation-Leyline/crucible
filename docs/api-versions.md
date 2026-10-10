@@ -44,7 +44,9 @@ has passed.
 The version travels in a request header, `Crucible-Version`, for every HTTP
 protocol. Other carriers, such as a field of an invoke envelope, come with
 the protocol declaration (decision 57). The response echoes the version it
-was served at.
+was served at. MCP tool calls and direct invocations (`Crucible::invoke`,
+Lambda direct invokes) are served at the current version: their callers
+are built from the current model.
 
 | Request | Served at |
 |---|---|
@@ -52,7 +54,7 @@ was served at.
 | The current version | The current version: no conversion |
 | No version | As the builder says (below) |
 | An unknown version | Refused with `400`, the service's validation error naming the supported versions |
-| A version with a `sunset` | Served, with `Deprecation: true` and `Sunset: <date>` headers |
+| A version with a `sunset` | Served, with a `Sunset: <date>` header (RFC 8594) |
 
 A request with no version is settled by `Builder::api_version`:
 

@@ -101,7 +101,8 @@ async fn each_version_reads_and_answers_in_its_own_shapes() {
     assert_eq!(body, json!({ "name": "item a", "kind": "SMALL" }));
     assert_eq!(headers["crucible-version"], "v1");
     assert_eq!(headers["sunset"], "Fri, 01 Jan 2027 00:00:00 GMT");
-    assert_eq!(headers["deprecation"], "true");
+    // RFC 9745's `Deprecation` is a date the model does not record.
+    assert!(headers.get("deprecation").is_none());
 
     // v2 knows `title`, still at the old route, and no HUGE.
     let (status, headers, body) = call(&service, "GET", "/items/big", Some("v2")).await;
@@ -197,4 +198,16 @@ fn versions_order_as_released() {
     use shop::versions::{CURRENT, V1, V2, V3};
     assert!(V1 < V2 && V2 < V3);
     assert_eq!(CURRENT, V3);
+}
+
+#[tokio::test]
+async fn a_direct_invocation_is_served_at_the_current_version() {
+    // Its caller holds the current model; the default would be the oldest.
+    let answer = service(Unversioned::Required)
+        .invoke("GetItem", json!({ "id": "big" }))
+        .await;
+    assert_eq!(
+        answer,
+        json!({ "output": { "title": "item big", "kind": "HUGE" } })
+    );
 }

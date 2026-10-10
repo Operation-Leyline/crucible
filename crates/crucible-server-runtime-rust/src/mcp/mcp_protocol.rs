@@ -153,6 +153,10 @@ impl Protocol for McpProtocol {
     fn fallback(&self) -> bool {
         false
     }
+    // Tools are described from the current model.
+    fn current_version_only(&self, request: &Parts) -> bool {
+        self.owns(request)
+    }
     fn owns(&self, request: &Parts) -> bool {
         let path = request.uri.path();
         (path == self.config.path

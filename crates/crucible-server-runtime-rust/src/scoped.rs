@@ -101,6 +101,9 @@ impl<T: Protocol> Protocol for Scoped<T> {
     fn fallback(&self) -> bool {
         self.inner.fallback()
     }
+    fn current_version_only(&self, request: &axum::http::request::Parts) -> bool {
+        self.inner.current_version_only(request)
+    }
     fn admit<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
         self.inner.admit(job)
     }
