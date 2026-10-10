@@ -139,7 +139,7 @@ pub fn guard(
         let covered = finding
             .shape
             .parse::<ShapeId>()
-            .is_ok_and(|id| covers.iter().any(|cover| cover.covers(&id)));
+            .is_ok_and(|id| covers.iter().any(|cover| cover.covers(&id, &finding.rule)));
         if covered {
             declared += 1;
         } else {
@@ -168,21 +168,70 @@ fn check_versions(migration: &Migration, file: usize, problems: &mut Vec<FileDia
     }
 }
 
-/// What a declared step accounts for among the checker's findings.
+/// What a declared step accounts for among the checker's findings: the
+/// kinds of change it declares, at the shapes it names. A `move` accounts
+/// for the route it moved, never for another break on the same operation.
 #[derive(Debug, Clone)]
-enum Cover {
+struct Cover {
+    at: At,
+    /// The compatibility rules the step declares; `ANY` for the general
+    /// steps (`reshape`, `remove operation`) that may change anything there.
+    rules: &'static [&'static str],
+}
+
+#[derive(Debug, Clone)]
+enum At {
     /// This shape or member, exactly.
     Exact(ShapeId),
     /// Anything in this shape, its members included.
     Within(ShapeId),
 }
 
+/// The general steps declare any change within what they name.
+const ANY: &[&str] = &[];
+const RENAME: &[&str] = &[
+    "compatibility.member",
+    "compatibility.required",
+    "compatibility.nullability",
+    "compatibility.sdk",
+];
+const REQUIRE: &[&str] = &[
+    "compatibility.required",
+    "compatibility.nullability",
+    "compatibility.default",
+    "compatibility.sdk",
+];
+const ENUM_VALUE: &[&str] = &["compatibility.enum", "compatibility.sdk"];
+const ERROR: &[&str] = &["compatibility.error", "compatibility.sdk"];
+const ROUTE: &[&str] = &["compatibility.http"];
+const RETYPE: &[&str] = &[
+    "compatibility.type",
+    "compatibility.constraints",
+    "compatibility.timestamp",
+    "compatibility.sdk",
+];
+
 impl Cover {
-    fn covers(&self, id: &ShapeId) -> bool {
-        match self {
-            Cover::Exact(covered) => covered == id,
-            Cover::Within(root) => &id.root() == root,
+    fn exact(id: ShapeId, rules: &'static [&'static str]) -> Self {
+        Self {
+            at: At::Exact(id),
+            rules,
         }
+    }
+
+    fn within(id: ShapeId, rules: &'static [&'static str]) -> Self {
+        Self {
+            at: At::Within(id),
+            rules,
+        }
+    }
+
+    fn covers(&self, id: &ShapeId, rule: &str) -> bool {
+        let place = match &self.at {
+            At::Exact(covered) => covered == id,
+            At::Within(root) => &id.root() == root,
+        };
+        place && (self.rules.is_empty() || self.rules.contains(&rule))
     }
 }
 
@@ -293,8 +342,8 @@ impl Context<'_> {
                     ));
                 }
                 Ok(vec![
-                    Cover::Exact(old.shape.with_member(from)),
-                    Cover::Exact(new.shape.with_member(&to.name)),
+                    Cover::exact(old.shape.with_member(from), RENAME),
+                    Cover::exact(new.shape.with_member(&to.name), RENAME),
                 ])
             }
             StepKind::Require { path, .. } => {
@@ -315,8 +364,8 @@ impl Context<'_> {
                     optional(self.new, &new.shape),
                 ) {
                     (Some(true), Some(false)) => Ok(vec![
-                        Cover::Exact(old.shape.with_member(member)),
-                        Cover::Exact(new.shape.with_member(member)),
+                        Cover::exact(old.shape.with_member(member), REQUIRE),
+                        Cover::exact(new.shape.with_member(member), REQUIRE),
                     ]),
                     (None, _) => Err(error(
                         path.span,
@@ -364,9 +413,9 @@ impl Context<'_> {
                         ));
                     }
                     Ok(vec![
-                        Cover::Exact(old_op.id.clone()),
-                        Cover::Exact(new_op.id.clone()),
-                        Cover::Within(added),
+                        Cover::exact(old_op.id.clone(), ERROR),
+                        Cover::exact(new_op.id.clone(), ERROR),
+                        Cover::within(added, ERROR),
                     ])
                 }
                 // `add Enum.VALUE downgrade OLD`
@@ -394,8 +443,8 @@ impl Context<'_> {
                         ));
                     }
                     Ok(vec![
-                        Cover::Exact(old.shape.clone()),
-                        Cover::Exact(new.shape.with_member(value)),
+                        Cover::exact(old.shape.clone(), ENUM_VALUE),
+                        Cover::exact(new.shape.with_member(value), ENUM_VALUE),
                     ])
                 }
             },
@@ -425,7 +474,7 @@ impl Context<'_> {
                 if new_op.method == old_op.method && new_op.uri == old_op.uri {
                     return Err(error(name.span, format!("{} did not move", name.name)));
                 }
-                Ok(vec![Cover::Exact(old_op.id.clone())])
+                Ok(vec![Cover::exact(old_op.id.clone(), ROUTE)])
             }
             StepKind::Reshape {
                 path,
@@ -458,7 +507,10 @@ impl Context<'_> {
                         format!("{} has no member `{}`", new.shape.name(), into.name),
                     ));
                 }
-                Ok(vec![Cover::Within(old.shape), Cover::Within(new.shape)])
+                Ok(vec![
+                    Cover::within(old.shape, ANY),
+                    Cover::within(new.shape, ANY),
+                ])
             }
             StepKind::RemoveOperation(name) => {
                 let Some(old_op) = operation(self.old, &name.name) else {
@@ -473,14 +525,14 @@ impl Context<'_> {
                         format!("`{}` is still an operation", name.name),
                     ));
                 }
-                let mut covers = vec![Cover::Exact(old_op.id.clone())];
+                let mut covers = vec![Cover::exact(old_op.id.clone(), ANY)];
                 covers.extend(
                     old_op
                         .input
                         .iter()
                         .chain(&old_op.output)
                         .cloned()
-                        .map(Cover::Within),
+                        .map(|io| Cover::within(io, ANY)),
                 );
                 Ok(covers)
             }
@@ -505,10 +557,10 @@ impl Context<'_> {
                 };
                 match (target(self.old, &old.shape), target(self.new, &new.shape)) {
                     (Some(was), Some(now)) if named(&now) && was != now => Ok(vec![
-                        Cover::Exact(old.shape.with_member(member)),
-                        Cover::Exact(new.shape.with_member(member)),
+                        Cover::exact(old.shape.with_member(member), RETYPE),
+                        Cover::exact(new.shape.with_member(member), RETYPE),
                         // The checker reports the change on the type it left.
-                        Cover::Exact(was),
+                        Cover::exact(was, RETYPE),
                     ]),
                     (Some(_), Some(now)) if !named(&now) => Err(error(
                         to.span,

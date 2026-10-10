@@ -237,3 +237,33 @@ fn reshapes_retypes_and_new_errors_can_be_declared() {
     );
     assert_eq!(problems(&guard), Vec::<String>::new());
 }
+
+#[test]
+fn a_step_declares_only_its_own_kind_of_change() {
+    // GetItem moves (declared) and gains an error (not declared): the move
+    // must not account for the new error on the same operation.
+    let current = V1
+        .replace(
+            "\"/items/{id}\"\n    input { id: string }\n    output {\n        name",
+            "\"/things/{id}\"\n    input { id: string }\n    errors [ItemGoneException]\n    output {\n        name",
+        )
+        + "\nerror ItemGoneException {\n    status 410\n    message: string\n}\n";
+    let guard = run(
+        "kinds",
+        &current,
+        "migration \"v2\" from \"v1\" {\n    move GetItem from GET \"/items/{id}\"\n}\n",
+    );
+    let rules = rules(&guard);
+    assert!(
+        rules
+            .iter()
+            .any(|rule| rule.starts_with("compatibility.error")),
+        "{rules:?}"
+    );
+    assert!(
+        !rules
+            .iter()
+            .any(|rule| rule.starts_with("compatibility.http")),
+        "{rules:?}"
+    );
+}
