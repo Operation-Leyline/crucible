@@ -836,7 +836,9 @@ public final class ClientTest {
       check(hookFinished.await(5, TimeUnit.SECONDS), "credential hook did not release");
       // Allow the released credential worker to reach the dispatch guard.
       Thread.sleep(200);
-      check(requests.get() == 0 && cancelled.pages.isEmpty() && !cancelled.complete.isDone(), "cancelled publisher dispatched or signaled");
+      check(requests.get() == 0, "cancelled publisher dispatched " + requests.get() + " requests");
+      check(cancelled.pages.isEmpty(), "cancelled publisher emitted " + cancelled.pages.size() + " pages");
+      check(!cancelled.complete.isDone(), "cancelled publisher signaled " + cancelled.complete);
     }
   }
 

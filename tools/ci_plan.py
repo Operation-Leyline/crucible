@@ -85,6 +85,14 @@ ONBOARDING_HOST_PATHS = (
 )
 ALL_HOSTS = ["ubuntu-latest", "windows-latest", "macos-latest"]
 
+# Jobs whose selection builds the generator and HTTP fixture once per run
+# (`qualification-tools`) for every job that reuses them (ci.yml). TypeScript
+# alone compiles less than the shared build costs, so it does not trigger it.
+TOOL_GROUPS = frozenset({
+    "service_cli", "cdk", "c", "r", "cpp", "ruby", "php", "dart", "swift",
+    "kotlin", "csharp", "java", "go", "python",
+})
+
 
 def affected_groups(paths):
     selected = {"rust"}
@@ -153,8 +161,19 @@ def affected_groups(paths):
             selected.update(MODEL_GROUPS)
         elif path.startswith("docs/") and path.endswith(".md"):
             continue
-        elif path in {"README.md", "AGENTS.md", "CLAUDE.md", "LICENSE"}:
+        elif path in {"README.md", "AGENTS.md", "CLAUDE.md", "LICENSE", "CHANGELOG.md"}:
             continue
+        elif path.startswith("docs/idl/"):
+            # Only the Rust tests (crucible-lang, crucible-build, crucible-cli)
+            # read the language examples.
+            selected.add("rust")
+        elif path.startswith(".github/workflows/"):
+            # ci.yml and release.yml are matched in TOOLS above; the others
+            # run on their own triggers and nothing here exercises them.
+            continue
+        elif path.startswith("tools/test_") and path.endswith(".py"):
+            # Python unit tests run under `unittest discover` in the Rust job.
+            selected.add("rust")
         else:
             # New files and shared fixtures must not silently lose coverage.
             return set(GROUPS)
@@ -218,6 +237,8 @@ def main():
     groups = select_groups(event_name, event, diff)
     hosts = onboarding_hosts(event_name, event, diff)
     outputs = "".join(f"{group}={str(group in groups).lower()}\n" for group in sorted(GROUPS))
+    # Build the generator and HTTP fixture once when any job reuses them.
+    outputs += f"tools={str(bool(groups & TOOL_GROUPS)).lower()}\n"
     outputs += f"onboarding_hosts={json.dumps(hosts, separators=(',', ':'))}\n"
     # Unknown paths/diff failures still select all Linux consumers on PRs, but
     # only explicit full runs spend minutes on the extra platforms/versions.
