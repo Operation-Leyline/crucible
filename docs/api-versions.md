@@ -22,7 +22,8 @@ decisions 53-59 in [idl/decisions.md](idl/decisions.md) set out.
 Phase 4 adds the hooked steps (`by hook`, `reshape`, `retype`,
 `remove operation`'s legacy handler): typed functions the service writes
 ([Hooks](#hooks)). Generated clients sending their version, per-version
-SDK lines and upgrade guides are phase 5.
+SDK lines and upgrade guides are phase 5
+([api-versions-clients.md](api-versions-clients.md)).
 
 ## Versions
 
@@ -265,4 +266,5 @@ examples against the server at its version as generated tests
 3. **Hooks** are typed trait methods, one trait per migration, required by
    `operations(..)`; a hook converts one value across one migration and
    owns everything inside it.
-4. **Clients** send their version in phase 5, all generators together.
+4. **Clients** send their version in phase 5, all generators together
+   ([api-versions-clients.md](api-versions-clients.md)).
