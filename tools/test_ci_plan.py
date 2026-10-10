@@ -354,7 +354,7 @@ class PlanTests(unittest.TestCase):
         self.assertIn('-f "sha=$GITHUB_SHA"', release)
         self.assertIn("--verify-tag", release)
 
-    def test_qualification_artifacts_are_same_run_and_full_only(self):
+    def test_qualification_artifacts_are_same_run_and_built_when_reused(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
                               workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
@@ -378,7 +378,7 @@ class PlanTests(unittest.TestCase):
                     self.assertIn("if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'", body)
                     # Every job that reuses the tools makes the plan build them.
                     groups = set(re.findall(r"needs\.plan\.outputs\.(\w+) == 'true'", body)) - {"full", "tools"}
-                    self.assertTrue(groups & (TOOL_GROUPS | {"typescript"}), groups)
+                    self.assertTrue(groups & (TOOL_GROUPS | {"typescript", "cdk"}), groups)
         self.assertIn('results["plan"]["outputs"]["tools"] == "true"', jobs["ci"])
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("uses: ./.github/actions/qualification-tools", release)
@@ -403,6 +403,11 @@ class PlanTests(unittest.TestCase):
             with self.subTest(job=name):
                 self.assertRegex(body, r"(?m)^    timeout-minutes: \d+$")
                 self.assertEqual(len(re.findall(r"uses: Swatinem/rust-cache@", body)), body.count(save_on_main))
+                # Every other cache restores on PRs and saves from main only.
+                self.assertNotRegex(body, r"uses: actions/cache@")
+                for save in re.findall(r"uses: actions/cache/save@.*\n\s+if: (.*)", body):
+                    self.assertIn("github.ref == 'refs/heads/main'", save)
+        self.assertIn("cache-read-only: ${{ github.ref != 'refs/heads/main' }}", jobs["kotlin-multiplatform"])
 
 
 class Prose(unittest.TestCase):
@@ -414,8 +419,33 @@ class Prose(unittest.TestCase):
         self.assertEqual(affected_groups(["tools/test_crucible_release_notes.py"]), {"rust"})
         # Workflows the PR runs still select their own gates.
         self.assertIn("consumers", affected_groups([".github/workflows/ci.yml"]))
-        # Unknown paths still select everything.
+        # Unknown paths, and the composite actions every job uses, still
+        # select everything.
         self.assertEqual(affected_groups(["somewhere/new.txt"]), set(GROUPS))
+        self.assertEqual(
+            affected_groups([".github/actions/qualification-tools/action.yml"]), set(GROUPS)
+        )
+
+    def test_the_shared_tools_build_runs_only_when_a_job_reuses_it(self):
+        def tools(*paths):
+            with tempfile.TemporaryDirectory() as directory:
+                event = Path(directory) / "event.json"
+                event.write_text(json.dumps(EVENT))
+                output = Path(directory) / "output"
+                env = dict(os.environ, GITHUB_EVENT_NAME="pull_request", GITHUB_EVENT_PATH=str(event),
+                           GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(Path(directory) / "summary"))
+                script = (
+                    "import sys, ci_plan\n"
+                    f"ci_plan.changed_paths = lambda base, head: {list(paths)!r}\n"
+                    "ci_plan.main()\n"
+                )
+                subprocess.run([sys.executable, "-c", script], env=env, check=True,
+                               capture_output=True, cwd=ROOT / "tools")
+                return dict(line.split("=", 1) for line in output.read_text().splitlines())["tools"]
+        self.assertEqual(tools("crates/crucible-codegen-python/src/lib.rs"), "true")
+        self.assertEqual(tools("crates/crucible-codegen-ts/src/lib.rs"), "false")
+        self.assertEqual(tools("crates/crucible-codegen-cdk/src/lib.rs"), "false")
+        self.assertEqual(tools("CHANGELOG.md"), "false")
 
 
 if __name__ == "__main__":

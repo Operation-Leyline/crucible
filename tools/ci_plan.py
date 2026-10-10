@@ -87,9 +87,10 @@ ALL_HOSTS = ["ubuntu-latest", "windows-latest", "macos-latest"]
 
 # Jobs whose selection builds the generator and HTTP fixture once per run
 # (`qualification-tools`) for every job that reuses them (ci.yml). TypeScript
-# alone compiles less than the shared build costs, so it does not trigger it.
+# alone compiles less than the shared build costs, and CDK needs only the CLI
+# and compiles its own Rust consumer anyway, so neither triggers it.
 TOOL_GROUPS = frozenset({
-    "service_cli", "cdk", "c", "r", "cpp", "ruby", "php", "dart", "swift",
+    "service_cli", "c", "r", "cpp", "ruby", "php", "dart", "swift",
     "kotlin", "csharp", "java", "go", "python",
 })
 
@@ -173,6 +174,7 @@ def affected_groups(paths):
             continue
         elif path.startswith("tools/test_") and path.endswith(".py"):
             # Python unit tests run under `unittest discover` in the Rust job.
+            # One a native job runs too needs its own TOOLS entry above.
             selected.add("rust")
         else:
             # New files and shared fixtures must not silently lose coverage.
