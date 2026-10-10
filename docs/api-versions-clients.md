@@ -1,0 +1,158 @@
+# API versions and clients
+
+**Status: proposed design for migrations phase 5** (decisions below).
+Phases 1-4 are built: a `.cru` service declares its breaking changes as
+migrations, and a Rust service serves every supported release from its
+current handlers ([api-versions.md](api-versions.md)). This document is
+how clients take part, following decisions 51, 57 and 57a in
+[idl/decisions.md](idl/decisions.md).
+
+## What phase 5 delivers
+
+- **Clients send their release.** Every generated client sends the
+  release it was generated for in `Crucible-Version`.
+- **Releases as the current model sees them.** Each supported release has
+  a model that is the current one seen at that release. Additive changes
+  reach it; breaking changes are undone by running the migrations
+  backwards. The server serves older releases from these models, so a
+  release 1 client can call an operation added in release 3 (decision 51).
+- **One SDK line per release.** A client can be generated for any
+  supported release: its types, operations and version header are that
+  release's (decision 57a).
+- **Upgrade guides.** A guide between two releases lists every breaking
+  change, taken from the migrations.
+
+Requests at the current release, and services without migrations, behave
+as today.
+
+## 5a. Clients send their release
+
+Today no generated client can send an arbitrary header. Each runtime
+builds its fixed headers (`Content-Type`, `X-Amz-Target`,
+`Smithy-Protocol`) from the service's protocol. The shared client
+description (`crucible_codegen_common::schema`), the TypeScript operation
+specs and the Rust client's `OperationInfo` carry no other request header.
+So the release travels as a **service-level value**, not as an
+operation's protocol header:
+
+| Client | Where the release lives | Who sends it |
+|---|---|---|
+| The 12 bundled runtimes (Python, Go, Java, C#, Kotlin, Swift, Dart, PHP, Ruby, C++, C, R) | `schema()` gains `"apiVersion"` beside `"protocol"` | each runtime's request builder, once, beside the protocol headers |
+| TypeScript | the generated service spec gains `apiVersion` | `runtime.ts` request builder |
+| Rust client and the service CLI | a generated `API_VERSION: Option<&str>` on the client's service marker | `crucible-client-runtime-rust` transport |
+
+- **When it is sent.** A client sends the header only for a `.cru` service,
+  whose `version` is a release name. It sends it from the first release,
+  before any migration exists. A client built then names its release
+  when migrations arrive, so the server's `Unversioned` default only
+  applies to callers that are not generated clients.
+- **Not configurable.** The client's types are that release's; naming
+  another would decode the wrong shapes. A caller who needs another
+  release uses that release's SDK line (5c).
+- **Precedence.** The header is set after middleware and user headers,
+  like the protocol headers, so it cannot be overridden by accident.
+- **Server.** A service without migrations ignores the header, as it does
+  today. One with migrations serves the release named and refuses an
+  unknown one with `400`. A client therefore names a release its server
+  still serves, which is the point of a sunset.
+- **Testing.** `tests/conformance/` gains a case that asserts the request
+  header, run by every client's harness, not only the four that consume
+  the telemetry fixture today. Goldens change where the description is
+  embedded (Python's `schemaSha256` included).
+
+## 5b. Releases as the current model sees them
+
+Phases 3 and 4 serve an older release from its **frozen** model, so what
+was added since does not reach it. Phase 5 projects the current model
+back to each release instead:
+
+```text
+projected(current)  = current
+projected(r_i)      = undo(steps of migration r_i -> r_i+1, projected(r_i+1))
+```
+
+`undo` reverses each step on the newer model, taking whatever it needs
+from the older frozen release:
+
+| Step | Undone by |
+|---|---|
+| `rename S.a -> b` | the member is `a` again |
+| `require S.m default v` / `by hook` | the member is optional again, as the frozen release declared it |
+| `add Enum.V downgrade W` | the value is removed |
+| `add Op.errors E downgrade F` | `E` is removed from the operation, and from the model if nothing else uses it |
+| `move Op from M "/old"` | the operation's route is the frozen one |
+| `reshape S` / `retype S.m` | the shape, or the member's target, is the frozen definition |
+| `remove operation Op` | the operation and its shapes come back from the frozen release |
+| `behavior`, `sunset` | nothing |
+
+Everything else is the current model's: operations, members and enum
+values added since reach the older release. `version` is the older
+release's name.
+
+- **Checked.** A projection must be compatible with its frozen release:
+  the compatibility guard compares them, and any breaking finding is a
+  build error naming the step that should have covered it. The frozen
+  release stays the contract; the projection only adds to it.
+- **IR.** `ir::ApiVersion::service` becomes the projection. The frozen
+  model is kept as `ApiVersion::release`, for the check and for `undo`.
+- **Server.** The generator is unchanged: it already builds each older
+  release's module and the conversions between consecutive models, now
+  from projections. An operation added since an older release is served
+  at it through the conversion chain, like any other. The *Limits* entry
+  "older versions are their frozen releases" goes away.
+- **Strictness** follows the projection. An older release's responses
+  now carry the members added since, so the lenient-output rule in
+  api-versions.md stays.
+
+## 5c. One SDK line per release
+
+- `crucible_build::model(..).client(..).api_version("2026-09-04")`, and
+  `crucible generate <language> --api-version <release>`, generate a
+  client from that release's projection. The client sends that release.
+  The default is the current release.
+- The generated package records its release in its metadata (Cargo
+  `[package.metadata.crucible]`, `pyproject` tool table, and so on). Which
+  package version a line publishes is the publisher's choice; decision
+  57a's SDK-major-per-release maps a release to a major version, and the
+  SDK release workflow can read it from the metadata.
+- A sunset release can still be generated until its migration is removed.
+
+## 5d. Upgrade guides
+
+`crucible upgrade-guide <package> --from <release> [--to <release>]`
+writes Markdown listing each migration step between the two releases, in
+model terms:
+- the operation, shape or member it changes;
+- what an older client sees instead;
+- each `behavior` change, with its documentation.
+
+A build output can write the same guide beside the generated docs.
+Per-language symbol names (decision 57a's "every changed symbol") are a
+follow-up: each generator knows its own naming, and can map a model
+symbol to its own.
+
+## Order
+
+Each part lands as its own PR, in this order:
+1. **5a, clients send their release:** every client generator and
+   runtime, in one PR. Immediate value: unversioned requests become the
+   exception.
+2. **5b, projections:** IR, the compatibility check, and the server
+   switching to projections.
+3. **5c, per-release clients:** the build option, the CLI flag, and
+   package metadata.
+4. **5d, upgrade guides.**
+
+## Decisions
+
+1. **The release travels as a service-level value** in each client's
+   description, not as an operation's protocol header. No client reads
+   those today, and the release is the same for every operation.
+2. **Generated `.cru` clients always send their release,** from the first
+   release, and it is not configurable.
+3. **Older releases are projections of the current model,** checked
+   against their frozen releases, so additive changes reach every
+   release.
+4. **SDK lines** are chosen by a build option or CLI flag; publishing and
+   package versioning stay with the publisher, guided by package metadata.
+5. **Upgrade guides** are model-level Markdown first.
