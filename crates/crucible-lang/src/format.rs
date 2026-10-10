@@ -1,8 +1,9 @@
 //! The `.cru` formatter. It is deliberately conservative: it re-indents lines
 //! by bracket depth, trims trailing whitespace, keeps at most one blank line
-//! in a row and ends the file with one newline. Tokens within a line are left
-//! as written, so formatting never changes meaning, and running it twice
-//! gives the same text.
+//! in a row, drops blank lines at the start and end of the file and ends it
+//! with exactly one newline. Tokens within a line are left as written, so
+//! formatting never changes meaning, and running it twice gives the same
+//! text. A file that does not lex still gets its start and end trimmed.
 
 use crate::lexer::{Token, TokenKind, lex};
 
@@ -24,18 +25,63 @@ impl Default for FormatOptions {
 /// `where ...` on the next line.
 const CONTINUES: &[&str] = &["where", "and", "or", "because", "by"];
 
-/// The formatted source, or `None` when it does not lex: an unterminated
-/// string or a stray character makes bracket depth unreliable.
-pub fn format(source: &str, options: &FormatOptions) -> Option<String> {
-    let (tokens, diagnostics) = lex(source);
-    if !diagnostics.is_empty() {
-        return None;
-    }
+/// The formatted source.
+pub fn format(source: &str, options: &FormatOptions) -> String {
+    format_lines(source, options).concat()
+}
+
+/// The formatted text of each source line (the pieces of
+/// `source.split('\n')`), its line break included; a dropped blank line is
+/// empty. Concatenated they are [`format`]'s result, and a range of them
+/// formats just those lines, as an editor's "format selection" asks.
+///
+/// When the source does not lex, an unterminated string or a stray
+/// character makes bracket depth unreliable, so the lines are kept as
+/// written and only the blank lines at the start and end are dropped.
+pub fn format_lines(source: &str, options: &FormatOptions) -> Vec<String> {
     let newline = if source.contains("\r\n") {
         "\r\n"
     } else {
         "\n"
     };
+    let (tokens, diagnostics) = lex(source);
+    let mut out = if diagnostics.is_empty() {
+        reindent(source, &tokens, options, newline)
+    } else {
+        source
+            .split('\n')
+            .map(|line| {
+                if line.trim().is_empty() {
+                    String::new()
+                } else {
+                    format!("{}{newline}", line.trim_end_matches('\r'))
+                }
+            })
+            .collect()
+    };
+    // At most one blank line in a row, and none before the first line with
+    // content or after the last.
+    let first = out.iter().position(|line| !line.is_empty());
+    let last = out.iter().rposition(|line| !line.is_empty());
+    if let (Some(first), Some(last)) = (first, last) {
+        let mut previous_blank = false;
+        for line in &mut out[first..last] {
+            if line.is_empty() {
+                if !previous_blank {
+                    newline.clone_into(line);
+                }
+                previous_blank = true;
+            } else {
+                previous_blank = false;
+            }
+        }
+    }
+    out
+}
+
+/// Each line re-indented by bracket depth, trailing whitespace trimmed; a
+/// blank line is empty here and [`format_lines`] decides which to keep.
+fn reindent(source: &str, tokens: &[Token], options: &FormatOptions, newline: &str) -> Vec<String> {
     let significant: Vec<&Token> = tokens
         .iter()
         .filter(|token| {
@@ -46,9 +92,8 @@ pub fn format(source: &str, options: &FormatOptions) -> Option<String> {
         })
         .collect();
 
-    let mut out = String::with_capacity(source.len());
+    let mut out = Vec::new();
     let mut depth: i32 = 0;
-    let mut blank_lines = 0;
     let mut next = 0;
     let mut line_start = 0;
     // The last token of the previous line with code, and that line's level.
@@ -76,7 +121,7 @@ pub fn format(source: &str, options: &FormatOptions) -> Option<String> {
         };
         let content = text.trim_start();
         if content.is_empty() {
-            blank_lines += 1;
+            out.push(String::new());
         } else {
             let closes_first = on_line.first().is_some_and(|token| {
                 closes(token.kind)
@@ -88,15 +133,10 @@ pub fn format(source: &str, options: &FormatOptions) -> Option<String> {
                 || on_line
                     .first()
                     .is_some_and(|token| starts_continuation(source, token, on_line.get(1)));
-            if !out.is_empty() && blank_lines > 0 {
-                out.push_str(newline);
-            }
-            blank_lines = 0;
-            for _ in 0..level + usize::from(continued) {
-                out.push_str(&options.indent);
-            }
-            out.push_str(content);
-            out.push_str(newline);
+            let mut formatted = options.indent.repeat(level + usize::from(continued));
+            formatted.push_str(content);
+            formatted.push_str(newline);
+            out.push(formatted);
             if let Some(last) = on_line.last() {
                 previous = Some((last, level));
             }
@@ -110,7 +150,7 @@ pub fn format(source: &str, options: &FormatOptions) -> Option<String> {
         }
         line_start = line_end + 1;
     }
-    Some(out)
+    out
 }
 
 fn opens(kind: TokenKind) -> bool {
@@ -155,7 +195,7 @@ mod tests {
     use super::*;
 
     fn fmt(source: &str) -> String {
-        format(source, &FormatOptions::default()).unwrap()
+        format(source, &FormatOptions::default())
     }
 
     #[test]
@@ -194,15 +234,55 @@ mod tests {
                 &FormatOptions {
                     indent: "\t".into()
                 }
-            )
-            .unwrap(),
+            ),
             "/// Doc.\r\nstructure A { // trailing\r\n\t// inside\r\n\ta: string\r\n}\r\n"
         );
         assert_eq!(fmt(""), "");
+    }
+
+    #[test]
+    fn the_file_starts_with_content_and_ends_with_one_newline() {
         assert_eq!(
-            format("structure A { a: \"open }\n", &FormatOptions::default()),
-            None
+            fmt("  \n\n\t\nstructure A {\n}\n\n   \n\n"),
+            "structure A {\n}\n"
         );
+        assert_eq!(fmt("structure A {\n}"), "structure A {\n}\n");
+        assert_eq!(fmt("\n \n\t\n"), "");
+        assert_eq!(
+            fmt("\r\n\r\nstructure A {\r\n}\r\n\r\n"),
+            "structure A {\r\n}\r\n"
+        );
+    }
+
+    #[test]
+    fn a_file_that_does_not_lex_is_only_trimmed() {
+        // Bracket depth is unreliable after an unterminated string, so lines
+        // keep their indentation; the edges are still tidied.
+        assert_eq!(
+            fmt("\n\nstructure A { a: \"open }\n  b: x  \n\n\n}\n\n"),
+            "structure A { a: \"open }\n  b: x  \n\n}\n"
+        );
+    }
+
+    #[test]
+    fn lines_format_on_their_own() {
+        let source = "\nstructure A {\nname: string\n\n\n  kind: Kind\n}\n";
+        let lines = format_lines(source, &FormatOptions::default());
+        assert_eq!(lines.len(), source.split('\n').count());
+        assert_eq!(
+            lines,
+            [
+                "",
+                "structure A {\n",
+                "    name: string\n",
+                "\n",
+                "",
+                "    kind: Kind\n",
+                "}\n",
+                "",
+            ]
+        );
+        assert_eq!(lines.concat(), fmt(source));
     }
 
     #[test]
