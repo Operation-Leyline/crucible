@@ -51,6 +51,9 @@ pub(crate) struct Entry {
     pub upgrade: Option<crate::versioning::Upgrade>,
     pub downgrade: Option<crate::versioning::Downgrade>,
     pub downgrade_error: Option<crate::versioning::DowngradeError>,
+    /// The older release whose errors a legacy handler returns, beside the
+    /// current model's.
+    pub errors: Option<&'static crate::operation::ServiceInfo>,
 }
 
 /// An older API version's operations: its routes and decoders, each served

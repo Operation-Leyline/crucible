@@ -22,7 +22,7 @@ readonly operation ListItems {
     http GET "/items"
     input {
         @query
-        limit?: integer
+        max?: integer
         @query
         sort?: string
     }
@@ -33,16 +33,30 @@ list Names: string
 
 idempotent operation DeleteItem {
     http DELETE "/items/{id}"
-    input { id: string }
+    input {
+        id: string
+        @query
+        force?: boolean
+    }
     output { deleted: boolean }
 }
 
 readonly operation CountItems {
     http GET "/count"
+    input {
+        @query
+        shelf?: string
+    }
+    errors [CountUnavailableException]
     output { count: integer }
 }
 
 error ItemNotFoundException {
     status 404
+    message: string
+}
+
+error CountUnavailableException {
+    status 503
     message: string
 }

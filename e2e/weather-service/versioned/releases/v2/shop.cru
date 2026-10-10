@@ -33,12 +33,21 @@ list Names: string
 
 idempotent operation DeleteItem {
     http DELETE "/items/{id}"
-    input { id: string }
+    input {
+        id: string
+        @query
+        force?: boolean
+    }
     output { deleted: boolean }
 }
 
 readonly operation CountItems {
     http GET "/count"
+    input {
+        @query
+        shelf?: string
+    }
+    errors [CountUnavailableException]
     output { count: integer }
 }
 
@@ -47,10 +56,16 @@ error ItemNotFoundException {
     message: string
 }
 
+error CountUnavailableException {
+    status 503
+    message: string
+}
+
 // v2 renamed the item's name and made the sort order required: the order
 // an older request did not send comes from the account (an async hook).
 migration "v2" from "v1" {
     rename GetItem.output.name -> title
+    rename ListItems.input.max -> limit
     require ListItems.input.sort by async hook
     sunset "2027-01-01"
 }

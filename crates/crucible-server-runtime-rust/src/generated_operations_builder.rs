@@ -79,6 +79,7 @@ where
         upgrade: None,
         downgrade: None,
         downgrade_error: None,
+        errors: None,
     }
 }
 
@@ -132,6 +133,7 @@ impl OperationsBuilder {
     pub fn add_legacy<O, S, Fut>(
         mut self,
         version: ApiVersion,
+        release: &'static ServiceInfo,
         implementation: Arc<S>,
         call: impl Fn(Arc<S>, O::Input) -> Fut + Send + Sync + 'static,
     ) -> Self
@@ -140,10 +142,10 @@ impl OperationsBuilder {
         S: Send + Sync + 'static,
         Fut: Future<Output = Result<O::Output>> + Send + 'static,
     {
-        self.legacy.insert(
-            (version, O::INFO.name),
-            entry::<O, S, Fut>(implementation, call),
-        );
+        let mut entry = entry::<O, S, Fut>(implementation, call);
+        // It returns its own release's errors.
+        entry.errors = Some(release);
+        self.legacy.insert((version, O::INFO.name), entry);
         self
     }
 
@@ -354,5 +356,6 @@ where
         upgrade: Some(upgrade),
         downgrade: Some(downgrade),
         downgrade_error: Some(downgrade_error),
+        errors: serving.errors,
     }
 }

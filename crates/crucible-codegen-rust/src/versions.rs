@@ -96,7 +96,9 @@ pub(crate) fn emit(
                         if operation == &old_op.id
                 )
             }) {
-                Some(legacy(&models, last, old_op, &mut methods))
+                // The handler takes the last version's types.
+                let at_last = operation(models[last], &old_op.id).expect("the last version has it");
+                Some(legacy(&models, last, at_last, &mut methods, diagnostics))
             } else {
                 // Gone without a handler: the guard refuses such a model.
                 continue;
@@ -162,6 +164,18 @@ pub(crate) fn emit(
             require_rejection: false,
         };
         let mut body = crate::body(old, &old_options, old, diagnostics);
+        if !methods[index].is_empty()
+            && (old.shapes.keys().any(|id| id.name() == "Migration")
+                || old.operations.iter().any(|op| op.name() == "Migration"))
+        {
+            diagnostics.push(
+                &service.id,
+                format!(
+                    "release `{}` declares `Migration`, the name of the trait its migration's hooks generate; rename it in the current model and the migration",
+                    version.name
+                ),
+            );
+        }
         if !methods[index].is_empty() {
             let decls: String = methods[index]
                 .values()
@@ -317,11 +331,9 @@ fn hook_method(
     input: (usize, &ShapeId),
     output: (usize, &ShapeId),
     is_async: bool,
+    diagnostics: &mut Diagnostics,
 ) -> String {
     let key = hook_key(current, step, method);
-    if methods[step].contains_key(method) {
-        return key;
-    }
     let (input_outer, input_inner) = type_paths(models, current, input.0, input.1);
     let (_, output_inner) = type_paths(models, current, output.0, output.1);
     let (returns, wait) = if is_async {
@@ -334,6 +346,12 @@ fn hook_method(
     };
     let decl =
         format!("    /// {doc}\n    fn {method}(&self, value: {input_inner}) -> {returns};\n");
+    if let Some(existing) = methods[step].get(method) {
+        if existing.decl != decl {
+            collision(current, step, method, input.1, diagnostics);
+        }
+        return key;
+    }
     let register = format!(
         "\n            .hook({key}, ::std::sync::Arc::new({{\n                let implementation = implementation.clone();\n                move |value| {{\n                    let implementation = implementation.clone();\n                    ::std::boxed::Box::pin(async move {{\n                        let value: {input_outer} = {RT}::versioning::hook_input({key}, value)?;\n                        let value = implementation.{method}(value){wait}?;\n                        {RT}::versioning::hook_output({key}, value)\n                    }})\n                }}\n            }}))",
         key = literal(&key),
@@ -349,12 +367,18 @@ fn legacy(
     last: usize,
     operation: &Operation,
     methods: &mut Methods,
+    diagnostics: &mut Diagnostics,
 ) -> String {
     let current = models[models.len() - 1];
     let old = models[last];
     let method = function(operation.name());
     let key = hook_key(current, last, &method);
     if methods[last].contains_key(&method) {
+        // The same operation's handler, recorded for an older version, or
+        // a hook that happens to share its name.
+        if !methods[last][&method].register.contains(".add_legacy::<") {
+            collision(current, last, &method, &operation.id, diagnostics);
+        }
         return key;
     }
     let module = version_module(&current.versions[last].name);
@@ -382,7 +406,7 @@ fn legacy(
         operation.name()
     );
     let register = format!(
-        "\n            .add_legacy::<{module}::{name}, S, _>({constant}, implementation.clone(), {call})",
+        "\n            .add_legacy::<{module}::{name}, S, _>({constant}, &{module}::SERVICE, implementation.clone(), {call})",
         name = operation.name(),
         constant = version_constant(&current.versions[last].name),
     );
@@ -396,6 +420,9 @@ struct Item {
     at: Vec<Step>,
     text: String,
     hook: bool,
+    /// A `require .. by hook`: adds one member, reading the older value
+    /// as it arrived, so it runs before the step's other conversions.
+    fill: bool,
 }
 
 /// How `operation` crosses from version `step` to the next.
@@ -464,6 +491,7 @@ fn conversion(
                         at,
                         text,
                         hook: false,
+                        fill: false,
                     });
                 }
                 for at in places(
@@ -483,6 +511,7 @@ fn conversion(
                         at,
                         text,
                         hook: false,
+                        fill: false,
                     });
                 }
                 inside_error(new_shape, "a member renamed", diagnostics);
@@ -513,6 +542,7 @@ fn conversion(
                         at,
                         text,
                         hook: false,
+                        fill: false,
                     });
                 }
             }
@@ -544,6 +574,7 @@ fn conversion(
                         at,
                         text,
                         hook: false,
+                        fill: false,
                     });
                 }
             }
@@ -613,6 +644,7 @@ fn conversion(
                             (step, old_shape),
                             (step + 1, new_shape),
                             *is_async,
+                            diagnostics,
                         );
                         for at in ups {
                             let text = format!(
@@ -624,6 +656,7 @@ fn conversion(
                                 at,
                                 text,
                                 hook: true,
+                                fill: false,
                             });
                         }
                     }
@@ -648,6 +681,7 @@ fn conversion(
                             (step + 1, new_shape),
                             (step, old_shape),
                             *is_async,
+                            diagnostics,
                         );
                         for at in downs {
                             let text = format!(
@@ -659,6 +693,7 @@ fn conversion(
                                 at,
                                 text,
                                 hook: true,
+                                fill: false,
                             });
                         }
                     }
@@ -706,6 +741,7 @@ fn conversion(
                             (step, &old_member.target),
                             (step + 1, &new_member.target),
                             *is_async,
+                            diagnostics,
                         );
                         for mut at in ups {
                             at.push(Step::Field(old_member.wire_name.clone()));
@@ -718,6 +754,7 @@ fn conversion(
                                 at,
                                 text,
                                 hook: true,
+                                fill: false,
                             });
                         }
                     }
@@ -741,6 +778,7 @@ fn conversion(
                             (step + 1, &new_member.target),
                             (step, &old_member.target),
                             *is_async,
+                            diagnostics,
                         );
                         for mut at in downs {
                             at.push(Step::Field(new_member.wire_name.clone()));
@@ -753,6 +791,7 @@ fn conversion(
                                 at,
                                 text,
                                 hook: true,
+                                fill: false,
                             });
                         }
                     }
@@ -766,6 +805,13 @@ fn conversion(
                     let Some(new_member) = member_of(new, new_shape, member) else {
                         continue;
                     };
+                    if crate::types::codec(new, new_member).is_some() {
+                        diagnostics.push(
+                            &new_shape.with_member(member),
+                            "a member with a wire encoding of its own (a timestamp, blob or sparse collection) is not filled by a hook yet",
+                        );
+                        continue;
+                    }
                     let ups = places(
                         old,
                         old_op.input.as_ref(),
@@ -791,6 +837,7 @@ fn conversion(
                             (step, old_shape),
                             (step + 1, &new_member.target),
                             *is_async,
+                            diagnostics,
                         );
                         for at in ups {
                             let text = format!(
@@ -802,7 +849,8 @@ fn conversion(
                             upgrade.push(Item {
                                 at,
                                 text,
-                                hook: true,
+                                hook: false,
+                                fill: true,
                             });
                         }
                     }
@@ -829,9 +877,11 @@ fn conversion(
     )
 }
 
-/// The transforms in the order they run: a hook owns everything inside
-/// its place, so what it covers is dropped; then deepest places first, so
-/// renaming a member never moves a place still to be converted.
+/// The transforms in the order they run. A `reshape` or `retype` hook owns
+/// everything inside its place, so what it covers is dropped. Fills run
+/// first, outermost first, on the value as it arrived; then the rest,
+/// deepest places first, so renaming a member never moves a place still
+/// to be converted.
 fn ordered(mut items: Vec<Item>) -> String {
     let hooks: Vec<Vec<Step>> = items
         .iter()
@@ -843,7 +893,10 @@ fn ordered(mut items: Vec<Item>) -> String {
             .iter()
             .any(|at| item.at.starts_with(at) && (item.at.len() > at.len() || !item.hook))
     });
-    items.sort_by_key(|item| std::cmp::Reverse(item.at.len()));
+    items.sort_by_key(|item| {
+        let depth = item.at.len() as isize;
+        if item.fill { (0, depth) } else { (1, -depth) }
+    });
     items
         .into_iter()
         .map(|item| item.text)
@@ -1098,4 +1151,22 @@ fn indent(code: &str, levels: usize) -> String {
             }
         })
         .collect()
+}
+
+/// Two hooked steps of one migration need one method name for different
+/// conversions.
+fn collision(
+    current: &Service,
+    step: usize,
+    method: &str,
+    subject: &ShapeId,
+    diagnostics: &mut Diagnostics,
+) {
+    diagnostics.push(
+        subject,
+        format!(
+            "two steps of the migration from `{}` need a hook named `{method}` for different conversions; rename one of the shapes to tell them apart",
+            current.versions[step].name
+        ),
+    );
 }

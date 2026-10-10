@@ -622,6 +622,15 @@ impl Context<'_> {
                         .cloned()
                         .map(|io| Cover::within(io, ANY)),
                 );
+                // Errors only the removed operation used go with it.
+                covers.extend(
+                    old_op
+                        .errors
+                        .iter()
+                        .filter(|error| !self.new.shapes.contains_key(*error))
+                        .cloned()
+                        .map(|error| Cover::within(error, ANY)),
+                );
                 Ok(covers)
             }
             StepKind::Retype { path, to, .. } => {

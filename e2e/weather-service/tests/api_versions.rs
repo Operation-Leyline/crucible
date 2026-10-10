@@ -57,9 +57,10 @@ impl ListItemsOperation for Shop {
 }
 
 impl DeleteItemOperation for Shop {
-    async fn delete_item(&self, _: DeleteItemInput) -> Result<DeleteItemOutput> {
+    async fn delete_item(&self, input: DeleteItemInput) -> Result<DeleteItemOutput> {
+        // v3's force is a word; older clients sent a boolean.
         Ok(DeleteItemOutput {
-            deleted: "gone".to_owned(),
+            deleted: format!("gone {}", input.force.as_deref().unwrap_or("-")),
         })
     }
 }
@@ -67,13 +68,15 @@ impl DeleteItemOperation for Shop {
 /// The migration to v2 needs the sort order an older request did not send.
 impl v1::Migration for Shop {
     async fn require_list_items_input_sort(&self, request: v1::ListItemsInput) -> Result<String> {
-        // Such as the account's saved preference; here, from the request.
-        Ok(if request.limit == Some(1) {
-            "newest"
-        } else {
-            "name"
+        // Such as the account's saved preference; here, from the request,
+        // as v1 sent it (`max`, renamed in the same migration).
+        match request.max {
+            Some(0) => Err(crucible_server_runtime_rust::Error::internal(
+                "no preference",
+            )),
+            Some(1) => Ok("newest".to_owned()),
+            _ => Ok("name".to_owned()),
         }
-        .to_owned())
     }
 }
 
@@ -92,11 +95,22 @@ impl v2::Migration for Shop {
         })
     }
 
-    fn downgrade_delete_item_output_deleted(&self, deleted: String) -> Result<bool> {
-        Ok(deleted == "gone")
+    fn upgrade_delete_item_input_force(&self, force: bool) -> Result<String> {
+        Ok(if force { "yes" } else { "no" }.to_owned())
     }
 
-    async fn count_items(&self) -> Result<v2::CountItemsOutput> {
+    fn downgrade_delete_item_output_deleted(&self, deleted: String) -> Result<bool> {
+        Ok(deleted == "gone yes")
+    }
+
+    async fn count_items(&self, input: v2::CountItemsInput) -> Result<v2::CountItemsOutput> {
+        // A removed operation's handler answers with its own release's errors.
+        if input.shelf.as_deref() == Some("closed") {
+            return Err(v2::CountUnavailableException {
+                message: "closed".to_owned(),
+            }
+            .into());
+        }
         Ok(v2::CountItemsOutput { count: 3 })
     }
 }
@@ -188,10 +202,15 @@ async fn an_older_request_gets_the_values_it_could_not_send() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body, json!({ "names": ["v2", "20", "price"] }));
     // v1 may send neither: the async hook supplies the sort order.
-    let (_, _, body) = call(&service, "GET", "/items?limit=5", Some("v1")).await;
+    // v1 may send neither, and calls the page size `max`: the rename and
+    // the async hook run in the same migration.
+    let (_, _, body) = call(&service, "GET", "/items?max=5", Some("v1")).await;
     assert_eq!(body, json!({ "names": ["v1", "5", "name"] }));
-    let (_, _, body) = call(&service, "GET", "/items?limit=1", Some("v1")).await;
+    let (_, _, body) = call(&service, "GET", "/items?max=1", Some("v1")).await;
     assert_eq!(body, json!({ "names": ["v1", "1", "newest"] }));
+    // A hook that fails fails the request.
+    let (status, _, _) = call(&service, "GET", "/items?max=0", Some("v1")).await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     // What a v1 request did send is kept.
     let (_, _, body) = call(&service, "GET", "/items?sort=size", Some("v1")).await;
     assert_eq!(body, json!({ "names": ["v1", "20", "size"] }));
@@ -220,14 +239,18 @@ async fn a_new_error_reaches_older_clients_as_one_they_know() {
 #[tokio::test]
 async fn a_retyped_member_is_converted_by_its_hook() {
     let service = service(Unversioned::Oldest);
+    // Upgraded on the way in (bool to word), downgraded on the way out.
     for version in ["v1", "v2"] {
-        let (status, _, body) = call(&service, "DELETE", "/items/a", Some(version)).await;
+        let (status, _, body) =
+            call(&service, "DELETE", "/items/a?force=true", Some(version)).await;
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(body, json!({ "deleted": true }));
+        let (_, _, body) = call(&service, "DELETE", "/items/a?force=false", Some(version)).await;
+        assert_eq!(body, json!({ "deleted": false }));
     }
-    let (status, _, body) = call(&service, "DELETE", "/items/a", Some("v3")).await;
+    let (status, _, body) = call(&service, "DELETE", "/items/a?force=yes", Some("v3")).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body, json!({ "deleted": "gone" }));
+    assert_eq!(body, json!({ "deleted": "gone yes" }));
 }
 
 #[tokio::test]
@@ -237,6 +260,14 @@ async fn a_removed_operation_keeps_serving_older_versions() {
         let (status, _, body) = call(&service, "GET", "/count", Some(version)).await;
         assert_eq!(status, StatusCode::OK, "{body}");
         assert_eq!(body, json!({ "count": 3 }));
+    }
+    for version in ["v1", "v2"] {
+        let (status, _, body) = call(&service, "GET", "/count?shelf=closed", Some(version)).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+        assert_eq!(
+            body,
+            json!({ "__type": "CountUnavailableException", "message": "closed" })
+        );
     }
     let (_, _, body) = call(&service, "GET", "/count", Some("v3")).await;
     assert_eq!(body["reason"], "unknownOperation", "{body}");

@@ -214,6 +214,7 @@ impl Crucible {
             outcome: None,
             downgrade: None,
             downgrade_error: None,
+            errors: None,
             error_revision: 0,
             response_headers: Default::default(),
             wants_snapshot: false,
@@ -298,6 +299,10 @@ impl Crucible {
                         )),
                     });
                 }
+                // A hook's failure meets the exception rules, as a handler's
+                // does; the after phases have already seen the current
+                // version's outcome.
+                self.translate(&mut job, &mut translated);
                 job.outcome = match job.outcome.take() {
                     Some(Outcome::Failed(error)) => {
                         Some(Outcome::Failed(match &job.downgrade_error {
@@ -580,6 +585,7 @@ impl Crucible {
             .ok_or_else(|| Error::internal("protocol selected an unregistered operation"))?;
         job.downgrade = entry.downgrade.clone();
         job.downgrade_error = entry.downgrade_error.clone();
+        job.errors = entry.errors;
         job.context.select_operation(entry.info);
         job.context.select_metadata(entry.metadata);
         job.labels = route.labels;

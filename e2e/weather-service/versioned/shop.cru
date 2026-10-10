@@ -32,7 +32,11 @@ list Names: string
 
 idempotent operation DeleteItem {
     http DELETE "/items/{id}"
-    input { id: string }
+    input {
+        id: string
+        @query
+        force?: string
+    }
     output { deleted: string }
 }
 
@@ -45,6 +49,7 @@ error ItemNotFoundException {
 // an older request did not send comes from the account (an async hook).
 migration "v2" from "v1" {
     rename GetItem.output.name -> title
+    rename ListItems.input.max -> limit
     require ListItems.input.sort by async hook
     sunset "2027-01-01"
 }
@@ -70,6 +75,7 @@ migration "v3" from "v2" {
     add GetItem.errors ItemGoneException downgrade ItemNotFoundException {
         message <- message
     }
+    retype DeleteItem.input.force -> string by hook
     retype DeleteItem.output.deleted -> string by hook
     remove operation CountItems
 }
