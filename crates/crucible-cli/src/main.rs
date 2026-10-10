@@ -584,7 +584,14 @@ fn run(command: Command) -> ExitCode {
             &target.map(ClientLanguage::capabilities).unwrap_or_default(),
         )
         .and_then(|service| {
-            if let Some(path) = config {
+            // A package's manifest may carry its policy; --config selects another.
+            let manifest = is_cru_package(&source.model)
+                .then(|| source.model.join("crucible.toml"))
+                .filter(|path| {
+                    std::fs::read_to_string(path)
+                        .is_ok_and(|text| crucible_policy::Config::declares_policy(&text))
+                });
+            if let Some(path) = config.or(manifest) {
                 policy::check(&service, &path)?;
             }
             print!("{}", summary(&service));

@@ -563,6 +563,16 @@ trait when a project defines it.
 
 ## Guards and policy
 
+> **Deferred (2026-10-10).** Policy stays in `crucible.toml`, read by
+> `crucible-policy` for both front ends: a `.cru` package keeps it beside
+> `[model]` in its own manifest, each check may set its own severity, and
+> the language server reports findings where they occur
+> ([api-policy.md](../api-policy.md)). Several rule syntaxes were drafted
+> and judged harder to write than the TOML they would replace, so the
+> `rule`, `except` and `advice` declarations below remain unimplemented
+> (the compiler reports them as not supported yet). Decisions 45-47f record
+> the intent should custom rules be needed.
+
 The goal: a service's rules are written once, and a person or a language
 model adding an operation or a member cannot produce a model that breaks
 them. A violating model does not compile, so no artifact, generated SDK or

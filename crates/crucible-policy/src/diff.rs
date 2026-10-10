@@ -13,10 +13,13 @@ pub fn diff(old: &Service, new: &Service, config: &Config) -> Report {
         report: Report::default(),
         seen: BTreeSet::new(),
     };
-    if config.compatibility.wire {
+    let compatibility = &config.compatibility;
+    if compatibility.wire.value {
+        checker.severity = compatibility.wire.severity_in(compatibility.severity);
         checker.wire();
     }
-    if config.compatibility.sdk_source {
+    if compatibility.sdk_source.value {
+        checker.severity = compatibility.sdk_source.severity_in(compatibility.severity);
         checker.sdk();
     }
     checker.report.finish(config)

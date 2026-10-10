@@ -9,6 +9,8 @@ mod completion;
 mod folding;
 mod insight;
 mod lines;
+mod manifest;
+mod policy;
 mod server;
 
 use lsp_server::Connection;

@@ -652,3 +652,82 @@ fn hints_lenses_links_and_signatures() {
     assert_eq!(edits[0]["range"]["end"]["line"], line + 1);
     client.stop();
 }
+
+#[test]
+fn the_manifest_policy_shows_in_model_files_and_edits_apply_at_once() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-policy");
+    package(&dir);
+    let policy = "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.errors\"]\n\n[rules.naming]\nmembers = { case = \"PascalCase\", severity = \"warning\" }\n";
+    std::fs::write(dir.join("crucible.toml"), policy).unwrap();
+    let service = uri(&dir.join("service.cru"));
+    let mut client = Client::start();
+    client.open(&service, SERVICE);
+
+    // `id` and `name` are not PascalCase: warnings at the member names,
+    // tagged with the rule, each with a rename.
+    let diagnostics = client.diagnostics(&service);
+    let policy_findings: Vec<&Value> = diagnostics
+        .iter()
+        .filter(|d| d["code"] == "naming.members")
+        .collect();
+    assert_eq!(policy_findings.len(), 2, "{diagnostics:#?}");
+    assert!(policy_findings.iter().all(|d| d["severity"] == 2));
+    let at_id = policy_findings
+        .iter()
+        .find(|d| d["range"]["start"] == position(SERVICE, "id: ItemId", 0))
+        .unwrap();
+    let actions = client.request(
+        "textDocument/codeAction",
+        json!({
+            "textDocument": { "uri": service },
+            "range": at_id["range"],
+            "context": { "diagnostics": [at_id] },
+        }),
+    );
+    assert_eq!(actions[0]["title"], "Rename to `Id`", "{actions}");
+
+    // Editing the manifest, unsaved, changes what the model shows.
+    let manifest = uri(&dir.join("crucible.toml"));
+    client.open(&manifest, policy);
+    client.diagnostics(&manifest);
+    client.change(
+        &manifest,
+        2,
+        "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.errors\"]\n\n[rules.naming]\nmembers = \"camelCase\"\n",
+    );
+    // Opening the manifest published once more; the edit's result follows.
+    let mut cleared = false;
+    for _ in 0..3 {
+        cleared = client
+            .diagnostics(&service)
+            .iter()
+            .all(|d| d["code"] != "naming.members");
+        if cleared {
+            break;
+        }
+    }
+    assert!(cleared, "the camelCase members still had findings");
+
+    // The manifest completes its own keys and values, and a bad value is
+    // reported where it is written.
+    let text = "[model]\nnamespace = \"example.shop\"\n\n[rules.naming]\nmembers = ";
+    client.change(&manifest, 3, text);
+    let items = client.request(
+        "textDocument/completion",
+        json!({ "textDocument": { "uri": manifest }, "position": { "line": 4, "character": 10 } }),
+    );
+    assert!(labels(&items).contains(&"camelCase".to_owned()), "{items}");
+    client.change(
+        &manifest,
+        4,
+        "[model]\nnamespace = \"example.shop\"\n\n[rules.naming]\nmembers = \"Camel\"\n",
+    );
+    let problems = loop {
+        let problems = client.diagnostics(&manifest);
+        if !problems.is_empty() {
+            break problems;
+        }
+    };
+    assert_eq!(problems[0]["range"]["start"]["line"], 4, "{problems:?}");
+    client.stop();
+}

@@ -1,5 +1,6 @@
 //! API policy checks consume the lowered model shared by builds and the CLI.
 
+mod check;
 mod checker;
 mod compatibility;
 mod config;
@@ -17,8 +18,9 @@ mod report;
 mod rules;
 mod severity;
 
+pub use check::Check;
 pub use compatibility::Compatibility;
-pub use config::Config;
+pub use config::{Config, ConfigError, POLICY_KEYS};
 pub use diff::diff;
 pub use documentation::Documentation;
 pub use documentation_target::DocumentationTarget;

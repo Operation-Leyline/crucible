@@ -2,7 +2,10 @@ use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Segment, Service, Shape};
 use regex::Regex;
 
-use crate::{Config, DocumentationTarget, NameCase, Report, Severity};
+use crate::{Check, Config, DocumentationTarget, NameCase, Report, Severity};
+
+/// A compiled whole-name pattern, its source and its severity.
+type Pattern = Option<(Result<Regex, regex::Error>, String, Severity)>;
 
 pub fn check(service: &Service, config: &Config) -> Report {
     let mut report = Report::default();
@@ -18,38 +21,56 @@ pub fn check(service: &Service, config: &Config) -> Report {
         }
     };
     if let Some(rule) = &config.rules.naming {
-        let compile =
-            |pattern: &Option<String>| pattern.as_deref().map(crate::config::naming_pattern);
+        let compile = |pattern: &Option<Check<String>>| {
+            pattern.as_ref().map(|pattern| {
+                (
+                    crate::config::naming_pattern(&pattern.value),
+                    pattern.value.clone(),
+                    pattern.severity_in(rule.severity),
+                )
+            })
+        };
         let operations = compile(&rule.operations_pattern);
         let shapes = compile(&rule.shapes_pattern);
         let members = compile(&rule.members_pattern);
         let enums = compile(&rule.enum_values_pattern);
         let mut name = |id: ShapeId,
                         text: &str,
-                        case: Option<NameCase>,
-                        pattern: &Option<Result<Regex, regex::Error>>,
+                        what: &str,
+                        case: Option<&Check<NameCase>>,
+                        pattern: &Pattern,
                         rule_id: &str| {
-            let valid_case = case.is_none_or(|case| case.matches(text));
-            let valid_pattern = pattern.as_ref().is_none_or(|pattern| {
-                pattern.as_ref().is_ok_and(|regex| {
-                    regex
-                        .find(text)
-                        .is_some_and(|matched| matched.start() == 0 && matched.end() == text.len())
-                })
-            });
-            if !valid_case || !valid_pattern {
+            if let Some(case) = case
+                && !case.value.matches(text)
+            {
                 report.push(
                     rule_id,
-                    id,
-                    rule.severity,
-                    format!("{text:?} violates the configured naming convention"),
+                    id.clone(),
+                    case.severity_in(rule.severity),
+                    format!("{what} name `{text}` is not {}", case.value.name()),
                 );
+            }
+            if let Some((regex, source, severity)) = pattern {
+                let matched = regex.as_ref().is_ok_and(|regex| {
+                    regex
+                        .find(text)
+                        .is_some_and(|found| found.start() == 0 && found.end() == text.len())
+                });
+                if !matched {
+                    report.push(
+                        rule_id,
+                        id,
+                        *severity,
+                        format!("{what} name `{text}` does not match the pattern `{source}`"),
+                    );
+                }
             }
         };
         name(
             service.id.clone(),
             service.id.name(),
-            rule.shapes,
+            "service",
+            rule.shapes.as_ref(),
             &shapes,
             "naming.shapes",
         );
@@ -58,7 +79,8 @@ pub fn check(service: &Service, config: &Config) -> Report {
                 name(
                     operation.id.clone(),
                     operation.name(),
-                    rule.operations,
+                    "operation",
+                    rule.operations.as_ref(),
                     &operations,
                     "naming.operations",
                 );
@@ -68,14 +90,22 @@ pub fn check(service: &Service, config: &Config) -> Report {
             if !selected(id) {
                 continue;
             }
-            name(id.clone(), id.name(), rule.shapes, &shapes, "naming.shapes");
+            name(
+                id.clone(),
+                id.name(),
+                "shape",
+                rule.shapes.as_ref(),
+                &shapes,
+                "naming.shapes",
+            );
             match shape {
                 Shape::Structure(shape) | Shape::Union(shape) => {
                     for member in &shape.members {
                         name(
                             id.with_member(&member.name),
                             &member.name,
-                            rule.members,
+                            "member",
+                            rule.members.as_ref(),
                             &members,
                             "naming.members",
                         );
@@ -86,7 +116,8 @@ pub fn check(service: &Service, config: &Config) -> Report {
                         name(
                             id.with_member(&value.name),
                             &value.name,
-                            rule.enum_values,
+                            "enum value",
+                            rule.enum_values.as_ref(),
                             &enums,
                             "naming.enums",
                         );
@@ -97,7 +128,8 @@ pub fn check(service: &Service, config: &Config) -> Report {
                         name(
                             id.with_member(&value.name),
                             &value.name,
-                            rule.enum_values,
+                            "enum value",
+                            rule.enum_values.as_ref(),
                             &enums,
                             "naming.enums",
                         );
@@ -114,7 +146,8 @@ pub fn check(service: &Service, config: &Config) -> Report {
             }
             let path = operation.uri.to_string();
             let path = path.split('?').next().unwrap_or(&path);
-            if let Some(prefix) = &rule.prefix {
+            if let Some(check) = &rule.prefix {
+                let prefix = &check.value;
                 if prefix != "/"
                     && path != prefix
                     && !path
@@ -124,22 +157,31 @@ pub fn check(service: &Service, config: &Config) -> Report {
                     report.push(
                         "paths.prefix",
                         &operation.id,
-                        rule.severity,
+                        check.severity_in(rule.severity),
                         format!("path {path:?} must start with {prefix:?} at a segment boundary"),
                     );
                 }
             }
             for segment in &operation.uri.segments {
-                let (text, case, rule_id) = match segment {
-                    Segment::Literal(text) => (text, rule.segment_case, "paths.segments"),
-                    Segment::Label(text) => (text, rule.parameter_case, "paths.parameters"),
+                let (text, case, rule_id, what) = match segment {
+                    Segment::Literal(text) => {
+                        (text, &rule.segment_case, "paths.segments", "path segment")
+                    }
+                    Segment::Label(text) => (
+                        text,
+                        &rule.parameter_case,
+                        "paths.parameters",
+                        "path parameter",
+                    ),
                 };
-                if case.is_some_and(|case| !case.matches(text)) {
+                if let Some(case) = case
+                    && !case.value.matches(text)
+                {
                     report.push(
                         rule_id,
                         &operation.id,
-                        rule.severity,
-                        format!("path segment {text:?} violates the configured naming convention"),
+                        case.severity_in(rule.severity),
+                        format!("{what} `{text}` is not {}", case.value.name()),
                     );
                 }
             }
@@ -147,13 +189,11 @@ pub fn check(service: &Service, config: &Config) -> Report {
     }
     if let Some(rule) = &config.rules.documentation {
         for target in &rule.targets {
-            match target {
-                DocumentationTarget::Service => docs(
-                    &mut report,
-                    &service.id,
-                    service.docs.as_deref(),
-                    rule.severity,
-                ),
+            let severity = target.severity_in(rule.severity);
+            match target.value {
+                DocumentationTarget::Service => {
+                    docs(&mut report, &service.id, service.docs.as_deref(), severity)
+                }
                 DocumentationTarget::Operations => {
                     for operation in &service.operations {
                         if selected(&operation.id) {
@@ -161,7 +201,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                                 &mut report,
                                 &operation.id,
                                 operation.docs.as_deref(),
-                                rule.severity,
+                                severity,
                             );
                         }
                     }
@@ -171,7 +211,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                         if !selected(id) {
                             continue;
                         }
-                        if matches!(target, DocumentationTarget::Errors)
+                        if matches!(target.value, DocumentationTarget::Errors)
                             && !matches!(shape, Shape::Structure(shape) if shape.error.is_some())
                         {
                             continue;
@@ -185,7 +225,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                             Shape::Map(s) => &s.docs,
                             Shape::Structure(s) | Shape::Union(s) => &s.docs,
                         };
-                        docs(&mut report, id, text.as_deref(), rule.severity);
+                        docs(&mut report, id, text.as_deref(), severity);
                     }
                 }
                 DocumentationTarget::Members => {
@@ -199,7 +239,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                                     &mut report,
                                     &id.with_member(&member.name),
                                     member.docs.as_deref(),
-                                    rule.severity,
+                                    severity,
                                 );
                             }
                         }
@@ -217,7 +257,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                                         &mut report,
                                         &id.with_member(&value.name),
                                         value.docs.as_deref(),
-                                        rule.severity,
+                                        severity,
                                     );
                                 }
                             }
@@ -227,7 +267,7 @@ pub fn check(service: &Service, config: &Config) -> Report {
                                         &mut report,
                                         &id.with_member(&value.name),
                                         value.docs.as_deref(),
-                                        rule.severity,
+                                        severity,
                                     );
                                 }
                             }

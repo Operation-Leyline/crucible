@@ -15,6 +15,14 @@ pub(crate) fn is_package(path: &Path) -> bool {
     path.is_dir() && crucible_lang::is_package(path)
 }
 
+/// The package's own `crucible.toml`, when it carries policy beside
+/// `[model]`: the policy that package's builds apply.
+pub(crate) fn manifest_policy(path: &Path) -> Option<std::path::PathBuf> {
+    let manifest = path.join("crucible.toml");
+    let text = std::fs::read_to_string(&manifest).ok()?;
+    crucible_policy::Config::declares_policy(&text).then_some(manifest)
+}
+
 /// Compiles the package at `path` and lowers `service`, or its only service.
 pub(crate) fn lower(
     path: &Path,

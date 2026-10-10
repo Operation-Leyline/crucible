@@ -23,13 +23,16 @@ impl ModelConfig {
     pub(crate) fn new(source: &Path, json: bool) -> Self {
         let source = absolute(source);
         let cru = crate::cru::is_package(&source);
+        // A package's manifest may carry its policy; `.policy(..)` still
+        // selects another file.
+        let policy = cru.then(|| crate::cru::manifest_policy(&source)).flatten();
         Self {
             source,
             json: json || cru,
             cru,
             service: None,
             protocol: None,
-            policy: None,
+            policy,
         }
     }
 
