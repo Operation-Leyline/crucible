@@ -74,6 +74,70 @@ pub struct Service {
     /// Service-local shape renames (Smithy `rename`); [`Service::name_of`]
     /// reads them. Public so other front ends can build a service.
     pub renames: BTreeMap<ShapeId, String>,
+    /// The older API versions this service still serves, oldest first, each
+    /// with the steps that take it to the next (docs/api-versions.md). Empty
+    /// for a service with no migrations; `version` is the current one.
+    pub versions: Vec<ApiVersion>,
+}
+
+/// An older API version: its release's model, and how a request or a
+/// response crosses to the next version.
+#[derive(Debug, Clone)]
+pub struct ApiVersion {
+    /// The release's `version`, such as `2026-09-04`.
+    pub name: String,
+    /// That release's lowered model: its routes, shapes and errors.
+    pub service: Box<Service>,
+    /// The migration from this version to the next, in declaration order.
+    pub steps: Vec<VersionStep>,
+    /// After this date the version may be refused (`YYYY-MM-DD`).
+    pub sunset: Option<String>,
+}
+
+/// One checked migration step, its paths resolved to shape ids. `old`
+/// names a shape in this version's model, `new` in the next version's.
+#[derive(Debug, Clone, PartialEq)]
+pub enum VersionStep {
+    /// A member renamed: `old.from` became `new.to`.
+    Rename {
+        old: ShapeId,
+        new: ShapeId,
+        from: String,
+        to: String,
+    },
+    /// An optional input member became required; an older request that
+    /// omits it gets `default`.
+    Require {
+        new: ShapeId,
+        member: String,
+        default: Value,
+    },
+    /// An enum value added; older responses see `downgrade` instead.
+    AddEnumValue {
+        new: ShapeId,
+        value: String,
+        downgrade: String,
+    },
+    /// An error added to an operation; older clients get `downgrade`, its
+    /// members filled from the new error's (`downgrade member <- new member`).
+    AddError {
+        operation: ShapeId,
+        error: ShapeId,
+        downgrade: ShapeId,
+        members: Vec<(String, String)>,
+    },
+    /// An operation moved; this version reaches it at its old route, which
+    /// this version's model already holds.
+    Move { operation: ShapeId },
+    /// A behaviour change the handler branches on (`behavior Op.name`).
+    Behavior { operation: ShapeId, name: String },
+    /// A step with a hook (`reshape`, `retype`, `require .. by hook`,
+    /// `remove operation`): served once hooks are generated. The operations
+    /// it affects are refused at this version until then.
+    Hooked {
+        kind: String,
+        operations: Vec<ShapeId>,
+    },
 }
 
 #[derive(Debug, Clone)]

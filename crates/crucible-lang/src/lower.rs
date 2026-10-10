@@ -3740,6 +3740,7 @@ impl<'a> Lowerer<'a> {
             shapes: self.shapes.clone(),
             traits,
             renames: BTreeMap::new(),
+            versions: Vec::new(),
         };
         // Rules of the IR itself, shared with the Smithy front end.
         let mut issues = crucible_smithy::Diagnostics::default();

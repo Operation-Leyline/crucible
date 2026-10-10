@@ -6,12 +6,15 @@
 
 use std::path::Path;
 
+use std::collections::BTreeSet;
+
 use crucible_policy::{Config, Finding, Severity};
 use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Operation, Service, Shape};
+use crucible_smithy::ir::{ApiVersion, Operation, Service, Shape, VersionStep};
+use serde_json::Value as Json;
 
-use crate::ast::{Decl, Dotted, Ident, Migration, StepKind};
-use crate::compile::{Compiled, FileDiagnostic, Package, compile_baseline};
+use crate::ast::{Decl, Dotted, Ident, Key, Migration, RequireHow, StepKind, Value};
+use crate::compile::{Compiled, FileDiagnostic, Package, compile, compile_baseline};
 use crate::diagnostic::Diagnostic;
 
 /// What the guard found for one package.
@@ -58,11 +61,15 @@ impl Guard {
             ));
         }
         for item in &self.problems {
-            out.push_str(&item.diagnostic.render(
-                &compiled.files[item.file.unwrap_or(0)].path,
-                &compiled.files[item.file.unwrap_or(0)].text,
-                &crate::span::LineIndex::new(&compiled.files[item.file.unwrap_or(0)].text),
-            ));
+            match item.file.and_then(|index| compiled.files.get(index)) {
+                Some(file) => out.push_str(&item.diagnostic.render(
+                    &file.path,
+                    &file.text,
+                    &crate::span::LineIndex::new(&file.text),
+                )),
+                // A problem with the package, not with a line of it.
+                None => out.push_str(&format!("error: {}\n", item.diagnostic.message)),
+            }
         }
         out
     }
@@ -89,6 +96,19 @@ pub fn guard(
         .unwrap_or_default();
     let report = crucible_policy::diff(&old, service, config);
     let mut problems = Vec::new();
+    // A release is named by its service's version, so migrations can name it.
+    if old.version != version {
+        problems.push(FileDiagnostic {
+            file: None,
+            diagnostic: Diagnostic::new(
+                crate::span::Span::default(),
+                format!(
+                    "the baseline is frozen as \"{version}\" but its service declares version \"{}\"; name the release directory after the version",
+                    old.version
+                ),
+            ),
+        });
+    }
 
     // The migration from the baseline's version declares this release's
     // breaking changes; older ones are history the runtime still serves.
@@ -128,6 +148,18 @@ pub fn guard(
             }
         }
         check_versions(migration, *file, &mut problems);
+        if migration.version.value != service.version {
+            problems.push(FileDiagnostic {
+                file: Some(*file),
+                diagnostic: Diagnostic::new(
+                    migration.version.span,
+                    format!(
+                        "the migration from \"{version}\" serves the next release, which is the service's version \"{}\"",
+                        service.version
+                    ),
+                ),
+            });
+        }
     }
 
     let mut undeclared = Vec::new();
@@ -622,4 +654,244 @@ fn is_date(text: &str) -> bool {
     let parts: Vec<&str> = text.split('-').collect();
     matches!(parts.as_slice(), [y, m, d] if y.len() == 4 && m.len() == 2 && d.len() == 2
         && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit())))
+}
+
+/// The older versions `compiled` still serves, oldest first: the chain of
+/// migrations back from the service's version, each `from` a release frozen
+/// beside the baseline (`releases/<version>`). `guard` has checked the
+/// newest migration; an older one was checked when it was the newest.
+pub fn versions(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+) -> Result<Vec<ApiVersion>, String> {
+    let (Some(service), Some(baseline)) = (&compiled.service, &package.baseline) else {
+        return Ok(Vec::new());
+    };
+    let releases = baseline.parent().unwrap_or(baseline);
+    let migrations: Vec<&Migration> = compiled
+        .parsed
+        .iter()
+        .take(own)
+        .flat_map(|parsed| &parsed.file.items)
+        .filter_map(|item| match &item.decl {
+            Decl::Migration(migration) => Some(migration),
+            _ => None,
+        })
+        .collect();
+    let mut out = Vec::new();
+    let mut newer = service.clone();
+    let mut seen = BTreeSet::new();
+    while let Some(migration) = migrations
+        .iter()
+        .find(|migration| migration.version.value == newer.version)
+    {
+        let name = migration.from.value.clone();
+        if !seen.insert(name.clone()) {
+            return Err(format!("the migrations from \"{name}\" form a cycle"));
+        }
+        let dir = releases.join(&name);
+        if !crate::is_package(&dir) {
+            return Err(format!(
+                "release \"{name}\", which the migration to \"{}\" comes from, is not frozen at {}",
+                migration.version.value,
+                dir.display()
+            ));
+        }
+        let frozen = crate::load_package(&dir)?;
+        let old = compile(&frozen, None)
+            .service
+            .ok_or_else(|| format!("the frozen release {} does not compile", dir.display()))?;
+        let context = Context {
+            namespace: &compiled.namespace,
+            old: &old,
+            new: &newer,
+        };
+        let mut steps = Vec::new();
+        let mut sunset = None;
+        for step in &migration.steps {
+            if let StepKind::Sunset(date) = &step.kind {
+                sunset = Some(date.value.clone());
+                continue;
+            }
+            steps.push(context.lower(&step.kind).map_err(|diagnostic| {
+                format!(
+                    "the migration to \"{}\": {}",
+                    migration.version.value, diagnostic.message
+                )
+            })?);
+        }
+        let next = old.clone();
+        out.push(ApiVersion {
+            name,
+            service: Box::new(old),
+            steps,
+            sunset,
+        });
+        newer = next;
+    }
+    out.reverse();
+    Ok(out)
+}
+
+/// A literal as JSON, for a `require .. default` value.
+fn json(value: &Value) -> Json {
+    match value {
+        Value::Str(text) => Json::String(text.value.clone()),
+        Value::Number(number) => serde_json::from_str(&number.text).unwrap_or(Json::Null),
+        Value::Ident(ident) => match ident.name.as_str() {
+            "true" => Json::Bool(true),
+            "false" => Json::Bool(false),
+            "null" => Json::Null,
+            name => Json::String(name.to_owned()),
+        },
+        Value::List(items, _) => Json::Array(items.iter().map(json).collect()),
+        Value::Object(fields, _) => Json::Object(
+            fields
+                .iter()
+                .map(|field| {
+                    let key = match &field.key {
+                        Key::Name(name) => name.name.clone(),
+                        Key::Text(text) => text.value.clone(),
+                    };
+                    (key, json(&field.value))
+                })
+                .collect(),
+        ),
+    }
+}
+
+/// The operations whose input or output reach `shape` in `service`.
+fn operations_reaching(service: &Service, shape: &ShapeId) -> Vec<ShapeId> {
+    let reaches = |start: &ShapeId| {
+        let mut stack = vec![start.clone()];
+        let mut seen = BTreeSet::new();
+        while let Some(id) = stack.pop() {
+            if &id == shape {
+                return true;
+            }
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            if let Some(found) = service.shapes.get(&id) {
+                stack.extend(found.members().into_iter().map(|m| m.target.clone()));
+            }
+        }
+        false
+    };
+    service
+        .operations
+        .iter()
+        .filter(|op| op.input.iter().chain(&op.output).any(&reaches))
+        .map(|op| op.id.clone())
+        .collect()
+}
+
+impl Context<'_> {
+    /// A checked step, lowered with its paths resolved.
+    fn lower(&self, step: &StepKind) -> Result<VersionStep, Diagnostic> {
+        self.step(step)?;
+        let first = |path: &Dotted| {
+            path.parts
+                .first()
+                .map_or("", |p| p.name.as_str())
+                .to_owned()
+        };
+        let op_id =
+            |name: &str, service: &Service| operation(service, name).map(|op| op.id.clone());
+        Ok(match step {
+            StepKind::Rename { path, to } => {
+                let (old, new) = self.both(path)?;
+                VersionStep::Rename {
+                    old: old.shape,
+                    new: new.shape,
+                    from: old.member.unwrap_or_default(),
+                    to: to.name.clone(),
+                }
+            }
+            StepKind::Require { path, how } => {
+                let (_, new) = self.both(path)?;
+                let member = new.member.clone().unwrap_or_default();
+                match how {
+                    RequireHow::Default(value) => {
+                        // An enum default is its value's symbol; the wire
+                        // carries the value.
+                        let mut default = json(value);
+                        if let (Json::String(symbol), Some(Shape::Structure(owner))) =
+                            (&default, self.new.shapes.get(&new.shape))
+                            && let Some(target) = owner.member(&member).map(|m| m.target.clone())
+                            && let Some(Shape::Enum(enumeration)) = self.new.shapes.get(&target)
+                            && let Some(found) =
+                                enumeration.values.iter().find(|v| &v.name == symbol)
+                        {
+                            default = Json::String(found.value.clone());
+                        }
+                        VersionStep::Require {
+                            new: new.shape,
+                            member,
+                            default,
+                        }
+                    }
+                    RequireHow::Hook(_) => VersionStep::Hooked {
+                        kind: "require".into(),
+                        operations: op_id(&first(path), self.new).into_iter().collect(),
+                    },
+                }
+            }
+            StepKind::Add {
+                path,
+                name: Some(error),
+                downgrade,
+                mapping,
+            } => VersionStep::AddError {
+                operation: op_id(&first(path), self.new).unwrap_or_else(|| self.id(&first(path))),
+                error: self.id(&error.name),
+                downgrade: self.id(&downgrade.name),
+                members: mapping
+                    .iter()
+                    .map(|(old, new)| (old.name.clone(), new.name.clone()))
+                    .collect(),
+            },
+            StepKind::Add {
+                path,
+                name: None,
+                downgrade,
+                ..
+            } => {
+                let (_, new) = self.both(path)?;
+                VersionStep::AddEnumValue {
+                    new: new.shape,
+                    value: new.member.unwrap_or_default(),
+                    downgrade: downgrade.name.clone(),
+                }
+            }
+            StepKind::Move { operation, .. } => VersionStep::Move {
+                operation: op_id(&operation.name, self.new)
+                    .unwrap_or_else(|| self.id(&operation.name)),
+            },
+            StepKind::Reshape { path, .. } | StepKind::Retype { path, .. } => {
+                let (_, new) = self.both(path)?;
+                VersionStep::Hooked {
+                    kind: if matches!(step, StepKind::Reshape { .. }) {
+                        "reshape".into()
+                    } else {
+                        "retype".into()
+                    },
+                    operations: operations_reaching(self.new, &new.shape),
+                }
+            }
+            StepKind::RemoveOperation(name) => VersionStep::Hooked {
+                kind: "remove operation".into(),
+                operations: op_id(&name.name, self.old).into_iter().collect(),
+            },
+            StepKind::Behavior(path) => VersionStep::Behavior {
+                operation: op_id(&first(path), self.new).unwrap_or_else(|| self.id(&first(path))),
+                name: path
+                    .parts
+                    .get(1)
+                    .map_or_else(String::new, |p| p.name.clone()),
+            },
+            StepKind::Sunset(_) => unreachable!("handled by the caller"),
+        })
+    }
 }

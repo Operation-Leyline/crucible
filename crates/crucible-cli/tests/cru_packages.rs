@@ -121,11 +121,13 @@ fn a_frozen_baseline_guards_against_breaking_changes() {
     let dir = tmp.path();
     weather_copy(dir);
     let package = dir.to_str().unwrap();
-    let frozen = dir.join("releases/v1");
+    // The weather example's service is version "2026-10-01", the release's name.
+    let frozen = dir.join("releases/2026-10-01");
 
-    // Freeze the release inside the package; its files are not the
-    // package's own (a nested package is its own).
-    let freeze = crucible(&["freeze", package, "--out", frozen.to_str().unwrap()]);
+    // Freeze the release inside the package, under releases/<version> by
+    // default; its files are not the package's own (a nested package is
+    // its own).
+    let freeze = crucible(&["freeze", package]);
     assert!(
         freeze.status.success(),
         "{}",
@@ -149,7 +151,7 @@ fn a_frozen_baseline_guards_against_breaking_changes() {
         dir.join("crucible.toml"),
         manifest.replace(
             "[model.naming]",
-            "[model.baseline]\npath = \"releases/v1\"\n\n[model.naming]",
+            "[model.baseline]\npath = \"releases/2026-10-01\"\n\n[model.naming]",
         ),
     )
     .unwrap();

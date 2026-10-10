@@ -283,6 +283,7 @@ impl<'m> Lowerer<'m> {
             shapes: std::mem::take(&mut self.shapes),
             traits: shape.traits.clone(),
             renames: shape.rename.clone(),
+            versions: Vec::new(),
         };
         // Rules of the IR itself, shared with the .cru front end.
         crate::validate::service(&service, &mut self.diagnostics);

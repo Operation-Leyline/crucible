@@ -67,6 +67,14 @@ version's section when it is prepared.
   a breaking change fails the build and shows in the editor where it was
   made. A directory with its own package manifest is never collected into
   its parent package.
+- API versions in the IR: `ir::Service::versions` lists the older versions a
+  `.cru` service still serves, oldest first, each with its release's model,
+  its lowered migration steps (`ir::VersionStep`) and its sunset, from the
+  chain of migrations back from the service's `version`
+  (`crucible_lang::versions`; docs/api-versions.md). A release is named by
+  its service's `version`: `crucible freeze` writes `releases/<version>` by
+  default, a frozen release's directory must match its version, and the
+  newest migration must serve the current version.
 - Declared migrations: a breaking change against the baseline compiles when
   `migration "<new>" from "<baseline version>"` declares it with `rename`,
   `require`, `add`, `move`, `reshape`, `retype` or `remove operation`, and

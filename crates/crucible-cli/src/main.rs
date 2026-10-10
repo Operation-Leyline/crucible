@@ -119,9 +119,11 @@ enum Command {
     Freeze {
         /// The package directory, holding crucible.toml with [model].
         package: PathBuf,
-        /// Where the frozen copy goes; must not exist or be empty.
+        /// Where the frozen copy goes; must not exist or be empty. Defaults
+        /// to releases/<the service's version> inside the package, the name
+        /// the next migration's `from` uses.
         #[arg(long)]
-        out: PathBuf,
+        out: Option<PathBuf>,
     },
     /// Write a stub for every operation that has no file yet: one file per
     /// operation, in a folder per resource (`service/` for the operations the
@@ -658,7 +660,7 @@ fn run(command: Command) -> ExitCode {
             },
         ),
         Command::Generate { target, audience } => generate(*target, audience.into()),
-        Command::Freeze { package, out } => freeze(&package, &out),
+        Command::Freeze { package, out } => freeze(&package, out.as_deref()),
         Command::Scaffold {
             source,
             out,
@@ -793,8 +795,24 @@ fn lower_cru(source: &Source) -> Result<Service, String> {
 /// `crucible freeze`: copies a package's manifest and `.cru` sources into
 /// `out`, the frozen baseline the next release is checked against. The
 /// copy's own `[model.baseline]` is dropped; a baseline has no baseline.
-fn freeze(package: &Path, out: &Path) -> Result<(), String> {
+fn freeze(package: &Path, out: Option<&Path>) -> Result<(), String> {
     let loaded = crucible_lang::load_package(package)?;
+    let default;
+    let out = match out {
+        Some(out) => out,
+        None => {
+            let compiled = crucible_lang::compile(&loaded, None);
+            let service = compiled.service.as_ref().ok_or_else(|| {
+                format!(
+                    "{} does not compile:\n{}",
+                    package.display(),
+                    compiled.render()
+                )
+            })?;
+            default = package.join("releases").join(&service.version);
+            default.as_path()
+        }
+    };
     if out.exists()
         && std::fs::read_dir(out)
             .map_err(|error| format!("cannot read {}: {error}", out.display()))?
