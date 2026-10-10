@@ -3716,6 +3716,7 @@ impl<'a> Lowerer<'a> {
         }
         lowered.sort_by(|a, b| a.id.name().cmp(b.id.name()));
 
+        let version_declared = version.is_some();
         let mut service = Service {
             cors: None,
             internal: false,
@@ -3729,7 +3730,7 @@ impl<'a> Lowerer<'a> {
             protocol_settings: ProtocolSettings::default(),
             requirements: std::mem::take(&mut self.requirements).into_iter().collect(),
             id,
-            version: version.unwrap_or_default(),
+            version: version.clone().unwrap_or_default(),
             title,
             docs,
             notes: annotations.notes,
@@ -3752,7 +3753,11 @@ impl<'a> Lowerer<'a> {
         };
         // A `.cru` service's version is a release its clients name in the
         // `Crucible-Version` header, when it can travel in one.
-        if !service.version.is_empty() && !service.version.bytes().all(|b| b.is_ascii_graphic()) {
+        // Absent is reported elsewhere; declared, it must travel in a header.
+        if version_declared
+            && !(!service.version.is_empty()
+                && service.version.bytes().all(|b| b.is_ascii_graphic()))
+        {
             self.error_at(
                 &service.id,
                 "the service's version names the release clients send in the `Crucible-Version` header: use visible ASCII without spaces",

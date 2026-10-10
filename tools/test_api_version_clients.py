@@ -37,6 +37,10 @@ class ApiVersionClients(unittest.TestCase):
                 self.assertIn("apiVersion", source)
                 self.assertIn("crucible-version", source.lower())
 
+    def test_typescript_sets_the_header(self):
+        runtime = (ROOT / RUNTIMES["typescript"]).read_text(encoding="utf-8")
+        self.assertIn('headers.set("crucible-version", operation.apiVersion)', runtime)
+
     def test_the_description_and_the_rust_client_carry_it(self):
         schema = (ROOT / "crates/crucible-codegen-common/src/lib.rs").read_text(encoding="utf-8")
         self.assertIn('value["apiVersion"]', schema)

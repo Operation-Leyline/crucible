@@ -1,6 +1,6 @@
 # API versions and clients
 
-**Status: proposed design for migrations phase 5** (decisions below).
+**Status: 5a built (clients send their release); 5b-5d designed** (decisions below).
 Phases 1-4 are built: a `.cru` service declares its breaking changes as
 migrations, and a Rust service serves every supported release from its
 current handlers ([api-versions.md](api-versions.md)). This document is
@@ -75,7 +75,14 @@ operation's protocol header:
   past a release whose clients are in use.
 - **Browsers.** A `.cru` service with `@cors` always allows the
   `Crucible-Version` request header and exposes it and `Sunset`, from the
-  first release. A non-safelisted header makes every cross-origin request
+  first release. CORS configured outside the model (an API gateway, a
+  CDN, a tower layer) must allow `Crucible-Version` too, or browser
+  requests fail their preflight.
+- **Freeze before you publish.** Once a release's clients are published,
+  freeze it as the baseline (`crucible freeze`). The guard then requires
+  a migration for a new `version`, and the server keeps serving the
+  published release. A service with no baseline that changes its
+  `version` refuses every client generated before the change. A non-safelisted header makes every cross-origin request
   preflighted, one extra round trip until the preflight is cached
   (`maxAge`).
 - **Server.** Every `.cru` service knows its current release, with or

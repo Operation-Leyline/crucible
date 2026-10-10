@@ -160,7 +160,7 @@ pub fn guard(
                 ),
             });
         }
-    } else if service.version != version {
+    } else if service.version != old.version {
         // A release with no migration would drop out of the chain of
         // releases the server serves, and its clients, which name it, with
         // it. One that breaks nothing declares an empty migration.
@@ -169,8 +169,8 @@ pub fn guard(
             diagnostic: Diagnostic::new(
                 crate::span::Span::default(),
                 format!(
-                    "the service's version is \"{}\" but no migration comes from the baseline \"{version}\"; declare `migration \"{}\" from \"{version}\" {{}}`, empty when nothing breaks",
-                    service.version, service.version
+                    "the service's version is \"{}\" but no migration comes from the baseline \"{}\"; declare `migration \"{}\" from \"{}\" {{}}`, empty when nothing breaks",
+                    service.version, old.version, service.version, old.version
                 ),
             ),
         });

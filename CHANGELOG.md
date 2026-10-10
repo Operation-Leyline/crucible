@@ -92,8 +92,8 @@ version's section when it is prepared.
   downgrade` step must fill every member the older error requires.
 - Generated clients send their release (docs/api-versions-clients.md):
   every client of a `.cru` service names the release it was generated for
-  in the `Crucible-Version` header, from the first release. It covers all
-  13 bundled runtimes, TypeScript, the Rust client (a defaulted
+  in the `Crucible-Version` header, from the first release. It covers the
+  12 bundled runtimes, TypeScript, the Rust client (a defaulted
   `crucible_wire::operation::Operation::API_VERSION` the generated marker
   sets) and the service CLI. Smithy-sourced clients send nothing.
   - **Diagnostics:** a `.cru` service's `version` that cannot travel in a
@@ -103,7 +103,13 @@ version's section when it is prepared.
     a migration, empty when nothing breaks, so every release a client
     names stays served.
   - **CORS:** with `@cors`, the header is allowed and exposed from the
-    first release.
+    first release. CORS configured outside the model must allow it too.
+  - **Servers:** a `.cru` server without migrations now knows its one
+    release. It refuses any other with `400`, echoes `crucible-version`
+    with `Vary`, applies `Builder::api_version`, and
+    `Context::api_version()` returns it. Freeze a release as the baseline
+    before publishing its clients: changing `version` without one refuses
+    every client generated before.
 - Migration hooks (docs/api-versions.md#hooks): `reshape`, `retype` and
   `require .. by hook` steps and `remove operation` generate a
   `versions::<older>::Migration` trait per migration, whose methods convert

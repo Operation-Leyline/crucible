@@ -48,6 +48,19 @@ fn a_release_that_cannot_travel_in_a_header_is_reported() {
 }
 
 #[test]
+fn an_empty_release_is_reported() {
+    let compiled = compile(
+        &load_package(&package("empty", &shop("", ""))).unwrap(),
+        None,
+    );
+    assert!(
+        compiled.render().contains("visible ASCII without spaces"),
+        "{}",
+        compiled.render()
+    );
+}
+
+#[test]
 fn the_release_header_is_not_a_member_binding() {
     let source = shop(
         "1",

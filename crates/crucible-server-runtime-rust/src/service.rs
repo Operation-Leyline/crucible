@@ -452,8 +452,9 @@ impl Crucible {
     }
 
     /// Settles the request's API version and returns the operations that
-    /// serve it: the current table, or an older version's. A service whose
-    /// model has no migrations has one version and skips this.
+    /// serve it: the current table, or an older version's. A `.cru`
+    /// service without migrations has one release and refuses any other; a
+    /// Smithy-sourced service has none and skips this.
     fn version<'a>(&'a self, job: &mut Job) -> crate::Result<&'a Operations> {
         let operations = &self.inner.operations;
         let versions = &operations.versions;
@@ -877,8 +878,8 @@ impl Builder {
         self
     }
 
-    /// How a request that names no API version is served, for a model with
-    /// migrations: at the oldest supported version (the default), refused
+    /// How a request that names no API version is served, for a `.cru`
+    /// model: at the oldest supported version (the default), refused
     /// (`Unversioned::Required`), or at the version a resolver chooses.
     pub fn api_version(mut self, unversioned: Unversioned) -> Self {
         self.unversioned = unversioned;
