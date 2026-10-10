@@ -39,8 +39,8 @@ static class Program
         readonly Task loop;
         public string Endpoint { get; }
         public int Attempts;
-        // A handler failure, kept apart from the shutdown filters below so a
-        // failure that races disposal still fails the test.
+        // A guard: a handler failure of a type the shutdown filters below
+        // catch, racing disposal, still fails the test.
         ExceptionDispatchInfo? failure;
         public Server(Func<Request, Response> handler)
         {
@@ -89,7 +89,13 @@ static class Program
         }
         // Stopping the listener under a pending accept fails it in several
         // racy ways; cancel and let the loop finish first.
-        public async ValueTask DisposeAsync() { stop.Cancel(); await loop; listener.Stop(); stop.Dispose(); failure?.Throw(); }
+        public async ValueTask DisposeAsync()
+        {
+            stop.Cancel();
+            try { await loop; }
+            finally { listener.Stop(); stop.Dispose(); }
+            failure?.Throw();
+        }
     }
     static async Task RetryCases(string path)
     {
