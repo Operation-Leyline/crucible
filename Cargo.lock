@@ -585,6 +585,7 @@ dependencies = [
  "crucible-codegen-swift",
  "crucible-codegen-terraform",
  "crucible-codegen-ts",
+ "crucible-lang",
  "crucible-policy",
  "crucible-smithy",
  "serde",

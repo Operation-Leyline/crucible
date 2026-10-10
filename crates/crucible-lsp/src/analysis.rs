@@ -30,8 +30,23 @@ pub const TOKEN_TYPES: &[&str] = &[
     "comment",
 ];
 
-/// Token modifiers, in legend order: bit `1 << index`.
-pub const TOKEN_MODIFIERS: &[&str] = &["declaration", "documentation", "defaultLibrary"];
+/// Token modifiers, in legend order: bit `1 << index`. After the standard
+/// three come the declaration kinds the standard types cannot tell apart: a
+/// service and a protocol are both interfaces, a resource and an error both
+/// classes. A kind marks the declaration and every reference to it, so an
+/// editor can color errors as errors wherever they are named. Clients that
+/// do not know a modifier ignore it and still color by type.
+pub const TOKEN_MODIFIERS: &[&str] = &[
+    "declaration",
+    "documentation",
+    "defaultLibrary",
+    "service",
+    "protocol",
+    "resource",
+    "error",
+    "union",
+    "rule",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -54,6 +69,26 @@ pub enum Role {
 pub const DECLARATION: u32 = 1;
 pub const DOCUMENTATION: u32 = 2;
 pub const DEFAULT_LIBRARY: u32 = 4;
+pub const SERVICE: u32 = 8;
+pub const PROTOCOL: u32 = 16;
+pub const RESOURCE: u32 = 32;
+pub const ERROR: u32 = 64;
+pub const UNION: u32 = 128;
+pub const RULE: u32 = 256;
+
+/// The kind modifier of a declaration, by its keyword; 0 when the token
+/// type already says what it is.
+pub fn kind_modifier(keyword: &str) -> u32 {
+    match keyword {
+        "service" => SERVICE,
+        "protocol" => PROTOCOL,
+        "resource" => RESOURCE,
+        "error" => ERROR,
+        "union" => UNION,
+        "rule" => RULE,
+        _ => 0,
+    }
+}
 
 /// One highlighted token: a byte range, its role and modifier bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,7 +164,7 @@ impl Index {
     /// How a reference to `name` is highlighted.
     fn reference(&self, name: &str) -> Option<(Role, u32)> {
         if let Some(declaration) = self.declarations.get(name) {
-            return Some((declaration.role, 0));
+            return Some((declaration.role, kind_modifier(&declaration.keyword)));
         }
         BUILTIN_TYPES
             .contains(&name)
@@ -216,11 +251,18 @@ impl Walker<'_> {
     /// A name that refers to a declaration or a built-in type; anything
     /// else gets `fallback`, if any.
     fn reference(&mut self, ident: &Ident, fallback: Option<Role>) {
+        self.reference_kind(ident, fallback, 0);
+    }
+
+    /// [`Self::reference`] where the position says what kind of declaration
+    /// the name must be: an unresolved name in `errors [..]` is still shown
+    /// as an error.
+    fn reference_kind(&mut self, ident: &Ident, fallback: Option<Role>, kind: u32) {
         match self.index.reference(&ident.name) {
             Some((role, modifiers)) => self.set(ident, role, modifiers),
             None => {
                 if let Some(role) = fallback {
-                    self.set(ident, role, 0);
+                    self.set(ident, role, kind);
                 }
             }
         }
@@ -325,7 +367,7 @@ impl Walker<'_> {
                 OpEntry::Body(Body { members, .. }) => self.members(members),
                 OpEntry::Errors(names, _) => {
                     for name in names {
-                        self.reference(name, Some(Role::Class));
+                        self.reference_kind(name, Some(Role::Class), ERROR);
                     }
                 }
                 OpEntry::Example(example) => {
@@ -335,7 +377,7 @@ impl Walker<'_> {
                                 self.value(value, Role::EnumMember);
                             }
                             ExamplePart::Error(name, value) => {
-                                self.reference(name, Some(Role::Class));
+                                self.reference_kind(name, Some(Role::Class), ERROR);
                                 self.value(value, Role::EnumMember);
                             }
                         }
@@ -347,14 +389,14 @@ impl Walker<'_> {
 
     fn item(&mut self, item: &Item) {
         self.annotations(&item.annotations);
-        if let Some((_, role, name)) = describe(&item.decl) {
-            self.declare(name, role);
+        if let Some((keyword, role, name)) = describe(&item.decl) {
+            self.set(name, role, DECLARATION | kind_modifier(&keyword));
         }
         match &item.decl {
             Decl::Service(block) | Decl::Protocol(block) => self.clauses(&block.clauses),
             Decl::Resource(resource) => {
                 if let Some(parent) = &resource.parent {
-                    self.reference(parent, Some(Role::Class));
+                    self.reference_kind(parent, Some(Role::Class), RESOURCE);
                 }
                 for entry in &resource.entries {
                     self.annotations(&entry.annotations);
@@ -364,14 +406,14 @@ impl Walker<'_> {
             }
             Decl::Operation(operation) => {
                 if let Some(attachment) = &operation.attachment {
-                    self.reference(&attachment.resource, Some(Role::Class));
+                    self.reference_kind(&attachment.resource, Some(Role::Class), RESOURCE);
                 }
                 self.entries(&operation.entries);
             }
             Decl::Template(template) => self.entries(&template.entries),
             Decl::Structure(structure) => {
                 if let Some(resource) = &structure.resource {
-                    self.reference(resource, Some(Role::Class));
+                    self.reference_kind(resource, Some(Role::Class), RESOURCE);
                 }
                 self.members(&structure.members);
             }
@@ -423,7 +465,7 @@ impl Walker<'_> {
                 }
             }
             Decl::Except(except) => {
-                self.reference(&except.rule, Some(Role::Function));
+                self.reference_kind(&except.rule, Some(Role::Function), RULE);
                 self.reference(&except.target, None);
             }
             Decl::Migration(migration) => {
@@ -471,7 +513,9 @@ impl Walker<'_> {
                 }
             }
             ExprKind::Has(reference) => self.metadata_ref(reference),
-            ExprKind::Addresses(name) => self.reference(name, Some(Role::Class)),
+            ExprKind::Addresses(name) => {
+                self.reference_kind(name, Some(Role::Class), RESOURCE);
+            }
             ExprKind::Flag(path) => self.path(path),
             ExprKind::Compare { path, operand, .. } => {
                 self.path(path);
@@ -557,16 +601,7 @@ pub fn occurrences(
     highlights(parsed, index)
         .into_iter()
         .filter(|highlight| {
-            matches!(
-                highlight.role,
-                Role::Type
-                    | Role::Struct
-                    | Role::Enum
-                    | Role::Class
-                    | Role::Interface
-                    | Role::Function
-                    | Role::Decorator
-            ) && highlight.modifiers & DEFAULT_LIBRARY == 0
+            names_declaration(highlight)
                 && &text[highlight.start as usize..highlight.end as usize] == name
         })
         .map(|highlight| {
@@ -577,6 +612,34 @@ pub fn occurrences(
             )
         })
         .collect()
+}
+
+/// Whether a highlighted name is a package declaration or a reference to
+/// one, rather than a member, a keyword or a built-in.
+fn names_declaration(highlight: &Highlight) -> bool {
+    matches!(
+        highlight.role,
+        Role::Type
+            | Role::Struct
+            | Role::Enum
+            | Role::Class
+            | Role::Interface
+            | Role::Function
+            | Role::Decorator
+    ) && highlight.modifiers & DEFAULT_LIBRARY == 0
+}
+
+/// How often each name is referred to in one file, declarations not
+/// counted: one pass for every declaration's usage count.
+pub fn reference_counts(parsed: &Parsed, text: &str, index: &Index) -> HashMap<String, usize> {
+    let mut out = HashMap::new();
+    for highlight in highlights(parsed, index) {
+        if names_declaration(&highlight) && highlight.modifiers & DECLARATION == 0 {
+            *out.entry(text[highlight.start as usize..highlight.end as usize].to_owned())
+                .or_default() += 1;
+        }
+    }
+    out
 }
 
 /// The identifier token covering `offset`, if any. An offset just past an
@@ -819,11 +882,62 @@ operation GetCity reads City {
         assert_eq!(role("reads", 0), (Role::Keyword, 0));
         assert_eq!(role("GET", 0), (Role::Keyword, 0));
         assert_eq!(role("items", 0), (Role::Parameter, 0));
-        assert_eq!(role("Missing", 0), (Role::Class, 0));
+        // Unresolved, but `errors [..]` only names errors.
+        assert_eq!(role("Missing", 0), (Role::Class, ERROR));
         let doc = highlights.iter().find(|h| h.role == Role::Comment).unwrap();
         assert_eq!(doc.modifiers, DOCUMENTATION);
         assert!(highlights.iter().any(|h| h.role == Role::String));
         assert!(highlights.iter().any(|h| h.role == Role::Number));
+    }
+
+    #[test]
+    fn declarations_and_references_carry_their_kind() {
+        let source = r#"
+service Shop {
+    operations [GetCity]
+    errors [NotFound]
+}
+resource City { id name: string }
+error NotFound { status 404 }
+union Shape { a: string }
+operation GetCity reads City {
+    input { $name }
+    output { shape: Shape }
+    errors [NotFound]
+}
+"#;
+        let parsed = crucible_lang::parse(source);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let highlights = highlights(&parsed, &index);
+        let at = |word: &str, nth: usize| {
+            let start = source
+                .match_indices(word)
+                .filter(|(index, _)| {
+                    let before = source[..*index].chars().last();
+                    let after = source[index + word.len()..].chars().next();
+                    !before.is_some_and(char::is_alphanumeric)
+                        && !after.is_some_and(char::is_alphanumeric)
+                })
+                .nth(nth)
+                .unwrap()
+                .0 as u32;
+            let highlight = highlights.iter().find(|h| h.start == start).unwrap();
+            (highlight.role, highlight.modifiers)
+        };
+        assert_eq!(at("Shop", 0), (Role::Interface, DECLARATION | SERVICE));
+        assert_eq!(at("City", 0), (Role::Class, DECLARATION | RESOURCE));
+        assert_eq!(at("City", 1), (Role::Class, RESOURCE));
+        assert_eq!(at("NotFound", 0), (Role::Class, ERROR));
+        assert_eq!(at("NotFound", 1), (Role::Class, DECLARATION | ERROR));
+        assert_eq!(at("NotFound", 2), (Role::Class, ERROR));
+        assert_eq!(at("Shape", 1), (Role::Struct, UNION));
+        assert_eq!(at("GetCity", 0), (Role::Function, 0));
+        assert_eq!(at("GetCity", 1), (Role::Function, DECLARATION));
+        assert_eq!(TOKEN_MODIFIERS.len(), 9);
+        assert_eq!(
+            1 << TOKEN_MODIFIERS.iter().position(|m| *m == "rule").unwrap(),
+            RULE
+        );
     }
 
     #[test]

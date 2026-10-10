@@ -486,7 +486,7 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             items.snippet(
                 "deprecated",
                 "deprecated, with a message",
-                "deprecated(\"$1\")",
+                "deprecated(message: \"$1\")",
             );
             items.keyword("unstable", "may change without notice");
             items.snippet(

@@ -17,6 +17,10 @@ struct Client {
 
 impl Client {
     fn start() -> Self {
+        Self::start_with(json!({ "capabilities": {} }))
+    }
+
+    fn start_with(params: Value) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_crucible-lsp"))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -30,7 +34,7 @@ impl Client {
             stdout,
             next_id: 0,
         };
-        let capabilities = client.request("initialize", json!({ "capabilities": {} }));
+        let capabilities = client.request("initialize", params);
         assert!(capabilities["capabilities"]["semanticTokensProvider"].is_object());
         client.notify("initialized", json!({}));
         client
@@ -471,5 +475,180 @@ fn a_burst_of_edits_ends_with_the_last_texts_diagnostics() {
         last = client.diagnostics(&service);
     }
     assert_eq!(last, Vec::<Value>::new());
+    client.stop();
+}
+
+#[test]
+fn the_workspace_is_compiled_and_changes_on_disk_are_seen() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-workspace");
+    package(&dir);
+    let mut client = Client::start_with(json!({
+        "rootUri": uri(&dir),
+        "capabilities": { "workspace": { "didChangeWatchedFiles": { "dynamicRegistration": true } } },
+    }));
+    // The server asks to be told about model files and manifests.
+    let registration = loop {
+        let message = client.receive();
+        if message["method"] == "client/registerCapability" {
+            break message;
+        }
+    };
+    let watchers = &registration["params"]["registrations"][0];
+    assert_eq!(watchers["method"], "workspace/didChangeWatchedFiles");
+    client.send(json!({ "jsonrpc": "2.0", "id": registration["id"], "result": null }));
+
+    // Nothing is open, yet the package's declarations are found.
+    let symbols = client.request("workspace/symbol", json!({ "query": "itemid" }));
+    assert!(
+        symbols
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s["name"] == "ItemId"),
+        "{symbols}"
+    );
+
+    let service = uri(&dir.join("service.cru"));
+    client.open(&service, SERVICE);
+    assert_eq!(client.diagnostics(&service), Vec::<Value>::new());
+
+    // Another tool renames the type in a file the editor does not have open.
+    let types = dir.join("types.cru");
+    std::fs::write(&types, TYPES.replace("ItemId", "ItemKey")).unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&types), "type": 2 }] }),
+    );
+    let diagnostics = client.diagnostics(&service);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d["message"].as_str().unwrap().contains("ItemId")),
+        "{diagnostics:#?}"
+    );
+    std::fs::write(&types, TYPES).unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&types), "type": 2 }] }),
+    );
+    assert_eq!(client.diagnostics(&service), Vec::<Value>::new());
+    client.stop();
+}
+
+const SHOP: &str = r#"/// A shop item. See https://example.com/items.
+resource Item {
+    id itemId: ItemId
+    property size: Size
+}
+
+enum Size { SMALL, LARGE = "large" }
+
+@since("1")
+operation FindItem reads Item {
+    http GET "/items/{itemId}"
+    input { $itemId }
+    output { size: Size }
+}
+"#;
+
+#[test]
+fn hints_lenses_links_and_signatures() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-insight");
+    package(&dir);
+    std::fs::write(dir.join("shop.cru"), SHOP).unwrap();
+    let shop = uri(&dir.join("shop.cru"));
+    let mut client = Client::start();
+    client.open(&shop, SHOP);
+    client.diagnostics(&shop);
+    let document = json!({ "uri": shop });
+
+    // The elided member's type and the enum value's implicit wire value.
+    let hints = client.request(
+        "textDocument/inlayHint",
+        json!({ "textDocument": document, "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 99, "character": 0 } } }),
+    );
+    let labels: Vec<&str> = hints
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|hint| hint["label"].as_str().unwrap())
+        .collect();
+    assert_eq!(labels, ["= \"SMALL\"", ": ItemId"], "{hints}");
+
+    // A usage count above each declaration, which the editor shows on click.
+    let lenses = client.request("textDocument/codeLens", json!({ "textDocument": document }));
+    let titles: Vec<(&str, &str)> = lenses
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|lens| {
+            (
+                lens["command"]["title"].as_str().unwrap(),
+                lens["command"]["command"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        titles,
+        [
+            ("1 usage", "crucible.showReferences"),
+            ("2 usages", "crucible.showReferences"),
+            ("no usages", "crucible.showReferences"),
+        ],
+        "{lenses}"
+    );
+
+    // From a member's name to its type, declared in another file.
+    let target = client.request(
+        "textDocument/typeDefinition",
+        json!({ "textDocument": document, "position": position(SHOP, "itemId: ItemId", 0) }),
+    );
+    assert!(
+        target["uri"]
+            .as_str()
+            .unwrap()
+            .to_lowercase()
+            .ends_with("types.cru"),
+        "{target}"
+    );
+
+    let links = client.request(
+        "textDocument/documentLink",
+        json!({ "textDocument": document }),
+    );
+    assert_eq!(links[0]["target"], "https://example.com/items", "{links}");
+
+    let at = position(SHOP, "\"1\"", 0);
+    let help = client.request(
+        "textDocument/signatureHelp",
+        json!({ "textDocument": document, "position": at }),
+    );
+    assert_eq!(
+        help["signatures"][0]["label"], "@since(version: string)",
+        "{help}"
+    );
+
+    // Formatting a selection touches only its lines.
+    let messy = SHOP
+        .replace("    id itemId", "id itemId")
+        .replace("    http GET", "http GET");
+    client.change(&shop, 2, &messy);
+    client.diagnostics(&shop);
+    let line = messy[..messy.find("id itemId").unwrap()]
+        .matches('\n')
+        .count();
+    let edits = client.request(
+        "textDocument/rangeFormatting",
+        json!({
+            "textDocument": document,
+            "range": { "start": { "line": line, "character": 0 }, "end": { "line": line, "character": 3 } },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    );
+    let edits = edits.as_array().unwrap();
+    assert_eq!(edits.len(), 1, "{edits:?}");
+    assert_eq!(edits[0]["newText"], "    id itemId: ItemId\n");
+    assert_eq!(edits[0]["range"]["start"]["line"], line);
+    assert_eq!(edits[0]["range"]["end"]["line"], line + 1);
     client.stop();
 }
