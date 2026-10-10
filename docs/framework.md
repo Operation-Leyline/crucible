@@ -400,6 +400,16 @@ for request-header, URI, or body rewriting. In transport `after`, modify the
 provided response directly: staging job headers, errors, or `respond` there
 occurs after encoding. Tower is not required for application extension interfaces.
 
+
+A service whose `.cru` model has migrations also serves older API
+versions ([api-versions.md](api-versions.md)). After the raw middleware
+runs, the request's version is settled from its `Crucible-Version`
+header, so routing and decoding use that version's operations. After
+decoding, an older version's input is converted to the current one, so
+interceptors and the handler see only current types. Before encoding,
+after the interceptors' and operation middleware's `after` phases, the
+output or error is converted back.
+
 ## Protocols
 
 A protocol implements `identify`, `decode`, and `write`. Identification returns

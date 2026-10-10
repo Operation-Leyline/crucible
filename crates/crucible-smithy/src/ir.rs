@@ -131,13 +131,43 @@ pub enum VersionStep {
     Move { operation: ShapeId },
     /// A behaviour change the handler branches on (`behavior Op.name`).
     Behavior { operation: ShapeId, name: String },
-    /// A step with a hook (`reshape`, `retype`, `require .. by hook`,
-    /// `remove operation`): served once hooks are generated. The operations
-    /// it affects are refused at this version until then.
+    /// A step a hook the service writes serves (`reshape`, `retype`,
+    /// `require .. by hook`, `remove operation`).
     Hooked {
+        /// The step's verb, for messages.
         kind: String,
+        /// The operations it affects.
         operations: Vec<ShapeId>,
+        hook: Hook,
+        /// `by async hook`: the hook may do I/O.
+        is_async: bool,
     },
+}
+
+/// What a hook converts. `old` names a shape in the older version's model,
+/// `new` in the next version's.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Hook {
+    /// `reshape S { .. } -> m`: the whole structure, each way it travels.
+    Reshape { old: ShapeId, new: ShapeId },
+    /// `retype S.m -> T`: the member's value, each way it travels.
+    Retype {
+        old: ShapeId,
+        new: ShapeId,
+        member: String,
+    },
+    /// `require S.m by hook`: the value an older request could not send,
+    /// computed from the rest of it.
+    Require {
+        old: ShapeId,
+        new: ShapeId,
+        member: String,
+    },
+    /// `remove operation Op`: the older versions' own handler.
+    RemoveOperation { operation: ShapeId },
+    /// `retype S.m -> T` without `by hook`, served by a declared
+    /// `conversion`.
+    Conversion,
 }
 
 #[derive(Debug, Clone)]

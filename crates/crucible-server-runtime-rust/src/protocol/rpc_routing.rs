@@ -74,7 +74,10 @@ pub(super) fn identify(
     if !applies(op) {
         return Ok(ProtocolMatch::Declined);
     }
-    let metadata = operations.metadata(op.name).expect("registered operation");
+    // Not served at this API version, though its release declares it.
+    let Some(metadata) = operations.metadata(op.name) else {
+        return Ok(ProtocolMatch::Claimed(None));
+    };
     let media_type = if metadata.input_events.is_some() {
         crate::event_stream::CONTENT_TYPE
     } else {

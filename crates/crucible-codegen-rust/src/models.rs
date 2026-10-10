@@ -498,12 +498,31 @@ fn default_expr(service: &Service, member: &Member, value: &Value, prefix: &str)
 
 /// Structures and unions an operation input reaches: what the server validates.
 fn input_reachable(service: &Service) -> BTreeSet<ShapeId> {
+    reachable(
+        service,
+        service
+            .operations
+            .iter()
+            .filter_map(|op| op.input.clone())
+            .collect(),
+    )
+}
+
+/// Every shape an output or error reaches.
+pub(crate) fn output_reachable(service: &Service) -> BTreeSet<ShapeId> {
+    reachable(
+        service,
+        service
+            .operations
+            .iter()
+            .flat_map(|op| op.output.iter().chain(&op.errors))
+            .cloned()
+            .collect(),
+    )
+}
+
+fn reachable(service: &Service, mut stack: Vec<ShapeId>) -> BTreeSet<ShapeId> {
     let mut reached = BTreeSet::new();
-    let mut stack: Vec<ShapeId> = service
-        .operations
-        .iter()
-        .filter_map(|op| op.input.clone())
-        .collect();
     while let Some(id) = stack.pop() {
         if !reached.insert(id.clone()) {
             continue;

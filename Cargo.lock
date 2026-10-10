@@ -837,6 +837,7 @@ name = "crucible-codegen-rust"
 version = "0.4.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "regex",
  "semver",

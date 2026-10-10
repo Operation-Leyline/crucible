@@ -1,0 +1,86 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem, ListItems, DeleteItem]
+    errors [ValidationException, InternalServerException]
+}
+
+readonly operation GetItem {
+    http GET "/things/{id}"
+    input { id: string }
+    errors [ItemNotFoundException, ItemGoneException]
+    output {
+        label: Label
+        kind: Kind
+    }
+}
+
+enum Kind { SMALL, LARGE, HUGE }
+
+readonly operation ListItems {
+    http GET "/items"
+    input {
+        @query
+        limit: integer
+        @query
+        sort: string
+    }
+    output {
+        names: Names
+        kinds: Kinds
+    }
+}
+
+list Names: string
+
+list Kinds: Kind
+
+idempotent operation DeleteItem {
+    http DELETE "/items/{id}"
+    input {
+        id: string
+        @query
+        force?: string
+    }
+    output { deleted: string }
+}
+
+error ItemNotFoundException {
+    status 404
+    message: string
+}
+
+// v2 renamed the item's name and made the sort order required: the order
+// an older request did not send comes from the account (an async hook).
+migration "v2" from "v1" {
+    rename GetItem.output.name -> title
+    rename ListItems.input.max -> limit
+    require ListItems.input.sort by async hook
+    sunset "2027-01-01"
+}
+
+structure Label {
+    title: string
+    size?: integer
+}
+
+error ItemGoneException {
+    status 410
+    message: string
+}
+
+// v3 moved GetItem and grouped its title and size into a label, made the
+// page size required, added a kind and an error, reports deletion as a
+// status, and dropped CountItems.
+migration "v3" from "v2" {
+    move GetItem from GET "/items/{id}"
+    reshape GetItem.output { title, size } -> label by hook
+    require ListItems.input.limit default 20
+    add Kind.HUGE downgrade LARGE
+    add GetItem.errors ItemGoneException downgrade ItemNotFoundException {
+        message <- message
+    }
+    retype DeleteItem.input.force -> string by hook
+    retype DeleteItem.output.deleted -> string by hook
+    remove operation CountItems
+}

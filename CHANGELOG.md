@@ -75,6 +75,30 @@ version's section when it is prepared.
   its service's `version`: `crucible freeze` writes `releases/<version>` by
   default, a frozen release's directory must match its version, and the
   newest migration must serve the current version.
+- Serving older API versions (docs/api-versions.md): a Rust service whose
+  `.cru` model has migrations serves every version in the chain from its
+  current implementation. A request names its version in the
+  `Crucible-Version` header; it is routed, decoded and validated with that
+  release's types, its input converted up to the current version, and its
+  output or modelled error converted back. The generated `versions` module
+  holds each older release and the `ApiVersion` constants;
+  `Context::api_version()` is the version a request is served at.
+  `Builder::api_version(Unversioned)` settles a request without a version:
+  the oldest supported (the default), a resolver's choice, or refused.
+  Responses echo the version, with a `Sunset` header when its migration
+  declares a `sunset`. MCP tool calls and direct invocations are served at
+  the current version. Operations with a stream are served at the current
+  version only. An `add ..
+  downgrade` step must fill every member the older error requires.
+- Migration hooks (docs/api-versions.md#hooks): `reshape`, `retype` and
+  `require .. by hook` steps and `remove operation` generate a
+  `versions::<older>::Migration` trait per migration, whose methods convert
+  a value across that migration (`by async hook` for one that does I/O) or
+  serve a removed operation at the versions that had it.
+  `operations(implementation)` requires every migration's trait; a split
+  builder registers them with `<older>_migration(..)` or `migrations(..)`,
+  and `build()` names a missing hook. A `retype` without `by hook` is
+  reported until declared `conversion`s are generated.
 - Declared migrations: a breaking change against the baseline compiles when
   `migration "<new>" from "<baseline version>"` declares it with `rename`,
   `require`, `add`, `move`, `reshape`, `retype` or `remove operation`, and

@@ -399,8 +399,30 @@ fn wire(service: &Service, op: &Operation) -> String {
 
 fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
     let cors = service.cors.as_ref().map_or_else(|| "None".to_owned(), |cors| {
-        let list = |values: &[String]| values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ");
-        format!("Some(&::crucible_server_runtime_rust::__generated::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})", literal(&cors.origin), cors.max_age, cors.allow_credentials, list(&cors.allowed_headers), list(&cors.allowed_header_prefixes), list(&cors.exposed_headers), list(&cors.methods))
+        // Older versions' requests carry their own headers and methods, and
+        // a browser client names its version and reads the echoed one.
+        let merged = |pick: fn(&crucible_smithy::ir::Cors) -> &Vec<String>, extra: &[&str]| {
+            let mut values: std::collections::BTreeSet<String> = pick(cors).iter().cloned().collect();
+            if !service.versions.is_empty() {
+                for version in &service.versions {
+                    if let Some(older) = &version.service.cors {
+                        values.extend(pick(older).iter().cloned());
+                    }
+                }
+                values.extend(extra.iter().map(|value| (*value).to_owned()));
+            }
+            values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ")
+        };
+        format!(
+            "Some(&::crucible_server_runtime_rust::__generated::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})",
+            literal(&cors.origin),
+            cors.max_age,
+            cors.allow_credentials,
+            merged(|cors| &cors.allowed_headers, &["crucible-version"]),
+            merged(|cors| &cors.allowed_header_prefixes, &[]),
+            merged(|cors| &cors.exposed_headers, &["crucible-version", "sunset"]),
+            merged(|cors| &cors.methods, &[]),
+        )
     });
     let operations: Vec<String> = service
         .operations
@@ -456,18 +478,28 @@ fn registration(service: &Service) -> String {
     out.push_str(
         "    pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::Operations, ::crucible_server_runtime_rust::__generated::MissingOperations> {\n        self.0.build()\n    }\n}\n\n",
     );
-    out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))\n}\n\n");
-    let bounds: Vec<String> = service
+    if service.versions.is_empty() {
+        out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))\n}\n\n");
+    } else {
+        // The older versions are served by the same implementations.
+        out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(versions::register(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE)))\n}\n\n");
+    }
+    let mut bounds: Vec<String> = service
         .operations
         .iter()
         .map(|op| format!("{}Operation", op.name()))
         .collect();
-    let calls: String = service
+    let mut calls: String = service
         .operations
         .iter()
         .map(|op| format!("\n        .{}(implementation.clone())", function(op.name())))
         .collect();
-    let implementation = if service.operations.is_empty() {
+    // Older versions' hooks, for a model with migrations that need them.
+    if !service.versions.is_empty() {
+        bounds.push("versions::Migrations".to_owned());
+        calls.push_str("\n        .migrations(implementation.clone())");
+    }
+    let implementation = if service.operations.is_empty() && service.versions.is_empty() {
         "_implementation"
     } else {
         "implementation"

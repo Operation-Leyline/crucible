@@ -65,6 +65,7 @@ pub mod protocol;
 mod resolution;
 mod scoped;
 pub mod service;
+pub mod versioning;
 
 // What the server shares with clients lives in crucible-wire, re-exported
 // at the paths generated code names.
@@ -101,6 +102,7 @@ pub use protocol::{
 pub use resolution::Resolution;
 pub use scoped::{InterceptorExt, OperationMiddlewareExt, ProtocolExt, Scoped};
 pub use service::{BuildError, Builder, Crucible, Endpoint, RequestIdSource};
+pub use versioning::{ApiVersion, Unversioned};
 
 /// `#[crucible_server_runtime_rust::async_trait]` for implementing [`AsyncMiddleware`] and
 /// `TypedInterceptor` with `async fn`.
@@ -117,7 +119,7 @@ pub mod __generated {
     pub use crate::generated_operations_builder::OperationsBuilder;
     pub use crate::{
         Context, Crucible, MissingOperations, ModelledError, Operation, OperationInfo, Operations,
-        Result, ServiceInfo, WithContext, mcp, operations,
+        Result, ServiceInfo, WithContext, mcp, operations, versioning,
     };
     pub use __crucible_check_abi as check_abi;
     pub use crucible_wire::__generated::{error_info, member_info, operation_info, service_info};

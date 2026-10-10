@@ -21,5 +21,7 @@ serde_json = { workspace = true, features = ["preserve_order"] }
 workspace = true
 
 [dev-dependencies]
+# Older API versions come from `.cru` packages (docs/api-versions.md).
+crucible-lang = { path = "../crucible-lang" }
 tempfile = "3"
 toml = "0.8"

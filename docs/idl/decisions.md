@@ -744,8 +744,10 @@ pass in `reports/`.
 52. *(Implemented for the compile-time check: a migration from the
     baseline's version must declare every breaking change, and each step
     must match one; see [api-policy.md](../api-policy.md). The baseline is
-    a frozen copy of the sources. Runtime transforms, decisions 53-59, are
-    not built yet.)* **The source is always the latest model; history is a chain of frozen
+    a frozen copy of the sources. Decisions 53-56 are built for Rust
+    services, with the version carried in a header (57); see
+    [api-versions.md](../api-versions.md). Declared `conversion`s, client
+    versions (57, 57a) and example replay (59) are not built yet.)* **The source is always the latest model; history is a chain of frozen
     artifacts plus declared changes.** Each released version's compiled
     artifact is checked in under `releases/` and never edited. A
     `migration "2026-11-01" from "2026-09-04" { .. }` block declares how to
@@ -862,9 +864,10 @@ pass in `reports/`.
     version is a different API with its own resources.
 
 59. **Versions have a declared support window.** `sunset "2028-11-01"`
-    in a migration makes the server send `Deprecation` and `Sunset`
-    headers to callers at that version, and refuse after the date if the
-    service's policy says so. A standards rule can bound the number of
+    in a migration makes the server send a `Sunset` header (RFC 8594) to
+    callers at that version (a `Deprecation` header needs a deprecation
+    date the model does not record yet), and refuse after the date if the
+    service's policy says so (not built yet). A standards rule can bound the number of
     supported versions or the minimum window. Every frozen version's
     examples and protocol test vectors run against the server through its
     transform chain as generated regression tests. *Why:* without sunset

@@ -20,6 +20,7 @@ use crate::operation::{Operation, OperationInfo};
 use crate::operations::Operations;
 use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch};
 use crate::validate::Rejection;
+use crate::versioning::{self, Unversioned};
 use crate::{
     DecodedJob, ExceptionTranslator, Interceptor, Job, Middleware, OperationAwareMiddleware,
     OperationJob, Outcome, Prepare,
@@ -94,6 +95,7 @@ struct Inner {
     reject: Reject,
     body_limit: usize,
     request_id: Option<RequestIdSource>,
+    unversioned: Unversioned,
 }
 
 impl Crucible {
@@ -110,6 +112,7 @@ impl Crucible {
             body_limit: DEFAULT_BODY_LIMIT,
             body_limits: Vec::new(),
             request_id: None,
+            unversioned: Unversioned::default(),
         }
     }
 
@@ -209,6 +212,9 @@ impl Crucible {
             decode_events: None,
             input: None,
             outcome: None,
+            downgrade: None,
+            downgrade_error: None,
+            errors: None,
             error_revision: 0,
             response_headers: Default::default(),
             wants_snapshot: false,
@@ -270,6 +276,41 @@ impl Crucible {
                     reject: &*inner.reject,
                     internal: inner.operations.service.internal,
                     unknown: inner.operations.service.unknown,
+                };
+                // An older version's client gets its version's output or
+                // error. The conversion may call the service's hooks, so a
+                // panic in one fails the request as any handler's would.
+                if let Some(downgrade) = job.downgrade.clone()
+                    && let Some(Outcome::Output(_)) = &job.outcome
+                {
+                    let Some(Outcome::Output(output)) = job.outcome.take() else {
+                        unreachable!("checked above");
+                    };
+                    let mut converted = None;
+                    let recovered = recover_async(async {
+                        converted = Some(downgrade(output).await);
+                    })
+                    .await;
+                    job.outcome = Some(match (recovered, converted) {
+                        (Ok(()), Some(Ok(output))) => Outcome::Output(output),
+                        (Ok(()), Some(Err(error))) | (Err(error), _) => Outcome::Failed(error),
+                        (Ok(()), None) => Outcome::Failed(Error::internal(
+                            "the output's conversion to its API version did not finish",
+                        )),
+                    });
+                }
+                // A hook's failure meets the exception rules, as a handler's
+                // does; the after phases have already seen the current
+                // version's outcome.
+                self.translate(&mut job, &mut translated);
+                job.outcome = match job.outcome.take() {
+                    Some(Outcome::Failed(error)) => {
+                        Some(Outcome::Failed(match &job.downgrade_error {
+                            Some(downgrade) => downgrade(error),
+                            None => error,
+                        }))
+                    }
+                    other => other,
                 };
                 let mut response = match job.outcome.take() {
                     Some(Outcome::Answered(response)) => response,
@@ -410,6 +451,77 @@ impl Crucible {
         }
     }
 
+    /// Settles the request's API version and returns the operations that
+    /// serve it: the current table, or an older version's. A service whose
+    /// model has no migrations has one version and skips this.
+    fn version<'a>(&'a self, job: &mut Job) -> crate::Result<&'a Operations> {
+        let operations = &self.inner.operations;
+        let versions = &operations.versions;
+        let Some(current) = versions.current else {
+            return Ok(operations);
+        };
+        if self
+            .inner
+            .protocols
+            .iter()
+            .any(|protocol| protocol.current_version_only(job.request()))
+        {
+            job.context.select_api_version(current);
+            job.response_headers
+                .insert(versioning::VERSION_HEADER, current.header());
+            return Ok(operations);
+        }
+        // `None` is the current version.
+        let pick = |name: &str| -> crate::Result<Option<&'a crate::operations::OlderVersion>> {
+            if name == current.name() {
+                return Ok(None);
+            }
+            versions
+                .older
+                .iter()
+                .find(|older| older.version.name() == name)
+                .map(Some)
+                .ok_or_else(|| versioning::unsupported(name, &versions.supported()).into())
+        };
+        let header = job
+            .request()
+            .headers
+            .get(versioning::VERSION_HEADER)
+            .map(|value| value.to_str().unwrap_or_default().trim());
+        let older = match header {
+            Some(name) => pick(name)?,
+            None => match &self.inner.unversioned {
+                // No version, and none chosen: the oldest supported.
+                Unversioned::Oldest => versions.older.first(),
+                Unversioned::Required => {
+                    return Err(versioning::missing(&versions.supported()).into());
+                }
+                Unversioned::Resolve(resolver) => match resolver(job.request()) {
+                    Some(name) => pick(&name)?,
+                    None => versions.older.first(),
+                },
+            },
+        };
+        let (version, table) = match older {
+            Some(older) => {
+                if let Some(sunset) = &older.sunset {
+                    job.response_headers.insert("sunset", sunset.clone());
+                }
+                (older.version, &older.operations)
+            }
+            None => (current, operations),
+        };
+        job.context.select_api_version(version);
+        job.response_headers
+            .insert(versioning::VERSION_HEADER, version.header());
+        // A cache keeps one response per version.
+        job.response_headers.append(
+            axum::http::header::VARY,
+            HeaderValue::from_static(versioning::VERSION_HEADER),
+        );
+        Ok(table)
+    }
+
     fn translate(&self, job: &mut Job, translated: &mut Option<u64>) {
         if matches!(job.outcome, Some(Outcome::Failed(_)))
             && *translated != Some(job.error_revision)
@@ -453,9 +565,19 @@ impl Crucible {
         }
         job.input = None;
         *selected = inner.fallback;
+        let operations = match self.version(job) {
+            Ok(operations) => operations,
+            Err(error) => {
+                // Refused in the envelope of the protocol the request is for.
+                if let Some(owner) = inner.protocols.iter().position(|p| p.owns(job.request())) {
+                    *selected = owner;
+                }
+                return Err(error);
+            }
+        };
         let mut route = None;
         for (index, protocol) in inner.protocols.iter().enumerate() {
-            match protocol.identify(job, &inner.operations).resolve().await {
+            match protocol.identify(job, operations).resolve().await {
                 Ok(ProtocolMatch::Declined) => {}
                 Ok(ProtocolMatch::Claimed(found)) => {
                     *selected = index;
@@ -472,10 +594,12 @@ impl Crucible {
             return Ok(());
         }
         let route = route.ok_or(FrameworkError::UnknownOperation)?;
-        let entry = inner
-            .operations
+        let entry = operations
             .entry(route.operation)
             .ok_or_else(|| Error::internal("protocol selected an unregistered operation"))?;
+        job.downgrade = entry.downgrade.clone();
+        job.downgrade_error = entry.downgrade_error.clone();
+        job.errors = entry.errors;
         job.context.select_operation(entry.info);
         job.context.select_metadata(entry.metadata);
         job.labels = route.labels;
@@ -507,6 +631,16 @@ impl Crucible {
         if job.input.is_none() {
             return Err(Error::internal("protocol did not decode an input"));
         }
+        // An older version's input, read as the current one: interceptors
+        // and the implementation see only current types.
+        if let Some(upgrade) = &entry.upgrade {
+            let input = job.input.take().expect("decoded input checked");
+            // Logged as the client sent it, which the operation's
+            // redactions describe; kept even before anything asks, since an
+            // interceptor may ask after the input became the current one's.
+            job.input_snapshot = Some(input.to_json());
+            job.input = Some(upgrade(input).await?);
+        }
         entered.decoded = true;
         for interceptor in &inner.interceptors {
             interceptor
@@ -518,7 +652,7 @@ impl Crucible {
                 return Ok(());
             }
         }
-        if job.wants_snapshot {
+        if job.wants_snapshot && entry.upgrade.is_none() {
             job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
         }
         let input = job.input.take().expect("decoded input checked");
@@ -574,6 +708,7 @@ pub struct Builder {
     body_limit: usize,
     body_limits: Vec<BodyLimit>,
     request_id: Option<RequestIdSource>,
+    unversioned: Unversioned,
 }
 
 type BodyLimit = Box<dyn Fn(&OperationInfo) -> Option<usize> + Send + Sync>;
@@ -648,10 +783,25 @@ impl Builder {
         use crate::protocol::{
             AwsJsonProtocol, RestJsonProtocol, RpcV2CborProtocol, RpcV2JsonProtocol,
         };
+        // Older API versions' operations too: one a later version removed
+        // is still served at the versions that had it.
+        let entries: Vec<(crate::operation::Protocol, &'static str)> = self
+            .operations
+            .entries
+            .values()
+            .chain(
+                self.operations
+                    .versions
+                    .older
+                    .iter()
+                    .flat_map(|older| older.operations.entries.values()),
+            )
+            .map(|entry| (entry.metadata.protocol, entry.info.name))
+            .collect();
         let mut formats = Vec::new();
-        for entry in self.operations.entries.values() {
-            if !formats.contains(&entry.metadata.protocol) {
-                formats.push(entry.metadata.protocol);
+        for (protocol, _) in &entries {
+            if !formats.contains(protocol) {
+                formats.push(*protocol);
             }
         }
         if formats.is_empty() {
@@ -660,13 +810,12 @@ impl Builder {
         use crate::ProtocolExt;
         let mut builder = self.middleware(ServiceLog::errors_only());
         for format in formats {
-            let names: Vec<_> = builder
-                .operations
-                .entries
-                .values()
-                .filter(|entry| entry.metadata.protocol == format)
-                .map(|entry| entry.info.name)
+            let mut names: Vec<_> = entries
+                .iter()
+                .filter(|(protocol, _)| *protocol == format)
+                .map(|(_, name)| *name)
                 .collect();
+            names.dedup();
             builder = match format {
                 Wire::CrucibleJson => builder.protocol(JsonProtocol.only(&names)),
                 Wire::AwsRestJson1 => builder.protocol(RestJsonProtocol.only(&names)),
@@ -728,6 +877,14 @@ impl Builder {
         self
     }
 
+    /// How a request that names no API version is served, for a model with
+    /// migrations: at the oldest supported version (the default), refused
+    /// (`Unversioned::Required`), or at the version a resolver chooses.
+    pub fn api_version(mut self, unversioned: Unversioned) -> Self {
+        self.unversioned = unversioned;
+        self
+    }
+
     /// The largest request body any operation reads. Admission extensions run
     /// before buffering; the selected protocol rejects larger buffered bodies
     /// as a validation error. Streaming bodies enforce the limit while read.
@@ -785,12 +942,19 @@ impl Builder {
             (None, Some(generated)) => Arc::new(generated) as Reject,
             (None, None) => return Err(BuildError::NoRejection),
         };
-        for entry in self.operations.entries.values_mut() {
-            entry.body_limit = self
-                .body_limits
+        let body_limit = |info| {
+            self.body_limits
                 .iter()
                 .rev()
-                .find_map(|limits| limits(entry.info));
+                .find_map(|limits| limits(info))
+        };
+        for entry in self.operations.entries.values_mut() {
+            entry.body_limit = body_limit(entry.info);
+        }
+        for older in &mut self.operations.versions.older {
+            for entry in older.operations.entries.values_mut() {
+                entry.body_limit = body_limit(entry.info);
+            }
         }
         let fallback = self
             .protocols
@@ -810,6 +974,7 @@ impl Builder {
                 reject,
                 body_limit: self.body_limit,
                 request_id: self.request_id,
+                unversioned: self.unversioned,
             }),
             endpoint: None,
         };

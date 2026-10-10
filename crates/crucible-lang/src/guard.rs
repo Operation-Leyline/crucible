@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 use crucible_policy::{Config, Finding, Severity};
 use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{ApiVersion, Operation, Service, Shape, VersionStep};
+use crucible_smithy::ir::{ApiVersion, Hook, Operation, Service, Shape, VersionStep};
 use serde_json::Value as Json;
 
 use crate::ast::{Decl, Dotted, Ident, Key, Migration, RequireHow, StepKind, Value};
@@ -292,6 +292,21 @@ impl Context<'_> {
         ShapeId::new(self.namespace, name)
     }
 
+    /// The shape `name` in `service`: the package's own, else an imported
+    /// one, such as `crucible.errors#ValidationException`.
+    fn named(&self, service: &Service, name: &str) -> ShapeId {
+        let own = self.id(name);
+        if service.shapes.contains_key(&own) {
+            return own;
+        }
+        service
+            .shapes
+            .keys()
+            .find(|id| id.name() == name)
+            .cloned()
+            .unwrap_or(own)
+    }
+
     /// `Shape`, `Shape.member`, `Op.input`, `Op.output.member`, resolved in
     /// `service`: operations' inputs and outputs are their structures.
     fn resolve(&self, service: &Service, path: &Dotted) -> Option<Target> {
@@ -416,7 +431,7 @@ impl Context<'_> {
                 path,
                 name,
                 downgrade,
-                ..
+                mapping,
             } => match name {
                 // `add Op.errors NewError downgrade OldError { .. }`
                 Some(error_name) => {
@@ -438,11 +453,66 @@ impl Context<'_> {
                             format!("{} was not added to {op_name}'s errors", error_name.name),
                         ));
                     }
-                    if !old_op.errors.iter().any(|e| e.name() == downgrade.name) {
+                    let Some(older) = old_op.errors.iter().find(|e| e.name() == downgrade.name)
+                    else {
                         return Err(error(
                             downgrade.span,
                             format!("{op_name} had no error {} in the baseline", downgrade.name),
                         ));
+                    };
+                    // Older clients get the downgrade error built from the
+                    // new one's members: it needs every member it requires.
+                    let newer = new_op.errors.iter().find(|e| e.name() == added.name());
+                    if let (Some(Shape::Structure(older)), Some(Shape::Structure(newer))) = (
+                        self.old.shapes.get(older),
+                        newer.and_then(|id| self.new.shapes.get(id)),
+                    ) {
+                        for (to, from) in mapping {
+                            if let (Some(target), Some(source)) =
+                                (older.member(&to.name), newer.member(&from.name))
+                                && target.required
+                                && target.default.is_none()
+                                && !(source.required || source.default.is_some())
+                            {
+                                return Err(error(
+                                    from.span,
+                                    format!(
+                                        "`{}` is optional on {}, but {} requires `{}`",
+                                        from.name, error_name.name, downgrade.name, to.name
+                                    ),
+                                ));
+                            }
+                            if older.member(&to.name).is_none() {
+                                return Err(error(
+                                    to.span,
+                                    format!("{} has no member `{}`", downgrade.name, to.name),
+                                ));
+                            }
+                            if newer.member(&from.name).is_none() {
+                                return Err(error(
+                                    from.span,
+                                    format!("{} has no member `{}`", error_name.name, from.name),
+                                ));
+                            }
+                        }
+                        let unfilled: Vec<&str> = older
+                            .members
+                            .iter()
+                            .filter(|member| member.required && member.default.is_none())
+                            .filter(|member| !mapping.iter().any(|(to, _)| to.name == member.name))
+                            .map(|member| member.name.as_str())
+                            .collect();
+                        if !unfilled.is_empty() {
+                            return Err(error(
+                                downgrade.span,
+                                format!(
+                                    "{} requires `{}`, which this step does not fill from {}",
+                                    downgrade.name,
+                                    unfilled.join("`, `"),
+                                    error_name.name
+                                ),
+                            ));
+                        }
                     }
                     Ok(vec![
                         Cover::exact(old_op.id.clone(), ERROR),
@@ -566,6 +636,15 @@ impl Context<'_> {
                         .cloned()
                         .map(|io| Cover::within(io, ANY)),
                 );
+                // Errors only the removed operation used go with it.
+                covers.extend(
+                    old_op
+                        .errors
+                        .iter()
+                        .filter(|error| !self.new.shapes.contains_key(*error))
+                        .cloned()
+                        .map(|error| Cover::within(error, ANY)),
+                );
                 Ok(covers)
             }
             StepKind::Retype { path, to, .. } => {
@@ -652,8 +731,31 @@ fn dotted(path: &Dotted) -> String {
 
 fn is_date(text: &str) -> bool {
     let parts: Vec<&str> = text.split('-').collect();
-    matches!(parts.as_slice(), [y, m, d] if y.len() == 4 && m.len() == 2 && d.len() == 2
-        && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit())))
+    let [y, m, d] = parts.as_slice() else {
+        return false;
+    };
+    if y.len() != 4
+        || m.len() != 2
+        || d.len() != 2
+        || !parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return false;
+    }
+    // A date that exists: the `Sunset` header carries it.
+    let (year, month, day): (u32, u32, u32) = (
+        y.parse().unwrap_or(0),
+        m.parse().unwrap_or(0),
+        d.parse().unwrap_or(0),
+    );
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
 }
 
 /// The older versions `compiled` still serves, oldest first: the chain of
@@ -791,7 +893,13 @@ fn operations_reaching(service: &Service, shape: &ShapeId) -> Vec<ShapeId> {
     service
         .operations
         .iter()
-        .filter(|op| op.input.iter().chain(&op.output).any(&reaches))
+        .filter(|op| {
+            op.input
+                .iter()
+                .chain(&op.output)
+                .chain(&op.errors)
+                .any(&reaches)
+        })
         .map(|op| op.id.clone())
         .collect()
 }
@@ -819,7 +927,7 @@ impl Context<'_> {
                 }
             }
             StepKind::Require { path, how } => {
-                let (_, new) = self.both(path)?;
+                let (old, new) = self.both(path)?;
                 let member = new.member.clone().unwrap_or_default();
                 match how {
                     RequireHow::Default(value) => {
@@ -841,9 +949,16 @@ impl Context<'_> {
                             default,
                         }
                     }
-                    RequireHow::Hook(_) => VersionStep::Hooked {
+                    RequireHow::Hook(hook) => VersionStep::Hooked {
                         kind: "require".into(),
-                        operations: op_id(&first(path), self.new).into_iter().collect(),
+                        // `Op.input.m` or `Shape.m`: every operation it reaches.
+                        operations: operations_reaching(self.new, &new.shape),
+                        hook: Hook::Require {
+                            old: old.shape,
+                            new: new.shape,
+                            member,
+                        },
+                        is_async: hook.is_async,
                     },
                 }
             }
@@ -854,8 +969,15 @@ impl Context<'_> {
                 mapping,
             } => VersionStep::AddError {
                 operation: op_id(&first(path), self.new).unwrap_or_else(|| self.id(&first(path))),
-                error: self.id(&error.name),
-                downgrade: self.id(&downgrade.name),
+                // The errors the step checked: the operation's own, by name.
+                error: operation(self.new, &first(path))
+                    .and_then(|op| op.errors.iter().find(|e| e.name() == error.name))
+                    .cloned()
+                    .unwrap_or_else(|| self.named(self.new, &error.name)),
+                downgrade: operation(self.old, &first(path))
+                    .and_then(|op| op.errors.iter().find(|e| e.name() == downgrade.name))
+                    .cloned()
+                    .unwrap_or_else(|| self.named(self.old, &downgrade.name)),
                 members: mapping
                     .iter()
                     .map(|(old, new)| (old.name.clone(), new.name.clone()))
@@ -878,21 +1000,44 @@ impl Context<'_> {
                 operation: op_id(&operation.name, self.new)
                     .unwrap_or_else(|| self.id(&operation.name)),
             },
-            StepKind::Reshape { path, .. } | StepKind::Retype { path, .. } => {
-                let (_, new) = self.both(path)?;
+            StepKind::Reshape { path, hook, .. } => {
+                let (old, new) = self.both(path)?;
                 VersionStep::Hooked {
-                    kind: if matches!(step, StepKind::Reshape { .. }) {
-                        "reshape".into()
-                    } else {
-                        "retype".into()
-                    },
+                    kind: "reshape".into(),
                     operations: operations_reaching(self.new, &new.shape),
+                    hook: Hook::Reshape {
+                        old: old.shape,
+                        new: new.shape,
+                    },
+                    is_async: hook.is_async,
                 }
             }
-            StepKind::RemoveOperation(name) => VersionStep::Hooked {
-                kind: "remove operation".into(),
-                operations: op_id(&name.name, self.old).into_iter().collect(),
-            },
+            StepKind::Retype { path, hook, .. } => {
+                let (old, new) = self.both(path)?;
+                VersionStep::Hooked {
+                    kind: "retype".into(),
+                    operations: operations_reaching(self.new, &new.shape),
+                    hook: match hook {
+                        Some(_) => Hook::Retype {
+                            member: new.member.clone().unwrap_or_default(),
+                            old: old.shape,
+                            new: new.shape,
+                        },
+                        None => Hook::Conversion,
+                    },
+                    is_async: hook.is_some_and(|hook| hook.is_async),
+                }
+            }
+            StepKind::RemoveOperation(name) => {
+                let operation = op_id(&name.name, self.old).unwrap_or_else(|| self.id(&name.name));
+                VersionStep::Hooked {
+                    kind: "remove operation".into(),
+                    operations: vec![operation.clone()],
+                    hook: Hook::RemoveOperation { operation },
+                    // A handler may always do I/O.
+                    is_async: true,
+                }
+            }
             StepKind::Behavior(path) => VersionStep::Behavior {
                 operation: op_id(&first(path), self.new).unwrap_or_else(|| self.id(&first(path))),
                 name: path

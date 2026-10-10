@@ -77,7 +77,11 @@ impl Protocol for AwsJsonProtocol {
             {
                 return Ok(ProtocolMatch::Claimed(None));
             }
-            let Some(op) = operations.service().operation(operation) else {
+            let Some(op) = operations
+                .service()
+                .operation(operation)
+                .filter(|op| operations.entry(op.name).is_some())
+            else {
                 return Ok(ProtocolMatch::Claimed(None));
             };
             if !applies(op) {

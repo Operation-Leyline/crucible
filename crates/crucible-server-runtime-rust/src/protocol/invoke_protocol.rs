@@ -28,6 +28,10 @@ pub struct Invocation {
 pub struct InvokeProtocol;
 
 impl Protocol for InvokeProtocol {
+    // An invocation carries no version: its caller holds the current model.
+    fn current_version_only(&self, request: &Parts) -> bool {
+        request.extensions.get::<Invocation>().is_some()
+    }
     fn route(&self, request: &Parts, operations: &Operations) -> Option<Route> {
         let invocation = request.extensions.get::<Invocation>()?;
         let entry = operations.entry(&invocation.operation)?;

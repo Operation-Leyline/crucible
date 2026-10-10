@@ -43,6 +43,7 @@ service's entry points for registering implementations.
 | Local API explorer (optional `explorer` feature) | `explorer` |
 | Error normalization | `exception_translator`, `on_rejection` |
 | Hosting integration | `tower_layer`, `request_id` |
+| API versions ([docs](api-versions.md)) | `api_version` |
 | Request limits | `body_limit`, `operation_body_limit`, `body_limits` |
 | Construction | `build` |
 
@@ -75,7 +76,9 @@ adapt application functions and typed interceptors.
 pipeline phases. Use their methods to inspect headers, body, context, operation,
 input, and outcome, or to reject and respond. Their private construction and
 phase transitions belong to the runtime. `Context`, `WithContext`, `RequestMeta`,
-`Resolution`, `Outcome`, and `OperationMetadata` support these views.
+`Resolution`, `Outcome`, and `OperationMetadata` support these views. `ApiVersion` and
+`Unversioned` (from `versioning`) name a request's API version; the rest of
+`versioning` is generated-code support.
 See [the framework pipeline](framework.md#the-request-pipeline) for phase and
 unwind guarantees.
 

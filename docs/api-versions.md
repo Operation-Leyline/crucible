@@ -1,6 +1,6 @@
 # Serving older API versions
 
-**Status: accepted design for migrations phase 3** (decisions below). Phases 1 and 2 are built:
+**Status: built for Rust services, migrations phases 3 and 4** (decisions below). Phases 1 and 2 are built:
 a `.cru` package names its last release in `[model.baseline]`, and a
 breaking change compiles only when `migration "<new>" from "<old>"`
 declares it, each step checked against what changed
@@ -19,9 +19,10 @@ decisions 53-59 in [idl/decisions.md](idl/decisions.md) set out.
   constants.
 - Requests at the latest version take the path they take today.
 
-Not in phase 3: the hooked steps (`by hook`, `reshape`, `retype`,
-`remove operation`'s legacy handler) are phase 4; generated clients sending
-their version, per-version SDK lines and upgrade guides are phase 5.
+Phase 4 adds the hooked steps (`by hook`, `reshape`, `retype`,
+`remove operation`'s legacy handler): typed functions the service writes
+([Hooks](#hooks)). Generated clients sending their version, per-version
+SDK lines and upgrade guides are phase 5.
 
 ## Versions
 
@@ -44,7 +45,9 @@ has passed.
 The version travels in a request header, `Crucible-Version`, for every HTTP
 protocol. Other carriers, such as a field of an invoke envelope, come with
 the protocol declaration (decision 57). The response echoes the version it
-was served at.
+was served at. MCP tool calls and direct invocations (`Crucible::invoke`,
+Lambda direct invokes) are served at the current version: their callers
+are built from the current model.
 
 | Request | Served at |
 |---|---|
@@ -52,7 +55,10 @@ was served at.
 | The current version | The current version: no conversion |
 | No version | As the builder says (below) |
 | An unknown version | Refused with `400`, the service's validation error naming the supported versions |
-| A version with a `sunset` | Served, with `Deprecation: true` and `Sunset: <date>` headers |
+| A version with a `sunset` | Served, with a `Sunset: <date>` header (RFC 8594) |
+
+Versioned responses carry `Vary: Crucible-Version`. With `@cors`, browsers
+may send `Crucible-Version` and read `Crucible-Version` and `Sunset`.
 
 A request with no version is settled by `Builder::api_version`:
 
@@ -150,19 +156,63 @@ Host
 | `add Op.errors E downgrade F { x <- y }` | nothing | error `E` becomes `F`, its members mapped |
 | `move Op from METHOD "/old"` | old route routes to `Op` | nothing |
 | `behavior Op.x` | nothing | nothing; the handler branches |
-| A hooked step | phase 4 | phase 4 |
+| `reshape S { .. } -> m by hook` | the service's `upgrade_s` | the service's `downgrade_s` |
+| `retype S.m -> T by hook` | the service's `upgrade_s_m`, on the member | the service's `downgrade_s_m`, on the member |
+| `require S.m by hook` | absent `m` becomes the service's `require_s_m` of the request | nothing |
+| `remove operation Op` | the service's legacy `op` handler serves it | the legacy handler answers in its own version's shapes |
 
 A step that appears in an operation's input or output only converts the
 direction it is needed in, as the compiler knows from the IR.
 
-## Until phase 4
+## Hooks
 
-An old version whose chain contains a hooked step for an operation cannot
-convert that operation yet. That operation is not routed at that version,
-so it is answered as any request no operation matches (`404`, `405`, or
-the service's unknown-operation error), and the build warns; the version's
-other operations are served. Operations with a streaming payload or an
-event stream are served at the current version only, the same way.
+A step the framework cannot write itself (decision 54) becomes a method of
+a generated trait the service implements: `versions::<older>::Migration`,
+one per migration, holding the hooks of the migration from that version to
+the next. `operations(implementation)` requires every migration's trait,
+so a missing hook is a compile error; a split builder registers each with
+`.<older>_migration(implementation)` (or all with `.migrations(..)`), and
+`build()` names any hook left out, as it names a missing operation.
+
+```rust
+impl versions::v2::Migration for Shop {
+    // reshape GetItem.output { title, size } -> label by hook
+    fn downgrade_get_item_output(&self, output: GetItemOutput) -> Result<v2::GetItemOutput> { .. }
+    // retype DeleteItem.output.deleted -> string by hook
+    fn downgrade_delete_item_output_deleted(&self, deleted: String) -> Result<bool> { .. }
+    // remove operation CountItems
+    async fn count_items(&self) -> Result<v2::CountItemsOutput> { .. }
+}
+
+impl versions::v1::Migration for Shop {
+    // require ListItems.input.sort by async hook
+    async fn require_list_items_input_sort(&self, request: v1::ListItemsInput) -> Result<String> { .. }
+}
+```
+
+- **Typed both ways.** A hook takes the older version's type and returns
+  the next version's (an upgrade), or the reverse (a downgrade). Only the
+  directions the model uses are generated: a structure only in outputs has
+  no upgrade hook.
+- **`by hook` or `by async hook`.** A plain hook is a function; an async
+  one returns a future, for a conversion that reads other state, such as
+  the account's saved preference. A legacy handler is always async.
+- **A hook owns its value.** A `reshape` hook converts the whole
+  structure, including what other steps of the same migration change
+  inside it (a renamed member, a new enum value): the types make it
+  explicit. The automatic steps still apply everywhere else.
+- **Composes with the chain.** Each hook converts across one migration; a
+  request two versions back runs both migrations' conversions, hooks and
+  automatic steps alike, in order.
+- **A removed operation keeps one handler.** `remove operation Op` makes
+  the handler of the last version that had `Op` part of that migration's
+  trait. It takes and returns that version's types; older versions reach
+  it through the chain. It answers with its own release's errors.
+
+Operations with a streaming payload or an event stream are served at the
+current version only: they are not routed at older versions, so a request
+there is answered as any request no operation matches (`404`, `405`, or
+the service's unknown-operation error).
 
 What the generator cannot convert is a diagnostic against the shape, not a
 silent skip: a member inside a recursive shape, and a member renamed inside
@@ -172,11 +222,35 @@ downgrade never fails at run time for a missing member.
 
 ## Testing
 
-Each frozen release's examples run against the server at its version
-through the conversion chain, as generated tests (decision 59): an old
-client's documented request still gets its documented response. The e2e
-weather service gains a second version to exercise routing, conversion
-and refusal over HTTP.
+The e2e service serves a three-release model (`e2e/weather-service/versioned`)
+over HTTP: routing, every automatic step, every hook, a removed
+operation, error downgrades and the unversioned modes
+(`tests/api_versions.rs`). Not built yet: running each frozen release's
+examples against the server at its version as generated tests
+(decision 59).
+
+## Limits
+
+- **Strictness at older versions.** A structure an older release's
+  outputs or errors also reach does not refuse unknown members when an
+  older request carries one: it must read responses that gained members
+  since. One only inputs reach stays as strict as the release was.
+- **Older versions are their frozen releases.** A request at an older
+  version is read and answered with that release's types, so what was
+  added since (an operation, an optional member) is not visible at it.
+  Decision 51 has additive changes reach every version; that needs each
+  version's types generated from the current model as seen at it
+  (decision 57a), not from the frozen release.
+- **Auth is the release's.** An older version's operations carry the
+  auth and scopes their release declared. A tightened requirement is a
+  breaking change the guard reports, which no migration step declares.
+- **Not converted, and reported:** a member inside a recursive shape; a
+  renamed member, reshaped or retyped structure, or added enum value
+  inside an error; an enum that keys a map; `add .. downgrade` on a union
+  or intEnum; a member with its own wire encoding converted by a hook.
+- **The explorer** cannot yet be generated from a `.cru` package, the
+  only kind with versions; when it can, its requests will need to name
+  the current version.
 
 ## Decisions
 
@@ -188,6 +262,7 @@ and refusal over HTTP.
    transition.
 2. **Version names** are the service's `version` clause, checked against
    the newest migration.
-3. **Hooked steps before phase 4** leave that operation unrouted at the old
-   version, with a build warning.
+3. **Hooks** are typed trait methods, one trait per migration, required by
+   `operations(..)`; a hook converts one value across one migration and
+   owns everything inside it.
 4. **Clients** send their version in phase 5, all generators together.

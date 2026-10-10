@@ -46,6 +46,42 @@ pub(crate) struct Entry {
     /// This operation's body limit when the builder chose one; `None` keeps
     /// the service-wide limit. Settled at build, not looked up per request.
     pub body_limit: Option<usize>,
+    /// At an older API version: the decoded input read as the current
+    /// version's, and the outcome read back as this version's.
+    pub upgrade: Option<crate::versioning::Upgrade>,
+    pub downgrade: Option<crate::versioning::Downgrade>,
+    pub downgrade_error: Option<crate::versioning::DowngradeError>,
+    /// The older release whose errors a legacy handler returns, beside the
+    /// current model's.
+    pub errors: Option<&'static crate::operation::ServiceInfo>,
+}
+
+/// An older API version's operations: its routes and decoders, each served
+/// by the current implementation through its conversions.
+pub(crate) struct OlderVersion {
+    pub version: crate::versioning::ApiVersion,
+    /// The `Sunset` header its responses carry.
+    pub sunset: Option<axum::http::HeaderValue>,
+    pub operations: Operations,
+}
+
+/// The API versions a service serves, when its model has migrations.
+#[derive(Default)]
+pub(crate) struct Versions {
+    pub current: Option<crate::versioning::ApiVersion>,
+    /// Oldest first.
+    pub older: Vec<OlderVersion>,
+}
+
+impl Versions {
+    /// Every version served, oldest first.
+    pub fn supported(&self) -> Vec<crate::versioning::ApiVersion> {
+        self.older
+            .iter()
+            .map(|older| older.version)
+            .chain(self.current)
+            .collect()
+    }
 }
 
 pub struct Operations {
@@ -55,6 +91,7 @@ pub struct Operations {
     /// request compares only the paths that could match.
     pub(crate) routes: Vec<Vec<&'static OperationInfo>>,
     pub(crate) greedy_routes: Vec<&'static OperationInfo>,
+    pub(crate) versions: Versions,
 }
 
 impl Operations {
@@ -66,7 +103,12 @@ impl Operations {
                 entries: BTreeMap::new(),
                 routes: Vec::new(),
                 greedy_routes: Vec::new(),
+                versions: Versions::default(),
             },
+            older: Vec::new(),
+            versioned: Vec::new(),
+            hooks: Default::default(),
+            legacy: Default::default(),
         }
     }
 
@@ -105,7 +147,7 @@ impl fmt::Debug for Operations {
 /// An input that does not read as its type. A member a strict structure
 /// does not define is named in the path, and so is a required member that
 /// is missing (a payload sent as an empty body, say).
-fn unreadable(error: serde_json::Error) -> Rejection {
+pub(crate) fn unreadable(error: serde_json::Error) -> Rejection {
     let message = error.to_string();
     let named = |prefix: &str| {
         message
