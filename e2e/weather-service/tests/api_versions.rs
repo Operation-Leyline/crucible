@@ -157,6 +157,7 @@ async fn each_version_reads_and_answers_in_its_own_shapes() {
     assert_eq!(body, json!({ "name": "item a", "kind": "SMALL" }));
     assert_eq!(headers["crucible-version"], "v1");
     assert_eq!(headers["sunset"], "Fri, 01 Jan 2027 00:00:00 GMT");
+    assert_eq!(headers["vary"], "crucible-version");
     // RFC 9745's `Deprecation` is a date the model does not record.
     assert!(headers.get("deprecation").is_none());
 

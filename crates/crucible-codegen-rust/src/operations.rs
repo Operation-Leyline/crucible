@@ -399,8 +399,30 @@ fn wire(service: &Service, op: &Operation) -> String {
 
 fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
     let cors = service.cors.as_ref().map_or_else(|| "None".to_owned(), |cors| {
-        let list = |values: &[String]| values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ");
-        format!("Some(&::crucible_server_runtime_rust::__generated::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})", literal(&cors.origin), cors.max_age, cors.allow_credentials, list(&cors.allowed_headers), list(&cors.allowed_header_prefixes), list(&cors.exposed_headers), list(&cors.methods))
+        // Older versions' requests carry their own headers and methods, and
+        // a browser client names its version and reads the echoed one.
+        let merged = |pick: fn(&crucible_smithy::ir::Cors) -> &Vec<String>, extra: &[&str]| {
+            let mut values: std::collections::BTreeSet<String> = pick(cors).iter().cloned().collect();
+            if !service.versions.is_empty() {
+                for version in &service.versions {
+                    if let Some(older) = &version.service.cors {
+                        values.extend(pick(older).iter().cloned());
+                    }
+                }
+                values.extend(extra.iter().map(|value| (*value).to_owned()));
+            }
+            values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ")
+        };
+        format!(
+            "Some(&::crucible_server_runtime_rust::__generated::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})",
+            literal(&cors.origin),
+            cors.max_age,
+            cors.allow_credentials,
+            merged(|cors| &cors.allowed_headers, &["crucible-version"]),
+            merged(|cors| &cors.allowed_header_prefixes, &[]),
+            merged(|cors| &cors.exposed_headers, &["crucible-version", "sunset"]),
+            merged(|cors| &cors.methods, &[]),
+        )
     });
     let operations: Vec<String> = service
         .operations

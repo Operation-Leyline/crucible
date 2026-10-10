@@ -11,6 +11,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use axum::http::HeaderValue;
 use axum::http::request::Parts;
 use serde_json::Value;
 
@@ -33,8 +34,26 @@ pub struct ApiVersion {
 impl ApiVersion {
     /// Generated for every version: `order` is its place in the release
     /// chain, oldest first.
+    ///
+    /// The name travels in a header, so it must be visible ASCII; a
+    /// constant with another name fails to compile.
     pub const fn new(order: u16, name: &'static str) -> Self {
+        let bytes = name.as_bytes();
+        assert!(!bytes.is_empty(), "an API version needs a name");
+        let mut index = 0;
+        while index < bytes.len() {
+            assert!(
+                bytes[index].is_ascii_graphic(),
+                "an API version's name is visible ASCII"
+            );
+            index += 1;
+        }
         Self { order, name }
+    }
+
+    /// The name as a header value, without allocating.
+    pub(crate) fn header(&self) -> HeaderValue {
+        HeaderValue::from_static(self.name)
     }
 
     /// The version as the model names it, such as `2026-09-04`.

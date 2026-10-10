@@ -53,8 +53,16 @@ pub(crate) fn emit(
     let mut out = String::from(
         "/// The API versions this service serves, oldest first. A request names\n/// one in the `Crucible-Version` header; a handler that changed behaviour\n/// branches on `self.context().api_version()`.\npub mod versions {\n",
     );
-    let mut constants = BTreeSet::new();
+    let mut constants = BTreeSet::from(["CURRENT".to_owned()]);
     for (order, name) in names.iter().enumerate() {
+        if name.is_empty() || !name.bytes().all(|b| b.is_ascii_graphic()) {
+            diagnostics.push(
+                &service.id,
+                format!(
+                    "API version \"{name}\" travels in a header: use visible ASCII without spaces"
+                ),
+            );
+        }
         let constant = version_constant(name);
         if !constants.insert(constant.clone()) {
             diagnostics.push(
@@ -75,7 +83,8 @@ pub(crate) fn emit(
     // One conversion per operation and version step, shared by every
     // older version's chain that crosses it.
     let mut methods: Methods = (0..current).map(|_| BTreeMap::new()).collect();
-    let mut conversions = String::new();
+    let mut steps = String::new();
+    let mut chains = String::new();
     let mut registrations = String::new();
     let mut built = BTreeSet::new();
     for (index, version) in service.versions.iter().enumerate() {
@@ -106,6 +115,7 @@ pub(crate) fn emit(
             let mut chain = Vec::new();
             for step in index..last {
                 let name = format!("{}_{step}", constant_name(old_op));
+                let name = format!("steps::{name}");
                 if built.insert(name.clone()) {
                     let conversion = conversion(
                         &models,
@@ -115,16 +125,18 @@ pub(crate) fn emit(
                         &mut methods,
                         diagnostics,
                     );
-                    conversions.push_str(&format!(
-                        "        pub(super) static {name}: Conversion = {conversion};\n"
+                    steps.push_str(&format!(
+                        "            pub(in super::super) static {}: Conversion = {conversion};\n",
+                        name.trim_start_matches("steps::")
                     ));
                 }
-                chain.push(format!("&{name}"));
+                chain.push(format!("&super::{name}"));
             }
             // A static, so the chain is `'static` without promotion.
-            let chain_name = format!("{}_FROM_{index}", constant_name(old_op));
-            conversions.push_str(&format!(
-                "        pub(super) static {chain_name}: &[&Conversion] = &[{}];\n",
+            let chain_name = format!("chains::{}_{index}", constant_name(old_op));
+            chains.push_str(&format!(
+                "            pub(in super::super) static {}: &[&Conversion] = &[{}];\n",
+                chain_name.trim_start_matches("chains::"),
                 chain.join(", ")
             ));
             let (serving, served_by) = match served_by {
@@ -163,7 +175,7 @@ pub(crate) fn emit(
             strict_inputs: options.strict_inputs,
             require_rejection: false,
         };
-        let mut body = crate::body(old, &old_options, old, diagnostics);
+        let mut body = crate::body_with(old, &old_options, old, false, diagnostics);
         if !methods[index].is_empty()
             && (old.shapes.keys().any(|id| id.name() == "Migration")
                 || old.operations.iter().any(|op| op.name() == "Migration"))
@@ -198,7 +210,7 @@ pub(crate) fn emit(
     }
 
     out.push_str(&format!(
-        "\n    #[allow(unused_imports)]\n    mod __conversions {{\n        use {RT}::versioning::{{Conversion, ErrorDowngrade, Seg, Transform, downgrade_to}};\n{conversions}    }}\n"
+        "\n    #[allow(unused_imports)]\n    mod __conversions {{\n        use {RT}::versioning::Conversion;\n        pub(super) mod steps {{\n            use {RT}::versioning::{{Conversion, ErrorDowngrade, Seg, Transform, downgrade_to}};\n{steps}        }}\n        pub(super) mod chains {{\n            use {RT}::versioning::Conversion;\n{chains}        }}\n    }}\n"
     ));
     let older: Vec<String> = service
         .versions
@@ -551,12 +563,33 @@ fn conversion(
                 value,
                 downgrade: replacement,
             } => {
+                if !matches!(new.shape(new_shape), Some(Shape::Enum(_))) {
+                    diagnostics.push(
+                        new_shape,
+                        format!(
+                            "`add {}.{value} downgrade ..` on a union or intEnum is not converted for API version {version} yet",
+                            new_shape.name()
+                        ),
+                    );
+                    continue;
+                }
+                // The value is the next version's; the downgrade, this one's.
                 let (Some(from), Some(to)) = (
                     enum_value(new, new_shape, value),
-                    enum_value(new, new_shape, replacement),
+                    enum_value(old, new_shape, replacement),
                 ) else {
                     continue;
                 };
+                if keyed(new, new_op.output.as_ref(), new_shape) {
+                    diagnostics.push(
+                        new_shape,
+                        format!(
+                            "{} keys a map in {operation}'s output; map keys are not converted for API version {version} yet",
+                            new_shape.name()
+                        ),
+                    );
+                }
+                inside_error(new_shape, "an added enum value", diagnostics);
                 for at in places(
                     new,
                     new_op.output.as_ref(),
@@ -595,18 +628,43 @@ fn conversion(
                     );
                     continue;
                 };
-                let pairs: Vec<String> = members
-                    .iter()
-                    .filter_map(|(to, from)| {
-                        Some(format!(
+                let mut pairs = Vec::new();
+                for (to, from) in members {
+                    match (older.member(to), wire(current, error, from)) {
+                        (Some(to), Some(from)) => pairs.push(format!(
                             "({}, {})",
-                            literal(&older.member(to)?.wire_name),
-                            literal(&wire(current, error, from)?)
-                        ))
-                    })
+                            literal(&to.wire_name),
+                            literal(&from)
+                        )),
+                        _ => diagnostics.push(
+                            replacement,
+                            format!(
+                                "the current model has no `{to}` on {} or no `{from}` on {}, which the step from API version {version} maps",
+                                replacement.name(),
+                                error.name()
+                            ),
+                        ),
+                    }
+                }
+                let unfilled: Vec<&str> = older
+                    .members
+                    .iter()
+                    .filter(|member| member.required && member.default.is_none())
+                    .filter(|member| !members.iter().any(|(to, _)| to == &member.name))
+                    .map(|member| member.name.as_str())
                     .collect();
+                if !unfilled.is_empty() {
+                    diagnostics.push(
+                        replacement,
+                        format!(
+                            "{} now requires `{}`, which the step from API version {version} does not fill; older clients could not be sent it",
+                            replacement.name(),
+                            unfilled.join("`, `")
+                        ),
+                    );
+                }
                 errors.push(format!(
-                    "ErrorDowngrade {{ from: {}, to: downgrade_to::<super::super::{}>, members: &[{}] }}",
+                    "ErrorDowngrade {{ from: {}, to: downgrade_to::<super::super::super::{}>, members: &[{}] }}",
                     literal(&error.to_string()),
                     current.name_of(replacement),
                     pairs.join(", ")
@@ -1169,4 +1227,32 @@ fn collision(
             current.versions[step].name
         ),
     );
+}
+
+/// Whether a map reachable from `root` is keyed by `target`.
+fn keyed(service: &Service, root: Option<&ShapeId>, target: &ShapeId) -> bool {
+    let Some(root) = root else {
+        return false;
+    };
+    let mut stack = vec![root.clone()];
+    let mut seen = BTreeSet::new();
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        match service.shape(&id) {
+            Some(Shape::Structure(structure) | Shape::Union(structure)) => {
+                stack.extend(structure.members.iter().map(|m| m.target.clone()));
+            }
+            Some(Shape::List(list)) => stack.push(list.member.target.clone()),
+            Some(Shape::Map(map)) => {
+                if &map.key.target == target {
+                    return true;
+                }
+                stack.push(map.value.target.clone());
+            }
+            _ => {}
+        }
+    }
+    false
 }

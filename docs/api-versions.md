@@ -57,6 +57,9 @@ are built from the current model.
 | An unknown version | Refused with `400`, the service's validation error naming the supported versions |
 | A version with a `sunset` | Served, with a `Sunset: <date>` header (RFC 8594) |
 
+Versioned responses carry `Vary: Crucible-Version`. With `@cors`, browsers
+may send `Crucible-Version` and read `Crucible-Version` and `Sunset`.
+
 A request with no version is settled by `Builder::api_version`:
 
 - `Unversioned::Oldest` (the default) serves it at the oldest supported
@@ -219,11 +222,31 @@ downgrade never fails at run time for a missing member.
 
 ## Testing
 
-Each frozen release's examples run against the server at its version
-through the conversion chain, as generated tests (decision 59): an old
-client's documented request still gets its documented response. The e2e
-weather service gains a second version to exercise routing, conversion
-and refusal over HTTP.
+The e2e service serves a three-release model (`e2e/weather-service/versioned`)
+over HTTP: routing, every automatic step, every hook, a removed
+operation, error downgrades and the unversioned modes
+(`tests/api_versions.rs`). Not built yet: running each frozen release's
+examples against the server at its version as generated tests
+(decision 59).
+
+## Limits
+
+- **Older versions are their frozen releases.** A request at an older
+  version is read and answered with that release's types, so what was
+  added since (an operation, an optional member) is not visible at it.
+  Decision 51 has additive changes reach every version; that needs each
+  version's types generated from the current model as seen at it
+  (decision 57a), not from the frozen release.
+- **Auth is the release's.** An older version's operations carry the
+  auth and scopes their release declared. A tightened requirement is a
+  breaking change the guard reports, which no migration step declares.
+- **Not converted, and reported:** a member inside a recursive shape; a
+  renamed member, reshaped or retyped structure, or added enum value
+  inside an error; an enum that keys a map; `add .. downgrade` on a union
+  or intEnum; a member with its own wire encoding converted by a hook.
+- **The explorer** cannot yet be generated from a `.cru` package, the
+  only kind with versions; when it can, its requests will need to name
+  the current version.
 
 ## Decisions
 

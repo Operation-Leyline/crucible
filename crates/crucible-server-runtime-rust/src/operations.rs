@@ -60,7 +60,8 @@ pub(crate) struct Entry {
 /// by the current implementation through its conversions.
 pub(crate) struct OlderVersion {
     pub version: crate::versioning::ApiVersion,
-    pub sunset: Option<&'static str>,
+    /// The `Sunset` header its responses carry.
+    pub sunset: Option<axum::http::HeaderValue>,
     pub operations: Operations,
 }
 

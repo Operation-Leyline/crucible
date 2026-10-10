@@ -467,53 +467,58 @@ impl Crucible {
             .any(|protocol| protocol.current_version_only(job.request()))
         {
             job.context.select_api_version(current);
-            if let Ok(value) = HeaderValue::from_str(current.name()) {
-                job.response_headers
-                    .insert(versioning::VERSION_HEADER, value);
-            }
+            job.response_headers
+                .insert(versioning::VERSION_HEADER, current.header());
             return Ok(operations);
         }
-        let named = job
+        // `None` is the current version.
+        let pick = |name: &str| -> crate::Result<Option<&'a crate::operations::OlderVersion>> {
+            if name == current.name() {
+                return Ok(None);
+            }
+            versions
+                .older
+                .iter()
+                .find(|older| older.version.name() == name)
+                .map(Some)
+                .ok_or_else(|| versioning::unsupported(name, &versions.supported()).into())
+        };
+        let header = job
             .request()
             .headers
             .get(versioning::VERSION_HEADER)
-            .map(|value| value.to_str().unwrap_or_default().trim().to_owned());
-        let named = match named {
-            Some(name) => Some(name),
+            .map(|value| value.to_str().unwrap_or_default().trim());
+        let older = match header {
+            Some(name) => pick(name)?,
             None => match &self.inner.unversioned {
-                Unversioned::Oldest => None,
+                // No version, and none chosen: the oldest supported.
+                Unversioned::Oldest => versions.older.first(),
                 Unversioned::Required => {
                     return Err(versioning::missing(&versions.supported()).into());
                 }
-                Unversioned::Resolve(resolver) => resolver(job.request()),
+                Unversioned::Resolve(resolver) => match resolver(job.request()) {
+                    Some(name) => pick(&name)?,
+                    None => versions.older.first(),
+                },
             },
         };
-        let older = match &named {
-            Some(name) if name == current.name() => None,
-            Some(name) => Some(
-                versions
-                    .older
-                    .iter()
-                    .find(|older| older.version.name() == name)
-                    .ok_or_else(|| versioning::unsupported(name, &versions.supported()))?,
-            ),
-            // No version, and none chosen: the oldest supported.
-            None => versions.older.first(),
-        };
-        let (version, table, sunset) = match older {
-            Some(older) => (older.version, &older.operations, older.sunset),
-            None => (current, operations, None),
+        let (version, table) = match older {
+            Some(older) => {
+                if let Some(sunset) = &older.sunset {
+                    job.response_headers.insert("sunset", sunset.clone());
+                }
+                (older.version, &older.operations)
+            }
+            None => (current, operations),
         };
         job.context.select_api_version(version);
-        if let Ok(value) = HeaderValue::from_str(version.name()) {
-            job.response_headers
-                .insert(versioning::VERSION_HEADER, value);
-        }
-        if let Some(date) = sunset.and_then(versioning::http_date)
-            && let Ok(value) = HeaderValue::from_str(&date)
-        {
-            job.response_headers.insert("sunset", value);
-        }
+        job.response_headers
+            .insert(versioning::VERSION_HEADER, version.header());
+        // A cache keeps one response per version.
+        job.response_headers.append(
+            axum::http::header::VARY,
+            HeaderValue::from_static(versioning::VERSION_HEADER),
+        );
         Ok(table)
     }
 
@@ -560,7 +565,16 @@ impl Crucible {
         }
         job.input = None;
         *selected = inner.fallback;
-        let operations = self.version(job)?;
+        let operations = match self.version(job) {
+            Ok(operations) => operations,
+            Err(error) => {
+                // Refused in the envelope of the protocol the request is for.
+                if let Some(owner) = inner.protocols.iter().position(|p| p.owns(job.request())) {
+                    *selected = owner;
+                }
+                return Err(error);
+            }
+        };
         let mut route = None;
         for (index, protocol) in inner.protocols.iter().enumerate() {
             match protocol.identify(job, operations).resolve().await {
@@ -621,6 +635,11 @@ impl Crucible {
         // and the implementation see only current types.
         if let Some(upgrade) = &entry.upgrade {
             let input = job.input.take().expect("decoded input checked");
+            // Logged as the client sent it, which the operation's
+            // redactions describe.
+            if job.wants_snapshot {
+                job.input_snapshot = Some(input.to_json());
+            }
             job.input = Some(upgrade(input).await?);
         }
         entered.decoded = true;
@@ -634,7 +653,7 @@ impl Crucible {
                 return Ok(());
             }
         }
-        if job.wants_snapshot {
+        if job.wants_snapshot && entry.upgrade.is_none() {
             job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
         }
         let input = job.input.take().expect("decoded input checked");

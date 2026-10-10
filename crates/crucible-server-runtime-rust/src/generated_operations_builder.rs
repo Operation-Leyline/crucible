@@ -231,7 +231,9 @@ impl OperationsBuilder {
             index(&mut operations);
             self.operations.versions.older.push(OlderVersion {
                 version,
-                sunset,
+                sunset: sunset
+                    .and_then(versioning::http_date)
+                    .and_then(|date| axum::http::HeaderValue::from_str(&date).ok()),
                 operations,
             });
         }

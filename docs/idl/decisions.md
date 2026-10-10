@@ -864,9 +864,10 @@ pass in `reports/`.
     version is a different API with its own resources.
 
 59. **Versions have a declared support window.** `sunset "2028-11-01"`
-    in a migration makes the server send `Deprecation` and `Sunset`
-    headers to callers at that version, and refuse after the date if the
-    service's policy says so. A standards rule can bound the number of
+    in a migration makes the server send a `Sunset` header (RFC 8594) to
+    callers at that version (a `Deprecation` header needs a deprecation
+    date the model does not record yet), and refuse after the date if the
+    service's policy says so (not built yet). A standards rule can bound the number of
     supported versions or the minimum window. Every frozen version's
     examples and protocol test vectors run against the server through its
     transform chain as generated regression tests. *Why:* without sunset

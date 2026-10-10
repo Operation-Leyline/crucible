@@ -177,7 +177,24 @@ pub(crate) fn body(
     explorer_service: &Service,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    let strict = models::strict_shapes(service, options.strict_inputs);
+    body_with(service, options, explorer_service, true, diagnostics)
+}
+
+/// [`body`], with `strict` false for an older release: its types read the
+/// current version's values converted down, which may carry members added
+/// since, so none refuses an unknown member.
+pub(crate) fn body_with(
+    service: &Service,
+    options: &Options,
+    explorer_service: &Service,
+    strict: bool,
+    diagnostics: &mut Diagnostics,
+) -> String {
+    let strict = if strict {
+        models::strict_shapes(service, options.strict_inputs)
+    } else {
+        Default::default()
+    };
     let model = models::emit(service, &strict, false, diagnostics);
     let errors = errors::emit(service, false, diagnostics);
     check_patterns(service, diagnostics);

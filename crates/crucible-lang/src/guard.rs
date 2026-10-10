@@ -856,7 +856,13 @@ fn operations_reaching(service: &Service, shape: &ShapeId) -> Vec<ShapeId> {
     service
         .operations
         .iter()
-        .filter(|op| op.input.iter().chain(&op.output).any(&reaches))
+        .filter(|op| {
+            op.input
+                .iter()
+                .chain(&op.output)
+                .chain(&op.errors)
+                .any(&reaches)
+        })
         .map(|op| op.id.clone())
         .collect()
 }
@@ -926,8 +932,15 @@ impl Context<'_> {
                 mapping,
             } => VersionStep::AddError {
                 operation: op_id(&first(path), self.new).unwrap_or_else(|| self.id(&first(path))),
-                error: self.named(self.new, &error.name),
-                downgrade: self.named(self.old, &downgrade.name),
+                // The errors the step checked: the operation's own, by name.
+                error: operation(self.new, &first(path))
+                    .and_then(|op| op.errors.iter().find(|e| e.name() == error.name))
+                    .cloned()
+                    .unwrap_or_else(|| self.named(self.new, &error.name)),
+                downgrade: operation(self.old, &first(path))
+                    .and_then(|op| op.errors.iter().find(|e| e.name() == downgrade.name))
+                    .cloned()
+                    .unwrap_or_else(|| self.named(self.old, &downgrade.name)),
                 members: mapping
                     .iter()
                     .map(|(old, new)| (old.name.clone(), new.name.clone()))
