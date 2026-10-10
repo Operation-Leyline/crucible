@@ -1,6 +1,6 @@
 # Serving older API versions
 
-**Status: proposed design for migrations phase 3.** Phases 1 and 2 are built:
+**Status: accepted design for migrations phase 3** (decisions below). Phases 1 and 2 are built:
 a `.cru` package names its last release in `[model.baseline]`, and a
 breaking change compiles only when `migration "<new>" from "<old>"`
 declares it, each step checked against what changed
@@ -56,8 +56,12 @@ another. The response echoes the version it was served at.
 
 A request with no version resolves through a framework hook,
 `Builder::api_version(resolver)`, like `request_id`: a service can pin each
-account to the version it first used, as Stripe does. **Open question 1** is
-the default when no resolver is set.
+account to the version it first used, as Stripe does. With no resolver, it
+is served at the oldest supported version: a client built before it sent a
+version was built against an older contract. A service whose callers are
+all generated can make the version required instead
+(`ApiVersions::required()`): a request without one is refused with
+`400 MissingApiVersion`, listing the supported versions.
 
 ## Compiler and IR
 
@@ -144,9 +148,9 @@ direction it is needed in, as the compiler knows from the IR.
 ## Until phase 4
 
 An old version whose chain contains a hooked step for an operation cannot
-convert that operation yet. **Open question 3** is whether the build
-refuses, or the operation answers `501 NotImplemented` at that version
-while the rest of the version works.
+convert that operation yet. That operation answers `501 NotImplemented` at
+that version, and the build warns; the version's other operations are
+served.
 
 ## Testing
 
@@ -156,18 +160,13 @@ client's documented request still gets its documented response. The e2e
 weather service gains a second version to exercise routing, conversion
 and refusal over HTTP.
 
-## Open questions
+## Decisions
 
-1. **No version on a request.** The oldest supported version is safest:
-   clients built before versioning existed send nothing and were built
-   against an older contract. The current version is simpler, and right
-   once every client sends its version (phase 5). Proposal: oldest, with
-   `Builder::api_version` to choose otherwise.
-2. **Version names.** Proposal: the service's `version` clause, checked
-   against the newest migration. The alternative is migration strings
-   alone, with no tie to the model.
-3. **Hooked steps before phase 4.** Proposal: refuse those operations at
-   the old version with `501` and a build warning, so a release with one
-   reshape still serves the other operations to old clients.
-4. **Clients.** Proposal: phase 5, all generators together; until then
-   only clients that set the header themselves choose a version.
+1. **No version on a request** is served at the oldest supported version,
+   unless a resolver chooses; a service can make the version required
+   instead. There are no consumers yet, so nothing needs a transition.
+2. **Version names** are the service's `version` clause, checked against
+   the newest migration.
+3. **Hooked steps before phase 4** refuse that operation at the old version
+   with `501` and a build warning.
+4. **Clients** send their version in phase 5, all generators together.
