@@ -439,6 +439,35 @@ fn a_freeze_that_stopped_before_the_lock_is_finished_by_the_next() {
 }
 
 #[test]
+fn a_release_the_lock_records_is_never_refrozen_differently() {
+    let dir = package("relocked", V1, "");
+    std::fs::remove_file(dir.join("releases/v1.json")).unwrap();
+    // The same contract restores the lost file; another is refused.
+    freeze(&dir, V1);
+    std::fs::remove_file(dir.join("releases/v1.json")).unwrap();
+    let staging = dir.with_extension("other");
+    let _ = std::fs::remove_dir_all(&staging);
+    std::fs::create_dir_all(&staging).unwrap();
+    std::fs::write(staging.join("crucible.toml"), MANIFEST).unwrap();
+    std::fs::write(
+        staging.join("shop.cru"),
+        V1.replace(
+            "        name: string
+",
+            "        name: integer
+",
+        ),
+    )
+    .unwrap();
+    let compiled = compile(&load_package(&staging).unwrap(), None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let error =
+        crucible_lang::release::freeze(&dir.join("releases"), &compiled.service.unwrap(), "test")
+            .unwrap_err();
+    assert!(error.contains("with other contents"), "{error}");
+}
+
+#[test]
 fn an_edited_release_is_refused() {
     let dir = package("edited", V1, "");
     let path = dir.join("releases/v1.json");

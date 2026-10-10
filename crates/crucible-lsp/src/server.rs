@@ -229,7 +229,7 @@ impl Server {
                 "**/*.cru",
                 "**/crucible.toml",
                 "**/releases/*.json",
-                "**/releases/crucible.lock",
+                "**/crucible.lock",
             ]
             .into_iter()
             .map(|pattern| FileSystemWatcher {

@@ -156,8 +156,10 @@ it straight back; an older release is never recompiled, so a later
 compiler or language change cannot change what a shipped contract means.
 The file records its `format` and the compiler that wrote it; a compiler
 reads every format up to its own, and refuses a newer format or a field it
-does not know rather than misread the release. The snapshot's field names
-are the IR's: renaming an IR field is a format change.
+does not know (one at its zero value, such as `false` or `[]`, reads as
+absent) rather than misread the release. The snapshot's field names are the
+IR's: renaming an IR field, or adding one without a `serde` default, is a
+format change.
 
 `freeze` refuses to overwrite a release, and records each one's SHA-256 in
 `releases/crucible.lock`. A build refuses a release that is not in the lock
@@ -165,7 +167,7 @@ or no longer matches it, which catches an accidental edit (it is not
 tamper protection: rewriting the lock too passes). A release is never
 edited, only superseded by a new one. Commit the snapshots and the lock
 with the release. A release's version names its file, so it uses letters,
-digits, `.`, `-`, `_` and `+`.
+digits, `.`, `-`, `_` and `+`, and does not start with `.`.
 
 A release that was never frozen is backfilled from history:
 

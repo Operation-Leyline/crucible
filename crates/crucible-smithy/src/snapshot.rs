@@ -87,26 +87,34 @@ fn unknown(original: &serde_json::Value, read: &serde_json::Value, at: String) -
                 };
                 match read.get(key) {
                     Some(known) => unknown(value, known, path),
-                    // A field written empty that this compiler skips when empty.
-                    None if is_empty(value) => None,
+                    // A field at its zero value, which this compiler may skip
+                    // writing: reading it as absent changes nothing.
+                    None if is_zero(value) => None,
                     None => Some(path),
                 }
             })
         }
-        (Value::Array(original), Value::Array(read)) => original
-            .iter()
-            .zip(read)
-            .enumerate()
-            .find_map(|(index, (value, known))| unknown(value, known, format!("{at}[{index}]"))),
+        (Value::Array(original), Value::Array(read)) => {
+            if original.len() != read.len() {
+                return Some(format!("{at}[{}]", read.len().min(original.len())));
+            }
+            original
+                .iter()
+                .zip(read)
+                .enumerate()
+                .find_map(|(index, (value, known))| unknown(value, known, format!("{at}[{index}]")))
+        }
         _ => None,
     }
 }
 
-fn is_empty(value: &serde_json::Value) -> bool {
+fn is_zero(value: &serde_json::Value) -> bool {
     match value {
         serde_json::Value::Null => true,
+        serde_json::Value::Bool(value) => !value,
+        serde_json::Value::Number(number) => number.as_f64() == Some(0.0),
+        serde_json::Value::String(text) => text.is_empty(),
         serde_json::Value::Array(items) => items.is_empty(),
         serde_json::Value::Object(fields) => fields.is_empty(),
-        _ => false,
     }
 }

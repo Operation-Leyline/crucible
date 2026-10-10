@@ -898,6 +898,11 @@ fn package_at(package: &Path, reference: &str) -> Result<tempfile::TempDir, Stri
         let Some(relative) = name.strip_prefix(&prefix) else {
             continue;
         };
+        // What the compiler reads: manifests and model sources. Not older
+        // releases, generated output or submodules.
+        if !(relative.ends_with(".cru") || relative.ends_with("crucible.toml")) {
+            continue;
+        }
         let contents = git(&["show", &format!("{commit}:{name}")])?;
         let target = directory.path().join(relative);
         if let Some(parent) = target.parent() {

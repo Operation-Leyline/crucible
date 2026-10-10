@@ -72,6 +72,16 @@ pub fn freeze(
     // writes anything.
     let mut locked = read_lock(releases)?;
     let text = snapshot::write(service, compiler);
+    // A release the lock records is frozen, even with its file gone: only
+    // the same contract may restore it.
+    if locked
+        .get(&name)
+        .is_some_and(|recorded| *recorded != digest(&text))
+    {
+        return Err(format!(
+            "{name} is recorded in {LOCK} with other contents; a frozen release is never overwritten"
+        ));
+    }
     std::fs::create_dir_all(releases)
         .map_err(|error| format!("cannot create {}: {error}", releases.display()))?;
     match std::fs::OpenOptions::new()
@@ -81,10 +91,15 @@ pub fn freeze(
     {
         Ok(mut file) => {
             use std::io::Write;
-            file.write_all(text.as_bytes())
-                .map_err(|error| format!("cannot write {}: {error}", path.display()))?;
+            if let Err(error) = file.write_all(text.as_bytes()) {
+                drop(file);
+                let _ = std::fs::remove_file(&path);
+                return Err(format!("cannot write {}: {error}", path.display()));
+            }
         }
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Written by a freeze that stopped before the lock: finished
+            // here when it holds this contract.
             let existing = std::fs::read_to_string(&path).unwrap_or_default();
             if locked.contains_key(&name) || digest(&existing) != digest(&text) {
                 return Err(format!(
