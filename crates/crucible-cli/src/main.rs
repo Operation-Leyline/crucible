@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 mod export_artifact;
@@ -23,7 +23,8 @@ struct Cli {
 
 #[derive(Args)]
 struct Source {
-    /// A Smithy source directory, .smithy file, or compiled JSON AST.
+    /// A Smithy source directory, .smithy file, compiled JSON AST, or a
+    /// Crucible language package (a directory whose crucible.toml has [model]).
     model: PathBuf,
     /// The service to lower, when the model defines several.
     #[arg(long)]
@@ -670,6 +671,13 @@ fn lower_with_capabilities(
     source: &Source,
     capabilities: &crucible_smithy::Capabilities,
 ) -> Result<Service, String> {
+    if is_cru_package(&source.model) {
+        let service = lower_cru(source)?;
+        service
+            .require_capabilities(capabilities)
+            .map_err(|d| d.to_string())?;
+        return Ok(service);
+    }
     let model = load_model(source)?;
     match &source.protocol {
         Some(id) => {
@@ -705,7 +713,56 @@ fn lower_infrastructure(source: &Source) -> Result<Service, String> {
         .map_err(|error| error.to_string())
 }
 
+/// Whether `path` is a Crucible language package rather than Smithy sources.
+fn is_cru_package(path: &Path) -> bool {
+    path.is_dir() && crucible_lang::is_package(path)
+}
+
+/// Compiles a language package straight to the IR, as `crucible-build` does:
+/// no Smithy compiler and no JVM.
+fn lower_cru(source: &Source) -> Result<Service, String> {
+    let path = &source.model;
+    if source.protocol.is_some() {
+        return Err(format!(
+            "{}: a .cru package declares its protocol with `protocol ..` in the service; --protocol cannot select one",
+            path.display()
+        ));
+    }
+    let package = crucible_lang::load_package(path)?;
+    if let Some(id) = &source.service
+        && id.namespace() != package.namespace
+    {
+        return Err(format!(
+            "{}: the package namespace is {}, so it has no service {id}",
+            path.display(),
+            package.namespace
+        ));
+    }
+    let compiled = crucible_lang::compile(&package, source.service.as_ref().map(ShapeId::name));
+    let rendered = compiled.render();
+    match compiled.service {
+        Some(service) => {
+            // Warnings do not stop generation; show them all the same.
+            for line in rendered.lines().filter(|line| line.contains(": warning: ")) {
+                eprintln!("{line}");
+            }
+            Ok(service)
+        }
+        None => Err(format!(
+            "{} does not compile:
+{rendered}",
+            path.display()
+        )),
+    }
+}
+
 fn load_model(source: &Source) -> Result<Model, String> {
+    if is_cru_package(&source.model) {
+        return Err(format!(
+            "documentation and infrastructure from a .cru package ({}) are not supported yet: the language does not lower resources for them",
+            source.model.display()
+        ));
+    }
     let workspace;
     let model = if source.model.is_dir()
         || source

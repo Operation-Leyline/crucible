@@ -98,6 +98,11 @@ declaring multiple protocols, `--protocol aws.protocols#restJson1` selects that
 protocol explicitly; the selected target must implement it. The default prefers
 Crucible JSON when declared, otherwise requires an unambiguous supported protocol.
 
+The model can also be a Crucible language package, a directory whose
+`crucible.toml` has a `[model]` table (`crucible check model --target ts`). It
+compiles without Smithy or a JVM and declares its protocol in the service, so
+`--protocol` does not apply.
+
 See [SDK releases](sdk-releases.md) for generation, native package builds,
 installed-consumer checks, artifact manifests, and publication recipes.
 
