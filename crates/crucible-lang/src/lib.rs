@@ -24,7 +24,7 @@ pub use compile::{
 };
 pub use diagnostic::{Diagnostic, Severity};
 pub use format::{FormatOptions, format, format_lines};
-pub use guard::{Guard, guard};
+pub use guard::{Guard, guard, versions};
 pub use lexer::{Token, TokenKind};
 pub use package::{check_manifest, is_package, load_package, load_package_with_manifest};
 pub use span::{LineIndex, Span};

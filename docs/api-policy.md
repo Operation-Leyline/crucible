@@ -136,7 +136,7 @@ when someone remembers to run `crucible diff`.
 Freeze the release when you ship it, and point the manifest at the copy:
 
 ```sh
-crucible freeze model/api --out model/api/releases/2026-09-04
+crucible freeze model/api          # writes model/api/releases/<service version>
 ```
 
 ```toml
@@ -160,9 +160,12 @@ something removed, at what held it; a baseline that does not load shows on
 ### Declaring a breaking change
 
 A deliberate break compiles when the migration from the baseline's version
-declares it. The version of a frozen release is its directory's name, so a
-baseline at `releases/2026-09-04` is served by
-`migration "<new version>" from "2026-09-04"`:
+declares it. A release is named by its service's `version`: `crucible freeze` writes
+it to `releases/<version>`, and the compiler checks that a frozen
+release's directory and its service's `version` agree. The migration from
+it names both versions, and its new version must be the current service's
+`version`, so a baseline at `releases/2026-09-04` is served by
+`migration "<the service's version>" from "2026-09-04"`:
 
 ```
 /// Region becomes a required choice; storage is reported as one structure.

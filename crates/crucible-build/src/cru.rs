@@ -61,7 +61,12 @@ pub(crate) fn lower(
         println!("cargo::warning={line}");
     }
     check_baseline(path, &package, &compiled)?;
-    Ok(compiled.service.expect("checked above"))
+    // The older versions the service still serves, for generators that
+    // serve them (docs/api-versions.md).
+    let versions = crucible_lang::versions(&package, &compiled, package.files.len())?;
+    let mut service = compiled.service.expect("checked above");
+    service.versions = versions;
+    Ok(service)
 }
 
 /// The compatibility guard (decision 47d): the package against its frozen

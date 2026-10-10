@@ -8,7 +8,7 @@ use crucible_lang::{Guard, compile, guard, load_package};
 use crucible_policy::Config;
 
 const V1: &str = r#"service Shop {
-    version "1"
+    version "v1"
     protocol json
     operations [GetItem, ListItems, DeleteItem]
     errors [ValidationException, InternalServerException]
@@ -60,6 +60,12 @@ fn package(name: &str, current: &str, migration: &str) -> PathBuf {
         format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1\"\n"),
     )
     .unwrap();
+    // A release with a migration is the next version.
+    let current = if migration.is_empty() {
+        current.to_owned()
+    } else {
+        current.replace("version \"v1\"", "version \"v2\"")
+    };
     std::fs::write(dir.join("shop.cru"), format!("{current}\n{migration}")).unwrap();
     dir
 }
@@ -266,4 +272,113 @@ fn a_step_declares_only_its_own_kind_of_change() {
             .any(|rule| rule.starts_with("compatibility.http")),
         "{rules:?}"
     );
+}
+
+#[test]
+fn the_versions_served_are_the_chain_of_frozen_releases() {
+    use crucible_smithy::ir::VersionStep;
+
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-chain");
+    let _ = std::fs::remove_dir_all(&dir);
+    // v1, then v2 renamed a member, then v3 (current) added an enum value.
+    let to_v2 = "migration \"v2\" from \"v1\" {\n    rename GetItem.output.name -> title\n    sunset \"2027-01-01\"\n}\n";
+    let v2 = V1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("        name: string\n", "        title: string\n")
+        + "\n"
+        + to_v2;
+    let to_v3 = "migration \"v3\" from \"v2\" {\n    add Kind.HUGE downgrade LARGE\n    require ListItems.input.limit default 20\n}\n";
+    let v3 = v2
+        .replace("version \"v2\"", "version \"v3\"")
+        .replace(
+            "enum Kind { SMALL, LARGE }",
+            "enum Kind { SMALL, LARGE, HUGE }",
+        )
+        .replace("        limit?: integer", "        limit: integer")
+        + "\n"
+        + to_v3;
+    for (name, text) in [("v1", V1.to_owned()), ("v2", v2)] {
+        let frozen = dir.join("releases").join(name);
+        std::fs::create_dir_all(&frozen).unwrap();
+        std::fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
+        std::fs::write(frozen.join("shop.cru"), text).unwrap();
+    }
+    std::fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v2\"\n"),
+    )
+    .unwrap();
+    std::fs::write(dir.join("shop.cru"), v3).unwrap();
+
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let guard = guard(&loaded, &compiled, own, &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(
+        !guard.has_errors(),
+        "{:?} {:?}",
+        rules(&guard),
+        problems(&guard)
+    );
+
+    let versions = crucible_lang::versions(&loaded, &compiled, own).unwrap();
+    let names: Vec<&str> = versions.iter().map(|v| v.name.as_str()).collect();
+    assert_eq!(names, ["v1", "v2"]);
+    assert_eq!(versions[0].sunset.as_deref(), Some("2027-01-01"));
+    assert_eq!(versions[0].service.version, "v1");
+    assert!(matches!(
+        &versions[0].steps[..],
+        [VersionStep::Rename { from, to, .. }] if from == "name" && to == "title"
+    ));
+    assert!(versions[1].steps.iter().any(|step| matches!(
+        step,
+        VersionStep::AddEnumValue { value, downgrade, .. } if value == "HUGE" && downgrade == "LARGE"
+    )));
+    assert!(versions[1].steps.iter().any(|step| matches!(
+        step,
+        VersionStep::Require { member, default, .. } if member == "limit" && default == &serde_json::json!(20)
+    )));
+}
+
+#[test]
+fn a_release_is_frozen_under_its_own_version() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-misnamed");
+    let _ = std::fs::remove_dir_all(&dir);
+    // releases/v1 holds a model that says it is v0.
+    let to_v2 = "migration \"v2\" from \"v1\" {}
+";
+    let v2 = V1.replace("version \"v1\"", "version \"v2\"") + to_v2;
+    for (name, text) in [
+        ("v1", V1.replace("version \"v1\"", "version \"v0\"")),
+        ("v2", v2.clone()),
+    ] {
+        let frozen = dir.join("releases").join(name);
+        std::fs::create_dir_all(&frozen).unwrap();
+        std::fs::write(frozen.join("crucible.toml"), MANIFEST).unwrap();
+        std::fs::write(frozen.join("shop.cru"), text).unwrap();
+    }
+    std::fs::write(
+        dir.join("crucible.toml"),
+        format!(
+            "{MANIFEST}
+[model.baseline]
+path = \"releases/v2\"
+"
+        ),
+    )
+    .unwrap();
+    let v3 = v2.replace("version \"v2\"", "version \"v3\"")
+        + "migration \"v3\" from \"v2\" {}
+";
+    std::fs::write(dir.join("shop.cru"), v3).unwrap();
+
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let error = crucible_lang::versions(&loaded, &compiled, own).unwrap_err();
+    assert!(error.contains("declares version \"v0\""), "{error}");
 }
