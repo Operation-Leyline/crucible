@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 use crucible_policy::{Config, Finding, Severity};
 use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{ApiVersion, Operation, Service, Shape, VersionStep};
+use crucible_smithy::ir::{ApiVersion, Hook, Operation, Service, Shape, VersionStep};
 use serde_json::Value as Json;
 
 use crate::ast::{Decl, Dotted, Ident, Key, Migration, RequireHow, StepKind, Value};
@@ -875,7 +875,7 @@ impl Context<'_> {
                 }
             }
             StepKind::Require { path, how } => {
-                let (_, new) = self.both(path)?;
+                let (old, new) = self.both(path)?;
                 let member = new.member.clone().unwrap_or_default();
                 match how {
                     RequireHow::Default(value) => {
@@ -897,10 +897,16 @@ impl Context<'_> {
                             default,
                         }
                     }
-                    RequireHow::Hook(_) => VersionStep::Hooked {
+                    RequireHow::Hook(hook) => VersionStep::Hooked {
                         kind: "require".into(),
                         // `Op.input.m` or `Shape.m`: every operation it reaches.
                         operations: operations_reaching(self.new, &new.shape),
+                        hook: Hook::Require {
+                            old: old.shape,
+                            new: new.shape,
+                            member,
+                        },
+                        is_async: hook.is_async,
                     },
                 }
             }
@@ -935,21 +941,44 @@ impl Context<'_> {
                 operation: op_id(&operation.name, self.new)
                     .unwrap_or_else(|| self.id(&operation.name)),
             },
-            StepKind::Reshape { path, .. } | StepKind::Retype { path, .. } => {
-                let (_, new) = self.both(path)?;
+            StepKind::Reshape { path, hook, .. } => {
+                let (old, new) = self.both(path)?;
                 VersionStep::Hooked {
-                    kind: if matches!(step, StepKind::Reshape { .. }) {
-                        "reshape".into()
-                    } else {
-                        "retype".into()
-                    },
+                    kind: "reshape".into(),
                     operations: operations_reaching(self.new, &new.shape),
+                    hook: Hook::Reshape {
+                        old: old.shape,
+                        new: new.shape,
+                    },
+                    is_async: hook.is_async,
                 }
             }
-            StepKind::RemoveOperation(name) => VersionStep::Hooked {
-                kind: "remove operation".into(),
-                operations: op_id(&name.name, self.old).into_iter().collect(),
-            },
+            StepKind::Retype { path, hook, .. } => {
+                let (old, new) = self.both(path)?;
+                VersionStep::Hooked {
+                    kind: "retype".into(),
+                    operations: operations_reaching(self.new, &new.shape),
+                    hook: match hook {
+                        Some(_) => Hook::Retype {
+                            member: new.member.clone().unwrap_or_default(),
+                            old: old.shape,
+                            new: new.shape,
+                        },
+                        None => Hook::Conversion,
+                    },
+                    is_async: hook.is_some_and(|hook| hook.is_async),
+                }
+            }
+            StepKind::RemoveOperation(name) => {
+                let operation = op_id(&name.name, self.old).unwrap_or_else(|| self.id(&name.name));
+                VersionStep::Hooked {
+                    kind: "remove operation".into(),
+                    operations: vec![operation.clone()],
+                    hook: Hook::RemoveOperation { operation },
+                    // A handler may always do I/O.
+                    is_async: true,
+                }
+            }
             StepKind::Behavior(path) => VersionStep::Behavior {
                 operation: op_id(&first(path), self.new).unwrap_or_else(|| self.id(&first(path))),
                 name: path

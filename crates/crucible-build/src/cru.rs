@@ -64,19 +64,6 @@ pub(crate) fn lower(
     // The older versions the service still serves, for generators that
     // serve them (docs/api-versions.md).
     let versions = crucible_lang::versions(&package, &compiled, package.files.len())?;
-    for version in &versions {
-        for step in &version.steps {
-            if let crucible_smithy::ir::VersionStep::Hooked { kind, operations } = step {
-                for operation in operations {
-                    println!(
-                        "cargo::warning=API version {} and older: {} is not served until hooks are generated; its `{kind}` step needs one",
-                        version.name,
-                        operation.name()
-                    );
-                }
-            }
-        }
-    }
     let mut service = compiled.service.expect("checked above");
     service.versions = versions;
     Ok(service)

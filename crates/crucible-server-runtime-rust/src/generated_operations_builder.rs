@@ -6,7 +6,10 @@ use crate::operations::{
     decode_bound, decode_cbor, decode_events, decode_json,
 };
 use crate::validate::Validator;
-use crate::versioning::{self, ApiVersion, Conversion, Downgrade, DowngradeError, Upgrade};
+use crate::versioning::{
+    self, ApiVersion, Conversion, Downgrade, DowngradeError, HookFn, Hooks, Upgrade,
+};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 pub struct OperationsBuilder {
@@ -15,20 +18,69 @@ pub struct OperationsBuilder {
     pub(crate) older: Vec<(ApiVersion, Option<&'static str>)>,
     /// Older versions' operations, built once the current ones are known.
     pub(crate) versioned: Vec<Versioned>,
+    /// The service's migration hooks, by name.
+    pub(crate) hooks: Hooks,
+    /// Handlers of operations a later version removed, by the last version
+    /// that had each.
+    pub(crate) legacy: BTreeMap<(ApiVersion, &'static str), Entry>,
 }
 
-/// An older version's operation: its entry is built from the current
-/// operation's, which may be registered after it.
+/// An older version's operation: its entry is built from the operation
+/// that serves it, which may be registered after it.
 pub(crate) struct Versioned {
     version: ApiVersion,
     name: &'static str,
-    /// Not served at this version: a step with a hook, or a stream.
+    /// Not served at this version: a stream.
     refused: bool,
+    /// Served by the handler of the last version that had the operation,
+    /// named for a missing-handler report; otherwise by the current one.
+    served_by: Option<(ApiVersion, &'static str)>,
+    /// The hooks its conversions call.
+    hooks: Vec<&'static str>,
     entry: BuildEntry,
 }
 
-/// Builds an older version's entry from the current operation's.
-type BuildEntry = Box<dyn Fn(&Entry, &'static ServiceInfo) -> Entry + Send + Sync>;
+/// Builds an older version's entry from the entry that serves it.
+type BuildEntry = Box<dyn Fn(&Entry, &'static ServiceInfo, &Arc<Hooks>) -> Entry + Send + Sync>;
+
+/// The entry for `O`, served by `call` on `implementation`.
+fn entry<O, S, Fut>(
+    implementation: Arc<S>,
+    call: impl Fn(Arc<S>, O::Input) -> Fut + Send + Sync + 'static,
+) -> Entry
+where
+    O: Operation,
+    S: Send + Sync + 'static,
+    Fut: Future<Output = Result<O::Output>> + Send + 'static,
+{
+    let invoke: Invoke = Arc::new(move |input: Box<dyn Input>| {
+        let input = match input.into_any().downcast::<O::Input>() {
+            Ok(input) => *input,
+            Err(_) => {
+                let error = Error::internal(format!("{}: input of the wrong type", O::INFO.name));
+                return Box::pin(std::future::ready(Err(error)));
+            }
+        };
+        let output = call(implementation.clone(), input);
+        Box::pin(
+            async move { Ok(Box::new(StreamingOutput::<O>(output.await?)) as Box<dyn Output>) },
+        )
+    });
+    Entry {
+        info: O::INFO,
+        metadata: OperationMetadata::of::<O>(),
+        decode: decode::<O>,
+        decode_json: decode_json::<O>,
+        decode_cbor: decode_cbor::<O>,
+        decode_bound: decode_bound::<O>,
+        decode_events: decode_events::<O>,
+        invoke,
+        body_limit: None,
+        upgrade: None,
+        downgrade: None,
+        downgrade_error: None,
+    }
+}
 
 impl OperationsBuilder {
     /// Registers `O`, served by `call` on `implementation`. Generated code
@@ -46,37 +98,9 @@ impl OperationsBuilder {
         S: Send + Sync + 'static,
         Fut: Future<Output = Result<O::Output>> + Send + 'static,
     {
-        let invoke: Invoke = Arc::new(move |input: Box<dyn Input>| {
-            let input = match input.into_any().downcast::<O::Input>() {
-                Ok(input) => *input,
-                Err(_) => {
-                    let error =
-                        Error::internal(format!("{}: input of the wrong type", O::INFO.name));
-                    return Box::pin(std::future::ready(Err(error)));
-                }
-            };
-            let output = call(implementation.clone(), input);
-            Box::pin(
-                async move { Ok(Box::new(StreamingOutput::<O>(output.await?)) as Box<dyn Output>) },
-            )
-        });
-        self.operations.entries.insert(
-            O::INFO.name,
-            Entry {
-                info: O::INFO,
-                metadata: OperationMetadata::of::<O>(),
-                decode: decode::<O>,
-                decode_json: decode_json::<O>,
-                decode_cbor: decode_cbor::<O>,
-                decode_bound: decode_bound::<O>,
-                decode_events: decode_events::<O>,
-                invoke,
-                body_limit: None,
-                upgrade: None,
-                downgrade: None,
-                downgrade_error: None,
-            },
-        );
+        self.operations
+            .entries
+            .insert(O::INFO.name, entry::<O, S, Fut>(implementation, call));
         self
     }
 
@@ -94,14 +118,46 @@ impl OperationsBuilder {
         self
     }
 
+    /// Registers a migration hook the service wrote. Generated.
+    #[doc(hidden)]
+    pub fn hook(mut self, name: &'static str, hook: HookFn) -> Self {
+        self.hooks.insert(name, hook);
+        self
+    }
+
+    /// Registers `O` as `version` declared it, served by `call`: the
+    /// handler older versions keep for an operation a later version
+    /// removed. Generated.
+    #[doc(hidden)]
+    pub fn add_legacy<O, S, Fut>(
+        mut self,
+        version: ApiVersion,
+        implementation: Arc<S>,
+        call: impl Fn(Arc<S>, O::Input) -> Fut + Send + Sync + 'static,
+    ) -> Self
+    where
+        O: Operation,
+        S: Send + Sync + 'static,
+        Fut: Future<Output = Result<O::Output>> + Send + 'static,
+    {
+        self.legacy.insert(
+            (version, O::INFO.name),
+            entry::<O, S, Fut>(implementation, call),
+        );
+        self
+    }
+
     /// Registers `Old`, an operation as an older `version` declared it,
-    /// served by the current `Current` through `chain`: that version's
-    /// conversion and every later one's, oldest first. Generated.
+    /// served through `chain` (that version's conversion and every later
+    /// one's, oldest first) by `Current`: the current operation, or, with
+    /// `served_by`, the legacy handler of the last version that had it.
+    /// Generated.
     #[doc(hidden)]
     pub fn add_versioned<Old: Operation, Current: Operation>(
         mut self,
         version: ApiVersion,
         chain: &'static [&'static Conversion],
+        served_by: Option<(ApiVersion, &'static str)>,
     ) -> Self
     where
         Old::Output: serde::de::DeserializeOwned,
@@ -111,28 +167,62 @@ impl OperationsBuilder {
         let refused = chain.iter().any(|conversion| conversion.refused.is_some())
             || Current::INPUT_EVENTS.is_some()
             || Current::OUTPUT_EVENTS.is_some();
+        let hooks = chain
+            .iter()
+            .flat_map(|conversion| {
+                versioning::hooks_named(conversion.upgrade)
+                    .chain(versioning::hooks_named(conversion.downgrade))
+            })
+            .collect();
         self.versioned.push(Versioned {
             version,
             name: Current::INFO.name,
             refused,
-            entry: Box::new(move |current, service| {
-                versioned_entry::<Old, Current>(current, service, chain)
+            served_by,
+            hooks,
+            entry: Box::new(move |current, service, hooks| {
+                versioned_entry::<Old, Current>(current, service, chain, hooks.clone())
             }),
         });
         self
     }
 
-    /// The table, or the operations the service has not implemented.
+    /// The table, or the operations, handlers and hooks the service has not
+    /// implemented.
     pub fn build(mut self) -> std::result::Result<Operations, MissingOperations> {
         let service = self.operations.service;
+        let hooks = Arc::new(std::mem::take(&mut self.hooks));
+        let mut missing: Vec<&'static str> = self
+            .operations
+            .service
+            .operations
+            .iter()
+            .map(|op| op.name)
+            .filter(|name| !self.operations.entries.contains_key(name))
+            .collect();
         for (version, sunset) in std::mem::take(&mut self.older) {
             let mut operations = Operations::builder(service).operations;
             for versioned in self.versioned.iter().filter(|v| v.version == version) {
                 if versioned.refused {
                     continue;
                 }
-                if let Some(current) = self.operations.entries.get(versioned.name) {
-                    let entry = (versioned.entry)(current, service);
+                let serving = match versioned.served_by {
+                    None => self.operations.entries.get(versioned.name),
+                    Some((at, label)) => {
+                        let found = self.legacy.get(&(at, versioned.name));
+                        if found.is_none() && !missing.contains(&label) {
+                            missing.push(label);
+                        }
+                        found
+                    }
+                };
+                for hook in &versioned.hooks {
+                    if !hooks.contains_key(hook) && !missing.contains(hook) {
+                        missing.push(hook);
+                    }
+                }
+                if let Some(serving) = serving {
+                    let entry = (versioned.entry)(serving, service, &hooks);
                     operations.entries.insert(entry.info.name, entry);
                 }
             }
@@ -144,14 +234,6 @@ impl OperationsBuilder {
             });
         }
         index(&mut self.operations);
-        let missing: Vec<&'static str> = self
-            .operations
-            .service
-            .operations
-            .iter()
-            .map(|op| op.name)
-            .filter(|name| !self.operations.entries.contains_key(name))
-            .collect();
         if missing.is_empty() {
             Ok(self.operations)
         } else {
@@ -184,39 +266,49 @@ fn index(operations: &mut Operations) {
     }
 }
 
-/// The entry of `Old`, an older version's operation, served by `current`
+/// The entry of `Old`, an older version's operation, served by `serving`
 /// through `chain`: it decodes as `Old`, converts its input up to
 /// `Current`'s, and converts the outcome back down before encoding.
 fn versioned_entry<Old: Operation, Current: Operation>(
-    current: &Entry,
+    serving: &Entry,
     service: &'static ServiceInfo,
     chain: &'static [&'static Conversion],
+    hooks: Arc<Hooks>,
 ) -> Entry
 where
     Old::Output: serde::de::DeserializeOwned,
 {
-    let upgrade: Upgrade = Arc::new(move |input: Box<dyn Input>| {
-        let mut value = input.to_json();
-        for conversion in chain {
-            versioning::apply(&mut value, conversion.upgrade);
-        }
-        let input: Current::Input =
-            serde_json::from_value(value).map_err(crate::operations::unreadable)?;
-        Validator::check(&input)?;
-        Ok(Box::new(input) as Box<dyn Input>)
-    });
+    let upgrade: Upgrade = {
+        let hooks = hooks.clone();
+        Arc::new(move |input: Box<dyn Input>| {
+            let hooks = hooks.clone();
+            Box::pin(async move {
+                let mut value = input.to_json();
+                for conversion in chain {
+                    versioning::apply_with(&mut value, conversion.upgrade, &hooks).await?;
+                }
+                let input: Current::Input =
+                    serde_json::from_value(value).map_err(crate::operations::unreadable)?;
+                Validator::check(&input)?;
+                Ok(Box::new(input) as Box<dyn Input>)
+            })
+        })
+    };
     let downgrade: Downgrade = Arc::new(move |output: Box<dyn Output>| {
-        let mut value = output.to_json();
-        for conversion in chain.iter().rev() {
-            versioning::apply(&mut value, conversion.downgrade);
-        }
-        let output: Old::Output = serde_json::from_value(value).map_err(|error| {
-            Error::internal(format!(
-                "{}: the output does not convert to its older version: {error}",
-                Old::INFO.name
-            ))
-        })?;
-        Ok(Box::new(StreamingOutput::<Old>(output)) as Box<dyn Output>)
+        let hooks = hooks.clone();
+        Box::pin(async move {
+            let mut value = output.to_json();
+            for conversion in chain.iter().rev() {
+                versioning::apply_with(&mut value, conversion.downgrade, &hooks).await?;
+            }
+            let output: Old::Output = serde_json::from_value(value).map_err(|error| {
+                Error::internal(format!(
+                    "{}: the output does not convert to its older version: {error}",
+                    Old::INFO.name
+                ))
+            })?;
+            Ok(Box::new(StreamingOutput::<Old>(output)) as Box<dyn Output>)
+        })
     });
     let classify = service.classify;
     let downgrade_error: DowngradeError = Arc::new(move |mut error: Error| {
@@ -257,8 +349,8 @@ where
         decode_cbor: decode_cbor::<Old>,
         decode_bound: decode_bound::<Old>,
         decode_events: decode_events::<Old>,
-        invoke: current.invoke.clone(),
-        body_limit: current.body_limit,
+        invoke: serving.invoke.clone(),
+        body_limit: serving.body_limit,
         upgrade: Some(upgrade),
         downgrade: Some(downgrade),
         downgrade_error: Some(downgrade_error),

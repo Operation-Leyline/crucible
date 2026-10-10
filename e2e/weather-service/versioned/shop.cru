@@ -10,8 +10,7 @@ readonly operation GetItem {
     input { id: string }
     errors [ItemNotFoundException, ItemGoneException]
     output {
-        title: string
-        size?: integer
+        label: Label
         kind: Kind
     }
 }
@@ -23,6 +22,8 @@ readonly operation ListItems {
     input {
         @query
         limit: integer
+        @query
+        sort: string
     }
     output { names: Names }
 }
@@ -40,10 +41,17 @@ error ItemNotFoundException {
     message: string
 }
 
-// v2 renamed the item's name.
+// v2 renamed the item's name and made the sort order required: the order
+// an older request did not send comes from the account (an async hook).
 migration "v2" from "v1" {
     rename GetItem.output.name -> title
+    require ListItems.input.sort by async hook
     sunset "2027-01-01"
+}
+
+structure Label {
+    title: string
+    size?: integer
 }
 
 error ItemGoneException {
@@ -51,14 +59,17 @@ error ItemGoneException {
     message: string
 }
 
-// v3 moved GetItem, made the page size required, added a kind and an
-// error, and reports deletion as a status.
+// v3 moved GetItem and grouped its title and size into a label, made the
+// page size required, added a kind and an error, reports deletion as a
+// status, and dropped CountItems.
 migration "v3" from "v2" {
     move GetItem from GET "/items/{id}"
+    reshape GetItem.output { title, size } -> label by hook
     require ListItems.input.limit default 20
     add Kind.HUGE downgrade LARGE
     add GetItem.errors ItemGoneException downgrade ItemNotFoundException {
         message <- message
     }
     retype DeleteItem.output.deleted -> string by hook
+    remove operation CountItems
 }

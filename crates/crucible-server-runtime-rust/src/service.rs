@@ -276,15 +276,29 @@ impl Crucible {
                     internal: inner.operations.service.internal,
                     unknown: inner.operations.service.unknown,
                 };
-                // An older version's client gets its version's output or error.
+                // An older version's client gets its version's output or
+                // error. The conversion may call the service's hooks, so a
+                // panic in one fails the request as any handler's would.
+                if let Some(downgrade) = job.downgrade.clone()
+                    && let Some(Outcome::Output(_)) = &job.outcome
+                {
+                    let Some(Outcome::Output(output)) = job.outcome.take() else {
+                        unreachable!("checked above");
+                    };
+                    let mut converted = None;
+                    let recovered = recover_async(async {
+                        converted = Some(downgrade(output).await);
+                    })
+                    .await;
+                    job.outcome = Some(match (recovered, converted) {
+                        (Ok(()), Some(Ok(output))) => Outcome::Output(output),
+                        (Ok(()), Some(Err(error))) | (Err(error), _) => Outcome::Failed(error),
+                        (Ok(()), None) => Outcome::Failed(Error::internal(
+                            "the output's conversion to its API version did not finish",
+                        )),
+                    });
+                }
                 job.outcome = match job.outcome.take() {
-                    Some(Outcome::Output(output)) => match &job.downgrade {
-                        Some(downgrade) => Some(match downgrade(output) {
-                            Ok(output) => Outcome::Output(output),
-                            Err(error) => Outcome::Failed(error),
-                        }),
-                        None => Some(Outcome::Output(output)),
-                    },
                     Some(Outcome::Failed(error)) => {
                         Some(Outcome::Failed(match &job.downgrade_error {
                             Some(downgrade) => downgrade(error),
@@ -601,7 +615,7 @@ impl Crucible {
         // and the implementation see only current types.
         if let Some(upgrade) = &entry.upgrade {
             let input = job.input.take().expect("decoded input checked");
-            job.input = Some(upgrade(input)?);
+            job.input = Some(upgrade(input).await?);
         }
         entered.decoded = true;
         for interceptor in &inner.interceptors {
@@ -745,10 +759,25 @@ impl Builder {
         use crate::protocol::{
             AwsJsonProtocol, RestJsonProtocol, RpcV2CborProtocol, RpcV2JsonProtocol,
         };
+        // Older API versions' operations too: one a later version removed
+        // is still served at the versions that had it.
+        let entries: Vec<(crate::operation::Protocol, &'static str)> = self
+            .operations
+            .entries
+            .values()
+            .chain(
+                self.operations
+                    .versions
+                    .older
+                    .iter()
+                    .flat_map(|older| older.operations.entries.values()),
+            )
+            .map(|entry| (entry.metadata.protocol, entry.info.name))
+            .collect();
         let mut formats = Vec::new();
-        for entry in self.operations.entries.values() {
-            if !formats.contains(&entry.metadata.protocol) {
-                formats.push(entry.metadata.protocol);
+        for (protocol, _) in &entries {
+            if !formats.contains(protocol) {
+                formats.push(*protocol);
             }
         }
         if formats.is_empty() {
@@ -757,13 +786,12 @@ impl Builder {
         use crate::ProtocolExt;
         let mut builder = self.middleware(ServiceLog::errors_only());
         for format in formats {
-            let names: Vec<_> = builder
-                .operations
-                .entries
-                .values()
-                .filter(|entry| entry.metadata.protocol == format)
-                .map(|entry| entry.info.name)
+            let mut names: Vec<_> = entries
+                .iter()
+                .filter(|(protocol, _)| *protocol == format)
+                .map(|(_, name)| *name)
                 .collect();
+            names.dedup();
             builder = match format {
                 Wire::CrucibleJson => builder.protocol(JsonProtocol.only(&names)),
                 Wire::AwsRestJson1 => builder.protocol(RestJsonProtocol.only(&names)),

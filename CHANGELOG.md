@@ -87,10 +87,18 @@ version's section when it is prepared.
   the oldest supported (the default), a resolver's choice, or refused.
   Responses echo the version, with a `Sunset` header when its migration
   declares a `sunset`. MCP tool calls and direct invocations are served at
-  the current version. Operations a hooked step affects are served at the
-  current version only, with a build warning; operations with a stream
-  are served at the current version only. An `add ..
+  the current version. Operations with a stream are served at the current
+  version only. An `add ..
   downgrade` step must fill every member the older error requires.
+- Migration hooks (docs/api-versions.md#hooks): `reshape`, `retype` and
+  `require .. by hook` steps and `remove operation` generate a
+  `versions::<older>::Migration` trait per migration, whose methods convert
+  a value across that migration (`by async hook` for one that does I/O) or
+  serve a removed operation at the versions that had it.
+  `operations(implementation)` requires every migration's trait; a split
+  builder registers them with `<older>_migration(..)` or `migrations(..)`,
+  and `build()` names a missing hook. A `retype` without `by hook` is
+  reported until declared `conversion`s are generated.
 - Declared migrations: a breaking change against the baseline compiles when
   `migration "<new>" from "<baseline version>"` declares it with `rename`,
   `require`, `add`, `move`, `reshape`, `retype` or `remove operation`, and

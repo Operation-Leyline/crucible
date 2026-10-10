@@ -6,6 +6,9 @@
 //! conversions are `'static` data generated from the model's migrations;
 //! this module interprets them.
 
+use std::collections::BTreeMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::http::request::Parts;
@@ -82,6 +85,48 @@ pub enum Transform {
         from: &'static str,
         to: &'static str,
     },
+    /// Every value at `at` becomes what the service's hook `hook` makes of
+    /// it: a `reshape` or `retype` step.
+    Hook {
+        at: &'static [Seg],
+        hook: &'static str,
+    },
+    /// The structure at `at` gets `member` from the service's hook `hook`,
+    /// given the structure, when it does not have it: `require .. by hook`.
+    Fill {
+        at: &'static [Seg],
+        member: &'static str,
+        hook: &'static str,
+    },
+}
+
+/// A hook the service wrote, between one version's JSON and the next's.
+#[doc(hidden)]
+pub type HookFn = Arc<dyn Fn(Value) -> HookFuture + Send + Sync>;
+#[doc(hidden)]
+pub type HookFuture = Pin<Box<dyn Future<Output = crate::Result<Value>> + Send>>;
+
+/// The hooks a service registered, by name.
+pub(crate) type Hooks = BTreeMap<&'static str, HookFn>;
+
+/// A hook's value as `T`, for the generated wrapper around a service's hook.
+#[doc(hidden)]
+pub fn hook_input<T: serde::de::DeserializeOwned>(hook: &str, value: Value) -> crate::Result<T> {
+    serde_json::from_value(value).map_err(|error| {
+        Error::internal(format!(
+            "API version hook {hook}: unreadable value: {error}"
+        ))
+    })
+}
+
+/// A hook's result as JSON, for the generated wrapper around a service's hook.
+#[doc(hidden)]
+pub fn hook_output<T: serde::Serialize>(hook: &str, value: T) -> crate::Result<Value> {
+    serde_json::to_value(value).map_err(|error| {
+        Error::internal(format!(
+            "API version hook {hook}: unwritable value: {error}"
+        ))
+    })
 }
 
 /// An error an older version does not know, answered as one it does.
@@ -129,10 +174,90 @@ impl Conversion {
     };
 }
 
-/// Applies `transforms` in order.
+/// The hooks `transforms` call.
+pub(crate) fn hooks_named(transforms: &[Transform]) -> impl Iterator<Item = &'static str> + '_ {
+    transforms.iter().filter_map(|transform| match transform {
+        Transform::Hook { hook, .. } | Transform::Fill { hook, .. } => Some(*hook),
+        _ => None,
+    })
+}
+
+/// Applies `transforms` in order, calling the service's `hooks`.
+pub(crate) async fn apply_with(
+    value: &mut Value,
+    transforms: &[Transform],
+    hooks: &Hooks,
+) -> crate::Result<()> {
+    let hook = |name: &str| {
+        hooks
+            .get(name)
+            .cloned()
+            .ok_or_else(|| Error::internal(format!("API version hook {name} is not registered")))
+    };
+    for transform in transforms {
+        match transform {
+            Transform::Hook { at, hook: name } => {
+                let call = hook(name)?;
+                // Take each value out, convert it, and put it back where it
+                // was: the places are visited in the same order both times.
+                // A null (an absent optional member) is left alone.
+                let mut taken = Vec::new();
+                visit(value, at, &mut |slot| {
+                    taken.push((!slot.is_null()).then(|| slot.take()));
+                });
+                let mut converted = Vec::with_capacity(taken.len());
+                for item in taken {
+                    converted.push(match item {
+                        Some(item) => Some(call(item).await?),
+                        None => None,
+                    });
+                }
+                let mut converted = converted.into_iter();
+                visit(value, at, &mut |slot| {
+                    if let Some(Some(item)) = converted.next() {
+                        *slot = item;
+                    }
+                });
+            }
+            Transform::Fill {
+                at,
+                member,
+                hook: name,
+            } => {
+                let call = hook(name)?;
+                let mut owners = Vec::new();
+                visit(value, at, &mut |slot| {
+                    if let Value::Object(map) = slot
+                        && !map.contains_key(*member)
+                    {
+                        owners.push(slot.clone());
+                    }
+                });
+                let mut filled = Vec::with_capacity(owners.len());
+                for owner in owners {
+                    filled.push(call(owner).await?);
+                }
+                let mut filled = filled.into_iter();
+                visit(value, at, &mut |slot| {
+                    if let Value::Object(map) = slot
+                        && !map.contains_key(*member)
+                        && let Some(item) = filled.next()
+                    {
+                        map.insert((*member).to_owned(), item);
+                    }
+                });
+            }
+            plain => apply(value, std::slice::from_ref(plain)),
+        }
+    }
+    Ok(())
+}
+
+/// Applies the transforms that need no hook, in order.
 pub(crate) fn apply(value: &mut Value, transforms: &[Transform]) {
     for transform in transforms {
         let (at, last) = match transform {
+            Transform::Hook { .. } | Transform::Fill { .. } => continue,
             Transform::Rename { at, .. } | Transform::Default { at, .. } => (*at, None),
             Transform::Map { at, .. } => match at.split_last() {
                 Some((last, parent)) => (parent, Some(*last)),
@@ -166,6 +291,7 @@ pub(crate) fn apply(value: &mut Value, transforms: &[Transform]) {
                     Some(segment) => visit(target, &[segment], &mut swap),
                 }
             }
+            Transform::Hook { .. } | Transform::Fill { .. } => {}
         });
     }
 }
@@ -196,12 +322,12 @@ fn visit(value: &mut Value, path: &[Seg], f: &mut dyn FnMut(&mut Value)) {
     }
 }
 
+type Boxed<T> = Pin<Box<dyn Future<Output = crate::Result<T>> + Send>>;
 /// The input of an older version, read as the current version's.
-pub(crate) type Upgrade =
-    Arc<dyn Fn(Box<dyn Input>) -> Result<Box<dyn Input>, Rejection> + Send + Sync>;
+pub(crate) type Upgrade = Arc<dyn Fn(Box<dyn Input>) -> Boxed<Box<dyn Input>> + Send + Sync>;
 /// The current version's output, read as an older version's.
 pub(crate) type Downgrade = Arc<
-    dyn Fn(Box<dyn crate::operation::Output>) -> crate::Result<Box<dyn crate::operation::Output>>
+    dyn Fn(Box<dyn crate::operation::Output>) -> Boxed<Box<dyn crate::operation::Output>>
         + Send
         + Sync,
 >;
@@ -338,6 +464,56 @@ mod tests {
             }],
         );
         assert_eq!(sent, json!({ "limit": 5 }));
+    }
+
+    #[tokio::test]
+    async fn hooks_convert_every_place_and_fill_what_is_missing() {
+        let mut hooks = Hooks::new();
+        let double: HookFn = Arc::new(|value: Value| {
+            Box::pin(async move { Ok(json!(value.as_i64().unwrap_or_default() * 2)) })
+        });
+        let size: HookFn = Arc::new(|owner: Value| {
+            Box::pin(async move { Ok(json!(owner["name"].as_str().unwrap_or("").len())) })
+        });
+        hooks.insert("double", double);
+        hooks.insert("size", size);
+        let mut value = json!({
+            "items": [{ "name": "abc", "size": 0, "count": null }, { "name": "ab", "count": 1 }],
+        });
+        apply_with(
+            &mut value,
+            &[
+                Transform::Hook {
+                    at: &[Seg::Field("items"), Seg::Items, Seg::Field("count")],
+                    hook: "double",
+                },
+                Transform::Fill {
+                    at: &[Seg::Field("items"), Seg::Items],
+                    member: "size",
+                    hook: "size",
+                },
+            ],
+            &hooks,
+        )
+        .await
+        .unwrap();
+        // A null is left alone; a member the request sent is kept.
+        assert_eq!(
+            value,
+            json!({
+                "items": [{ "name": "abc", "size": 0, "count": null }, { "name": "ab", "count": 2, "size": 2 }],
+            })
+        );
+        let missing = apply_with(
+            &mut value,
+            &[Transform::Hook {
+                at: &[],
+                hook: "absent",
+            }],
+            &hooks,
+        )
+        .await;
+        assert!(missing.is_err());
     }
 
     #[test]

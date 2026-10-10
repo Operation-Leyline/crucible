@@ -1,17 +1,30 @@
 //! The older API versions a service still serves (docs/api-versions.md):
 //! each one's release as its own module of types and operations, the
-//! version constants handlers branch on, and the `'static` conversions the
-//! framework applies between one version and the next.
+//! version constants handlers branch on, the `'static` conversions the
+//! framework applies between one version and the next, and the `Migration`
+//! trait of each migration whose steps need the service's hooks.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ir::{Operation, Service, Shape, VersionStep};
+use crucible_smithy::ir::{Hook, Operation, Service, Shape, VersionStep};
 use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::info::constant;
-use crate::names::literal;
+use crate::names::{function, literal};
 
 const RT: &str = "::crucible_server_runtime_rust::__generated";
+
+/// One hook a migration's `Migration` trait declares.
+struct HookMethod {
+    /// The method, as the trait declares it.
+    decl: String,
+    /// Its registration with the framework, in the `versions` module.
+    register: String,
+}
+
+/// The hooks of each migration, by its older version's index, then by
+/// method name.
+type Methods = Vec<BTreeMap<String, HookMethod>>;
 
 /// The `versions` module, or nothing for a service with one version.
 pub(crate) fn emit(
@@ -59,30 +72,9 @@ pub(crate) fn emit(
         version_constant(names[current])
     ));
 
-    // Each older release, generated as the current version is but without
-    // the extras only the current version serves.
-    for version in &service.versions {
-        let old = version.service.as_ref();
-        let old_options = crate::Options {
-            mcp: false,
-            explorer: None,
-            validation_error: present(old, options.validation_error.as_ref()),
-            internal_error: present(old, options.internal_error.as_ref()),
-            unknown_operation_error: present(old, options.unknown_operation_error.as_ref()),
-            strict_inputs: options.strict_inputs,
-            require_rejection: false,
-        };
-        let body = crate::body(old, &old_options, old, diagnostics);
-        out.push_str(&format!(
-            "\n    /// Release `{}`, as it declared its operations and shapes.\n    pub mod {} {{\n{}    }}\n",
-            version.name,
-            version_module(&version.name),
-            indent(&body, 2)
-        ));
-    }
-
     // One conversion per operation and version step, shared by every
     // older version's chain that crosses it.
+    let mut methods: Methods = (0..current).map(|_| BTreeMap::new()).collect();
     let mut conversions = String::new();
     let mut registrations = String::new();
     let mut built = BTreeSet::new();
@@ -90,15 +82,37 @@ pub(crate) fn emit(
         let module = version_module(&version.name);
         let constant = version_constant(&version.name);
         for old_op in &version.service.operations {
-            let Some(current_op) = operation(service, &old_op.id) else {
-                // Not served at the current version: nothing to reach.
+            // The last version that has the operation serves it.
+            let mut last = index;
+            while last < current && operation(models[last + 1], &old_op.id).is_some() {
+                last += 1;
+            }
+            let served_by = if last == current {
+                None
+            } else if service.versions[last].steps.iter().any(|step| {
+                matches!(
+                    step,
+                    VersionStep::Hooked { hook: Hook::RemoveOperation { operation }, .. }
+                        if operation == &old_op.id
+                )
+            }) {
+                Some(legacy(&models, last, old_op, &mut methods))
+            } else {
+                // Gone without a handler: the guard refuses such a model.
                 continue;
             };
             let mut chain = Vec::new();
-            for step in index..current {
+            for step in index..last {
                 let name = format!("{}_{step}", constant_name(old_op));
                 if built.insert(name.clone()) {
-                    let conversion = conversion(&models, service, step, &old_op.id, diagnostics);
+                    let conversion = conversion(
+                        &models,
+                        service,
+                        step,
+                        &old_op.id,
+                        &mut methods,
+                        diagnostics,
+                    );
                     conversions.push_str(&format!(
                         "        pub(super) static {name}: Conversion = {conversion};\n"
                     ));
@@ -111,13 +125,64 @@ pub(crate) fn emit(
                 "        pub(super) static {chain_name}: &[&Conversion] = &[{}];\n",
                 chain.join(", ")
             ));
+            let (serving, served_by) = match served_by {
+                None => (format!("super::{}", old_op.name()), "None".to_owned()),
+                Some(key) => (
+                    format!(
+                        "{}::{}",
+                        version_module(&service.versions[last].name),
+                        old_op.name()
+                    ),
+                    format!(
+                        "Some(({}, {}))",
+                        version_constant(&service.versions[last].name),
+                        literal(&key)
+                    ),
+                ),
+            };
             registrations.push_str(&format!(
-                "\n            .add_versioned::<{module}::{old}, super::{new}>({constant}, __conversions::{chain_name})",
+                "\n            .add_versioned::<{module}::{old}, {serving}>({constant}, __conversions::{chain_name}, {served_by})",
                 old = old_op.name(),
-                new = current_op.name(),
             ));
         }
     }
+
+    // Each older release, generated as the current version is but without
+    // the extras only the current version serves, with the hooks its
+    // migration to the next version needs.
+    for (index, version) in service.versions.iter().enumerate() {
+        let old = version.service.as_ref();
+        let old_options = crate::Options {
+            mcp: false,
+            explorer: None,
+            validation_error: present(old, options.validation_error.as_ref()),
+            internal_error: present(old, options.internal_error.as_ref()),
+            unknown_operation_error: present(old, options.unknown_operation_error.as_ref()),
+            strict_inputs: options.strict_inputs,
+            require_rejection: false,
+        };
+        let mut body = crate::body(old, &old_options, old, diagnostics);
+        if !methods[index].is_empty() {
+            let decls: String = methods[index]
+                .values()
+                .map(|method| method.decl.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            body.push_str(&format!(
+                "\n/// The hooks the migration from `{}` to `{}` declares: the\n/// conversions the framework cannot write itself. `operations(..)`\n/// requires them; a split builder registers them with `{}_migration`.\npub trait Migration: Send + Sync + 'static {{\n{decls}}}\n",
+                version.name,
+                names[index + 1],
+                version_module(&version.name),
+            ));
+        }
+        out.push_str(&format!(
+            "\n    /// Release `{}`, as it declared its operations and shapes.\n    pub mod {} {{\n{}    }}\n",
+            version.name,
+            version_module(&version.name),
+            indent(&body, 2)
+        ));
+    }
+
     out.push_str(&format!(
         "\n    #[allow(unused_imports)]\n    mod __conversions {{\n        use {RT}::versioning::{{Conversion, ErrorDowngrade, Seg, Transform, downgrade_to}};\n{conversions}    }}\n"
     ));
@@ -136,10 +201,201 @@ pub(crate) fn emit(
         })
         .collect();
     out.push_str(&format!(
-        "\n    pub(super) fn register(builder: {RT}::OperationsBuilder) -> {RT}::OperationsBuilder {{\n        builder\n            .versions(CURRENT, &[{}]){registrations}\n    }}\n}}\n",
+        "\n    pub(super) fn register(builder: {RT}::OperationsBuilder) -> {RT}::OperationsBuilder {{\n        builder\n            .versions(CURRENT, &[{}]){registrations}\n    }}\n",
         older.join(", ")
     ));
+    out.push_str(&registration(service, &methods, diagnostics));
+    out.push_str("}\n");
     out
+}
+
+/// The `Migrations` trait every hook adds up to, and the builder methods
+/// that register them.
+fn registration(service: &Service, methods: &Methods, diagnostics: &mut Diagnostics) -> String {
+    let hooked: Vec<(usize, String)> = methods
+        .iter()
+        .enumerate()
+        .filter(|(_, methods)| !methods.is_empty())
+        .map(|(index, _)| (index, version_module(&service.versions[index].name)))
+        .collect();
+    let operation_methods: BTreeSet<String> = service
+        .operations
+        .iter()
+        .map(|op| function(op.name()))
+        .collect();
+    for name in ["migrations".to_owned()].into_iter().chain(
+        hooked
+            .iter()
+            .map(|(_, module)| format!("{module}_migration")),
+    ) {
+        if operation_methods.contains(&name) {
+            diagnostics.push(
+                &service.id,
+                format!("an operation's builder method `{name}` collides with the migration hooks' method"),
+            );
+        }
+    }
+    let bounds: Vec<String> = hooked
+        .iter()
+        .map(|(_, module)| format!("{module}::Migration"))
+        .collect();
+    let mut out = String::new();
+    if bounds.is_empty() {
+        out.push_str(
+            "\n    /// No migration needs a hook.\n    pub trait Migrations {}\n    impl<T: ?Sized> Migrations for T {}\n",
+        );
+    } else {
+        out.push_str(&format!(
+            "\n    /// Every migration's hooks, for a service that writes them on one type.\n    pub trait Migrations: {bounds} {{}}\n    impl<T: {bounds}> Migrations for T {{}}\n",
+            bounds = bounds.join(" + ")
+        ));
+    }
+    let mut register_all = "builder".to_owned();
+    let mut builder_methods = String::new();
+    for (index, module) in &hooked {
+        let hooks: String = methods[*index]
+            .values()
+            .map(|method| method.register.as_str())
+            .collect();
+        out.push_str(&format!(
+            "\n    fn {module}_hooks<S: {module}::Migration>(builder: {RT}::OperationsBuilder, implementation: ::std::sync::Arc<S>) -> {RT}::OperationsBuilder {{\n        builder{hooks}\n    }}\n"
+        ));
+        register_all = format!("{module}_hooks({register_all}, implementation.clone())");
+        builder_methods.push_str(&format!(
+            "\n        /// Serves the hooks of the migration from `{}`.\n        pub fn {module}_migration<S: {module}::Migration>(self, implementation: ::std::sync::Arc<S>) -> Self {{\n            Self({module}_hooks(self.0, implementation))\n        }}\n",
+            service.versions[*index].name
+        ));
+    }
+    out.push_str(&format!(
+        "\n    #[allow(unused_variables)]\n    fn hooks<S: Migrations + Send + Sync + 'static>(builder: {RT}::OperationsBuilder, implementation: ::std::sync::Arc<S>) -> {RT}::OperationsBuilder {{\n        {register_all}\n    }}\n\n    impl super::OperationsBuilder {{\n        /// Serves every migration's hooks with one implementation.\n        pub fn migrations<S: Migrations + Send + Sync + 'static>(self, implementation: ::std::sync::Arc<S>) -> Self {{\n            Self(hooks(self.0, implementation))\n        }}\n{builder_methods}    }}\n"
+    ));
+    out
+}
+
+/// Where version `index`'s types are, seen from the `versions` module.
+fn module_path(models: &[&Service], current: &Service, index: usize) -> String {
+    if index + 1 == models.len() {
+        "super::".to_owned()
+    } else {
+        format!("{}::", version_module(&current.versions[index].name))
+    }
+}
+
+/// The Rust type of shape `id` in version `index`'s model, seen from the
+/// `versions` module and from inside a version's module.
+fn type_paths(
+    models: &[&Service],
+    current: &Service,
+    index: usize,
+    id: &ShapeId,
+) -> (String, String) {
+    let prefix = module_path(models, current, index);
+    (
+        crate::types::rust_type(models[index], id, &prefix),
+        crate::types::rust_type(models[index], id, &format!("super::{prefix}")),
+    )
+}
+
+/// The registry key of a hook, which also names it when it is missing.
+fn hook_key(current: &Service, step: usize, method: &str) -> String {
+    format!(
+        "versions::{}::Migration::{method}",
+        version_module(&current.versions[step].name)
+    )
+}
+
+/// Records hook `method` of the migration from version `step`, converting
+/// `input` (a value of version `from`) into `output` (of version `to`).
+#[allow(clippy::too_many_arguments)]
+fn hook_method(
+    models: &[&Service],
+    current: &Service,
+    methods: &mut Methods,
+    step: usize,
+    method: &str,
+    doc: &str,
+    input: (usize, &ShapeId),
+    output: (usize, &ShapeId),
+    is_async: bool,
+) -> String {
+    let key = hook_key(current, step, method);
+    if methods[step].contains_key(method) {
+        return key;
+    }
+    let (input_outer, input_inner) = type_paths(models, current, input.0, input.1);
+    let (_, output_inner) = type_paths(models, current, output.0, output.1);
+    let (returns, wait) = if is_async {
+        (
+            format!("impl ::std::future::Future<Output = {RT}::Result<{output_inner}>> + Send"),
+            ".await",
+        )
+    } else {
+        (format!("{RT}::Result<{output_inner}>"), "")
+    };
+    let decl =
+        format!("    /// {doc}\n    fn {method}(&self, value: {input_inner}) -> {returns};\n");
+    let register = format!(
+        "\n            .hook({key}, ::std::sync::Arc::new({{\n                let implementation = implementation.clone();\n                move |value| {{\n                    let implementation = implementation.clone();\n                    ::std::boxed::Box::pin(async move {{\n                        let value: {input_outer} = {RT}::versioning::hook_input({key}, value)?;\n                        let value = implementation.{method}(value){wait}?;\n                        {RT}::versioning::hook_output({key}, value)\n                    }})\n                }}\n            }}))",
+        key = literal(&key),
+    );
+    methods[step].insert(method.to_owned(), HookMethod { decl, register });
+    key
+}
+
+/// Records the handler that serves `operation` at version `last` and
+/// older, the last version that had it; returns its key.
+fn legacy(
+    models: &[&Service],
+    last: usize,
+    operation: &Operation,
+    methods: &mut Methods,
+) -> String {
+    let current = models[models.len() - 1];
+    let old = models[last];
+    let method = function(operation.name());
+    let key = hook_key(current, last, &method);
+    if methods[last].contains_key(&method) {
+        return key;
+    }
+    let module = version_module(&current.versions[last].name);
+    let input = operation
+        .input
+        .as_ref()
+        .map(|id| old.name_of(id).to_owned());
+    let output = operation.output.as_ref().map_or("()".to_owned(), |id| {
+        format!("super::{module}::{}", old.name_of(id))
+    });
+    let (param, call) = match &input {
+        Some(input) => (
+            format!(", input: super::{module}::{input}"),
+            format!(
+                "|implementation, input| async move {{ implementation.{method}(input).await }}"
+            ),
+        ),
+        None => (
+            String::new(),
+            format!("|implementation, _| async move {{ implementation.{method}().await }}"),
+        ),
+    };
+    let decl = format!(
+        "    /// Serves `{}`, which the next version removed, for this version and older.\n    fn {method}(&self{param}) -> impl ::std::future::Future<Output = {RT}::Result<{output}>> + Send;\n",
+        operation.name()
+    );
+    let register = format!(
+        "\n            .add_legacy::<{module}::{name}, S, _>({constant}, implementation.clone(), {call})",
+        name = operation.name(),
+        constant = version_constant(&current.versions[last].name),
+    );
+    methods[last].insert(method, HookMethod { decl, register });
+    key
+}
+
+/// One conversion of a JSON value at a place: `hook` marks one that calls
+/// the service, which owns everything inside its place.
+struct Item {
+    at: Vec<Step>,
+    text: String,
+    hook: bool,
 }
 
 /// How `operation` crosses from version `step` to the next.
@@ -148,6 +404,7 @@ fn conversion(
     current: &Service,
     step: usize,
     operation: &ShapeId,
+    methods: &mut Methods,
     diagnostics: &mut Diagnostics,
 ) -> String {
     let (old, new) = (models[step], models[step + 1]);
@@ -158,19 +415,25 @@ fn conversion(
     ) else {
         return refused("the operation is not in every later version");
     };
-    for item in steps {
-        if let VersionStep::Hooked { kind, operations } = item
-            && operations.contains(operation)
-        {
-            return refused(&format!("a `{kind}` step needs a hook"));
-        }
-    }
     if streams(old_op) || streams(new_op) {
         return refused("streams are served at the current version only");
     }
-    let mut upgrade = Vec::new();
-    let mut downgrade = Vec::new();
+    let mut upgrade: Vec<Item> = Vec::new();
+    let mut downgrade: Vec<Item> = Vec::new();
     let mut errors = Vec::new();
+    let version = &current.versions[step].name;
+    let inside_error = |shape: &ShapeId, what: &str, diagnostics: &mut Diagnostics| {
+        for error in &new_op.errors {
+            if !places(new, Some(error), shape, operation, diagnostics).is_empty() {
+                diagnostics.push(
+                    shape,
+                    format!(
+                        "{what} inside error {error} is not converted for API version {version} yet"
+                    ),
+                );
+            }
+        }
+    };
     for item in steps {
         match item {
             VersionStep::Rename {
@@ -191,15 +454,17 @@ fn conversion(
                     operation,
                     diagnostics,
                 ) {
-                    upgrade.push((
-                        at.len(),
-                        format!(
-                            "Transform::Rename {{ at: {}, from: {}, to: {} }}",
-                            segs(&at),
-                            literal(&from_wire),
-                            literal(&to_wire)
-                        ),
-                    ));
+                    let text = format!(
+                        "Transform::Rename {{ at: {}, from: {}, to: {} }}",
+                        segs(&at),
+                        literal(&from_wire),
+                        literal(&to_wire)
+                    );
+                    upgrade.push(Item {
+                        at,
+                        text,
+                        hook: false,
+                    });
                 }
                 for at in places(
                     new,
@@ -208,27 +473,19 @@ fn conversion(
                     operation,
                     diagnostics,
                 ) {
-                    downgrade.push((
-                        at.len(),
-                        format!(
-                            "Transform::Rename {{ at: {}, from: {}, to: {} }}",
-                            segs(&at),
-                            literal(&to_wire),
-                            literal(&from_wire)
-                        ),
-                    ));
+                    let text = format!(
+                        "Transform::Rename {{ at: {}, from: {}, to: {} }}",
+                        segs(&at),
+                        literal(&to_wire),
+                        literal(&from_wire)
+                    );
+                    downgrade.push(Item {
+                        at,
+                        text,
+                        hook: false,
+                    });
                 }
-                for error in &new_op.errors {
-                    if !places(new, Some(error), new_shape, operation, diagnostics).is_empty() {
-                        diagnostics.push(
-                            new_shape,
-                            format!(
-                                "a member renamed inside error {error} is not converted for API version {} yet",
-                                current.versions[step].name
-                            ),
-                        );
-                    }
-                }
+                inside_error(new_shape, "a member renamed", diagnostics);
             }
             VersionStep::Require {
                 new: new_shape,
@@ -246,15 +503,17 @@ fn conversion(
                     operation,
                     diagnostics,
                 ) {
-                    upgrade.push((
-                        at.len(),
-                        format!(
-                            "Transform::Default {{ at: {}, member: {}, value: {} }}",
-                            segs(&at),
-                            literal(&member_wire),
-                            literal(&value)
-                        ),
-                    ));
+                    let text = format!(
+                        "Transform::Default {{ at: {}, member: {}, value: {} }}",
+                        segs(&at),
+                        literal(&member_wire),
+                        literal(&value)
+                    );
+                    upgrade.push(Item {
+                        at,
+                        text,
+                        hook: false,
+                    });
                 }
             }
             VersionStep::AddEnumValue {
@@ -275,15 +534,17 @@ fn conversion(
                     operation,
                     diagnostics,
                 ) {
-                    downgrade.push((
-                        at.len(),
-                        format!(
-                            "Transform::Map {{ at: {}, from: {}, to: {} }}",
-                            segs(&at),
-                            literal(&from),
-                            literal(&to)
-                        ),
-                    ));
+                    let text = format!(
+                        "Transform::Map {{ at: {}, from: {}, to: {} }}",
+                        segs(&at),
+                        literal(&from),
+                        literal(&to)
+                    );
+                    downgrade.push(Item {
+                        at,
+                        text,
+                        hook: false,
+                    });
                 }
             }
             VersionStep::AddError {
@@ -320,26 +581,286 @@ fn conversion(
                     pairs.join(", ")
                 ));
             }
+            VersionStep::Hooked {
+                kind,
+                hook,
+                is_async,
+                ..
+            } => match hook {
+                Hook::Reshape {
+                    old: old_shape,
+                    new: new_shape,
+                } => {
+                    let name = function(old_shape.name());
+                    let ups = places(
+                        old,
+                        old_op.input.as_ref(),
+                        old_shape,
+                        operation,
+                        diagnostics,
+                    );
+                    if !ups.is_empty() {
+                        let key = hook_method(
+                            models,
+                            current,
+                            methods,
+                            step,
+                            &format!("upgrade_{name}"),
+                            &format!(
+                                "`reshape {}`: an older request's value, as the next version reads it.",
+                                old_shape.name()
+                            ),
+                            (step, old_shape),
+                            (step + 1, new_shape),
+                            *is_async,
+                        );
+                        for at in ups {
+                            let text = format!(
+                                "Transform::Hook {{ at: {}, hook: {} }}",
+                                segs(&at),
+                                literal(&key)
+                            );
+                            upgrade.push(Item {
+                                at,
+                                text,
+                                hook: true,
+                            });
+                        }
+                    }
+                    let downs = places(
+                        new,
+                        new_op.output.as_ref(),
+                        new_shape,
+                        operation,
+                        diagnostics,
+                    );
+                    if !downs.is_empty() {
+                        let key = hook_method(
+                            models,
+                            current,
+                            methods,
+                            step,
+                            &format!("downgrade_{name}"),
+                            &format!(
+                                "`reshape {}`: a response's value, as this version's clients read it.",
+                                old_shape.name()
+                            ),
+                            (step + 1, new_shape),
+                            (step, old_shape),
+                            *is_async,
+                        );
+                        for at in downs {
+                            let text = format!(
+                                "Transform::Hook {{ at: {}, hook: {} }}",
+                                segs(&at),
+                                literal(&key)
+                            );
+                            downgrade.push(Item {
+                                at,
+                                text,
+                                hook: true,
+                            });
+                        }
+                    }
+                    inside_error(new_shape, "a reshaped structure", diagnostics);
+                }
+                Hook::Retype {
+                    old: old_shape,
+                    new: new_shape,
+                    member,
+                } => {
+                    let (Some(old_member), Some(new_member)) = (
+                        member_of(old, old_shape, member),
+                        member_of(new, new_shape, member),
+                    ) else {
+                        continue;
+                    };
+                    if crate::types::codec(old, old_member).is_some()
+                        || crate::types::codec(new, new_member).is_some()
+                    {
+                        diagnostics.push(
+                            &new_shape.with_member(member),
+                            "a retyped member with a wire encoding of its own (a timestamp, blob or sparse collection) is not converted by a hook yet",
+                        );
+                        continue;
+                    }
+                    let name = format!("{}_{}", function(old_shape.name()), function(member));
+                    let doc = format!("`retype {}.{member}`", old_shape.name());
+                    let ups = places(
+                        old,
+                        old_op.input.as_ref(),
+                        old_shape,
+                        operation,
+                        diagnostics,
+                    );
+                    if !ups.is_empty() {
+                        let key = hook_method(
+                            models,
+                            current,
+                            methods,
+                            step,
+                            &format!("upgrade_{name}"),
+                            &format!(
+                                "{doc}: an older request's value, as the next version reads it."
+                            ),
+                            (step, &old_member.target),
+                            (step + 1, &new_member.target),
+                            *is_async,
+                        );
+                        for mut at in ups {
+                            at.push(Step::Field(old_member.wire_name.clone()));
+                            let text = format!(
+                                "Transform::Hook {{ at: {}, hook: {} }}",
+                                segs(&at),
+                                literal(&key)
+                            );
+                            upgrade.push(Item {
+                                at,
+                                text,
+                                hook: true,
+                            });
+                        }
+                    }
+                    let downs = places(
+                        new,
+                        new_op.output.as_ref(),
+                        new_shape,
+                        operation,
+                        diagnostics,
+                    );
+                    if !downs.is_empty() {
+                        let key = hook_method(
+                            models,
+                            current,
+                            methods,
+                            step,
+                            &format!("downgrade_{name}"),
+                            &format!(
+                                "{doc}: a response's value, as this version's clients read it."
+                            ),
+                            (step + 1, &new_member.target),
+                            (step, &old_member.target),
+                            *is_async,
+                        );
+                        for mut at in downs {
+                            at.push(Step::Field(new_member.wire_name.clone()));
+                            let text = format!(
+                                "Transform::Hook {{ at: {}, hook: {} }}",
+                                segs(&at),
+                                literal(&key)
+                            );
+                            downgrade.push(Item {
+                                at,
+                                text,
+                                hook: true,
+                            });
+                        }
+                    }
+                    inside_error(new_shape, "a retyped member", diagnostics);
+                }
+                Hook::Require {
+                    old: old_shape,
+                    new: new_shape,
+                    member,
+                } => {
+                    let Some(new_member) = member_of(new, new_shape, member) else {
+                        continue;
+                    };
+                    let ups = places(
+                        old,
+                        old_op.input.as_ref(),
+                        old_shape,
+                        operation,
+                        diagnostics,
+                    );
+                    if !ups.is_empty() {
+                        let key = hook_method(
+                            models,
+                            current,
+                            methods,
+                            step,
+                            &format!(
+                                "require_{}_{}",
+                                function(old_shape.name()),
+                                function(member)
+                            ),
+                            &format!(
+                                "`require {}.{member} by hook`: the value an older request could not send, from the rest of it.",
+                                old_shape.name()
+                            ),
+                            (step, old_shape),
+                            (step + 1, &new_member.target),
+                            *is_async,
+                        );
+                        for at in ups {
+                            let text = format!(
+                                "Transform::Fill {{ at: {}, member: {}, hook: {} }}",
+                                segs(&at),
+                                literal(&new_member.wire_name),
+                                literal(&key)
+                            );
+                            upgrade.push(Item {
+                                at,
+                                text,
+                                hook: true,
+                            });
+                        }
+                    }
+                }
+                Hook::RemoveOperation { .. } => {}
+                Hook::Conversion => {
+                    diagnostics.push(
+                        operation,
+                        format!(
+                            "a `{kind}` step without `by hook` needs a declared `conversion`, which is not generated yet; add `by hook` to the step"
+                        ),
+                    );
+                    return refused("a conversion is not generated yet");
+                }
+            },
             _ => {}
         }
     }
-    // Deepest places first: renaming a member never moves a place still to
-    // be converted, which only deeper places pass through.
-    upgrade.sort_by_key(|(depth, _)| std::cmp::Reverse(*depth));
-    downgrade.sort_by_key(|(depth, _)| std::cmp::Reverse(*depth));
-    let list = |items: Vec<(usize, String)>| {
-        items
-            .into_iter()
-            .map(|(_, item)| item)
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
     format!(
         "Conversion {{ upgrade: &[{}], downgrade: &[{}], errors: &[{}], refused: None }}",
-        list(upgrade),
-        list(downgrade),
+        ordered(upgrade),
+        ordered(downgrade),
         errors.join(", ")
     )
+}
+
+/// The transforms in the order they run: a hook owns everything inside
+/// its place, so what it covers is dropped; then deepest places first, so
+/// renaming a member never moves a place still to be converted.
+fn ordered(mut items: Vec<Item>) -> String {
+    let hooks: Vec<Vec<Step>> = items
+        .iter()
+        .filter(|item| item.hook)
+        .map(|item| item.at.clone())
+        .collect();
+    items.retain(|item| {
+        !hooks
+            .iter()
+            .any(|at| item.at.starts_with(at) && (item.at.len() > at.len() || !item.hook))
+    });
+    items.sort_by_key(|item| std::cmp::Reverse(item.at.len()));
+    items
+        .into_iter()
+        .map(|item| item.text)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Member `name` of structure `shape`.
+fn member_of<'s>(
+    service: &'s Service,
+    shape: &ShapeId,
+    name: &str,
+) -> Option<&'s crucible_smithy::ir::Member> {
+    match service.shape(shape)? {
+        Shape::Structure(structure) | Shape::Union(structure) => structure.member(name),
+        _ => None,
+    }
 }
 
 fn refused(reason: &str) -> String {
@@ -362,6 +883,7 @@ fn streams(operation: &Operation) -> bool {
 }
 
 /// One step of a place in a value's JSON.
+#[derive(Clone, PartialEq)]
 enum Step {
     Field(String),
     Items,

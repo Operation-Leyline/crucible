@@ -103,6 +103,8 @@ impl Operations {
             },
             older: Vec::new(),
             versioned: Vec::new(),
+            hooks: Default::default(),
+            legacy: Default::default(),
         }
     }
 

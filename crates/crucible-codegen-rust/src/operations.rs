@@ -462,16 +462,21 @@ fn registration(service: &Service) -> String {
         // The older versions are served by the same implementations.
         out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(versions::register(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE)))\n}\n\n");
     }
-    let bounds: Vec<String> = service
+    let mut bounds: Vec<String> = service
         .operations
         .iter()
         .map(|op| format!("{}Operation", op.name()))
         .collect();
-    let calls: String = service
+    let mut calls: String = service
         .operations
         .iter()
         .map(|op| format!("\n        .{}(implementation.clone())", function(op.name())))
         .collect();
+    // Older versions' hooks, for a model with migrations that need them.
+    if !service.versions.is_empty() {
+        bounds.push("versions::Migrations".to_owned());
+        calls.push_str("\n        .migrations(implementation.clone())");
+    }
     let implementation = if service.operations.is_empty() {
         "_implementation"
     } else {

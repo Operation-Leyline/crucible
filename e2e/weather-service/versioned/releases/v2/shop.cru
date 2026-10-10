@@ -1,7 +1,7 @@
 service Shop {
     version "v2"
     protocol json
-    operations [GetItem, ListItems, DeleteItem]
+    operations [GetItem, ListItems, DeleteItem, CountItems]
     errors [ValidationException, InternalServerException]
 }
 
@@ -23,6 +23,8 @@ readonly operation ListItems {
     input {
         @query
         limit?: integer
+        @query
+        sort: string
     }
     output { names: Names }
 }
@@ -35,13 +37,20 @@ idempotent operation DeleteItem {
     output { deleted: boolean }
 }
 
+readonly operation CountItems {
+    http GET "/count"
+    output { count: integer }
+}
+
 error ItemNotFoundException {
     status 404
     message: string
 }
 
-// v2 renamed the item's name.
+// v2 renamed the item's name and made the sort order required: the order
+// an older request did not send comes from the account (an async hook).
 migration "v2" from "v1" {
     rename GetItem.output.name -> title
+    require ListItems.input.sort by async hook
     sunset "2027-01-01"
 }
