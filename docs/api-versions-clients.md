@@ -13,8 +13,9 @@ how clients take part, following decisions 51, 57 and 57a in
   release it was generated for in `Crucible-Version`.
 - **Releases as the current model sees them.** Each supported release has
   a model that is the current one seen at that release. Additive changes
-  reach it; breaking changes are undone by running the migrations
-  backwards. The server serves older releases from these models, so a
+  reach it, except inside a structure a later step reshapes or an
+  operation it removes, whose older definition is the frozen one; breaking
+  changes are undone by running the migrations backwards. The server serves older releases from these models, so a
   release 1 client can call an operation added in release 3 (decision 51).
 - **One SDK line per release.** A client can be generated for any
   supported release: its types, operations and version header are that
@@ -77,10 +78,13 @@ operation's protocol header:
   first release. A non-safelisted header makes every cross-origin request
   preflighted, one extra round trip until the preflight is cached
   (`maxAge`).
-- **Server.** A service without migrations ignores the header, as it does
-  today. One with migrations serves the release named and refuses an
-  unknown one with `400`. A client therefore names a release its server
-  still serves, which is the point of a sunset.
+- **Server.** Every `.cru` service knows its current release, with or
+  without migrations. It serves the release named and refuses any other
+  with `400`, including a newer client calling a server that has no
+  migrations yet. A request without the header is served as `Unversioned`
+  says. A Smithy-sourced service ignores the header, as today. A client
+  therefore names a release its server still serves, which is the point
+  of a sunset.
 - **Testing.** The conformance fixtures are Smithy models, which send no
   release, so the header is tested where a client can name one:
   - the Rust client, generated from the e2e versioned package, calls the
@@ -146,8 +150,10 @@ release's name.
   - A reshaped or retyped definition needs its targets resolved:
     projected where they exist, else copied from frozen.
   - Steps undo in reverse order.
-  - Additions to a reshaped or removed shape do not reach older releases;
-    that is a limit to state.
+  - Additions to a reshaped or removed shape do not reach older releases:
+    the older side of a reshape or a removal is the frozen definition,
+    which a later addition has no place in. This is the one exception to
+    "additive changes reach every release", stated with it.
 - **Derived IR** (reachable shapes, recursion groups, renames, resource
   bindings, service-level auth and CORS) is recomputed. Projecting inside
   crucible-lang, before lowering finishes, keeps one implementation for
@@ -233,7 +239,8 @@ Each part lands as its own PR, in this order:
    their clients.
 5. **Older releases are projections of the current model,** checked
    against their frozen releases, so additive changes reach every
-   release; the questions above are settled before 5b.
+   release (except inside what a later step reshapes or removes); the
+   questions above are settled before 5b.
 6. **SDK lines** are chosen with `model(..).api_version(..)` or a CLI
    flag; publishing and package versioning stay with the publisher.
 7. **Upgrade guides** are model-level Markdown first. Per-language symbol
