@@ -19,7 +19,7 @@ pub mod span;
 
 pub use compile::{
     Compiled, FileDiagnostic, Location, Naming, Package, SourceFile, SourceMap, bundled_packages,
-    compile,
+    compile, compile_baseline,
 };
 pub use diagnostic::{Diagnostic, Severity};
 pub use format::{FormatOptions, format, format_lines};

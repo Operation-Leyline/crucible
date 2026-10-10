@@ -106,6 +106,33 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
             }
         }
     }
+    let baseline = match model.get("baseline") {
+        None => None,
+        Some(value) => {
+            let path = value
+                .as_table()
+                .and_then(|table| table.get("path"))
+                .and_then(toml::Value::as_str)
+                .ok_or_else(|| {
+                    format!(
+                        "{} must be a table naming the frozen package: path = \"releases/2026-09-04\"",
+                        field("baseline")
+                    )
+                })?;
+            if let Some(problem) = escapes(path).or_else(|| outside(dir, path)) {
+                return Err(format!("{}: `{path}` {problem}", field("baseline.path")));
+            }
+            let frozen = dir.join(path);
+            if !is_package(&frozen) {
+                return Err(format!(
+                    "{}: {} is not a frozen package; make one with `crucible freeze`",
+                    field("baseline.path"),
+                    frozen.display()
+                ));
+            }
+            Some(frozen)
+        }
+    };
     let mut paths = Vec::new();
     for source in &sources {
         if let Some(problem) = escapes(source) {
@@ -145,6 +172,7 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
         files,
         naming,
         imports,
+        baseline,
     })
 }
 
@@ -169,6 +197,15 @@ fn escapes(source: &str) -> Option<&'static str> {
         .then_some("must stay inside the package directory")
 }
 
+/// Why `path`, written inside the package, resolves outside it: a symlink
+/// that `escapes` cannot see in the text. A path that does not exist yet is
+/// left to the existence checks.
+fn outside(dir: &Path, path: &str) -> Option<&'static str> {
+    let root = std::fs::canonicalize(dir).ok()?;
+    let target = std::fs::canonicalize(dir.join(path)).ok()?;
+    (!target.starts_with(&root)).then_some("must stay inside the package directory")
+}
+
 fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir)
         .map_err(|error| format!("cannot read {}: {error}", dir.display()))?;
@@ -178,7 +215,9 @@ fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
         // `file_type` does not follow symlinks: a link back to an ancestor
         // would otherwise recurse forever. Linked directories are not walked.
         let kind = entry.file_type().map_err(|error| error.to_string())?;
-        if kind.is_dir() {
+        // A directory with its own package manifest, such as a frozen
+        // baseline under `releases/`, is a package of its own.
+        if kind.is_dir() && !is_package(&path) {
             collect_cru(&path, out)?;
         } else if path.extension().is_some_and(|ext| ext == "cru") && path.is_file() {
             out.push(path);
@@ -226,10 +265,16 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
         naming: Option<NamingTable>,
         /// The language version the package is written in (decision 6).
         language: Option<toml::Spanned<toml::Value>>,
-        /// Decided (decisions 60 and 47d) but not implemented: reported as
-        /// such rather than as unknown keys.
+        /// Decided (decision 60) but not implemented: reported as such
+        /// rather than as unknown keys.
         dependencies: Option<toml::Spanned<toml::Table>>,
-        baseline: Option<toml::Spanned<toml::Value>>,
+        /// The frozen package of the last release (decision 47d).
+        baseline: Option<Baseline>,
+    }
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Baseline {
+        path: toml::Spanned<String>,
     }
     #[derive(serde::Deserialize)]
     #[serde(deny_unknown_fields)]
@@ -305,17 +350,26 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
             ));
         }
     }
-    for (key, at) in [
-        (
-            "dependencies",
-            model.dependencies.as_ref().map(|d| d.span()),
-        ),
-        ("baseline", model.baseline.as_ref().map(|b| b.span())),
-    ] {
-        if let Some(at) = at {
+    if let Some(at) = model.dependencies.as_ref().map(|d| d.span()) {
+        out.push(Diagnostic::new(
+            span(at),
+            "`[model.dependencies]` is not supported by the compiler yet",
+        ));
+    }
+    if let Some(Baseline { path }) = &model.baseline {
+        let at = span(path.span());
+        if let Some(problem) = escapes(path.get_ref()).or_else(|| outside(dir, path.get_ref())) {
             out.push(Diagnostic::new(
-                span(at),
-                format!("`[model.{key}]` is not supported by the compiler yet"),
+                at,
+                format!("`{}` {problem}", path.get_ref()),
+            ));
+        } else if !is_package(&dir.join(path.get_ref())) {
+            out.push(Diagnostic::new(
+                at,
+                format!(
+                    "`{}` is not a frozen package; make one with `crucible freeze`",
+                    path.get_ref()
+                ),
             ));
         }
     }

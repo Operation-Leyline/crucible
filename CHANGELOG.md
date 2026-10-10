@@ -59,6 +59,14 @@ version's section when it is prepared.
   table, key and value,
   explains them on hover, and reports policy errors where they are written;
   an unknown top-level key is an error.
+- The compatibility guard for `.cru` packages: `[model.baseline] path`
+  names a frozen copy of the last release, made by `crucible freeze
+  <package> --out releases/<version>`. Builds, `crucible check`,
+  `crucible generate` and `crucible-lsp` compare the package against it with
+  the `crucible diff` checker and the manifest's `[compatibility]` settings;
+  a breaking change fails the build and shows in the editor where it was
+  made. A directory with its own package manifest is never collected into
+  its parent package.
 - `crucible check` and `crucible generate` accept a `.cru` package directory
   as the model, compiled without Smithy or a JVM, as `crucible_build` does.
 - `crucible_lang::format`, a conservative `.cru` formatter: indentation by

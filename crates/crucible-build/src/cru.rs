@@ -54,12 +54,13 @@ pub(crate) fn lower(
     let compiled = crucible_lang::compile(&package, service.map(ShapeId::name));
     let rendered = compiled.render();
     match compiled.service {
-        Some(service) => {
+        Some(lowered) => {
             // Warnings do not fail the build; Cargo shows each one.
             for line in rendered.lines().filter(|line| line.contains(": warning: ")) {
                 println!("cargo::warning={line}");
             }
-            Ok(service)
+            check_baseline(path, &package, service, &lowered)?;
+            Ok(lowered)
         }
         None => Err(format!(
             "{} does not compile:\n{}",
@@ -67,6 +68,51 @@ pub(crate) fn lower(
             rendered
         )),
     }
+}
+
+/// The compatibility guard (decision 47d): the package against its frozen
+/// baseline, with the `[compatibility]` settings of its manifest. A breaking
+/// change fails the build; a finding the policy makes a warning is shown.
+fn check_baseline(
+    path: &Path,
+    package: &crucible_lang::Package,
+    service: Option<&ShapeId>,
+    lowered: &crucible_smithy::ir::Service,
+) -> Result<(), String> {
+    let Some(baseline) = crucible_lang::compile_baseline(package, service.map(ShapeId::name))
+    else {
+        return Ok(());
+    };
+    if let Some(dir) = &package.baseline {
+        println!("cargo::rerun-if-changed={}", dir.display());
+    }
+    let old = baseline?;
+    let config = match manifest_policy(path) {
+        Some(manifest) => crucible_policy::Config::load(&manifest)?,
+        None => crucible_policy::Config::default(),
+    };
+    let report = crucible_policy::diff(&old, lowered, &config);
+    for finding in &report.findings {
+        if finding.severity == crucible_policy::Severity::Warning || finding.exception.is_some() {
+            println!(
+                "cargo::warning=[{}] {}: {}",
+                finding.rule,
+                finding.shape,
+                finding.message.replace(['\n', '\r'], " ")
+            );
+        }
+    }
+    if report.has_errors() {
+        return Err(format!(
+            "{} breaks compatibility with its baseline {}:\n{report}",
+            path.display(),
+            package
+                .baseline
+                .as_ref()
+                .map_or_else(String::new, |dir| dir.display().to_string())
+        ));
+    }
+    Ok(())
 }
 
 /// The error for an output the language cannot feed yet.

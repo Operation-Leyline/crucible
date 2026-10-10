@@ -669,7 +669,9 @@ server binding exists for it.
     the model guard and the runtime guard; Leyline's rate-limit and audit
     middleware re-check presence at startup today.
 
-47d. **Compatibility is a guard.** The manifest names the baseline
+47d. **Compatibility is a guard.** *(Implemented, with the baseline a
+    frozen copy of the package's sources made by `crucible freeze` rather
+    than a compiled artifact: the IR has no serialized form yet.)* The manifest names the baseline
     artifact (the last release); `crucible check` compares against it on
     every compile, not only when someone runs `diff`. Findings are keyed
     to the consumer class they break: wire, JSON document, or generated

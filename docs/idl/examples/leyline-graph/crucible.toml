@@ -18,7 +18,9 @@ imports = ["org.standards"]
 input = "{Operation}Input"
 output = "{Operation}Output"
 
-# Compatibility is checked on every compile against the last release
-# (decision 47d), not only when someone runs `crucible diff`.
-[model.baseline]
-artifact = "releases/2026-09-04/leyline.model.json"
+# Compatibility is checked on every compile against the last release, a
+# frozen copy made by `crucible freeze` (decision 47d), not only when someone
+# runs `crucible diff`. This example ships no frozen release, so the baseline
+# stays a comment; a real package would have it.
+# [model.baseline]
+# path = "releases/2026-09-04"

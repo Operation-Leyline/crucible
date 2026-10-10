@@ -36,6 +36,7 @@ fn messages(extra: &str) -> Vec<String> {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        baseline: None,
     };
     let compiled = compile(&package, None);
     // Warnings do not withhold the service; errors do.
@@ -188,6 +189,7 @@ fn split(extra: &str) -> (Vec<String>, Vec<String>) {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        baseline: None,
     };
     let compiled = compile(&package, None);
     let (errors, warnings): (Vec<_>, Vec<_>) = compiled

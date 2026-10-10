@@ -126,6 +126,41 @@ Static checks evaluate the current model in full. Existing violations can be
 introduced as warnings or explicitly excepted during adoption. They do not
 depend on the CI diff to select changed shapes.
 
+## Guarding a `.cru` package against its last release
+
+A Crucible language package can name its last release as a baseline. Every
+build, `crucible check`, `crucible generate` and the editor then compare the
+package against it, so a breaking change fails where it is made instead of
+when someone remembers to run `crucible diff`.
+
+Freeze the release when you ship it, and point the manifest at the copy:
+
+```sh
+crucible freeze model/api --out model/api/releases/2026-09-04
+```
+
+```toml
+[model]
+namespace = "example.service"
+
+[model.baseline]
+path = "releases/2026-09-04"
+```
+
+`freeze` copies the manifest (without its own `[model.baseline]`) and every
+`.cru` source, and refuses to overwrite an existing release. A frozen
+release inside the package is a package of its own, so its files are never
+part of the current one. The comparison is the one `crucible diff` runs,
+with the package's `[compatibility]` settings and `[[exceptions]]`: a
+finding at `error` fails the build, one at `warning` is printed. In the
+editor, each breaking change shows at the declaration it concerns, or, for
+something removed, at what held it; a baseline that does not load shows on
+`[model.baseline]`.
+
+Declaring an intended break as a new API version is the next step
+(decisions 51-59); until then, a deliberate break is an `[[exceptions]]`
+entry with its reason, or a new baseline.
+
 ## Comparing contracts
 
 Compare the Smithy source directories from two revisions directly:
