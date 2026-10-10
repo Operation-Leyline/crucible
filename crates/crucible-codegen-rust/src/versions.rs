@@ -898,6 +898,27 @@ fn conversion(
                     let Some(new_member) = member_of(new, new_shape, member) else {
                         continue;
                     };
+                    // The fill runs first and writes the next version's
+                    // value; another step on the same member would read it
+                    // as the older one.
+                    let conflicts = steps.iter().any(|other| match other {
+                        VersionStep::Rename { new, to, .. } => new == new_shape && to == member,
+                        VersionStep::Hooked {
+                            hook: Hook::Retype { new, member: m, .. },
+                            ..
+                        } => new == new_shape && m == member,
+                        _ => false,
+                    });
+                    if conflicts {
+                        diagnostics.push(
+                            &new_shape.with_member(member),
+                            format!(
+                                "`{}.{member}` is both required by hook and renamed or retyped in the migration from API version {version}; declare one step for it",
+                                new_shape.name()
+                            ),
+                        );
+                        continue;
+                    }
                     if crate::types::codec(new, new_member).is_some() {
                         diagnostics.push(
                             &new_shape.with_member(member),
