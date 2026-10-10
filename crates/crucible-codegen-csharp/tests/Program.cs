@@ -47,7 +47,13 @@ static class Program
                 {
                     while (!stop.IsCancellationRequested)
                     {
-                        using var socket = await listener.AcceptTcpClientAsync(stop.Token);
+                        TcpClient accepted;
+                        // Stopping the listener fails a pending accept in more
+                        // ways than cancellation; only those failures end the loop.
+                        try { accepted = await listener.AcceptTcpClientAsync(stop.Token); }
+                        catch (Exception error) when (stop.IsCancellationRequested
+                            && error is OperationCanceledException or InvalidOperationException or SocketException or ObjectDisposedException) { break; }
+                        using var socket = accepted;
                         await using var stream = socket.GetStream();
                         var head = new List<byte>(); var one = new byte[1];
                         while (true)
@@ -70,9 +76,11 @@ static class Program
                         await stream.WriteAsync(bytes, stop.Token);
                     }
                 }
-                // Stopping the listener fails a pending accept in more ways
-                // than cancellation (InvalidOperationException, SocketException).
-                catch (Exception) when (stop.IsCancellationRequested) { }
+                // An exchange cut short by shutdown; anything else, such as a
+                // request the handler rejects, still fails the test.
+                catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+                catch (IOException) when (stop.IsCancellationRequested) { }
+                catch (ObjectDisposedException) when (stop.IsCancellationRequested) { }
             });
         }
         public async ValueTask DisposeAsync() { stop.Cancel(); listener.Stop(); await loop; stop.Dispose(); }
