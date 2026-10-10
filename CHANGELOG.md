@@ -54,7 +54,9 @@ version's section when it is prepared.
   ("operation name `createGraph` is not PascalCase").
 - `crucible-lsp` runs the package's policy on every compile and reports each
   finding at the name it concerns, with a rename to the configured case as a
-  quick fix. In `crucible.toml` it completes every table, key and value,
+  quick fix, even while the package has other errors (`Compiled::best_effort`
+  keeps what lowering made of it). In `crucible.toml` it completes every
+  table, key and value,
   explains them on hover, and reports policy errors where they are written;
   an unknown top-level key is an error.
 - `crucible check` and `crucible generate` accept a `.cru` package directory

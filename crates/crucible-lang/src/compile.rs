@@ -105,6 +105,10 @@ pub struct Compiled {
     pub parsed: Vec<Parsed>,
     /// Present when the package compiled without a diagnostic.
     pub service: Option<ir::Service>,
+    /// When it did not, what lowering still made of it: enough for an
+    /// editor to check names and documentation while other problems are
+    /// fixed. Never generate from it.
+    pub best_effort: Option<ir::Service>,
     pub source_map: SourceMap,
     pub diagnostics: Vec<FileDiagnostic>,
 }
@@ -238,11 +242,17 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
             .filter(|problem| !problem.file.is_some_and(|file| broken[file])),
     );
     let failed = diagnostics.iter().any(|item| item.diagnostic.is_error());
+    let (service, best_effort) = if failed {
+        (None, lowered)
+    } else {
+        (lowered, None)
+    };
     Compiled {
         namespace: package.namespace.clone(),
         files,
         parsed,
-        service: if failed { None } else { lowered },
+        service,
+        best_effort,
         source_map,
         diagnostics,
     }

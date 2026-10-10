@@ -41,9 +41,11 @@ pub fn source(dir: &Path, manifest: Option<&str>) -> Option<String> {
 
 /// Every unexcepted finding of `config` on the compiled package, at the
 /// name of the declaration, member or enum value it concerns. Findings on
-/// imports, or on shapes with no source position, are dropped.
+/// imports, or on shapes with no source position, are dropped. A package
+/// with errors is checked as far as it lowered, so a typo in one place does
+/// not hide every naming finding elsewhere.
 pub fn findings(compiled: &Compiled, own: usize, config: &Config) -> Vec<Finding> {
-    let Some(service) = &compiled.service else {
+    let Some(service) = compiled.service.as_ref().or(compiled.best_effort.as_ref()) else {
         return Vec::new();
     };
     let report = crucible_policy::check(service, config);
@@ -163,5 +165,30 @@ list Names: string
             "Page_size"
         );
         assert_eq!(member.rename.as_deref(), Some("pageSize"));
+    }
+
+    #[test]
+    fn an_error_elsewhere_does_not_hide_findings() {
+        let broken = SOURCE.replace("names: Names", "names: Nmaes");
+        let package = crucible_lang::Package::new(
+            "example.shop",
+            vec![crucible_lang::SourceFile {
+                path: "shop.cru".into(),
+                text: broken,
+            }],
+        );
+        let compiled = crucible_lang::compile(&package, None);
+        assert!(compiled.service.is_none());
+        let config = Config::parse(
+            "[rules.naming]
+operations = \"PascalCase\"
+",
+        )
+        .unwrap();
+        assert!(
+            findings(&compiled, 1, &config)
+                .iter()
+                .any(|f| f.rule == "naming.operations")
+        );
     }
 }
