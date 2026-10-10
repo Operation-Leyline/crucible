@@ -1394,12 +1394,19 @@ impl Server {
                     // package spells its name (a URI label, `paginated(..)`,
                     // an example), and never into a name the language
                     // cannot hold, such as kebab-case.
-                    _ if valid_name(new_name)
-                        && unit.is_some_and(|unit| {
-                            let old = &document.text[lines.offset(diagnostic.range.start)
-                                ..lines.offset(diagnostic.range.end)];
-                            name_occurrences(unit, old) == 1
-                        }) =>
+                    // A rename the server refused (a clash, an import)
+                    // never becomes a single-site edit.
+                    Ok(None)
+                        if valid_name(new_name)
+                            && unit.is_some_and(|unit| {
+                                let start = lines.offset(diagnostic.range.start);
+                                let end = lines.offset(diagnostic.range.end);
+                                // A client may send any range; never panic on one.
+                                document
+                                    .text
+                                    .get(start..end)
+                                    .is_some_and(|old| name_occurrences(unit, old) == 1)
+                            }) =>
                     {
                         WorkspaceEdit {
                             changes: Some(HashMap::from([(
