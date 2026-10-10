@@ -25,6 +25,9 @@ pub struct Package {
     /// Packages whose declarations this one uses: the bundled
     /// `crucible.errors` today (decision 60).
     pub imports: Vec<String>,
+    /// The frozen package of the last release, from `[model.baseline]`: the
+    /// contract this one must stay compatible with (decision 47d).
+    pub baseline: Option<std::path::PathBuf>,
 }
 
 impl Package {
@@ -34,8 +37,30 @@ impl Package {
             files,
             naming: Naming::default(),
             imports: Vec::new(),
+            baseline: None,
         }
     }
+}
+
+/// Compiles the package's baseline, when it names one: the service of the
+/// last release, to compare the current one against. `Err` explains why the
+/// baseline itself does not load or compile.
+pub fn compile_baseline(
+    package: &Package,
+    service: Option<&str>,
+) -> Option<Result<ir::Service, String>> {
+    let dir = package.baseline.as_ref()?;
+    Some((|| {
+        let frozen = crate::load_package(dir)?;
+        let compiled = compile(&frozen, service);
+        let rendered = compiled.render();
+        compiled.service.ok_or_else(|| {
+            format!(
+                "the baseline {} does not compile:\n{rendered}",
+                dir.display()
+            )
+        })
+    })())
 }
 
 /// Packages bundled with the compiler, by namespace.
