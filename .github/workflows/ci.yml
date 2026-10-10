@@ -94,7 +94,7 @@ jobs:
           overwrite: true
           path: dist/qualification-tools/*
           if-no-files-found: error
-          # A PR rerun within a day reuses it; releases keep it longer.
+          # Kept two days for PR reruns; releases keep it longer.
           retention-days: ${{ github.event_name == 'pull_request' && 2 || 7 }}
   service-cli:
     needs: [plan, rust, qualification-tools]

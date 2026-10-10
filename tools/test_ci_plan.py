@@ -407,6 +407,8 @@ class PlanTests(unittest.TestCase):
         # main only.
         self.assertNotRegex(jobs["editor"], r"uses: actions/cache@")
         saves = re.findall(r"uses: actions/cache/save@.*\n\s+if: (.*)", jobs["editor"])
+        # Every save step has a main-only condition on its next line.
+        self.assertEqual(len(saves), jobs["editor"].count("uses: actions/cache/save@"))
         self.assertTrue(saves)
         for save in saves:
             self.assertIn("github.ref == 'refs/heads/main'", save)
@@ -436,14 +438,16 @@ class Prose(unittest.TestCase):
                 event.write_text(json.dumps(EVENT))
                 output = Path(directory) / "output"
                 env = dict(os.environ, GITHUB_EVENT_NAME="pull_request", GITHUB_EVENT_PATH=str(event),
-                           GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(Path(directory) / "summary"))
+                           GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(Path(directory) / "summary"),
+                           PYTHONPATH=str(ROOT / "tools"))
                 script = (
                     "import sys, ci_plan\n"
                     f"ci_plan.changed_paths = lambda base, head: {list(paths)!r}\n"
                     "ci_plan.main()\n"
                 )
-                subprocess.run([sys.executable, "-c", script], env=env, check=True,
-                               capture_output=True, cwd=ROOT / "tools")
+                run = subprocess.run([sys.executable, "-c", script], env=env,
+                                     capture_output=True, text=True, cwd=ROOT / "tools")
+                self.assertEqual(run.returncode, 0, run.stderr)
                 return dict(line.split("=", 1) for line in output.read_text().splitlines())["tools"]
         self.assertEqual(tools("crates/crucible-codegen-python/src/lib.rs"), "true")
         self.assertEqual(tools("crates/crucible-codegen-ts/src/lib.rs"), "false")
