@@ -664,7 +664,7 @@ fn the_manifest_policy_shows_in_model_files_and_edits_apply_at_once() {
     client.open(&service, SERVICE);
 
     // `id` and `name` are not PascalCase: warnings at the member names,
-    // tagged with the rule, each with a rename.
+    // tagged with the rule.
     let diagnostics = client.diagnostics(&service);
     let policy_findings: Vec<&Value> = diagnostics
         .iter()
@@ -672,19 +672,26 @@ fn the_manifest_policy_shows_in_model_files_and_edits_apply_at_once() {
         .collect();
     assert_eq!(policy_findings.len(), 2, "{diagnostics:#?}");
     assert!(policy_findings.iter().all(|d| d["severity"] == 2));
-    let at_id = policy_findings
-        .iter()
-        .find(|d| d["range"]["start"] == position(SERVICE, "id: ItemId", 0))
-        .unwrap();
-    let actions = client.request(
-        "textDocument/codeAction",
-        json!({
-            "textDocument": { "uri": service },
-            "range": at_id["range"],
-            "context": { "diagnostics": [at_id] },
-        }),
-    );
-    assert_eq!(actions[0]["title"], "Rename to `Id`", "{actions}");
+    let actions_at = |client: &mut Client, word: &str| {
+        let finding = policy_findings
+            .iter()
+            .find(|d| d["range"]["start"] == position(SERVICE, word, 0))
+            .unwrap();
+        client.request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": { "uri": service },
+                "range": finding["range"],
+                "context": { "diagnostics": [finding] },
+            }),
+        )
+    };
+    // `name` is spelled once, so it is renamed in place.
+    let actions = actions_at(&mut client, "name: string");
+    assert_eq!(actions[0]["title"], "Rename to `Name`", "{actions}");
+    // `id` is also the URI label `{id}`: renaming one would break the other.
+    let actions = actions_at(&mut client, "id: ItemId");
+    assert_eq!(actions, json!([]), "{actions}");
 
     // Editing the manifest, unsaved, changes what the model shows.
     let manifest = uri(&dir.join("crucible.toml"));

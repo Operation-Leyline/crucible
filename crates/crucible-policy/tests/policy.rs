@@ -370,12 +370,15 @@ fn problems_point_at_what_is_wrong() {
 
     let text = "[rules.paths]\nprefix = { path = \"v1\", severity = \"warning\" }\n";
     let error = Config::parse_located(text).unwrap_err();
-    assert_eq!(&text[error.span.unwrap()], "\"v1\"");
+    // A check written as a table is located as a whole.
+    assert!(text[error.span.clone().unwrap()].starts_with("{ path = \"v1\""));
 
-    let text =
-        "[[exceptions]]\nrule = \"naming.typo\"\nshape = \"example.api#GetItem\"\nreason = \"x\"\n";
+    // An equal string in a comment or an earlier entry does not take the span.
+    let text = "# \"naming.typo\" is not a rule\n[[exceptions]]\nrule = \"naming.members\"\nshape = \"example.api#GetItem\"\nreason = \"naming.typo\"\n[[exceptions]]\nrule = \"naming.typo\"\nshape = \"example.api#GetItem\"\nreason = \"x\"\n";
     let error = Config::parse_located(text).unwrap_err();
-    assert_eq!(&text[error.span.unwrap()], "\"naming.typo\"");
+    let span = error.span.clone().unwrap();
+    assert_eq!(&text[span.clone()], "\"naming.typo\"");
+    assert_eq!(span.start, text.rfind("\"naming.typo\"").unwrap());
     assert!(
         error.message.contains("naming.members"),
         "{}",

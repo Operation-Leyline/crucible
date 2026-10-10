@@ -1389,16 +1389,37 @@ impl Server {
             {
                 let edit = match self.rename(uri, diagnostic.range.start, new_name) {
                     Ok(Some(edit)) => edit,
-                    _ => WorkspaceEdit {
-                        changes: Some(HashMap::from([(
-                            uri.clone(),
-                            vec![TextEdit {
-                                range: diagnostic.range,
-                                new_text: new_name.to_owned(),
-                            }],
-                        )])),
-                        ..Default::default()
-                    },
+                    // A member or enum value is not a declaration rename
+                    // knows. Edit it in place only when nothing else in the
+                    // package spells its name (a URI label, `paginated(..)`,
+                    // an example), and never into a name the language
+                    // cannot hold, such as kebab-case.
+                    // A rename the server refused (a clash, an import)
+                    // never becomes a single-site edit.
+                    Ok(None)
+                        if valid_name(new_name)
+                            && unit.is_some_and(|unit| {
+                                let start = lines.offset(diagnostic.range.start);
+                                let end = lines.offset(diagnostic.range.end);
+                                // A client may send any range; never panic on one.
+                                document
+                                    .text
+                                    .get(start..end)
+                                    .is_some_and(|old| name_occurrences(unit, old) == 1)
+                            }) =>
+                    {
+                        WorkspaceEdit {
+                            changes: Some(HashMap::from([(
+                                uri.clone(),
+                                vec![TextEdit {
+                                    range: diagnostic.range,
+                                    new_text: new_name.to_owned(),
+                                }],
+                            )])),
+                            ..Default::default()
+                        }
+                    }
+                    _ => continue,
                 };
                 out.push(CodeActionOrCommand::CodeAction(CodeAction {
                     title: format!("Rename to `{new_name}`"),
@@ -1452,6 +1473,32 @@ impl Server {
         }
         Some(out)
     }
+}
+
+/// Whether `name` can name a declaration or member.
+fn valid_name(name: &str) -> bool {
+    name.chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// How often `name` is written as a whole word in the unit's own files,
+/// strings and comments included.
+fn name_occurrences(unit: &Unit, name: &str) -> usize {
+    let word = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    unit.compiled.files[..unit.own]
+        .iter()
+        .map(|file| {
+            file.text
+                .match_indices(name)
+                .filter(|(at, _)| {
+                    !file.text[..*at].ends_with(word)
+                        && !file.text[at + name.len()..].starts_with(word)
+                })
+                .count()
+        })
+        .sum()
 }
 
 fn at_severity(range: Range, message: String, severity: crucible_lang::Severity) -> Diagnostic {
