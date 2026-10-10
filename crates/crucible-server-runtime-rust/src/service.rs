@@ -448,6 +448,10 @@ impl Crucible {
             .any(|protocol| protocol.current_version_only(job.request()))
         {
             job.context.select_api_version(current);
+            if let Ok(value) = HeaderValue::from_str(current.name()) {
+                job.response_headers
+                    .insert(versioning::VERSION_HEADER, value);
+            }
             return Ok(operations);
         }
         let named = job

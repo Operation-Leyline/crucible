@@ -193,6 +193,43 @@ async fn a_request_without_a_version_is_settled_by_the_builder() {
     assert!(body.to_string().contains("\\\"v9\\\""), "{body}");
 }
 
+#[tokio::test]
+async fn an_mcp_tool_call_is_served_at_the_current_version() {
+    // Tools are described from the current model, whatever a request names.
+    let service = Crucible::builder(shop::operations(Arc::new(Shop)))
+        .defaults()
+        .mcp(crucible_server_runtime_rust::mcp::McpConfig::new())
+        .api_version(Unversioned::Required)
+        .build()
+        .unwrap();
+    let message = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": { "name": "GetItem", "arguments": { "id": "big" } },
+    });
+    let response = service
+        .handle(
+            Request::post("/mcp")
+                .header("content-type", "application/json")
+                .header("crucible-version", "v1")
+                .body(Body::from(message.to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["crucible-version"], "v3");
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        body["result"]["structuredContent"],
+        json!({ "title": "item big", "kind": "HUGE" }),
+        "{body}"
+    );
+}
+
 #[test]
 fn versions_order_as_released() {
     use shop::versions::{CURRENT, V1, V2, V3};

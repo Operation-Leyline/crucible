@@ -87,8 +87,9 @@ version's section when it is prepared.
   the oldest supported (the default), a resolver's choice, or refused.
   Responses echo the version, with a `Sunset` header when its migration
   declares a `sunset`. MCP tool calls and direct invocations are served at
-  the current version. Operations a hooked step or a stream affects are
-  served at the current version only, with a build warning. An `add ..
+  the current version. Operations a hooked step affects are served at the
+  current version only, with a build warning; operations with a stream
+  are served at the current version only. An `add ..
   downgrade` step must fill every member the older error requires.
 - Declared migrations: a breaking change against the baseline compiles when
   `migration "<new>" from "<baseline version>"` declares it with `rename`,

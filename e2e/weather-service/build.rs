@@ -65,6 +65,7 @@ fn main() {
         out.join("versioned.rs"),
         crucible_build::model("versioned")
             .server()
+            .mcp()
             .render()
             .unwrap(),
     )
