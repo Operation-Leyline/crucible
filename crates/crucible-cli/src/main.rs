@@ -759,7 +759,7 @@ fn lower_cru(source: &Source) -> Result<Service, String> {
     let name = source.service.as_ref().map(ShapeId::name);
     let compiled = crucible_lang::compile(&package, name);
     let rendered = compiled.render();
-    let Some(service) = compiled.service else {
+    let Some(service) = compiled.service.clone() else {
         return Err(format!("{} does not compile:\n{rendered}", path.display()));
     };
     // Warnings do not stop generation; show them all the same.
@@ -767,24 +767,25 @@ fn lower_cru(source: &Source) -> Result<Service, String> {
         eprintln!("{line}");
     }
     // The compatibility guard: a breaking change against the package's
-    // frozen baseline fails, as it does in a build.
-    if let Some(baseline) = crucible_lang::compile_baseline(&package, name) {
-        let old = baseline?;
-        let manifest = path.join("crucible.toml");
-        let config = std::fs::read_to_string(&manifest)
-            .ok()
-            .filter(|text| crucible_policy::Config::declares_policy(text))
-            .map(|_| crucible_policy::Config::load(&manifest))
-            .transpose()?
-            .unwrap_or_default();
-        let report = crucible_policy::diff(&old, &service, &config);
-        if report.has_errors() {
+    // frozen baseline that no migration declares fails, as it does in a build.
+    let manifest = path.join("crucible.toml");
+    let config = std::fs::read_to_string(&manifest)
+        .ok()
+        .filter(|text| crucible_policy::Config::declares_policy(text))
+        .map(|_| crucible_policy::Config::load(&manifest))
+        .transpose()?
+        .unwrap_or_default();
+    if let Some(guard) = crucible_lang::guard(&package, &compiled, package.files.len(), &config) {
+        let guard = guard?;
+        let rendered = guard.render(&compiled);
+        if guard.has_errors() {
             return Err(format!(
-                "{} breaks compatibility with its baseline:\n{report}",
-                path.display()
+                "{} breaks compatibility with its baseline {}:\n{rendered}",
+                path.display(),
+                guard.version
             ));
         }
-        eprint!("{report}");
+        eprint!("{rendered}");
     }
     Ok(service)
 }

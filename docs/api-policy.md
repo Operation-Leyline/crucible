@@ -157,9 +157,44 @@ editor, each breaking change shows at the declaration it concerns, or, for
 something removed, at what held it; a baseline that does not load shows on
 `[model.baseline]`.
 
-Declaring an intended break as a new API version is the next step
-(decisions 51-59); until then, a deliberate break is an `[[exceptions]]`
-entry with its reason, or a new baseline.
+### Declaring a breaking change
+
+A deliberate break compiles when the migration from the baseline's version
+declares it. The version of a frozen release is its directory's name, so a
+baseline at `releases/2026-09-04` is served by
+`migration "<new version>" from "2026-09-04"`:
+
+```
+/// Region becomes a required choice; storage is reported as one structure.
+migration "2026-11-01" from "2026-09-04" {
+    rename GraphData.manifestGeneration -> generation
+    require CreateIndex.input.kind default BTREE
+    add GraphStatus.RETIRING downgrade DELETED
+    add CreateGraph.errors GraphNameReservedException downgrade ConflictException {
+        message <- message
+    }
+    move RevertGraph from POST "/v1/graphs/{graphId}/revert"
+    reshape GraphData { sizeBytes, indexBytes } -> storage by hook
+    retype Usage.cost -> Money by hook
+    remove operation GetWrite
+    behavior ListGraphs.excludesRetiring
+    sunset "2028-11-01"
+}
+```
+
+The compiler checks the migration both ways. A breaking change no step
+declares still fails, and each step must match what changed between the
+baseline and the current model: a `rename` whose old member is still there,
+a `move` whose old route was not the baseline's, an `add` of a value that
+already existed, or a `remove operation` of an operation that still exists
+is an error at that step. Paths name a shape (`GraphData`), a member
+(`GraphData.storage`), or an operation's input or output
+(`CreateIndex.input.kind`). One release has one migration; older ones stay
+in the sources, for the server that will serve them. Hooks are recorded but
+not generated yet: serving older versions at runtime is a later phase.
+
+When the release ships, freeze it and point `[model.baseline]` at the new
+copy; the next release's migration starts from it.
 
 ## Comparing contracts
 

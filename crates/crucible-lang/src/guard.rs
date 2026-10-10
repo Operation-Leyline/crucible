@@ -1,0 +1,573 @@
+//! The compatibility guard (decision 47d) and declared migrations
+//! (decisions 51-54a): a package against the frozen package of its last
+//! release. A breaking change compiles only when the migration from that
+//! release declares it, and each declared step must match a change that
+//! happened, so the migration and the model cannot drift apart.
+
+use std::path::Path;
+
+use crucible_policy::{Config, Finding, Severity};
+use crucible_smithy::ShapeId;
+use crucible_smithy::ir::{Operation, Service, Shape};
+
+use crate::ast::{Decl, Dotted, Ident, Migration, StepKind};
+use crate::compile::{Compiled, FileDiagnostic, Package, compile_baseline};
+use crate::diagnostic::Diagnostic;
+
+/// What the guard found for one package.
+#[derive(Debug, Clone)]
+pub struct Guard {
+    /// The frozen release's version: its directory's name.
+    pub version: String,
+    /// Breaking changes no migration declares, as the checker reports them;
+    /// excepted and `off` findings are left out.
+    pub undeclared: Vec<Finding>,
+    /// How many findings the migration declared.
+    pub declared: usize,
+    /// Problems with the migration itself, each at its step.
+    pub problems: Vec<FileDiagnostic>,
+}
+
+impl Guard {
+    /// Whether the guard fails the build.
+    pub fn has_errors(&self) -> bool {
+        self.undeclared
+            .iter()
+            .any(|finding| finding.severity == Severity::Error)
+            || self.problems.iter().any(|item| item.diagnostic.is_error())
+    }
+
+    /// Every undeclared finding and problem, one per line, for a build log.
+    pub fn render(&self, compiled: &Compiled) -> String {
+        let mut out = String::new();
+        for finding in &self.undeclared {
+            let severity = if finding.severity == Severity::Error {
+                "error"
+            } else {
+                "warning"
+            };
+            out.push_str(&format!(
+                "{severity}[{}] {}: {}\n",
+                finding.rule, finding.shape, finding.message
+            ));
+        }
+        if !self.undeclared.is_empty() {
+            out.push_str(&format!(
+                "declare these in `migration \"<new version>\" from \"{}\" {{ .. }}`, or freeze a new baseline\n",
+                self.version
+            ));
+        }
+        for item in &self.problems {
+            out.push_str(&item.diagnostic.render(
+                &compiled.files[item.file.unwrap_or(0)].path,
+                &compiled.files[item.file.unwrap_or(0)].text,
+                &crate::span::LineIndex::new(&compiled.files[item.file.unwrap_or(0)].text),
+            ));
+        }
+        out
+    }
+}
+
+/// The guard for `compiled`, a package that compiled, when its manifest
+/// names a baseline. `Err` explains why the baseline does not load.
+pub fn guard(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+) -> Option<Result<Guard, String>> {
+    let service = compiled.service.as_ref()?;
+    let old = match compile_baseline(package, None)? {
+        Ok(old) => old,
+        Err(problem) => return Some(Err(problem)),
+    };
+    let version = package
+        .baseline
+        .as_deref()
+        .and_then(Path::file_name)
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let report = crucible_policy::diff(&old, service, config);
+    let mut problems = Vec::new();
+
+    // The migration from the baseline's version declares this release's
+    // breaking changes; older ones are history the runtime still serves.
+    let mut from_baseline = Vec::new();
+    for (file, parsed) in compiled.parsed.iter().enumerate().take(own) {
+        for item in &parsed.file.items {
+            if let Decl::Migration(migration) = &item.decl
+                && migration.from.value == version
+            {
+                from_baseline.push((file, migration));
+            }
+        }
+    }
+    let mut covers = Vec::new();
+    if let Some(((file, migration), rest)) = from_baseline.split_first() {
+        for (other, extra) in rest {
+            problems.push(FileDiagnostic {
+                file: Some(*other),
+                diagnostic: Diagnostic::new(
+                    extra.from.span,
+                    format!("a second migration from \"{version}\"; one release has one migration"),
+                ),
+            });
+        }
+        let context = Context {
+            namespace: &compiled.namespace,
+            old: &old,
+            new: service,
+        };
+        for step in &migration.steps {
+            match context.step(&step.kind) {
+                Ok(mut cover) => covers.append(&mut cover),
+                Err(diagnostic) => problems.push(FileDiagnostic {
+                    file: Some(*file),
+                    diagnostic,
+                }),
+            }
+        }
+        check_versions(migration, *file, &mut problems);
+    }
+
+    let mut undeclared = Vec::new();
+    let mut declared = 0;
+    for finding in report.findings {
+        if finding.exception.is_some() || finding.severity == Severity::Off {
+            continue;
+        }
+        let covered = finding
+            .shape
+            .parse::<ShapeId>()
+            .is_ok_and(|id| covers.iter().any(|cover| cover.covers(&id)));
+        if covered {
+            declared += 1;
+        } else {
+            undeclared.push(finding);
+        }
+    }
+    Some(Ok(Guard {
+        version,
+        undeclared,
+        declared,
+        problems,
+    }))
+}
+
+/// A migration's versions must name the release it serves.
+fn check_versions(migration: &Migration, file: usize, problems: &mut Vec<FileDiagnostic>) {
+    if migration.version.value.trim().is_empty() || migration.version.value == migration.from.value
+    {
+        problems.push(FileDiagnostic {
+            file: Some(file),
+            diagnostic: Diagnostic::new(
+                migration.version.span,
+                "a migration names the new version it serves, different from the one it comes from",
+            ),
+        });
+    }
+}
+
+/// What a declared step accounts for among the checker's findings.
+#[derive(Debug, Clone)]
+enum Cover {
+    /// This shape or member, exactly.
+    Exact(ShapeId),
+    /// Anything in this shape, its members included.
+    Within(ShapeId),
+}
+
+impl Cover {
+    fn covers(&self, id: &ShapeId) -> bool {
+        match self {
+            Cover::Exact(covered) => covered == id,
+            Cover::Within(root) => &id.root() == root,
+        }
+    }
+}
+
+struct Context<'a> {
+    namespace: &'a str,
+    old: &'a Service,
+    new: &'a Service,
+}
+
+/// Where a dotted path points: a shape, or a member of one.
+struct Target {
+    shape: ShapeId,
+    member: Option<String>,
+}
+
+fn error(span: crate::span::Span, message: String) -> Diagnostic {
+    Diagnostic::new(span, message)
+}
+
+fn operation<'s>(service: &'s Service, name: &str) -> Option<&'s Operation> {
+    service.operations.iter().find(|op| op.name() == name)
+}
+
+impl Context<'_> {
+    fn id(&self, name: &str) -> ShapeId {
+        ShapeId::new(self.namespace, name)
+    }
+
+    /// `Shape`, `Shape.member`, `Op.input`, `Op.output.member`, resolved in
+    /// `service`: operations' inputs and outputs are their structures.
+    fn resolve(&self, service: &Service, path: &Dotted) -> Option<Target> {
+        let parts: Vec<&str> = path.parts.iter().map(|p| p.name.as_str()).collect();
+        let (shape, rest) = match parts.as_slice() {
+            [op, side @ ("input" | "output"), rest @ ..] => {
+                let operation = operation(service, op)?;
+                let shape = if *side == "input" {
+                    operation.input.clone()?
+                } else {
+                    operation.output.clone()?
+                };
+                (shape, rest)
+            }
+            [shape, rest @ ..] => (self.id(shape), rest),
+            [] => return None,
+        };
+        match rest {
+            [] => Some(Target {
+                shape,
+                member: None,
+            }),
+            [member] => Some(Target {
+                shape,
+                member: Some((*member).to_owned()),
+            }),
+            _ => None,
+        }
+    }
+
+    fn members<'s>(&self, service: &'s Service, shape: &ShapeId) -> Option<Vec<&'s str>> {
+        Some(match service.shapes.get(shape)? {
+            Shape::Structure(s) | Shape::Union(s) => {
+                s.members.iter().map(|m| m.name.as_str()).collect()
+            }
+            Shape::Enum(e) => e.values.iter().map(|v| v.name.as_str()).collect(),
+            Shape::IntEnum(e) => e.values.iter().map(|v| v.name.as_str()).collect(),
+            _ => Vec::new(),
+        })
+    }
+
+    fn has_member(&self, service: &Service, shape: &ShapeId, member: &str) -> bool {
+        self.members(service, shape)
+            .is_some_and(|members| members.contains(&member))
+    }
+
+    /// Checks one step against the two models and returns what it covers.
+    fn step(&self, step: &StepKind) -> Result<Vec<Cover>, Diagnostic> {
+        match step {
+            StepKind::Rename { path, to } => {
+                let (old, new) = self.both(path)?;
+                let (Some(from), Some(_)) = (&old.member, &new.member) else {
+                    return Err(error(
+                        path.span,
+                        "`rename` names a member: `Shape.member -> newName`".into(),
+                    ));
+                };
+                if !self.has_member(self.old, &old.shape, from) {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "`{from}` is not a member of {} in the baseline",
+                            old.shape.name()
+                        ),
+                    ));
+                }
+                if self.has_member(self.new, &new.shape, from) {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "`{from}` is still a member of {}; nothing was renamed",
+                            new.shape.name()
+                        ),
+                    ));
+                }
+                if !self.has_member(self.new, &new.shape, &to.name) {
+                    return Err(error(
+                        to.span,
+                        format!("{} has no member `{}`", new.shape.name(), to.name),
+                    ));
+                }
+                Ok(vec![
+                    Cover::Exact(old.shape.with_member(from)),
+                    Cover::Exact(new.shape.with_member(&to.name)),
+                ])
+            }
+            StepKind::Require { path, .. } => {
+                let (old, new) = self.both(path)?;
+                let Some(member) = &new.member else {
+                    return Err(error(
+                        path.span,
+                        "`require` names a member: `Operation.input.member`".into(),
+                    ));
+                };
+                let optional = |service: &Service, shape: &ShapeId| match service.shapes.get(shape)
+                {
+                    Some(Shape::Structure(s)) => s.member(member).map(|m| m.optional_on_server()),
+                    _ => None,
+                };
+                match (
+                    optional(self.old, &old.shape),
+                    optional(self.new, &new.shape),
+                ) {
+                    (Some(true), Some(false)) => Ok(vec![
+                        Cover::Exact(old.shape.with_member(member)),
+                        Cover::Exact(new.shape.with_member(member)),
+                    ]),
+                    (None, _) => Err(error(
+                        path.span,
+                        format!(
+                            "the baseline has no member `{member}` here; a new required member is `add`ed"
+                        ),
+                    )),
+                    (_, None) => Err(error(path.span, format!("`{member}` is not a member here"))),
+                    _ => Err(error(
+                        path.span,
+                        format!("`{member}` did not become required"),
+                    )),
+                }
+            }
+            StepKind::Add {
+                path,
+                name,
+                downgrade,
+                ..
+            } => match name {
+                // `add Op.errors NewError downgrade OldError { .. }`
+                Some(error_name) => {
+                    let op_name = path.parts.first().map_or("", |p| p.name.as_str());
+                    let (Some(old_op), Some(new_op)) =
+                        (operation(self.old, op_name), operation(self.new, op_name))
+                    else {
+                        return Err(error(
+                            path.span,
+                            format!("`{op_name}` is not an operation in both releases"),
+                        ));
+                    };
+                    let added = self.id(&error_name.name);
+                    let errors =
+                        |op: &Operation| op.errors.iter().any(|e| e.name() == added.name());
+                    if errors(old_op) || !errors(new_op) {
+                        return Err(error(
+                            error_name.span,
+                            format!("{} was not added to {op_name}'s errors", error_name.name),
+                        ));
+                    }
+                    if !old_op.errors.iter().any(|e| e.name() == downgrade.name) {
+                        return Err(error(
+                            downgrade.span,
+                            format!("{op_name} had no error {} in the baseline", downgrade.name),
+                        ));
+                    }
+                    Ok(vec![
+                        Cover::Exact(old_op.id.clone()),
+                        Cover::Exact(new_op.id.clone()),
+                        Cover::Within(added),
+                    ])
+                }
+                // `add Enum.VALUE downgrade OLD`
+                None => {
+                    let (old, new) = self.both(path)?;
+                    let Some(value) = &new.member else {
+                        return Err(error(path.span, "`add` names an enum value, `Enum.VALUE`, or an error, `Operation.errors Error`".into()));
+                    };
+                    if self.has_member(self.old, &old.shape, value)
+                        || !self.has_member(self.new, &new.shape, value)
+                    {
+                        return Err(error(
+                            path.span,
+                            format!("{} did not gain the value {value}", new.shape.name()),
+                        ));
+                    }
+                    if !self.has_member(self.old, &old.shape, &downgrade.name) {
+                        return Err(error(
+                            downgrade.span,
+                            format!(
+                                "{} had no value {} in the baseline",
+                                old.shape.name(),
+                                downgrade.name
+                            ),
+                        ));
+                    }
+                    Ok(vec![
+                        Cover::Exact(old.shape.clone()),
+                        Cover::Exact(new.shape.with_member(value)),
+                    ])
+                }
+            },
+            StepKind::Move {
+                operation: name,
+                method,
+                uri,
+            } => {
+                let (Some(old_op), Some(new_op)) = (
+                    operation(self.old, &name.name),
+                    operation(self.new, &name.name),
+                ) else {
+                    return Err(error(
+                        name.span,
+                        format!("`{}` is not an operation in both releases", name.name),
+                    ));
+                };
+                if old_op.method != method.name || old_op.uri.to_string() != uri.value {
+                    return Err(error(
+                        uri.span,
+                        format!(
+                            "{} was `{} \"{}\"` in the baseline",
+                            name.name, old_op.method, old_op.uri
+                        ),
+                    ));
+                }
+                if new_op.method == old_op.method && new_op.uri == old_op.uri {
+                    return Err(error(name.span, format!("{} did not move", name.name)));
+                }
+                Ok(vec![Cover::Exact(old_op.id.clone())])
+            }
+            StepKind::Reshape {
+                path,
+                members,
+                into,
+                ..
+            } => {
+                let (old, new) = self.both(path)?;
+                if old.member.is_some() {
+                    return Err(error(
+                        path.span,
+                        "`reshape` names a structure: `Shape { a, b } -> c`".into(),
+                    ));
+                }
+                for member in members {
+                    if !self.has_member(self.old, &old.shape, &member.name) {
+                        return Err(error(
+                            member.span,
+                            format!(
+                                "`{}` is not a member of {} in the baseline",
+                                member.name,
+                                old.shape.name()
+                            ),
+                        ));
+                    }
+                }
+                if !self.has_member(self.new, &new.shape, &into.name) {
+                    return Err(error(
+                        into.span,
+                        format!("{} has no member `{}`", new.shape.name(), into.name),
+                    ));
+                }
+                Ok(vec![Cover::Within(old.shape), Cover::Within(new.shape)])
+            }
+            StepKind::RemoveOperation(name) => {
+                let Some(old_op) = operation(self.old, &name.name) else {
+                    return Err(error(
+                        name.span,
+                        format!("the baseline has no operation `{}`", name.name),
+                    ));
+                };
+                if operation(self.new, &name.name).is_some() {
+                    return Err(error(
+                        name.span,
+                        format!("`{}` is still an operation", name.name),
+                    ));
+                }
+                let mut covers = vec![Cover::Exact(old_op.id.clone())];
+                covers.extend(
+                    old_op
+                        .input
+                        .iter()
+                        .chain(&old_op.output)
+                        .cloned()
+                        .map(Cover::Within),
+                );
+                Ok(covers)
+            }
+            StepKind::Retype { path, to, .. } => {
+                let (old, new) = self.both(path)?;
+                let Some(member) = &new.member else {
+                    return Err(error(
+                        path.span,
+                        "`retype` names a member: `Shape.member -> Type`".into(),
+                    ));
+                };
+                let target = |service: &Service, shape: &ShapeId| match service.shapes.get(shape) {
+                    Some(Shape::Structure(s)) | Some(Shape::Union(s)) => {
+                        s.member(member).map(|m| m.target.clone())
+                    }
+                    _ => None,
+                };
+                // A built-in is written `string` and lowered to `smithy.api#String`.
+                let named = |id: &ShapeId| {
+                    id.name() == to.name
+                        || (id.is_prelude() && id.name().eq_ignore_ascii_case(&to.name))
+                };
+                match (target(self.old, &old.shape), target(self.new, &new.shape)) {
+                    (Some(was), Some(now)) if named(&now) && was != now => Ok(vec![
+                        Cover::Exact(old.shape.with_member(member)),
+                        Cover::Exact(new.shape.with_member(member)),
+                        // The checker reports the change on the type it left.
+                        Cover::Exact(was),
+                    ]),
+                    (Some(_), Some(now)) if !named(&now) => Err(error(
+                        to.span,
+                        format!("`{member}` is a {} now, not a {}", now.name(), to.name),
+                    )),
+                    (Some(_), Some(_)) => Err(error(
+                        path.span,
+                        format!("`{member}` already had this type"),
+                    )),
+                    _ => Err(error(
+                        path.span,
+                        format!("`{member}` is not a member in both releases"),
+                    )),
+                }
+            }
+            StepKind::Behavior(path) => {
+                let name = path.parts.first().map_or("", |p| p.name.as_str());
+                if operation(self.new, name).is_none() {
+                    return Err(error(path.span, format!("`{name}` is not an operation")));
+                }
+                Ok(Vec::new())
+            }
+            StepKind::Sunset(date) => {
+                if !is_date(&date.value) {
+                    return Err(error(
+                        date.span,
+                        "a sunset date is written YYYY-MM-DD".into(),
+                    ));
+                }
+                Ok(Vec::new())
+            }
+        }
+    }
+
+    /// A path resolved in both releases.
+    fn both(&self, path: &Dotted) -> Result<(Target, Target), Diagnostic> {
+        let old = self
+            .resolve(self.old, path)
+            .ok_or_else(|| error(path.span, format!("the baseline has no `{}`", dotted(path))))?;
+        let new = self.resolve(self.new, path).ok_or_else(|| {
+            error(
+                path.span,
+                format!("the current model has no `{}`", dotted(path)),
+            )
+        })?;
+        Ok((old, new))
+    }
+}
+
+fn dotted(path: &Dotted) -> String {
+    path.parts
+        .iter()
+        .map(|part: &Ident| part.name.as_str())
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
+fn is_date(text: &str) -> bool {
+    let parts: Vec<&str> = text.split('-').collect();
+    matches!(parts.as_slice(), [y, m, d] if y.len() == 4 && m.len() == 2 && d.len() == 2
+        && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit())))
+}

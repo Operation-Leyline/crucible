@@ -78,28 +78,27 @@ pub fn findings(compiled: &Compiled, own: usize, config: &Config) -> Vec<Finding
     out
 }
 
-/// The compatibility guard in the editor: what changed against the frozen
-/// baseline `old`, each at what it concerns. Something removed is shown at
-/// what held it (a member at its structure, an operation at the service);
-/// what has no place in the sources is returned apart, for the manifest.
+/// The compatibility guard in the editor: each undeclared breaking change at
+/// what it concerns, and each migration problem at its step. Something
+/// removed is shown at what held it (a member at its structure, an
+/// operation at the service); what has no place in the sources is returned
+/// apart, for the manifest.
 pub fn compatibility(
     compiled: &Compiled,
     own: usize,
-    old: &crucible_smithy::ir::Service,
-    config: &Config,
+    guard: crucible_lang::Guard,
 ) -> (Vec<Finding>, Vec<(bool, String)>) {
     let Some(service) = &compiled.service else {
         return (Vec::new(), Vec::new());
     };
-    let report = crucible_policy::diff(old, service, config);
     let mut placed = Vec::new();
     let mut unplaced = Vec::new();
-    for finding in report.findings {
-        if finding.exception.is_some() || finding.severity == Severity::Off {
-            continue;
-        }
+    for finding in guard.undeclared {
         let error = finding.severity == Severity::Error;
-        let message = format!("breaking change since the baseline: {}", finding.message);
+        let message = format!(
+            "breaking change since {}: {}; declare it in the migration from \"{}\"",
+            guard.version, finding.message, guard.version
+        );
         let location = finding.shape.parse::<ShapeId>().ok().and_then(|id| {
             name_of(compiled, own, &id)
                 .or_else(|| name_of(compiled, own, &id.root()))
@@ -120,6 +119,21 @@ pub fn compatibility(
                 format!("[{}] {}: {message}", finding.rule, finding.shape),
             )),
         }
+    }
+    for item in guard.problems {
+        let Some(file) = item.file else {
+            unplaced.push((item.diagnostic.is_error(), item.diagnostic.message));
+            continue;
+        };
+        placed.push(Finding {
+            file,
+            start: item.diagnostic.span.start,
+            end: item.diagnostic.span.end,
+            error: item.diagnostic.is_error(),
+            rule: "migration".into(),
+            message: item.diagnostic.message,
+            rename: None,
+        });
     }
     (placed, unplaced)
 }

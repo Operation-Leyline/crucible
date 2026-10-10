@@ -366,10 +366,11 @@ impl<'a> Lowerer<'a> {
             let ns = namespaces.get(file).map_or(self.ns, String::as_str);
             for item in &parsed.file.items {
                 match &item.decl {
+                    // Migrations are checked against the baseline by `guard`.
+                    Decl::Migration(_) => continue,
                     Decl::Rule(_)
                     | Decl::Template(_)
                     | Decl::Except(_)
-                    | Decl::Migration(_)
                     | Decl::Protocol(_)
                     | Decl::Conversion(_) => {
                         let keyword = decl_keyword(&item.decl);
