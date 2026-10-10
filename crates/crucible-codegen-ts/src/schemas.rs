@@ -382,6 +382,10 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         format!("method: {}", literal(&op.method)),
         format!("bearer: {}", op.auth.iter().any(|id| service.is_bearer(id))),
     ];
+    // The release this client sends in `Crucible-Version`.
+    if let Some(version) = &service.api_version {
+        fields.push(format!("apiVersion: {}", literal(version)));
+    }
     if service.protocol != crucible_smithy::Protocol::CrucibleJson {
         fields.push(format!(
             "protocol: {}",

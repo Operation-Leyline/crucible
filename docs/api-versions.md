@@ -66,9 +66,10 @@ A request with no version is settled by `Builder::api_version`:
 - `Unversioned::Oldest` (the default) serves it at the oldest supported
   version. That is right for a client built for the oldest release, before
   versions existed, and wrong for a client of a later release that sends no
-  version: it would be decoded and answered with the oldest contract. Until
-  generated clients send their version (phase 5), a service with more than
-  one older release uses one of the other two.
+  version: it would be decoded and answered with the oldest contract.
+  Generated clients of a `.cru` service send their release
+  ([api-versions-clients.md](api-versions-clients.md)), so the default
+  applies to clients built before they did and to hand-written callers.
 - `Unversioned::Resolve(resolver)` lets the service choose, like
   `request_id`: it can pin each account to the version it first used, as
   Stripe does. A resolver that returns `None` falls back to the oldest.
@@ -257,14 +258,13 @@ examples against the server at its version as generated tests
 
 1. **No version on a request** is served at the oldest supported version
    by default, unless a resolver chooses; a service can make the version
-   required instead. The default suits clients that predate versions; until
-   clients send theirs (phase 5), a service with several older releases
-   resolves or requires. There are no consumers yet, so nothing needs a
-   transition.
+   required instead. The default suits clients that predate versions;
+   generated clients send theirs. There are no consumers yet, so nothing
+   needs a transition.
 2. **Version names** are the service's `version` clause, checked against
    the newest migration.
 3. **Hooks** are typed trait methods, one trait per migration, required by
    `operations(..)`; a hook converts one value across one migration and
    owns everything inside it.
-4. **Clients** send their version in phase 5, all generators together
+4. **Clients** send their release, all generators together
    ([api-versions-clients.md](api-versions-clients.md)).

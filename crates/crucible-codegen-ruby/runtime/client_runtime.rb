@@ -242,6 +242,9 @@ module CrucibleGenerated
           headers['content-type'] = 'application/x-amz-json-' + (protocol == 'awsJson1_0' ? '1.0' : '1.1')
           headers['x-amz-target'] = @codec.schema.fetch('service').split('#').last + '.' + name
         end
+        # The release this client was generated for (docs/api-versions-clients.md).
+        api_version = @codec.schema['apiVersion']
+        headers['crucible-version'] = api_version if api_version.is_a?(String)
         [HttpRequest.new(url: endpoint.url + path, method: op.fetch('method'), headers: headers, body: body), checksum, endpoint]
       end
       def stream_payload(op, bindings, payload, stream)

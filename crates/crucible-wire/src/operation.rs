@@ -28,6 +28,9 @@ pub trait Operation: Send + Sync + 'static {
     /// The service-wide default scopes, which a 401 challenge advertises.
     const SERVICE_SCOPES: &'static [&'static str] = &[];
     const UNSIGNED_PAYLOAD: bool = false;
+    /// The release a generated client names in its `Crucible-Version`
+    /// header: the `.cru` service's `version` (docs/api-versions-clients.md).
+    const API_VERSION: Option<&'static str> = None;
     /// The modeled wire protocol. Server defaults select the corresponding implementation.
     const PROTOCOL: Protocol = Protocol::CrucibleJson;
     /// The operation's modeled HTTP checksum behavior, for clients.

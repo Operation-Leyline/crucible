@@ -43,6 +43,9 @@ fn cru_weather() -> (Package, crucible_lang::Compiled) {
 ///   standard trait is a typed IR field.
 fn as_cru_lowers_it(mut service: Service) -> Service {
     service.project_metadata_only();
+    // A `.cru` service's version is a release its clients send; a Smithy
+    // model's is not.
+    service.api_version = Some(service.version.clone());
     for shape in service.shapes.values_mut() {
         if let Shape::Structure(s) | Shape::Union(s) = shape {
             for member in &mut s.members {

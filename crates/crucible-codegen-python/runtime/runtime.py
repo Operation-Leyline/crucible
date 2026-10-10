@@ -706,6 +706,9 @@ class _Base:
             body = body if body is not None else b"{}"
             headers["content-type"] = "application/x-amz-json-" + ("1.0" if protocol == "awsJson1_0" else "1.1")
             headers["x-amz-target"] = self._codec.schema["service"].split("#")[-1] + "." + name
+        # The release this client was generated for (docs/api-versions-clients.md).
+        if api_version := self._codec.schema.get("apiVersion"):
+            headers["crucible-version"] = api_version
         op["target"] = uri
         op["displayPath"] = display.split("?", 1)[0]
         op["sensitiveHeaders"] = frozenset(sensitive_headers) | self._credential_headers

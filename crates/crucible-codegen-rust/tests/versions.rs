@@ -169,3 +169,17 @@ fn a_release_declaring_migration_is_reported_when_it_needs_hooks() {
         "{diagnostics}"
     );
 }
+
+#[test]
+fn a_cru_service_without_migrations_still_knows_its_release() {
+    // Release 1 of the fixture, frozen: no migrations, so no older releases,
+    // but its server refuses a client of any other release.
+    let release = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../e2e/weather-service/versioned/releases/v1");
+    let code = generate(&lower(&release), &Options::default()).unwrap();
+    assert!(
+        code.contains(".versions(::crucible_server_runtime_rust::__generated::versioning::ApiVersion::new(0, \"v1\"), &[])"),
+        "{code}"
+    );
+    assert!(!code.contains("pub mod versions"));
+}

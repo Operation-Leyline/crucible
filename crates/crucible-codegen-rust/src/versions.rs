@@ -179,7 +179,11 @@ pub(crate) fn emit(
             strict_inputs: options.strict_inputs,
             require_rejection: false,
         };
-        let mut body = crate::body_with(old, &old_options, old, false, diagnostics);
+        // A module inside the current server: the release it serves is the
+        // `versions` table's, not one of its own.
+        let mut module = old.clone();
+        module.api_version = None;
+        let mut body = crate::body_with(&module, &old_options, &module, false, diagnostics);
         if !methods[index].is_empty()
             && (old.shapes.keys().any(|id| id.name() == "Migration")
                 || old.operations.iter().any(|op| op.name() == "Migration"))

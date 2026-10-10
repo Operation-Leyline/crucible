@@ -404,6 +404,9 @@ final class ClientRuntime {
       headers['content-type'] = 'application/x-amz-json-${_protocol == 'awsJson1_0' ? '1.0' : '1.1'}';
       headers['x-amz-target'] = '${wireString(codec.schema['service']).split('#').last}.$name';
     }
+    // The release this client was generated for (docs/api-versions-clients.md).
+    final apiVersion = codec.schema['apiVersion'];
+    if (apiVersion is String) headers['crucible-version'] = apiVersion;
     return _Prepared(
         HttpRequest(url: Uri.parse(base + path), method: wireString(op['method']), headers: headers, body: body),
         resolved,

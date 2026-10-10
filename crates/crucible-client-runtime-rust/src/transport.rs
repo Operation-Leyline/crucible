@@ -279,6 +279,12 @@ impl Transport {
             O::CHECKSUM,
             streaming,
         )?;
+        // The release this client was generated for (docs/api-versions-clients.md).
+        if let Some(version) = O::API_VERSION
+            && let Ok(value) = HeaderValue::from_str(version)
+        {
+            bound_headers.insert("crucible-version", value);
+        }
         if O::PROTOCOL.rpc_v2() {
             bound_headers.insert(
                 "smithy-protocol",

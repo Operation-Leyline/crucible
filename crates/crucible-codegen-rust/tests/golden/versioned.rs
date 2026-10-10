@@ -426,6 +426,7 @@ pub mod shop {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
         const OPTIONAL_AUTH: bool = false;
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("v3");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &DELETE_ITEM_OPERATION;
         type Input = model::DeleteItemInput;
         type Output = model::DeleteItemOutput;
@@ -464,6 +465,7 @@ pub mod shop {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
         const OPTIONAL_AUTH: bool = false;
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("v3");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &GET_ITEM_OPERATION;
         type Input = model::GetItemInput;
         type Output = model::GetItemOutput;
@@ -503,6 +505,7 @@ pub mod shop {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
         const OPTIONAL_AUTH: bool = false;
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("v3");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &LIST_ITEMS_OPERATION;
         type Input = model::ListItemsInput;
         type Output = model::ListItemsOutput;

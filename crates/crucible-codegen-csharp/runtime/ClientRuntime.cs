@@ -486,6 +486,8 @@ internal sealed partial class ClientRuntime : IDisposable
             headers["Content-Type"] = "application/x-amz-json-" + (Text(schema["protocol"]) == "awsJson1_0" ? "1.0" : "1.1");
             headers["X-Amz-Target"] = Text(schema["service"])!.Split('#')[^1] + "." + name;
         }
+        // The release this client was generated for (docs/api-versions-clients.md).
+        if (Text(schema["apiVersion"]) is string apiVersion) headers["Crucible-Version"] = apiVersion;
         if (Rpc is { } rpc)
         {
             // RPC v2: the lowered URI is /service/{Service}/operation/{Operation}; an operation without input sends no body.

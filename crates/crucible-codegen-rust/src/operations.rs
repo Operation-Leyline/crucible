@@ -347,6 +347,13 @@ fn wire(service: &Service, op: &Operation) -> String {
             "    const PROTOCOL: ::crucible_server_runtime_rust::__generated::operation::Protocol = ::crucible_server_runtime_rust::__generated::operation::Protocol::{protocol};\n"
         ));
     }
+    // The release a generated client names in `Crucible-Version`.
+    if let Some(version) = &service.api_version {
+        out.push_str(&format!(
+            "    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some({});\n",
+            literal(version)
+        ));
+    }
     let wire = |name: &Option<String>| {
         name.as_ref().map_or("None".to_owned(), |name| {
             let wire = structure(service, op.input.as_ref())
@@ -403,12 +410,14 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
         // a browser client names its version and reads the echoed one.
         let merged = |pick: fn(&crucible_smithy::ir::Cors) -> &Vec<String>, extra: &[&str]| {
             let mut values: std::collections::BTreeSet<String> = pick(cors).iter().cloned().collect();
-            if !service.versions.is_empty() {
-                for version in &service.versions {
-                    if let Some(older) = &version.service.cors {
-                        values.extend(pick(older).iter().cloned());
-                    }
+            for version in &service.versions {
+                if let Some(older) = &version.service.cors {
+                    values.extend(pick(older).iter().cloned());
                 }
+            }
+            // Generated clients of a `.cru` service always send their release,
+            // from the first, before any migration exists.
+            if service.api_version.is_some() || !service.versions.is_empty() {
                 values.extend(extra.iter().map(|value| (*value).to_owned()));
             }
             values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ")
@@ -478,7 +487,13 @@ fn registration(service: &Service) -> String {
     out.push_str(
         "    pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::Operations, ::crucible_server_runtime_rust::__generated::MissingOperations> {\n        self.0.build()\n    }\n}\n\n",
     );
-    if service.versions.is_empty() {
+    if let (true, Some(release)) = (service.versions.is_empty(), &service.api_version) {
+        // One release: its clients name it, and any other is refused.
+        out.push_str(&format!(
+            "pub fn builder() -> OperationsBuilder {{\n    OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE).versions(::crucible_server_runtime_rust::__generated::versioning::ApiVersion::new(0, {}), &[]))\n}}\n\n",
+            literal(release)
+        ));
+    } else if service.versions.is_empty() {
         out.push_str("pub fn builder() -> OperationsBuilder {\n    OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))\n}\n\n");
     } else {
         // The older versions are served by the same implementations.

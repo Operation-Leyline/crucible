@@ -142,3 +142,13 @@ test("oversized Retry-After stays abortable and never overflows a native timer",
     } finally { globalThis.setTimeout = setTimer; }
   }
 });
+
+test("a client names the release it was generated for in Crucible-Version", async () => {
+  const sent: Request[] = [];
+  const transport = new Transport({ endpoint: 'https://example.test', headers: { 'Crucible-Version': 'configured' }, fetch: async request => { sent.push(request); return success(); } }, { middleware: [], bearer: false }, {});
+  await transport.send(operation, {});
+  assert.equal(sent[0].headers.get('crucible-version'), 'configured');
+  // The generated spec's release wins over a configured header: the client's types are that release's.
+  await transport.send({ ...operation, apiVersion: '2026-09-04' }, {});
+  assert.equal(sent[1].headers.get('crucible-version'), '2026-09-04');
+});

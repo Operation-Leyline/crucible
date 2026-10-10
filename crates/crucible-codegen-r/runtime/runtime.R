@@ -190,6 +190,9 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
     headers[['content-type']] <- paste0('application/x-amz-json-', if (protocol == 'awsJson1_0') '1.0' else '1.1')
     headers[['x-amz-target']] <- paste0(sub('^.*#', '', .crucible_schema[['service']]), '.', operation_name)
   }
+  # The release this client was generated for (docs/api-versions-clients.md).
+  api_version <- .crucible_schema[['apiVersion']]
+  if (is.character(api_version) && length(api_version) == 1L) headers[['crucible-version']] <- api_version
   list(request = .crucible_request(list(url = paste0(resolved$url, path), method = op$method, headers = headers, body = body)), checksum = checksum$settings)
 }
 .crucible_reformat <- function(value, description, format, encode) {

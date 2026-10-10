@@ -477,3 +477,30 @@ fn an_optional_member_cannot_fill_a_required_one() {
         problems(&guard)
     );
 }
+
+#[test]
+fn every_new_release_has_a_migration() {
+    // A release that breaks nothing still declares one, so it stays in the
+    // chain of releases the server serves, which its clients name.
+    let additive = V1.replace("version \"v1\"", "version \"v2\"");
+    let guard = run("no-migration", &additive, "");
+    assert!(
+        problems(&guard)
+            .iter()
+            .any(|p| p.contains("no migration comes from the baseline \"v1\"")),
+        "{:?}",
+        problems(&guard)
+    );
+    let guard = run(
+        "empty-migration",
+        &additive,
+        "migration \"v2\" from \"v1\" {}
+",
+    );
+    assert!(
+        !guard.has_errors(),
+        "{:?} {:?}",
+        rules(&guard),
+        problems(&guard)
+    );
+}

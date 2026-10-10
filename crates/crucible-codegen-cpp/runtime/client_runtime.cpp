@@ -274,6 +274,9 @@ ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Js
         const auto& service = schema_->description().at("service").string();
         request.headers.insert_or_assign("x-amz-target", service.substr(service.rfind('#') + 1) + "." + name);
     }
+    // The release this client was generated for (docs/api-versions-clients.md).
+    if (const auto* api_version = schema_->description().find("apiVersion"))
+        request.headers.insert_or_assign("crucible-version", api_version->string());
     validate_request(request);
     prepared.request = std::move(request);
     return prepared;

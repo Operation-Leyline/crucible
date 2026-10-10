@@ -122,8 +122,9 @@ impl Context {
         let _ = self.api_version.set(version);
     }
 
-    /// The API version the request is served at, for a service whose model
-    /// has migrations: a behaviour change branches on it
+    /// The API version the request is served at, for a `.cru` model, with
+    /// or without migrations; `None` for a Smithy-sourced one. A behaviour
+    /// change branches on it
     /// (`self.context().api_version() < Some(V2026_11_01)`).
     pub fn api_version(&self) -> Option<crate::versioning::ApiVersion> {
         self.api_version.get().copied()

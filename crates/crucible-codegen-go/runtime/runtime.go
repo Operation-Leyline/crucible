@@ -378,6 +378,7 @@ func (s shapeDescription) knownWire(name string) bool {
 type schemaDescription struct {
 	Service string
 	Protocol string
+	APIVersion string `json:"apiVersion"`
 	ProtocolSettings struct {
 		OmitNullStructureMembers bool
 		IgnoreUnknownUnionType bool
@@ -1248,6 +1249,8 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		service := strings.Split(c.schema.Service, "#")
 		headers.Set("X-Amz-Target", service[len(service)-1] + "." + name)
 	}
+	// The release this client was generated for (docs/api-versions-clients.md).
+	if c.schema.APIVersion != "" { headers.Set("Crucible-Version", c.schema.APIVersion) }
 	discovery, err := c.discoveryRequest(name, op, inputShape, values)
 	if err != nil { return nil, err }
 	endpointSource := "configured"

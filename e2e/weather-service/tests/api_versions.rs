@@ -383,6 +383,34 @@ async fn an_mcp_tool_call_is_served_at_the_current_version() {
     );
 }
 
+// Every error in this model ends in `Exception`, which the generated error
+// enums repeat.
+#[allow(clippy::enum_variant_names)]
+mod shop_client {
+    include!(concat!(env!("OUT_DIR"), "/versioned_client.rs"));
+}
+
+#[tokio::test]
+async fn a_generated_client_names_its_release() {
+    // The server serves a request that names no release at the oldest one, so
+    // a client that did not send its own would read release 1's shapes.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(crucible_server_runtime_rust::host::http_on(
+        service(Unversioned::Oldest),
+        listener,
+    ));
+    let client = shop_client::ShopClient::new(crucible_client_runtime_rust::Config::new(endpoint));
+    let input =
+        serde_json::from_value::<shop_client::GetItemInput>(json!({ "id": "big" })).unwrap();
+    let output = client.get_item(input).await.unwrap();
+    server.abort();
+    assert_eq!(
+        serde_json::to_value(&output).unwrap(),
+        json!({ "label": { "title": "item big", "size": 9 }, "kind": "HUGE" })
+    );
+}
+
 #[test]
 fn versions_order_as_released() {
     use shop::versions::{CURRENT, V1, V2, V3};

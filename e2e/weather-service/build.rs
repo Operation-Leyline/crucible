@@ -70,6 +70,15 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // A client of the current release, which names it in `Crucible-Version`.
+    std::fs::write(
+        out.join("versioned_client.rs"),
+        crucible_build::model("versioned")
+            .client()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     crucible_build::model("weather_model")
         .server()
         .explorer()

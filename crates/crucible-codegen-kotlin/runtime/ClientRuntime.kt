@@ -189,6 +189,8 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             headers["content-type"]=if(protocol=="awsJson1_0") "application/x-amz-json-1.0" else "application/x-amz-json-1.1"
             headers["x-amz-target"]=schema.text("service")!!.substringAfter('#')+"."+name
         } else if(protocol=="awsRestJson1" && payloadMember(binding)==null) if(!headers.containsKey("content-type")) headers["content-type"]="application/json"
+        // The release this client was generated for (docs/api-versions-clients.md).
+        schema.text("apiVersion")?.let { headers["crucible-version"] = it }
         return Prepared(op, Url(endpoint + uri), headers, if(stream==null)bytes else null,checksum,stream?.let {checkedStream(op,"input","request",it)},
             uri, endpoint, if (schema["endpointRules"] != null) "rules" else "configured", display.substringBefore('?'),
             sensitiveHeaders, sensitiveQuery, discoveryRequest(name, op, originalValues))

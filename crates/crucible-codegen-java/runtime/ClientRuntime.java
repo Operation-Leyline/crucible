@@ -744,6 +744,9 @@ final class ClientRuntime {
       headers.put("content-type","awsJson1_0".equals(protocol) ? "application/x-amz-json-1.0" : "application/x-amz-json-1.1");
       String service=text(schema,"service"); headers.put("x-amz-target",service.substring(service.indexOf('#')+1)+"."+name);
     } else if("awsRestJson1".equals(protocol) && payloadMember(request)==null && headers.keySet().stream().noneMatch(key->key.equalsIgnoreCase("content-type"))) headers.put("content-type","application/json");
+    // The release this client was generated for (docs/api-versions-clients.md).
+    String apiVersion = text(schema, "apiVersion");
+    if (apiVersion != null) headers.put("crucible-version", apiVersion);
     return new Prepared(name, resolvedOp, URI.create(endpoint + uri), headers, body,checksum,stream);
   }
 

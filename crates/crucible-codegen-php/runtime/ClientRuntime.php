@@ -227,6 +227,9 @@ final class ClientRuntime
             $service = WireCodec::string($this->codec->schema->get('service'));
             $headers['x-amz-target'] = substr($service, strrpos($service, '#') + 1) . '.' . $name;
         }
+        // The release this client was generated for (docs/api-versions-clients.md).
+        $apiVersion = $this->codec->schema->get('apiVersion');
+        if (is_string($apiVersion)) $headers['crucible-version'] = $apiVersion;
         if (($rpc = self::rpc($protocol)) !== null) {
             // RPC v2: the lowered URI is /service/{Service}/operation/{Operation}; Unit input sends no body.
             [$cbor, $media, $marker] = $rpc;
