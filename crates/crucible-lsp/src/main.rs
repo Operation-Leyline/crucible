@@ -7,6 +7,7 @@ mod actions;
 mod analysis;
 mod completion;
 mod folding;
+mod insight;
 mod lines;
 mod server;
 

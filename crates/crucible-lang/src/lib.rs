@@ -21,7 +21,7 @@ pub use compile::{
     Compiled, FileDiagnostic, Location, Naming, Package, SourceFile, SourceMap, compile,
 };
 pub use diagnostic::{Diagnostic, Severity};
-pub use format::{FormatOptions, format};
+pub use format::{FormatOptions, format, format_lines};
 pub use lexer::{Token, TokenKind};
 pub use package::{check_manifest, is_package, load_package, load_package_with_manifest};
 pub use span::{LineIndex, Span};

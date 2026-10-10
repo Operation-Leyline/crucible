@@ -24,7 +24,7 @@ fn every_example_is_already_formatted() {
     assert!(files.len() >= 6);
     for path in files {
         let source = std::fs::read_to_string(&path).unwrap();
-        let formatted = format(&source, &FormatOptions::default()).unwrap();
+        let formatted = format(&source, &FormatOptions::default());
         assert!(
             formatted == source,
             "{} is not formatted:\n{formatted}",

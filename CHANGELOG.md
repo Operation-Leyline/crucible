@@ -33,8 +33,23 @@ version's section when it is prepared.
   formatting and quick fixes for unknown types. It also checks `crucible.toml`.
   Releases attach it for Linux, macOS and Windows; the separate
   `crucible-intellij` repository bundles it into the JetBrains plugin.
+- `crucible-lsp` editor insight: semantic token modifiers for the declaration
+  kinds a token type cannot tell apart (`service`, `protocol`, `resource`,
+  `error`, `union`, `rule`), on declarations and every reference; inlay hints
+  for the type of an elided `$member` and the implicit value of a string enum
+  value; usage-count code lenses (command `crucible.showReferences`); go to
+  type definition from a member's name; links in comments and strings;
+  signature help for annotations and `paginated(..)`; and range formatting.
+- `crucible-lsp` compiles every package under the workspace folders at
+  startup and keeps them compiled, so workspace symbols, references and
+  rename work with no file open; it registers file watchers and recompiles
+  when `.cru` files or manifests change outside the editor.
+- `crucible check` and `crucible generate` accept a `.cru` package directory
+  as the model, compiled without Smithy or a JVM, as `crucible_build` does.
 - `crucible_lang::format`, a conservative `.cru` formatter: indentation by
-  bracket depth, trailing whitespace and blank-line runs.
+  bracket depth, trailing whitespace and blank-line runs; blank lines at the
+  start and end are dropped and the file ends with one newline, even when it
+  does not lex. `format_lines` formats line by line for a selection.
 - The IR carries typed facts generators previously read from raw Smithy
   traits: `Structure::strict` and `input`, `Member::idempotency_token` and
   `mutability`, `sensitive` on members and shapes, and `Service::is_bearer`.

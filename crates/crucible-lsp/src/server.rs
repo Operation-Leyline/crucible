@@ -7,34 +7,41 @@ use std::path::{Component, Path, PathBuf};
 
 use crucible_lang::{
     Compiled, FormatOptions, Package, Parsed, SourceFile, check_manifest, compile, format,
-    is_package, load_package, load_package_with_manifest,
+    format_lines, is_package, load_package, load_package_with_manifest,
 };
-use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
+use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
-    DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, DidSaveTextDocument,
-    Notification as _, PublishDiagnostics,
+    DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
+    DidSaveTextDocument, Notification as _, PublishDiagnostics,
 };
 use lsp_types::request::{
-    CodeActionRequest, Completion, DocumentHighlightRequest, DocumentSymbolRequest,
-    FoldingRangeRequest, Formatting, GotoDefinition, HoverRequest, PrepareRenameRequest,
-    References, Rename, Request as _, SemanticTokensFullRequest, WorkspaceSymbolRequest,
+    CodeActionRequest, CodeLensRequest, Completion, DocumentHighlightRequest, DocumentLinkRequest,
+    DocumentSymbolRequest, FoldingRangeRequest, Formatting, GotoDefinition, GotoTypeDefinition,
+    HoverRequest, InlayHintRequest, PrepareRenameRequest, RangeFormatting, References,
+    RegisterCapability, Rename, Request as _, SemanticTokensFullRequest, SignatureHelpRequest,
+    WorkspaceSymbolRequest,
 };
 use lsp_types::{
-    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionProviderCapability,
-    CompletionOptions, CompletionResponse, Diagnostic, DiagnosticSeverity, DocumentHighlight,
-    DocumentHighlightKind, DocumentSymbol, DocumentSymbolResponse, FoldingRangeProviderCapability,
-    GotoDefinitionResponse, Hover, HoverContents, HoverProviderCapability, InitializeParams,
-    Location, MarkupContent, MarkupKind, OneOf, Position, PrepareRenameResponse,
-    PublishDiagnosticsParams, Range, RenameOptions, SemanticToken, SemanticTokenModifier,
-    SemanticTokenType, SemanticTokens, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensResult, SemanticTokensServerCapabilities,
-    ServerCapabilities, SymbolInformation, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TextEdit, Url, WorkspaceEdit,
-    WorkspaceSymbolResponse,
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionProviderCapability, CodeLens,
+    CodeLensOptions, Command, CompletionOptions, CompletionResponse, Diagnostic,
+    DiagnosticSeverity, DidChangeWatchedFilesRegistrationOptions, DocumentHighlight,
+    DocumentHighlightKind, DocumentLink, DocumentLinkOptions, DocumentSymbol,
+    DocumentSymbolResponse, FileEvent, FileSystemWatcher, FoldingRangeProviderCapability,
+    GlobPattern, GotoDefinitionResponse, Hover, HoverContents, HoverProviderCapability,
+    InitializeParams, InlayHint, InlayHintKind, InlayHintLabel, Location, MarkupContent,
+    MarkupKind, OneOf, ParameterInformation, ParameterLabel, Position, PrepareRenameResponse,
+    PublishDiagnosticsParams, Range, Registration, RegistrationParams, RenameOptions,
+    SemanticToken, SemanticTokenModifier, SemanticTokenType, SemanticTokens,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensResult,
+    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelp, SignatureHelpOptions,
+    SignatureInformation, SymbolInformation, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TextEdit,
+    TypeDefinitionProviderCapability, Url, WorkspaceEdit, WorkspaceSymbolResponse,
 };
 use serde_json::Value;
 
 use crate::analysis::{self, Index, Symbol, TOKEN_MODIFIERS, TOKEN_TYPES};
+use crate::insight::{self, HintKind};
 use crate::lines::Lines;
 use crate::{actions, completion, folding};
 
@@ -85,10 +92,34 @@ pub fn capabilities() -> ServerCapabilities {
         workspace_symbol_provider: Some(OneOf::Left(true)),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         document_formatting_provider: Some(OneOf::Left(true)),
+        document_range_formatting_provider: Some(OneOf::Left(true)),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
+        inlay_hint_provider: Some(OneOf::Left(true)),
+        document_link_provider: Some(DocumentLinkOptions {
+            resolve_provider: Some(false),
+            work_done_progress_options: Default::default(),
+        }),
+        code_lens_provider: Some(CodeLensOptions {
+            resolve_provider: Some(false),
+        }),
+        signature_help_provider: Some(SignatureHelpOptions {
+            trigger_characters: Some(vec!["(".into(), ",".into()]),
+            retrigger_characters: None,
+            work_done_progress_options: Default::default(),
+        }),
         ..Default::default()
     }
 }
+
+/// The command a usage-count code lens carries: show the references of the
+/// declaration at `[uri, position]`. It runs in the editor, which knows how
+/// to show usages; the server only counts them.
+pub const SHOW_REFERENCES: &str = "crucible.showReferences";
+
+/// Directories never searched for packages: build output, dependencies and
+/// version control hold copies, not the user's models.
+const SKIPPED_DIRS: &[&str] = &["target", "node_modules", "build", "out", "dist"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -117,11 +148,21 @@ struct Unit {
     standalone: bool,
     /// Why the package could not be read, if it could not.
     load_error: Option<String>,
+    /// How often each declaration is referred to in the unit's own files.
+    usages: HashMap<String, usize>,
 }
 
 pub struct Server {
     connection: Connection,
     snippets: bool,
+    /// The client watches files for us and reports changes made outside the
+    /// editor: a checkout, a generator, a file created in a terminal.
+    watch: bool,
+    /// The workspace folders, searched for packages at startup.
+    roots: Vec<PathBuf>,
+    /// The packages found under `roots`. They stay compiled with no file
+    /// open, so references, rename and workspace symbols see all of them.
+    packages: Vec<PathBuf>,
     documents: HashMap<Url, Document>,
     units: HashMap<PathBuf, Unit>,
 }
@@ -136,15 +177,162 @@ impl Server {
             .and_then(|completion| completion.completion_item.as_ref())
             .and_then(|item| item.snippet_support)
             .unwrap_or(false);
+        let watch = params
+            .capabilities
+            .workspace
+            .as_ref()
+            .and_then(|workspace| workspace.did_change_watched_files.as_ref())
+            .and_then(|watched| watched.dynamic_registration)
+            .unwrap_or(false);
+        #[allow(deprecated)] // `root_uri` is how older clients name the workspace.
+        let roots = match &params.workspace_folders {
+            Some(folders) => folders
+                .iter()
+                .filter_map(|folder| folder.uri.to_file_path().ok())
+                .collect(),
+            None => params
+                .root_uri
+                .iter()
+                .filter_map(|uri| uri.to_file_path().ok())
+                .collect(),
+        };
         Self {
             connection,
             snippets,
+            watch,
+            roots,
+            packages: Vec::new(),
             documents: HashMap::new(),
             units: HashMap::new(),
         }
     }
 
+    /// Asks the client to report changes to model files and manifests, and
+    /// compiles every package in the workspace.
+    fn start(&mut self) -> Result<(), Error> {
+        if self.watch {
+            let watchers = ["**/*.cru", "**/crucible.toml"]
+                .into_iter()
+                .map(|pattern| FileSystemWatcher {
+                    glob_pattern: GlobPattern::String(pattern.to_owned()),
+                    kind: None,
+                })
+                .collect();
+            let params = RegistrationParams {
+                registrations: vec![Registration {
+                    id: "crucible-watched-files".into(),
+                    method: DidChangeWatchedFiles::METHOD.into(),
+                    register_options: Some(serde_json::to_value(
+                        DidChangeWatchedFilesRegistrationOptions { watchers },
+                    )?),
+                }],
+            };
+            self.send(Message::Request(Request::new(
+                RequestId::from("crucible-register-watchers".to_owned()),
+                RegisterCapability::METHOD.into(),
+                params,
+            )))?;
+        }
+        self.discover();
+        for package in self.packages.clone() {
+            self.recompile(&package)?;
+        }
+        Ok(())
+    }
+
+    /// Finds the packages under the workspace folders.
+    fn discover(&mut self) {
+        fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
+            if is_package(dir) {
+                out.push(normalize(dir));
+            }
+            if depth == 0 {
+                return;
+            }
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            let mut children: Vec<PathBuf> = entries
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| !name.starts_with('.') && !SKIPPED_DIRS.contains(&name))
+                })
+                .collect();
+            children.sort();
+            for child in children {
+                walk(&child, depth - 1, out);
+            }
+        }
+        let mut packages = Vec::new();
+        for root in &self.roots {
+            walk(root, 12, &mut packages);
+        }
+        packages.sort();
+        packages.dedup();
+        self.packages = packages;
+    }
+
+    /// The packages to recompile after files changed on disk.
+    fn files_changed(&mut self, changes: &[FileEvent]) -> Vec<PathBuf> {
+        let paths: Vec<PathBuf> = changes
+            .iter()
+            .filter_map(|change| change.uri.to_file_path().ok())
+            .collect();
+        let manifests = paths
+            .iter()
+            .any(|path| path.file_name().is_some_and(|name| name == "crucible.toml"));
+        if manifests {
+            // A package appeared, disappeared or moved its sources: find
+            // them again and recompile everything that could be affected.
+            self.discover();
+            let updates: Vec<(Url, Option<PathBuf>)> = self
+                .documents
+                .iter()
+                .map(|(uri, document)| {
+                    (
+                        uri.clone(),
+                        unit_of(document.kind, document.path.as_deref(), uri, &document.text),
+                    )
+                })
+                .collect();
+            for (uri, unit) in updates {
+                if let Some(document) = self.documents.get_mut(&uri) {
+                    document.unit = unit;
+                }
+            }
+            let mut dirty = self.packages.clone();
+            for document in self.documents.values() {
+                if let Some(unit) = &document.unit
+                    && !dirty.contains(unit)
+                {
+                    dirty.push(unit.clone());
+                }
+            }
+            self.units.retain(|unit, _| dirty.contains(unit));
+            return dirty;
+        }
+        let mut dirty: Vec<PathBuf> = Vec::new();
+        for path in paths {
+            let unit = path
+                .ancestors()
+                .skip(1)
+                .map(normalize)
+                .find(|dir| self.units.contains_key(dir));
+            if let Some(unit) = unit
+                && !dirty.contains(&unit)
+            {
+                dirty.push(unit);
+            }
+        }
+        dirty
+    }
+
     pub fn run(mut self) -> Result<(), Error> {
+        self.start()?;
         let mut next: Option<Message> = None;
         loop {
             let message = match next.take() {
@@ -167,10 +355,10 @@ impl Server {
                     let mut dirty: Vec<PathBuf> = Vec::new();
                     let mut pending = Some(notification);
                     while let Some(notification) = pending.take() {
-                        if let Some(unit) = self.notification(notification)?
-                            && !dirty.contains(&unit)
-                        {
-                            dirty.push(unit);
+                        for unit in self.notification(notification)? {
+                            if !dirty.contains(&unit) {
+                                dirty.push(unit);
+                            }
                         }
                         match self.connection.receiver.try_recv() {
                             Ok(Message::Notification(queued)) => pending = Some(queued),
@@ -195,10 +383,15 @@ impl Server {
 
     // ---- documents ---------------------------------------------------------
 
-    /// Applies one notification to the open documents. Returns the package to
-    /// recompile, if any; the caller compiles once per burst of edits.
-    fn notification(&mut self, notification: Notification) -> Result<Option<PathBuf>, Error> {
+    /// Applies one notification to the open documents. Returns the packages
+    /// to recompile; the caller compiles once per burst of edits.
+    fn notification(&mut self, notification: Notification) -> Result<Vec<PathBuf>, Error> {
         let uri = match notification.method.as_str() {
+            DidChangeWatchedFiles::METHOD => {
+                let params: lsp_types::DidChangeWatchedFilesParams =
+                    serde_json::from_value(notification.params)?;
+                return Ok(self.files_changed(&params.changes));
+            }
             DidOpenTextDocument::METHOD => {
                 let params: lsp_types::DidOpenTextDocumentParams =
                     serde_json::from_value(notification.params)?;
@@ -229,7 +422,7 @@ impl Server {
                 let params: lsp_types::DidChangeTextDocumentParams =
                     serde_json::from_value(notification.params)?;
                 let Some(document) = self.documents.get_mut(&params.text_document.uri) else {
-                    return Ok(None);
+                    return Ok(Vec::new());
                 };
                 // Full synchronisation: the last change is the whole text.
                 if let Some(change) = params.content_changes.into_iter().last() {
@@ -254,23 +447,23 @@ impl Server {
                 let params: lsp_types::DidCloseTextDocumentParams =
                     serde_json::from_value(notification.params)?;
                 let Some(document) = self.documents.remove(&params.text_document.uri) else {
-                    return Ok(None);
+                    return Ok(Vec::new());
                 };
                 self.publish(params.text_document.uri, Vec::new())?;
-                return Ok(document.unit);
+                return Ok(document.unit.into_iter().collect());
             }
-            _ => return Ok(None),
+            _ => return Ok(Vec::new()),
         };
         let Some(document) = self.documents.get(&uri) else {
-            return Ok(None);
+            return Ok(Vec::new());
         };
         match document.unit.clone() {
-            Some(unit) => Ok(Some(unit)),
+            Some(unit) => Ok(vec![unit]),
             // A policy-only manifest: its syntax is all there is to check.
             None => {
                 let diagnostics = self.manifest_diagnostics(&uri);
                 self.publish(uri, diagnostics)?;
-                Ok(None)
+                Ok(Vec::new())
             }
         }
     }
@@ -285,10 +478,13 @@ impl Server {
 
     fn recompile(&mut self, unit: &Path) -> Result<(), Error> {
         let open = self.open_in(unit);
-        if !open
+        let models_open = open
             .iter()
-            .any(|uri| self.documents[uri].kind == Kind::Model)
-        {
+            .any(|uri| self.documents[uri].kind == Kind::Model);
+        // A package stays compiled with nothing open while it is still a
+        // package; a lone file only while it is open.
+        let keep = models_open || (self.packages.iter().any(|p| p == unit) && is_package(unit));
+        if !keep {
             self.units.remove(unit);
         } else {
             let compiled = self.compile_unit(unit, &open);
@@ -370,12 +566,19 @@ impl Server {
         let own = package.files.len();
         let compiled = compile(&package, None);
         let index = Index::new(&compiled.parsed);
+        let mut usages: HashMap<String, usize> = HashMap::new();
+        for (parsed, file) in compiled.parsed.iter().zip(&compiled.files).take(own) {
+            for (name, count) in analysis::reference_counts(parsed, &file.text, &index) {
+                *usages.entry(name).or_default() += count;
+            }
+        }
         Unit {
             compiled,
             index,
             own,
             standalone: standalone || load_error.is_some(),
             load_error,
+            usages,
         }
     }
 
@@ -584,7 +787,33 @@ impl Server {
             }
             Formatting::METHOD => {
                 let p: lsp_types::DocumentFormattingParams = params(request.params)?;
-                json(self.formatting(&p.text_document.uri, &p.options))
+                json(self.formatting(&p.text_document.uri, &p.options, None))
+            }
+            RangeFormatting::METHOD => {
+                let p: lsp_types::DocumentRangeFormattingParams = params(request.params)?;
+                json(self.formatting(&p.text_document.uri, &p.options, Some(p.range)))
+            }
+            GotoTypeDefinition::METHOD => {
+                let p: lsp_types::request::GotoTypeDefinitionParams = params(request.params)?;
+                let at = p.text_document_position_params;
+                json(self.type_definition(&at.text_document.uri, at.position))
+            }
+            InlayHintRequest::METHOD => {
+                let p: lsp_types::InlayHintParams = params(request.params)?;
+                json(self.inlay_hints(&p.text_document.uri, p.range))
+            }
+            DocumentLinkRequest::METHOD => {
+                let p: lsp_types::DocumentLinkParams = params(request.params)?;
+                json(self.links(&p.text_document.uri))
+            }
+            CodeLensRequest::METHOD => {
+                let p: lsp_types::CodeLensParams = params(request.params)?;
+                json(self.code_lenses(&p.text_document.uri))
+            }
+            SignatureHelpRequest::METHOD => {
+                let p: lsp_types::SignatureHelpParams = params(request.params)?;
+                let at = p.text_document_position_params;
+                json(self.signature_help(&at.text_document.uri, at.position))
             }
             CodeActionRequest::METHOD => {
                 let p: lsp_types::CodeActionParams = params(request.params)?;
@@ -685,16 +914,145 @@ impl Server {
 
     fn definition(&self, uri: &Url, position: Position) -> Option<GotoDefinitionResponse> {
         let (unit, _, declaration, _) = self.declaration_at(uri, position)?;
+        self.location_of(unit, declaration, uri)
+            .map(GotoDefinitionResponse::Scalar)
+    }
+
+    /// Where a declaration's name is, if it is in a file the editor can open.
+    fn location_of(
+        &self,
+        unit: &Unit,
+        declaration: &analysis::Declaration,
+        fallback: &Url,
+    ) -> Option<Location> {
         if declaration.file >= unit.own {
             // A bundled import has no file to open; hover shows its text.
             return None;
         }
-        let target = self.uri_of(unit, declaration.file, uri)?;
+        let target = self.uri_of(unit, declaration.file, fallback)?;
         let lines = Lines::new(&unit.compiled.files[declaration.file].text);
-        Some(GotoDefinitionResponse::Scalar(Location {
+        Some(Location {
             uri: target,
             range: lines.range(declaration.name_start, declaration.name_end),
-        }))
+        })
+    }
+
+    /// From a member's name, its type; from a type's name, the type itself.
+    fn type_definition(&self, uri: &Url, position: Position) -> Option<GotoDefinitionResponse> {
+        let (document, parsed, unit) = self.model(uri)?;
+        let unit = unit?;
+        let offset = Lines::new(&document.text).offset(position) as u32;
+        let package = &unit.compiled.parsed;
+        if let Some(name) = insight::type_name_at(&parsed, package, offset) {
+            let declaration = unit.index.declarations.get(&name)?;
+            return self
+                .location_of(unit, declaration, uri)
+                .map(GotoDefinitionResponse::Scalar);
+        }
+        self.definition(uri, position)
+    }
+
+    fn inlay_hints(&self, uri: &Url, range: Range) -> Option<Vec<InlayHint>> {
+        let (document, parsed, unit) = self.model(uri)?;
+        let lines = Lines::new(&document.text);
+        let package = unit.map_or(&[][..], |unit| &unit.compiled.parsed);
+        let (start, end) = (lines.offset(range.start), lines.offset(range.end));
+        Some(
+            insight::inlay_hints(&parsed, package, start as u32, end as u32)
+                .into_iter()
+                .map(|hint| InlayHint {
+                    position: lines.position(hint.offset as usize),
+                    label: InlayHintLabel::String(hint.label),
+                    kind: Some(match hint.kind {
+                        HintKind::Type => InlayHintKind::TYPE,
+                        HintKind::Value => InlayHintKind::PARAMETER,
+                    }),
+                    text_edits: None,
+                    tooltip: None,
+                    padding_left: Some(hint.kind == HintKind::Value),
+                    padding_right: None,
+                    data: None,
+                })
+                .collect(),
+        )
+    }
+
+    fn links(&self, uri: &Url) -> Option<Vec<DocumentLink>> {
+        let (document, parsed, _) = self.model(uri)?;
+        let lines = Lines::new(&document.text);
+        Some(
+            insight::links(&parsed, &document.text)
+                .into_iter()
+                .filter_map(|(start, end, url)| {
+                    Some(DocumentLink {
+                        range: lines.range(start, end),
+                        target: Some(Url::parse(&url).ok()?),
+                        tooltip: None,
+                        data: None,
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    /// A usage count above each declaration in the file.
+    fn code_lenses(&self, uri: &Url) -> Option<Vec<CodeLens>> {
+        let (document, parsed, unit) = self.model(uri)?;
+        let unit = unit?;
+        let lines = Lines::new(&document.text);
+        Some(
+            analysis::outline(&parsed)
+                .into_iter()
+                .map(|symbol| {
+                    let count = unit.usages.get(&symbol.name).copied().unwrap_or(0);
+                    let title = match count {
+                        0 => "no usages".to_owned(),
+                        1 => "1 usage".to_owned(),
+                        n => format!("{n} usages"),
+                    };
+                    let range = lines.range(symbol.name_start, symbol.name_end);
+                    CodeLens {
+                        range,
+                        command: Some(Command {
+                            title,
+                            command: SHOW_REFERENCES.to_owned(),
+                            arguments: Some(vec![
+                                Value::String(uri.to_string()),
+                                serde_json::to_value(range.start).unwrap_or(Value::Null),
+                            ]),
+                        }),
+                        data: None,
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    fn signature_help(&self, uri: &Url, position: Position) -> Option<SignatureHelp> {
+        let (document, parsed, unit) = self.model(uri)?;
+        let offset = Lines::new(&document.text).offset(position);
+        let package = unit.map_or(&[][..], |unit| &unit.compiled.parsed);
+        let signature = insight::signature_at(&parsed, package, &document.text, offset)?;
+        Some(SignatureHelp {
+            signatures: vec![SignatureInformation {
+                label: signature.label,
+                documentation: (!signature.documentation.is_empty())
+                    .then_some(lsp_types::Documentation::String(signature.documentation)),
+                parameters: Some(
+                    signature
+                        .parameters
+                        .into_iter()
+                        .map(|parameter| ParameterInformation {
+                            label: ParameterLabel::Simple(parameter),
+                            documentation: None,
+                        })
+                        .collect(),
+                ),
+                active_parameter: Some(signature.active),
+            }],
+            active_signature: Some(0),
+            active_parameter: Some(signature.active),
+        })
     }
 
     /// Every occurrence of `name` across the unit's own files.
@@ -838,16 +1196,15 @@ impl Server {
             wanted.peek().is_none()
         };
         let mut out = Vec::new();
-        for unit in self.units.values() {
+        for (key, unit) in &self.units {
+            // A lone file's URI is its document's; a package's files have
+            // their own paths.
             let fallback = self
                 .documents
                 .iter()
-                .find(|(_, document)| {
-                    document.unit.as_ref().is_some_and(|key| {
-                        self.units.get(key).is_some_and(|u| std::ptr::eq(u, unit))
-                    })
-                })
-                .map(|(uri, _)| uri.clone());
+                .find(|(_, document)| document.unit.as_ref() == Some(key))
+                .map(|(uri, _)| uri.clone())
+                .or_else(|| Url::from_directory_path(clean(key)).ok());
             let Some(fallback) = fallback else { continue };
             for file in 0..unit.own {
                 let source = &unit.compiled.files[file];
@@ -884,24 +1241,52 @@ impl Server {
         ))
     }
 
+    /// The whole document formatted, or with `range` only the lines it
+    /// touches.
     fn formatting(
         &self,
         uri: &Url,
         options: &lsp_types::FormattingOptions,
+        range: Option<Range>,
     ) -> Option<Vec<TextEdit>> {
         let (document, _, _) = self.model(uri)?;
+        let text = &document.text;
         let indent = if options.insert_spaces {
             " ".repeat(options.tab_size.clamp(1, 16) as usize)
         } else {
             "\t".to_owned()
         };
-        let formatted = format(&document.text, &FormatOptions { indent })?;
-        if formatted == document.text {
+        let options = FormatOptions { indent };
+        let lines = Lines::new(text);
+        let (start, end, formatted) = match range {
+            None => (0, text.len(), format(text, &options)),
+            Some(range) => {
+                let formatted = format_lines(text, &options);
+                // Byte offset of each line's start, and the text's end.
+                let mut starts: Vec<usize> = std::iter::once(0)
+                    .chain(text.match_indices('\n').map(|(at, _)| at + 1))
+                    .collect();
+                starts.push(text.len());
+                let first = (range.start.line as usize).min(formatted.len() - 1);
+                // A selection ending at a line's start does not touch it.
+                let last = if range.end.character == 0 && range.end.line > range.start.line {
+                    range.end.line as usize - 1
+                } else {
+                    range.end.line as usize
+                }
+                .clamp(first, formatted.len() - 1);
+                (
+                    starts[first],
+                    starts[last + 1],
+                    formatted[first..=last].concat(),
+                )
+            }
+        };
+        if formatted == text[start..end] {
             return Some(Vec::new());
         }
-        let lines = Lines::new(&document.text);
         Some(vec![TextEdit {
-            range: lines.range(0, document.text.len() as u32),
+            range: lines.range(start as u32, end as u32),
             new_text: formatted,
         }])
     }
