@@ -1,6 +1,7 @@
 use crate::{Compatibility, Exception, RULE_IDS, Rules};
 use regex::Regex;
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
 use std::path::Path;
@@ -98,33 +99,29 @@ impl Config {
             compatibility: document.compatibility,
             exceptions: document.exceptions,
         };
-        // Problems found after reading point at the value they are about.
-        let at = |value: &str, message: String| ConfigError {
-            message,
-            span: locate(text, value),
-        };
+        // Problems found after reading point at the field they are about.
+        let at = |span: Option<Range<usize>>, message: String| ConfigError { message, span };
+        let locations = || toml::from_str::<Locations>(text).unwrap_or_default();
         if config.schema_version != 1 {
-            return Err(ConfigError {
-                message: format!(
+            return Err(at(
+                locations().schema_version.map(|value| value.span()),
+                format!(
                     "unsupported policy schema_version {}; this version reads 1",
                     config.schema_version
                 ),
-                span: locate_key(text, "schema_version"),
-            });
+            ));
         }
         if let Some(rule) = &config.rules.naming {
-            for pattern in [
-                &rule.operations_pattern,
-                &rule.shapes_pattern,
-                &rule.members_pattern,
-                &rule.enum_values_pattern,
-            ]
-            .into_iter()
-            .flatten()
-            {
+            for (key, pattern) in [
+                ("operations_pattern", &rule.operations_pattern),
+                ("shapes_pattern", &rule.shapes_pattern),
+                ("members_pattern", &rule.members_pattern),
+                ("enum_values_pattern", &rule.enum_values_pattern),
+            ] {
+                let Some(pattern) = pattern else { continue };
                 naming_pattern(&pattern.value).map_err(|error| {
                     at(
-                        &pattern.value,
+                        locations().rules.naming.get(key).map(|value| value.span()),
                         format!("invalid naming pattern {:?}: {error}", pattern.value),
                     )
                 })?;
@@ -137,15 +134,25 @@ impl Config {
                 || (prefix.len() > 1 && prefix.ends_with('/'))
             {
                 return Err(at(
-                    prefix,
+                    locations()
+                        .rules
+                        .paths
+                        .get("prefix")
+                        .map(|value| value.span()),
                     "paths.prefix must be an absolute literal path without a trailing slash".into(),
                 ));
             }
         }
-        for exception in &config.exceptions {
+        for (index, exception) in config.exceptions.iter().enumerate() {
+            let field = |pick: fn(&ExceptionLocations) -> &Option<toml::Spanned<toml::Value>>| {
+                locations()
+                    .exceptions
+                    .get(index)
+                    .and_then(|located| pick(located).as_ref().map(toml::Spanned::span))
+            };
             if !RULE_IDS.contains(&exception.rule.as_str()) {
                 return Err(at(
-                    &exception.rule,
+                    field(|e| &e.rule),
                     format!(
                         "unknown exception rule {:?}; the rules are {}",
                         exception.rule,
@@ -156,10 +163,10 @@ impl Config {
             exception
                 .shape
                 .parse::<crucible_smithy::ShapeId>()
-                .map_err(|error| at(&exception.shape, error.to_string()))?;
+                .map_err(|error| at(field(|e| &e.shape), error.to_string()))?;
             if exception.reason.trim().is_empty() {
                 return Err(at(
-                    &exception.reason,
+                    field(|e| &e.reason),
                     "exceptions require a nonempty reason".into(),
                 ));
             }
@@ -168,26 +175,35 @@ impl Config {
     }
 }
 
-/// Where a string value is written, quoted either way TOML allows.
-fn locate(text: &str, value: &str) -> Option<Range<usize>> {
-    [format!("\"{value}\""), format!("'{value}'")]
-        .iter()
-        .filter_map(|quoted| text.find(quoted.as_str()).map(|at| at..at + quoted.len()))
-        .min_by_key(|range| range.start)
+/// Where the fields checked after reading are written. A second, lenient
+/// read keeps each field's own span, so an error points at that field, not
+/// at an equal string in a comment or another entry.
+#[derive(Deserialize, Default)]
+struct Locations {
+    #[serde(default)]
+    schema_version: Option<toml::Spanned<toml::Value>>,
+    #[serde(default)]
+    rules: RuleLocations,
+    #[serde(default)]
+    exceptions: Vec<ExceptionLocations>,
 }
 
-/// Where a top-level key is written.
-fn locate_key(text: &str, key: &str) -> Option<Range<usize>> {
-    let mut offset = 0;
-    for line in text.split_inclusive('\n') {
-        let trimmed = line.trim_start();
-        if trimmed.starts_with(key) && trimmed[key.len()..].trim_start().starts_with('=') {
-            let start = offset + (line.len() - trimmed.len());
-            return Some(start..start + key.len());
-        }
-        offset += line.len();
-    }
-    None
+#[derive(Deserialize, Default)]
+struct RuleLocations {
+    #[serde(default)]
+    naming: BTreeMap<String, toml::Spanned<toml::Value>>,
+    #[serde(default)]
+    paths: BTreeMap<String, toml::Spanned<toml::Value>>,
+}
+
+#[derive(Deserialize, Default)]
+struct ExceptionLocations {
+    #[serde(default)]
+    rule: Option<toml::Spanned<toml::Value>>,
+    #[serde(default)]
+    shape: Option<toml::Spanned<toml::Value>>,
+    #[serde(default)]
+    reason: Option<toml::Spanned<toml::Value>>,
 }
 
 pub(crate) fn naming_pattern(pattern: &str) -> Result<Regex, regex::Error> {
