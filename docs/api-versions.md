@@ -28,15 +28,16 @@ SDK lines and upgrade guides are phase 5
 ## Versions
 
 **A version's name is the service's `version`.** The `service` declaration
-already carries `version "2026-11-01"`. A release is frozen under
-`releases/<version>`, and its migration is
+already carries `version "2026-11-01"`. A release is frozen as
+`releases/<version>.json`, a snapshot of its compiled model
+([api-policy.md](api-policy.md#releases)), and its migration is
 `migration "<service version>" from "<previous version>"`. The guard checks
 that the migration's new version is the current service version, so the
 three names cannot disagree.
 
 **The supported versions are the chain of frozen releases.** Each migration
 names the release it comes from; that release is frozen beside the
-baseline, under `releases/<from>`. Walking the migrations back from the
+baseline, as `releases/<from>.json`. Walking the migrations back from the
 current version gives every supported version, oldest first. A version is
 dropped by deleting its migration and its frozen release once its `sunset`
 has passed.

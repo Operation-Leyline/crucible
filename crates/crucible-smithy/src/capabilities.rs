@@ -6,7 +6,7 @@ use crate::{Diagnostics, ShapeId};
 
 macro_rules! features {
     ($($variant:ident => $name:literal),+ $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
         pub enum Feature { $($variant),+ }
         impl Feature {
             pub const ALL: &'static [Self] = &[$(Self::$variant),+];
@@ -55,7 +55,7 @@ impl FromStr for Feature {
 
 /// A generator's tested capabilities. An empty set is the original subset.
 /// Listing a capability does not enable unfinished lowering implementations.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Capabilities(BTreeSet<Feature>);
 
 impl Capabilities {
@@ -89,7 +89,7 @@ impl Capabilities {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct FeatureUse {
     pub feature: Feature,
     pub shape: ShapeId,

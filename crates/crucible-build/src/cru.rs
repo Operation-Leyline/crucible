@@ -108,8 +108,13 @@ fn check_baseline(
     let Some(guard) = crucible_lang::guard(package, compiled, package.files.len(), &config) else {
         return Ok(());
     };
-    if let Some(dir) = &package.baseline {
-        println!("cargo::rerun-if-changed={}", dir.display());
+    // The releases directory: the baseline, older releases and their lock.
+    if let Some(releases) = package
+        .baseline
+        .as_deref()
+        .and_then(std::path::Path::parent)
+    {
+        println!("cargo::rerun-if-changed={}", releases.display());
     }
     let guard = guard?;
     if guard.has_errors() {

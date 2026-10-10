@@ -1,0 +1,538 @@
+{
+  "format": 1,
+  "compiler": "fixture",
+  "service": {
+    "cors": null,
+    "internal": false,
+    "endpoint_discovery": null,
+    "recursive_groups": [],
+    "xml_namespace": null,
+    "xml_shapes": {},
+    "protocol": "awsRestJson1",
+    "protocols": [
+      "awsRestJson1"
+    ],
+    "errors": [],
+    "protocol_settings": {
+      "http": [
+        "http/1.1"
+      ],
+      "eventStreamHttp": [
+        "http/1.1"
+      ],
+      "noErrorWrapping": false,
+      "omitNullStructureMembers": true,
+      "ignoreUnknownUnionType": true,
+      "nonFiniteFloatStrings": true
+    },
+    "requirements": [
+      {
+        "feature": "AwsRestJson1",
+        "shape": "test.bindings#Service",
+        "source": "aws.protocols#restJson1"
+      }
+    ],
+    "id": "test.bindings#Service",
+    "version": "1",
+    "title": null,
+    "docs": null,
+    "notes": {
+      "deprecated": null,
+      "since": null,
+      "unstable": false,
+      "external_docs": {}
+    },
+    "auth": [],
+    "scopes": [],
+    "auth_schemes": {},
+    "endpoint_rules": null,
+    "protocol_tests": [],
+    "operations": [
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "test.bindings#Read",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "read"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "test.bindings#Input",
+        "output": "test.bindings#Output",
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {
+            "time": "date-time"
+          },
+          "header_encodings": {},
+          "labels": [],
+          "query": [
+            {
+              "member": "time",
+              "name": "time"
+            }
+          ],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {
+            "header": "http-date"
+          },
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [
+            {
+              "member": "header",
+              "name": "x-time"
+            }
+          ],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "query",
+            "label",
+            "nested"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "POST",
+            "uri": "/read"
+          }
+        }
+      }
+    ],
+    "resources": {},
+    "resource_roots": [],
+    "resource_references": {},
+    "shapes": {
+      "smithy.api#Timestamp": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Timestamp",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "test.bindings#Input": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "time",
+              "wire_name": "time",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": 0,
+              "wire_default": "1970-01-01T00:00:00Z",
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#default": 0,
+                "smithy.api#httpQuery": "time"
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "test.bindings#Output": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "header",
+              "wire_name": "header",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": 0,
+              "wire_default": "Thu, 01 Jan 1970 00:00:00 GMT",
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "http-date",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#default": 0,
+                "smithy.api#httpHeader": "x-time"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "query",
+              "wire_name": "query",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": 0,
+              "wire_default": 0,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#default": 0,
+                "smithy.api#httpQuery": "ignored"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "label",
+              "wire_name": "label",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": 0,
+              "wire_default": 0,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#default": 0,
+                "smithy.api#httpLabel": {}
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "nested",
+              "wire_name": "nested",
+              "target": "test.bindings#Result",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "test.bindings#Result": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "header",
+              "wire_name": "header",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": 0,
+              "wire_default": 0,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#default": 0,
+                "smithy.api#httpHeader": "ignored"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "query",
+              "wire_name": "query",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": 0,
+              "wire_default": 0,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#default": 0,
+                "smithy.api#httpQuery": "ignored"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "label",
+              "wire_name": "label",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": 0,
+              "wire_default": 0,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#default": 0,
+                "smithy.api#httpLabel": {}
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "explicit",
+              "wire_name": "explicit",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": 0,
+              "wire_default": "1970-01-01T00:00:00Z",
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": "date-time",
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#default": 0,
+                "smithy.api#httpHeader": "ignored",
+                "smithy.api#timestampFormat": "date-time"
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      }
+    },
+    "traits": {
+      "aws.protocols#restJson1": {}
+    },
+    "renames": {},
+    "versions": [],
+    "api_version": null
+  }
+}

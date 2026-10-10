@@ -743,15 +743,17 @@ fn the_manifest_policy_shows_in_model_files_and_edits_apply_at_once() {
 fn breaking_changes_against_the_baseline_show_as_you_type() {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-baseline");
     package(&dir);
-    // Freeze the package as it is, then point the manifest at the copy.
-    let frozen = dir.join("releases/v1");
-    std::fs::create_dir_all(&frozen).unwrap();
-    for file in ["crucible.toml", "service.cru", "types.cru"] {
-        std::fs::copy(dir.join(file), frozen.join(file)).unwrap();
-    }
+    // Freeze the package as it is, then point the manifest at the snapshot.
+    let _ = std::fs::remove_dir_all(dir.join("releases"));
+    let loaded = crucible_lang::load_package(&dir).unwrap();
+    let service = crucible_lang::compile(&loaded, None).service.unwrap();
+    crucible_lang::release::freeze(&dir.join("releases"), &service, "test").unwrap();
     std::fs::write(
         dir.join("crucible.toml"),
-        "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.errors\"]\n\n[model.baseline]\npath = \"releases/v1\"\n",
+        format!(
+            "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.errors\"]\n\n[model.baseline]\npath = \"releases/{}.json\"\n",
+            service.version
+        ),
     )
     .unwrap();
     let service = uri(&dir.join("service.cru"));
@@ -778,7 +780,7 @@ fn breaking_changes_against_the_baseline_show_as_you_type() {
         breaking["message"]
             .as_str()
             .unwrap()
-            .starts_with("breaking change since v1")
+            .starts_with("breaking change since 1:")
     );
     assert_eq!(breaking["range"]["start"], position(&moved, "GetItem {", 0));
     client.stop();

@@ -469,6 +469,7 @@ dependencies = [
  "crucible-smithy",
  "serde",
  "serde_json",
+ "sha2",
  "toml",
 ]
 

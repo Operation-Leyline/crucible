@@ -1,0 +1,1951 @@
+{
+  "format": 1,
+  "compiler": "fixture",
+  "service": {
+    "cors": null,
+    "internal": false,
+    "endpoint_discovery": null,
+    "recursive_groups": [],
+    "xml_namespace": null,
+    "xml_shapes": {},
+    "protocol": "crucibleJson",
+    "protocols": [
+      "crucibleJson"
+    ],
+    "errors": [
+      "example.vault#AccessDenied"
+    ],
+    "protocol_settings": {
+      "http": [
+        "http/1.1"
+      ],
+      "eventStreamHttp": [
+        "http/1.1"
+      ],
+      "noErrorWrapping": false,
+      "omitNullStructureMembers": false,
+      "ignoreUnknownUnionType": false,
+      "nonFiniteFloatStrings": false
+    },
+    "requirements": [
+      {
+        "feature": "IntEnum",
+        "shape": "example.vault#Level",
+        "source": "smithy.api#IntEnum"
+      }
+    ],
+    "id": "example.vault#Vault",
+    "version": "2026-10-08",
+    "title": "Vault",
+    "docs": "Stores secrets.\n\nSee [the guide](https://example.com/guide) and [Secret] for `*/` details. @since 1",
+    "notes": {
+      "deprecated": null,
+      "since": null,
+      "unstable": false,
+      "external_docs": {}
+    },
+    "auth": [
+      "smithy.api#httpBearerAuth"
+    ],
+    "scopes": [],
+    "auth_schemes": {
+      "smithy.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "endpoint_rules": null,
+    "protocol_tests": [],
+    "operations": [
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.vault#GetSecret",
+        "auth": [
+          "smithy.api#httpBearerAuth"
+        ],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": "Reads one secret.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "secrets"
+            },
+            {
+              "Label": "name"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.vault#GetSecretInput",
+        "output": "example.vault#GetSecretOutput",
+        "errors": [
+          "example.vault#AccessDenied"
+        ],
+        "readonly": true,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [
+            "name"
+          ],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "secret"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#documentation": "Reads one secret.",
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/secrets/{name}"
+          },
+          "smithy.api#readonly": {}
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.vault#ListSecrets",
+        "auth": [
+          "smithy.api#httpBearerAuth"
+        ],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": "Lists secrets.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "secrets"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.vault#ListSecretsInput",
+        "output": "example.vault#ListSecretsOutput",
+        "errors": [
+          "example.vault#AccessDenied"
+        ],
+        "readonly": true,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": {
+          "input_token": "nextToken",
+          "output_token": "nextToken",
+          "items": "secrets",
+          "page_size": "maxResults"
+        },
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [
+            {
+              "member": "nextToken",
+              "name": "nextToken"
+            },
+            {
+              "member": "maxResults",
+              "name": "maxResults"
+            }
+          ],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "nextToken",
+            "secrets"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#documentation": "Lists secrets.",
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/secrets"
+          },
+          "smithy.api#paginated": {
+            "inputToken": "nextToken",
+            "outputToken": "nextToken",
+            "items": "secrets",
+            "pageSize": "maxResults"
+          },
+          "smithy.api#readonly": {}
+        }
+      },
+      {
+        "protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.vault#PutSecret",
+        "auth": [
+          "smithy.api#httpBearerAuth"
+        ],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": "Stores a secret.",
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "PUT",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "secrets"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.vault#PutSecretInput",
+        "output": "example.vault#PutSecretOutput",
+        "errors": [
+          "example.vault#AccessDenied"
+        ],
+        "readonly": false,
+        "idempotent": true,
+        "idempotency_token": "clientToken",
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "secret",
+            "clientToken"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "revision"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#documentation": "Stores a secret.",
+          "smithy.api#http": {
+            "method": "PUT",
+            "uri": "/secrets"
+          },
+          "smithy.api#idempotent": {}
+        }
+      }
+    ],
+    "resources": {},
+    "resource_roots": [],
+    "resource_references": {},
+    "shapes": {
+      "example.vault#AccessDenied": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "message",
+              "wire_name": "message",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "reason",
+              "wire_name": "reason",
+              "target": "example.vault#Password",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "Redacted.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#documentation": "Redacted."
+              }
+            }
+          ],
+          "error": {
+            "protocol_headers": {
+              "Content-Type": "application/json"
+            },
+            "body_discriminator": "AccessDenied",
+            "discriminator_header": "X-Crucible-Error",
+            "timestamp_formats": {},
+            "wire_code": "AccessDenied",
+            "payload": null,
+            "header_encodings": {},
+            "fault": "Client",
+            "status": 403,
+            "retryable": null,
+            "headers": [],
+            "prefix_headers": [],
+            "response_code": null
+          },
+          "docs": "The caller may not read this secret.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#documentation": "The caller may not read this secret.",
+            "smithy.api#error": "client",
+            "smithy.api#httpError": 403
+          }
+        }
+      },
+      "example.vault#Credential": {
+        "Union": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "password",
+              "wire_name": "password",
+              "target": "example.vault#Password",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "A password.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#documentation": "A password."
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "username",
+              "wire_name": "username",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": true,
+              "event_binding": null,
+              "name": "pin",
+              "wire_name": "pin",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#sensitive": {}
+              }
+            }
+          ],
+          "error": null,
+          "docs": "A way to prove identity.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#documentation": "A way to prove identity."
+          }
+        }
+      },
+      "example.vault#GetSecretInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "name",
+              "wire_name": "name",
+              "target": "smithy.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#input": {}
+          }
+        }
+      },
+      "example.vault#GetSecretOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "secret",
+              "wire_name": "secret",
+              "target": "example.vault#Secret",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#required": {}
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "example.vault#Kind": {
+        "Enum": {
+          "internal": false,
+          "sensitive": false,
+          "values": [
+            {
+              "internal": false,
+              "name": "LOGIN",
+              "value": "login",
+              "docs": "A website login.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#documentation": "A website login.",
+                "smithy.api#enumValue": "login"
+              }
+            },
+            {
+              "internal": false,
+              "name": "API_KEY",
+              "value": "api-key",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": "api-key"
+              }
+            }
+          ],
+          "docs": "What a secret unlocks.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#documentation": "What a secret unlocks."
+          }
+        }
+      },
+      "example.vault#Labels": {
+        "Map": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "key": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "key",
+            "wire_name": "key",
+            "target": "smithy.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "value": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "value",
+            "wire_name": "value",
+            "target": "smithy.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.vault#Level": {
+        "IntEnum": {
+          "internal": false,
+          "sensitive": false,
+          "values": [
+            {
+              "internal": false,
+              "name": "LOW",
+              "value": 1,
+              "docs": "Rarely rotated.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#documentation": "Rarely rotated.",
+                "smithy.api#enumValue": 1
+              }
+            },
+            {
+              "internal": false,
+              "name": "HIGH",
+              "value": 2,
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": 2
+              }
+            }
+          ],
+          "docs": "How sensitive a secret is.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#documentation": "How sensitive a secret is."
+          }
+        }
+      },
+      "example.vault#ListSecretsInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "nextToken",
+              "wire_name": "nextToken",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#httpQuery": "nextToken"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "maxResults",
+              "wire_name": "maxResults",
+              "target": "smithy.api#Integer",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#httpQuery": "maxResults"
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#input": {}
+          }
+        }
+      },
+      "example.vault#ListSecretsOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "nextToken",
+              "wire_name": "nextToken",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "secrets",
+              "wire_name": "secrets",
+              "target": "example.vault#Secrets",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "example.vault#Names": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "smithy.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.vault#Password": {
+        "Simple": {
+          "internal": false,
+          "sensitive": true,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#sensitive": {}
+          }
+        }
+      },
+      "example.vault#Passwords": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "example.vault#Password",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.vault#PasswordsByName": {
+        "Map": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "key": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "key",
+            "wire_name": "key",
+            "target": "smithy.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "value": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "value",
+            "wire_name": "value",
+            "target": "example.vault#Password",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.vault#PutSecretInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "secret",
+              "wire_name": "secret",
+              "target": "example.vault#Secret",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#required": {}
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "clientToken",
+              "wire_name": "clientToken",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": true,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#idempotencyToken": {}
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#input": {}
+          }
+        }
+      },
+      "example.vault#PutSecretOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "revision",
+              "wire_name": "revision",
+              "target": "smithy.api#Integer",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "example.vault#Secret": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "name",
+              "wire_name": "name",
+              "target": "smithy.api#String",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "The <b>name</b> of the secret.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#documentation": "The <b>name</b> of the secret.",
+                "smithy.api#required": {}
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "password",
+              "wire_name": "password",
+              "target": "example.vault#Password",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "Never printed.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#documentation": "Never printed."
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": true,
+              "event_binding": null,
+              "name": "pin",
+              "wire_name": "pin",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#sensitive": {}
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "history",
+              "wire_name": "history",
+              "target": "example.vault#Passwords",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "byName",
+              "wire_name": "byName",
+              "target": "example.vault#PasswordsByName",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "aliases",
+              "wire_name": "aliases",
+              "target": "example.vault#Names",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "labels",
+              "wire_name": "labels",
+              "target": "example.vault#Labels",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "kind",
+              "wire_name": "kind",
+              "target": "example.vault#Kind",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "level",
+              "wire_name": "level",
+              "target": "example.vault#Level",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "credential",
+              "wire_name": "credential",
+              "target": "example.vault#Credential",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "createdAt",
+              "wire_name": "createdAt",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "payload",
+              "wire_name": "payload",
+              "target": "smithy.api#Blob",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "revision",
+              "wire_name": "revision",
+              "target": "smithy.api#Integer",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": "A stored secret.",
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#documentation": "A stored secret."
+          }
+        }
+      },
+      "example.vault#Secrets": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "example.vault#Secret",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Blob": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Blob",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Integer": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Integer",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#String": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Timestamp": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Timestamp",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      }
+    },
+    "traits": {
+      "crucible.protocols#json": {},
+      "smithy.api#documentation": "Stores secrets.\n\nSee [the guide](https://example.com/guide) and [Secret] for `*/` details. @since 1",
+      "smithy.api#httpBearerAuth": {},
+      "smithy.api#title": "Vault"
+    },
+    "renames": {},
+    "versions": [],
+    "api_version": null
+  }
+}

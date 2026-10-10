@@ -133,10 +133,10 @@ build, `crucible check`, `crucible generate` and the editor then compare the
 package against it, so a breaking change fails where it is made instead of
 when someone remembers to run `crucible diff`.
 
-Freeze the release when you ship it, and point the manifest at the copy:
+Freeze the release when you ship it, and point the manifest at it:
 
 ```sh
-crucible freeze model/api          # writes model/api/releases/<service version>
+crucible freeze model/api          # writes model/api/releases/<service version>.json
 ```
 
 ```toml
@@ -144,13 +144,43 @@ crucible freeze model/api          # writes model/api/releases/<service version>
 namespace = "example.service"
 
 [model.baseline]
-path = "releases/2026-09-04"
+path = "releases/2026-09-04.json"
 ```
 
-`freeze` copies the manifest (without its own `[model.baseline]`) and every
-`.cru` source, and refuses to overwrite an existing release. A frozen
-release inside the package is a package of its own, so its files are never
-part of the current one. The comparison is the one `crucible diff` runs,
+### Releases
+
+A frozen release is a snapshot of the package's **compiled** model, not a
+copy of its sources: the lowered model as deterministic, pretty-printed
+JSON, so a release's file diffs as the API changed. Builds read
+it straight back; an older release is never recompiled, so a later
+compiler or language change cannot change what a shipped contract means.
+The file records its `format` and the compiler that wrote it; a compiler
+reads every format up to its own, and refuses a newer format or a field it
+does not know (one at its zero value, such as `false` or `[]`, reads as
+absent) rather than misread the release. The snapshot's field names are the
+IR's: renaming an IR field, or adding one without a `serde` default, is a
+format change.
+
+`freeze` refuses to overwrite a release, and records each one's SHA-256 in
+`releases/crucible.lock`. A build refuses a release that is not in the lock
+or no longer matches it, which catches an accidental edit (it is not
+tamper protection: rewriting the lock too passes). A release is never
+edited, only superseded by a new one. Commit the snapshots and the lock
+with the release. A release's version names its file, so it uses letters,
+digits, `.`, `-`, `_` and `+`, and does not start with `.`.
+
+A release that was never frozen is backfilled from history:
+
+```sh
+crucible freeze model/api --from v2026-09-04   # any git commit or tag
+```
+
+`--from` reads the package's files as they were at that commit, compiles
+them with the current compiler (ignoring that commit's own
+`[model.baseline]`), and freezes the result like any other release. It needs the package to be in a git repository; nothing else
+does, so builds work offline and from a published crate.
+
+The comparison is the one `crucible diff` runs,
 with the package's `[compatibility]` settings and `[[exceptions]]`: a
 finding at `error` fails the build, one at `warning` is printed. In the
 editor, each breaking change shows at the declaration it concerns, or, for
@@ -161,10 +191,10 @@ something removed, at what held it; a baseline that does not load shows on
 
 A deliberate break compiles when the migration from the baseline's version
 declares it. A release is named by its service's `version`: `crucible freeze` writes
-it to `releases/<version>`, and the compiler checks that a frozen
-release's directory and its service's `version` agree. The migration from
+it to `releases/<version>.json`, and the compiler checks that a release's
+file name and its service's `version` agree. The migration from
 it names both versions, and its new version must be the current service's
-`version`, so a baseline at `releases/2026-09-04` is served by
+`version`, so a baseline at `releases/2026-09-04.json` is served by
 `migration "<the service's version>" from "2026-09-04"`:
 
 ```
@@ -197,7 +227,7 @@ in the sources, for the server that will serve them. Hooks are recorded but
 not generated yet: serving older versions at runtime is a later phase.
 
 When the release ships, freeze it and point `[model.baseline]` at the new
-copy; the next release's migration starts from it.
+snapshot; the next release's migration starts from it.
 
 ## Comparing contracts
 

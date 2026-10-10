@@ -3,7 +3,7 @@ use crate::ast::{Kind, Shape};
 use crate::{Diagnostics, ShapeId};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RecursiveGroup {
     pub shapes: Vec<ShapeId>,
     /// Members whose edges stay inside this recursive component.

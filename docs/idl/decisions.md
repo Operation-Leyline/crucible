@@ -669,9 +669,9 @@ server binding exists for it.
     the model guard and the runtime guard; Leyline's rate-limit and audit
     middleware re-check presence at startup today.
 
-47d. **Compatibility is a guard.** *(Implemented, with the baseline a
-    frozen copy of the package's sources made by `crucible freeze` rather
-    than a compiled artifact: the IR has no serialized form yet.)* The manifest names the baseline
+47d. **Compatibility is a guard.** *(Implemented. The baseline is a
+    snapshot of the compiled model made by `crucible freeze`, checksummed
+    in `releases/crucible.lock`; see [api-policy.md](../api-policy.md#releases).)* The manifest names the baseline
     artifact (the last release); `crucible check` compares against it on
     every compile, not only when someone runs `diff`. Findings are keyed
     to the consumer class they break: wire, JSON document, or generated
@@ -743,8 +743,8 @@ pass in `reports/`.
 
 52. *(Implemented for the compile-time check: a migration from the
     baseline's version must declare every breaking change, and each step
-    must match one; see [api-policy.md](../api-policy.md). The baseline is
-    a frozen copy of the sources. Decisions 53-56 are built for Rust
+    must match one; see [api-policy.md](../api-policy.md). Each release is
+    a snapshot of its compiled model, never recompiled. Decisions 53-56 are built for Rust
     services, with the version carried in a header (57); see
     [api-versions.md](../api-versions.md). Declared `conversion`s, client
     versions (57, 57a) and example replay (59) are not built yet.)* **The source is always the latest model; history is a chain of frozen

@@ -1,0 +1,1152 @@
+{
+  "format": 1,
+  "compiler": "fixture",
+  "service": {
+    "cors": null,
+    "internal": false,
+    "endpoint_discovery": null,
+    "recursive_groups": [],
+    "xml_namespace": null,
+    "xml_shapes": {},
+    "protocol": "crucibleJson",
+    "protocols": [
+      "crucibleJson"
+    ],
+    "errors": [],
+    "protocol_settings": {
+      "http": [
+        "http/1.1"
+      ],
+      "eventStreamHttp": [
+        "http/1.1"
+      ],
+      "noErrorWrapping": false,
+      "omitNullStructureMembers": false,
+      "ignoreUnknownUnionType": false,
+      "nonFiniteFloatStrings": false
+    },
+    "requirements": [],
+    "id": "example.resources#Service",
+    "version": "1",
+    "title": null,
+    "docs": null,
+    "notes": {
+      "deprecated": null,
+      "since": null,
+      "unstable": false,
+      "external_docs": {}
+    },
+    "auth": [],
+    "scopes": [],
+    "auth_schemes": {},
+    "endpoint_rules": null,
+    "protocol_tests": [],
+    "operations": [
+      {
+        "protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": true,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.resources#Allocate",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": "example.resources#Inbox",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "inbox"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.resources#WriteInput",
+        "output": "example.resources#ReadOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": "clientToken",
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "displayName",
+            "clientToken",
+            "external"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "inbox"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "POST",
+            "uri": "/inbox"
+          },
+          "smithy.api#internal": {}
+        }
+      },
+      {
+        "protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.resources#Change",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": "example.resources#Inbox",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "PATCH",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "inbox"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.resources#WriteInput",
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": "clientToken",
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "displayName",
+            "clientToken",
+            "external"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "PATCH",
+            "uri": "/inbox"
+          }
+        }
+      },
+      {
+        "protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "response_protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.resources#Inspect",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": "example.resources#Inbox",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "inbox"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.resources#ReadInput",
+        "output": "example.resources#ReadOutput",
+        "errors": [],
+        "readonly": true,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "inboxId",
+            "id"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "inbox"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/inbox"
+          },
+          "smithy.api#readonly": {}
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.resources#InspectMessage",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": "example.resources#Message",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "message"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/message"
+          }
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.resources#Purge",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": "example.resources#Message",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "messages"
+            },
+            {
+              "Literal": "purge"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "POST",
+            "uri": "/messages/purge"
+          }
+        }
+      },
+      {
+        "protocol_headers": {
+          "Content-Type": "application/json"
+        },
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.resources#Remove",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": "example.resources#Inbox",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "DELETE",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "inbox"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "example.resources#ReadInput",
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "inboxId",
+            "id"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "DELETE",
+            "uri": "/inbox"
+          }
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.resources#Scan",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": "example.resources#Message",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "GET",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "messages"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": null,
+        "errors": [],
+        "readonly": true,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/messages"
+          },
+          "smithy.api#readonly": {}
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "example.resources#Store",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": "example.resources#Message",
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "PUT",
+        "uri": {
+          "segments": [
+            {
+              "Literal": "message"
+            }
+          ],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": true,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.api#http": {
+            "method": "PUT",
+            "uri": "/message"
+          },
+          "smithy.api#idempotent": {}
+        }
+      }
+    ],
+    "resources": {},
+    "resource_roots": [],
+    "resource_references": {},
+    "shapes": {
+      "example.resources#ExternalReference": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "id",
+              "wire_name": "id",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#references": [
+              {
+                "resource": "external.service#Account",
+                "service": "external.service#Service",
+                "ids": {
+                  "accountId": "id"
+                },
+                "rel": "owner"
+              }
+            ]
+          }
+        }
+      },
+      "example.resources#InboxData": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "id",
+              "wire_name": "id",
+              "target": "example.resources#InboxId",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "name",
+              "wire_name": "name",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#references": [
+              {
+                "resource": "example.resources#Inbox",
+                "ids": {
+                  "inboxId": "id"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "example.resources#InboxId": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#references": [
+              {
+                "resource": "example.resources#Inbox"
+              }
+            ]
+          }
+        }
+      },
+      "example.resources#ReadInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "inboxId",
+              "wire_name": "inboxId",
+              "target": "example.resources#InboxId",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#required": {}
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "id",
+              "wire_name": "id",
+              "target": "example.resources#InboxId",
+              "required": true,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#required": {},
+                "smithy.api#resourceIdentifier": "inboxId"
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.resources#ReadOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "inbox",
+              "wire_name": "inbox",
+              "target": "example.resources#InboxData",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#nestedProperties": {}
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "example.resources#WriteInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "displayName",
+              "wire_name": "displayName",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#property": {
+                  "name": "name"
+                }
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "clientToken",
+              "wire_name": "clientToken",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": true,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#idempotencyToken": {}
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "external",
+              "wire_name": "external",
+              "target": "example.resources#ExternalReference",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#String": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      }
+    },
+    "traits": {
+      "crucible.protocols#json": {}
+    },
+    "renames": {},
+    "versions": [],
+    "api_version": null
+  }
+}

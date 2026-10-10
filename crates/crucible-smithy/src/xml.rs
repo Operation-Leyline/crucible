@@ -11,14 +11,14 @@ pub struct XmlNamespace {
     pub prefix: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct XmlShape {
     pub name: String,
     pub namespace: Option<XmlNamespace>,
     pub members: BTreeMap<String, XmlMember>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct XmlMember {
     pub name: String,
@@ -28,7 +28,7 @@ pub struct XmlMember {
     pub attribute: bool,
     /// The root element name when this member is a restXml `@httpPayload`:
     /// the member's own `@xmlName`, else the target's name.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub payload_name: Option<String>,
 }
 

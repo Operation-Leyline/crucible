@@ -30,6 +30,7 @@ mod recursion;
 mod resources;
 mod scopes;
 mod shape_id;
+pub mod snapshot;
 mod timestamp_default;
 pub mod validate;
 mod xml;

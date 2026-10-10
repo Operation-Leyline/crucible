@@ -1,0 +1,5858 @@
+{
+  "format": 1,
+  "compiler": "fixture",
+  "service": {
+    "cors": null,
+    "internal": false,
+    "endpoint_discovery": null,
+    "recursive_groups": [
+      {
+        "shapes": [
+          "aws.protocoltests.ec2#StructArg"
+        ],
+        "members": [
+          "aws.protocoltests.ec2#StructArg$RecursiveArg"
+        ]
+      }
+    ],
+    "xml_namespace": {
+      "uri": "https://example.com/",
+      "prefix": null
+    },
+    "xml_shapes": {
+      "aws.protocoltests.ec2#BooleanList": {
+        "name": "BooleanList",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "member",
+            "queryName": "member",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#ComplexError": {
+        "name": "ComplexError",
+        "namespace": null,
+        "members": {
+          "Nested": {
+            "name": "Nested",
+            "queryName": "Nested",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "TopLevel": {
+            "name": "TopLevel",
+            "queryName": "TopLevel",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#ComplexNestedErrorData": {
+        "name": "ComplexNestedErrorData",
+        "namespace": null,
+        "members": {
+          "Foo": {
+            "name": "Foo",
+            "queryName": "Foo",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#DateTime": {
+        "name": "DateTime",
+        "namespace": null,
+        "members": {}
+      },
+      "aws.protocoltests.ec2#EpochSeconds": {
+        "name": "EpochSeconds",
+        "namespace": null,
+        "members": {}
+      },
+      "aws.protocoltests.ec2#FooEnum": {
+        "name": "FooEnum",
+        "namespace": null,
+        "members": {
+          "BAR": {
+            "name": "BAR",
+            "queryName": "BAR",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "BAZ": {
+            "name": "BAZ",
+            "queryName": "BAZ",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "FOO": {
+            "name": "FOO",
+            "queryName": "FOO",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "ONE": {
+            "name": "ONE",
+            "queryName": "ONE",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "ZERO": {
+            "name": "ZERO",
+            "queryName": "ZERO",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#FooEnumList": {
+        "name": "FooEnumList",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "member",
+            "queryName": "member",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#GreetingList": {
+        "name": "GreetingList",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "member",
+            "queryName": "member",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#GreetingStruct": {
+        "name": "GreetingStruct",
+        "namespace": null,
+        "members": {
+          "hi": {
+            "name": "hi",
+            "queryName": "Hi",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#GreetingWithErrorsOutput": {
+        "name": "GreetingWithErrorsOutput",
+        "namespace": null,
+        "members": {
+          "greeting": {
+            "name": "greeting",
+            "queryName": "Greeting",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#HttpDate": {
+        "name": "HttpDate",
+        "namespace": null,
+        "members": {}
+      },
+      "aws.protocoltests.ec2#IntegerEnum": {
+        "name": "IntegerEnum",
+        "namespace": null,
+        "members": {
+          "A": {
+            "name": "A",
+            "queryName": "A",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "B": {
+            "name": "B",
+            "queryName": "B",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "C": {
+            "name": "C",
+            "queryName": "C",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#IntegerList": {
+        "name": "IntegerList",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "member",
+            "queryName": "member",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#InvalidGreeting": {
+        "name": "InvalidGreeting",
+        "namespace": null,
+        "members": {
+          "Message": {
+            "name": "Message",
+            "queryName": "Message",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#ListWithXmlName": {
+        "name": "ListWithXmlName",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "item",
+            "queryName": "item",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#NestedStringList": {
+        "name": "NestedStringList",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "member",
+            "queryName": "member",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#NestedStructWithList": {
+        "name": "NestedStructWithList",
+        "namespace": null,
+        "members": {
+          "ListArg": {
+            "name": "ListArg",
+            "queryName": "ListArg",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#NestedStructuresInput": {
+        "name": "NestedStructuresInput",
+        "namespace": null,
+        "members": {
+          "Nested": {
+            "name": "Nested",
+            "queryName": "Nested",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#QueryListsInput": {
+        "name": "QueryListsInput",
+        "namespace": null,
+        "members": {
+          "ComplexListArg": {
+            "name": "ComplexListArg",
+            "queryName": "ComplexListArg",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "ListArg": {
+            "name": "ListArg",
+            "queryName": "ListArg",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "ListArgWithXmlName": {
+            "name": "Hi",
+            "queryName": "Hi",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "ListArgWithXmlNameMember": {
+            "name": "ListArgWithXmlNameMember",
+            "queryName": "ListArgWithXmlNameMember",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "NestedWithList": {
+            "name": "NestedWithList",
+            "queryName": "NestedWithList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#QueryTimestampsInput": {
+        "name": "QueryTimestampsInput",
+        "namespace": null,
+        "members": {
+          "epochMember": {
+            "name": "epochMember",
+            "queryName": "EpochMember",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "epochTarget": {
+            "name": "epochTarget",
+            "queryName": "EpochTarget",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "normalFormat": {
+            "name": "normalFormat",
+            "queryName": "NormalFormat",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#RenamedListMembers": {
+        "name": "RenamedListMembers",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "item",
+            "queryName": "item",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#SimpleInputParamsInput": {
+        "name": "SimpleInputParamsInput",
+        "namespace": null,
+        "members": {
+          "Bam": {
+            "name": "Bam",
+            "queryName": "Bam",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "Bar": {
+            "name": "Bar",
+            "queryName": "Bar",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "Baz": {
+            "name": "Baz",
+            "queryName": "Baz",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "Boo": {
+            "name": "Boo",
+            "queryName": "Boo",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "FloatValue": {
+            "name": "FloatValue",
+            "queryName": "FloatValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "Foo": {
+            "name": "Foo",
+            "queryName": "Foo",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "FooEnum": {
+            "name": "FooEnum",
+            "queryName": "FooEnum",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "HasQueryAndXmlName": {
+            "name": "hasQueryAndXmlName",
+            "queryName": "HasQueryAndXmlName",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "HasQueryName": {
+            "name": "HasQueryName",
+            "queryName": "HasQueryName",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "IntegerEnum": {
+            "name": "IntegerEnum",
+            "queryName": "IntegerEnum",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "Qux": {
+            "name": "Qux",
+            "queryName": "Qux",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "UsesXmlName": {
+            "name": "usesXmlName",
+            "queryName": "UsesXmlName",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "lowerName": {
+            "name": "lowerName",
+            "queryName": "LowerName",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#SimpleScalarXmlPropertiesOutput": {
+        "name": "SimpleScalarXmlPropertiesOutput",
+        "namespace": null,
+        "members": {
+          "byteValue": {
+            "name": "byteValue",
+            "queryName": "ByteValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "doubleValue": {
+            "name": "DoubleDribble",
+            "queryName": "DoubleDribble",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "emptyStringValue": {
+            "name": "emptyStringValue",
+            "queryName": "EmptyStringValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "falseBooleanValue": {
+            "name": "falseBooleanValue",
+            "queryName": "FalseBooleanValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "floatValue": {
+            "name": "floatValue",
+            "queryName": "FloatValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "integerValue": {
+            "name": "integerValue",
+            "queryName": "IntegerValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "longValue": {
+            "name": "longValue",
+            "queryName": "LongValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "shortValue": {
+            "name": "shortValue",
+            "queryName": "ShortValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "stringValue": {
+            "name": "stringValue",
+            "queryName": "StringValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "trueBooleanValue": {
+            "name": "trueBooleanValue",
+            "queryName": "TrueBooleanValue",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#StringList": {
+        "name": "StringList",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "member",
+            "queryName": "member",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#StringSet": {
+        "name": "StringSet",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "member",
+            "queryName": "member",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#StructArg": {
+        "name": "StructArg",
+        "namespace": null,
+        "members": {
+          "OtherArg": {
+            "name": "OtherArg",
+            "queryName": "OtherArg",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "RecursiveArg": {
+            "name": "RecursiveArg",
+            "queryName": "RecursiveArg",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "StringArg": {
+            "name": "StringArg",
+            "queryName": "StringArg",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#StructureList": {
+        "name": "StructureList",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "item",
+            "queryName": "item",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#StructureListMember": {
+        "name": "StructureListMember",
+        "namespace": null,
+        "members": {
+          "a": {
+            "name": "value",
+            "queryName": "Value",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "b": {
+            "name": "other",
+            "queryName": "Other",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#TimestampList": {
+        "name": "TimestampList",
+        "namespace": null,
+        "members": {
+          "member": {
+            "name": "member",
+            "queryName": "member",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#XmlBlobsOutput": {
+        "name": "XmlBlobsOutput",
+        "namespace": null,
+        "members": {
+          "data": {
+            "name": "data",
+            "queryName": "Data",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#XmlEnumsOutput": {
+        "name": "XmlEnumsOutput",
+        "namespace": null,
+        "members": {
+          "fooEnum1": {
+            "name": "fooEnum1",
+            "queryName": "FooEnum1",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "fooEnumList": {
+            "name": "fooEnumList",
+            "queryName": "FooEnumList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#XmlListsOutput": {
+        "name": "XmlListsOutput",
+        "namespace": null,
+        "members": {
+          "booleanList": {
+            "name": "booleanList",
+            "queryName": "BooleanList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "enumList": {
+            "name": "enumList",
+            "queryName": "EnumList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "flattenedList": {
+            "name": "flattenedList",
+            "queryName": "FlattenedList",
+            "namespace": null,
+            "flattened": true,
+            "attribute": false
+          },
+          "flattenedList2": {
+            "name": "customName",
+            "queryName": "CustomName",
+            "namespace": null,
+            "flattened": true,
+            "attribute": false
+          },
+          "flattenedStructureList": {
+            "name": "flattenedStructureList",
+            "queryName": "FlattenedStructureList",
+            "namespace": null,
+            "flattened": true,
+            "attribute": false
+          },
+          "integerList": {
+            "name": "integerList",
+            "queryName": "IntegerList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "nestedStringList": {
+            "name": "nestedStringList",
+            "queryName": "NestedStringList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "renamedListMembers": {
+            "name": "renamed",
+            "queryName": "Renamed",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "stringList": {
+            "name": "stringList",
+            "queryName": "StringList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "stringSet": {
+            "name": "stringSet",
+            "queryName": "StringSet",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "structureList": {
+            "name": "myStructureList",
+            "queryName": "MyStructureList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "timestampList": {
+            "name": "timestampList",
+            "queryName": "TimestampList",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "aws.protocoltests.ec2#XmlTimestampsOutput": {
+        "name": "XmlTimestampsOutput",
+        "namespace": null,
+        "members": {
+          "dateTime": {
+            "name": "dateTime",
+            "queryName": "DateTime",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "dateTimeOnTarget": {
+            "name": "dateTimeOnTarget",
+            "queryName": "DateTimeOnTarget",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "epochSeconds": {
+            "name": "epochSeconds",
+            "queryName": "EpochSeconds",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "epochSecondsOnTarget": {
+            "name": "epochSecondsOnTarget",
+            "queryName": "EpochSecondsOnTarget",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "httpDate": {
+            "name": "httpDate",
+            "queryName": "HttpDate",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "httpDateOnTarget": {
+            "name": "httpDateOnTarget",
+            "queryName": "HttpDateOnTarget",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          },
+          "normal": {
+            "name": "normal",
+            "queryName": "Normal",
+            "namespace": null,
+            "flattened": false,
+            "attribute": false
+          }
+        }
+      },
+      "smithy.api#Blob": {
+        "name": "Blob",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#Boolean": {
+        "name": "Boolean",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#Byte": {
+        "name": "Byte",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#Double": {
+        "name": "Double",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#Float": {
+        "name": "Float",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#Integer": {
+        "name": "Integer",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#Long": {
+        "name": "Long",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#Short": {
+        "name": "Short",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#String": {
+        "name": "String",
+        "namespace": null,
+        "members": {}
+      },
+      "smithy.api#Timestamp": {
+        "name": "Timestamp",
+        "namespace": null,
+        "members": {}
+      }
+    },
+    "protocol": "ec2Query",
+    "protocols": [
+      "ec2Query"
+    ],
+    "errors": [],
+    "protocol_settings": {
+      "http": [
+        "http/1.1"
+      ],
+      "eventStreamHttp": [
+        "http/1.1"
+      ],
+      "noErrorWrapping": false,
+      "omitNullStructureMembers": false,
+      "ignoreUnknownUnionType": false,
+      "nonFiniteFloatStrings": true
+    },
+    "requirements": [
+      {
+        "feature": "IntEnum",
+        "shape": "aws.protocoltests.ec2#IntegerEnum",
+        "source": "smithy.api#IntEnum"
+      },
+      {
+        "feature": "Ec2Query",
+        "shape": "aws.protocoltests.ec2#AwsEc2",
+        "source": "aws.protocols#ec2Query"
+      }
+    ],
+    "id": "aws.protocoltests.ec2#AwsEc2",
+    "version": "2020-01-08",
+    "title": null,
+    "docs": null,
+    "notes": {
+      "deprecated": null,
+      "since": null,
+      "unstable": false,
+      "external_docs": {}
+    },
+    "auth": [],
+    "scopes": [],
+    "auth_schemes": {},
+    "endpoint_rules": null,
+    "protocol_tests": [],
+    "operations": [
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/xml"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#GreetingWithErrors",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": "aws.protocoltests.ec2#GreetingWithErrorsOutput",
+        "errors": [
+          "aws.protocoltests.ec2#InvalidGreeting",
+          "aws.protocoltests.ec2#ComplexError"
+        ],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "greeting"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpResponseTests": [
+            {
+              "id": "Ec2GreetingWithErrors",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "greeting": "Hello"
+              },
+              "body": "<GreetingWithErrorsResponse xmlns=\"https://example.com/\"><greeting>Hello</greeting><requestId>requestid</requestId></GreetingWithErrorsResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#NestedStructures",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "aws.protocoltests.ec2#NestedStructuresInput",
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "Nested"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpRequestTests": [
+            {
+              "id": "Ec2NestedStructures",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "Nested": {
+                  "StringArg": "foo",
+                  "OtherArg": true,
+                  "RecursiveArg": {
+                    "StringArg": "baz"
+                  }
+                }
+              },
+              "body": "Action=NestedStructures&Version=2020-01-08&Nested.StringArg=foo&Nested.OtherArg=true&Nested.RecursiveArg.StringArg=baz",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#NoInputAndOutput",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpRequestTests": [
+            {
+              "id": "Ec2NoInputAndOutput",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {},
+              "body": "Action=NoInputAndOutput&Version=2020-01-08",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#QueryLists",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "aws.protocoltests.ec2#QueryListsInput",
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "ListArg",
+            "ComplexListArg",
+            "ListArgWithXmlNameMember",
+            "NestedWithList",
+            "ListArgWithXmlName"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpRequestTests": [
+            {
+              "id": "Ec2Lists",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "ListArg": [
+                  "foo",
+                  "bar",
+                  "baz"
+                ],
+                "ComplexListArg": [
+                  {
+                    "hi": "hello"
+                  },
+                  {
+                    "hi": "hola"
+                  }
+                ]
+              },
+              "body": "Action=QueryLists&Version=2020-01-08&ListArg.1=foo&ListArg.2=bar&ListArg.3=baz&ComplexListArg.1.Hi=hello&ComplexListArg.2.Hi=hola",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2EmptyQueryLists",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "ListArg": []
+              },
+              "body": "Action=QueryLists&Version=2020-01-08",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2ListArgWithXmlNameMember",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "ListArgWithXmlNameMember": [
+                  "A",
+                  "B"
+                ]
+              },
+              "body": "Action=QueryLists&Version=2020-01-08&ListArgWithXmlNameMember.1=A&ListArgWithXmlNameMember.2=B",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2ListMemberWithXmlName",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "ListArgWithXmlName": [
+                  "A",
+                  "B"
+                ]
+              },
+              "body": "Action=QueryLists&Version=2020-01-08&Hi.1=A&Hi.2=B",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2ListNestedStructWithList",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "NestedWithList": {
+                  "ListArg": [
+                    "A",
+                    "B"
+                  ]
+                }
+              },
+              "body": "Action=QueryLists&Version=2020-01-08&NestedWithList.ListArg.1=A&NestedWithList.ListArg.2=B",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#QueryTimestamps",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "aws.protocoltests.ec2#QueryTimestampsInput",
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "normalFormat",
+            "epochMember",
+            "epochTarget"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpRequestTests": [
+            {
+              "id": "Ec2TimestampsInput",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "normalFormat": 1422172800,
+                "epochMember": 1422172800,
+                "epochTarget": 1422172800
+              },
+              "body": "Action=QueryTimestamps&Version=2020-01-08&NormalFormat=2015-01-25T08%3A00%3A00Z&EpochMember=1422172800&EpochTarget=1422172800",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {},
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#SimpleInputParams",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": "aws.protocoltests.ec2#SimpleInputParamsInput",
+        "output": null,
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "Foo",
+            "Bar",
+            "Baz",
+            "Bam",
+            "FloatValue",
+            "Boo",
+            "Qux",
+            "FooEnum",
+            "IntegerEnum",
+            "HasQueryName",
+            "HasQueryAndXmlName",
+            "UsesXmlName",
+            "lowerName"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpRequestTests": [
+            {
+              "id": "Ec2SimpleInputParamsStrings",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "Foo": "val1",
+                "Bar": "val2"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&Foo=val1&Bar=val2",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2SimpleInputParamsStringAndBooleanTrue",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "Foo": "val1",
+                "Baz": true
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&Foo=val1&Baz=true",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2SimpleInputParamsStringsAndBooleanFalse",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "Baz": false
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&Baz=false",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2SimpleInputParamsInteger",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "Bam": 10
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&Bam=10",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2SimpleInputParamsFloat",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "Boo": 10.8
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&Boo=10.8",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2SimpleInputParamsBlob",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "Qux": "value"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&Qux=dmFsdWU%3D",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2Enums",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "FooEnum": "Foo"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&FooEnum=Foo",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2IntEnums",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "IntegerEnum": 1
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&IntegerEnum=1",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2EscapedStrings",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "Foo": "a b&c=d+e~f/g"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&Foo=a%20b%26c%3Dd%2Be~f%2Fg",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2QuerySupportsNaNFloatInputs",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "FloatValue": "NaN",
+                "Boo": "NaN"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&FloatValue=NaN&Boo=NaN",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2QuerySupportsInfinityFloatInputs",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "FloatValue": "Infinity",
+                "Boo": "Infinity"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&FloatValue=Infinity&Boo=Infinity",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2QuerySupportsNegativeInfinityFloatInputs",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "FloatValue": "-Infinity",
+                "Boo": "-Infinity"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&FloatValue=-Infinity&Boo=-Infinity",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2QueryIsPreferred",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "HasQueryName": "Hi"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&HasQueryName=Hi",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2QueryIsPreferredOverXmlName",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "HasQueryAndXmlName": "Hi"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&HasQueryAndXmlName=Hi",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2XmlNameIsUppercased",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "UsesXmlName": "Hi"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&UsesXmlName=Hi",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2MemberNameIsUppercased",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "lowerName": "Hi"
+              },
+              "body": "Action=SimpleInputParams&Version=2020-01-08&LowerName=Hi",
+              "bodyMediaType": "application/x-www-form-urlencoded",
+              "method": "POST",
+              "uri": "/",
+              "headers": {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/xml"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#SimpleScalarXmlProperties",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": "aws.protocoltests.ec2#SimpleScalarXmlPropertiesOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "stringValue",
+            "trueBooleanValue",
+            "falseBooleanValue",
+            "byteValue",
+            "shortValue",
+            "integerValue",
+            "longValue",
+            "floatValue",
+            "doubleValue",
+            "emptyStringValue"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpResponseTests": [
+            {
+              "id": "Ec2SimpleScalarProperties",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "stringValue": "string",
+                "trueBooleanValue": true,
+                "falseBooleanValue": false,
+                "byteValue": 1,
+                "shortValue": 2,
+                "integerValue": 3,
+                "longValue": 4,
+                "floatValue": 5.5,
+                "doubleValue": 6.5,
+                "emptyStringValue": ""
+              },
+              "body": "<SimpleScalarXmlPropertiesResponse xmlns=\"https://example.com/\"><stringValue>string</stringValue><emptyStringValue/><trueBooleanValue>true</trueBooleanValue><falseBooleanValue>false</falseBooleanValue><byteValue>1</byteValue><shortValue>2</shortValue><integerValue>3</integerValue><longValue>4</longValue><floatValue>5.5</floatValue><DoubleDribble>6.5</DoubleDribble><requestId>requestid</requestId></SimpleScalarXmlPropertiesResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2QuerySupportsNaNFloatOutputs",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "floatValue": "NaN",
+                "doubleValue": "NaN"
+              },
+              "body": "<SimpleScalarXmlPropertiesResponse xmlns=\"https://example.com/\"><floatValue>NaN</floatValue><DoubleDribble>NaN</DoubleDribble><requestId>requestid</requestId></SimpleScalarXmlPropertiesResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/xml"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#XmlBlobs",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": "aws.protocoltests.ec2#XmlBlobsOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "data"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpResponseTests": [
+            {
+              "id": "Ec2XmlBlobs",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "data": "value"
+              },
+              "body": "<XmlBlobsResponse xmlns=\"https://example.com/\"><data>dmFsdWU=</data><requestId>requestid</requestId></XmlBlobsResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/xml"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#XmlEnums",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": "aws.protocoltests.ec2#XmlEnumsOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "fooEnum1",
+            "fooEnumList"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpResponseTests": [
+            {
+              "id": "Ec2XmlEnums",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "fooEnum1": "Foo",
+                "fooEnumList": [
+                  "Foo",
+                  "0"
+                ]
+              },
+              "body": "<XmlEnumsResponse xmlns=\"https://example.com/\"><fooEnum1>Foo</fooEnum1><fooEnumList><member>Foo</member><member>0</member></fooEnumList><requestId>requestid</requestId></XmlEnumsResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/xml"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#XmlLists",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": "aws.protocoltests.ec2#XmlListsOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "stringList",
+            "stringSet",
+            "integerList",
+            "booleanList",
+            "timestampList",
+            "enumList",
+            "nestedStringList",
+            "renamedListMembers",
+            "flattenedList",
+            "flattenedList2",
+            "structureList",
+            "flattenedStructureList"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpResponseTests": [
+            {
+              "id": "Ec2XmlLists",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "stringList": [
+                  "foo",
+                  "bar"
+                ],
+                "stringSet": [
+                  "foo",
+                  "bar"
+                ],
+                "integerList": [
+                  1,
+                  2
+                ],
+                "booleanList": [
+                  true,
+                  false
+                ],
+                "timestampList": [
+                  1398796238,
+                  1398796238
+                ],
+                "enumList": [
+                  "Foo",
+                  "0"
+                ],
+                "nestedStringList": [
+                  [
+                    "foo",
+                    "bar"
+                  ],
+                  [
+                    "baz",
+                    "qux"
+                  ]
+                ],
+                "renamedListMembers": [
+                  "foo",
+                  "bar"
+                ],
+                "flattenedList": [
+                  "hi",
+                  "bye"
+                ],
+                "flattenedList2": [
+                  "yep",
+                  "nope"
+                ],
+                "structureList": [
+                  {
+                    "a": "1",
+                    "b": "2"
+                  },
+                  {
+                    "a": "3",
+                    "b": "4"
+                  }
+                ],
+                "flattenedStructureList": [
+                  {
+                    "a": "5",
+                    "b": "6"
+                  },
+                  {
+                    "a": "7",
+                    "b": "8"
+                  }
+                ]
+              },
+              "body": "<XmlListsResponse xmlns=\"https://example.com/\"><stringList><member>foo</member><member>bar</member></stringList><stringSet><member>foo</member><member>bar</member></stringSet><integerList><member>1</member><member>2</member></integerList><booleanList><member>true</member><member>false</member></booleanList><timestampList><member>2014-04-29T18:30:38Z</member><member>2014-04-29T18:30:38Z</member></timestampList><enumList><member>Foo</member><member>0</member></enumList><nestedStringList><member><member>foo</member><member>bar</member></member><member><member>baz</member><member>qux</member></member></nestedStringList><renamed><item>foo</item><item>bar</item></renamed><flattenedList>hi</flattenedList><flattenedList>bye</flattenedList><customName>yep</customName><customName>nope</customName><myStructureList><item><value>1</value><other>2</other></item><item><value>3</value><other>4</other></item></myStructureList><flattenedStructureList><value>5</value><other>6</other></flattenedStructureList><flattenedStructureList><value>7</value><other>8</other></flattenedStructureList><requestId>requestid</requestId></XmlListsResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      },
+      {
+        "protocol_headers": {},
+        "response_protocol_headers": {
+          "Content-Type": "application/xml"
+        },
+        "internal": false,
+        "unwrapped_xml_output": false,
+        "unsigned_payload": false,
+        "discovered_endpoint": null,
+        "checksum": null,
+        "id": "aws.protocoltests.ec2#XmlTimestamps",
+        "auth": [],
+        "scopes": [],
+        "optional_auth": false,
+        "endpoint": null,
+        "endpoint_parameters": {},
+        "waiters": {},
+        "resource": null,
+        "docs": null,
+        "notes": {
+          "deprecated": null,
+          "since": null,
+          "unstable": false,
+          "external_docs": {}
+        },
+        "method": "POST",
+        "uri": {
+          "segments": [],
+          "query": [],
+          "greedy_labels": []
+        },
+        "status": 200,
+        "input": null,
+        "output": "aws.protocoltests.ec2#XmlTimestampsOutput",
+        "errors": [],
+        "readonly": false,
+        "idempotent": false,
+        "idempotency_token": null,
+        "paginated": null,
+        "examples": [],
+        "request": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [],
+          "event_stream": null,
+          "payload": null
+        },
+        "response": {
+          "timestamp_formats": {},
+          "header_encodings": {},
+          "labels": [],
+          "query": [],
+          "headers": [],
+          "query_params": null,
+          "prefix_headers": [],
+          "response_code": null,
+          "body": [
+            "normal",
+            "dateTime",
+            "dateTimeOnTarget",
+            "epochSeconds",
+            "epochSecondsOnTarget",
+            "httpDate",
+            "httpDateOnTarget"
+          ],
+          "event_stream": null,
+          "payload": null
+        },
+        "traits": {
+          "smithy.test#httpResponseTests": [
+            {
+              "id": "Ec2XmlTimestamps",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "normal": 1398796238
+              },
+              "body": "<XmlTimestampsResponse xmlns=\"https://example.com/\"><normal>2014-04-29T18:30:38Z</normal><requestId>requestid</requestId></XmlTimestampsResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2XmlTimestampsWithEpochSecondsFormat",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "epochSeconds": 1398796238
+              },
+              "body": "<XmlTimestampsResponse xmlns=\"https://example.com/\"><epochSeconds>1398796238</epochSeconds><requestId>requestid</requestId></XmlTimestampsResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            },
+            {
+              "id": "Ec2XmlTimestampsWithHttpDateFormat",
+              "protocol": "aws.protocols#ec2Query",
+              "params": {
+                "httpDate": 1398796238
+              },
+              "body": "<XmlTimestampsResponse xmlns=\"https://example.com/\"><httpDate>Tue, 29 Apr 2014 18:30:38 GMT</httpDate><requestId>requestid</requestId></XmlTimestampsResponse>",
+              "bodyMediaType": "application/xml",
+              "code": 200,
+              "headers": {
+                "Content-Type": "text/xml"
+              },
+              "appliesTo": "client"
+            }
+          ]
+        }
+      }
+    ],
+    "resources": {},
+    "resource_roots": [],
+    "resource_references": {},
+    "shapes": {
+      "aws.protocoltests.ec2#BooleanList": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "smithy.api#Boolean",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#ComplexError": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "TopLevel",
+              "wire_name": "TopLevel",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Nested",
+              "wire_name": "Nested",
+              "target": "aws.protocoltests.ec2#ComplexNestedErrorData",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": {
+            "protocol_headers": {
+              "Content-Type": "application/xml"
+            },
+            "body_discriminator": null,
+            "discriminator_header": null,
+            "timestamp_formats": {},
+            "wire_code": "ComplexError",
+            "payload": null,
+            "header_encodings": {},
+            "fault": "Client",
+            "status": 400,
+            "retryable": null,
+            "headers": [],
+            "prefix_headers": [],
+            "response_code": null
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#error": "client",
+            "smithy.test#httpResponseTests": [
+              {
+                "id": "Ec2ComplexErrorError",
+                "protocol": "aws.protocols#ec2Query",
+                "params": {
+                  "TopLevel": "Top level",
+                  "Nested": {
+                    "Foo": "bar"
+                  }
+                },
+                "body": "<Response><Errors><Error><Code>ComplexError</Code><Message>Hi</Message><TopLevel>Top level</TopLevel><Nested><Foo>bar</Foo></Nested></Error></Errors><RequestID>foo-id</RequestID></Response>",
+                "bodyMediaType": "application/xml",
+                "code": 400,
+                "headers": {
+                  "Content-Type": "text/xml"
+                },
+                "appliesTo": "client"
+              }
+            ]
+          }
+        }
+      },
+      "aws.protocoltests.ec2#ComplexNestedErrorData": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Foo",
+              "wire_name": "Foo",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#DateTime": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Timestamp",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": "date-time",
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#timestampFormat": "date-time"
+          }
+        }
+      },
+      "aws.protocoltests.ec2#EpochSeconds": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Timestamp",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": "epoch-seconds",
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#timestampFormat": "epoch-seconds"
+          }
+        }
+      },
+      "aws.protocoltests.ec2#FooEnum": {
+        "Enum": {
+          "internal": false,
+          "sensitive": false,
+          "values": [
+            {
+              "internal": false,
+              "name": "FOO",
+              "value": "Foo",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": "Foo"
+              }
+            },
+            {
+              "internal": false,
+              "name": "BAZ",
+              "value": "Baz",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": "Baz"
+              }
+            },
+            {
+              "internal": false,
+              "name": "BAR",
+              "value": "Bar",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": "Bar"
+              }
+            },
+            {
+              "internal": false,
+              "name": "ONE",
+              "value": "1",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": "1"
+              }
+            },
+            {
+              "internal": false,
+              "name": "ZERO",
+              "value": "0",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": "0"
+              }
+            }
+          ],
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#FooEnumList": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "aws.protocoltests.ec2#FooEnum",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#GreetingList": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "aws.protocoltests.ec2#GreetingStruct",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#GreetingStruct": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "hi",
+              "wire_name": "hi",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#GreetingWithErrorsOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "greeting",
+              "wire_name": "greeting",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#HttpDate": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Timestamp",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": "http-date",
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#timestampFormat": "http-date"
+          }
+        }
+      },
+      "aws.protocoltests.ec2#IntegerEnum": {
+        "IntEnum": {
+          "internal": false,
+          "sensitive": false,
+          "values": [
+            {
+              "internal": false,
+              "name": "A",
+              "value": 1,
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": 1
+              }
+            },
+            {
+              "internal": false,
+              "name": "B",
+              "value": 2,
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": 2
+              }
+            },
+            {
+              "internal": false,
+              "name": "C",
+              "value": 3,
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#enumValue": 3
+              }
+            }
+          ],
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#IntegerList": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "smithy.api#Integer",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#InvalidGreeting": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Message",
+              "wire_name": "Message",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": {
+            "protocol_headers": {
+              "Content-Type": "application/xml"
+            },
+            "body_discriminator": null,
+            "discriminator_header": null,
+            "timestamp_formats": {},
+            "wire_code": "InvalidGreeting",
+            "payload": null,
+            "header_encodings": {},
+            "fault": "Client",
+            "status": 400,
+            "retryable": null,
+            "headers": [],
+            "prefix_headers": [],
+            "response_code": null
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#error": "client",
+            "smithy.test#httpResponseTests": [
+              {
+                "id": "Ec2InvalidGreetingError",
+                "protocol": "aws.protocols#ec2Query",
+                "params": {
+                  "Message": "Hi"
+                },
+                "body": "<Response><Errors><Error><Code>InvalidGreeting</Code><Message>Hi</Message></Error></Errors><RequestID>foo-id</RequestID></Response>",
+                "bodyMediaType": "application/xml",
+                "code": 400,
+                "headers": {
+                  "Content-Type": "text/xml"
+                },
+                "appliesTo": "client"
+              }
+            ]
+          }
+        }
+      },
+      "aws.protocoltests.ec2#ListWithXmlName": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "smithy.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {
+              "smithy.api#xmlName": "item"
+            }
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#NestedStringList": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "aws.protocoltests.ec2#StringList",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#NestedStructWithList": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "ListArg",
+              "wire_name": "ListArg",
+              "target": "aws.protocoltests.ec2#StringList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#NestedStructuresInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Nested",
+              "wire_name": "Nested",
+              "target": "aws.protocoltests.ec2#StructArg",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#input": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#QueryListsInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "ListArg",
+              "wire_name": "ListArg",
+              "target": "aws.protocoltests.ec2#StringList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "ComplexListArg",
+              "wire_name": "ComplexListArg",
+              "target": "aws.protocoltests.ec2#GreetingList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "ListArgWithXmlNameMember",
+              "wire_name": "ListArgWithXmlNameMember",
+              "target": "aws.protocoltests.ec2#ListWithXmlName",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "NestedWithList",
+              "wire_name": "NestedWithList",
+              "target": "aws.protocoltests.ec2#NestedStructWithList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "ListArgWithXmlName",
+              "wire_name": "ListArgWithXmlName",
+              "target": "aws.protocoltests.ec2#ListWithXmlName",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlName": "Hi"
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#input": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#QueryTimestampsInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "normalFormat",
+              "wire_name": "normalFormat",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "epochMember",
+              "wire_name": "epochMember",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": "epoch-seconds",
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#timestampFormat": "epoch-seconds"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "epochTarget",
+              "wire_name": "epochTarget",
+              "target": "aws.protocoltests.ec2#EpochSeconds",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#input": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#RenamedListMembers": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "smithy.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {
+              "smithy.api#xmlName": "item"
+            }
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#SimpleInputParamsInput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": true,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Foo",
+              "wire_name": "Foo",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Bar",
+              "wire_name": "Bar",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Baz",
+              "wire_name": "Baz",
+              "target": "smithy.api#Boolean",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Bam",
+              "wire_name": "Bam",
+              "target": "smithy.api#Integer",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "FloatValue",
+              "wire_name": "FloatValue",
+              "target": "smithy.api#Float",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Boo",
+              "wire_name": "Boo",
+              "target": "smithy.api#Double",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "Qux",
+              "wire_name": "Qux",
+              "target": "smithy.api#Blob",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "FooEnum",
+              "wire_name": "FooEnum",
+              "target": "aws.protocoltests.ec2#FooEnum",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "IntegerEnum",
+              "wire_name": "IntegerEnum",
+              "target": "aws.protocoltests.ec2#IntegerEnum",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "HasQueryName",
+              "wire_name": "HasQueryName",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "aws.protocols#ec2QueryName": "HasQueryName"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "HasQueryAndXmlName",
+              "wire_name": "HasQueryAndXmlName",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "aws.protocols#ec2QueryName": "HasQueryAndXmlName",
+                "smithy.api#xmlName": "hasQueryAndXmlName"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "UsesXmlName",
+              "wire_name": "UsesXmlName",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlName": "usesXmlName"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "lowerName",
+              "wire_name": "lowerName",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": true,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#input": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#SimpleScalarXmlPropertiesOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "stringValue",
+              "wire_name": "stringValue",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "trueBooleanValue",
+              "wire_name": "trueBooleanValue",
+              "target": "smithy.api#Boolean",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "falseBooleanValue",
+              "wire_name": "falseBooleanValue",
+              "target": "smithy.api#Boolean",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "byteValue",
+              "wire_name": "byteValue",
+              "target": "smithy.api#Byte",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "shortValue",
+              "wire_name": "shortValue",
+              "target": "smithy.api#Short",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "integerValue",
+              "wire_name": "integerValue",
+              "target": "smithy.api#Integer",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "longValue",
+              "wire_name": "longValue",
+              "target": "smithy.api#Long",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "floatValue",
+              "wire_name": "floatValue",
+              "target": "smithy.api#Float",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "doubleValue",
+              "wire_name": "doubleValue",
+              "target": "smithy.api#Double",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlName": "DoubleDribble"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "emptyStringValue",
+              "wire_name": "emptyStringValue",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#StringList": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "smithy.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#StringSet": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "smithy.api#String",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": true
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#uniqueItems": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#StructArg": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "StringArg",
+              "wire_name": "StringArg",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "OtherArg",
+              "wire_name": "OtherArg",
+              "target": "smithy.api#Boolean",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "RecursiveArg",
+              "wire_name": "RecursiveArg",
+              "target": "aws.protocoltests.ec2#StructArg",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#StructureList": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "aws.protocoltests.ec2#StructureListMember",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {
+              "smithy.api#xmlName": "item"
+            }
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#StructureListMember": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "a",
+              "wire_name": "a",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlName": "value"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "b",
+              "wire_name": "b",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlName": "other"
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#TimestampList": {
+        "List": {
+          "internal": false,
+          "sensitive": false,
+          "sparse": false,
+          "is_set": false,
+          "member": {
+            "internal": false,
+            "sensitive": false,
+            "event_binding": null,
+            "name": "member",
+            "wire_name": "member",
+            "target": "smithy.api#Timestamp",
+            "required": false,
+            "default": null,
+            "wire_default": null,
+            "client_optional": false,
+            "idempotency_token": false,
+            "mutability": null,
+            "constraints": {
+              "length": null,
+              "range": null,
+              "pattern": null,
+              "unique_items": false
+            },
+            "timestamp_format": null,
+            "wire_timestamp_format": "date-time",
+            "docs": null,
+            "notes": {
+              "deprecated": null,
+              "since": null,
+              "unstable": false,
+              "external_docs": {}
+            },
+            "traits": {}
+          },
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "aws.protocoltests.ec2#XmlBlobsOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "data",
+              "wire_name": "data",
+              "target": "smithy.api#Blob",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#XmlEnumsOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "fooEnum1",
+              "wire_name": "fooEnum1",
+              "target": "aws.protocoltests.ec2#FooEnum",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "fooEnumList",
+              "wire_name": "fooEnumList",
+              "target": "aws.protocoltests.ec2#FooEnumList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#XmlListsOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "stringList",
+              "wire_name": "stringList",
+              "target": "aws.protocoltests.ec2#StringList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "stringSet",
+              "wire_name": "stringSet",
+              "target": "aws.protocoltests.ec2#StringSet",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": true
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "integerList",
+              "wire_name": "integerList",
+              "target": "aws.protocoltests.ec2#IntegerList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "booleanList",
+              "wire_name": "booleanList",
+              "target": "aws.protocoltests.ec2#BooleanList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "timestampList",
+              "wire_name": "timestampList",
+              "target": "aws.protocoltests.ec2#TimestampList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "enumList",
+              "wire_name": "enumList",
+              "target": "aws.protocoltests.ec2#FooEnumList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "nestedStringList",
+              "wire_name": "nestedStringList",
+              "target": "aws.protocoltests.ec2#NestedStringList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "renamedListMembers",
+              "wire_name": "renamedListMembers",
+              "target": "aws.protocoltests.ec2#RenamedListMembers",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlName": "renamed"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "flattenedList",
+              "wire_name": "flattenedList",
+              "target": "aws.protocoltests.ec2#RenamedListMembers",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlFlattened": {}
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "flattenedList2",
+              "wire_name": "flattenedList2",
+              "target": "aws.protocoltests.ec2#RenamedListMembers",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlFlattened": {},
+                "smithy.api#xmlName": "customName"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "structureList",
+              "wire_name": "structureList",
+              "target": "aws.protocoltests.ec2#StructureList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlName": "myStructureList"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "flattenedStructureList",
+              "wire_name": "flattenedStructureList",
+              "target": "aws.protocoltests.ec2#StructureList",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#xmlFlattened": {}
+              }
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "aws.protocoltests.ec2#XmlTimestampsOutput": {
+        "Structure": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "strict": false,
+          "input": false,
+          "members": [
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "normal",
+              "wire_name": "normal",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "dateTime",
+              "wire_name": "dateTime",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": "date-time",
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#timestampFormat": "date-time"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "dateTimeOnTarget",
+              "wire_name": "dateTimeOnTarget",
+              "target": "aws.protocoltests.ec2#DateTime",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "epochSeconds",
+              "wire_name": "epochSeconds",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": "epoch-seconds",
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#timestampFormat": "epoch-seconds"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "epochSecondsOnTarget",
+              "wire_name": "epochSecondsOnTarget",
+              "target": "aws.protocoltests.ec2#EpochSeconds",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "epoch-seconds",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "httpDate",
+              "wire_name": "httpDate",
+              "target": "smithy.api#Timestamp",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": "http-date",
+              "wire_timestamp_format": "http-date",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {
+                "smithy.api#timestampFormat": "http-date"
+              }
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "event_binding": null,
+              "name": "httpDateOnTarget",
+              "wire_name": "httpDateOnTarget",
+              "target": "aws.protocoltests.ec2#HttpDate",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "http-date",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            }
+          ],
+          "error": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {
+            "smithy.api#output": {}
+          }
+        }
+      },
+      "smithy.api#Blob": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Blob",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Boolean": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Boolean",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Byte": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Byte",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Double": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Double",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Float": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Float",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Integer": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Integer",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Long": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Long",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Short": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Short",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#String": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "String",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      },
+      "smithy.api#Timestamp": {
+        "Simple": {
+          "internal": false,
+          "sensitive": false,
+          "streaming": false,
+          "requires_length": false,
+          "kind": "Timestamp",
+          "constraints": {
+            "length": null,
+            "range": null,
+            "pattern": null,
+            "unique_items": false
+          },
+          "timestamp_format": null,
+          "docs": null,
+          "notes": {
+            "deprecated": null,
+            "since": null,
+            "unstable": false,
+            "external_docs": {}
+          },
+          "traits": {}
+        }
+      }
+    },
+    "traits": {
+      "aws.protocols#ec2Query": {},
+      "smithy.api#xmlNamespace": {
+        "uri": "https://example.com/"
+      }
+    },
+    "renames": {},
+    "versions": [],
+    "api_version": null
+  }
+}

@@ -122,36 +122,27 @@ fn a_frozen_baseline_guards_against_breaking_changes() {
     weather_copy(dir);
     let package = dir.to_str().unwrap();
     // The weather example's service is version "2026-10-01", the release's name.
-    let frozen = dir.join("releases/2026-10-01");
+    let frozen = dir.join("releases/2026-10-01.json");
 
-    // Freeze the release inside the package, under releases/<version> by
-    // default; its files are not the package's own (a nested package is
-    // its own).
+    // Freeze the release: a snapshot of its compiled model, recorded in the lock.
     let freeze = crucible(&["freeze", package]);
     assert!(
         freeze.status.success(),
         "{}",
         String::from_utf8_lossy(&freeze.stderr)
     );
-    assert!(frozen.join("model/weather.cru").is_file());
-    assert!(
-        !std::fs::read_to_string(frozen.join("crucible.toml"))
-            .unwrap()
-            .contains("baseline")
-    );
+    assert!(frozen.is_file());
+    let lock = std::fs::read_to_string(dir.join("releases/crucible.lock")).unwrap();
+    assert!(lock.contains("\"2026-10-01.json\" = \"sha256:"), "{lock}");
     // A frozen release is never overwritten.
-    assert!(
-        !crucible(&["freeze", package, "--out", frozen.to_str().unwrap()])
-            .status
-            .success()
-    );
+    assert!(!crucible(&["freeze", package]).status.success());
 
     let manifest = std::fs::read_to_string(dir.join("crucible.toml")).unwrap();
     std::fs::write(
         dir.join("crucible.toml"),
         manifest.replace(
             "[model.naming]",
-            "[model.baseline]\npath = \"releases/2026-10-01\"\n\n[model.naming]",
+            "[model.baseline]\npath = \"releases/2026-10-01.json\"\n\n[model.naming]",
         ),
     )
     .unwrap();
@@ -180,39 +171,65 @@ fn a_frozen_baseline_guards_against_breaking_changes() {
 }
 
 #[test]
-fn freezing_drops_the_baseline_however_it_is_written() {
+fn a_past_release_is_frozen_from_its_git_commit() {
     let tmp = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
-    let dir = tmp.path().join("package");
+    let repo = tmp.path();
+    // The package's path repeats inside it (`model/model/weather.cru`), and
+    // its manifest names a baseline in the old layout, missing at that commit.
+    let dir = repo.join("model");
     std::fs::create_dir(&dir).unwrap();
     weather_copy(&dir);
-    std::fs::create_dir_all(dir.join("old")).unwrap();
-    std::fs::write(
-        dir.join("old/crucible.toml"),
-        "[model]\nnamespace = \"example.old\"\n",
-    )
-    .unwrap();
     let manifest = std::fs::read_to_string(dir.join("crucible.toml")).unwrap();
-    // A dotted key under [model], not a [model.baseline] table.
     std::fs::write(
         dir.join("crucible.toml"),
-        manifest.replace("language = 1", "language = 1\nbaseline.path = \"old\""),
+        manifest.replace(
+            "[model.naming]",
+            "[model.baseline]\npath = \"releases/old\"\n\n[model.naming]",
+        ),
     )
     .unwrap();
-    let out = tmp.path().join("frozen");
-    let freeze = crucible(&[
-        "freeze",
-        dir.to_str().unwrap(),
-        "--out",
-        out.to_str().unwrap(),
-    ]);
+    let git = |args: &[&str]| {
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(repo)
+            .args([
+                "-c",
+                "user.name=test",
+                "-c",
+                "user.email=test@example.invalid",
+            ])
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?}");
+    };
+    git(&["init", "-q"]);
+    git(&["add", "."]);
+    git(&["commit", "-q", "-m", "release 2026-10-01"]);
+    git(&["tag", "release-1"]);
+    // The model moves on without the release ever being frozen.
+    let model = dir.join("model/weather.cru");
+    let source = std::fs::read_to_string(&model).unwrap();
+    std::fs::write(
+        &model,
+        source.replace("version \"2026-10-01\"", "version \"2026-11-01\""),
+    )
+    .unwrap();
+    git(&["commit", "-qam", "next"]);
+
+    let freeze = crucible(&["freeze", dir.to_str().unwrap(), "--from", "release-1"]);
     assert!(
         freeze.status.success(),
         "{}",
         String::from_utf8_lossy(&freeze.stderr)
     );
-    let frozen = std::fs::read_to_string(out.join("crucible.toml")).unwrap();
+    let snapshot = std::fs::read_to_string(dir.join("releases/2026-10-01.json")).unwrap();
+    assert!(snapshot.contains("\"version\": \"2026-10-01\""));
+    assert!(dir.join("releases/crucible.lock").is_file());
+    // An unknown commit is refused.
     assert!(
-        !frozen.contains("baseline") && frozen.contains("example.weather"),
-        "{frozen}"
+        !crucible(&["freeze", dir.to_str().unwrap(), "--from", "no-such-tag"])
+            .status
+            .success()
     );
 }

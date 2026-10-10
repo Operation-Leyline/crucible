@@ -223,13 +223,20 @@ impl Server {
     /// compiles every package in the workspace.
     fn start(&mut self) -> Result<(), Error> {
         if self.watch {
-            let watchers = ["**/*.cru", "**/crucible.toml"]
-                .into_iter()
-                .map(|pattern| FileSystemWatcher {
-                    glob_pattern: GlobPattern::String(pattern.to_owned()),
-                    kind: None,
-                })
-                .collect();
+            // Releases too: freezing or switching branches changes the
+            // baseline a package is compared against.
+            let watchers = [
+                "**/*.cru",
+                "**/crucible.toml",
+                "**/releases/*.json",
+                "**/crucible.lock",
+            ]
+            .into_iter()
+            .map(|pattern| FileSystemWatcher {
+                glob_pattern: GlobPattern::String(pattern.to_owned()),
+                kind: None,
+            })
+            .collect();
             let params = RegistrationParams {
                 registrations: vec![Registration {
                     id: "crucible-watched-files".into(),
@@ -285,23 +292,6 @@ impl Server {
         }
         packages.sort();
         packages.dedup();
-        // A frozen release is a package only to be compared against; its
-        // declarations are not the workspace's.
-        let frozen: Vec<PathBuf> = packages
-            .iter()
-            .filter_map(|dir| {
-                let text = std::fs::read_to_string(dir.join("crucible.toml")).ok()?;
-                let table = text.parse::<toml::Table>().ok()?;
-                let path = table
-                    .get("model")?
-                    .get("baseline")?
-                    .get("path")?
-                    .as_str()?
-                    .to_owned();
-                Some(normalize(&dir.join(path)))
-            })
-            .collect();
-        packages.retain(|dir| !frozen.contains(dir));
         self.packages = packages;
     }
 

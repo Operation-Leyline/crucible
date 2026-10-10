@@ -137,12 +137,12 @@ const TABLES: &[Table] = &[
     Table {
         name: "model.baseline",
         array: false,
-        doc: "The frozen package of the last release. Every build and the editor compare the package against it, and a breaking change is an error. Make one with `crucible freeze <package> --out releases/<version>`.",
+        doc: "The last release, frozen as a snapshot of its compiled model. Every build and the editor compare the package against it, and a breaking change is an error. Make one with `crucible freeze <package>`, or `crucible freeze <package> --from <git ref>` for a past release.",
         keys: &[Key {
             name: "path",
             kind: Kind::Text,
-            doc: "The frozen package's directory, relative to this file, such as `releases/2026-09-04`.",
-            sample: "\"releases/v1\"",
+            doc: "The release's snapshot, relative to this file, such as `releases/2026-09-04.json`.",
+            sample: "\"releases/v1.json\"",
         }],
     },
     Table {
@@ -587,16 +587,10 @@ mod tests {
                 manifest.push_str(&format!("{} = {}\n", key.name, key.sample));
             }
         }
-        // The sample baseline is a frozen package; the sources are `.`.
+        // The sample baseline is a frozen release; the sources are `.`.
         let dir = std::env::temp_dir().join(format!("crucible-vocabulary-{}", std::process::id()));
-        std::fs::create_dir_all(dir.join("releases/v1")).unwrap();
-        std::fs::write(
-            dir.join("releases/v1/crucible.toml"),
-            "[model]
-namespace = \"example.shop\"
-",
-        )
-        .unwrap();
+        std::fs::create_dir_all(dir.join("releases")).unwrap();
+        std::fs::write(dir.join("releases/v1.json"), "{}").unwrap();
         let problems = crucible_lang::check_manifest(&dir, &manifest);
         assert_eq!(problems, Vec::new(), "{manifest}");
         if let Err(error) = crucible_policy::Config::parse_located(&manifest) {

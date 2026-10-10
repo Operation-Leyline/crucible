@@ -4,7 +4,7 @@ use crate::lower::Lowerer;
 use crate::{Feature, ShapeId};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EndpointDiscovery {
     pub operation: ShapeId,
@@ -16,7 +16,7 @@ pub struct EndpointDiscovery {
     pub cache_period_member: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct DiscoveredEndpoint {
     pub required: bool,
     pub identifiers: Vec<String>,

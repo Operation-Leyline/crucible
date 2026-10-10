@@ -113,17 +113,20 @@ enum Command {
         #[command(subcommand)]
         target: Box<Target>,
     },
-    /// Copy a `.cru` package's manifest and sources into a frozen baseline,
-    /// such as `releases/2026-09-04`, that `[model.baseline]` points at.
-    /// Every later build fails on a breaking change against it.
+    /// Freeze a `.cru` package's release as a snapshot of its compiled
+    /// model, `releases/<version>.json`, recorded in `releases/crucible.lock`.
+    /// `[model.baseline]` points at the latest; every later build fails on a
+    /// breaking change against it.
     Freeze {
         /// The package directory, holding crucible.toml with [model].
         package: PathBuf,
-        /// Where the frozen copy goes; must not exist or be empty. Defaults
-        /// to releases/<the service's version> inside the package, the name
-        /// the next migration's `from` uses.
+        /// The releases directory. Defaults to `releases` inside the package.
         #[arg(long)]
         out: Option<PathBuf>,
+        /// Freeze the package as it was at this git commit or tag, to backfill
+        /// a release that was never frozen. Compiled with this compiler.
+        #[arg(long, value_name = "GIT_REF")]
+        from: Option<String>,
     },
     /// Write a stub for every operation that has no file yet: one file per
     /// operation, in a folder per resource (`service/` for the operations the
@@ -660,7 +663,7 @@ fn run(command: Command) -> ExitCode {
             },
         ),
         Command::Generate { target, audience } => generate(*target, audience.into()),
-        Command::Freeze { package, out } => freeze(&package, out.as_deref()),
+        Command::Freeze { package, out, from } => freeze(&package, out.as_deref(), from.as_deref()),
         Command::Scaffold {
             source,
             out,
@@ -792,75 +795,126 @@ fn lower_cru(source: &Source) -> Result<Service, String> {
     Ok(service)
 }
 
-/// `crucible freeze`: copies a package's manifest and `.cru` sources into
-/// `out`, the frozen baseline the next release is checked against. The
-/// copy's own `[model.baseline]` is dropped; a baseline has no baseline.
-fn freeze(package: &Path, out: Option<&Path>) -> Result<(), String> {
-    let loaded = crucible_lang::load_package(package)?;
-    let default;
-    let out = match out {
-        Some(out) => out,
-        None => {
-            let compiled = crucible_lang::compile(&loaded, None);
-            let service = compiled.service.as_ref().ok_or_else(|| {
-                format!(
-                    "{} does not compile:\n{}",
-                    package.display(),
-                    compiled.render()
-                )
-            })?;
-            default = package.join("releases").join(&service.version);
-            default.as_path()
+/// `crucible freeze`: writes the package's release, its compiled model, to
+/// `releases/<version>.json` and records it in the lock. With `from`, the
+/// package as it was at that git commit or tag.
+fn freeze(package: &Path, out: Option<&Path>, from: Option<&str>) -> Result<(), String> {
+    let checkout;
+    let source = match from {
+        Some(reference) => {
+            checkout = package_at(package, reference)?;
+            // Freezing needs no baseline, and one written for an older
+            // layout, or not in the tree at that commit, would not load.
+            let manifest = checkout.path().join("crucible.toml");
+            if let Ok(text) = std::fs::read_to_string(&manifest) {
+                let mut table: toml::Table = text
+                    .parse()
+                    .map_err(|error| format!("crucible.toml at {reference}: {error}"))?;
+                if let Some(model) = table.get_mut("model").and_then(toml::Value::as_table_mut) {
+                    model.remove("baseline");
+                }
+                let kept = toml::to_string(&table).map_err(|error| error.to_string())?;
+                std::fs::write(&manifest, kept).map_err(|error| error.to_string())?;
+            }
+            checkout.path().to_path_buf()
         }
+        None => package.to_path_buf(),
     };
-    if out.exists()
-        && std::fs::read_dir(out)
-            .map_err(|error| format!("cannot read {}: {error}", out.display()))?
-            .next()
-            .is_some()
-    {
-        return Err(format!(
-            "{} is not empty; a frozen release is never overwritten",
-            out.display()
-        ));
-    }
-    let manifest = std::fs::read_to_string(package.join("crucible.toml"))
-        .map_err(|error| format!("cannot read the manifest: {error}"))?;
-    // Dropped by key, however it is written: a table, an inline table or a
-    // dotted key. The frozen copy keeps every other setting.
-    let mut table: toml::Table = manifest
-        .parse()
-        .map_err(|error| format!("cannot read the manifest: {error}"))?;
-    if let Some(model) = table.get_mut("model").and_then(toml::Value::as_table_mut) {
-        model.remove("baseline");
-    }
-    let kept = toml::to_string(&table).map_err(|error| error.to_string())?;
-    let write = |path: &Path, text: &str| -> Result<(), String> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
-        }
-        std::fs::write(path, text)
-            .map_err(|error| format!("cannot write {}: {error}", path.display()))
-    };
-    write(&out.join("crucible.toml"), &kept)?;
-    let root = std::fs::canonicalize(package)
-        .map_err(|error| format!("cannot resolve {}: {error}", package.display()))?;
-    for file in &loaded.files {
-        let source = std::fs::canonicalize(&file.path)
-            .map_err(|error| format!("cannot resolve {}: {error}", file.path))?;
-        let relative = source
-            .strip_prefix(&root)
-            .map_err(|_| format!("{} is outside the package", file.path))?;
-        write(&out.join(relative), &file.text)?;
-    }
+    let loaded = crucible_lang::load_package(&source)?;
+    let compiled = crucible_lang::compile(&loaded, None);
+    let service = compiled.service.as_ref().ok_or_else(|| {
+        format!(
+            "{} does not compile:\n{}",
+            from.map_or_else(
+                || package.display().to_string(),
+                |reference| format!("{} at {reference}", package.display())
+            ),
+            compiled.render()
+        )
+    })?;
+    let releases = out.map_or_else(|| package.join("releases"), Path::to_path_buf);
+    let compiler = format!("crucible {}", env!("CARGO_PKG_VERSION"));
+    let path = crucible_lang::release::freeze(&releases, service, &compiler)?;
     println!(
-        "froze {} ({} files) into {}; point [model.baseline] path at it",
+        "froze {} {} into {}; point [model.baseline] path at it",
         loaded.namespace,
-        loaded.files.len(),
-        out.display()
+        service.version,
+        path.display()
     );
     Ok(())
+}
+
+/// The package directory as it was at `reference`, checked out from its git
+/// repository into a temporary directory: only the package's own files.
+fn package_at(package: &Path, reference: &str) -> Result<tempfile::TempDir, String> {
+    if reference.starts_with('-') {
+        return Err(format!("`{reference}` is not a git commit or tag"));
+    }
+    let git = |args: &[&str]| -> Result<Vec<u8>, String> {
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(package)
+            .args(args)
+            .output()
+            .map_err(|error| format!("cannot run git: {error}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "git {}: {}",
+                args.join(" "),
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        Ok(output.stdout)
+    };
+    // The package's path inside its repository, as git names it.
+    let prefix = String::from_utf8_lossy(&git(&["rev-parse", "--show-prefix"])?)
+        .trim()
+        .to_owned();
+    let commit = String::from_utf8_lossy(&git(&[
+        "rev-parse",
+        "--verify",
+        &format!("{reference}^{{commit}}"),
+    ])?)
+    .trim()
+    .to_owned();
+    // Full names, from the repository root: `git show` takes those.
+    let listed = git(&[
+        "ls-tree",
+        "-r",
+        "-z",
+        "--full-name",
+        "--name-only",
+        &commit,
+        "--",
+        ".",
+    ])?;
+    let directory = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let mut copied = 0;
+    for name in listed
+        .split(|byte| *byte == 0)
+        .filter(|name| !name.is_empty())
+    {
+        let name = String::from_utf8_lossy(name).into_owned();
+        let Some(relative) = name.strip_prefix(&prefix) else {
+            continue;
+        };
+        // What the compiler reads: manifests and model sources. Not older
+        // releases, generated output or submodules.
+        if !(relative.ends_with(".cru") || relative.ends_with("crucible.toml")) {
+            continue;
+        }
+        let contents = git(&["show", &format!("{commit}:{name}")])?;
+        let target = directory.path().join(relative);
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        std::fs::write(&target, contents).map_err(|error| error.to_string())?;
+        copied += 1;
+    }
+    if copied == 0 {
+        return Err(format!("{} has no files at {reference}", package.display()));
+    }
+    Ok(directory)
 }
 
 fn load_model(source: &Source) -> Result<Model, String> {

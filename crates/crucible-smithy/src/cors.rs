@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::ir::{ApiKeyLocation, AuthScheme, Checksum, ChecksumAlgorithm, Operation, Shape};
 use crate::{Diagnostics, Protocol, ShapeId};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Cors {
     pub origin: String,
     pub max_age: i32,
