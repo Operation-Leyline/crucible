@@ -36,6 +36,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       full: ${{ steps.select.outputs.full }}
+      tools: ${{ steps.select.outputs.tools }}
       c: ${{ steps.select.outputs.c }}
       consumers: ${{ steps.select.outputs.consumers }}
       cdk: ${{ steps.select.outputs.cdk }}
@@ -68,7 +69,7 @@ jobs:
   # and newer Ubuntu hosts. Artifacts are scoped to this run and exact SHA.
   qualification-tools:
     needs: plan
-    if: needs.plan.outputs.rust == 'true' && needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.rust == 'true' && needs.plan.outputs.tools == 'true'
     runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}
     timeout-minutes: 20
     steps:
@@ -93,10 +94,11 @@ jobs:
           overwrite: true
           path: dist/qualification-tools/*
           if-no-files-found: error
-          retention-days: 7
+          # Kept two days for PR reruns; releases keep it longer.
+          retention-days: ${{ github.event_name == 'pull_request' && 2 || 7 }}
   service-cli:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.service_cli == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.service_cli == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ matrix.os == 'ubuntu-latest' && (vars.LINUX_RUNNER || 'ubuntu-latest') || matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -106,7 +108,7 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
       - uses: Swatinem/rust-cache@v2
@@ -119,14 +121,14 @@ jobs:
           CARGO_BUILD_JOBS: '2'
   cdk:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.cdk == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.cdk == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: ". -> target/cdk-consumer-rust", save-if: "${{ github.ref == 'refs/heads/main' }}" }
@@ -175,18 +177,18 @@ jobs:
           TERRAFORM: '${{ matrix.engine }}'
   c-linux:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.c == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.c == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native-jammy, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: sudo apt-get update && sudo apt-get install -y gcc cmake libcurl4-openssl-dev libssl-dev
       - run: python3 tools/install-yyjson.py --root target/yyjson --prefix target/yyjson/install
@@ -197,7 +199,7 @@ jobs:
           CMAKE_PREFIX_PATH: ${{ github.workspace }}/target/yyjson/install
   r:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.r == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.r == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}
     timeout-minutes: 40
     strategy:
@@ -207,11 +209,11 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native-jammy, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: r-lib/actions/setup-r@v2
         with:
@@ -224,18 +226,18 @@ jobs:
           CARGO_BUILD_JOBS: '2'
   cpp-linux:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.cpp == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.cpp == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native-jammy, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: sudo apt-get update && sudo apt-get install -y g++ cmake libcurl4-openssl-dev libssl-dev
       - run: python3 tools/test-cpp.py
@@ -320,7 +322,7 @@ jobs:
           CARGO_BUILD_JOBS: '2'
   ruby:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.ruby == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.ruby == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
@@ -330,18 +332,18 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: ruby/setup-ruby@v1
         with: { ruby-version: '${{ matrix.ruby }}' }
       - run: python3 tools/test-ruby.py
   php:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.php == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.php == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
@@ -351,11 +353,11 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: shivammathur/setup-php@v2
         with:
@@ -366,7 +368,7 @@ jobs:
       - run: python3 tools/test-php.py
   dart:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.dart == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.dart == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
@@ -376,18 +378,18 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: dart-lang/setup-dart@v1
         with: { sdk: '${{ matrix.sdk }}' }
       - run: python3 tools/test-dart.py
   swift-linux:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.swift == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.swift == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     container: swift:6.0.3-jammy
@@ -395,12 +397,12 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - run: apt-get update && apt-get install -y build-essential curl python3
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: python3 tools/test-swift.py
   swift-apple:
@@ -423,25 +425,25 @@ jobs:
         run: xcodebuild -scheme Weather -destination 'generic/platform=iOS Simulator' -derivedDataPath '${{ runner.temp }}/swift-ios' CODE_SIGNING_ALLOWED=NO build
   kotlin:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.kotlin == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.kotlin == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
       - run: python tools/test-kotlin.py
   kotlin-multiplatform:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.kotlin == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.kotlin == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     strategy:
       fail-fast: false
       matrix:
@@ -452,11 +454,11 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-python@v7
         with: { python-version: '3.12' }
@@ -465,8 +467,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.13'
-          # Trusted PRs need to save task results for their next commit, too.
-          cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          # Saved from main only: PR-scoped Gradle caches evict main's.
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
       - uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
@@ -499,7 +501,7 @@ jobs:
           key: konan-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('crates/crucible-codegen-kotlin/runtime/build.gradle.kts', 'crates/crucible-codegen-kotlin/tests/multiplatform/build.gradle.kts') }}
   kotlin-android:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.kotlin == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true') && needs.plan.outputs.full == 'true'
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.kotlin == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true') && needs.plan.outputs.full == 'true'
     # The emulator needs KVM, which only GitHub-hosted runners are known to expose.
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -507,11 +509,11 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
@@ -536,36 +538,36 @@ jobs:
           script: python tools/test-kotlin-android.py
   csharp:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.csharp == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.csharp == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-dotnet@v6
         with: { dotnet-version: '8.0.x' }
       - run: python tools/test-csharp.py
   java:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.java == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.java == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
@@ -577,36 +579,36 @@ jobs:
       - run: python tools/test-java.py
   go:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.go == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.go == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-go@v7
         with: { go-version: '1.24.x', cache: false }
       - run: python tools/test-go.py
   python:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.python == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.python == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-python@v7
         with: { python-version: '3.11' }
@@ -671,18 +673,18 @@ jobs:
   # The generated TypeScript client, compiled and run against a fake fetch.
   typescript:
     needs: [plan, rust, qualification-tools]
-    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.typescript == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true')
+    if: always() && !cancelled() && needs.rust.result == 'success' && needs.plan.outputs.typescript == 'true' && (needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true')
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: ./.github/actions/qualification-tools
-        if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'
+        if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'
       - uses: dtolnay/rust-toolchain@stable
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
       - uses: Swatinem/rust-cache@v2
-        if: runner.os != 'Linux' || needs.plan.outputs.full != 'true'
+        if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
@@ -754,7 +756,9 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-python@v7
         with: { python-version: '3.11' }
-      - uses: actions/cache@v6
+      # Restored everywhere, saved from main only: a PR-scoped copy of this
+      # 1.3 GB SDK is invisible to other PRs and evicts main's caches.
+      - uses: actions/cache/restore@v6
         id: sdk
         with:
           path: .sdk/rustrover
@@ -772,6 +776,11 @@ jobs:
           PY
           mkdir -p .sdk/rustrover
           tar -xzf /tmp/rustrover-sdk.tar.gz --strip-components=1 -C .sdk/rustrover
+      - uses: actions/cache/save@v6
+        if: github.ref == 'refs/heads/main' && steps.sdk.outputs.cache-hit != 'true'
+        with:
+          path: .sdk/rustrover
+          key: rustrover-linux-262.10968.75-fac0d503
       - run: python ide/smithy-cargo/build.py --ide-home .sdk/rustrover --out dist
       - uses: actions/upload-artifact@v6
         with:
@@ -851,7 +860,7 @@ jobs:
           import json, os
           results = json.loads(os.environ["RESULTS"])
           failed = [name for name, job in results.items() if job["result"] not in {"success", "skipped"}]
-          if results["plan"]["result"] != "success" or results["rust"]["result"] != "success" or (results["plan"]["outputs"]["full"] == "true" and results["qualification-tools"]["result"] != "success"):
+          if results["plan"]["result"] != "success" or results["rust"]["result"] != "success" or (results["plan"]["outputs"]["tools"] == "true" and results["qualification-tools"]["result"] != "success"):
               failed.append("required planner/Rust/tools gate")
           # Release qualification (full) never tags a commit the consumers cannot build.
           if results["plan"]["outputs"]["full"] == "true" and results["consumers"]["result"] != "success":

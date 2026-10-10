@@ -70,9 +70,9 @@ static class Program
                         await stream.WriteAsync(bytes, stop.Token);
                     }
                 }
-                catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
-                catch (IOException) when (stop.IsCancellationRequested) { }
-                catch (ObjectDisposedException) when (stop.IsCancellationRequested) { }
+                // Stopping the listener fails a pending accept in more ways
+                // than cancellation (InvalidOperationException, SocketException).
+                catch (Exception) when (stop.IsCancellationRequested) { }
             });
         }
         public async ValueTask DisposeAsync() { stop.Cancel(); listener.Stop(); await loop; stop.Dispose(); }

@@ -11,8 +11,9 @@ import unittest
 from unittest.mock import Mock
 
 CONSUMERS = {"consumers"}
-from ci_plan import (ALL_HOSTS, CORE_GROUPS, GROUPS, MODEL_GROUPS, SDK_GROUPS, affected_groups,
-                     changed_paths, onboarding_hosts, select_groups)
+from ci_plan import (ALL_HOSTS, CORE_GROUPS, GROUPS, MODEL_GROUPS, SDK_GROUPS, TOOL_GROUPS, affected_groups,
+                     changed_paths, onboarding_hosts, select_groups,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -148,7 +149,7 @@ class PlanTests(unittest.TestCase):
             "docs/releases.md", "CHANGELOG.md", "e2e/weather-service/src/main.rs",
         ):
             with self.subTest(path=path):
-                self.assertNotIn("consumers", affected_groups([path]) if path != "CHANGELOG.md" else set())
+                self.assertNotIn("consumers", affected_groups([path]))
         for event in ("workflow_call", "workflow_dispatch", "schedule"):
             self.assertIn("consumers", select_groups(event, {}, Mock()))
         self.assertNotIn("consumers", select_groups("push", {}, Mock()))
@@ -283,7 +284,7 @@ class PlanTests(unittest.TestCase):
             subprocess.run([sys.executable, str(ROOT / "tools/ci_plan.py")],
                            env=env, check=True, capture_output=True)
             self.assertEqual(dict(line.split("=") for line in output.read_text().splitlines()),
-                             {**{group: "true" for group in GROUPS}, "full": "true",
+                             {**{group: "true" for group in GROUPS}, "full": "true", "tools": "true",
                               "onboarding_hosts": json.dumps(ALL_HOSTS, separators=(",", ":"))})
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         jobs = re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)", workflow.split("jobs:\n", 1)[1],
@@ -317,6 +318,9 @@ class PlanTests(unittest.TestCase):
                 group = re.search(r"outputs\.(\w+) == 'true'", condition).group(1)
                 if group not in groups or ("outputs.full == 'true'" in condition and not full):
                     continue
+                # The shared tools build runs when a job that reuses it does.
+                if "outputs.tools == 'true'" in condition and not (full or groups & TOOL_GROUPS):
+                    continue
                 matrix = re.search(r"full == 'true' && '([^']+)' \|\| '([^']+)'", body)
                 if "outputs.onboarding_hosts" in body:
                     # Unrelated PRs; provisioning PRs select every host.
@@ -327,8 +331,9 @@ class PlanTests(unittest.TestCase):
             return selected
 
         self.assertEqual(len(selected_jobs(CORE_GROUPS, False)), 6)
-        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 8)
-        self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 5)
+        # Python and Go reuse one tools build instead of compiling twice.
+        self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 9)
+        self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 6)
         # Preserve the 37 test variants (including consumers) plus planner/aggregate, one tools build
         # and the release-only language server build.
         self.assertEqual(len(selected_jobs(GROUPS, True)), 41)
@@ -349,11 +354,11 @@ class PlanTests(unittest.TestCase):
         self.assertIn('-f "sha=$GITHUB_SHA"', release)
         self.assertIn("--verify-tag", release)
 
-    def test_qualification_artifacts_are_same_run_and_full_only(self):
+    def test_qualification_artifacts_are_same_run_and_built_when_reused(self):
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         jobs = dict(re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)",
                               workflow.split("jobs:\n", 1)[1], re.MULTILINE | re.DOTALL))
-        self.assertIn("needs.plan.outputs.full == 'true'", jobs["qualification-tools"])
+        self.assertIn("needs.plan.outputs.tools == 'true'", jobs["qualification-tools"])
         self.assertIn("runs-on: ${{ vars.LINUX_RUNNER_2204 || 'ubuntu-22.04' }}", jobs["qualification-tools"])
         self.assertIn("qualification-tools-linux-${{ github.sha }}", jobs["qualification-tools"])
         # Re-running all jobs keeps the run and SHA, so replace its old artifact.
@@ -369,9 +374,12 @@ class PlanTests(unittest.TestCase):
                 with self.subTest(job=name):
                     self.assertIn("needs: [plan, rust, qualification-tools]", body)
                     self.assertIn("always() && !cancelled() && needs.rust.result == 'success'", body)
-                    self.assertIn("needs.qualification-tools.result == 'success' || needs.plan.outputs.full != 'true'", body)
-                    self.assertIn("if: runner.os == 'Linux' && needs.plan.outputs.full == 'true'", body)
-        self.assertIn('results["plan"]["outputs"]["full"] == "true"', jobs["ci"])
+                    self.assertIn("needs.qualification-tools.result == 'success' || needs.plan.outputs.tools != 'true'", body)
+                    self.assertIn("if: runner.os == 'Linux' && needs.plan.outputs.tools == 'true'", body)
+                    # Every job that reuses the tools makes the plan build them.
+                    groups = set(re.findall(r"needs\.plan\.outputs\.(\w+) == 'true'", body)) - {"full", "tools"}
+                    self.assertTrue(groups & (TOOL_GROUPS | {"typescript", "cdk"}), groups)
+        self.assertIn('results["plan"]["outputs"]["tools"] == "true"', jobs["ci"])
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("uses: ./.github/actions/qualification-tools", release)
         self.assertNotIn("cargo build", release)
@@ -395,6 +403,56 @@ class PlanTests(unittest.TestCase):
             with self.subTest(job=name):
                 self.assertRegex(body, r"(?m)^    timeout-minutes: \d+$")
                 self.assertEqual(len(re.findall(r"uses: Swatinem/rust-cache@", body)), body.count(save_on_main))
+        # The large editor SDK and Gradle caches restore on PRs and save from
+        # main only.
+        self.assertNotRegex(jobs["editor"], r"uses: actions/cache@")
+        saves = re.findall(r"uses: actions/cache/save@.*\n\s+if: (.*)", jobs["editor"])
+        # Every save step has a main-only condition on its next line.
+        self.assertEqual(len(saves), jobs["editor"].count("uses: actions/cache/save@"))
+        self.assertTrue(saves)
+        for save in saves:
+            self.assertIn("github.ref == 'refs/heads/main'", save)
+        self.assertIn("cache-read-only: ${{ github.ref != 'refs/heads/main' }}", jobs["kotlin-multiplatform"])
+
+
+class Prose(unittest.TestCase):
+    def test_prose_workflows_and_python_tests_do_not_select_every_job(self):
+        # The changelog accompanies most changes; it must not select everything.
+        self.assertEqual(affected_groups(["CHANGELOG.md"]), {"rust"})
+        self.assertEqual(affected_groups(["docs/idl/examples/weather/model/weather.cru"]), {"rust"})
+        self.assertEqual(affected_groups([".github/workflows/sdk-release.yml"]), {"rust"})
+        self.assertEqual(affected_groups(["tools/test_crucible_release_notes.py"]), {"rust"})
+        # Workflows the PR runs still select their own gates.
+        self.assertIn("consumers", affected_groups([".github/workflows/ci.yml"]))
+        # Unknown paths, and the composite actions every job uses, still
+        # select everything.
+        self.assertEqual(affected_groups(["somewhere/new.txt"]), set(GROUPS))
+        self.assertEqual(
+            affected_groups([".github/actions/qualification-tools/action.yml"]), set(GROUPS)
+        )
+
+    def test_the_shared_tools_build_runs_only_when_a_job_reuses_it(self):
+        def tools(*paths):
+            with tempfile.TemporaryDirectory() as directory:
+                event = Path(directory) / "event.json"
+                event.write_text(json.dumps(EVENT))
+                output = Path(directory) / "output"
+                env = dict(os.environ, GITHUB_EVENT_NAME="pull_request", GITHUB_EVENT_PATH=str(event),
+                           GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(Path(directory) / "summary"),
+                           PYTHONPATH=str(ROOT / "tools"))
+                script = (
+                    "import sys, ci_plan\n"
+                    f"ci_plan.changed_paths = lambda base, head: {list(paths)!r}\n"
+                    "ci_plan.main()\n"
+                )
+                run = subprocess.run([sys.executable, "-c", script], env=env,
+                                     capture_output=True, text=True, cwd=ROOT / "tools")
+                self.assertEqual(run.returncode, 0, run.stderr)
+                return dict(line.split("=", 1) for line in output.read_text().splitlines())["tools"]
+        self.assertEqual(tools("crates/crucible-codegen-python/src/lib.rs"), "true")
+        self.assertEqual(tools("crates/crucible-codegen-ts/src/lib.rs"), "false")
+        self.assertEqual(tools("crates/crucible-codegen-cdk/src/lib.rs"), "false")
+        self.assertEqual(tools("CHANGELOG.md"), "false")
 
 
 if __name__ == "__main__":
