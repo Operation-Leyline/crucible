@@ -213,6 +213,12 @@ pub(crate) async fn apply_with(
             .cloned()
             .ok_or_else(|| Error::internal(format!("API version hook {name} is not registered")))
     };
+    // Fills read the value as it arrived: one fill's member is not
+    // another's input, which the older type may refuse.
+    let arrived = transforms
+        .iter()
+        .any(|transform| matches!(transform, Transform::Fill { .. }))
+        .then(|| value.clone());
     for transform in transforms {
         match transform {
             Transform::Hook { at, hook: name } => {
@@ -245,7 +251,8 @@ pub(crate) async fn apply_with(
             } => {
                 let call = hook(name)?;
                 let mut owners = Vec::new();
-                visit(value, at, &mut |slot| {
+                let mut source = arrived.clone().unwrap_or_default();
+                visit(&mut source, at, &mut |slot| {
                     if let Value::Object(map) = slot
                         && !map.contains_key(*member)
                     {
@@ -511,6 +518,46 @@ mod tests {
         )
         .await;
         assert!(missing.is_err());
+    }
+
+    #[tokio::test]
+    async fn each_fill_reads_the_value_as_it_arrived() {
+        let mut hooks = Hooks::new();
+        let first: HookFn = Arc::new(|owner: Value| {
+            Box::pin(async move {
+                assert!(owner.get("b").is_none());
+                Ok(json!(1))
+            })
+        });
+        let second: HookFn = Arc::new(|owner: Value| {
+            Box::pin(async move {
+                // The first fill's member is not part of what arrived.
+                assert!(owner.get("a").is_none(), "{owner}");
+                Ok(json!(2))
+            })
+        });
+        hooks.insert("first", first);
+        hooks.insert("second", second);
+        let mut value = json!({ "name": "x" });
+        apply_with(
+            &mut value,
+            &[
+                Transform::Fill {
+                    at: &[],
+                    member: "a",
+                    hook: "first",
+                },
+                Transform::Fill {
+                    at: &[],
+                    member: "b",
+                    hook: "second",
+                },
+            ],
+            &hooks,
+        )
+        .await
+        .unwrap();
+        assert_eq!(value, json!({ "name": "x", "a": 1, "b": 2 }));
     }
 
     #[test]

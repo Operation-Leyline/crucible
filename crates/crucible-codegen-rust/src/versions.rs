@@ -622,6 +622,18 @@ fn conversion(
                 downgrade: replacement,
                 members,
             } if target == operation => {
+                if self::operation(current, operation).is_none() {
+                    // A legacy handler answers with its release's errors,
+                    // which the current model may not declare.
+                    diagnostics.push(
+                        error,
+                        format!(
+                            "an error downgrade on {}, which a later version removes, is not converted yet",
+                            operation.name()
+                        ),
+                    );
+                    continue;
+                }
                 // Errors cross as the current version's types: the error the
                 // older version knows is built as the current model declares it.
                 let Some(Shape::Structure(older)) = current.shape(replacement) else {

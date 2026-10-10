@@ -443,3 +443,37 @@ fn a_hooked_requirement_named_by_its_shape_reaches_its_operations() {
         versions[0].steps
     );
 }
+
+#[test]
+fn a_sunset_is_a_date_that_exists() {
+    let guard = run(
+        "sunset-date",
+        V1,
+        "migration \"v2\" from \"v1\" {\n    sunset \"2027-02-30\"\n}\n",
+    );
+    assert!(
+        problems(&guard).iter().any(|p| p.contains("YYYY-MM-DD")),
+        "{:?}",
+        problems(&guard)
+    );
+}
+
+#[test]
+fn an_optional_member_cannot_fill_a_required_one() {
+    let current = V1.replace(
+        "    input { id: string }\n    output {\n        name",
+        "    input { id: string }\n    errors [ItemGoneException]\n    output {\n        name",
+    ) + "\nerror ItemGoneException {\n    status 410\n    message?: string\n}\n";
+    let guard = run(
+        "optional-source",
+        &current,
+        "migration \"v2\" from \"v1\" {\n    add GetItem.errors ItemGoneException downgrade InternalServerException {\n        message <- message\n    }\n}\n",
+    );
+    assert!(
+        problems(&guard)
+            .iter()
+            .any(|p| p.contains("`message` is optional on ItemGoneException")),
+        "{:?}",
+        problems(&guard)
+    );
+}
