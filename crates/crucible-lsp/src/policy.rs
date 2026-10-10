@@ -57,33 +57,16 @@ pub fn findings(compiled: &Compiled, own: usize, config: &Config) -> Vec<Finding
         let Ok(id) = finding.shape.parse::<ShapeId>() else {
             continue;
         };
-        let Some(location) = compiled.source_map.get(&id) else {
+        let Some((file, start, end)) = name_of(compiled, own, &id) else {
             continue;
         };
-        if location.file >= own {
-            continue;
-        }
         let name = id.member().unwrap_or(id.name());
-        let file = &compiled.files[location.file];
-        // The declaration's span covers its body; point at its name.
-        let (start, end) = compiled.parsed[location.file]
-            .tokens
-            .iter()
-            .find(|token| {
-                token.kind == TokenKind::Ident
-                    && token.span.start >= location.span.start
-                    && token.span.end <= location.span.end
-                    && token.span.text(&file.text) == name
-            })
-            .map_or((location.span.start, location.span.start), |token| {
-                (token.span.start, token.span.end)
-            });
         let rename = case_for(config, &finding.rule)
             .filter(|case| !case.value.matches(name))
             .map(|case| case.value.apply(name))
             .filter(|renamed| renamed != name);
         out.push(Finding {
-            file: location.file,
+            file,
             start,
             end,
             error: finding.severity == Severity::Error,
@@ -93,6 +76,76 @@ pub fn findings(compiled: &Compiled, own: usize, config: &Config) -> Vec<Finding
         });
     }
     out
+}
+
+/// The compatibility guard in the editor: what changed against the frozen
+/// baseline `old`, each at what it concerns. Something removed is shown at
+/// what held it (a member at its structure, an operation at the service);
+/// what has no place in the sources is returned apart, for the manifest.
+pub fn compatibility(
+    compiled: &Compiled,
+    own: usize,
+    old: &crucible_smithy::ir::Service,
+    config: &Config,
+) -> (Vec<Finding>, Vec<(bool, String)>) {
+    let Some(service) = &compiled.service else {
+        return (Vec::new(), Vec::new());
+    };
+    let report = crucible_policy::diff(old, service, config);
+    let mut placed = Vec::new();
+    let mut unplaced = Vec::new();
+    for finding in report.findings {
+        if finding.exception.is_some() || finding.severity == Severity::Off {
+            continue;
+        }
+        let error = finding.severity == Severity::Error;
+        let message = format!("breaking change since the baseline: {}", finding.message);
+        let location = finding.shape.parse::<ShapeId>().ok().and_then(|id| {
+            name_of(compiled, own, &id)
+                .or_else(|| name_of(compiled, own, &id.root()))
+                .or_else(|| name_of(compiled, own, &service.id))
+        });
+        match location {
+            Some((file, start, end)) => placed.push(Finding {
+                file,
+                start,
+                end,
+                error,
+                rule: finding.rule,
+                message,
+                rename: None,
+            }),
+            None => unplaced.push((
+                error,
+                format!("[{}] {}: {message}", finding.rule, finding.shape),
+            )),
+        }
+    }
+    (placed, unplaced)
+}
+
+/// Where the name of `id`'s declaration is written in the package's own
+/// files: the declaration's span covers its body; this is its name.
+fn name_of(compiled: &Compiled, own: usize, id: &ShapeId) -> Option<(usize, u32, u32)> {
+    let location = compiled.source_map.get(id)?;
+    if location.file >= own {
+        return None;
+    }
+    let name = id.member().unwrap_or(id.name());
+    let file = &compiled.files[location.file];
+    let (start, end) = compiled.parsed[location.file]
+        .tokens
+        .iter()
+        .find(|token| {
+            token.kind == TokenKind::Ident
+                && token.span.start >= location.span.start
+                && token.span.end <= location.span.end
+                && token.span.text(&file.text) == name
+        })
+        .map_or((location.span.start, location.span.start), |token| {
+            (token.span.start, token.span.end)
+        });
+    Some((location.file, start, end))
 }
 
 /// The naming case a naming rule checks, if the config sets one.

@@ -897,6 +897,7 @@ dependencies = [
  "lsp-types",
  "serde",
  "serde_json",
+ "toml",
 ]
 
 [[package]]

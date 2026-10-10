@@ -812,7 +812,10 @@ fn freeze(package: &Path, out: &Path) -> Result<(), String> {
     for line in manifest.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with('[') {
-            in_baseline = trimmed.trim_start_matches('[').trim_start().starts_with("model.baseline");
+            in_baseline = trimmed
+                .trim_start_matches('[')
+                .trim_start()
+                .starts_with("model.baseline");
         }
         let inline = !in_baseline && trimmed.starts_with("baseline") && trimmed.contains('=');
         if !in_baseline && !inline {
@@ -825,7 +828,8 @@ fn freeze(package: &Path, out: &Path) -> Result<(), String> {
             std::fs::create_dir_all(parent)
                 .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
         }
-        std::fs::write(path, text).map_err(|error| format!("cannot write {}: {error}", path.display()))
+        std::fs::write(path, text)
+            .map_err(|error| format!("cannot write {}: {error}", path.display()))
     };
     write(&out.join("crucible.toml"), &kept)?;
     let root = std::fs::canonicalize(package)

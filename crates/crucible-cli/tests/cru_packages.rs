@@ -132,11 +132,17 @@ fn a_frozen_baseline_guards_against_breaking_changes() {
         String::from_utf8_lossy(&freeze.stderr)
     );
     assert!(frozen.join("model/weather.cru").is_file());
-    assert!(!std::fs::read_to_string(frozen.join("crucible.toml"))
-        .unwrap()
-        .contains("baseline"));
+    assert!(
+        !std::fs::read_to_string(frozen.join("crucible.toml"))
+            .unwrap()
+            .contains("baseline")
+    );
     // A frozen release is never overwritten.
-    assert!(!crucible(&["freeze", package, "--out", frozen.to_str().unwrap()]).status.success());
+    assert!(
+        !crucible(&["freeze", package, "--out", frozen.to_str().unwrap()])
+            .status
+            .success()
+    );
 
     let manifest = std::fs::read_to_string(dir.join("crucible.toml")).unwrap();
     std::fs::write(
@@ -157,7 +163,11 @@ fn a_frozen_baseline_guards_against_breaking_changes() {
     // Moving a route breaks old clients.
     let model = dir.join("model/weather.cru");
     let source = std::fs::read_to_string(&model).unwrap();
-    std::fs::write(&model, source.replace("http GET \"/status\"", "http GET \"/health\"")).unwrap();
+    std::fs::write(
+        &model,
+        source.replace("http GET \"/status\"", "http GET \"/health\""),
+    )
+    .unwrap();
     let check = crucible(&["check", package]);
     assert!(!check.status.success());
     let stderr = String::from_utf8_lossy(&check.stderr);

@@ -350,7 +350,10 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
     if let Some(Baseline { path }) = &model.baseline {
         let at = span(path.span());
         if let Some(problem) = escapes(path.get_ref()) {
-            out.push(Diagnostic::new(at, format!("`{}` {problem}", path.get_ref())));
+            out.push(Diagnostic::new(
+                at,
+                format!("`{}` {problem}", path.get_ref()),
+            ));
         } else if !is_package(&dir.join(path.get_ref())) {
             out.push(Diagnostic::new(
                 at,

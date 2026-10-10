@@ -135,6 +135,17 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "model.baseline",
+        array: false,
+        doc: "The frozen package of the last release. Every build and the editor compare the package against it, and a breaking change is an error. Make one with `crucible freeze <package> --out releases/<version>`.",
+        keys: &[Key {
+            name: "path",
+            kind: Kind::Text,
+            doc: "The frozen package's directory, relative to this file, such as `releases/2026-09-04`.",
+            sample: "\"releases/v1\"",
+        }],
+    },
+    Table {
         name: "rules",
         array: false,
         doc: "API policy checked on every build and in the editor.",
@@ -576,9 +587,17 @@ mod tests {
                 manifest.push_str(&format!("{} = {}\n", key.name, key.sample));
             }
         }
-        let dir = std::env::temp_dir();
+        // The sample baseline is a frozen package; the sources are `.`.
+        let dir = std::env::temp_dir().join(format!("crucible-vocabulary-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("releases/v1")).unwrap();
+        std::fs::write(
+            dir.join("releases/v1/crucible.toml"),
+            "[model]
+namespace = \"example.shop\"
+",
+        )
+        .unwrap();
         let problems = crucible_lang::check_manifest(&dir, &manifest);
-        // The sample source directory is `.`, which exists anywhere.
         assert_eq!(problems, Vec::new(), "{manifest}");
         if let Err(error) = crucible_policy::Config::parse_located(&manifest) {
             panic!("{error}\n{manifest}");

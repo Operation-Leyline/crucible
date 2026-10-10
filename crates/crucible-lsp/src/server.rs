@@ -156,8 +156,12 @@ struct Unit {
     load_error: Option<String>,
     /// How often each declaration is referred to in the unit's own files.
     usages: HashMap<String, usize>,
-    /// The package policy's findings, at the names they concern.
+    /// The package policy's findings, at the names they concern, and the
+    /// breaking changes against its baseline.
     policy: Vec<policy::Finding>,
+    /// Baseline problems with no place in the sources: shown on the
+    /// manifest's `[model.baseline]`.
+    baseline_notes: Vec<(bool, String)>,
 }
 
 pub struct Server {
@@ -281,6 +285,23 @@ impl Server {
         }
         packages.sort();
         packages.dedup();
+        // A frozen release is a package only to be compared against; its
+        // declarations are not the workspace's.
+        let frozen: Vec<PathBuf> = packages
+            .iter()
+            .filter_map(|dir| {
+                let text = std::fs::read_to_string(dir.join("crucible.toml")).ok()?;
+                let table = text.parse::<toml::Table>().ok()?;
+                let path = table
+                    .get("model")?
+                    .get("baseline")?
+                    .get("path")?
+                    .as_str()?
+                    .to_owned();
+                Some(normalize(&dir.join(path)))
+            })
+            .collect();
+        packages.retain(|dir| !frozen.contains(dir));
         self.packages = packages;
     }
 
@@ -587,11 +608,26 @@ impl Server {
         } else {
             Some(unit)
         };
-        let policy = policy_dir
+        let config = policy_dir
             .and_then(|dir| policy::source(dir, manifest))
-            .and_then(|text| crucible_policy::Config::parse(&text).ok())
-            .map(|config| policy::findings(&compiled, own, &config))
+            .and_then(|text| crucible_policy::Config::parse(&text).ok());
+        let mut policy = config
+            .as_ref()
+            .map(|config| policy::findings(&compiled, own, config))
             .unwrap_or_default();
+        // The compatibility guard, against the frozen baseline, as the build
+        // applies it.
+        let mut baseline_notes = Vec::new();
+        match crucible_lang::compile_baseline(&package, None) {
+            None => {}
+            Some(Err(problem)) => baseline_notes.push((true, problem)),
+            Some(Ok(old)) => {
+                let (placed, unplaced) =
+                    policy::compatibility(&compiled, own, &old, &config.unwrap_or_default());
+                policy.extend(placed);
+                baseline_notes.extend(unplaced);
+            }
+        }
         Unit {
             compiled,
             index,
@@ -600,6 +636,7 @@ impl Server {
             load_error,
             usages,
             policy,
+            baseline_notes,
         }
     }
 
@@ -748,6 +785,26 @@ impl Server {
             // TOML syntax errors are already reported by the manifest check.
             if !out.iter().any(|existing| existing.range == range) {
                 out.push(error(range, problem.message));
+            }
+        }
+        // What the baseline guard could not place in a model file.
+        let unit = document.unit.as_ref().and_then(|unit| self.units.get(unit));
+        if let Some(unit) = unit.filter(|unit| !unit.baseline_notes.is_empty()) {
+            let at = document
+                .text
+                .find("[model.baseline]")
+                .map_or(lines.first_line(), |start| {
+                    lines.range(start as u32, (start + "[model.baseline]".len()) as u32)
+                });
+            for (is_error, message) in &unit.baseline_notes {
+                out.push(Diagnostic {
+                    severity: Some(if *is_error {
+                        DiagnosticSeverity::ERROR
+                    } else {
+                        DiagnosticSeverity::WARNING
+                    }),
+                    ..error(at, message.clone())
+                });
             }
         }
         out

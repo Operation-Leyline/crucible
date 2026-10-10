@@ -738,3 +738,48 @@ fn the_manifest_policy_shows_in_model_files_and_edits_apply_at_once() {
     assert_eq!(problems[0]["range"]["start"]["line"], 4, "{problems:?}");
     client.stop();
 }
+
+#[test]
+fn breaking_changes_against_the_baseline_show_as_you_type() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-baseline");
+    package(&dir);
+    // Freeze the package as it is, then point the manifest at the copy.
+    let frozen = dir.join("releases/v1");
+    std::fs::create_dir_all(&frozen).unwrap();
+    for file in ["crucible.toml", "service.cru", "types.cru"] {
+        std::fs::copy(dir.join(file), frozen.join(file)).unwrap();
+    }
+    std::fs::write(
+        dir.join("crucible.toml"),
+        "[model]\nnamespace = \"example.shop\"\nimports = [\"crucible.errors\"]\n\n[model.baseline]\npath = \"releases/v1\"\n",
+    )
+    .unwrap();
+    let service = uri(&dir.join("service.cru"));
+    let mut client = Client::start();
+    client.open(&service, SERVICE);
+    let unchanged = client.diagnostics(&service);
+    assert!(
+        unchanged
+            .iter()
+            .all(|d| !d["message"].as_str().unwrap().contains("baseline")),
+        "{unchanged:#?}"
+    );
+
+    // Moving the route breaks old clients: shown at the operation's name.
+    let moved = SERVICE.replace("\"/items/{id}\"", "\"/things/{id}\"");
+    client.change(&service, 2, &moved);
+    let diagnostics = client.diagnostics(&service);
+    let breaking = diagnostics
+        .iter()
+        .find(|d| d["code"] == "compatibility.http")
+        .unwrap_or_else(|| panic!("{diagnostics:#?}"));
+    assert_eq!(breaking["severity"], 1);
+    assert!(
+        breaking["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("breaking change since the baseline")
+    );
+    assert_eq!(breaking["range"]["start"], position(&moved, "GetItem {", 0));
+    client.stop();
+}
