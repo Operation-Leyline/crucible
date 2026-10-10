@@ -41,6 +41,7 @@ serde_json = { workspace = true, features = ["preserve_order"] }
 serde.workspace = true
 clap.workspace = true
 tempfile = "3"
+toml = "0.8"
 
 [lints]
 workspace = true

@@ -119,7 +119,7 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
                         field("baseline")
                     )
                 })?;
-            if let Some(problem) = escapes(path) {
+            if let Some(problem) = escapes(path).or_else(|| outside(dir, path)) {
                 return Err(format!("{}: `{path}` {problem}", field("baseline.path")));
             }
             let frozen = dir.join(path);
@@ -195,6 +195,15 @@ fn escapes(source: &str) -> Option<&'static str> {
     path.components()
         .any(|component| matches!(component, std::path::Component::ParentDir))
         .then_some("must stay inside the package directory")
+}
+
+/// Why `path`, written inside the package, resolves outside it: a symlink
+/// that `escapes` cannot see in the text. A path that does not exist yet is
+/// left to the existence checks.
+fn outside(dir: &Path, path: &str) -> Option<&'static str> {
+    let root = std::fs::canonicalize(dir).ok()?;
+    let target = std::fs::canonicalize(dir.join(path)).ok()?;
+    (!target.starts_with(&root)).then_some("must stay inside the package directory")
 }
 
 fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -349,7 +358,7 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
     }
     if let Some(Baseline { path }) = &model.baseline {
         let at = span(path.span());
-        if let Some(problem) = escapes(path.get_ref()) {
+        if let Some(problem) = escapes(path.get_ref()).or_else(|| outside(dir, path.get_ref())) {
             out.push(Diagnostic::new(
                 at,
                 format!("`{}` {problem}", path.get_ref()),

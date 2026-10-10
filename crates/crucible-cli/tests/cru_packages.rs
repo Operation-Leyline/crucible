@@ -176,3 +176,41 @@ fn a_frozen_baseline_guards_against_breaking_changes() {
         "{stderr}"
     );
 }
+
+#[test]
+fn freezing_drops_the_baseline_however_it_is_written() {
+    let tmp = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let dir = tmp.path().join("package");
+    std::fs::create_dir(&dir).unwrap();
+    weather_copy(&dir);
+    std::fs::create_dir_all(dir.join("old")).unwrap();
+    std::fs::write(
+        dir.join("old/crucible.toml"),
+        "[model]\nnamespace = \"example.old\"\n",
+    )
+    .unwrap();
+    let manifest = std::fs::read_to_string(dir.join("crucible.toml")).unwrap();
+    // A dotted key under [model], not a [model.baseline] table.
+    std::fs::write(
+        dir.join("crucible.toml"),
+        manifest.replace("language = 1", "language = 1\nbaseline.path = \"old\""),
+    )
+    .unwrap();
+    let out = tmp.path().join("frozen");
+    let freeze = crucible(&[
+        "freeze",
+        dir.to_str().unwrap(),
+        "--out",
+        out.to_str().unwrap(),
+    ]);
+    assert!(
+        freeze.status.success(),
+        "{}",
+        String::from_utf8_lossy(&freeze.stderr)
+    );
+    let frozen = std::fs::read_to_string(out.join("crucible.toml")).unwrap();
+    assert!(
+        !frozen.contains("baseline") && frozen.contains("example.weather"),
+        "{frozen}"
+    );
+}

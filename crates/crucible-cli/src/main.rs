@@ -807,22 +807,15 @@ fn freeze(package: &Path, out: &Path) -> Result<(), String> {
     }
     let manifest = std::fs::read_to_string(package.join("crucible.toml"))
         .map_err(|error| format!("cannot read the manifest: {error}"))?;
-    let mut kept = String::new();
-    let mut in_baseline = false;
-    for line in manifest.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_baseline = trimmed
-                .trim_start_matches('[')
-                .trim_start()
-                .starts_with("model.baseline");
-        }
-        let inline = !in_baseline && trimmed.starts_with("baseline") && trimmed.contains('=');
-        if !in_baseline && !inline {
-            kept.push_str(line);
-            kept.push('\n');
-        }
+    // Dropped by key, however it is written: a table, an inline table or a
+    // dotted key. The frozen copy keeps every other setting.
+    let mut table: toml::Table = manifest
+        .parse()
+        .map_err(|error| format!("cannot read the manifest: {error}"))?;
+    if let Some(model) = table.get_mut("model").and_then(toml::Value::as_table_mut) {
+        model.remove("baseline");
     }
+    let kept = toml::to_string(&table).map_err(|error| error.to_string())?;
     let write = |path: &Path, text: &str| -> Result<(), String> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
