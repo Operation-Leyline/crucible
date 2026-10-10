@@ -24,8 +24,9 @@ fn check_and_generate_accept_a_package_directory() {
     );
     assert!(!check.stdout.is_empty());
 
-    let out = Path::new(env!("CARGO_TARGET_TMPDIR")).join("cru-package-ts");
-    let _ = std::fs::remove_dir_all(&out);
+    // A directory of its own, so concurrent runs never share output.
+    let tmp = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let out = tmp.path().join("ts");
     let generate = crucible(&[
         "generate",
         "ts",
@@ -45,9 +46,8 @@ fn check_and_generate_accept_a_package_directory() {
 
 #[test]
 fn a_package_that_does_not_compile_lists_its_problems() {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("cru-package-broken");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
+    let tmp = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let dir = tmp.path();
     std::fs::write(
         dir.join("crucible.toml"),
         "[model]\nnamespace = \"example.broken\"\n",
