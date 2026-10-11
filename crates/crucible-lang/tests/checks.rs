@@ -420,6 +420,40 @@ fn roles_are_checked() {
 }
 
 #[test]
+fn updates_implies_no_idempotency() {
+    // Smithy's update lifecycle does not require idempotency, and an update
+    // that appends a version is not safe to repeat.
+    let edit = |modifiers: &str, method: &str| {
+        compiled(&format!(
+            "{modifiers}operation EditOrder updates Order {{\n    http {method} \"/orders/{{orderId}}\"\n    input {{\n        $orderId\n        $note?\n    }}\n}}"
+        ))
+    };
+    let patch = edit("", "PATCH");
+    assert_eq!(patch.render(), "");
+    let lowered = operation(&patch, "EditOrder");
+    assert!(!lowered.idempotent && !lowered.readonly);
+    // Saying so makes it idempotent, which PUT requires.
+    assert!(operation(&edit("idempotent ", "PATCH"), "EditOrder").idempotent);
+    assert!(operation(&edit("idempotent ", "PUT"), "EditOrder").idempotent);
+    assert!(
+        edit("", "PUT")
+            .render()
+            .contains("a PUT operation must be `idempotent`")
+    );
+    // It still changes the resource, so it is never `readonly`.
+    assert!(
+        edit("readonly ", "PATCH")
+            .render()
+            .contains("`updates` changes the resource; the operation is not `readonly`")
+    );
+    // `puts` and `deletes` still imply it.
+    let put = compiled(
+        "operation PutOrder puts Order {\n    http PUT \"/orders/{orderId}\"\n    input { $orderId }\n}",
+    );
+    assert!(operation(&put, "PutOrder").idempotent);
+}
+
+#[test]
 fn resources_are_checked() {
     let m = messages("resource Line in Oops {\n    id lineId: string\n}");
     assert_mentions(&m, "`Oops` is not a resource");

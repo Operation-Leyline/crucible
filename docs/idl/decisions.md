@@ -252,7 +252,9 @@ trait when a project defines it.
     family the compiler checks the keywords against the method: GET and
     HEAD must be `readonly`, PUT and DELETE must be `idempotent` or
     `readonly`, POST and PATCH may be anything. An input with a `@token`
-    member makes the operation idempotent without the keyword.
+    member makes the operation idempotent without the keyword, and so do
+    the `puts` and `deletes` roles (decision 32); `updates` does not, so an
+    `updates` operation on PUT writes `idempotent`.
     *Replaces:* `@readonly`, `@idempotent`, `@auth([])`, and Smithy's
     `HttpMethodSemantics` validator (which Leyline promotes to an error).
     *Why:* 99, 70 and 5 uses; `@auth` with a non-empty list has no other
@@ -325,9 +327,14 @@ trait when a project defines it.
     { .. }`, `operation RevertGraph on Graph { .. }`, `operation
     BatchGetGraph on Graph collection { .. }`. Each lifecycle role may be
     held by one operation per resource. The role implies behaviour and is
-    checked: `reads` and `lists` imply `readonly`; `puts`, `updates` and
-    `deletes` imply `idempotent`; writing the implied keyword is allowed
-    and redundant. The role fixes which identifiers the input must bind:
+    checked: `reads` and `lists` imply `readonly`; `puts` and `deletes`
+    imply `idempotent`; writing the implied keyword is allowed and
+    redundant. `updates` implies nothing about repeating and cannot be
+    `readonly`: Smithy's lifecycle requires idempotency of put and delete
+    only, and a real update is often not safe to repeat (Pigeon's
+    `UpdateTemplate` creates a new version per call), so an update that is
+    idempotent says `idempotent`, and one served by PUT must (decision 26).
+    The role fixes which identifiers the input must bind:
     instance roles (`reads`, `updates`, `deletes`, `puts`, `on`) bind every
     identifier including inherited ones; collection roles (`creates`,
     `lists`, `on .. collection`) bind only the parent's, and `creates`

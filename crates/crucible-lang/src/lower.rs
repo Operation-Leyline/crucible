@@ -654,10 +654,17 @@ impl<'a> Lowerer<'a> {
                 operation.name.span,
                 format!("`{role}` implies `readonly`; the operation is not also `idempotent`"),
             ),
-            "puts" | "updates" | "deletes" if modifiers.contains("readonly") => self.error(
+            "puts" | "deletes" if modifiers.contains("readonly") => self.error(
                 file,
                 operation.name.span,
                 format!("`{role}` implies `idempotent`; the operation is not also `readonly`"),
+            ),
+            // Smithy's update lifecycle forbids `readonly` too, though it
+            // implies no idempotency.
+            "updates" if modifiers.contains("readonly") => self.error(
+                file,
+                operation.name.span,
+                "`updates` changes the resource; the operation is not `readonly`",
             ),
             _ => {}
         }
@@ -3317,9 +3324,12 @@ impl<'a> Lowerer<'a> {
             .find(|m| m.traits.contains_key(&smithy("idempotencyToken")))
             .map(|m| m.name.clone());
         let readonly = modifiers.contains("readonly") || matches!(role, Some("reads" | "lists"));
+        // `updates` implies nothing about repeating: Smithy's update lifecycle
+        // does not require idempotency, and an update that, say, appends a
+        // version is not safe to retry. It says `idempotent` when it is.
         let idempotent = !readonly
             && (modifiers.contains("idempotent")
-                || matches!(role, Some("puts" | "updates" | "deletes"))
+                || matches!(role, Some("puts" | "deletes"))
                 || idempotency_token.is_some());
         if readonly && modifiers.contains("idempotent") {
             self.error(
