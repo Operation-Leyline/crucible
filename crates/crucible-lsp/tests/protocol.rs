@@ -13,11 +13,37 @@ struct Client {
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     next_id: i64,
+    /// What the server said it can do.
+    capabilities: Value,
 }
 
 impl Client {
     fn start() -> Self {
         Self::start_with(json!({ "capabilities": {} }))
+    }
+
+    /// Workspace symbol names for `query`, asked again until `done` holds
+    /// or a few seconds pass: packages compile in the background.
+    fn symbols_eventually(
+        &mut self,
+        query: &str,
+        done: impl Fn(&Vec<String>) -> bool,
+    ) -> Vec<String> {
+        let mut names = Vec::new();
+        for _ in 0..100 {
+            let symbols = self.request("workspace/symbol", json!({ "query": query }));
+            names = symbols
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|symbol| symbol["name"].as_str().unwrap().to_owned())
+                .collect();
+            if done(&names) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        names
     }
 
     fn start_with(params: Value) -> Self {
@@ -33,8 +59,10 @@ impl Client {
             stdin,
             stdout,
             next_id: 0,
+            capabilities: Value::Null,
         };
         let capabilities = client.request("initialize", params);
+        client.capabilities = capabilities["capabilities"].clone();
         assert!(capabilities["capabilities"]["semanticTokensProvider"].is_object());
         client.notify("initialized", json!({}));
         client
@@ -497,16 +525,10 @@ fn the_workspace_is_compiled_and_changes_on_disk_are_seen() {
     assert_eq!(watchers["method"], "workspace/didChangeWatchedFiles");
     client.send(json!({ "jsonrpc": "2.0", "id": registration["id"], "result": null }));
 
-    // Nothing is open, yet the package's declarations are found.
-    let symbols = client.request("workspace/symbol", json!({ "query": "itemid" }));
-    assert!(
-        symbols
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|s| s["name"] == "ItemId"),
-        "{symbols}"
-    );
+    // Nothing is open, yet the package's declarations are found once the
+    // background search has compiled it.
+    let names = client.symbols_eventually("itemid", |names| names.contains(&"ItemId".to_owned()));
+    assert!(names.contains(&"ItemId".to_owned()), "{names:?}");
 
     let service = uri(&dir.join("service.cru"));
     client.open(&service, SERVICE);
@@ -557,7 +579,13 @@ fn hints_lenses_links_and_signatures() {
     package(&dir);
     std::fs::write(dir.join("shop.cru"), SHOP).unwrap();
     let shop = uri(&dir.join("shop.cru"));
-    let mut client = Client::start();
+    // Usage lenses are for clients that run their command.
+    assert!(Client::start().capabilities["codeLensProvider"].is_null());
+    let mut client = Client::start_with(json!({
+        "capabilities": {},
+        "initializationOptions": { "showReferences": true },
+    }));
+    assert!(client.capabilities["codeLensProvider"].is_object());
     client.open(&shop, SHOP);
     client.diagnostics(&shop);
     let document = json!({ "uri": shop });
@@ -624,7 +652,7 @@ fn hints_lenses_links_and_signatures() {
         json!({ "textDocument": document, "position": at }),
     );
     assert_eq!(
-        help["signatures"][0]["label"], "@since(version: string)",
+        help["signatures"][0]["label"], "@since(\"version\")",
         "{help}"
     );
 
@@ -783,5 +811,160 @@ fn breaking_changes_against_the_baseline_show_as_you_type() {
             .starts_with("breaking change since 1:")
     );
     assert_eq!(breaking["range"]["start"], position(&moved, "GetItem {", 0));
+    client.stop();
+}
+
+#[test]
+fn nested_and_deleted_packages_stay_current() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-nested");
+    let _ = std::fs::remove_dir_all(&root);
+    let inner = root.join("inner");
+    std::fs::create_dir_all(&inner).unwrap();
+    std::fs::write(
+        root.join("crucible.toml"),
+        "[model]\nnamespace = \"example.outer\"\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("a.cru"), "structure Outer {}\n").unwrap();
+    std::fs::write(
+        inner.join("crucible.toml"),
+        "[model]\nnamespace = \"example.inner\"\n",
+    )
+    .unwrap();
+    std::fs::write(inner.join("b.cru"), "structure Inner {}\n").unwrap();
+    let mut client = Client::start_with(json!({
+        "rootUri": uri(&root),
+        "capabilities": { "workspace": { "didChangeWatchedFiles": { "dynamicRegistration": true } } },
+    }));
+    // A nested package is its own: the outer one does not compile its files.
+    let inner_names = client.symbols_eventually("inner", |names| !names.is_empty());
+    assert_eq!(inner_names, ["Inner"], "{inner_names:?}");
+
+    // A file changes on disk: the old name goes.
+    std::fs::write(inner.join("b.cru"), "structure Renamed {}\n").unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&inner.join("b.cru")), "type": 2 }] }),
+    );
+    let renamed = client.symbols_eventually("renamed", |names| !names.is_empty());
+    assert_eq!(renamed, ["Renamed"]);
+    assert!(client.symbols_eventually("inner", Vec::is_empty).is_empty());
+
+    // The inner package's directory goes: so do its declarations, everywhere.
+    std::fs::remove_dir_all(&inner).unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&inner), "type": 3 }] }),
+    );
+    let gone = client.symbols_eventually("renamed", Vec::is_empty);
+    assert!(gone.is_empty(), "{gone:?}");
+    assert_eq!(
+        client.symbols_eventually("outer", |n| !n.is_empty()),
+        ["Outer"]
+    );
+    client.stop();
+}
+
+/// The namespace each workspace symbol named `name` comes from.
+fn containers(client: &mut Client, name: &str) -> Vec<String> {
+    let symbols = client.request("workspace/symbol", json!({ "query": name }));
+    let mut out: Vec<String> = symbols
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|symbol| symbol["name"] == name)
+        .map(|symbol| symbol["containerName"].as_str().unwrap().to_owned())
+        .collect();
+    out.sort();
+    out
+}
+
+fn eventually(client: &mut Client, name: &str, want: &[&str]) -> Vec<String> {
+    let mut got = Vec::new();
+    for _ in 0..100 {
+        got = containers(client, name);
+        if got == want {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    got
+}
+
+#[test]
+fn a_nested_manifest_changes_what_the_outer_package_compiles() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-nested-manifest");
+    let _ = std::fs::remove_dir_all(&root);
+    let inner = root.join("inner");
+    std::fs::create_dir_all(&inner).unwrap();
+    std::fs::write(
+        root.join("crucible.toml"),
+        "[model]\nnamespace = \"example.outer\"\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("a.cru"), "structure Outer {}\n").unwrap();
+    std::fs::write(inner.join("b.cru"), "structure Inner {}\n").unwrap();
+    let mut client = Client::start_with(json!({
+        "rootUri": uri(&root),
+        "capabilities": { "workspace": { "didChangeWatchedFiles": { "dynamicRegistration": true } } },
+    }));
+    // Without its own manifest, `inner/` is part of the outer package.
+    assert_eq!(
+        eventually(&mut client, "Inner", &["example.outer"]),
+        ["example.outer"]
+    );
+
+    // Its manifest appears: the outer package lets go of it.
+    let manifest = inner.join("crucible.toml");
+    std::fs::write(&manifest, "[model]\nnamespace = \"example.inner\"\n").unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&manifest), "type": 1 }] }),
+    );
+    assert_eq!(
+        eventually(&mut client, "Inner", &["example.inner"]),
+        ["example.inner"]
+    );
+
+    // And goes again: the outer package takes it back.
+    std::fs::remove_file(&manifest).unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&manifest), "type": 3 }] }),
+    );
+    assert_eq!(
+        eventually(&mut client, "Inner", &["example.outer"]),
+        ["example.outer"]
+    );
+    client.stop();
+}
+
+#[test]
+fn a_package_discovery_finds_is_one_whose_changes_are_seen() {
+    // Discovery compares directory names as spelled, so it searches `Build`
+    // on every file system; the watcher must not ignore it either.
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-cased");
+    let _ = std::fs::remove_dir_all(&root);
+    let dir = root.join("Build").join("api");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("crucible.toml"),
+        "[model]\nnamespace = \"example.cased\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("a.cru"), "structure First {}\n").unwrap();
+    let mut client = Client::start_with(json!({
+        "rootUri": uri(&root),
+        "capabilities": { "workspace": { "didChangeWatchedFiles": { "dynamicRegistration": true } } },
+    }));
+    let first = client.symbols_eventually("first", |names| !names.is_empty());
+    assert_eq!(first, ["First"]);
+    std::fs::write(dir.join("a.cru"), "structure Second {}\n").unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&dir.join("a.cru")), "type": 2 }] }),
+    );
+    let second = client.symbols_eventually("second", |names| !names.is_empty());
+    assert_eq!(second, ["Second"]);
     client.stop();
 }

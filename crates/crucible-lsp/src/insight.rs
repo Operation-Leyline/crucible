@@ -122,7 +122,17 @@ pub fn inlay_hints(parsed: &Parsed, package: &[Parsed], start: u32, end: u32) ->
             if let MemberKind::Elided { name, alias, .. } = &member.kind
                 && let Some(ty) = entry_type(&resources, resource, &name.name)
             {
-                let at = alias.as_ref().unwrap_or(name).span.end;
+                // After a `?`, so `$size?: integer` reads as a member does.
+                let end = alias.as_ref().unwrap_or(name).span.end;
+                // Tokens are in source order: start at the name's end.
+                let from = parsed
+                    .tokens
+                    .partition_point(|token| token.span.start < end);
+                let at = parsed.tokens[from..]
+                    .iter()
+                    .find(|token| !token.kind.is_trivia())
+                    .filter(|token| token.kind == TokenKind::Question)
+                    .map_or(end, |question| question.span.end);
                 out.push(Hint {
                     offset: at,
                     label: format!(": {}", ty.name),
@@ -241,13 +251,15 @@ pub struct Signature {
 }
 
 /// The built-in annotations and clauses that take arguments: name, the
-/// parameters, what it does. Named parameters are written `name:`; the
-/// compiler's checks in `lower.rs` are the source of these.
+/// parameters, what it does. A parameter shown as `key: type` is written
+/// with its key; one shown as a quoted placeholder is a single positional
+/// string. The compiler's checks in `lower.rs` are the source of these; a
+/// test compiles the positional forms exactly as shown.
 const SIGNATURES: &[(&str, bool, &[&str], &str)] = &[
     (
         "since",
         true,
-        &["version: string"],
+        &["\"version\""],
         "The version that added it.",
     ),
     (
@@ -265,15 +277,10 @@ const SIGNATURES: &[(&str, bool, &[&str], &str)] = &[
     (
         "query",
         true,
-        &["name?: string"],
-        "Bound to a query parameter, by default named after the member.",
+        &["\"name\""],
+        "Bound to a query parameter. The name is optional: `@query` alone uses the member's.",
     ),
-    (
-        "header",
-        true,
-        &["name: string"],
-        "Bound to an HTTP header.",
-    ),
+    ("header", true, &["\"X-Name\""], "Bound to an HTTP header."),
     (
         "mutability",
         true,
@@ -461,7 +468,7 @@ enum Level: integer { LOW = 1 }
             Some(": string")
         );
         assert_eq!(
-            label_at(&hints, SOURCE, "$size").as_deref(),
+            label_at(&hints, SOURCE, "$size?").as_deref(),
             Some(": integer")
         );
         assert_eq!(
@@ -532,7 +539,7 @@ enum Level: integer { LOW = 1 }
     #[test]
     fn signatures_follow_the_argument_being_written() {
         let since = signature("@since(|").unwrap();
-        assert_eq!(since.label, "@since(version: string)");
+        assert_eq!(since.label, "@since(\"version\")");
         assert_eq!(since.active, 0);
         let deprecated = signature("@deprecated(message: \"x\", |").unwrap();
         assert_eq!(deprecated.active, 1);
@@ -545,6 +552,42 @@ enum Level: integer { LOW = 1 }
         assert_eq!(signature("@unknown(|"), None);
         // `paginated` is a clause, not an annotation.
         assert_eq!(signature("@paginated(|"), None);
+        // A positional string has no key to match.
+        assert_eq!(signature("@header(|").unwrap().label, "@header(\"X-Name\")");
+    }
+
+    #[test]
+    fn the_positional_forms_signature_help_shows_compile() {
+        // Each label is written exactly as the user would type it.
+        let label = |name: &str| signature(&format!("@{name}(|")).unwrap().label;
+        let source = format!(
+            "operation GetThing {{\n    http GET \"/things/{{id}}\"\n    input {{\n        {} id: string\n        {} q?: string\n        {} h?: string\n    }}\n}}\n",
+            label("since"),
+            label("query"),
+            label("header"),
+        );
+        let package = crucible_lang::Package::new(
+            "example.signatures",
+            vec![crucible_lang::SourceFile {
+                path: "a.cru".into(),
+                text: source.clone(),
+            }],
+        );
+        let compiled = crucible_lang::compile(&package, None);
+        let annotation_errors: Vec<&str> = compiled
+            .diagnostics
+            .iter()
+            .map(|item| item.diagnostic.message.as_str())
+            .filter(|message| {
+                ["@since", "@query", "@header"]
+                    .iter()
+                    .any(|a| message.contains(a))
+            })
+            .collect();
+        assert!(
+            annotation_errors.is_empty(),
+            "{source}\n{annotation_errors:?}"
+        );
     }
 
     #[test]

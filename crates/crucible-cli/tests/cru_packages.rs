@@ -68,7 +68,20 @@ fn a_package_that_does_not_compile_lists_its_problems() {
         "--protocol",
         "aws.protocols#restJson1",
     ]);
-    assert!(String::from_utf8_lossy(&protocol.stderr).contains("--protocol cannot select"));
+    assert!(String::from_utf8_lossy(&protocol.stderr).contains("cannot be selected"));
+    // Naming the protocol a package declares is harmless, as in crucible_build:
+    // the check gets past it to the package's own problem.
+    let declared = crucible(&[
+        "check",
+        dir.to_str().unwrap(),
+        "--protocol",
+        "crucible.protocols#json",
+    ]);
+    let stderr = String::from_utf8_lossy(&declared.stderr);
+    assert!(
+        !stderr.contains("cannot be selected") && stderr.contains("Missing"),
+        "{stderr}"
+    );
 }
 
 #[test]

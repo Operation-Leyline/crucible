@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     connection.initialize_finish(
         id,
         json!({
-            "capabilities": server::capabilities(),
+            "capabilities": server::capabilities(&params),
             "serverInfo": { "name": "crucible-lsp", "version": env!("CARGO_PKG_VERSION") },
         }),
     )?;
