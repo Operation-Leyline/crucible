@@ -349,7 +349,13 @@ trait when a project defines it.
     id` binds under a different member name. Every member written in full
     (`nextToken?: NextToken`) is a plain input member and nothing more. A
     full member whose name equals a property or identifier is a warning
-    ("did you mean `$name`?"), never an implicit binding. *Replaces:*
+    ("did you mean `$name`?"), never an implicit binding. The warning is
+    only for a member `$name` could replace: not one of another type than
+    the entry (Pigeon's `SendMessage` takes `to: RecipientList` where the
+    `Message` property is `to: AddressList`), and not an identifier of the
+    resource itself in a collection operation's input, which decision 32
+    forbids binding (a `ListGrants` that filters on `principalType`).
+    *Replaces:*
     `@notProperty` (323 uses), `@resourceIdentifier` (32 uses),
     `@property`, and Smithy's rule that every top-level member must bind or
     be excluded. *Why:* binding is positive and visible at the member;
@@ -514,6 +520,27 @@ trait when a project defines it.
     `@notProperty` workaround that decision 31 removes. Inclusion is
     flattened by the compiler and never reaches the IR, like
     `flattenAndRemoveMixins` today.
+
+    Members are copied with their own docs and annotations, but the
+    included structure's documentation is not: it describes the bundle,
+    not the structure that includes it. Smithy's mixin flattening copies a
+    mixin's doc onto every user unless the user has its own, which is
+    usually wrong there and is a deliberate difference (decision 63).
+
+    HTTP bindings and `@token` on an included member are checked where the
+    member lands. A structure nothing uses as a member's type (or as a list
+    or map member, a metadata value or a resource entry's type) is a bundle
+    of members, not a nested shape, so its `@query`, `@header`, `@payload`
+    and `@token` members are not judged on the structure alone: included
+    into an operation input they bind there, which is how shared parameters
+    such as `PaginationInput { @query nextToken?: string; @query limit?:
+    integer }` are written. Where a binding lands with no place for it (a
+    `@query` included into an output or error, any binding included into
+    a structure that is used as a type, or in a structure used as a
+    member's type itself) it would be ignored, and it is an error at the
+    member, naming the structure that included it. *Why:* Pigeon shares
+    its pagination parameters across list operations this way; Smithy
+    allows it through mixins.
 
 ## Documentation
 

@@ -54,6 +54,8 @@ pub(crate) fn lower(
         requirements: BTreeSet::new(),
         http_inputs: BTreeSet::new(),
         http_outputs: BTreeSet::new(),
+        unplaced: BTreeMap::new(),
+        named_types: BTreeSet::new(),
     };
     lowerer.collect(parsed, namespaces);
     lowerer.check_resources();
@@ -92,6 +94,13 @@ struct MemberContext<'a> {
     labels: &'a [String],
     /// Where the members travel, which decides the bindings they may carry.
     site: Site,
+    /// The members come from an `include`, so a misplaced binding is the
+    /// includer's doing as much as the member's.
+    included: bool,
+    /// The input of a collection operation (`creates`, `lists`,
+    /// `on .. collection`), which cannot bind the resource's own
+    /// identifiers (decision 32).
+    collection: bool,
 }
 
 /// What a structure is on the wire.
@@ -100,8 +109,14 @@ enum Site {
     Input,
     Output,
     Error,
-    /// Any other structure or union: nested in a body, so never bound.
+    /// A union: nested in a body, so never bound.
     Nested,
+    /// A declared structure. Where a member uses it as its type it is nested
+    /// and never bound; where it is only included, its members land in the
+    /// includer and their bindings are judged there (decision 40). Which of
+    /// the two it is is known only once the whole package is lowered, so
+    /// its binding problems wait in `Lowerer::unplaced` until then.
+    Structure,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -275,6 +290,12 @@ struct Lowerer<'a> {
     requirements: BTreeSet<FeatureUse>,
     http_inputs: BTreeSet<ShapeId>,
     http_outputs: BTreeSet<ShapeId>,
+    /// Binding problems found in declared structures, by structure: reported
+    /// only for a structure something uses as a type (`Site::Structure`).
+    unplaced: BTreeMap<ShapeId, Vec<FileDiagnostic>>,
+    /// Types named outside any shape's members: metadata value types and
+    /// resource identifier and property types.
+    named_types: BTreeSet<ShapeId>,
 }
 
 impl<'a> Lowerer<'a> {
@@ -548,6 +569,7 @@ impl<'a> Lowerer<'a> {
                 let Some(target) = self.resolve_type(file, &entry.ty.name) else {
                     continue;
                 };
+                self.named_types.insert(target.clone());
                 if entry.kind == ResourceEntryKind::Id {
                     let text = target == smithy("String")
                         || match self.decl(target.name()).map(|d| &d.item.decl) {
@@ -717,6 +739,18 @@ impl<'a> Lowerer<'a> {
     }
 
     // ---- names and values --------------------------------------------------
+
+    /// The type a name refers to, if it is one; [`Self::resolve_type`] reports
+    /// when it is not, this does not.
+    fn type_id(&self, name: &str) -> Option<ShapeId> {
+        match prelude(name) {
+            Some((prelude, _)) => Some(smithy(prelude)),
+            None => self
+                .decl(name)
+                .filter(|decl| is_type(&decl.item.decl))
+                .map(|_| self.ref_id(name)),
+        }
+    }
 
     fn resolve_type(&mut self, file: usize, name: &Ident) -> Option<ShapeId> {
         if let Some((prelude, _)) = prelude(&name.name) {
@@ -1157,6 +1191,7 @@ impl<'a> Lowerer<'a> {
                     if prelude(&ty.name.name).is_some() {
                         self.check_constraints(file, &ty.constraints, on, true);
                     }
+                    self.named_types.insert(id.clone());
                     types.push(id);
                 }
                 None => {}
@@ -1167,10 +1202,12 @@ impl<'a> Lowerer<'a> {
         // declared, and a type used only by metadata adds no requirement.
         let requirements = self.requirements.clone();
         let reported = self.diagnostics.len();
+        let unplaced = std::mem::take(&mut self.unplaced);
         for id in types {
             self.visit(&id);
         }
         self.diagnostics.truncate(reported);
+        self.unplaced = unplaced;
         self.requirements = requirements;
         self.recursive.clear();
         self.meta_shapes = std::mem::take(&mut self.shapes);
@@ -1595,12 +1632,20 @@ impl<'a> Lowerer<'a> {
                 format!("`{name}` is bound once: `@{first}` and `@{second}` cannot both apply"),
             );
         }
+        let ignored = if context.included {
+            format!(
+                "`{}` includes it, where it would be ignored",
+                context.owner.name()
+            )
+        } else {
+            "here it would be ignored".to_owned()
+        };
         for binding in &bindings {
             let allowed = match (context.site, *binding) {
                 (Site::Input, _) => true,
                 (Site::Output | Site::Error, "query") => false,
                 (Site::Output | Site::Error, _) => true,
-                (Site::Nested, _) => false,
+                (Site::Nested | Site::Structure, _) => false,
             };
             if !allowed {
                 let place = if *binding == "query" {
@@ -1608,19 +1653,21 @@ impl<'a> Lowerer<'a> {
                 } else {
                     "an operation input, output or error"
                 };
-                self.error(
+                self.misplaced(
                     file,
                     at(binding),
-                    format!("`@{binding}` binds a member of {place}; here it would be ignored"),
+                    format!("`@{binding}` binds a member of {place}; {ignored}"),
+                    context,
                 );
             }
         }
         if annotations.token {
             if context.site != Site::Input {
-                self.error(
+                self.misplaced(
                     file,
                     at("token"),
-                    "`@token` marks an operation input member; here it would be ignored",
+                    format!("`@token` marks an operation input member; {ignored}"),
+                    context,
                 );
             }
             if required {
@@ -1632,6 +1679,53 @@ impl<'a> Lowerer<'a> {
             }
             if self.on_shape(target) != On::Text {
                 self.error(file, name_span, "an idempotency token is a string");
+            }
+        }
+    }
+
+    /// A binding where its part of the message does not exist. In a declared
+    /// structure it waits until the package is lowered: it is an error only if
+    /// something uses the structure as a type (`Site::Structure`).
+    fn misplaced(&mut self, file: usize, span: Span, message: String, context: MemberContext<'_>) {
+        let problem = FileDiagnostic {
+            file: Some(file),
+            diagnostic: Diagnostic::new(span, message),
+        };
+        if context.site == Site::Structure {
+            self.unplaced
+                .entry(context.owner.clone())
+                .or_default()
+                .push(problem);
+        } else {
+            self.diagnostics.push(problem);
+        }
+    }
+
+    /// Reports the binding problems of the declared structures something
+    /// uses as a type: a member's, a collection's, a metadata value's or a
+    /// resource entry's. A structure nothing uses that way is a bundle of
+    /// members for `include`, and its bindings were judged where it was
+    /// included (decision 40).
+    fn report_unplaced(&mut self) {
+        let mut used = std::mem::take(&mut self.named_types);
+        for shape in self.shapes.values().chain(self.meta_shapes.values()) {
+            match shape {
+                Shape::Structure(s) | Shape::Union(s) => {
+                    used.extend(s.members.iter().map(|m| m.target.clone()));
+                }
+                Shape::List(list) => {
+                    used.insert(list.member.target.clone());
+                }
+                Shape::Map(map) => {
+                    used.insert(map.key.target.clone());
+                    used.insert(map.value.target.clone());
+                }
+                _ => {}
+            }
+        }
+        for (owner, problems) in std::mem::take(&mut self.unplaced) {
+            if used.contains(&owner) {
+                self.diagnostics.extend(problems);
             }
         }
     }
@@ -1913,7 +2007,9 @@ impl<'a> Lowerer<'a> {
                     resource,
                     union: false,
                     labels: &[],
-                    site: Site::Nested,
+                    site: Site::Structure,
+                    included: false,
+                    collection: false,
                 };
                 let members = self.members(file, &structure.members, context);
                 Shape::Structure(IrStructure {
@@ -1938,6 +2034,8 @@ impl<'a> Lowerer<'a> {
                     union: true,
                     labels: &[],
                     site: Site::Nested,
+                    included: false,
+                    collection: false,
                 };
                 let members = self.members(file, &union.members, context);
                 Shape::Union(IrStructure {
@@ -2021,6 +2119,8 @@ impl<'a> Lowerer<'a> {
                     union: false,
                     labels: &[],
                     site: Site::Error,
+                    included: false,
+                    collection: false,
                 };
                 let members = self.members(file, &members, context);
                 let info = self.error_info(id, &members, fault, status, retryable);
@@ -2152,25 +2252,21 @@ impl<'a> Lowerer<'a> {
                 );
             }
         }
-        let resource = source
-            .operation
-            .attachment
-            .as_ref()
-            .map(|a| a.resource.name.as_str());
-        let labels: &[String] = if source.body.kind == BodyKind::Input {
-            &source.labels
-        } else {
-            &[]
-        };
+        let attachment = source.operation.attachment.as_ref();
+        let resource = attachment.map(|a| a.resource.name.as_str());
+        let input = source.body.kind == BodyKind::Input;
+        let labels: &[String] = if input { &source.labels } else { &[] };
         let context = MemberContext {
             owner: id,
             resource,
             union: false,
             labels,
-            site: match source.body.kind {
-                BodyKind::Input => Site::Input,
-                BodyKind::Output => Site::Output,
-            },
+            site: if input { Site::Input } else { Site::Output },
+            included: false,
+            collection: input
+                && attachment.is_some_and(|a| {
+                    a.collection || matches!(a.role.name.as_str(), "creates" | "lists")
+                }),
         };
         let members = self.members(file, &source.body.members, context);
         let docs = self.doc(file, source.body.doc.as_ref());
@@ -2314,13 +2410,13 @@ impl<'a> Lowerer<'a> {
                 including.push(name.name.clone());
                 let at = at.or(Some((file, name.span)));
                 // An included `for Resource` structure elides against its own
-                // resource, wherever it is included.
+                // resource, wherever it is included; the including operation's
+                // collection role does not carry over to that resource.
+                let own = structure.resource.as_ref().map(|r| r.name.as_str());
                 let context = MemberContext {
-                    resource: structure
-                        .resource
-                        .as_ref()
-                        .map(|r| r.name.as_str())
-                        .or(context.resource),
+                    resource: own.or(context.resource),
+                    included: true,
+                    collection: context.collection && own.is_none(),
                     ..context
                 };
                 self.members_into(
@@ -2487,10 +2583,15 @@ impl<'a> Lowerer<'a> {
                 format!("a member name is an identifier: `{name}` cannot contain `-`"),
             );
         }
-        // Decision 33: a member binds a resource entry only by elision.
+        // Decision 33: a member binds a resource entry only by elision. The
+        // hint is only for a member that `$name` could replace: one of the
+        // entry's type, and not an identifier a collection operation may not
+        // bind (decision 32), where `$name` would be an error.
         if matches!(member.kind, MemberKind::Field { .. })
             && let Some(resource) = context.resource
-            && self.resource_entry(resource, &name).is_some()
+            && let Some((_, entry)) = self.resource_entry(resource, &name)
+            && self.type_id(&entry.ty.name.name).as_ref() == Some(&target)
+            && !(context.collection && self.identifiers(resource).1.contains(&name))
         {
             self.warning(
                 file,
@@ -3467,6 +3568,7 @@ impl<'a> Lowerer<'a> {
         let Some(decl) = chosen else {
             // Still check every declaration, so one run lists every problem.
             self.check_unreached(&BTreeSet::new(), &[], &JsonMap::new(), &[]);
+            self.report_unplaced();
             self.shapes.clear();
             return None;
         };
@@ -3776,6 +3878,8 @@ impl<'a> Lowerer<'a> {
         // its errors, default pagination and auth, and the shared rules.
         let errors = service.errors.clone();
         let unreached = self.check_unreached(&included, &errors, &pagination, &auth);
+        // Every structure is lowered now, so which are used as types is known.
+        self.report_unplaced();
         let mut probe = service.clone();
         probe.operations = unreached;
         probe.shapes = std::mem::take(&mut self.shapes);
