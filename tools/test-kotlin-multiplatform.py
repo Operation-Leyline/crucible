@@ -122,11 +122,11 @@ def qualify(output, native=False):
     # Six publications and the consumer share a warm JVM on the isolated CI host.
     # Kotlin/Native compiles and links inside that daemon: Gradle's default
     # 512 MiB heap runs out linking the Windows test executable from a cold
-    # cache. The Kotlin compile daemon would inherit the same limits, so it is
-    # capped lower: both share a 7-8 GB runner.
+    # cache. The Kotlin compile daemon would inherit the same limits, so its
+    # heap and metaspace are capped lower: both share a 7-8 GB runner.
     gradle = [executable, "--daemon", "--console=plain", "--max-workers=2", "--build-cache",
-              "-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g",
-              "-Pkotlin.daemon.jvmargs=-Xmx1536m"]
+              "-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m",
+              "-Pkotlin.daemon.jvmargs=-Xmx1536m -XX:MaxMetaspaceSize=512m"]
     if not native:
         gradle.append("-Pcrucible.native=false")
     targets = ["Jvm", "Js", "KotlinMultiplatform"]
