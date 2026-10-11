@@ -131,7 +131,6 @@ version's section when it is prepared.
   every step must match a change that happened (`crucible_lang::guard`).
   Builds, the CLI and `crucible-lsp` share the check; the editor shows an
   undeclared change where it was made and a mismatched step at the step.
-  Hooks are recorded, not yet generated.
 - `crucible check` and `crucible generate` accept a `.cru` package directory
   as the model, compiled without Smithy or a JVM, as `crucible_build` does.
 - `crucible_lang::format`, a conservative `.cru` formatter: indentation by
@@ -243,6 +242,19 @@ version's section when it is prepared.
   parser recovers from unclosed brackets and deep nesting without layout
   rules. `[model.dependencies]` and `[model.baseline]` are reported as not
   supported yet.
+- `crucible-lang`: an `updates` operation is no longer implied `idempotent`
+  (decision 32). Smithy's update lifecycle does not require it, and an
+  update that, say, creates a version per call is not safe to retry. Write
+  `idempotent operation .. updates ..` where it is; an `updates` on PUT
+  without it is now the PUT method error. The language is not yet a
+  supported surface, so there is no shim.
+- `crucible-lang`: a structure with `@query`, `@header`, `@payload` or
+  `@token` members can be `include`d into operation inputs (decision 40);
+  its bindings are checked where it is included or used as a type, not on
+  the structure alone. The "did you mean `$name`?" warning no longer fires
+  for a member of another type than the resource entry, or for a child
+  identifier a collection operation may not bind (decision 33). Package
+  file paths drop the `.` of `sources = ["."]`.
 - The server serves HTTP on hyper directly and dispatches with fewer
   allocations; `Crucible` implements `tower::Service`, `into_router()` still
   returns an Axum `Router`, and `host::http_on_until` accepts a caller's

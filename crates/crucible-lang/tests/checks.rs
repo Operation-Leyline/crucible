@@ -130,7 +130,7 @@ fn annotations_must_be_declared_and_placed_correctly() {
     );
     assert_mentions(&m, "`@tier` applies to operation, not to a member");
     // A binding outside an input, output or error would be silently ignored.
-    let m = messages("structure Note { @query text: string }");
+    let m = messages("structure Note { @query text: string }\nstructure Uses { note: Note }");
     assert_mentions(&m, "`@query` binds a member of an operation input");
 }
 
@@ -177,6 +177,101 @@ fn includes_copy_members() {
     );
     let m = messages("structure Loop { include Loop }");
     assert_mentions(&m, "`Loop` includes itself");
+}
+
+/// Compiles `extra` beside the base model.
+fn compiled(extra: &str) -> crucible_lang::Compiled {
+    compile(
+        &Package::new(
+            "example.shop",
+            vec![SourceFile {
+                path: "shop.cru".to_owned(),
+                text: format!("{SERVICE}\n{extra}"),
+            }],
+        ),
+        None,
+    )
+}
+
+/// The operation `name` of a model that compiled without an error.
+fn operation(compiled: &crucible_lang::Compiled, name: &str) -> crucible_smithy::ir::Operation {
+    let service = compiled.service.as_ref().unwrap_or_else(|| {
+        panic!("no service: {}", compiled.render());
+    });
+    service
+        .operations
+        .iter()
+        .find(|operation| operation.id.name() == name)
+        .unwrap_or_else(|| panic!("no operation {name}"))
+        .clone()
+}
+
+/// Shared HTTP parameters, as a bundle of members for `include`.
+const PAGING: &str =
+    "structure Paging {\n    @query nextToken?: string\n    @query(\"max\") limit?: integer\n}\n";
+
+/// Shared idempotency token.
+const RETRY: &str = "structure Retry { @token clientToken?: string }\n";
+
+#[test]
+fn an_included_structure_binds_where_it_is_included() {
+    // Included into an input, the bindings apply there, and the structure is
+    // not also judged as a nested type nobody uses.
+    let model = compiled(&format!(
+        "{PAGING}operation ListOrders lists Order {{\n    http GET \"/orders\"\n    input {{ include Paging }}\n}}"
+    ));
+    assert_eq!(model.render(), "");
+    let list = operation(&model, "ListOrders");
+    let query: Vec<(&str, &str)> = list
+        .request
+        .query
+        .iter()
+        .map(|b| (b.member.as_str(), b.name.as_str()))
+        .collect();
+    assert_eq!(query, [("nextToken", "nextToken"), ("limit", "max")]);
+    // Nothing uses it yet: its bindings are judged where it is first used.
+    assert_eq!(messages(PAGING), Vec::<String>::new());
+    // A bundle that includes another, itself only included, is still one.
+    let m = messages(&format!(
+        "{PAGING}structure Listing {{\n    include Paging\n    @query filter?: string\n}}\nreadonly operation ListAll {{\n    http GET \"/all\"\n    input {{ include Listing }}\n}}"
+    ));
+    assert_eq!(m, Vec::<String>::new());
+    // A token travels the same way, and makes the operation idempotent.
+    let model = compiled(&format!(
+        "{RETRY}operation Touch on Order {{\n    http POST \"/orders/{{orderId}}/touch\"\n    input {{\n        $orderId\n        include Retry\n    }}\n}}"
+    ));
+    assert_eq!(model.render(), "");
+    let touch = operation(&model, "Touch");
+    assert!(touch.idempotent);
+    assert_eq!(touch.idempotency_token.as_deref(), Some("clientToken"));
+}
+
+#[test]
+fn an_included_binding_is_still_checked_where_it_lands() {
+    // Used as a member's type, the structure is nested: reported once per
+    // binding, not once per use.
+    let m = messages(&format!(
+        "{PAGING}structure Page {{ paging: Paging }}\nstructure Other {{ paging?: Paging }}"
+    ));
+    let nested = "`@query` binds a member of an operation input; here it would be ignored";
+    assert_eq!(m.iter().filter(|x| x.contains(nested)).count(), 2, "{m:?}");
+    // Included into an output, or into a structure used as a type.
+    let m = messages(&format!(
+        "{PAGING}readonly operation Peek {{\n    http GET \"/peek\"\n    output {{ include Paging }}\n}}"
+    ));
+    assert_mentions(&m, "`PeekOutput` includes it, where it would be ignored");
+    let m = messages(&format!(
+        "{PAGING}structure Wrapper {{ include Paging }}\nstructure Uses {{ wrapper: Wrapper }}"
+    ));
+    assert_mentions(&m, "`Wrapper` includes it, where it would be ignored");
+    // A token outside an input, through an error's include.
+    let m = messages(&format!(
+        "{RETRY}error Busy {{\n    status 409\n    include Retry\n}}"
+    ));
+    assert_mentions(
+        &m,
+        "`@token` marks an operation input member; `Busy` includes it",
+    );
 }
 
 /// Compiles `extra` beside the base model and returns (errors, warnings).
@@ -325,6 +420,40 @@ fn roles_are_checked() {
 }
 
 #[test]
+fn updates_implies_no_idempotency() {
+    // Smithy's update lifecycle does not require idempotency, and an update
+    // that appends a version is not safe to repeat.
+    let edit = |modifiers: &str, method: &str| {
+        compiled(&format!(
+            "{modifiers}operation EditOrder updates Order {{\n    http {method} \"/orders/{{orderId}}\"\n    input {{\n        $orderId\n        $note?\n    }}\n}}"
+        ))
+    };
+    let patch = edit("", "PATCH");
+    assert_eq!(patch.render(), "");
+    let lowered = operation(&patch, "EditOrder");
+    assert!(!lowered.idempotent && !lowered.readonly);
+    // Saying so makes it idempotent, which PUT requires.
+    assert!(operation(&edit("idempotent ", "PATCH"), "EditOrder").idempotent);
+    assert!(operation(&edit("idempotent ", "PUT"), "EditOrder").idempotent);
+    assert!(
+        edit("", "PUT")
+            .render()
+            .contains("a PUT operation must be `idempotent`")
+    );
+    // It still changes the resource, so it is never `readonly`.
+    assert!(
+        edit("readonly ", "PATCH")
+            .render()
+            .contains("`updates` changes the resource; the operation is not `readonly`")
+    );
+    // `puts` and `deletes` still imply it.
+    let put = compiled(
+        "operation PutOrder puts Order {\n    http PUT \"/orders/{orderId}\"\n    input { $orderId }\n}",
+    );
+    assert!(operation(&put, "PutOrder").idempotent);
+}
+
+#[test]
 fn resources_are_checked() {
     let m = messages("resource Line in Oops {\n    id lineId: string\n}");
     assert_mentions(&m, "`Oops` is not a resource");
@@ -388,12 +517,39 @@ fn warnings_do_not_withhold_the_service() {
         warnings.iter().any(|w| w.contains("did you mean `$note`")),
         "{warnings:?}"
     );
+    assert_eq!(
+        warnings
+            .iter()
+            .filter(|w| w.contains("did you mean"))
+            .count(),
+        1,
+        "{warnings:?}"
+    );
     assert!(
         warnings
             .iter()
             .any(|w| w.contains("`[Nowhere]` names nothing")),
         "{warnings:?}"
     );
+}
+
+#[test]
+fn did_you_mean_is_only_for_a_member_elision_could_replace() {
+    // A member of another type than the property cannot be `$note`.
+    let (errors, warnings) = split(
+        "operation Annotate on Order {\n    http POST \"/orders/{orderId}/annotate\"\n    input {\n        $orderId\n        note: long\n    }\n}",
+    );
+    assert_eq!(errors, Vec::<String>::new());
+    assert_eq!(warnings, Vec::<String>::new());
+    // A collection operation filtering on a child identifier may not bind
+    // it, so `$lineId` would be an error, not a fix.
+    let (errors, warnings) = split(
+        "resource Line in Order {\n    id lineId: string\n    property qty: long\n}\noperation ListLines lists Line {\n    http GET \"/orders/{orderId}/lines\"\n    input {\n        $orderId\n        @query lineId?: string\n        @query qty?: long\n    }\n}",
+    );
+    assert_eq!(errors, Vec::<String>::new());
+    // A property it may bind still gets the hint.
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("did you mean `$qty`"), "{warnings:?}");
 }
 
 #[test]

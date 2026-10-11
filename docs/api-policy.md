@@ -223,8 +223,8 @@ already existed, or a `remove operation` of an operation that still exists
 is an error at that step. Paths name a shape (`GraphData`), a member
 (`GraphData.storage`), or an operation's input or output
 (`CreateIndex.input.kind`). One release has one migration; older ones stay
-in the sources, for the server that will serve them. Hooks are recorded but
-not generated yet: serving older versions at runtime is a later phase.
+in the sources, for the server that serves them; steps that need code
+generate hooks ([API versions](api-versions.md#hooks)).
 
 When the release ships, freeze it and point `[model.baseline]` at the new
 snapshot; the next release's migration starts from it.

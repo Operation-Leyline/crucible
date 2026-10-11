@@ -252,7 +252,9 @@ trait when a project defines it.
     family the compiler checks the keywords against the method: GET and
     HEAD must be `readonly`, PUT and DELETE must be `idempotent` or
     `readonly`, POST and PATCH may be anything. An input with a `@token`
-    member makes the operation idempotent without the keyword.
+    member makes the operation idempotent without the keyword, and so do
+    the `puts` and `deletes` roles (decision 32); `updates` does not, so an
+    `updates` operation on PUT writes `idempotent`.
     *Replaces:* `@readonly`, `@idempotent`, `@auth([])`, and Smithy's
     `HttpMethodSemantics` validator (which Leyline promotes to an error).
     *Why:* 99, 70 and 5 uses; `@auth` with a non-empty list has no other
@@ -318,6 +320,16 @@ trait when a project defines it.
     every new operation edits two distant files, and Leyline's `Graph`
     would list 13 operations and 4 children in its block.
 
+    *Known limit:* identifiers a collection operation binds come only from
+    a parent (decision 32). Smithy allows a root resource whose own
+    identifiers include its scope's: Pigeon's `Grant` is a root resource
+    identified by `workspaceId`, `principalType` and `principalId`, and
+    `ListGrants` binds `workspaceId` alone. The language cannot say that;
+    the port writes `resource Grant in Workspace`, which makes `Grant` a
+    child in the resource tree where Smithy has it as a root. The contract
+    IR is the same (decision 63: resources are not lowered yet); resource
+    views and infrastructure lowering will see the difference.
+
 32. **An operation attaches itself to a resource with a role verb:
     `creates`, `puts`, `reads`, `updates`, `deletes`, `lists` for the
     lifecycle, `on` for any other instance operation, and `on ... collection`
@@ -325,9 +337,14 @@ trait when a project defines it.
     { .. }`, `operation RevertGraph on Graph { .. }`, `operation
     BatchGetGraph on Graph collection { .. }`. Each lifecycle role may be
     held by one operation per resource. The role implies behaviour and is
-    checked: `reads` and `lists` imply `readonly`; `puts`, `updates` and
-    `deletes` imply `idempotent`; writing the implied keyword is allowed
-    and redundant. The role fixes which identifiers the input must bind:
+    checked: `reads` and `lists` imply `readonly`; `puts` and `deletes`
+    imply `idempotent`; writing the implied keyword is allowed and
+    redundant. `updates` implies nothing about repeating and cannot be
+    `readonly`: Smithy's lifecycle requires idempotency of put and delete
+    only, and a real update is often not safe to repeat (Pigeon's
+    `UpdateTemplate` creates a new version per call), so an update that is
+    idempotent says `idempotent`, and one served by PUT must (decision 26).
+    The role fixes which identifiers the input must bind:
     instance roles (`reads`, `updates`, `deletes`, `puts`, `on`) bind every
     identifier including inherited ones; collection roles (`creates`,
     `lists`, `on .. collection`) bind only the parent's, and `creates`
@@ -349,7 +366,13 @@ trait when a project defines it.
     id` binds under a different member name. Every member written in full
     (`nextToken?: NextToken`) is a plain input member and nothing more. A
     full member whose name equals a property or identifier is a warning
-    ("did you mean `$name`?"), never an implicit binding. *Replaces:*
+    ("did you mean `$name`?"), never an implicit binding. The warning is
+    only for a member `$name` could replace: not one of another type than
+    the entry (Pigeon's `SendMessage` takes `to: RecipientList` where the
+    `Message` property is `to: AddressList`), and not an identifier of the
+    resource itself in a collection operation's input, which decision 32
+    forbids binding (a `ListGrants` that filters on `principalType`).
+    *Replaces:*
     `@notProperty` (323 uses), `@resourceIdentifier` (32 uses),
     `@property`, and Smithy's rule that every top-level member must bind or
     be excluded. *Why:* binding is positive and visible at the member;
@@ -380,7 +403,9 @@ trait when a project defines it.
 
 34b. **`references Resource` on a member or structure is kept.**
     *Replaces:* `@references`. *Why:* Pigeon's `WorkspaceScoped` uses it;
-    infrastructure lowering reads it.
+    infrastructure lowering reads it. *Known limit:* decided but not built:
+    the grammar has no `references` yet, so a port drops it (it changes no
+    wire contract) until infrastructure lowering arrives with it.
 
 ## Protocols, auth and transport
 
@@ -514,6 +539,27 @@ trait when a project defines it.
     `@notProperty` workaround that decision 31 removes. Inclusion is
     flattened by the compiler and never reaches the IR, like
     `flattenAndRemoveMixins` today.
+
+    Members are copied with their own docs and annotations, but the
+    included structure's documentation is not: it describes the bundle,
+    not the structure that includes it. Smithy's mixin flattening copies a
+    mixin's doc onto every user unless the user has its own, which is
+    usually wrong there and is a deliberate difference (decision 63).
+
+    HTTP bindings and `@token` on an included member are checked where the
+    member lands. A structure nothing uses as a member's type (or as a list
+    or map member, a metadata value or a resource entry's type) is a bundle
+    of members, not a nested shape, so its `@query`, `@header`, `@payload`
+    and `@token` members are not judged on the structure alone: included
+    into an operation input they bind there, which is how shared parameters
+    such as `PaginationInput { @query nextToken?: string; @query limit?:
+    integer }` are written. Where a binding lands with no place for it (a
+    `@query` included into an output or error, any binding included into
+    a structure that is used as a type, or in a structure used as a
+    member's type itself) it would be ignored, and it is an error at the
+    member, naming the structure that included it. *Why:* Pigeon shares
+    its pagination parameters across list operations this way; Smithy
+    allows it through mixins.
 
 ## Documentation
 
@@ -932,10 +978,17 @@ these are working choices, changed freely as implementation teaches.
     OpenAPI and docs generators produce byte-identical output from both
     paths; any raw Smithy trait a generator still reads is synthesized by
     the new lowering until that generator reads a typed field instead.
-    Two differences are deliberate and applied before comparing:
-    `client_optional` is always false from `.cru` (decision 20), and raw
-    traits carry project metadata only (decision 62a,
-    `Service::project_metadata_only`).
+    These front-end differences are deliberate, and the comparison applies
+    or avoids them before comparing:
+    - `client_optional` is always false from `.cru` (decision 20);
+    - raw traits carry project metadata only (decision 43; decision 62a,
+      `Service::project_metadata_only`);
+    - `api_version` is the service's `version` from `.cru`, the release its
+      clients send, and absent from Smithy;
+    - a `@token` member makes an operation idempotent without the keyword
+      (decision 26), where Smithy needs `@idempotent` written;
+    - `include` does not copy the included structure's documentation onto
+      the includer (decision 40), where Smithy's mixin flattening does.
     Like Smithy's `lower`, the `.cru` compile produces the contract IR and
     leaves `Service::resources` empty; resource views come with the
     documentation and infrastructure lowerings, which the language does not
