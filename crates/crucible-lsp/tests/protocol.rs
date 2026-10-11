@@ -941,8 +941,8 @@ fn a_nested_manifest_changes_what_the_outer_package_compiles() {
 
 #[test]
 fn a_package_discovery_finds_is_one_whose_changes_are_seen() {
-    // `Build` is not `build` on every file system: discovery searches it, so
-    // the watcher must not ignore it either.
+    // Discovery compares directory names as spelled, so it searches `Build`
+    // on every file system; the watcher must not ignore it either.
     let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-cased");
     let _ = std::fs::remove_dir_all(&root);
     let dir = root.join("Build").join("api");
@@ -958,12 +958,7 @@ fn a_package_discovery_finds_is_one_whose_changes_are_seen() {
         "capabilities": { "workspace": { "didChangeWatchedFiles": { "dynamicRegistration": true } } },
     }));
     let first = client.symbols_eventually("first", |names| !names.is_empty());
-    if first.is_empty() {
-        // A case-insensitive file system: `Build` is `build`, which
-        // discovery skips, and the watcher agrees.
-        client.stop();
-        return;
-    }
+    assert_eq!(first, ["First"]);
     std::fs::write(dir.join("a.cru"), "structure Second {}\n").unwrap();
     client.notify(
         "workspace/didChangeWatchedFiles",
